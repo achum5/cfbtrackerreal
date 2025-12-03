@@ -1,164 +1,122 @@
-import { useState, useMemo } from 'react'
-import DataGrid from 'react-data-grid'
-import 'react-data-grid/lib/styles.css'
+import { useState, useRef, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teams } from '../data/teams'
 
-const LOCATION_OPTIONS = ['home', 'away', 'neutral']
-
-function OpponentEditor({ row, onRowChange, onClose }) {
-  const [search, setSearch] = useState(row.opponent || '')
+function TeamDropdown({ value, onChange, onClose, teamColors }) {
+  const [search, setSearch] = useState(value || '')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   const filteredTeams = teams.filter(team =>
     team.toLowerCase().includes(search.toLowerCase())
-  )
+  ).slice(0, 50)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
 
   const handleSelect = (team) => {
-    onRowChange({ ...row, opponent: team })
-    onClose(true)
+    onChange(team)
+    onClose()
   }
 
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setHighlightedIndex(prev =>
-        prev < filteredTeams.length - 1 ? prev + 1 : prev
-      )
+      setHighlightedIndex(prev => Math.min(prev + 1, filteredTeams.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setHighlightedIndex(prev => prev > 0 ? prev - 1 : 0)
+      setHighlightedIndex(prev => Math.max(prev - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (filteredTeams.length > 0) {
+      if (filteredTeams[highlightedIndex]) {
         handleSelect(filteredTeams[highlightedIndex])
       }
     } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose(false)
+      onClose()
     } else if (e.key === 'Tab') {
-      e.preventDefault()
-      if (filteredTeams.length > 0) {
+      if (filteredTeams[highlightedIndex]) {
         handleSelect(filteredTeams[highlightedIndex])
       }
     }
   }
 
-  const handleChange = (e) => {
-    setSearch(e.target.value)
-    setHighlightedIndex(0)
-  }
-
   return (
-    <div className="relative w-full h-full">
+    <div ref={dropdownRef} className="absolute left-0 top-0 w-full z-50">
       <input
+        ref={inputRef}
         type="text"
-        className="w-full h-full px-2 outline-none border-none"
         value={search}
-        onChange={handleChange}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setHighlightedIndex(0)
+        }}
         onKeyDown={handleKeyDown}
-        autoFocus
-        placeholder="Type to search teams..."
+        className="w-full px-3 py-2 border-2 rounded-t-lg outline-none"
+        style={{ borderColor: teamColors.primary }}
+        placeholder="Search teams..."
       />
-      {filteredTeams.length > 0 && (
-        <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 shadow-lg max-h-60 overflow-y-auto z-50">
-          {filteredTeams.map((team, index) => (
+      <div 
+        className="bg-white border-2 border-t-0 rounded-b-lg shadow-lg max-h-48 overflow-y-auto"
+        style={{ borderColor: teamColors.primary }}
+      >
+        {filteredTeams.length === 0 ? (
+          <div className="px-3 py-2 text-gray-500 text-sm">No teams found</div>
+        ) : (
+          filteredTeams.map((team, index) => (
             <div
               key={team}
-              className={`px-3 py-2 cursor-pointer text-sm ${
-                index === highlightedIndex
-                  ? 'bg-blue-500 text-white'
-                  : 'hover:bg-blue-50'
-              }`}
               onClick={() => handleSelect(team)}
               onMouseEnter={() => setHighlightedIndex(index)}
+              className={`px-3 py-2 cursor-pointer text-sm ${
+                index === highlightedIndex ? 'text-white' : 'hover:bg-gray-100'
+              }`}
+              style={index === highlightedIndex ? { backgroundColor: teamColors.primary } : {}}
             >
               {team}
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   )
-}
-
-function LocationEditor({ row, onRowChange }) {
-  return (
-    <select
-      className="w-full h-full px-2 outline-none border-none"
-      value={row.location}
-      onChange={(e) => {
-        onRowChange({ ...row, location: e.target.value })
-      }}
-      autoFocus
-    >
-      <option value="home">Home</option>
-      <option value="away">Away</option>
-      <option value="neutral">Neutral</option>
-    </select>
-  )
-}
-
-function OpponentCell({ row }) {
-  return <div className="px-2 py-1">{row.opponent || ''}</div>
-}
-
-function LocationCell({ row }) {
-  return <div className="px-2 py-1 capitalize">{row.location}</div>
 }
 
 export default function ScheduleSpreadsheet({ teamColors, currentYear, onSave, onCancel }) {
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
 
-  const [rows, setRows] = useState([
-    { id: 1, week: 1, opponent: '', location: 'home' },
-    { id: 2, week: 2, opponent: '', location: 'home' },
-    { id: 3, week: 3, opponent: '', location: 'home' },
-    { id: 4, week: 4, opponent: '', location: 'home' },
-    { id: 5, week: 5, opponent: '', location: 'home' },
-    { id: 6, week: 6, opponent: '', location: 'home' },
-    { id: 7, week: 7, opponent: '', location: 'home' },
-    { id: 8, week: 8, opponent: '', location: 'home' },
-    { id: 9, week: 9, opponent: '', location: 'home' },
-    { id: 10, week: 10, opponent: '', location: 'home' },
-    { id: 11, week: 11, opponent: '', location: 'home' },
-    { id: 12, week: 12, opponent: '', location: 'home' },
-  ])
+  const [rows, setRows] = useState(() => 
+    Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      week: i + 1,
+      opponent: '',
+      location: 'home'
+    }))
+  )
 
-  const columns = useMemo(() => [
-    {
-      key: 'week',
-      name: 'Week',
-      width: 80,
-      editable: false,
-      renderCell: (props) => <div className="px-2 py-1">{props.row.week}</div>
-    },
-    {
-      key: 'opponent',
-      name: 'Opponent',
-      flex: 1,
-      editable: true,
-      renderEditCell: (props) => <OpponentEditor {...props} />,
-      renderCell: (props) => <OpponentCell row={props.row} />
-    },
-    {
-      key: 'location',
-      name: 'Location',
-      width: 120,
-      editable: true,
-      renderEditCell: (props) => <LocationEditor {...props} />,
-      renderCell: (props) => <LocationCell row={props.row} />
-    },
-  ], [])
+  const [editingCell, setEditingCell] = useState(null)
 
-  const handleRowsChange = (newRows) => {
-    setRows(newRows)
+  const updateRow = (id, field, value) => {
+    setRows(rows.map(row => 
+      row.id === id ? { ...row, [field]: value } : row
+    ))
   }
 
   const handleAddRow = () => {
-    const newWeek = rows.length + 1
-    setRows([...rows, { id: rows.length + 1, week: newWeek, opponent: '', location: 'home' }])
+    const newId = Math.max(...rows.map(r => r.id)) + 1
+    setRows([...rows, { id: newId, week: rows.length + 1, opponent: '', location: 'home' }])
   }
 
   const handleRemoveLastRow = () => {
@@ -176,42 +134,77 @@ export default function ScheduleSpreadsheet({ teamColors, currentYear, onSave, o
     }
 
     const schedule = validGames.map(row => ({
-      week: parseInt(row.week) || row.id,
+      week: row.week,
       opponent: row.opponent.trim(),
-      location: LOCATION_OPTIONS.includes(row.location) ? row.location : 'home'
+      location: row.location
     }))
 
     onSave(schedule)
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2" style={{ color: secondaryBgText }}>
+        <h3 className="text-lg font-semibold mb-1" style={{ color: secondaryBgText }}>
           {currentYear} Season Schedule
         </h3>
-        <p className="text-sm mb-2" style={{ color: secondaryBgText, opacity: 0.8 }}>
-          Enter opponents for each week. You can paste from Excel/Google Sheets.
+        <p className="text-sm" style={{ color: secondaryBgText, opacity: 0.7 }}>
+          Click on opponent cells to select a team from the list.
         </p>
-        <div className="text-xs" style={{ color: secondaryBgText, opacity: 0.7 }}>
-          <strong>Tips:</strong> Click cells to edit • Use Tab/Enter to navigate • Copy-paste from spreadsheets works!
-        </div>
       </div>
 
-      <div className="flex-1 mb-4" style={{ minHeight: '400px' }}>
-        <DataGrid
-          columns={columns}
-          rows={rows}
-          onRowsChange={handleRowsChange}
-          className="rdg-light"
-          style={{
-            height: '400px',
-            '--rdg-selection-color': teamColors.primary,
-            '--rdg-background-color': '#ffffff',
-            '--rdg-header-background-color': teamColors.secondary,
-            '--rdg-row-hover-background-color': `${teamColors.primary}15`,
-          }}
-        />
+      <div className="border rounded-lg overflow-hidden mb-4" style={{ borderColor: `${teamColors.primary}40` }}>
+        <table className="w-full">
+          <thead>
+            <tr style={{ backgroundColor: teamColors.primary }}>
+              <th className="px-4 py-3 text-left text-sm font-semibold w-20" style={{ color: primaryBgText }}>Week</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: primaryBgText }}>Opponent</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold w-32" style={{ color: primaryBgText }}>Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr 
+                key={row.id} 
+                className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+              >
+                <td className="px-4 py-2 text-sm font-medium text-gray-700">
+                  {row.week}
+                </td>
+                <td className="px-4 py-2 relative">
+                  {editingCell === `opponent-${row.id}` ? (
+                    <TeamDropdown
+                      value={row.opponent}
+                      onChange={(team) => updateRow(row.id, 'opponent', team)}
+                      onClose={() => setEditingCell(null)}
+                      teamColors={teamColors}
+                    />
+                  ) : (
+                    <div
+                      onClick={() => setEditingCell(`opponent-${row.id}`)}
+                      className="px-3 py-2 rounded cursor-pointer hover:bg-gray-100 min-h-[40px] flex items-center border"
+                      style={{ borderColor: row.opponent ? 'transparent' : `${teamColors.primary}30` }}
+                    >
+                      {row.opponent || <span className="text-gray-400">Click to select team...</span>}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  <select
+                    value={row.location}
+                    onChange={(e) => updateRow(row.id, 'location', e.target.value)}
+                    className="w-full px-3 py-2 rounded border cursor-pointer bg-white"
+                    style={{ borderColor: `${teamColors.primary}30` }}
+                  >
+                    <option value="home">Home</option>
+                    <option value="away">Away</option>
+                    <option value="neutral">Neutral</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div className="flex items-center gap-3 mb-4">
