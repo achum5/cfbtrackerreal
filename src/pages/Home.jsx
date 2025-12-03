@@ -4,6 +4,7 @@ import { useDynasty } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
 import { getTeamLogo } from '../data/teams'
 import { getConferenceLogo } from '../data/conferenceLogos'
+import Layout from '../components/Layout'
 import ConfirmModal from '../components/ConfirmModal'
 
 export default function Home() {
@@ -25,7 +26,8 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <Layout>
+      <div className="max-w-4xl mx-auto">
       {!hasDynasties ? (
         <div className="text-center py-16">
           <h1 className="text-3xl font-bold text-gray-900 mb-6">
@@ -129,6 +131,7 @@ export default function Home() {
         cancelText="Cancel"
         confirmButtonColor="#ef4444"
       />
-    </div>
+      </div>
+    </Layout>
   )
 }

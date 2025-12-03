@@ -4,6 +4,7 @@ import { useDynasty } from '../context/DynastyContext'
 import { useTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogo } from '../data/teams'
 import { getConferenceLogo } from '../data/conferenceLogos'
+import Layout from '../components/Layout'
 import GameEntryModal from '../components/GameEntryModal'
 import ScheduleEntryModal from '../components/ScheduleEntryModal'
 import RosterEntryModal from '../components/RosterEntryModal'
@@ -43,14 +44,16 @@ export default function DynastyDashboard() {
 
   if (!currentDynasty) {
     return (
-      <div className="max-w-7xl mx-auto">
-        <div 
-          className="rounded-lg shadow-md p-8 text-center"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <p style={{ color: teamColors.primary }}>Loading dynasty...</p>
+      <Layout>
+        <div className="max-w-7xl mx-auto">
+          <div
+            className="rounded-lg shadow-md p-8 text-center"
+            style={{ backgroundColor: teamColors.secondary }}
+          >
+            <p style={{ color: teamColors.primary }}>Loading dynasty...</p>
+          </div>
         </div>
-      </div>
+      </Layout>
     )
   }
 
@@ -117,102 +120,20 @@ export default function DynastyDashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 transition-colors hover:opacity-80"
-          style={{ color: teamColors.secondary }}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Home
-        </Link>
-      </div>
-
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            {getTeamLogo(currentDynasty.teamName) && (
-              <img
-                src={getTeamLogo(currentDynasty.teamName)}
-                alt={`${currentDynasty.teamName} logo`}
-                className="w-20 h-20 object-contain"
-              />
-            )}
-            <div>
-              <h1
-                className="text-3xl font-bold mb-2"
-                style={{ color: teamColors.primary }}
-              >
-                {currentDynasty.teamName}
-              </h1>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  {getConferenceLogo(currentDynasty.conference) && (
-                    <img
-                      src={getConferenceLogo(currentDynasty.conference)}
-                      alt={`${currentDynasty.conference} logo`}
-                      className="w-5 h-5 object-contain"
-                    />
-                  )}
-                  <span className="font-medium">{currentDynasty.conference}</span>
-                </div>
-                <span>•</span>
-                <span>Coach {currentDynasty.coachName}</span>
-                <span>•</span>
-                <span>{currentDynasty.currentYear} Season</span>
-              </div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600 mb-1">Current Year</div>
-            <div
-              className="text-2xl font-bold"
-              style={{ color: teamColors.primary }}
-            >
-              {currentDynasty.currentYear}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          background: `linear-gradient(135deg, ${teamColors.primary} 0%, ${teamColors.primary}cc 100%)`,
-          border: `3px solid ${teamColors.secondary}`
-        }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <div style={{ color: teamColors.secondary, opacity: 0.8 }} className="text-sm mb-1">Current Phase</div>
-            <div className="text-3xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-              {getPhaseDisplay(currentDynasty.currentPhase)}
-            </div>
-            <div style={{ color: teamColors.secondary, opacity: 0.8 }}>
-              Week {currentDynasty.currentWeek} • {currentDynasty.currentYear}
-            </div>
-          </div>
-          <button
-            onClick={handleAdvanceWeek}
-            className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors shadow-md"
-            style={{ 
-              backgroundColor: teamColors.secondary,
-              color: teamColors.primary
-            }}
+    <Layout onAdvanceWeek={handleAdvanceWeek}>
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 transition-colors hover:opacity-80"
+            style={{ color: teamColors.secondary }}
           >
-            Advance Week
-          </button>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Home
+          </Link>
         </div>
-      </div>
 
       <div className="grid md:grid-cols-4 gap-6">
         {[
@@ -470,6 +391,7 @@ export default function DynastyDashboard() {
         currentWeek={currentDynasty.currentWeek}
         teamColors={teamColors}
       />
-    </div>
+      </div>
+    </Layout>
   )
 }

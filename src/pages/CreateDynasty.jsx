@@ -5,11 +5,12 @@ import ConferenceSelect from '../components/ConferenceSelect'
 import { teams } from '../data/teams'
 import { useDynasty } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
+import Layout from '../components/Layout'
 
 export default function CreateDynasty() {
   const navigate = useNavigate()
   const { createDynasty } = useDynasty()
-  
+
   const [formData, setFormData] = useState({
     teamName: '',
     conference: '',
@@ -17,8 +18,8 @@ export default function CreateDynasty() {
     startYear: '2026'
   })
 
-  const selectedTeamColors = formData.teamName 
-    ? getTeamColors(formData.teamName) 
+  const selectedTeamColors = formData.teamName
+    ? getTeamColors(formData.teamName)
     : { primary: '#1f2937', secondary: '#ffffff' }
 
   const handleChange = (e) => {
@@ -35,7 +36,8 @@ export default function CreateDynasty() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <Layout>
+      <div className="max-w-2xl mx-auto">
       <div 
         className="rounded-lg shadow-lg p-8 transition-colors duration-300"
         style={{ 
@@ -145,6 +147,7 @@ export default function CreateDynasty() {
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </Layout>
   )
 }
