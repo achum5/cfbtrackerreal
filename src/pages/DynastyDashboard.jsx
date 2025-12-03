@@ -138,7 +138,7 @@ export default function DynastyDashboard() {
           border: `3px solid ${teamColors.primary}`
         }}
       >
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             {getTeamLogo(currentDynasty.teamName) && (
               <img
@@ -154,7 +154,7 @@ export default function DynastyDashboard() {
               >
                 {currentDynasty.teamName}
               </h1>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                 <div className="flex items-center gap-2">
                   {getConferenceLogo(currentDynasty.conference) && (
                     <img
@@ -167,50 +167,60 @@ export default function DynastyDashboard() {
                 </div>
                 <span>•</span>
                 <span>Coach {currentDynasty.coachName}</span>
-                <span>•</span>
-                <span>{currentDynasty.currentYear} Season</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold"
+                  style={{
+                    backgroundColor: `${teamColors.primary}15`,
+                    color: teamColors.primary,
+                    border: `1px solid ${teamColors.primary}40`
+                  }}
+                >
+                  {currentDynasty.currentYear} Season
+                </span>
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold"
+                  style={{
+                    backgroundColor: `${teamColors.primary}15`,
+                    color: teamColors.primary,
+                    border: `1px solid ${teamColors.primary}40`
+                  }}
+                >
+                  {getPhaseDisplay(currentDynasty.currentPhase)}
+                </span>
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold"
+                  style={{
+                    backgroundColor: `${teamColors.primary}15`,
+                    color: teamColors.primary,
+                    border: `1px solid ${teamColors.primary}40`
+                  }}
+                >
+                  Week {currentDynasty.currentWeek}
+                </span>
               </div>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600 mb-1">Current Year</div>
-            <div
-              className="text-2xl font-bold"
-              style={{ color: teamColors.primary }}
+          <div className="flex flex-col gap-2 md:items-end text-right">
+            <div className="text-sm text-gray-700">
+              <span className="font-semibold" style={{ color: teamColors.primary }}>
+                {getPhaseDisplay(currentDynasty.currentPhase)}
+              </span>{' '}
+              • Week {currentDynasty.currentWeek}
+            </div>
+            <button
+              onClick={handleAdvanceWeek}
+              className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors shadow-md"
+              style={{
+                backgroundColor: teamColors.primary,
+                color: teamColors.secondary
+              }}
             >
-              {currentDynasty.currentYear}
-            </div>
+              Advance Week
+            </button>
           </div>
-        </div>
-      </div>
-
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          background: `linear-gradient(135deg, ${teamColors.primary} 0%, ${teamColors.primary}cc 100%)`,
-          border: `3px solid ${teamColors.secondary}`
-        }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <div style={{ color: teamColors.secondary, opacity: 0.8 }} className="text-sm mb-1">Current Phase</div>
-            <div className="text-3xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-              {getPhaseDisplay(currentDynasty.currentPhase)}
-            </div>
-            <div style={{ color: teamColors.secondary, opacity: 0.8 }}>
-              Week {currentDynasty.currentWeek} • {currentDynasty.currentYear}
-            </div>
-          </div>
-          <button
-            onClick={handleAdvanceWeek}
-            className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors shadow-md"
-            style={{ 
-              backgroundColor: teamColors.secondary,
-              color: teamColors.primary
-            }}
-          >
-            Advance Week
-          </button>
         </div>
       </div>
 
