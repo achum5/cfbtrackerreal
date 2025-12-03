@@ -46,14 +46,14 @@ function OpponentEditor({ row, onRowChange, onClose }) {
 
   const handleChange = (e) => {
     setSearch(e.target.value)
-    setHighlightedIndex(0) // Reset highlight when typing
+    setHighlightedIndex(0)
   }
 
   return (
     <div className="relative w-full h-full">
       <input
         type="text"
-        className="w-full h-full px-2 outline-none"
+        className="w-full h-full px-2 outline-none border-none"
         value={search}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -82,6 +82,31 @@ function OpponentEditor({ row, onRowChange, onClose }) {
   )
 }
 
+function LocationEditor({ row, onRowChange }) {
+  return (
+    <select
+      className="w-full h-full px-2 outline-none border-none"
+      value={row.location}
+      onChange={(e) => {
+        onRowChange({ ...row, location: e.target.value })
+      }}
+      autoFocus
+    >
+      <option value="home">Home</option>
+      <option value="away">Away</option>
+      <option value="neutral">Neutral</option>
+    </select>
+  )
+}
+
+function OpponentCell({ row }) {
+  return <div className="px-2 py-1">{row.opponent || ''}</div>
+}
+
+function LocationCell({ row }) {
+  return <div className="px-2 py-1 capitalize">{row.location}</div>
+}
+
 export default function ScheduleSpreadsheet({ teamColors, currentYear, onSave, onCancel }) {
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
@@ -106,35 +131,24 @@ export default function ScheduleSpreadsheet({ teamColors, currentYear, onSave, o
       key: 'week',
       name: 'Week',
       width: 80,
-      editable: true,
+      editable: false,
+      renderCell: (props) => <div className="px-2 py-1">{props.row.week}</div>
     },
     {
       key: 'opponent',
       name: 'Opponent',
+      flex: 1,
       editable: true,
-      renderEditCell: (props) => (
-        <OpponentEditor {...props} />
-      )
+      renderEditCell: (props) => <OpponentEditor {...props} />,
+      renderCell: (props) => <OpponentCell row={props.row} />
     },
     {
       key: 'location',
       name: 'Location',
       width: 120,
       editable: true,
-      renderEditCell: (props) => {
-        return (
-          <select
-            className="w-full h-full px-2 outline-none"
-            value={props.row.location}
-            onChange={(e) => props.onRowChange({ ...props.row, location: e.target.value })}
-            autoFocus
-          >
-            <option value="home">Home</option>
-            <option value="away">Away</option>
-            <option value="neutral">Neutral</option>
-          </select>
-        )
-      }
+      renderEditCell: (props) => <LocationEditor {...props} />,
+      renderCell: (props) => <LocationCell row={props.row} />
     },
   ], [])
 
@@ -154,7 +168,6 @@ export default function ScheduleSpreadsheet({ teamColors, currentYear, onSave, o
   }
 
   const handleSave = () => {
-    // Filter out empty rows
     const validGames = rows.filter(row => row.opponent && row.opponent.trim() !== '')
 
     if (validGames.length === 0) {
