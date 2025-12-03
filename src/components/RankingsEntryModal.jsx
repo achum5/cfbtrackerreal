@@ -1,0 +1,97 @@
+import { useState } from 'react'
+import { teams } from '../data/teams'
+import SearchableSelect from './SearchableSelect'
+
+export default function RankingsEntryModal({ isOpen, onClose, onSave, currentYear, currentWeek }) {
+  const [rankings, setRankings] = useState(
+    Array.from({ length: 25 }, (_, i) => ({
+      rank: i + 1,
+      team: ''
+    }))
+  )
+
+  const updateRanking = (index, team) => {
+    const newRankings = [...rankings]
+    newRankings[index].team = team
+    setRankings(newRankings)
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    // Filter out empty rankings
+    const filledRankings = rankings.filter(r => r.team)
+    if (filledRankings.length === 0) {
+      alert('Please add at least one ranked team')
+      return
+    }
+    onSave({
+      week: currentWeek,
+      year: currentYear,
+      rankings: filledRankings
+    })
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Enter AP Top 25 Rankings
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Optional: Track national rankings throughout the season
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6">
+          <div className="grid md:grid-cols-2 gap-4">
+            {rankings.map((ranking, index) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="w-10 text-center font-bold text-gray-700 text-sm">
+                  #{ranking.rank}
+                </div>
+                <div className="flex-1">
+                  <SearchableSelect
+                    options={teams}
+                    value={ranking.team}
+                    onChange={(value) => updateRanking(index, value)}
+                    placeholder="Select team..."
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3 pt-6 mt-6 border-t">
+            <button
+              type="submit"
+              className="flex-1 bg-team-primary text-white px-6 py-3 rounded-lg font-semibold hover:bg-team-primary transition-colors"
+            >
+              Save Rankings
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Skip
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

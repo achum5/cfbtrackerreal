@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm create:*)",
+      "Bash(node --version)",
+      "Bash(npm --version:*)",
+      "Bash(npm install)",
+      "Bash(nix-shell:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:site.api.espn.com)",
+      "Bash(curl:*)",
+      "Bash(node -e:*)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:www.espn.com)",
+      "Bash(node:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

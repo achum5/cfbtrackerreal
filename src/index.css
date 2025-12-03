@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --team-primary: #ea580c;
+  --team-secondary: #FFFFFF;
+  --team-tertiary: #666666;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.bg-team-primary {
+  background-color: var(--team-primary);
+}
+
+.bg-team-secondary {
+  background-color: var(--team-secondary);
+}
+
+.text-team-primary {
+  color: var(--team-primary);
+}
+
+.text-team-secondary {
+  color: var(--team-secondary);
+}
+
+.border-team-primary {
+  border-color: var(--team-primary);
+}
+
+.border-team-secondary {
+  border-color: var(--team-secondary);
+}
+
+.ring-team-primary {
+  --tw-ring-color: var(--team-primary);
+}
+
+.hover\:bg-team-primary-dark:hover {
+  background-color: color-mix(in srgb, var(--team-primary) 85%, black);
+}
