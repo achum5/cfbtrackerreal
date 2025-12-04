@@ -135,23 +135,59 @@ export function DynastyProvider({ children }) {
   }
 
   const saveSchedule = (dynastyId, schedule) => {
-    updateDynasty(dynastyId, {
-      schedule,
-      preseasonSetup: {
-        ...(dynasties.find(d => d.id === dynastyId)?.preseasonSetup || {}),
-        scheduleEntered: true
-      }
-    })
+    setDynasties(prev =>
+      prev.map(d => {
+        if (d.id === dynastyId) {
+          return {
+            ...d,
+            schedule,
+            preseasonSetup: {
+              ...d.preseasonSetup,
+              scheduleEntered: true
+            }
+          }
+        }
+        return d
+      })
+    )
+    if (currentDynasty?.id === dynastyId) {
+      setCurrentDynasty(prev => ({
+        ...prev,
+        schedule,
+        preseasonSetup: {
+          ...prev.preseasonSetup,
+          scheduleEntered: true
+        }
+      }))
+    }
   }
 
   const saveRoster = (dynastyId, players) => {
-    updateDynasty(dynastyId, {
-      players,
-      preseasonSetup: {
-        ...(dynasties.find(d => d.id === dynastyId)?.preseasonSetup || {}),
-        rosterEntered: true
-      }
-    })
+    setDynasties(prev =>
+      prev.map(d => {
+        if (d.id === dynastyId) {
+          return {
+            ...d,
+            players,
+            preseasonSetup: {
+              ...d.preseasonSetup,
+              rosterEntered: true
+            }
+          }
+        }
+        return d
+      })
+    )
+    if (currentDynasty?.id === dynastyId) {
+      setCurrentDynasty(prev => ({
+        ...prev,
+        players,
+        preseasonSetup: {
+          ...prev.preseasonSetup,
+          rosterEntered: true
+        }
+      }))
+    }
   }
 
   const saveRankings = (dynastyId, rankingsData) => {

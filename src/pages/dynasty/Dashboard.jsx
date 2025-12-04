@@ -4,17 +4,15 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
 import RosterEntryModal from '../../components/RosterEntryModal'
-import RankingsEntryModal from '../../components/RankingsEntryModal'
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveRankings } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
 
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showRosterModal, setShowRosterModal] = useState(false)
-  const [showRankingsModal, setShowRankingsModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -24,10 +22,6 @@ export default function Dashboard() {
 
   const handleRosterSave = (players) => {
     saveRoster(currentDynasty.id, players)
-  }
-
-  const handleRankingsSave = (rankingsData) => {
-    saveRankings(currentDynasty.id, rankingsData)
   }
 
   const canAdvanceFromPreseason = () => {
@@ -93,15 +87,11 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold mb-4" style={{ color: secondaryBgText }}>
             Pre-Season Setup
           </h3>
-          <p className="mb-6" style={{ color: secondaryBgText, opacity: 0.8 }}>
-            Complete these tasks to prepare for the season:
-          </p>
           <div className="space-y-3">
             {[
               {
                 num: 1,
                 title: 'Enter Season Schedule',
-                desc: 'Add all opponents for the regular season',
                 done: currentDynasty.preseasonSetup?.scheduleEntered,
                 action: () => setShowScheduleModal(true),
                 actionText: currentDynasty.preseasonSetup?.scheduleEntered ? 'Edit' : 'Add Schedule'
@@ -109,19 +99,9 @@ export default function Dashboard() {
               {
                 num: 2,
                 title: 'Enter Roster',
-                desc: 'Add key players to track this season',
                 done: currentDynasty.preseasonSetup?.rosterEntered,
                 action: () => setShowRosterModal(true),
                 actionText: currentDynasty.preseasonSetup?.rosterEntered ? 'Edit' : 'Add Roster'
-              },
-              {
-                num: 3,
-                title: 'Enter Top 25 Rankings',
-                desc: 'Track national rankings throughout the season',
-                done: currentDynasty.preseasonSetup?.rankingsEntered,
-                action: () => setShowRankingsModal(true),
-                actionText: currentDynasty.preseasonSetup?.rankingsEntered ? 'Edit' : 'Add Rankings',
-                optional: true
               }
             ].map(item => (
               <div
@@ -155,9 +135,7 @@ export default function Dashboard() {
                   <div>
                     <div className="font-semibold" style={{ color: secondaryBgText }}>
                       {item.title}
-                      {item.optional && <span className="text-sm ml-2" style={{ color: secondaryBgText, opacity: 0.6 }}>(Optional)</span>}
                     </div>
-                    <div className="text-sm" style={{ color: secondaryBgText, opacity: 0.7 }}>{item.desc}</div>
                   </div>
                 </div>
                 <button
@@ -234,7 +212,61 @@ export default function Dashboard() {
           )}
         </div>
 
-        {currentYearGames.length === 0 ? (
+{currentDynasty.schedule && currentDynasty.schedule.length > 0 ? (
+          <div className="space-y-2">
+            {currentDynasty.schedule.map((game, index) => {
+              const playedGame = currentYearGames.find(g => g.week === game.week)
+
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                    playedGame
+                      ? playedGame.result === 'win'
+                        ? 'border-green-200 bg-green-50'
+                        : 'border-red-200 bg-red-50'
+                      : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm font-medium w-16" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                      Week {game.week}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {game.location === 'away' && (
+                        <span className="text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>@</span>
+                      )}
+                      {game.location === 'neutral' && (
+                        <span className="text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>vs</span>
+                      )}
+                      <div className="font-semibold" style={{ color: secondaryBgText }}>
+                        {game.opponent}
+                      </div>
+                    </div>
+                  </div>
+                  {playedGame ? (
+                    <div className="flex items-center gap-4">
+                      <div className={`text-lg font-bold ${
+                        playedGame.result === 'win' ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        {playedGame.result === 'win' ? 'W' : 'L'}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold" style={{ color: secondaryBgText }}>
+                          {playedGame.teamScore} - {playedGame.opponentScore}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm" style={{ color: secondaryBgText, opacity: 0.5 }}>
+                      Scheduled
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
           <div className="text-center py-12">
             <div style={{ color: secondaryBgText, opacity: 0.5 }} className="mb-4">
               <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,53 +274,11 @@ export default function Dashboard() {
               </svg>
             </div>
             <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-              No Games Yet
+              No Schedule Yet
             </h3>
             <p style={{ color: secondaryBgText, opacity: 0.8 }}>
-              Games will appear here as you progress through the season.
+              Add your season schedule to get started.
             </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {currentYearGames.map((game) => (
-              <div
-                key={game.id}
-                className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                  game.result === 'win'
-                    ? 'border-green-200 bg-green-50'
-                    : 'border-red-200 bg-red-50'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="text-sm font-medium w-16" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                    Week {game.week}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {game.location === 'away' && (
-                      <span className="text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>@</span>
-                    )}
-                    {game.location === 'neutral' && (
-                      <span className="text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>vs</span>
-                    )}
-                    <div className="font-semibold" style={{ color: secondaryBgText }}>
-                      {game.opponent}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className={`text-lg font-bold ${
-                    game.result === 'win' ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {game.result === 'win' ? 'W' : 'L'}
-                  </div>
-                  <div className="text-right">
-                    <div className="font-bold" style={{ color: secondaryBgText }}>
-                      {game.teamScore} - {game.opponentScore}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -319,19 +309,52 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="text-center py-12">
-          <div style={{ color: secondaryBgText, opacity: 0.5 }} className="mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
+{currentDynasty.players && currentDynasty.players.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2" style={{ borderColor: teamColors.primary }}>
+                  <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Name</th>
+                  <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Position</th>
+                  <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Year</th>
+                  <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Overall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentDynasty.players.map((player) => (
+                  <tr key={player.id} className="border-b border-gray-200">
+                    <td className="py-2 px-3 font-semibold" style={{ color: secondaryBgText }}>
+                      {player.name}
+                    </td>
+                    <td className="py-2 px-3" style={{ color: secondaryBgText, opacity: 0.8 }}>
+                      {player.position}
+                    </td>
+                    <td className="py-2 px-3" style={{ color: secondaryBgText, opacity: 0.8 }}>
+                      {player.year}
+                    </td>
+                    <td className="py-2 px-3 font-bold" style={{ color: secondaryBgText }}>
+                      {player.overall}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-            Roster Tracking Coming Soon
-          </h3>
-          <p style={{ color: secondaryBgText, opacity: 0.8 }}>
-            Player roster details will be displayed here.
-          </p>
-        </div>
+        ) : (
+          <div className="text-center py-12">
+            <div style={{ color: secondaryBgText, opacity: 0.5 }} className="mb-4">
+              <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
+              No Players Yet
+            </h3>
+            <p style={{ color: secondaryBgText, opacity: 0.8 }}>
+              Add players to your roster to track them throughout the season.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -347,15 +370,6 @@ export default function Dashboard() {
         isOpen={showRosterModal}
         onClose={() => setShowRosterModal(false)}
         onSave={handleRosterSave}
-        teamColors={teamColors}
-      />
-
-      <RankingsEntryModal
-        isOpen={showRankingsModal}
-        onClose={() => setShowRankingsModal(false)}
-        onSave={handleRankingsSave}
-        currentYear={currentDynasty.currentYear}
-        currentWeek={currentDynasty.currentWeek}
         teamColors={teamColors}
       />
     </div>

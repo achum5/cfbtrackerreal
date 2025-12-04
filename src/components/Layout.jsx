@@ -149,15 +149,7 @@ export default function Layout({ children }) {
                   Advance<span className="hidden sm:inline"> Week</span>
                 </button>
               </>
-            ) : (
-              <Link
-                to="/create"
-                className="text-sm px-3 py-1.5 rounded transition-colors hover:bg-white/20 whitespace-nowrap"
-                style={{ color: headerText }}
-              >
-                + New
-              </Link>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
