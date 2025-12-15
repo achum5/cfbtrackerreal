@@ -78,7 +78,10 @@ export function DynastyProvider({ children }) {
     migrateData()
 
     // Subscribe to real-time updates
+    console.log('Setting up real-time listener for user:', user.uid)
     const unsubscribe = subscribeToDynasties(user.uid, (firestoreDynasties) => {
+      console.log('🔄 Real-time listener fired! Received', firestoreDynasties.length, 'dynasties from Firestore')
+      console.log('Dynasty IDs from Firestore:', firestoreDynasties.map(d => d.id))
       setDynasties(firestoreDynasties)
       setLoading(false)
 
@@ -87,6 +90,10 @@ export function DynastyProvider({ children }) {
         const updated = firestoreDynasties.find(d => d.id === currentDynasty.id)
         if (updated) {
           setCurrentDynasty(updated)
+          console.log('Current dynasty updated from listener')
+        } else {
+          console.log('Current dynasty not found in Firestore list, clearing it')
+          setCurrentDynasty(null)
         }
       }
     })
@@ -244,34 +251,54 @@ export function DynastyProvider({ children }) {
   }
 
   const deleteDynasty = async (dynastyId) => {
+    console.log('deleteDynasty called with ID:', dynastyId)
+    console.log('Current dynasties count:', dynasties.length)
+    console.log('Dynasty IDs:', dynasties.map(d => ({ id: d.id, type: typeof d.id })))
+
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
 
     if (isDev || !user) {
       // Dev mode: delete from local state
-      const updated = dynasties.filter(d => d.id !== dynastyId)
+      console.log('Using dev mode delete')
+      const updated = dynasties.filter(d => {
+        const match = String(d.id) !== String(dynastyId)
+        console.log(`Comparing ${d.id} (${typeof d.id}) !== ${dynastyId} (${typeof dynastyId}): ${match}`)
+        return match
+      })
+
+      console.log('Dynasties after filter:', updated.length)
 
       // Immediately save to localStorage
       if (updated.length > 0) {
         localStorage.setItem('cfb-dynasties', JSON.stringify(updated))
+        console.log('Saved to localStorage')
       } else {
         localStorage.removeItem('cfb-dynasties')
+        console.log('Removed from localStorage (empty)')
       }
 
       setDynasties(updated)
-      if (currentDynasty?.id === dynastyId) {
+      console.log('State updated')
+
+      if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
+        console.log('Current dynasty cleared')
       }
       return
     }
 
     // Production: delete from Firestore
+    console.log('Using production mode delete (Firestore)')
     try {
+      console.log('Calling deleteDynastyFromFirestore with ID:', dynastyId)
       await deleteDynastyFromFirestore(dynastyId)
-      if (currentDynasty?.id === dynastyId) {
+      console.log('Firestore delete successful')
+      if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
+        console.log('Current dynasty cleared')
       }
     } catch (error) {
-      console.error('Error deleting dynasty:', error)
+      console.error('❌ Error deleting dynasty from Firestore:', error)
       throw error
     }
   }
@@ -653,6 +680,92 @@ export function DynastyProvider({ children }) {
     }
   }
 
+  const exportDynasty = (dynastyId) => {
+    console.log('exportDynasty called:', { dynastyId })
+
+    // Find the dynasty to export
+    const dynasty = dynasties.find(d => String(d.id) === String(dynastyId))
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      throw new Error('Dynasty not found')
+    }
+
+    // Convert to JSON string with pretty formatting
+    const jsonString = JSON.stringify(dynasty, null, 2)
+
+    // Create a blob and download link
+    const blob = new Blob([jsonString], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    // Create filename with dynasty name and date
+    const filename = `${dynasty.teamName.replace(/\s+/g, '_')}_Dynasty_${dynasty.startYear}-${dynasty.currentYear}.json`
+
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    console.log('Dynasty exported successfully:', filename)
+  }
+
+  const importDynasty = async (jsonFile) => {
+    console.log('importDynasty called')
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+
+      reader.onload = async (e) => {
+        try {
+          // Parse the JSON file
+          const dynastyData = JSON.parse(e.target.result)
+
+          // Remove the old ID - Firestore will generate a new one
+          const { id: oldId, userId: oldUserId, ...cleanDynastyData } = dynastyData
+
+          // Save the dynasty using createDynasty logic
+          const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+
+          if (isDev || !user) {
+            // Dev mode: localStorage - needs an ID
+            const newId = Date.now().toString()
+            const importedDynasty = {
+              ...cleanDynastyData,
+              id: newId
+            }
+            const currentData = localStorage.getItem('cfb-dynasties')
+            const currentDynasties = currentData ? JSON.parse(currentData) : []
+            const updatedDynasties = [...currentDynasties, importedDynasty]
+            localStorage.setItem('cfb-dynasties', JSON.stringify(updatedDynasties))
+            setDynasties(updatedDynasties)
+            console.log('Dynasty imported to localStorage with new ID:', newId)
+          } else {
+            // Production mode: Firestore - let Firestore generate the ID
+            console.log('Importing to Firestore...')
+            const result = await createDynastyInFirestore(user.uid, cleanDynastyData)
+            console.log('Dynasty imported to Firestore with ID:', result.id)
+          }
+
+          console.log('Dynasty imported successfully')
+          resolve(cleanDynastyData)
+        } catch (error) {
+          console.error('Error importing dynasty:', error)
+          // Return the actual error message for better debugging
+          reject(new Error(error.message || 'Invalid JSON file or corrupted dynasty data'))
+        }
+      }
+
+      reader.onerror = () => {
+        reject(new Error('Error reading file'))
+      }
+
+      reader.readAsText(jsonFile)
+    })
+  }
+
   const value = {
     dynasties,
     currentDynasty,
@@ -667,7 +780,9 @@ export function DynastyProvider({ children }) {
     saveRoster,
     saveTeamRatings,
     updatePlayer,
-    createGoogleSheetForDynasty
+    createGoogleSheetForDynasty,
+    exportDynasty,
+    importDynasty
   }
 
   return (

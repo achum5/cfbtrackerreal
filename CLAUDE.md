@@ -100,8 +100,14 @@ if (isDev || !user) {
 - Automatically cleared on sign out
 - Token available as `user.accessToken` throughout app
 
+**Authentication Flow**:
+- **Desktop**: Uses `signInWithPopup` (popup window)
+- **Mobile**: Uses `signInWithRedirect` (full page redirect to Google, then back)
+- Device detection via User-Agent string
+- Explicit `browserLocalPersistence` set to maintain auth state across redirects
+
 **Token Flow**:
-1. User signs in with Google OAuth
+1. User signs in with Google OAuth (popup on desktop, redirect on mobile)
 2. Access token captured from `GoogleAuthProvider.credentialFromResult()`
 3. Token stored: `localStorage.setItem('google_access_token', token)`
 4. Expiry set: `localStorage.setItem('google_token_expiry', timestamp)` (1-hour expiry)
@@ -459,3 +465,42 @@ Can advance: true
 ### Protected Header Rows
 
 Google Sheets header rows are protected via `addProtectedRange` API request. If users report being able to edit headers, check that protection was applied during sheet creation in `initializeSheetHeaders()`.
+
+### Mobile Authentication (IN PROGRESS)
+
+**Current Status**: Working on fixing Google OAuth sign-in on mobile devices (as of 2024).
+
+**Issue**: On mobile browsers, after completing Google OAuth 2FA, users are redirected back to the login page instead of being authenticated and navigating to the home page.
+
+**Implementation Approach**:
+- **Desktop**: Uses `signInWithPopup` (opens OAuth in popup window)
+- **Mobile**: Uses `signInWithRedirect` (navigates to Google OAuth page and redirects back)
+- Mobile detection via User-Agent: `/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i`
+
+**Changes Made** (`src/context/AuthContext.jsx`):
+1. **Explicit Auth Persistence**: Set `browserLocalPersistence` to ensure auth state persists across redirects
+2. **Device Detection**: `isMobileDevice()` function determines which auth flow to use
+3. **Redirect Result Handling**: `getRedirectResult()` processes OAuth callback on mobile
+4. **Improved Logging**: Console logs track auth flow for debugging
+
+**Auth Flow on Mobile**:
+1. User clicks "Sign in with Google" on mobile device
+2. `signInWithRedirect(auth, googleProvider)` initiates OAuth flow
+3. User redirected to Google, completes 2FA
+4. User redirected back to app (login page)
+5. `getRedirectResult(auth)` processes the OAuth result
+6. OAuth access token captured and stored in localStorage
+7. `onAuthStateChanged` fires with authenticated user
+8. Login page's useEffect navigates to home page
+
+**Known Issues**:
+- Auth state may not be persisting properly on some mobile browsers after redirect
+- Users report being "stuck" on login page after completing 2FA
+
+**Next Steps**:
+- Test with explicit persistence settings on various mobile browsers
+- Verify console logs show proper auth state changes
+- May need to investigate browser-specific localStorage/sessionStorage issues
+- Consider alternative auth flows if redirect continues to fail
+
+**Critical**: This issue MUST be resolved as Google Sheets integration requires OAuth authentication. Cannot fall back to localStorage-only mode without losing Google Sheets functionality.

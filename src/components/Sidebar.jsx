@@ -1,10 +1,21 @@
 import { Link, useLocation } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { useDynasty } from '../context/DynastyContext'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear }) {
   const location = useLocation()
+  const { exportDynasty } = useDynasty()
   const primaryBgText = getContrastTextColor(teamColors.primary)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
+
+  const handleExport = () => {
+    try {
+      exportDynasty(dynastyId)
+    } catch (error) {
+      console.error('Error exporting dynasty:', error)
+      alert('Failed to export dynasty. Please try again.')
+    }
+  }
 
   const navItems = [
     {
@@ -212,6 +223,25 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                 </Link>
               )
             })}
+          </div>
+
+          {/* Export Button */}
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: `${secondaryBgText}20` }}>
+            <button
+              onClick={handleExport}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70"
+              style={{
+                color: secondaryBgText,
+                opacity: 0.8,
+                backgroundColor: 'transparent',
+                border: `2px solid ${teamColors.primary}`
+              }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Export Dynasty</span>
+            </button>
           </div>
         </nav>
       </aside>

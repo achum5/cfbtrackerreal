@@ -23,10 +23,15 @@ export async function getUserDynasties(userId) {
       where('userId', '==', userId)
     )
     const snapshot = await getDocs(q)
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    return snapshot.docs.map(doc => {
+      const data = doc.data()
+      // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
+      const { id: _, ...cleanData } = data
+      return {
+        id: doc.id,  // Always use Firestore document ID
+        ...cleanData
+      }
+    })
   } catch (error) {
     console.error('Error fetching dynasties:', error)
     throw error
@@ -41,10 +46,15 @@ export function subscribeToDynasties(userId, callback) {
   )
 
   return onSnapshot(q, (snapshot) => {
-    const dynasties = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }))
+    const dynasties = snapshot.docs.map(doc => {
+      const data = doc.data()
+      // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
+      const { id: _, ...cleanData } = data
+      return {
+        id: doc.id,  // Always use Firestore document ID
+        ...cleanData
+      }
+    })
     callback(dynasties)
   }, (error) => {
     console.error('Error in dynasty subscription:', error)
@@ -103,9 +113,12 @@ export async function getDynasty(dynastyId) {
     const docSnap = await getDoc(docRef)
 
     if (docSnap.exists()) {
+      const data = docSnap.data()
+      // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
+      const { id: _, ...cleanData } = data
       return {
-        id: docSnap.id,
-        ...docSnap.data()
+        id: docSnap.id,  // Always use Firestore document ID
+        ...cleanData
       }
     }
     return null

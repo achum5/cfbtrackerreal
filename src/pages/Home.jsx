@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
@@ -7,8 +7,10 @@ import { getConferenceLogo } from '../data/conferenceLogos'
 import ConfirmModal from '../components/ConfirmModal'
 
 export default function Home() {
-  const { dynasties, deleteDynasty } = useDynasty()
+  const { dynasties, deleteDynasty, importDynasty } = useDynasty()
   const [dynastyToDelete, setDynastyToDelete] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
 
   const handleDeleteClick = (e, dynasty) => {
@@ -24,6 +26,30 @@ export default function Home() {
     }
   }
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    try {
+      await importDynasty(file)
+      alert('Dynasty imported successfully!')
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (error) {
+      console.error('Error importing dynasty:', error)
+      alert(error.message || 'Failed to import dynasty. Please check the file and try again.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       {!hasDynasties ? (
@@ -31,24 +57,59 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-gray-900 mb-6">
             CFB Dynasty Tracker
           </h1>
-          <Link
-            to="/create"
-            className="inline-block bg-gray-800 text-white px-8 py-4 rounded-lg font-semibold transition-colors hover:bg-gray-700"
-          >
-            Create Dynasty
-          </Link>
+          <div className="flex gap-4 justify-center">
+            <Link
+              to="/create"
+              className="inline-block bg-gray-800 text-white px-8 py-4 rounded-lg font-semibold transition-colors hover:bg-gray-700"
+            >
+              Create Dynasty
+            </Link>
+            <button
+              onClick={handleImportClick}
+              disabled={importing}
+              className="inline-block bg-gray-600 text-white px-8 py-4 rounded-lg font-semibold transition-colors hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {importing ? 'Importing...' : 'Import Dynasty'}
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
         </div>
       ) : (
         <div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Your Dynasties</h1>
-            <Link
-              to="/create"
-              className="bg-gray-800 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-700"
-            >
-              + New
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                to="/create"
+                className="bg-gray-800 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-700"
+              >
+                + New
+              </Link>
+              <button
+                onClick={handleImportClick}
+                disabled={importing}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+            </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
 
           <div className="grid gap-4">
             {dynasties.map((dynasty) => {

@@ -352,51 +352,103 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                     <div className="text-sm font-semibold text-gray-600 text-center">Final</div>
                   </div>
 
-                  {/* User Team Row */}
-                  <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
-                    <div className="text-sm font-semibold truncate" style={{ color: teamColors.primary }}>
-                      {userTeam}
-                    </div>
-                    {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                      <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
-                        {game.quarters.team[q] === '' || game.quarters.team[q] === null || game.quarters.team[q] === undefined ? '0' : game.quarters.team[q]}
+                  {/* Away Team Row (top) */}
+                  {game.location === 'home' ? (
+                    // User is home, so opponent (away) is on top
+                    <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
+                      <div className="text-sm font-semibold truncate" style={{ color: opponentColors.primary }}>
+                        {opponentMascot || game.opponent}
                       </div>
-                    ))}
-                    {game.overtimes?.map((ot, i) => (
-                      <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
-                        {ot.team === '' || ot.team === null || ot.team === undefined ? '0' : ot.team}
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                        <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {game.quarters.opponent[q] === '' || game.quarters.opponent[q] === null || game.quarters.opponent[q] === undefined ? '0' : game.quarters.opponent[q]}
+                        </div>
+                      ))}
+                      {game.overtimes?.map((ot, i) => (
+                        <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {ot.opponent === '' || ot.opponent === null || ot.opponent === undefined ? '0' : ot.opponent}
+                        </div>
+                      ))}
+                      <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
+                        backgroundColor: !userWon ? '#22c55e20' : 'white',
+                        color: !userWon ? '#22c55e' : '#6b7280'
+                      }}>
+                        {opponentScore}
                       </div>
-                    ))}
-                    <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
-                      backgroundColor: userWon ? '#22c55e20' : 'white',
-                      color: userWon ? '#22c55e' : '#6b7280'
-                    }}>
-                      {userScore}
                     </div>
-                  </div>
+                  ) : (
+                    // User is away, so user is on top
+                    <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
+                      <div className="text-sm font-semibold truncate" style={{ color: teamColors.primary }}>
+                        {userTeam}
+                      </div>
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                        <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {game.quarters.team[q] === '' || game.quarters.team[q] === null || game.quarters.team[q] === undefined ? '0' : game.quarters.team[q]}
+                        </div>
+                      ))}
+                      {game.overtimes?.map((ot, i) => (
+                        <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {ot.team === '' || ot.team === null || ot.team === undefined ? '0' : ot.team}
+                        </div>
+                      ))}
+                      <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
+                        backgroundColor: userWon ? '#22c55e20' : 'white',
+                        color: userWon ? '#22c55e' : '#6b7280'
+                      }}>
+                        {userScore}
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Opponent Team Row */}
-                  <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
-                    <div className="text-sm font-semibold truncate" style={{ color: opponentColors.primary }}>
-                      {opponentMascot || game.opponent}
-                    </div>
-                    {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                      <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
-                        {game.quarters.opponent[q] === '' || game.quarters.opponent[q] === null || game.quarters.opponent[q] === undefined ? '0' : game.quarters.opponent[q]}
+                  {/* Home Team Row (bottom) */}
+                  {game.location === 'home' ? (
+                    // User is home, so user is on bottom
+                    <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
+                      <div className="text-sm font-semibold truncate" style={{ color: teamColors.primary }}>
+                        {userTeam}
                       </div>
-                    ))}
-                    {game.overtimes?.map((ot, i) => (
-                      <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
-                        {ot.opponent === '' || ot.opponent === null || ot.opponent === undefined ? '0' : ot.opponent}
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                        <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {game.quarters.team[q] === '' || game.quarters.team[q] === null || game.quarters.team[q] === undefined ? '0' : game.quarters.team[q]}
+                        </div>
+                      ))}
+                      {game.overtimes?.map((ot, i) => (
+                        <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {ot.team === '' || ot.team === null || ot.team === undefined ? '0' : ot.team}
+                        </div>
+                      ))}
+                      <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
+                        backgroundColor: userWon ? '#22c55e20' : 'white',
+                        color: userWon ? '#22c55e' : '#6b7280'
+                      }}>
+                        {userScore}
                       </div>
-                    ))}
-                    <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
-                      backgroundColor: !userWon ? '#22c55e20' : 'white',
-                      color: !userWon ? '#22c55e' : '#6b7280'
-                    }}>
-                      {opponentScore}
                     </div>
-                  </div>
+                  ) : (
+                    // User is away, so opponent (home) is on bottom
+                    <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: `120px repeat(${4 + (game.overtimes?.length || 0)}, 1fr) 80px` }}>
+                      <div className="text-sm font-semibold truncate" style={{ color: opponentColors.primary }}>
+                        {opponentMascot || game.opponent}
+                      </div>
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                        <div key={q} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {game.quarters.opponent[q] === '' || game.quarters.opponent[q] === null || game.quarters.opponent[q] === undefined ? '0' : game.quarters.opponent[q]}
+                        </div>
+                      ))}
+                      {game.overtimes?.map((ot, i) => (
+                        <div key={i} className="text-sm text-center font-medium text-gray-700 bg-white rounded px-2 py-1">
+                          {ot.opponent === '' || ot.opponent === null || ot.opponent === undefined ? '0' : ot.opponent}
+                        </div>
+                      ))}
+                      <div className="text-lg text-center font-bold rounded px-2 py-1" style={{
+                        backgroundColor: !userWon ? '#22c55e20' : 'white',
+                        color: !userWon ? '#22c55e' : '#6b7280'
+                      }}>
+                        {opponentScore}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
