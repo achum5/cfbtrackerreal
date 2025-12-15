@@ -69,11 +69,20 @@ export default function Home() {
                   >
                     <div className="flex items-center gap-4">
                       {logoUrl && (
-                        <img
-                          src={logoUrl}
-                          alt={`${dynasty.teamName} logo`}
-                          className="w-12 h-12 object-contain"
-                        />
+                        <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${colors.secondary}`,
+                            padding: '4px'
+                          }}
+                        >
+                          <img
+                            src={logoUrl}
+                            alt={`${dynasty.teamName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
                       )}
                       <div>
                         <h2

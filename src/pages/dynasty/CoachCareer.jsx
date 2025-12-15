@@ -4,36 +4,250 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 
 export default function CoachCareer() {
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   if (!currentDynasty) return null
 
+  // Calculate career statistics
+  const calculateCareerStats = () => {
+    const games = currentDynasty.games || []
+    const wins = games.filter(g => g.result === 'win').length
+    const losses = games.filter(g => g.result === 'loss').length
+
+    // Calculate overall record
+    const overallRecord = `${wins}-${losses}`
+
+    // Calculate favorite/underdog records
+    const favoriteGames = games.filter(g => g.favoriteStatus === 'favorite')
+    const favoriteWins = favoriteGames.filter(g => g.result === 'win').length
+    const favoriteLosses = favoriteGames.filter(g => g.result === 'loss').length
+    const favoriteRecord = `${favoriteWins}-${favoriteLosses}`
+
+    const underdogGames = games.filter(g => g.favoriteStatus === 'underdog')
+    const underdogWins = underdogGames.filter(g => g.result === 'win').length
+    const underdogLosses = underdogGames.filter(g => g.result === 'loss').length
+    const underdogRecord = `${underdogWins}-${underdogLosses}`
+
+    // Placeholder stats (these would be tracked in dynasty data)
+    const confChampionships = 0
+    const playoffAppearances = 0
+    const nationalChampionships = 0
+    const firstTeamAllAmericans = 0
+    const heismanWinners = 0
+    const firstRoundPicks = 0
+
+    return {
+      overallRecord,
+      favoriteRecord,
+      underdogRecord,
+      confChampionships,
+      playoffAppearances,
+      nationalChampionships,
+      firstTeamAllAmericans,
+      heismanWinners,
+      firstRoundPicks
+    }
+  }
+
+  const stats = calculateCareerStats()
+  const yearRange = currentDynasty.currentYear === currentDynasty.startYear
+    ? `${currentDynasty.startYear}`
+    : `${currentDynasty.startYear}-${currentDynasty.currentYear}`
+
+  // Get team colors for this specific school
+  const teamColors = useTeamColors(currentDynasty.teamName)
+  const primaryText = getContrastTextColor(teamColors.primary)
+  const secondaryText = getContrastTextColor(teamColors.secondary)
+
   return (
     <div className="space-y-6">
+      {/* Page Header */}
       <div
         className="rounded-lg shadow-lg p-6"
         style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
+          backgroundColor: teamColors.primary,
+          border: `3px solid ${teamColors.secondary}`
         }}
       >
-        <h2 className="text-2xl font-bold mb-6" style={{ color: secondaryBgText }}>
-          Coach Career Overview
+        <h2 className="text-2xl font-bold" style={{ color: primaryText }}>
+          {currentDynasty.coachPosition || 'HC'} {currentDynasty.coachName} - Career Overview
         </h2>
+      </div>
 
-        <div className="text-center py-12">
-          <div style={{ color: secondaryBgText, opacity: 0.5 }} className="mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-            Career Statistics Coming Soon
+      {/* Team Career Card */}
+      <div
+        className="rounded-lg shadow-lg p-6"
+        style={{
+          backgroundColor: teamColors.primary,
+          border: `3px solid ${teamColors.secondary}`
+        }}
+      >
+        {/* Team Header */}
+        <div className="mb-6">
+          <h3 className="text-2xl font-bold mb-1" style={{ color: primaryText }}>
+            {currentDynasty.teamName}
           </h3>
-          <p style={{ color: secondaryBgText, opacity: 0.8 }} className="max-w-md mx-auto">
-            View your complete coaching career including all teams coached, years at each program, and career statistics.
-          </p>
+          <div className="flex items-center gap-4 text-sm" style={{ color: primaryText, opacity: 0.8 }}>
+            <span className="font-semibold">
+              {currentDynasty.coachPosition === 'HC' && 'Head Coach'}
+              {currentDynasty.coachPosition === 'OC' && 'Offensive Coordinator'}
+              {currentDynasty.coachPosition === 'DC' && 'Defensive Coordinator'}
+              {!currentDynasty.coachPosition && 'Head Coach'}
+            </span>
+            <span>•</span>
+            <span>{yearRange}</span>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          {/* Overall Record */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              Overall Record
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.overallRecord}
+            </div>
+          </div>
+
+          {/* As Favorite */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              As Favorite
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.favoriteRecord}
+            </div>
+          </div>
+
+          {/* As Underdog */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              As Underdog
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.underdogRecord}
+            </div>
+          </div>
+
+          {/* Conference Championships */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              Conference Championships
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.confChampionships}
+            </div>
+          </div>
+
+          {/* Playoff Appearances */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              Playoff Appearances
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.playoffAppearances}
+            </div>
+          </div>
+
+          {/* National Championships */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              National Championships
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.nationalChampionships}
+            </div>
+          </div>
+
+          {/* First-Team All-Americans */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              First-Team All-Americans
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.firstTeamAllAmericans}
+            </div>
+          </div>
+
+          {/* Heisman Winners */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              Heisman Winners
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.heismanWinners}
+            </div>
+          </div>
+
+          {/* First-Round NFL Draft Picks */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              1st-Round NFL Picks
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {stats.firstRoundPicks}
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div className="text-xs opacity-60" style={{ color: primaryText }}>
+          <p>* Some statistics are not yet tracked and will be updated as features are implemented.</p>
         </div>
       </div>
     </div>

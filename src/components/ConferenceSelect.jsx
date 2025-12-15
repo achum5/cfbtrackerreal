@@ -11,6 +11,7 @@ export default function ConferenceSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const dropdownRef = useRef(null)
+  const optionRefs = useRef([])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -22,6 +23,16 @@ export default function ConferenceSelect({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Scroll highlighted option into view when navigating with keyboard
+  useEffect(() => {
+    if (isOpen && optionRefs.current[highlightedIndex]) {
+      optionRefs.current[highlightedIndex].scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      })
+    }
+  }, [highlightedIndex, isOpen])
 
   const handleOptionClick = (option) => {
     onChange(option)
@@ -124,6 +135,7 @@ export default function ConferenceSelect({
             return (
               <div
                 key={conference}
+                ref={(el) => (optionRefs.current[index] = el)}
                 onClick={() => handleOptionClick(conference)}
                 onMouseEnter={() => setHighlightedIndex(index)}
                 className="px-4 py-2 cursor-pointer transition-colors flex items-center gap-3"

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -e
+# Make sure we can find both possible install locations:
+export PATH="$HOME/.local/bin:$HOME/.claude/local/node_modules/.bin:$PATH"
+
+# Install if not present
+if ! command -v claude >/dev/null 2>&1; then
+  curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+# Exec from a concrete path so PATH weirdness can't bite us
+exec "$HOME/.local/bin/claude" "$@" 2>/dev/null \
+  || exec "$HOME/.claude/local/node_modules/.bin/claude" "$@"
