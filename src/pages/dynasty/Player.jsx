@@ -1,12 +1,14 @@
 import { useParams } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import PlayerEditModal from '../../components/PlayerEditModal'
 
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
-  const { dynasties, currentDynasty } = useDynasty()
+  const { dynasties, currentDynasty, updatePlayer } = useDynasty()
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Scroll to top when player page loads or changes
   useEffect(() => {
@@ -56,6 +58,11 @@ export default function Player() {
   }
 
   const powHonors = calculatePOWHonors()
+
+  const handlePlayerSave = async (updatedPlayer) => {
+    await updatePlayer(dynastyId, updatedPlayer)
+    setShowEditModal(false)
+  }
 
   // Player data with placeholders
   const playerData = {
@@ -391,17 +398,29 @@ export default function Player() {
         }}
       >
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold mb-2" style={{ color: primaryText }}>
-              {playerData.name}
-            </h1>
-            <div className="flex items-center gap-4 text-lg" style={{ color: primaryText, opacity: 0.9 }}>
-              <span className="font-semibold">{playerData.position}</span>
-              <span>•</span>
-              <span>{player.year}</span>
-              <span>•</span>
-              <span>{playerData.school}</span>
+          <div className="flex items-center gap-3 flex-1">
+            <div>
+              <h1 className="text-4xl font-bold mb-2" style={{ color: primaryText }}>
+                {playerData.name}
+              </h1>
+              <div className="flex items-center gap-4 text-lg" style={{ color: primaryText, opacity: 0.9 }}>
+                <span className="font-semibold">{playerData.position}</span>
+                <span>•</span>
+                <span>{player.year}</span>
+                <span>•</span>
+                <span>{playerData.school}</span>
+              </div>
             </div>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: primaryText }}
+              title="Edit Player"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
           </div>
           <div className="text-center">
             <div className="text-sm mb-1" style={{ color: primaryText, opacity: 0.7 }}>
@@ -499,7 +518,7 @@ export default function Player() {
                 color: secondaryText
               }}
             >
-              Conf POW {playerData.confPOW}x
+              Conference Player of the Week {playerData.confPOW}x
             </div>
           )}
           {playerData.nationalPOW > 0 && (
@@ -510,7 +529,7 @@ export default function Player() {
                 color: secondaryText
               }}
             >
-              Nat'l POW {playerData.nationalPOW}x
+              National Player of the Week {playerData.nationalPOW}x
             </div>
           )}
           {playerData.allConf1st > 0 && (
@@ -892,6 +911,15 @@ export default function Player() {
           * Most statistics are not yet tracked and will be updated as features are implemented.
         </p>
       </div>
+
+      {/* Edit Modal */}
+      <PlayerEditModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        player={player}
+        teamColors={teamColors}
+        onSave={handlePlayerSave}
+      />
     </div>
   )
 }

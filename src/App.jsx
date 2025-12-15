@@ -7,6 +7,7 @@ import Home from './pages/Home'
 import CreateDynasty from './pages/CreateDynasty'
 import DynastyDashboard from './pages/DynastyDashboard'
 import Dashboard from './pages/dynasty/Dashboard'
+import Roster from './pages/dynasty/Roster'
 import Rankings from './pages/dynasty/Rankings'
 import Stats from './pages/dynasty/Stats'
 import CoachCareer from './pages/dynasty/CoachCareer'
@@ -64,6 +65,7 @@ function AppRoutes() {
           }>
             <Route index element={<Dashboard />} />
             <Route path="player/:pid" element={<Player />} />
+            <Route path="roster" element={<Roster />} />
             <Route path="rankings" element={<Rankings />} />
             <Route path="stats" element={<Stats />} />
             <Route path="coach-career" element={<CoachCareer />} />

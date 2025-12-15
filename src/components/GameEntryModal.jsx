@@ -313,6 +313,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setConfPOWOpen(false)
         setConfPOWSearch('')
         break
+      case 'Tab':
+        // Allow Tab to work normally but close the dropdown
+        setConfPOWOpen(false)
+        break
       default:
         break
     }
@@ -352,6 +356,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         e.stopPropagation()
         setNatlPOWOpen(false)
         setNatlPOWSearch('')
+        break
+      case 'Tab':
+        // Allow Tab to work normally but close the dropdown
+        setNatlPOWOpen(false)
         break
       default:
         break
@@ -689,6 +697,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
     const processedData = {
       ...gameData,
+      week: actualWeekNumber,  // Use actualWeekNumber instead of gameData.week
       links: filteredLinks,
       result: result,
       teamScore: teamScore,
@@ -1314,6 +1323,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                       setConfPOWOpen(true)
                       setTimeout(() => checkDropdownPosition(confPOWRef, setConfPOWDropUp), 0)
                     }}
+                    onBlur={() => {
+                      // Small delay to allow dropdown click events to fire first
+                      setTimeout(() => setConfPOWOpen(false), 150)
+                    }}
                     onKeyDown={handleConfPOWKeyDown}
                     className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
                     style={{
@@ -1392,6 +1405,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                     onFocus={() => {
                       setNatlPOWOpen(true)
                       setTimeout(() => checkDropdownPosition(natlPOWRef, setNatlPOWDropUp), 0)
+                    }}
+                    onBlur={() => {
+                      // Small delay to allow dropdown click events to fire first
+                      setTimeout(() => setNatlPOWOpen(false), 150)
                     }}
                     onKeyDown={handleNatlPOWKeyDown}
                     className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"

@@ -43,6 +43,7 @@ export default function DynastyDashboard() {
         onClose={() => setSidebarOpen(false)}
         dynastyId={currentDynasty.id}
         teamColors={teamColors}
+        currentYear={currentDynasty.currentYear}
       />
 
       <div className="flex-1 min-w-0">

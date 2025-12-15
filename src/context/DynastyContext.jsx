@@ -579,6 +579,36 @@ export function DynastyProvider({ children }) {
     console.log('Team ratings saved successfully')
   }
 
+  const updatePlayer = async (dynastyId, updatedPlayer) => {
+    console.log('updatePlayer called:', { dynastyId, playerId: updatedPlayer.pid })
+
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    // Update the player in the players array
+    const updatedPlayers = (dynasty.players || []).map(player =>
+      player.pid === updatedPlayer.pid ? updatedPlayer : player
+    )
+
+    await updateDynasty(dynastyId, { players: updatedPlayers })
+    console.log('Player updated successfully')
+  }
+
   const createGoogleSheetForDynasty = async (dynastyId) => {
     if (!user) {
       throw new Error('You must be signed in to create Google Sheets')
@@ -636,6 +666,7 @@ export function DynastyProvider({ children }) {
     saveSchedule,
     saveRoster,
     saveTeamRatings,
+    updatePlayer,
     createGoogleSheetForDynasty
   }
 
