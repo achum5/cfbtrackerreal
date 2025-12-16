@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
@@ -8,8 +9,9 @@ import { getContrastTextColor } from '../utils/colorUtils'
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentDynasty, advanceWeek } = useDynasty()
+  const { currentDynasty, advanceWeek, revertWeek } = useDynasty()
   const { user, signOut } = useAuth()
+  const [showWeekDropdown, setShowWeekDropdown] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -34,6 +36,7 @@ export default function Layout({ children }) {
     const phases = {
       preseason: 'Pre-Season',
       regular_season: 'Regular Season',
+      conference_championship: 'Conference Championships',
       postseason: 'Post-Season',
       offseason: 'Off-Season'
     }
@@ -78,7 +81,45 @@ export default function Layout({ children }) {
       }
     }
 
+    // In conference championship phase, check if user has answered the question
+    if (currentDynasty.currentPhase === 'conference_championship') {
+      const ccData = currentDynasty.conferenceChampionshipData
+      // If they haven't answered whether they made the championship yet
+      if (ccData?.madeChampionship === undefined || ccData?.madeChampionship === null) {
+        alert('Please answer whether you made the conference championship before advancing.')
+        return
+      }
+      // If they made the championship, check if they entered the game
+      if (ccData?.madeChampionship === true) {
+        const ccGame = currentDynasty.games?.find(
+          g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
+        )
+        if (!ccGame) {
+          alert('Please enter your conference championship game before advancing.')
+          return
+        }
+      }
+    }
+
     advanceWeek(currentDynasty.id)
+    setShowWeekDropdown(false)
+  }
+
+  const handleRevertWeek = () => {
+    if (!currentDynasty) return
+
+    // Confirm before reverting
+    const confirmMessage = currentDynasty.currentPhase === 'preseason' && currentDynasty.currentWeek === 0
+      ? 'This will revert to the previous year\'s offseason. Any data from this preseason will be lost. Continue?'
+      : 'This will go back one week and remove any game data from the current week. Continue?'
+
+    if (!window.confirm(confirmMessage)) {
+      setShowWeekDropdown(false)
+      return
+    }
+
+    revertWeek(currentDynasty.id)
+    setShowWeekDropdown(false)
   }
 
 
@@ -168,29 +209,58 @@ export default function Layout({ children }) {
                   </div>
                 </div>
 
-                {/* Advance Week Button - right side */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleAdvanceWeek}
-                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg font-semibold hover:opacity-90 transition-colors shadow-sm text-xs md:text-sm whitespace-nowrap"
-                    style={{
-                      backgroundColor: buttonBg,
-                      color: buttonText
-                    }}
-                  >
-                    Advance<span className="hidden sm:inline"> Week</span>
-                  </button>
-                  {user && (
+                {/* Advance Week Button with Dropdown - right side */}
+                <div className="relative flex items-center gap-2">
+                  <div className="flex">
                     <button
-                      onClick={handleSignOut}
-                      className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-                      style={{ color: headerText }}
-                      title="Sign out"
+                      onClick={handleAdvanceWeek}
+                      className="px-3 md:px-4 py-1.5 md:py-2 rounded-l-lg font-semibold hover:opacity-90 transition-colors shadow-sm text-xs md:text-sm whitespace-nowrap"
+                      style={{
+                        backgroundColor: buttonBg,
+                        color: buttonText
+                      }}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      Advance<span className="hidden sm:inline"> Week</span>
+                    </button>
+                    <button
+                      onClick={() => setShowWeekDropdown(!showWeekDropdown)}
+                      className="px-2 py-1.5 md:py-2 rounded-r-lg font-semibold hover:opacity-90 transition-colors shadow-sm border-l"
+                      style={{
+                        backgroundColor: buttonBg,
+                        color: buttonText,
+                        borderColor: `${buttonText}30`
+                      }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
+                  </div>
+
+                  {/* Dropdown Menu */}
+                  {showWeekDropdown && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowWeekDropdown(false)}
+                      />
+                      <div
+                        className="absolute right-0 top-full mt-1 w-36 rounded-lg shadow-lg z-50 overflow-hidden"
+                        style={{ backgroundColor: buttonBg }}
+                      >
+                        <button
+                          onClick={handleRevertWeek}
+                          className="w-full px-4 py-2 text-left text-sm font-semibold hover:opacity-80 transition-opacity flex items-center gap-2"
+                          style={{ color: buttonText }}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                          </svg>
+                          Revert Week
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               </>

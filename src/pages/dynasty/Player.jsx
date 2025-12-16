@@ -398,9 +398,19 @@ export default function Player() {
         }}
       >
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-4 flex-1">
+            {/* Player Picture - only show if URL exists */}
+            {player.pictureUrl && (
+              <img
+                src={player.pictureUrl}
+                alt={playerData.name}
+                className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-lg border-2 flex-shrink-0"
+                style={{ borderColor: teamColors.secondary }}
+                onError={(e) => { e.target.style.display = 'none' }}
+              />
+            )}
             <div>
-              <h1 className="text-4xl font-bold mb-2" style={{ color: primaryText }}>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: primaryText }}>
                 {playerData.name}
               </h1>
               <div className="flex items-center gap-4 text-lg" style={{ color: primaryText, opacity: 0.9 }}>
@@ -448,7 +458,7 @@ export default function Player() {
           Biographical & Recruiting Information
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatBox label="Year Started" value={playerData.yearStarted} />
+          <StatBox label="Recruitment Year" value={playerData.yearStarted} />
           <StatBox label="Stars" value={playerData.stars > 0 ? `${playerData.stars}★` : 'N/A'} />
           <StatBox label="Position Rank" value={playerData.positionRank > 0 ? `#${playerData.positionRank}` : 'N/A'} />
           <StatBox label="State Rank" value={playerData.stateRank > 0 ? `#${playerData.stateRank}` : 'N/A'} />
@@ -895,6 +905,60 @@ export default function Player() {
                 <StatBox label="Yards/Game" value={playerData.total.yardsPerGame > 0 ? playerData.total.yardsPerGame.toFixed(1) : '-'} small />
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* Notes & Media */}
+      {(player.notes || (player.links && player.links.length > 0)) && (
+        <div
+          className="rounded-lg shadow-lg p-6"
+          style={{
+            backgroundColor: teamColors.primary,
+            border: `3px solid ${teamColors.secondary}`
+          }}
+        >
+          <h2 className="text-2xl font-bold mb-4" style={{ color: primaryText }}>
+            Notes & Media
+          </h2>
+
+          {/* Notes */}
+          {player.notes && (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: primaryText, opacity: 0.7 }}>Notes</h3>
+              <div
+                className="p-4 rounded-lg whitespace-pre-wrap"
+                style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
+              >
+                {player.notes}
+              </div>
+            </div>
+          )}
+
+          {/* Links */}
+          {player.links && player.links.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: primaryText, opacity: 0.7 }}>Links & Media</h3>
+              <div className="flex flex-wrap gap-2">
+                {player.links.map((link, index) => (
+                  link.url && (
+                    <a
+                      key={index}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-80 transition-opacity flex items-center gap-2"
+                      style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      {link.title || link.url}
+                    </a>
+                  )
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

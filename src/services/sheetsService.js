@@ -801,3 +801,389 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
     throw error
   }
 }
+
+// Create a Conference Championship sheet
+// excludeConference: optional conference name to exclude (if user already played their CC game)
+export async function createConferenceChampionshipSheet(dynastyName, year, excludeConference = null) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Conference list for CFB
+    let conferences = [
+      'SEC',
+      'Big Ten',
+      'Big 12',
+      'ACC',
+      'Pac-12',
+      'American',
+      'Mountain West',
+      'Sun Belt',
+      'MAC',
+      'Conference USA'
+    ]
+
+    // Exclude user's conference if they already played their CC game
+    if (excludeConference) {
+      conferences = conferences.filter(conf =>
+        conf.toLowerCase() !== excludeConference.toLowerCase()
+      )
+    }
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Conference Championships ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Conference Championships',
+              gridProperties: {
+                rowCount: conferences.length + 1,
+                columnCount: 5,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create CC sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const ccSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeConferenceChampionshipSheet(sheet.spreadsheetId, accessToken, ccSheetId, conferences)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating conference championship sheet:', error)
+    throw error
+  }
+}
+
+// Generate conditional formatting rules for team colors in CC sheet
+function generateCCTeamFormattingRules(sheetId, columnIndex, rowCount) {
+  const rules = []
+
+  for (const [abbr, teamData] of Object.entries(teamAbbreviations)) {
+    // Add rule for uppercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+
+    // Add rule for lowercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr.toLowerCase() }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+  }
+
+  return rules
+}
+
+// Initialize the Conference Championship sheet with headers and conference rows
+async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken, sheetId, conferences) {
+  // Get team abbreviations for dropdown validation
+  const teamAbbrs = getTeamAbbreviationsList()
+  const rowCount = conferences.length
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Conference' } },
+            { userEnteredValue: { stringValue: 'Team 1' } },
+            { userEnteredValue: { stringValue: 'Team 2' } },
+            { userEnteredValue: { stringValue: 'Team 1 Score' } },
+            { userEnteredValue: { stringValue: 'Team 2 Score' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill conference names
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: conferences.map(conf => ({
+          values: [{ userEnteredValue: { stringValue: conf } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    },
+    // Format all cells: Bold, Italic, Center, Barlow font, size 10
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Add STRICT team dropdown validation for Team 1 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Add STRICT team dropdown validation for Team 2 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 2,
+          endColumnIndex: 3
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Protect header row (not just warning)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 5
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect conference column (not just warning)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Protected Conference column',
+          warningOnly: false
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 130 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 3
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 5
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add conditional formatting for team colors (Team 1 column)
+    ...generateCCTeamFormattingRules(sheetId, 1, rowCount),
+    // Add conditional formatting for team colors (Team 2 column)
+    ...generateCCTeamFormattingRules(sheetId, 2, rowCount)
+  ]
+
+  // Execute batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing CC sheet:', error)
+    throw new Error(`Failed to initialize CC sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read Conference Championship data from sheet
+export async function readConferenceChampionshipsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Conference Championships!A2:E11`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read CC data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse into structured data
+    const championships = rows.map(row => ({
+      conference: row[0] || '',
+      team1: (row[1] || '').toUpperCase(),
+      team2: (row[2] || '').toUpperCase(),
+      team1Score: row[3] ? parseInt(row[3]) : null,
+      team2Score: row[4] ? parseInt(row[4]) : null,
+      winner: null // Calculate based on scores
+    })).map(game => ({
+      ...game,
+      winner: game.team1Score !== null && game.team2Score !== null
+        ? (game.team1Score > game.team2Score ? game.team1 : game.team2)
+        : null
+    }))
+
+    return championships
+  } catch (error) {
+    console.error('Error reading CC data:', error)
+    throw error
+  }
+}

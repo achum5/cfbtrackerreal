@@ -181,7 +181,8 @@ export function DynastyProvider({ children }) {
       const newDynasty = {
         id: Date.now().toString(),
         ...dynastyWithSheet,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        lastModified: Date.now()
       }
       console.log('Creating dynasty in dev mode:', newDynasty)
 
@@ -198,7 +199,10 @@ export function DynastyProvider({ children }) {
 
     // Production: use Firestore
     try {
-      const newDynasty = await createDynastyInFirestore(user.uid, dynastyWithSheet)
+      const newDynasty = await createDynastyInFirestore(user.uid, {
+        ...dynastyWithSheet,
+        lastModified: Date.now()
+      })
       setCurrentDynasty(newDynasty)
       return newDynasty
     } catch (error) {
@@ -211,6 +215,12 @@ export function DynastyProvider({ children }) {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     console.log('updateDynasty called:', { dynastyId, isDev, hasUser: !!user, updates: Object.keys(updates) })
 
+    // Add lastModified timestamp to all updates
+    const updatesWithTimestamp = {
+      ...updates,
+      lastModified: Date.now()
+    }
+
     if (isDev || !user) {
       // Dev mode: update local state
       console.log('Updating dynasty in dev mode')
@@ -221,7 +231,7 @@ export function DynastyProvider({ children }) {
       const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
       console.log('Reading latest data from localStorage, found', currentDynasties.length, 'dynasties')
 
-      const updated = currentDynasties.map(d => (String(d.id) === String(dynastyId) ? { ...d, ...updates } : d))
+      const updated = currentDynasties.map(d => (String(d.id) === String(dynastyId) ? { ...d, ...updatesWithTimestamp } : d))
       console.log('Dynasties after update:', updated)
 
       // Immediately save to localStorage
@@ -243,7 +253,7 @@ export function DynastyProvider({ children }) {
 
     // Production: update Firestore
     try {
-      await updateDynastyInFirestore(dynastyId, updates)
+      await updateDynastyInFirestore(dynastyId, updatesWithTimestamp)
       // Real-time listener will update local state
     } catch (error) {
       console.error('Error updating dynasty:', error)
@@ -401,7 +411,12 @@ export function DynastyProvider({ children }) {
           additionalUpdates.googleSheetUrl = null
         }
       }
-    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 14) {
+    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 12) {
+      // After week 12, move to conference championship week
+      nextPhase = 'conference_championship'
+      nextWeek = 1
+    } else if (dynasty.currentPhase === 'conference_championship' && nextWeek > 1) {
+      // After conference championship, move to postseason (playoffs)
       nextPhase = 'postseason'
       nextWeek = 1
     } else if (dynasty.currentPhase === 'postseason' && nextWeek > 4) {
@@ -417,6 +432,73 @@ export function DynastyProvider({ children }) {
       currentWeek: nextWeek,
       currentPhase: nextPhase,
       currentYear: nextYear,
+      ...additionalUpdates
+    })
+  }
+
+  const revertWeek = async (dynastyId) => {
+    const dynasty = dynasties.find(d => d.id === dynastyId)
+    if (!dynasty) return
+
+    let prevWeek = dynasty.currentWeek - 1
+    let prevPhase = dynasty.currentPhase
+    let prevYear = dynasty.currentYear
+    let additionalUpdates = {}
+
+    // Handle phase transitions backwards
+    if (dynasty.currentPhase === 'regular_season' && prevWeek < 1) {
+      // Go back to preseason
+      prevPhase = 'preseason'
+      prevWeek = 0
+    } else if (dynasty.currentPhase === 'conference_championship' && prevWeek < 1) {
+      // Go back to regular season week 12
+      prevPhase = 'regular_season'
+      prevWeek = 12
+    } else if (dynasty.currentPhase === 'postseason' && prevWeek < 1) {
+      // Go back to conference championship
+      prevPhase = 'conference_championship'
+      prevWeek = 1
+    } else if (dynasty.currentPhase === 'offseason' && prevWeek < 1) {
+      // Go back to postseason week 4
+      prevPhase = 'postseason'
+      prevWeek = 4
+    } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
+      // Go back to previous year's offseason
+      prevPhase = 'offseason'
+      prevWeek = 4
+      prevYear = dynasty.currentYear - 1
+    }
+
+    // Remove game data from the week we're reverting from
+    let updatedGames = [...(dynasty.games || [])]
+
+    if (dynasty.currentPhase === 'regular_season') {
+      // Remove regular season game for current week
+      updatedGames = updatedGames.filter(g =>
+        !(g.week === dynasty.currentWeek && g.year === dynasty.currentYear && !g.isConferenceChampionship)
+      )
+    } else if (dynasty.currentPhase === 'conference_championship') {
+      // Remove CC game and CC data
+      updatedGames = updatedGames.filter(g =>
+        !(g.isConferenceChampionship && g.year === dynasty.currentYear)
+      )
+      additionalUpdates.conferenceChampionshipData = null
+    } else if (dynasty.currentPhase === 'postseason') {
+      // Remove postseason game for current week
+      updatedGames = updatedGames.filter(g =>
+        !(g.week === dynasty.currentWeek && g.year === dynasty.currentYear && g.isPostseason)
+      )
+      // If reverting to CC phase, clear CC results
+      if (prevPhase === 'conference_championship') {
+        additionalUpdates.conferenceChampionships = null
+      }
+    }
+
+    await updateDynasty(dynastyId, {
+      currentWeek: prevWeek,
+      currentPhase: prevPhase,
+      currentYear: prevYear,
+      games: updatedGames,
       ...additionalUpdates
     })
   }
@@ -868,6 +950,7 @@ export function DynastyProvider({ children }) {
     selectDynasty,
     addGame,
     advanceWeek,
+    revertWeek,
     saveSchedule,
     saveRoster,
     saveTeamRatings,

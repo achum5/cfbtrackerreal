@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react'
-import ScheduleSpreadsheet from './ScheduleSpreadsheet'
-import { getSheetEmbedUrl, readScheduleFromSheet, readRosterFromSheet } from '../services/sheetsService'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import {
+  createConferenceChampionshipSheet,
+  readConferenceChampionshipsFromSheet,
+  deleteGoogleSheet,
+  getSheetEmbedUrl
+} from '../services/sheetsService'
 
-export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSave, currentYear, teamColors }) {
-  const { currentDynasty, createTempSheetWithData, deleteSheetAndClearRefs } = useDynasty()
+export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+  const { currentDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
-  const [sheetReady, setSheetReady] = useState(false)
+  const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
 
   // Prevent body scroll when modal is open
@@ -21,75 +25,80 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
       document.body.style.overflow = 'unset'
     }
 
-    // Cleanup on unmount
     return () => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
 
-  // Create a temporary sheet when modal opens if user is authenticated and no sheet exists
+  // Create a CC sheet when modal opens if user is authenticated
   useEffect(() => {
-    const createTempSheet = async () => {
-      if (isOpen && user && currentDynasty && !currentDynasty.googleSheetId && !creatingSheet && !sheetReady) {
+    const createSheet = async () => {
+      if (isOpen && user && !sheetId && !creatingSheet) {
+        // Check if we have an existing CC sheet for this year
+        const existingSheetId = currentDynasty?.conferenceChampionshipSheetId
+        if (existingSheetId) {
+          setSheetId(existingSheetId)
+          return
+        }
+
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating temporary sheet for editing...')
-          await createTempSheetWithData(currentDynasty.id)
-          setSheetReady(true)
-          console.log('✅ Temporary sheet ready')
+          console.log('📝 Creating Conference Championship sheet...')
+
+          // Check if user played in a CC game this year - if so, exclude their conference
+          const userCCGame = currentDynasty?.games?.find(
+            g => g.isConferenceChampionship && g.year === currentYear
+          )
+          const excludeConference = userCCGame ? currentDynasty?.conference : null
+          if (excludeConference) {
+            console.log(`Excluding ${excludeConference} from sheet - user already played CC game`)
+          }
+
+          const sheetInfo = await createConferenceChampionshipSheet(
+            currentDynasty?.teamName || 'Dynasty',
+            currentYear,
+            excludeConference
+          )
+          setSheetId(sheetInfo.spreadsheetId)
+
+          // Save sheet ID to dynasty
+          await updateDynasty(currentDynasty.id, {
+            conferenceChampionshipSheetId: sheetInfo.spreadsheetId
+          })
+
+          console.log('✅ Conference Championship sheet ready')
         } catch (error) {
-          console.error('Failed to create temporary sheet:', error)
-          // Fall back to spreadsheet component
+          console.error('Failed to create CC sheet:', error)
         } finally {
           setCreatingSheet(false)
         }
       }
     }
 
-    createTempSheet()
-  }, [isOpen, user, currentDynasty?.id, currentDynasty?.googleSheetId])
+    createSheet()
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSheetReady(false)
-      setCreatingSheet(false)
       setShowDeletedNote(false)
     }
   }, [isOpen])
 
-  const handleSave = async (schedule) => {
-    try {
-      await onSave(schedule)
-      onClose()
-    } catch (error) {
-      alert('Failed to save schedule.')
-      console.error(error)
-    }
-  }
-
   const handleSyncFromSheet = async () => {
-    if (!currentDynasty?.googleSheetId) return
+    if (!sheetId) return
 
     setSyncing(true)
     try {
-      // Sync both schedule and roster
-      const schedule = await readScheduleFromSheet(currentDynasty.googleSheetId)
-      console.log('Schedule read from sheet:', schedule)
+      const championships = await readConferenceChampionshipsFromSheet(sheetId)
+      console.log('Conference Championships read from sheet:', championships)
 
-      const roster = await readRosterFromSheet(currentDynasty.googleSheetId)
-      console.log('Roster read from sheet:', roster)
-
-      // Save both
-      await onSave(schedule)
-      console.log('Schedule saved successfully')
-
-      await onRosterSave(roster)
-      console.log('Roster saved successfully')
+      await onSave(championships)
+      console.log('Conference Championships saved successfully')
 
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure you have edit access and data is properly formatted.')
+      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
     } finally {
       setSyncing(false)
@@ -97,24 +106,25 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
   }
 
   const handleSyncAndDelete = async () => {
-    if (!currentDynasty?.googleSheetId) return
+    if (!sheetId) return
 
     setDeletingSheet(true)
     try {
-      // Sync both schedule and roster
-      const schedule = await readScheduleFromSheet(currentDynasty.googleSheetId)
-      const roster = await readRosterFromSheet(currentDynasty.googleSheetId)
-
-      // Save both
-      await onSave(schedule)
-      await onRosterSave(roster)
+      const championships = await readConferenceChampionshipsFromSheet(sheetId)
+      await onSave(championships)
 
       // Delete the sheet
-      console.log('🗑️ Deleting sheet...')
-      await deleteSheetAndClearRefs(currentDynasty.id)
-      console.log('✅ Sheet deleted')
+      console.log('🗑️ Deleting CC sheet...')
+      await deleteGoogleSheet(sheetId)
 
-      // Show note and close after a moment
+      // Clear sheet ID from dynasty
+      await updateDynasty(currentDynasty.id, {
+        conferenceChampionshipSheetId: null
+      })
+
+      setSheetId(null)
+      console.log('✅ CC sheet deleted')
+
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
@@ -133,8 +143,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
 
   if (!isOpen) return null
 
-  const hasGoogleSheet = currentDynasty?.googleSheetId
-  const embedUrl = hasGoogleSheet ? getSheetEmbedUrl(currentDynasty.googleSheetId, 'Schedule') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Conference Championships') : null
   const isLoading = creatingSheet
 
   return (
@@ -150,7 +159,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Schedule and Roster Entry
+            Conference Championship Week
           </h2>
           <button
             onClick={handleClose}
@@ -174,10 +183,10 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Google Sheet...
+                Creating Conference Championship Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Pre-filling with existing data
+                Setting up conferences and team dropdowns
               </p>
             </div>
           </div>
@@ -191,11 +200,11 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 Saved & Sheet Deleted!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Data can still be edited anytime by opening this modal again.
+                Conference Championship data saved to your dynasty.
               </p>
             </div>
           </div>
-        ) : hasGoogleSheet ? (
+        ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="mb-3 flex gap-3 flex-wrap">
               <button
@@ -228,22 +237,23 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 src={embedUrl}
                 className="w-full h-full"
                 frameBorder="0"
-                title="Schedule Google Sheet"
+                title="Conference Championships Google Sheet"
               />
             </div>
 
             <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              <p><strong>Schedule Tab:</strong> Week | User Team | CPU Team | Site</p>
-              <p><strong>Roster Tab:</strong> Name | Position | Class | Dev Trait | Overall Rating</p>
+              <p><strong>Columns:</strong> Conference | Team 1 | Team 2 | Team 1 Score | Team 2 Score</p>
+              <p>Fill in the teams playing in each conference championship game and their scores.</p>
             </div>
           </div>
         ) : (
-          <ScheduleSpreadsheet
-            teamColors={teamColors}
-            currentYear={currentYear}
-            onSave={handleSave}
-            onCancel={handleClose}
-          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-lg" style={{ color: teamColors.primary }}>
+                Unable to create sheet. Please sign in with Google.
+              </p>
+            </div>
+          </div>
         )}
       </div>
     </div>

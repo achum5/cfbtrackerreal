@@ -3,15 +3,15 @@ import { useDynasty } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 
-export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors }) {
+export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame }) {
   const { currentDynasty } = useDynasty()
 
   // CRITICAL FIX: If in regular season but weekNumber is 0, use week 1
   // This handles cases where dynasty phase transitioned but week didn't update correctly
-  const actualWeekNumber = currentDynasty?.currentPhase === 'regular_season' && weekNumber === 0 ? 1 : weekNumber
+  const actualWeekNumber = isConferenceChampionship ? 'CC' : (currentDynasty?.currentPhase === 'regular_season' && weekNumber === 0 ? 1 : weekNumber)
 
-  // Find the scheduled game for this week
-  const scheduledGame = currentDynasty?.schedule?.find(g => g.week === actualWeekNumber)
+  // Find the scheduled game for this week (not for CC games)
+  const scheduledGame = isConferenceChampionship ? null : currentDynasty?.schedule?.find(g => g.week === actualWeekNumber)
 
   // Map abbreviations to mascot names for logo lookup
   const getMascotName = (abbr) => {
@@ -473,10 +473,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   // Load existing game data or scheduled game data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Check if there's an existing game for this week
-      const existingGame = currentDynasty?.games?.find(
-        g => g.week === actualWeekNumber && g.year === currentYear
-      )
+      // Check if there's an existing game for this week (or use passed existing game for CC)
+      const existingGame = passedExistingGame || (isConferenceChampionship
+        ? currentDynasty?.games?.find(g => g.isConferenceChampionship && g.year === currentYear)
+        : currentDynasty?.games?.find(g => g.week === actualWeekNumber && g.year === currentYear))
 
       if (existingGame) {
         // Load existing game data for editing
@@ -485,7 +485,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           location: existingGame.location || 'home',
           teamScore: existingGame.teamScore?.toString() || '',
           opponentScore: existingGame.opponentScore?.toString() || '',
-          isConferenceGame: existingGame.isConferenceGame || false,
+          isConferenceGame: existingGame.isConferenceGame || isConferenceChampionship || false,
           userRank: existingGame.userRank?.toString() || '',
           opponentRank: existingGame.opponentRank?.toString() || '',
           opponentOverall: existingGame.opponentOverall?.toString() || '',
@@ -517,15 +517,15 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWSearch('')
         setConfPOWOpen(false)
         setNatlPOWOpen(false)
-      } else if (scheduledGame) {
-        // New game - load from schedule
+      } else if (scheduledGame || isConferenceChampionship) {
+        // New game - load from schedule or CC opponent
         setGameData(prev => ({
           ...prev,
-          opponent: scheduledGame.opponent,
-          location: scheduledGame.location,
+          opponent: passedOpponent || scheduledGame?.opponent || '',
+          location: isConferenceChampionship ? 'neutral' : (scheduledGame?.location || 'home'),
           teamScore: '',
           opponentScore: '',
-          isConferenceGame: false,
+          isConferenceGame: isConferenceChampionship || false,
           userRank: '',
           opponentRank: '',
           opponentOverall: '',
@@ -548,7 +548,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWOpen(false)
       }
     }
-  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games])
+  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame])
 
   const handleLinkChange = (index, value) => {
     const newLinks = [...links]
@@ -755,6 +755,66 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
     }
   }
 
+  // DEV: Random fill function for quick testing
+  const handleRandomFill = () => {
+    const randomScore = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+
+    // Generate random quarter scores
+    const q1Team = randomScore(0, 14)
+    const q2Team = randomScore(0, 21)
+    const q3Team = randomScore(0, 14)
+    const q4Team = randomScore(0, 21)
+    const q1Opp = randomScore(0, 14)
+    const q2Opp = randomScore(0, 21)
+    const q3Opp = randomScore(0, 14)
+    const q4Opp = randomScore(0, 21)
+
+    const teamTotal = q1Team + q2Team + q3Team + q4Team
+    const oppTotal = q1Opp + q2Opp + q3Opp + q4Opp
+
+    // Make sure it's not a tie (would require OT handling)
+    const finalTeamScore = teamTotal === oppTotal ? teamTotal + 7 : teamTotal
+
+    // Generate random opponent record
+    const oppWins = randomScore(0, 11)
+    const oppLosses = randomScore(0, 11 - oppWins)
+    const confWins = randomScore(0, Math.min(oppWins, 8))
+    const confLosses = randomScore(0, Math.min(oppLosses, 8 - confWins))
+    const opponentRecord = `${oppWins}-${oppLosses} (${confWins}-${confLosses})`
+
+    // Random national rankings (sometimes ranked, sometimes not)
+    const userRank = Math.random() > 0.5 ? randomScore(1, 25).toString() : ''
+    const oppRank = Math.random() > 0.6 ? randomScore(1, 25).toString() : ''
+
+    setGameData(prev => ({
+      ...prev,
+      quarters: {
+        team: { Q1: q1Team.toString(), Q2: q2Team.toString(), Q3: q3Team.toString(), Q4: q4Team.toString() },
+        opponent: { Q1: q1Opp.toString(), Q2: q2Opp.toString(), Q3: q3Opp.toString(), Q4: q4Opp.toString() }
+      },
+      teamScore: finalTeamScore.toString(),
+      opponentScore: oppTotal.toString(),
+      userRank: userRank,
+      opponentRank: oppRank,
+      opponentOverall: randomScore(70, 95).toString(),
+      opponentOffense: randomScore(70, 95).toString(),
+      opponentDefense: randomScore(70, 95).toString(),
+      opponentRecord: opponentRecord,
+      isConferenceGame: Math.random() > 0.5
+    }))
+
+    // Random player of the week (50% chance each)
+    if (playerNames.length > 0) {
+      const randomPlayer = () => playerNames[randomScore(0, playerNames.length - 1)]
+      if (Math.random() > 0.5) {
+        setConferencePOW(randomPlayer())
+      }
+      if (Math.random() > 0.7) { // National is rarer
+        setNationalPOW(randomPlayer())
+      }
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -776,23 +836,40 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         >
           <div>
             <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-              Week {actualWeekNumber} Game Entry
+              {isConferenceChampionship
+                ? `${currentDynasty?.conference || 'Conference'} Championship`
+                : `Week ${actualWeekNumber} Game Entry`}
             </h2>
-            {scheduledGame && (
+            {(scheduledGame || isConferenceChampionship) && (
               <p className="text-sm mt-1" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                {scheduledGame.location === 'away' ? '@' : 'vs'} {scheduledGame.opponent}
+                {isConferenceChampionship ? 'vs' : (scheduledGame?.location === 'away' ? '@' : 'vs')} {passedOpponent || scheduledGame?.opponent}
               </p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="hover:opacity-70"
-            style={{ color: teamColors.primary }}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* DEV: Random Fill Button */}
+            <button
+              type="button"
+              onClick={handleRandomFill}
+              className="px-3 py-1 rounded text-xs font-semibold hover:opacity-80 transition-opacity"
+              style={{
+                backgroundColor: '#f59e0b',
+                color: '#000'
+              }}
+              title="DEV: Fill with random data"
+            >
+              Random Fill
+            </button>
+            <button
+              onClick={onClose}
+              className="hover:opacity-70"
+              style={{ color: teamColors.primary }}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -803,11 +880,16 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               id="isConferenceGame"
               checked={gameData.isConferenceGame}
               onChange={(e) => setGameData({ ...gameData, isConferenceGame: e.target.checked })}
-              className="w-5 h-5 rounded"
+              disabled={isConferenceChampionship}
+              className="w-5 h-5 rounded disabled:opacity-70"
               style={{ accentColor: teamColors.primary }}
             />
-            <label htmlFor="isConferenceGame" className="font-semibold cursor-pointer" style={{ color: teamColors.primary }}>
-              Conference Game
+            <label
+              htmlFor="isConferenceGame"
+              className={`font-semibold ${isConferenceChampionship ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              style={{ color: teamColors.primary, opacity: isConferenceChampionship ? 0.7 : 1 }}
+            >
+              Conference Game {isConferenceChampionship && '(Required)'}
             </label>
           </div>
 

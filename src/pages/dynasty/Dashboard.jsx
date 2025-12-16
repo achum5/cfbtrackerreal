@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
@@ -11,9 +11,10 @@ import ScheduleEntryModal from '../../components/ScheduleEntryModal'
 import TeamRatingsModal from '../../components/TeamRatingsModal'
 import GameEntryModal from '../../components/GameEntryModal'
 import GameDetailModal from '../../components/GameDetailModal'
+import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, addGame, createGoogleSheetForDynasty } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, addGame, createGoogleSheetForDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -23,10 +24,31 @@ export default function Dashboard() {
   const [showTeamRatingsModal, setShowTeamRatingsModal] = useState(false)
   const [showGameModal, setShowGameModal] = useState(false)
   const [showGameDetailModal, setShowGameDetailModal] = useState(false)
+  const [showCCModal, setShowCCModal] = useState(false)
   const [editingWeek, setEditingWeek] = useState(null)
   const [editingYear, setEditingYear] = useState(null)
   const [selectedGame, setSelectedGame] = useState(null)
   const [creatingSheet, setCreatingSheet] = useState(false)
+
+  // Conference Championship states
+  const [ccMadeChampionship, setCCMadeChampionship] = useState(null) // null = not answered, true/false = answered
+  const [ccOpponent, setCCOpponent] = useState('')
+  const [ccOpponentSearch, setCCOpponentSearch] = useState('')
+  const [showCCOpponentDropdown, setShowCCOpponentDropdown] = useState(false)
+  const [showCCGameModal, setShowCCGameModal] = useState(false)
+
+  // Restore CC state from saved dynasty data
+  useEffect(() => {
+    if (currentDynasty?.conferenceChampionshipData) {
+      const ccData = currentDynasty.conferenceChampionshipData
+      setCCMadeChampionship(ccData.madeChampionship ?? null)
+      setCCOpponent(ccData.opponent || '')
+    } else {
+      // Reset when no data
+      setCCMadeChampionship(null)
+      setCCOpponent('')
+    }
+  }, [currentDynasty?.id, currentDynasty?.conferenceChampionshipData])
 
   if (!currentDynasty) return null
 
@@ -239,6 +261,100 @@ export default function Dashboard() {
     }
   }
 
+  // Handle CC championship answer
+  const handleCCAnswer = async (madeChampionship) => {
+    setCCMadeChampionship(madeChampionship)
+    // Save to dynasty
+    await updateDynasty(currentDynasty.id, {
+      conferenceChampionshipData: {
+        ...currentDynasty.conferenceChampionshipData,
+        madeChampionship,
+        year: currentDynasty.currentYear
+      }
+    })
+  }
+
+  // Handle CC opponent selection
+  const handleCCOpponentSelect = async (opponent) => {
+    setCCOpponent(opponent)
+    setCCOpponentSearch('')
+    setShowCCOpponentDropdown(false)
+    // Save to dynasty
+    await updateDynasty(currentDynasty.id, {
+      conferenceChampionshipData: {
+        ...currentDynasty.conferenceChampionshipData,
+        opponent,
+        year: currentDynasty.currentYear
+      }
+    })
+  }
+
+  // Handle CC game save
+  const handleCCGameSave = async (gameData) => {
+    console.log('CC Game save called with:', gameData)
+    try {
+      // Add the game with special flag for conference championship
+      await addGame(currentDynasty.id, {
+        ...gameData,
+        isConferenceChampionship: true
+      })
+      // Update CC data with game played flag
+      await updateDynasty(currentDynasty.id, {
+        conferenceChampionshipData: {
+          ...currentDynasty.conferenceChampionshipData,
+          gamePlayed: true,
+          year: currentDynasty.currentYear
+        }
+      })
+      setShowCCGameModal(false)
+    } catch (error) {
+      console.error('Error saving CC game:', error)
+      alert('Failed to save game. Please try again.')
+      throw error
+    }
+  }
+
+  // Check if user can advance from CC week
+  const canAdvanceFromCC = () => {
+    if (ccMadeChampionship === false) {
+      // Didn't make championship, can advance
+      return true
+    }
+    if (ccMadeChampionship === true) {
+      // Made championship, need to have played the game
+      const ccGame = currentDynasty.games?.find(
+        g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
+      )
+      return !!ccGame
+    }
+    return false // Haven't answered yet
+  }
+
+  // Get CC game if played
+  const getCCGame = () => {
+    return currentDynasty.games?.find(
+      g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
+    )
+  }
+
+  // Filter teams for CC opponent dropdown
+  const getFilteredTeams = () => {
+    const search = ccOpponentSearch.toLowerCase()
+    const allTeams = Object.entries(teamAbbreviations)
+
+    if (!search) {
+      // Show all teams sorted alphabetically by name when no search
+      return allTeams.sort((a, b) => a[1].name.localeCompare(b[1].name))
+    }
+
+    return allTeams
+      .filter(([abbr, team]) =>
+        abbr.toLowerCase().includes(search) ||
+        team.name.toLowerCase().includes(search)
+      )
+      .sort((a, b) => a[1].name.localeCompare(b[1].name))
+  }
+
   const handleEnableGoogleSheets = async () => {
     if (!user) {
       alert('Please sign in to enable Google Sheets integration')
@@ -303,6 +419,70 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Team Info Header */}
+      {(() => {
+        // Calculate team record from current year games
+        const wins = currentYearGames.filter(g => g.result === 'win').length
+        const losses = currentYearGames.filter(g => g.result === 'loss').length
+        // Get most recent rank from the last played game
+        const lastGameWithRank = [...currentYearGames].reverse().find(g => g.userRank)
+        const currentRank = lastGameWithRank?.userRank
+
+        return (
+          <div
+            className="rounded-lg shadow-lg p-4 flex items-center justify-between"
+            style={{
+              backgroundColor: teamColors.primary,
+              border: `3px solid ${teamColors.secondary}`
+            }}
+          >
+            <div className="flex items-center gap-4">
+              {getTeamLogo(currentDynasty.teamName) && (
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: `2px solid ${teamColors.secondary}`,
+                    padding: '3px'
+                  }}
+                >
+                  <img
+                    src={getTeamLogo(currentDynasty.teamName)}
+                    alt={`${currentDynasty.teamName} logo`}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              )}
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: primaryBgText }}>
+                  {currentRank && <span className="mr-2">#{currentRank}</span>}
+                  {currentDynasty.teamName}
+                </h2>
+                <p className="text-sm font-semibold" style={{ color: primaryBgText, opacity: 0.8 }}>
+                  {wins}-{losses} {currentDynasty.currentPhase !== 'preseason' && `• ${currentDynasty.conference}`}
+                </p>
+              </div>
+            </div>
+            {currentDynasty.teamRatings && (
+              <div className="flex gap-3">
+                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OVR</div>
+                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.overall}</div>
+                </div>
+                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OFF</div>
+                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.offense}</div>
+                </div>
+                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>DEF</div>
+                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.defense}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Phase-Specific Content */}
       {currentDynasty.currentPhase === 'preseason' ? (
@@ -520,6 +700,307 @@ export default function Dashboard() {
             })()}
           </div>
         </div>
+      ) : currentDynasty.currentPhase === 'conference_championship' ? (
+        <div
+          className="rounded-lg shadow-lg p-6"
+          style={{
+            backgroundColor: teamColors.secondary,
+            border: `3px solid ${teamColors.primary}`
+          }}
+        >
+          <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+            Conference Championship Week
+          </h3>
+
+          {(() => {
+            const ccGame = getCCGame()
+
+            // Step 1: Ask if they made the championship
+            if (ccMadeChampionship === null) {
+              return (
+                <div className="space-y-4">
+                  <p className="text-lg font-medium" style={{ color: secondaryBgText }}>
+                    Did you make the {currentDynasty.conference} Championship?
+                  </p>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => handleCCAnswer(true)}
+                      className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: primaryBgText
+                      }}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => handleCCAnswer(false)}
+                      className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors border-2"
+                      style={{
+                        backgroundColor: 'transparent',
+                        borderColor: teamColors.primary,
+                        color: secondaryBgText
+                      }}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+              )
+            }
+
+            // Step 2: If they said No, show completion message
+            if (ccMadeChampionship === false) {
+              return (
+                <div className="space-y-4">
+                  <div
+                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-green-200 bg-green-50"
+                  >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500 text-white">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-green-700">
+                        Conference Championship Week Complete
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCCMadeChampionship(null)}
+                    className="text-sm underline hover:opacity-70"
+                    style={{ color: secondaryBgText, opacity: 0.7 }}
+                  >
+                    Change answer
+                  </button>
+                </div>
+              )
+            }
+
+            // Step 3: They made it - ask who they played (if no opponent yet)
+            if (ccMadeChampionship === true && !ccOpponent && !ccGame) {
+              return (
+                <div className="space-y-4">
+                  <p className="text-lg font-medium" style={{ color: secondaryBgText }}>
+                    Congratulations! Who did you play in the {currentDynasty.conference} Championship?
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={ccOpponentSearch}
+                      onChange={(e) => {
+                        setCCOpponentSearch(e.target.value)
+                        setShowCCOpponentDropdown(true)
+                      }}
+                      onFocus={() => setShowCCOpponentDropdown(true)}
+                      onBlur={() => {
+                        // Delay to allow click on dropdown items
+                        setTimeout(() => setShowCCOpponentDropdown(false), 200)
+                      }}
+                      placeholder="Search for opponent..."
+                      className="w-full px-4 py-3 rounded-lg border-2 font-semibold"
+                      style={{
+                        borderColor: teamColors.primary,
+                        backgroundColor: 'white',
+                        color: '#1f2937'
+                      }}
+                    />
+                    {showCCOpponentDropdown && (
+                      <div
+                        className="absolute z-10 w-full mt-1 rounded-lg shadow-lg max-h-60 overflow-y-auto border-2"
+                        style={{
+                          backgroundColor: 'white',
+                          borderColor: teamColors.primary
+                        }}
+                      >
+                        {getFilteredTeams().map(([abbr, team]) => {
+                          const teamColor = teamAbbreviations[abbr]
+                          return (
+                            <button
+                              key={abbr}
+                              onClick={() => handleCCOpponentSelect(abbr)}
+                              className="w-full px-4 py-3 text-left hover:opacity-80 transition-opacity flex items-center gap-3"
+                              style={{
+                                backgroundColor: teamColor?.backgroundColor || '#f3f4f6',
+                                color: teamColor?.textColor || '#1f2937'
+                              }}
+                            >
+                              <span className="font-bold">{abbr}</span>
+                              <span className="text-sm">{team.name}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setCCMadeChampionship(null)}
+                    className="text-sm underline hover:opacity-70"
+                    style={{ color: secondaryBgText, opacity: 0.7 }}
+                  >
+                    Change answer
+                  </button>
+                </div>
+              )
+            }
+
+            // Step 4: Opponent selected - show game entry or result
+            if (ccMadeChampionship === true && (ccOpponent || ccGame)) {
+              const opponentAbbr = ccGame?.opponent || ccOpponent
+              const opponentColors = getOpponentColors(opponentAbbr)
+              const opponentName = getMascotName(opponentAbbr) || getTeamNameFromAbbr(opponentAbbr)
+              const opponentLogo = getMascotName(opponentAbbr) ? getTeamLogo(getMascotName(opponentAbbr)) : null
+
+              return (
+                <div className="space-y-4">
+                  <div
+                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      ccGame ? 'border-green-200 bg-green-50' : ''
+                    }`}
+                    style={!ccGame ? {
+                      borderColor: `${teamColors.primary}30`,
+                      backgroundColor: teamColors.secondary
+                    } : {}}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          ccGame ? 'bg-green-500 text-white' : ''
+                        }`}
+                        style={!ccGame ? {
+                          backgroundColor: `${teamColors.primary}20`,
+                          color: teamColors.primary
+                        } : {}}
+                      >
+                        {ccGame ? (
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <div
+                          className="font-semibold"
+                          style={{ color: ccGame ? '#16a34a' : secondaryBgText }}
+                        >
+                          {currentDynasty.conference} Championship
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-sm" style={{ color: ccGame ? '#16a34a' : secondaryBgText, opacity: 0.8 }}>
+                            vs
+                          </span>
+                          {opponentLogo && (
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{
+                                backgroundColor: '#FFFFFF',
+                                border: `1px solid ${opponentColors.textColor}`,
+                                padding: '2px'
+                              }}
+                            >
+                              <img
+                                src={opponentLogo}
+                                alt={`${opponentName} logo`}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <span
+                            className="px-2 py-0.5 rounded text-sm font-bold"
+                            style={{
+                              backgroundColor: opponentColors.backgroundColor,
+                              color: opponentColors.textColor
+                            }}
+                          >
+                            {opponentName}
+                          </span>
+                        </div>
+                        {ccGame && (
+                          <div
+                            className="text-sm mt-1 font-medium"
+                            style={{ color: '#16a34a' }}
+                          >
+                            {ccGame.result === 'win' ? 'W' : 'L'} {ccGame.teamScore}-{ccGame.opponentScore}
+                            <span className="ml-2">✓ Complete</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowCCGameModal(true)}
+                      className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: primaryBgText
+                      }}
+                    >
+                      {ccGame ? 'Edit' : 'Enter Game'}
+                    </button>
+                  </div>
+
+                  {ccGame && (
+                    <div
+                      className="p-4 rounded-lg border-2"
+                      style={{
+                        backgroundColor: `${teamColors.primary}10`,
+                        borderColor: teamColors.primary
+                      }}
+                    >
+                      <p className="text-sm font-medium" style={{ color: teamColors.primary }}>
+                        ✓ Conference Championship complete! Click "Advance Week" in the header to continue to the playoffs.
+                      </p>
+                    </div>
+                  )}
+
+                  {!ccGame && (
+                    <button
+                      onClick={() => {
+                        setCCOpponent('')
+                        setCCMadeChampionship(null)
+                      }}
+                      className="text-sm underline hover:opacity-70"
+                      style={{ color: secondaryBgText, opacity: 0.7 }}
+                    >
+                      Change opponent
+                    </button>
+                  )}
+                </div>
+              )
+            }
+          })()}
+        </div>
+      ) : currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek === 1 && !currentDynasty.conferenceChampionships?.length ? (
+        // Show CC Google Sheet when entering postseason and CC data not yet entered
+        <div
+          className="rounded-lg shadow-lg p-6"
+          style={{
+            backgroundColor: teamColors.secondary,
+            border: `3px solid ${teamColors.primary}`
+          }}
+        >
+          <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+            Conference Championship Results
+          </h3>
+          <p className="mb-4" style={{ color: secondaryBgText, opacity: 0.8 }}>
+            Before continuing to the playoffs, enter the results of all conference championship games.
+          </p>
+
+          <button
+            onClick={() => setShowCCModal(true)}
+            className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+            style={{
+              backgroundColor: teamColors.primary,
+              color: primaryBgText
+            }}
+          >
+            Enter Conference Championships
+          </button>
+        </div>
       ) : (
         <div
           className="rounded-lg shadow-lg p-6"
@@ -534,6 +1015,38 @@ export default function Dashboard() {
           <p style={{ color: secondaryBgText, opacity: 0.8 }}>
             Click "Advance Week" in the header to progress through your dynasty.
           </p>
+
+          {/* Show saved CC data if in postseason */}
+          {currentDynasty.currentPhase === 'postseason' && currentDynasty.conferenceChampionships?.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold mb-2" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                Conference Championship Results
+              </h4>
+              <div className="space-y-1">
+                {currentDynasty.conferenceChampionships.filter(cc => cc.team1 && cc.team2).slice(0, 3).map((cc, index) => {
+                  const hasResult = cc.team1Score !== null && cc.team2Score !== null
+                  return (
+                    <div
+                      key={index}
+                      className="text-sm p-2 rounded"
+                      style={{ backgroundColor: `${teamColors.primary}10`, color: secondaryBgText }}
+                    >
+                      <span className="font-semibold">{cc.conference}:</span> {cc.team1} {hasResult ? `${cc.team1Score}-${cc.team2Score}` : 'vs'} {cc.team2}
+                    </div>
+                  )
+                })}
+                {currentDynasty.conferenceChampionships.filter(cc => cc.team1 && cc.team2).length > 3 && (
+                  <button
+                    onClick={() => setShowCCModal(true)}
+                    className="text-sm underline"
+                    style={{ color: teamColors.primary }}
+                  >
+                    View all {currentDynasty.conferenceChampionships.filter(cc => cc.team1 && cc.team2).length} results...
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -637,8 +1150,16 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      <div className="font-semibold" style={{ color: opponentColors.textColor }}>
-                        {opponentName}
+                      <div className="flex items-center gap-2">
+                        {/* Opponent ranking if ranked */}
+                        {playedGame?.opponentRank && (
+                          <span className="text-xs font-bold" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
+                            #{playedGame.opponentRank}
+                          </span>
+                        )}
+                        <span className="font-semibold" style={{ color: opponentColors.textColor }}>
+                          {opponentName}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -656,6 +1177,12 @@ export default function Dashboard() {
                       <div className="text-right">
                         <div className="font-bold" style={{ color: opponentColors.textColor }}>
                           {playedGame.teamScore} - {playedGame.opponentScore}
+                          {/* OT indicator if game went to overtime */}
+                          {playedGame.overtimes && playedGame.overtimes.length > 0 && (
+                            <span className="ml-1 text-xs opacity-80">
+                              {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -677,6 +1204,120 @@ export default function Dashboard() {
                 </div>
               )
             })}
+
+            {/* Conference Championship Game - shows when user made the championship */}
+            {(ccMadeChampionship === true || currentDynasty.conferenceChampionshipData?.madeChampionship === true) && (() => {
+              const ccGame = getCCGame()
+              const ccOpponentAbbr = ccGame?.opponent || ccOpponent || currentDynasty.conferenceChampionshipData?.opponent
+              const hasOpponent = !!ccOpponentAbbr
+              const ccOpponentColors = hasOpponent ? getOpponentColors(ccOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
+              const ccMascotName = hasOpponent ? getMascotName(ccOpponentAbbr) : null
+              const ccOpponentName = ccMascotName || (hasOpponent ? getTeamNameFromAbbr(ccOpponentAbbr) : 'Opponent Unknown')
+              const ccOpponentLogo = ccMascotName ? getTeamLogo(ccMascotName) : null
+              const isCurrentCCWeek = currentDynasty.currentPhase === 'conference_championship' && !ccGame
+
+              return (
+                <div
+                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${ccGame ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                  style={{
+                    backgroundColor: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280',
+                    borderColor: ccGame
+                      ? ccGame.result === 'win'
+                        ? '#86efac'
+                        : '#fca5a5'
+                      : isCurrentCCWeek
+                        ? teamColors.primary
+                        : hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280',
+                    boxShadow: isCurrentCCWeek ? `0 0 0 3px ${teamColors.primary}40, 0 4px 12px ${teamColors.primary}30` : 'none'
+                  }}
+                  onClick={() => {
+                    if (ccGame) {
+                      setSelectedGame(ccGame)
+                      setShowGameDetailModal(true)
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm font-medium w-16" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
+                      {currentDynasty.conference} CC
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold px-2 py-0.5 rounded" style={{
+                        backgroundColor: hasOpponent ? ccOpponentColors.textColor : '#ffffff',
+                        color: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280'
+                      }}>
+                        vs
+                      </span>
+                      {ccOpponentLogo && (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${ccOpponentColors.textColor}`,
+                            padding: '3px'
+                          }}
+                        >
+                          <img
+                            src={ccOpponentLogo}
+                            alt={`${ccOpponentName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        {/* Opponent ranking if ranked */}
+                        {ccGame?.opponentRank && (
+                          <span className="text-xs font-bold" style={{ color: ccOpponentColors.textColor, opacity: 0.7 }}>
+                            #{ccGame.opponentRank}
+                          </span>
+                        )}
+                        <span className="font-semibold" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', fontStyle: hasOpponent ? 'normal' : 'italic' }}>
+                          {ccOpponentName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {ccGame ? (
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="text-lg font-bold px-3 py-1 rounded"
+                        style={{
+                          backgroundColor: ccGame.result === 'win' ? '#22c55e' : '#ef4444',
+                          color: '#ffffff'
+                        }}
+                      >
+                        {ccGame.result === 'win' ? 'W' : 'L'}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold" style={{ color: ccOpponentColors.textColor }}>
+                          {ccGame.teamScore} - {ccGame.opponentScore}
+                          {/* OT indicator if game went to overtime */}
+                          {ccGame.overtimes && ccGame.overtimes.length > 0 && (
+                            <span className="ml-1 text-xs opacity-80">
+                              {ccGame.overtimes.length > 1 ? `${ccGame.overtimes.length}OT` : 'OT'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : isCurrentCCWeek ? (
+                    <div
+                      className="text-sm font-bold px-3 py-1 rounded"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: getContrastTextColor(teamColors.primary)
+                      }}
+                    >
+                      This Week
+                    </div>
+                  ) : (
+                    <div className="text-sm font-medium" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
+                      Scheduled
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <div className="text-center py-12">
@@ -741,6 +1382,31 @@ export default function Dashboard() {
         game={selectedGame}
         userTeam={currentDynasty.teamName}
         teamColors={teamColors}
+      />
+
+      <ConferenceChampionshipModal
+        isOpen={showCCModal}
+        onClose={() => setShowCCModal(false)}
+        onSave={async (championships) => {
+          await updateDynasty(currentDynasty.id, {
+            conferenceChampionships: championships
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* CC Game Entry Modal - reuses GameEntryModal but for championship game */}
+      <GameEntryModal
+        isOpen={showCCGameModal}
+        onClose={() => setShowCCGameModal(false)}
+        onSave={handleCCGameSave}
+        weekNumber="CC"
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+        opponent={ccOpponent}
+        isConferenceChampionship={true}
+        existingGame={getCCGame()}
       />
     </div>
   )

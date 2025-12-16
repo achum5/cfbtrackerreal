@@ -11,7 +11,6 @@ import Roster from './pages/dynasty/Roster'
 import Rankings from './pages/dynasty/Rankings'
 import Stats from './pages/dynasty/Stats'
 import CoachCareer from './pages/dynasty/CoachCareer'
-import TeamHistory from './pages/dynasty/TeamHistory'
 import Players from './pages/dynasty/Players'
 import Player from './pages/dynasty/Player'
 import AllTimeLineup from './pages/dynasty/AllTimeLineup'
@@ -22,6 +21,9 @@ import AllAmericans from './pages/dynasty/AllAmericans'
 import AllConference from './pages/dynasty/AllConference'
 import DynastyRecords from './pages/dynasty/DynastyRecords'
 import TeamAchievements from './pages/dynasty/TeamAchievements'
+import Teams from './pages/dynasty/Teams'
+import Team from './pages/dynasty/Team'
+import TeamYear from './pages/dynasty/TeamYear'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -69,8 +71,7 @@ function AppRoutes() {
             <Route path="rankings" element={<Rankings />} />
             <Route path="stats" element={<Stats />} />
             <Route path="coach-career" element={<CoachCareer />} />
-            <Route path="team-history" element={<TeamHistory />} />
-            <Route path="players" element={<Players />} />
+                        <Route path="players" element={<Players />} />
             <Route path="all-time-lineup" element={<AllTimeLineup />} />
             <Route path="recruiting" element={<Recruiting />} />
             <Route path="leaders" element={<Leaders />} />
@@ -79,6 +80,9 @@ function AppRoutes() {
             <Route path="all-conference" element={<AllConference />} />
             <Route path="dynasty-records" element={<DynastyRecords />} />
             <Route path="team-achievements" element={<TeamAchievements />} />
+            <Route path="teams" element={<Teams />} />
+            <Route path="team/:teamAbbr" element={<Team />} />
+            <Route path="team/:teamAbbr/:year" element={<TeamYear />} />
           </Route>
         </Routes>
       </Router>

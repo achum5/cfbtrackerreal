@@ -5,6 +5,13 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
   const [offense, setOffense] = useState('')
   const [defense, setDefense] = useState('')
 
+  // Limit input to 2 digits (0-99)
+  const handleRatingChange = (value, setter) => {
+    // Remove non-digits and limit to 2 characters
+    const digits = value.replace(/\D/g, '').slice(0, 2)
+    setter(digits)
+  }
+
   // Load current ratings when modal opens
   useEffect(() => {
     if (isOpen && currentRatings) {
@@ -90,11 +97,11 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
               Overall Rating (0-99)
             </label>
             <input
-              type="number"
-              min="0"
-              max="99"
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
               value={overall}
-              onChange={(e) => setOverall(e.target.value)}
+              onChange={(e) => handleRatingChange(e.target.value, setOverall)}
               className="w-full px-4 py-2 rounded-lg border-2 text-lg font-semibold text-center"
               style={{
                 borderColor: teamColors.primary,
@@ -109,11 +116,11 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
               Offense Rating (0-99)
             </label>
             <input
-              type="number"
-              min="0"
-              max="99"
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
               value={offense}
-              onChange={(e) => setOffense(e.target.value)}
+              onChange={(e) => handleRatingChange(e.target.value, setOffense)}
               className="w-full px-4 py-2 rounded-lg border-2 text-lg font-semibold text-center"
               style={{
                 borderColor: teamColors.primary,
@@ -128,11 +135,11 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
               Defense Rating (0-99)
             </label>
             <input
-              type="number"
-              min="0"
-              max="99"
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
               value={defense}
-              onChange={(e) => setDefense(e.target.value)}
+              onChange={(e) => handleRatingChange(e.target.value, setDefense)}
               className="w-full px-4 py-2 rounded-lg border-2 text-lg font-semibold text-center"
               style={{
                 borderColor: teamColors.primary,

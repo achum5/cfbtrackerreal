@@ -4,6 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT**: When you complete a new feature, fix a bug, or make significant changes to the codebase, update this file to reflect those changes. Remove outdated information and add new implementation details so this documentation stays current.
 
+## Current Work / Reminders
+
+**Last Session (December 2024)**: Completed the All Teams feature:
+- Created Teams list page (`/dynasty/:id/teams`) - alphabetical listing of all 136 FBS teams with search
+- Created individual Team pages (`/dynasty/:id/team/:teamAbbr`) - comprehensive team history with stats
+- Created TeamYear pages (`/dynasty/:id/team/:teamAbbr/:year`) - year-by-year game details
+- Removed old Team History sidebar page (replaced by enhanced Team pages)
+
+**TODO / Future Work**:
+- Team stats data (`teamHistories`) is not yet being populated - needs implementation to track:
+  - AP Top 25 Finishes (Media/Coaches polls)
+  - Conference Titles, CFP Appearances, National Titles
+  - Heisman Winners, First-Team All-Americans
+  - User's games as/against each team with win percentages
+- The Team pages UI is complete but shows placeholder data until `teamHistories` is populated
+
 ## Project Overview
 
 CFB Dynasty Tracker is a React-based web application for tracking College Football (CFB) dynasty mode progression. Users can create dynasties, manage schedules, rosters, and track games through multiple seasons.
@@ -40,6 +56,19 @@ npm run preview
 5. Only then consider the task complete
 
 This ensures the codebase stays clean and prevents accumulation of technical debt from unchecked errors.
+
+## Git Commit Policy
+
+**IMPORTANT**: Do NOT commit changes automatically after every task. Only commit when the user explicitly says "commit changes" (or similar).
+
+**When user requests a commit**:
+1. Run `git add -A` to stage ALL changes
+2. Run `git status` to verify what will be committed
+3. Create a commit with a descriptive message summarizing all changes
+4. Run `git push` to push to GitHub immediately
+5. Verify the push was successful
+
+This saves time during development and ensures Vercel only deploys when the user is ready.
 
 ## Architecture
 
@@ -146,10 +175,23 @@ if (isDev || !user) {
   - `/create` - Create new dynasty
   - `/dynasty/:id` - Dynasty detail view with nested routes:
     - `/dynasty/:id` - Dashboard (default)
+    - `/dynasty/:id/roster` - Current roster
     - `/dynasty/:id/rankings` - Team rankings
     - `/dynasty/:id/stats` - Statistics
     - `/dynasty/:id/coach-career` - Coach career tracking
-    - Plus 10+ other nested routes for various dynasty features
+    - `/dynasty/:id/players` - All players list
+    - `/dynasty/:id/player/:pid` - Individual player page
+    - `/dynasty/:id/all-time-lineup` - Best players by position
+    - `/dynasty/:id/recruiting` - Recruiting class
+    - `/dynasty/:id/leaders` - Statistical leaders
+    - `/dynasty/:id/awards` - Player awards
+    - `/dynasty/:id/all-americans` - All-American selections
+    - `/dynasty/:id/all-conference` - All-Conference selections
+    - `/dynasty/:id/dynasty-records` - Record book
+    - `/dynasty/:id/team-achievements` - Team accomplishments
+    - `/dynasty/:id/teams` - All FBS teams list
+    - `/dynasty/:id/team/:teamAbbr` - Individual team history
+    - `/dynasty/:id/team/:teamAbbr/:year` - Team year details
 
 `ProtectedRoute` component in `App.jsx` checks dev mode first, then user authentication.
 
@@ -190,6 +232,7 @@ Each dynasty object contains:
     scheduleEntered: boolean,
     rosterEntered: boolean
   },
+  lastModified: number, // Timestamp (Date.now()) - auto-updated on every dynasty update
   // ... additional fields
 }
 ```
@@ -322,6 +365,59 @@ Each dynasty object contains:
 - Career statistics section (placeholder: "Coming soon...")
 - Uses `useParams()` to extract `pid` from URL
 - Finds player by matching `pid` in dynasty's players array
+
+### Team Pages (All Teams Feature)
+
+**Teams List Page** (`src/pages/dynasty/Teams.jsx`):
+- Route: `/dynasty/:id/teams`
+- Displays all 136 FBS teams in alphabetical order
+- Search functionality filters by team name, abbreviation, or mascot
+- Each team tile shows logo and full mascot name (e.g., "Alabama Crimson Tide")
+- Team tiles use team-specific colors (background + text)
+- `getMascotName()` function maps abbreviations to full mascot names for logo lookup
+
+**Individual Team Page** (`src/pages/dynasty/Team.jsx`):
+- Route: `/dynasty/:id/team/:teamAbbr`
+- Header with team logo, name, and conference
+- **Team Accomplishments Section** (reads from `teamHistories[teamAbbr]`):
+  - AP Top 25 Finishes (Media Poll, Coaches Poll)
+  - Conference Titles, CFP Appearances, National Titles
+  - Heisman Winners, First-Team All-Americans
+- **Your History Section**:
+  - Games played as this team / Win %
+  - Games played against this team / Win %
+- **Head-to-Head Record**:
+  - All-time record vs this opponent
+  - Best year and worst year (clickable links)
+- **Season-by-Season Grid**:
+  - Clickable tiles for each year showing record
+  - Links to TeamYear page for game details
+
+**Team Year Page** (`src/pages/dynasty/TeamYear.jsx`):
+- Route: `/dynasty/:id/team/:teamAbbr/:year`
+- Shows all games involving that team for a specific year
+- Displays season record summary
+- Game-by-game details with scores and results
+
+**Data Structure** (not yet fully implemented):
+```javascript
+dynasty.teamHistories = {
+  'BAMA': {
+    apTop25Media: 3,
+    apTop25Coaches: 2,
+    conferenceTitles: 1,
+    cfpAppearances: 2,
+    nationalTitles: 1,
+    heismanWinners: 0,
+    allAmericans: 5,
+    gamesAs: 24,
+    winsAs: 20,
+    gamesVs: 2,
+    winsVs: 1
+  },
+  // ... other teams
+}
+```
 
 ### Team Theming System
 

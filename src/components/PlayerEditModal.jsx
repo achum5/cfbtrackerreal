@@ -21,6 +21,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     if (player && isOpen) {
       setFormData({
         // Basic Info
+        pictureUrl: player.pictureUrl || '',
         name: player.name || '',
         position: player.position || '',
         school: player.school || defaultSchool || '',
@@ -184,7 +185,11 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         total_yardage: player.total?.yardage || 0,
         total_yardsPerPlay: player.total?.yardsPerPlay || 0,
         total_touchdowns: player.total?.touchdowns || 0,
-        total_yardsPerGame: player.total?.yardsPerGame || 0
+        total_yardsPerGame: player.total?.yardsPerGame || 0,
+
+        // Notes & Media
+        notes: player.notes || '',
+        links: player.links || []
       })
     }
   }, [player, isOpen, defaultSchool])
@@ -203,6 +208,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     // Restructure the flat form data into nested structure
     const updatedPlayer = {
       ...player,
+      pictureUrl: formData.pictureUrl,
       name: formData.name,
       position: formData.position,
       school: formData.school,
@@ -372,7 +378,11 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         yardsPerPlay: num(formData.total_yardsPerPlay),
         touchdowns: num(formData.total_touchdowns),
         yardsPerGame: num(formData.total_yardsPerGame)
-      }
+      },
+
+      // Notes & Media
+      notes: formData.notes,
+      links: formData.links
     }
 
     onSave(updatedPlayer)
@@ -444,6 +454,49 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
             >
               <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Basic Information</h3>
+              <div className="flex gap-4 mb-4">
+                {/* Player Picture */}
+                <div className="flex-shrink-0">
+                  {formData.pictureUrl ? (
+                    <img
+                      src={formData.pictureUrl}
+                      alt={formData.name || 'Player'}
+                      className="w-24 h-24 object-cover rounded-lg border-2"
+                      style={{ borderColor: teamColors.primary }}
+                      onError={(e) => {
+                        e.target.style.display = 'none'
+                        e.target.nextSibling.style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
+                  <div
+                    className={`w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center ${formData.pictureUrl ? 'hidden' : ''}`}
+                    style={{ borderColor: teamColors.primary, opacity: 0.5 }}
+                  >
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: secondaryText }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                </div>
+                {/* Picture URL Input */}
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
+                    Picture URL (imgur, etc.)
+                  </label>
+                  <input
+                    type="text"
+                    name="pictureUrl"
+                    value={formData.pictureUrl ?? ''}
+                    onChange={handleChange}
+                    placeholder="https://i.imgur.com/..."
+                    className="w-full px-3 py-2 border-2 rounded-lg"
+                    style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: secondaryText, opacity: 0.6 }}>
+                    Paste a direct link to an image (right-click image → Copy image address)
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <InputField label="Name" name="name" type="text" />
 
@@ -541,7 +594,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             >
               <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Recruiting Information</h3>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Year Started" name="yearStarted" type="text" />
+                <InputField label="Recruitment Year" name="yearStarted" type="text" />
                 <InputField label="Stars" name="stars" />
                 <InputField label="Position Rank" name="positionRank" />
                 <InputField label="State Rank" name="stateRank" />
@@ -844,6 +897,107 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                 <InputField label="Yards/Play" name="total_yardsPerPlay" disabled />
                 <InputField label="Touchdowns" name="total_touchdowns" />
                 <InputField label="Yards/Game" name="total_yardsPerGame" disabled />
+              </div>
+            </div>
+
+            {/* Notes & Media */}
+            <div
+              className="rounded-lg p-4"
+              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            >
+              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Notes & Media</h3>
+
+              {/* Notes */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
+                  Notes
+                </label>
+                <textarea
+                  name="notes"
+                  value={formData.notes ?? ''}
+                  onChange={handleChange}
+                  placeholder="Add any notes about this player..."
+                  rows={4}
+                  className="w-full px-3 py-2 border-2 rounded-lg resize-y"
+                  style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
+                />
+              </div>
+
+              {/* Links */}
+              <div>
+                <label className="block text-xs font-semibold mb-2" style={{ color: secondaryText, opacity: 0.8 }}>
+                  Links & Media
+                </label>
+
+                {/* Existing Links */}
+                {formData.links && formData.links.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {formData.links.map((link, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={link.title || ''}
+                          onChange={(e) => {
+                            const newLinks = [...formData.links]
+                            newLinks[index] = { ...newLinks[index], title: e.target.value }
+                            setFormData(prev => ({ ...prev, links: newLinks }))
+                          }}
+                          placeholder="Title"
+                          className="flex-1 px-3 py-2 border-2 rounded-lg text-sm"
+                          style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
+                        />
+                        <input
+                          type="text"
+                          value={link.url || ''}
+                          onChange={(e) => {
+                            const newLinks = [...formData.links]
+                            newLinks[index] = { ...newLinks[index], url: e.target.value }
+                            setFormData(prev => ({ ...prev, links: newLinks }))
+                          }}
+                          placeholder="URL"
+                          className="flex-[2] px-3 py-2 border-2 rounded-lg text-sm"
+                          style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLinks = formData.links.filter((_, i) => i !== index)
+                            setFormData(prev => ({ ...prev, links: newLinks }))
+                          }}
+                          className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                          style={{ color: '#ef4444' }}
+                          title="Remove link"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add New Link Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newLinks = [...(formData.links || []), { title: '', url: '' }]
+                    setFormData(prev => ({ ...prev, links: newLinks }))
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: primaryText
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Link
+                </button>
+                <p className="text-xs mt-2" style={{ color: secondaryText, opacity: 0.6 }}>
+                  Add links to highlights, articles, social media, or any other media
+                </p>
               </div>
             </div>
           </div>
