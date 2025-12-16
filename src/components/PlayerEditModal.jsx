@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teams } from '../data/teams'
 
-export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave }) {
+export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool }) {
   const [formData, setFormData] = useState({})
 
   // Prevent background scrolling when modal is open
@@ -23,7 +23,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         // Basic Info
         name: player.name || '',
         position: player.position || '',
-        school: player.school || '',
+        school: player.school || defaultSchool || '',
         year: player.year || '',
         devTrait: player.devTrait || 'Normal',
         overall: player.overall || 0,
@@ -187,7 +187,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         total_yardsPerGame: player.total?.yardsPerGame || 0
       })
     }
-  }, [player, isOpen])
+  }, [player, isOpen, defaultSchool])
 
   const handleChange = (e) => {
     const { name, value } = e.target

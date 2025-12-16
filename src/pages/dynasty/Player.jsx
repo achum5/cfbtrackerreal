@@ -919,6 +919,7 @@ export default function Player() {
         player={player}
         teamColors={teamColors}
         onSave={handlePlayerSave}
+        defaultSchool={dynasty.teamName}
       />
     </div>
   )
