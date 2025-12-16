@@ -209,6 +209,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   const natlPOWRef = useRef(null)
   const confPOWDropdownRef = useRef(null)
   const natlPOWDropdownRef = useRef(null)
+  const formRef = useRef(null)
 
   // Get list of player names for selection
   const playerNames = (currentDynasty?.players || [])
@@ -813,6 +814,11 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNationalPOW(randomPlayer())
       }
     }
+
+    // Auto-submit after state updates
+    setTimeout(() => {
+      formRef.current?.requestSubmit()
+    }, 100)
   }
 
   if (!isOpen) return null
@@ -872,7 +878,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Conference Game Checkbox */}
           <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
             <input

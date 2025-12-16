@@ -134,12 +134,18 @@ export function DynastyProvider({ children }) {
       preseasonSetup: {
         scheduleEntered: false,
         rosterEntered: false,
-        teamRatingsEntered: false
+        teamRatingsEntered: false,
+        coachingStaffEntered: false
       },
       teamRatings: {
         overall: null,
         offense: null,
         defense: null
+      },
+      coachingStaff: {
+        hcName: null,
+        ocName: null,
+        dcName: null
       }
     }
 
@@ -482,6 +488,25 @@ export function DynastyProvider({ children }) {
       updatedGames = updatedGames.filter(g =>
         !(g.isConferenceChampionship && g.year === dynasty.currentYear)
       )
+
+      // Restore fired coordinators if any were fired during this CC phase
+      const ccData = dynasty.conferenceChampionshipData
+      if (ccData && ccData.year === dynasty.currentYear) {
+        // Restore coordinator names that were fired
+        if (ccData.firedOCName || ccData.firedDCName) {
+          const restoredStaff = { ...dynasty.coachingStaff }
+          if (ccData.firedOCName) {
+            restoredStaff.ocName = ccData.firedOCName
+          }
+          if (ccData.firedDCName) {
+            restoredStaff.dcName = ccData.firedDCName
+          }
+          additionalUpdates.coachingStaff = restoredStaff
+          // Restore the coachingStaffEntered flag since we're restoring the coordinators
+          additionalUpdates['preseasonSetup.coachingStaffEntered'] = true
+        }
+      }
+
       additionalUpdates.conferenceChampionshipData = null
     } else if (dynasty.currentPhase === 'postseason') {
       // Remove postseason game for current week
@@ -705,6 +730,44 @@ export function DynastyProvider({ children }) {
 
     await updateDynasty(dynastyId, teamRatingsUpdates)
     console.log('Team ratings saved successfully')
+  }
+
+  const saveCoachingStaff = async (dynastyId, staff) => {
+    console.log('saveCoachingStaff called:', { dynastyId, staff })
+
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    const coachingStaffUpdates = isDev || !user
+      ? {
+          coachingStaff: staff,
+          preseasonSetup: {
+            ...dynasty.preseasonSetup,
+            coachingStaffEntered: true
+          }
+        }
+      : {
+          coachingStaff: staff,
+          'preseasonSetup.coachingStaffEntered': true
+        }
+
+    await updateDynasty(dynastyId, coachingStaffUpdates)
+    console.log('Coaching staff saved successfully')
   }
 
   const updatePlayer = async (dynastyId, updatedPlayer) => {
@@ -954,6 +1017,7 @@ export function DynastyProvider({ children }) {
     saveSchedule,
     saveRoster,
     saveTeamRatings,
+    saveCoachingStaff,
     updatePlayer,
     createGoogleSheetForDynasty,
     createTempSheetWithData,

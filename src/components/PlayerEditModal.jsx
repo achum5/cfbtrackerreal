@@ -24,12 +24,24 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         pictureUrl: player.pictureUrl || '',
         name: player.name || '',
         position: player.position || '',
+        archetype: player.archetype || '',
         school: player.school || defaultSchool || '',
         year: player.year || '',
         devTrait: player.devTrait || 'Normal',
         overall: player.overall || 0,
 
-        // Biographical & Recruiting
+        // Physical
+        height: player.height || '',
+        weight: player.weight || '',
+
+        // Hometown
+        hometown: player.hometown || '',
+        state: player.state || '',
+
+        // Transfer
+        previousTeam: player.previousTeam || '',
+
+        // Recruiting
         yearStarted: player.yearStarted || '',
         stars: player.stars || 0,
         positionRank: player.positionRank || 0,
@@ -211,10 +223,22 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       pictureUrl: formData.pictureUrl,
       name: formData.name,
       position: formData.position,
+      archetype: formData.archetype,
       school: formData.school,
       year: formData.year,
       devTrait: formData.devTrait,
       overall: num(formData.overall),
+
+      // Physical
+      height: formData.height,
+      weight: formData.weight ? num(formData.weight) : null,
+
+      // Hometown
+      hometown: formData.hometown,
+      state: formData.state,
+
+      // Transfer
+      previousTeam: formData.previousTeam,
 
       yearStarted: formData.yearStarted,
       stars: num(formData.stars),
@@ -523,6 +547,79 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
+                    Archetype
+                  </label>
+                  <select
+                    name="archetype"
+                    value={formData.archetype ?? ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border-2 rounded-lg"
+                    style={{
+                      borderColor: teamColors.primary,
+                      backgroundColor: '#ffffff'
+                    }}
+                  >
+                    <option value="">Select Archetype</option>
+                    <optgroup label="Quarterbacks">
+                      {['Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Halfbacks">
+                      {['Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Fullbacks">
+                      {['Blocking', 'Utility'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Wide Receivers">
+                      {['Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tight Ends">
+                      {['Gritty Possession', 'Physical Route Runner', 'Possession', 'Pure Blocker', 'Vertical Threat'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Offensive Line">
+                      {['Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Defensive Line">
+                      {['Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Linebackers">
+                      {['Lurker', 'Signal Caller', 'Thumper'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Cornerbacks">
+                      {['Boundary', 'Field', 'Zone'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Safeties">
+                      {['Box Specialist', 'Coverage Specialist', 'Hybrid'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Kickers & Punters">
+                      {['Accurate', 'Power'].map(arch => (
+                        <option key={arch} value={arch}>{arch}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
                     School
                   </label>
                   <select
@@ -587,7 +684,41 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               </div>
             </div>
 
-            {/* Biographical & Recruiting */}
+            {/* Physical & Biographical */}
+            <div
+              className="rounded-lg p-4"
+              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            >
+              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Physical & Biographical</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <InputField label="Height (e.g. 6-2)" name="height" type="text" />
+                <InputField label="Weight (lbs)" name="weight" />
+                <InputField label="Hometown" name="hometown" type="text" />
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
+                    State
+                  </label>
+                  <select
+                    name="state"
+                    value={formData.state ?? ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border-2 rounded-lg"
+                    style={{
+                      borderColor: teamColors.primary,
+                      backgroundColor: '#ffffff'
+                    }}
+                  >
+                    <option value="">Select State</option>
+                    {['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'].map(st => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <InputField label="Previous Team (Transfer)" name="previousTeam" type="text" />
+              </div>
+            </div>
+
+            {/* Recruiting */}
             <div
               className="rounded-lg p-4"
               style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}

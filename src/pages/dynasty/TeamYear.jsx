@@ -210,6 +210,13 @@ export default function TeamYear() {
     .filter(g => g.opponent === teamAbbr && g.year === selectedYear)
     .sort((a, b) => a.week - b.week)
 
+  // Get conference championship data for this team in this year
+  const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[selectedYear] || []
+  const teamCCGame = yearChampionships.find(cc =>
+    (cc.team1 === teamAbbr || cc.team2 === teamAbbr) && cc.team1Score !== null && cc.team2Score !== null
+  )
+  const wonCC = teamCCGame?.winner === teamAbbr
+
   // Calculate record for this year
   const wins = yearGames.filter(g => g.result === 'W').length
   const losses = yearGames.filter(g => g.result === 'L').length
@@ -341,6 +348,57 @@ export default function TeamYear() {
           </p>
         )}
       </div>
+
+      {/* Conference Championship Game */}
+      {teamCCGame && (
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{
+            backgroundColor: userTeamColors.secondary,
+            border: `3px solid ${wonCC ? '#16a34a' : '#dc2626'}`
+          }}
+        >
+          <div
+            className="px-4 py-3"
+            style={{ backgroundColor: wonCC ? '#16a34a' : '#dc2626' }}
+          >
+            <h2 className="text-lg font-bold text-white">
+              {teamCCGame.conference} Championship {wonCC ? '🏆 CHAMPION' : ''}
+            </h2>
+          </div>
+
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <span
+                    className="px-3 py-1 rounded-full text-sm font-bold"
+                    style={{
+                      backgroundColor: wonCC ? '#16a34a' : '#dc2626',
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    {wonCC ? 'WIN' : 'LOSS'}
+                  </span>
+                  <span className="text-xl font-bold" style={{ color: secondaryBgText }}>
+                    {teamCCGame.team1 === teamAbbr
+                      ? `${teamCCGame.team1Score} - ${teamCCGame.team2Score}`
+                      : `${teamCCGame.team2Score} - ${teamCCGame.team1Score}`}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" style={{ color: secondaryBgText, opacity: 0.8 }}>
+                  <span className="font-semibold">Conference Championship</span>
+                  <span>Neutral Site</span>
+                  <span>
+                    vs {teamCCGame.team1 === teamAbbr ? teamCCGame.team2 : teamCCGame.team1}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Game Details */}
       {yearGames.length > 0 && (

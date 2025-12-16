@@ -6,19 +6,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Completed the All Teams feature:
-- Created Teams list page (`/dynasty/:id/teams`) - alphabetical listing of all 136 FBS teams with search
-- Created individual Team pages (`/dynasty/:id/team/:teamAbbr`) - comprehensive team history with stats
-- Created TeamYear pages (`/dynasty/:id/team/:teamAbbr/:year`) - year-by-year game details
-- Removed old Team History sidebar page (replaced by enhanced Team pages)
+**Last Session (December 2024)**: Multiple features and improvements:
+
+1. **Jersey Number Field**: Added jersey number support across the app:
+   - Google Sheets Roster tab now has 12 columns (added Jersey # as column E, between Dev Trait and Archetype)
+   - RosterSpreadsheet.jsx entry form includes jersey number
+   - Roster.jsx page displays jersey # as first column (before Name)
+   - Player.jsx shows jersey number in header as "#XX" before position
+   - All data validation dropdowns properly aligned to new column positions
+
+2. **Dynamic Team Stats - Conference Titles**: Team pages now show real data:
+   - Conference championships stored by year in `conferenceChampionshipsByYear` object
+   - Team.jsx calculates conference titles dynamically by counting wins from all years
+   - TeamYear.jsx shows conference championship game if team participated that year
+   - CC game display includes WIN/LOSS badge, score, conference name, opponent, and "🏆 CHAMPION" indicator
+
+3. **UI Improvements**:
+   - Team ratings edit button added to dashboard header (pencil icon next to OVR/OFF/DEF)
+   - Fixed coordinator firing Yes/No buttons to have same styling
+   - Fixed championship question Yes/No buttons to have same styling
+   - GameEntryModal "Random Fill" button now auto-saves (dev feature)
+
+4. **Bug Fixes**:
+   - Revert week now properly restores fired coordinators from `conferenceChampionshipData`
+   - Fixed bullet separator showing when team is unranked
 
 **TODO / Future Work**:
-- Team stats data (`teamHistories`) is not yet being populated - needs implementation to track:
+- Team stats still need implementation for:
   - AP Top 25 Finishes (Media/Coaches polls)
-  - Conference Titles, CFP Appearances, National Titles
+  - CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans
   - User's games as/against each team with win percentages
-- The Team pages UI is complete but shows placeholder data until `teamHistories` is populated
+- Conference titles now work dynamically! Other stats still show placeholder 0
 
 ## Project Overview
 
@@ -225,12 +244,31 @@ Each dynasty object contains:
     name: string,
     position: string,
     year: string, // Class: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
+    jerseyNumber: string, // Jersey number (e.g., "12", "99")
     devTrait: string, // Elite, Star, Impact, Normal
-    overall: number // Overall rating (0-99)
+    archetype: string, // Player archetype (e.g., "Pocket Passer", "Speed Rusher")
+    overall: number, // Overall rating (0-99)
+    height: string, // Height (e.g., "6'2\"")
+    weight: number, // Weight in lbs
+    hometown: string,
+    state: string, // State abbreviation
+    stars: number // Recruitment stars (1-5)
   }>,
   preseasonSetup: {
     scheduleEntered: boolean,
-    rosterEntered: boolean
+    rosterEntered: boolean,
+    teamRatingsEntered: boolean,
+    coachingStaffEntered: boolean // Only required for HC
+  },
+  conferenceChampionshipsByYear: { // Conference championship results by year
+    [year: number]: Array<{
+      conference: string,
+      team1: string,
+      team2: string,
+      team1Score: number,
+      team2Score: number,
+      winner: string // Team abbreviation of winner
+    }>
   },
   lastModified: number, // Timestamp (Date.now()) - auto-updated on every dynasty update
   // ... additional fields
@@ -262,14 +300,18 @@ Each dynasty object contains:
   - **Conditional Formatting**: Team abbreviations automatically styled with team colors (background + text color)
   - All cells formatted with Barlow font, size 10, bold, italic, centered
 
-- **Roster Tab** (5 columns):
-  - Name, Position, Class, Dev Trait, Overall Rating
+- **Roster Tab** (12 columns):
+  - A: Name, B: Position, C: Class, D: Dev Trait, E: Jersey #, F: Archetype, G: Overall, H: Height, I: Weight, J: Hometown, K: State, L: Recruitment Stars
   - 85 rows for players (roster limit)
   - Header row is protected and frozen
   - **Data Validation**:
-    - Position column has STRICT dropdown with all CFB positions: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P
-    - Class column has STRICT dropdown with: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
-    - Dev Trait column has STRICT dropdown with: Elite, Star, Impact, Normal
+    - Position (B): STRICT dropdown with all CFB positions: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P
+    - Class (C): STRICT dropdown with: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
+    - Dev Trait (D): STRICT dropdown with: Elite, Star, Impact, Normal
+    - Archetype (F): STRICT dropdown with all player archetypes
+    - Height (H): Dropdown with heights from 5'6" to 6'8"
+    - State (K): STRICT dropdown with all US state abbreviations
+    - Recruitment Stars (L): Dropdown with ☆ to ☆☆☆☆☆
   - All cells formatted with Barlow font, size 10, bold, italic, centered
 
 **Team Abbreviations**:
@@ -332,13 +374,14 @@ Each dynasty object contains:
 ### Dashboard Features
 
 **Preseason Setup Progress** (`src/pages/dynasty/Dashboard.jsx`):
-- Single combined task: "Enter Schedule & Roster"
-- Shows progress: "X/12 games • X/85 players"
+- Task 1: "Enter Schedule & Roster" - Shows progress: "X/12 games • X/85 players"
+- Task 2: "Enter Team Ratings" - Shows: "OVR • OFF • DEF" ratings
+- Task 3: "Enter Coordinators" (HC only) - Shows: "OC: Name • DC: Name"
 - **Visual States**:
-  - **Incomplete**: Circle with number (1), team-colored styling
+  - **Incomplete**: Circle with number (1, 2, 3), team-colored styling
   - **Complete**: Green circle with checkmark (w-10 h-10, strokeWidth 3), green text, "✓ Ready" indicator
-  - Green border and background (`border-green-200 bg-green-50`) when both flags are true
-- Clicking "Add Data" opens ScheduleEntryModal to sync both schedule and roster
+  - Green border and background (`border-green-200 bg-green-50`) when complete
+- `canAdvanceFromPreseason()` checks all required tasks (scheduleEntered, rosterEntered, teamRatingsEntered, and coachingStaffEntered for HC users)
 - After completion, button text changes to "Edit"
 
 **Schedule Display**:
@@ -379,10 +422,11 @@ Each dynasty object contains:
 **Individual Team Page** (`src/pages/dynasty/Team.jsx`):
 - Route: `/dynasty/:id/team/:teamAbbr`
 - Header with team logo, name, and conference
-- **Team Accomplishments Section** (reads from `teamHistories[teamAbbr]`):
-  - AP Top 25 Finishes (Media Poll, Coaches Poll)
-  - Conference Titles, CFP Appearances, National Titles
-  - Heisman Winners, First-Team All-Americans
+- **Team Accomplishments Section**:
+  - AP Top 25 Finishes - reads from `teamHistories[teamAbbr]` (placeholder)
+  - Conference Titles - **dynamically calculated** from `conferenceChampionshipsByYear`
+  - CFP Appearances, National Titles - reads from `teamHistories` (placeholder)
+  - Heisman Winners, First-Team All-Americans - reads from `teamHistories` (placeholder)
 - **Your History Section**:
   - Games played as this team / Win %
   - Games played against this team / Win %
@@ -395,25 +439,42 @@ Each dynasty object contains:
 
 **Team Year Page** (`src/pages/dynasty/TeamYear.jsx`):
 - Route: `/dynasty/:id/team/:teamAbbr/:year`
+- **Conference Championship Section** (if team participated):
+  - Shows WIN/LOSS badge with green/red styling
+  - Displays score, conference name, opponent
+  - Shows "🏆 CHAMPION" indicator for winners
 - Shows all games involving that team for a specific year
 - Displays season record summary
 - Game-by-game details with scores and results
 
-**Data Structure** (not yet fully implemented):
+**Conference Championships Data Structure** (fully implemented):
+```javascript
+dynasty.conferenceChampionshipsByYear = {
+  2025: [
+    { conference: 'SEC', team1: 'UK', team2: 'UGA', team1Score: 31, team2Score: 24, winner: 'UK' },
+    { conference: 'Big Ten', team1: 'OSU', team2: 'MICH', team1Score: 28, team2Score: 35, winner: 'MICH' },
+    // ... other conferences
+  ],
+  2026: [...],
+  // ... other years
+}
+// Conference titles count is calculated by counting times team is 'winner' across all years
+```
+
+**Legacy Data Structure** (partially implemented - only teamHistories used for non-CC stats):
 ```javascript
 dynasty.teamHistories = {
   'BAMA': {
-    apTop25Media: 3,
-    apTop25Coaches: 2,
-    conferenceTitles: 1,
-    cfpAppearances: 2,
-    nationalTitles: 1,
-    heismanWinners: 0,
-    allAmericans: 5,
-    gamesAs: 24,
-    winsAs: 20,
-    gamesVs: 2,
-    winsVs: 1
+    apTop25Media: 3,      // Not yet populated
+    apTop25Coaches: 2,    // Not yet populated
+    cfpAppearances: 2,    // Not yet populated
+    nationalTitles: 1,    // Not yet populated
+    heismanWinners: 0,    // Not yet populated
+    allAmericans: 5,      // Not yet populated
+    gamesAs: 24,          // Not yet populated
+    winsAs: 20,           // Not yet populated
+    gamesVs: 2,           // Not yet populated
+    winsVs: 1             // Not yet populated
   },
   // ... other teams
 }

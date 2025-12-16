@@ -222,6 +222,12 @@ export default function Team() {
   // Get team history data for this opponent (stored in dynasty)
   const teamHistoryData = currentDynasty.teamHistories?.[teamAbbr] || {}
 
+  // Calculate conference titles dynamically from conferenceChampionshipsByYear
+  const conferenceTitles = Object.values(currentDynasty.conferenceChampionshipsByYear || {})
+    .flat()
+    .filter(cc => cc.winner === teamAbbr)
+    .length
+
   // Get all dynasty years
   const startYear = currentDynasty.startYear
   const currentYear = currentDynasty.currentYear
@@ -373,7 +379,7 @@ export default function Team() {
             />
             <StatCell
               label="Conf Titles"
-              value={teamHistoryData.conferenceTitles || 0}
+              value={conferenceTitles}
             />
             <StatCell
               label="CFP Apps"

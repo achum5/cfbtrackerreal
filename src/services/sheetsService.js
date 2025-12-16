@@ -57,7 +57,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 5,
+                columnCount: 12,
                 frozenRowCount: 1
               }
             }
@@ -235,7 +235,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           fields: 'userEnteredValue'
         }
       }] : []),
-      // Roster headers
+      // Roster headers (12 columns)
       {
         updateCells: {
           range: {
@@ -243,7 +243,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 5
+            endColumnIndex: 12
           },
           rows: [{
             values: [
@@ -251,7 +251,14 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
               { userEnteredValue: { stringValue: 'Position' } },
               { userEnteredValue: { stringValue: 'Class' } },
               { userEnteredValue: { stringValue: 'Dev Trait' } },
-              { userEnteredValue: { stringValue: 'Overall Rating' } }
+              { userEnteredValue: { stringValue: 'Jersey #' } },
+              { userEnteredValue: { stringValue: 'Archetype' } },
+              { userEnteredValue: { stringValue: 'Overall' } },
+              { userEnteredValue: { stringValue: 'Height' } },
+              { userEnteredValue: { stringValue: 'Weight' } },
+              { userEnteredValue: { stringValue: 'Hometown' } },
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Recruitment Stars' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -549,6 +556,171 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             strict: true
           }
         }
+      },
+      // Add data validation dropdown for Archetype column in Roster (F2:F86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 5,
+            endColumnIndex: 6
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                // QB Archetypes
+                { userEnteredValue: 'Backfield Creator' },
+                { userEnteredValue: 'Dual Threat' },
+                { userEnteredValue: 'Pocket Passer' },
+                { userEnteredValue: 'Pure Runner' },
+                // HB Archetypes
+                { userEnteredValue: 'Backfield Threat' },
+                { userEnteredValue: 'East/West Playmaker' },
+                { userEnteredValue: 'Elusive Bruiser' },
+                { userEnteredValue: 'North/South Receiver' },
+                { userEnteredValue: 'North/South Blocker' },
+                // FB Archetypes
+                { userEnteredValue: 'Blocking' },
+                { userEnteredValue: 'Utility' },
+                // WR Archetypes
+                { userEnteredValue: 'Contested Specialist' },
+                { userEnteredValue: 'Elusive Route Runner' },
+                { userEnteredValue: 'Gadget' },
+                { userEnteredValue: 'Gritty Possession' },
+                { userEnteredValue: 'Physical Route Runner' },
+                { userEnteredValue: 'Route Artist' },
+                { userEnteredValue: 'Speedster' },
+                // TE Archetypes
+                { userEnteredValue: 'Possession' },
+                { userEnteredValue: 'Pure Blocker' },
+                { userEnteredValue: 'Vertical Threat' },
+                // OL Archetypes
+                { userEnteredValue: 'Agile' },
+                { userEnteredValue: 'Pass Protector' },
+                { userEnteredValue: 'Raw Strength' },
+                { userEnteredValue: 'Ground and Pound' },
+                { userEnteredValue: 'Well Rounded' },
+                // DL Archetypes
+                { userEnteredValue: 'Edge Setter' },
+                { userEnteredValue: 'Gap Specialist' },
+                { userEnteredValue: 'Power Rusher' },
+                { userEnteredValue: 'Pure Power' },
+                { userEnteredValue: 'Speed Rusher' },
+                // LB Archetypes
+                { userEnteredValue: 'Lurker' },
+                { userEnteredValue: 'Signal Caller' },
+                { userEnteredValue: 'Thumper' },
+                // CB Archetypes
+                { userEnteredValue: 'Boundary' },
+                { userEnteredValue: 'Field' },
+                { userEnteredValue: 'Zone' },
+                // S Archetypes
+                { userEnteredValue: 'Box Specialist' },
+                { userEnteredValue: 'Coverage Specialist' },
+                { userEnteredValue: 'Hybrid' },
+                // K/P Archetypes
+                { userEnteredValue: 'Accurate' },
+                { userEnteredValue: 'Power' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Height column in Roster (H2:H86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 7,
+            endColumnIndex: 8
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' }, { userEnteredValue: '5\'8"' },
+                { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' }, { userEnteredValue: '5\'11"' },
+                { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' }, { userEnteredValue: '6\'2"' },
+                { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' }, { userEnteredValue: '6\'5"' },
+                { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' }, { userEnteredValue: '6\'8"' },
+                { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' }
+              ]
+            },
+            showCustomUi: true,
+            strict: false  // Allow typing for flexibility
+          }
+        }
+      },
+      // Add data validation dropdown for State column in Roster (K2:K86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 10,
+            endColumnIndex: 11
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'AL' }, { userEnteredValue: 'AK' }, { userEnteredValue: 'AZ' },
+                { userEnteredValue: 'AR' }, { userEnteredValue: 'CA' }, { userEnteredValue: 'CO' },
+                { userEnteredValue: 'CT' }, { userEnteredValue: 'DE' }, { userEnteredValue: 'FL' },
+                { userEnteredValue: 'GA' }, { userEnteredValue: 'HI' }, { userEnteredValue: 'ID' },
+                { userEnteredValue: 'IL' }, { userEnteredValue: 'IN' }, { userEnteredValue: 'IA' },
+                { userEnteredValue: 'KS' }, { userEnteredValue: 'KY' }, { userEnteredValue: 'LA' },
+                { userEnteredValue: 'ME' }, { userEnteredValue: 'MD' }, { userEnteredValue: 'MA' },
+                { userEnteredValue: 'MI' }, { userEnteredValue: 'MN' }, { userEnteredValue: 'MS' },
+                { userEnteredValue: 'MO' }, { userEnteredValue: 'MT' }, { userEnteredValue: 'NE' },
+                { userEnteredValue: 'NV' }, { userEnteredValue: 'NH' }, { userEnteredValue: 'NJ' },
+                { userEnteredValue: 'NM' }, { userEnteredValue: 'NY' }, { userEnteredValue: 'NC' },
+                { userEnteredValue: 'ND' }, { userEnteredValue: 'OH' }, { userEnteredValue: 'OK' },
+                { userEnteredValue: 'OR' }, { userEnteredValue: 'PA' }, { userEnteredValue: 'RI' },
+                { userEnteredValue: 'SC' }, { userEnteredValue: 'SD' }, { userEnteredValue: 'TN' },
+                { userEnteredValue: 'TX' }, { userEnteredValue: 'UT' }, { userEnteredValue: 'VT' },
+                { userEnteredValue: 'VA' }, { userEnteredValue: 'WA' }, { userEnteredValue: 'WV' },
+                { userEnteredValue: 'WI' }, { userEnteredValue: 'WY' }, { userEnteredValue: 'DC' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Recruitment Stars column in Roster (L2:L86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 11,
+            endColumnIndex: 12
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: '☆' },
+                { userEnteredValue: '☆☆' },
+                { userEnteredValue: '☆☆☆' },
+                { userEnteredValue: '☆☆☆☆' },
+                { userEnteredValue: '☆☆☆☆☆' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
       }
     ]
 
@@ -672,7 +844,7 @@ export async function deleteGoogleSheet(spreadsheetId) {
   }
 }
 
-// Read roster data from sheet
+// Read roster data from sheet (12 columns)
 export async function readRosterFromSheet(spreadsheetId) {
   try {
     const user = auth.currentUser
@@ -681,7 +853,7 @@ export async function readRosterFromSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:E100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -696,14 +868,65 @@ export async function readRosterFromSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
+    // Helper to convert star symbols to number
+    const starsToNumber = (starsStr) => {
+      if (!starsStr) return null
+      const count = (starsStr.match(/☆/g) || []).length
+      return count > 0 ? count : null
+    }
+
+    // Helper to normalize height to 6'1" format
+    const normalizeHeight = (heightStr) => {
+      if (!heightStr) return ''
+      let h = heightStr.toString().trim()
+
+      // Replace any smart quotes with standard quotes
+      h = h.replace(/['']/g, "'").replace(/[""]/g, '"')
+
+      // Already in correct format (6'1")
+      if (/^\d['′']\d{1,2}["″"]$/.test(h)) {
+        // Normalize quotes
+        return h.replace(/['′']/g, "'").replace(/["″"]/g, '"')
+      }
+
+      // Format: 6'1 or 6′1 (missing closing quote)
+      const missingQuoteMatch = h.match(/^(\d)['′'](\d{1,2})$/)
+      if (missingQuoteMatch) return `${missingQuoteMatch[1]}'${missingQuoteMatch[2]}"`
+
+      // Format: 6-1 or 6-10
+      const dashMatch = h.match(/^(\d)-(\d{1,2})$/)
+      if (dashMatch) return `${dashMatch[1]}'${dashMatch[2]}"`
+
+      // Format: 61, 62, 510, 511, 610 (no separator)
+      if (/^\d{2,3}$/.test(h)) {
+        if (h.length === 2) {
+          // 61 -> 6'1"
+          return `${h[0]}'${h[1]}"`
+        } else if (h.length === 3) {
+          // 510 -> 5'10", 611 -> 6'11"
+          return `${h[0]}'${h.slice(1)}"`
+        }
+      }
+
+      // Return as-is if we can't parse
+      return h
+    }
+
     return rows
-      .filter(row => row[0] && row[4]) // Has name and overall rating
+      .filter(row => row[0] && row[6]) // Has name (col A) and overall rating (col G)
       .map(row => ({
-        name: row[0],
-        position: row[1] || 'QB',
-        year: row[2] || 'Fr',
-        devTrait: row[3] || 'Normal',
-        overall: parseInt(row[4]) || 0
+        name: row[0],                              // A: Name
+        position: row[1] || 'QB',                  // B: Position
+        year: row[2] || 'Fr',                      // C: Class
+        devTrait: row[3] || 'Normal',              // D: Dev Trait
+        jerseyNumber: row[4] || '',                // E: Jersey #
+        archetype: row[5] || '',                   // F: Archetype
+        overall: parseInt(row[6]) || 0,            // G: Overall
+        height: normalizeHeight(row[7]),           // H: Height (auto-formats to 6'1")
+        weight: row[8] ? parseInt(row[8]) : null,  // I: Weight
+        hometown: row[9] || '',                    // J: Hometown
+        state: row[10] || '',                      // K: State
+        stars: starsToNumber(row[11])              // L: Recruitment Stars (☆ symbols -> number)
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -740,13 +963,45 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       }
     }
 
-    // Prepare roster data (rows 2-86, columns A-E)
+    // Helper to convert number to star symbols
+    const numberToStars = (num) => {
+      if (!num || num < 1 || num > 5) return ''
+      return '☆'.repeat(num)
+    }
+
+    // Helper to normalize height to 6'1" format
+    const normalizeHeight = (heightStr) => {
+      if (!heightStr) return ''
+      let h = heightStr.toString().trim()
+      h = h.replace(/['']/g, "'").replace(/[""]/g, '"')
+      if (/^\d['′']\d{1,2}["″"]$/.test(h)) {
+        return h.replace(/['′']/g, "'").replace(/["″"]/g, '"')
+      }
+      const missingQuoteMatch = h.match(/^(\d)['′'](\d{1,2})$/)
+      if (missingQuoteMatch) return `${missingQuoteMatch[1]}'${missingQuoteMatch[2]}"`
+      const dashMatch = h.match(/^(\d)-(\d{1,2})$/)
+      if (dashMatch) return `${dashMatch[1]}'${dashMatch[2]}"`
+      if (/^\d{2,3}$/.test(h)) {
+        if (h.length === 2) return `${h[0]}'${h[1]}"`
+        if (h.length === 3) return `${h[0]}'${h.slice(1)}"`
+      }
+      return h
+    }
+
+    // Prepare roster data (rows 2-86, columns A-L, 12 columns)
     const rosterValues = players?.map(player => [
-      player.name || '',
-      player.position || '',
-      player.year || '',
-      player.devTrait || 'Normal',
-      player.overall || ''
+      player.name || '',                    // A: Name
+      player.position || '',                // B: Position
+      player.year || '',                    // C: Class
+      player.devTrait || 'Normal',          // D: Dev Trait
+      player.jerseyNumber || '',            // E: Jersey #
+      player.archetype || '',               // F: Archetype
+      player.overall || '',                 // G: Overall
+      normalizeHeight(player.height),       // H: Height (normalized to 6'1" format)
+      player.weight || '',                  // I: Weight
+      player.hometown || '',                // J: Hometown
+      player.state || '',                   // K: State
+      numberToStars(player.stars)           // L: Recruitment Stars (number -> ☆ symbols)
     ]) || []
 
     // Batch update both sheets
@@ -768,10 +1023,10 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       )
     }
 
-    // Write roster data
+    // Write roster data (12 columns)
     if (rosterValues.length > 0) {
       requests.push(
-        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:E${rosterValues.length + 1}?valueInputOption=RAW`, {
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L${rosterValues.length + 1}?valueInputOption=RAW`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,

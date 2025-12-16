@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
 
-const positions = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P']
-const years = ['FR', 'SO', 'JR', 'SR']
+const positions = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+const years = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
 
 export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -13,7 +13,8 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
       id: i + 1,
       name: '',
       position: 'QB',
-      year: 'FR',
+      year: 'Fr',
+      jerseyNumber: '',
       overall: ''
     }))
   )
@@ -46,7 +47,7 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
     } else if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault()
       // Move to next field in same row
-      const fields = ['name', 'position', 'year', 'overall']
+      const fields = ['name', 'position', 'year', 'jerseyNumber', 'overall']
       const currentFieldIndex = fields.indexOf(field)
       if (currentFieldIndex < fields.length - 1) {
         setEditingCell(`${fields[currentFieldIndex + 1]}-${rowId}`)
@@ -58,7 +59,7 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
     } else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault()
       // Move to previous field
-      const fields = ['name', 'position', 'year', 'overall']
+      const fields = ['name', 'position', 'year', 'jerseyNumber', 'overall']
       const currentFieldIndex = fields.indexOf(field)
       if (currentFieldIndex > 0) {
         setEditingCell(`${fields[currentFieldIndex - 1]}-${rowId}`)
@@ -72,7 +73,7 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
 
   const handleAddRow = () => {
     const newId = Math.max(...rows.map(r => r.id)) + 1
-    setRows([...rows, { id: newId, name: '', position: 'QB', year: 'FR', overall: '' }])
+    setRows([...rows, { id: newId, name: '', position: 'QB', year: 'Fr', jerseyNumber: '', overall: '' }])
   }
 
   const handleRemoveLastRow = () => {
@@ -99,39 +100,48 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
       if (rowIndex >= updatedRows.length) {
         // Add new row if needed
         const newId = Math.max(...updatedRows.map(r => r.id)) + 1
-        updatedRows.push({ id: newId, name: '', position: 'QB', year: 'FR', overall: '' })
+        updatedRows.push({ id: newId, name: '', position: 'QB', year: 'Fr', jerseyNumber: '', overall: '' })
       }
 
       const cells = pastedRow.split('\t')
       console.log('Row', index, 'cells:', cells)
 
       // Simple approach: just map columns directly
-      // Assume format is: Name, Position, Year, Overall (or with # at start)
+      // Assume format is: Name, Position, Year, Jersey #, Overall (or with row # at start)
       let nameIdx = 0
       let posIdx = 1
       let yearIdx = 2
-      let overallIdx = 3
+      let jerseyIdx = 3
+      let overallIdx = 4
 
-      // If we have 5 columns and first looks like a number, skip it
-      if (cells.length >= 5 && !isNaN(cells[0])) {
+      // If we have 6 columns and first looks like a number (row number), skip it
+      if (cells.length >= 6 && !isNaN(cells[0])) {
         nameIdx = 1
         posIdx = 2
         yearIdx = 3
-        overallIdx = 4
+        jerseyIdx = 4
+        overallIdx = 5
+      }
+      // If we have 5 columns (no jersey), handle that case
+      else if (cells.length === 4) {
+        overallIdx = 3
+        jerseyIdx = -1 // No jersey column
       }
 
       const name = cells[nameIdx]?.trim() || ''
       const position = cells[posIdx]?.trim().toUpperCase() || 'QB'
-      const year = cells[yearIdx]?.trim().toUpperCase() || 'FR'
+      const year = cells[yearIdx]?.trim() || 'Fr'
+      const jerseyNumber = jerseyIdx >= 0 ? (cells[jerseyIdx]?.trim() || '') : ''
       const overall = cells[overallIdx]?.trim() || ''
 
-      console.log('Parsed:', { name, position, year, overall })
+      console.log('Parsed:', { name, position, year, jerseyNumber, overall })
 
       updatedRows[rowIndex] = {
         ...updatedRows[rowIndex],
         name: name,
         position: positions.includes(position) ? position : 'QB',
-        year: years.includes(year) ? year : 'FR',
+        year: years.includes(year) ? year : 'Fr',
+        jerseyNumber: jerseyNumber,
         overall: overall
       }
     })
@@ -154,6 +164,7 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
       name: row.name.trim(),
       position: row.position,
       year: row.year,
+      jerseyNumber: row.jerseyNumber ? row.jerseyNumber.trim() : '',
       overall: row.overall
     }))
 
@@ -195,6 +206,7 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
                 <th className="px-3 py-2 text-left text-sm font-semibold border-r border-white/20" style={{ color: primaryBgText }}>Player Name</th>
                 <th className="px-3 py-2 text-left text-sm font-semibold w-24 border-r border-white/20" style={{ color: primaryBgText }}>Position</th>
                 <th className="px-3 py-2 text-left text-sm font-semibold w-20 border-r border-white/20" style={{ color: primaryBgText }}>Year</th>
+                <th className="px-3 py-2 text-left text-sm font-semibold w-20 border-r border-white/20" style={{ color: primaryBgText }}>Jersey #</th>
                 <th className="px-3 py-2 text-left text-sm font-semibold w-24" style={{ color: primaryBgText }}>Overall</th>
               </tr>
             </thead>
@@ -274,6 +286,28 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
                         className="px-2 py-1 cursor-pointer hover:bg-blue-50 h-full min-h-[32px] flex items-center text-sm"
                       >
                         {row.year}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-0 py-0 border-r border-gray-200">
+                    {editingCell === `jerseyNumber-${row.id}` ? (
+                      <input
+                        ref={(el) => inputRefs.current[`jerseyNumber-${row.id}`] = el}
+                        type="text"
+                        value={row.jerseyNumber}
+                        onChange={(e) => updateRow(row.id, 'jerseyNumber', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, row.id, 'jerseyNumber')}
+                        onBlur={() => setEditingCell(null)}
+                        className="w-full px-2 py-1 border-2 outline-none text-sm"
+                        style={{ borderColor: teamColors.primary }}
+                        maxLength="2"
+                      />
+                    ) : (
+                      <div
+                        onClick={() => handleCellClick(row.id, 'jerseyNumber')}
+                        className="px-2 py-1 cursor-pointer hover:bg-blue-50 h-full min-h-[32px] flex items-center text-sm"
+                      >
+                        {row.jerseyNumber || <span className="text-gray-400 text-xs">--</span>}
                       </div>
                     )}
                   </td>

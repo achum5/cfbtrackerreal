@@ -101,6 +101,21 @@ export default function Layout({ children }) {
       }
     }
 
+    // In postseason, check if all 10 CC results have been entered
+    if (currentDynasty.currentPhase === 'postseason') {
+      const ccResults = currentDynasty.conferenceChampionships?.filter(cc => cc.team1 && cc.team2) || []
+      const enteredCount = ccResults.length
+
+      if (enteredCount < 10) {
+        const confirmAdvance = window.confirm(
+          `You have only entered ${enteredCount}/10 Conference Championship results. Are you sure you want to advance?`
+        )
+        if (!confirmAdvance) {
+          return
+        }
+      }
+    }
+
     advanceWeek(currentDynasty.id)
     setShowWeekDropdown(false)
   }

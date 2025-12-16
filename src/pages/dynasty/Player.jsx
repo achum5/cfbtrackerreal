@@ -69,31 +69,43 @@ export default function Player() {
     // Biographical
     name: player.name,
     position: player.position,
+    archetype: player.archetype || '',
     school: dynasty.teamName,
 
+    // Physical
+    height: player.height || '',
+    weight: player.weight || null,
+
+    // Hometown
+    hometown: player.hometown || '',
+    state: player.state || '',
+
+    // Transfer info
+    previousTeam: player.previousTeam || '',
+
     // Recruiting
-    yearStarted: 'N/A',
-    stars: 0,
-    positionRank: 0,
-    stateRank: 0,
-    nationalRank: 0,
+    yearStarted: player.yearStarted || 'N/A',
+    stars: player.stars || 0,
+    positionRank: player.positionRank || 0,
+    stateRank: player.stateRank || 0,
+    nationalRank: player.nationalRank || 0,
 
     // Development
     devTrait: player.devTrait || 'Normal',
-    gemBust: 'N/A',
-    overallProgression: 0,
-    overallRatingChange: 0,
+    gemBust: player.gemBust || 'N/A',
+    overallProgression: player.overallProgression || 0,
+    overallRatingChange: player.overallRatingChange || 0,
     overallRating: player.overall,
 
     // Game Logs
-    snapsPlayed: 0,
-    gamesPlayed: 0,
-    gamesStarted: 0,
+    snapsPlayed: player.snapsPlayed || 0,
+    gamesPlayed: player.gamesPlayed || 0,
+    gamesStarted: player.gamesStarted || 0,
 
     // Departure
-    yearDeparted: 'N/A',
-    yearsInSchool: 0,
-    draftRound: 'N/A',
+    yearDeparted: player.yearDeparted || 'N/A',
+    yearsInSchool: player.yearsInSchool || 0,
+    draftRound: player.draftRound || 'N/A',
 
     // Accolades
     confPOW: powHonors.confPOW,
@@ -413,12 +425,30 @@ export default function Player() {
               <h1 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: primaryText }}>
                 {playerData.name}
               </h1>
-              <div className="flex items-center gap-4 text-lg" style={{ color: primaryText, opacity: 0.9 }}>
+              <div className="flex items-center gap-4 text-lg flex-wrap" style={{ color: primaryText, opacity: 0.9 }}>
+                {player.jerseyNumber && (
+                  <>
+                    <span className="font-bold">#{player.jerseyNumber}</span>
+                    <span>•</span>
+                  </>
+                )}
                 <span className="font-semibold">{playerData.position}</span>
+                {playerData.archetype && (
+                  <>
+                    <span>•</span>
+                    <span>{playerData.archetype}</span>
+                  </>
+                )}
                 <span>•</span>
                 <span>{player.year}</span>
                 <span>•</span>
                 <span>{playerData.school}</span>
+                {playerData.previousTeam && (
+                  <>
+                    <span>•</span>
+                    <span className="text-sm italic">Transfer from {playerData.previousTeam}</span>
+                  </>
+                )}
               </div>
             </div>
             <button
@@ -446,7 +476,7 @@ export default function Player() {
         </div>
       </div>
 
-      {/* Biographical & Recruiting */}
+      {/* Physical & Biographical */}
       <div
         className="rounded-lg shadow-lg p-6"
         style={{
@@ -455,16 +485,37 @@ export default function Player() {
         }}
       >
         <h2 className="text-2xl font-bold mb-4" style={{ color: primaryText }}>
-          Biographical & Recruiting Information
+          Physical & Biographical
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <StatBox label="Recruitment Year" value={playerData.yearStarted} />
-          <StatBox label="Stars" value={playerData.stars > 0 ? `${playerData.stars}★` : 'N/A'} />
-          <StatBox label="Position Rank" value={playerData.positionRank > 0 ? `#${playerData.positionRank}` : 'N/A'} />
-          <StatBox label="State Rank" value={playerData.stateRank > 0 ? `#${playerData.stateRank}` : 'N/A'} />
-          <StatBox label="National Rank" value={playerData.nationalRank > 0 ? `#${playerData.nationalRank}` : 'N/A'} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatBox label="Height" value={playerData.height || 'N/A'} />
+          <StatBox label="Weight" value={playerData.weight ? `${playerData.weight} lbs` : 'N/A'} />
+          <StatBox label="Hometown" value={playerData.hometown || 'N/A'} />
+          <StatBox label="State" value={playerData.state || 'N/A'} />
         </div>
       </div>
+
+      {/* Recruiting Information - only show if any recruiting data exists */}
+      {(playerData.yearStarted !== 'N/A' || playerData.stars > 0 || playerData.positionRank > 0 || playerData.stateRank > 0 || playerData.nationalRank > 0) && (
+        <div
+          className="rounded-lg shadow-lg p-6"
+          style={{
+            backgroundColor: teamColors.primary,
+            border: `3px solid ${teamColors.secondary}`
+          }}
+        >
+          <h2 className="text-2xl font-bold mb-4" style={{ color: primaryText }}>
+            Recruiting Information
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <StatBox label="Recruitment Year" value={playerData.yearStarted} />
+            <StatBox label="Stars" value={playerData.stars > 0 ? `${playerData.stars}★` : 'N/A'} />
+            <StatBox label="Position Rank" value={playerData.positionRank > 0 ? `#${playerData.positionRank}` : 'N/A'} />
+            <StatBox label="State Rank" value={playerData.stateRank > 0 ? `#${playerData.stateRank}` : 'N/A'} />
+            <StatBox label="National Rank" value={playerData.nationalRank > 0 ? `#${playerData.nationalRank}` : 'N/A'} />
+          </div>
+        </div>
+      )}
 
       {/* Development & Game Logs */}
       <div

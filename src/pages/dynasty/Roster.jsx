@@ -119,6 +119,7 @@ export default function Roster() {
             <table className="w-full">
               <thead>
                 <tr className="border-b-2" style={{ borderColor: teamColors.primary }}>
+                  <th className="text-center py-2 px-3 w-16" style={{ color: secondaryBgText }}>#</th>
                   <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Name</th>
                   <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Position</th>
                   <th className="text-left py-2 px-3" style={{ color: secondaryBgText }}>Class</th>
@@ -129,6 +130,9 @@ export default function Roster() {
               <tbody>
                 {filteredPlayers.map((player) => (
                   <tr key={player.id} className="border-b border-gray-200 hover:bg-black hover:bg-opacity-5 transition-colors">
+                    <td className="py-2 px-3 text-center font-bold" style={{ color: secondaryBgText }}>
+                      {player.jerseyNumber || '-'}
+                    </td>
                     <td className="py-2 px-3 font-semibold" style={{ color: secondaryBgText }}>
                       <Link
                         to={`/dynasty/${currentDynasty.id}/player/${player.pid}`}
