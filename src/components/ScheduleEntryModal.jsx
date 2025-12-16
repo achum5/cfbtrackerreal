@@ -8,8 +8,10 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
   const { currentDynasty, createTempSheetWithData, deleteSheetAndClearRefs } = useDynasty()
   const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
+  const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
   const [sheetReady, setSheetReady] = useState(false)
+  const [showDeletedNote, setShowDeletedNote] = useState(false)
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -52,6 +54,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
     if (!isOpen) {
       setSheetReady(false)
       setCreatingSheet(false)
+      setShowDeletedNote(false)
     }
   }, [isOpen])
 
@@ -84,11 +87,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
       await onRosterSave(roster)
       console.log('Roster saved successfully')
 
-      // Delete the temporary sheet after successful sync
-      console.log('🗑️ Deleting temporary sheet after sync...')
-      await deleteSheetAndClearRefs(currentDynasty.id)
-      console.log('✅ Temporary sheet deleted')
-
       onClose()
     } catch (error) {
       alert('Failed to sync from Google Sheets. Make sure you have edit access and data is properly formatted.')
@@ -98,16 +96,38 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
     }
   }
 
-  const handleClose = async () => {
-    // If there's a sheet and user is closing without saving, delete the temp sheet
-    if (currentDynasty?.googleSheetId && sheetReady) {
-      try {
-        console.log('🗑️ Deleting temporary sheet (closed without saving)...')
-        await deleteSheetAndClearRefs(currentDynasty.id)
-      } catch (error) {
-        console.error('Failed to delete sheet on close:', error)
-      }
+  const handleSyncAndDelete = async () => {
+    if (!currentDynasty?.googleSheetId) return
+
+    setDeletingSheet(true)
+    try {
+      // Sync both schedule and roster
+      const schedule = await readScheduleFromSheet(currentDynasty.googleSheetId)
+      const roster = await readRosterFromSheet(currentDynasty.googleSheetId)
+
+      // Save both
+      await onSave(schedule)
+      await onRosterSave(roster)
+
+      // Delete the sheet
+      console.log('🗑️ Deleting sheet...')
+      await deleteSheetAndClearRefs(currentDynasty.id)
+      console.log('✅ Sheet deleted')
+
+      // Show note and close after a moment
+      setShowDeletedNote(true)
+      setTimeout(() => {
+        onClose()
+      }, 2500)
+    } catch (error) {
+      alert('Failed to sync from Google Sheets.')
+      console.error(error)
+    } finally {
+      setDeletingSheet(false)
     }
+  }
+
+  const handleClose = () => {
     onClose()
   }
 
@@ -161,12 +181,26 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
               </p>
             </div>
           </div>
+        ) : showDeletedNote ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8 rounded-lg" style={{ backgroundColor: teamColors.primary }}>
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
+                Saved & Sheet Deleted!
+              </p>
+              <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
+                Data can still be edited anytime by opening this modal again.
+              </p>
+            </div>
+          </div>
         ) : hasGoogleSheet ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3">
+            <div className="mb-3 flex gap-3 flex-wrap">
               <button
                 onClick={handleSyncFromSheet}
-                disabled={syncing}
+                disabled={syncing || deletingSheet}
                 className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
                 style={{
                   backgroundColor: teamColors.primary,
@@ -174,6 +208,18 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 }}
               >
                 {syncing ? 'Syncing...' : '✓ Sync & Save'}
+              </button>
+              <button
+                onClick={handleSyncAndDelete}
+                disabled={syncing || deletingSheet}
+                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                style={{
+                  backgroundColor: 'transparent',
+                  borderColor: teamColors.primary,
+                  color: teamColors.primary
+                }}
+              >
+                {deletingSheet ? 'Saving...' : 'Save & Delete Sheet'}
               </button>
             </div>
 
@@ -189,7 +235,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
             <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
               <p><strong>Schedule Tab:</strong> Week | User Team | CPU Team | Site</p>
               <p><strong>Roster Tab:</strong> Name | Position | Class | Dev Trait | Overall Rating</p>
-              <p className="mt-2 italic">Sheet will be automatically deleted after sync.</p>
             </div>
           </div>
         ) : (
