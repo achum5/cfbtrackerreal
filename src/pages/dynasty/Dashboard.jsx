@@ -513,7 +513,7 @@ export default function Dashboard() {
                       color: primaryBgText
                     }}
                   >
-                    {playedGame ? 'View/Edit' : 'Enter Game'}
+                    {playedGame ? 'Edit' : 'Enter Game'}
                   </button>
                 </div>
               )
