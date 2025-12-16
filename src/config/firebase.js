@@ -3,13 +3,13 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBBxY-0lKP0TVqFEk7VFacnN4T9Pva7dBc",
-  authDomain: "cfbtracker-d0267.firebaseapp.com",
-  projectId: "cfbtracker-d0267",
-  storageBucket: "cfbtracker-d0267.firebasestorage.app",
-  messagingSenderId: "658511021568",
-  appId: "1:658511021568:web:afb9a069f09c38fd523ae5",
-  measurementId: "G-K0SW03GE4Q"
+  apiKey: "AIzaSyCR0ahCPS5vZQbuRgRzh0EI5HNe6e2E-2Y",
+  authDomain: "cfbtracker-200ab.firebaseapp.com",
+  projectId: "cfbtracker-200ab",
+  storageBucket: "cfbtracker-200ab.firebasestorage.app",
+  messagingSenderId: "406010526116",
+  appId: "1:406010526116:web:7be6a63fb683b1dd7ba931",
+  measurementId: "G-P3PV4K9TYW"
 };
 
 // Initialize Firebase
