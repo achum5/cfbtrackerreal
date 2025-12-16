@@ -8,7 +8,8 @@ import {
   deleteDynasty as deleteDynastyFromFirestore,
   migrateLocalStorageData
 } from '../services/dynastyService'
-import { createDynastySheet } from '../services/sheetsService'
+import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet } from '../services/sheetsService'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
 const DynastyContext = createContext()
 
@@ -378,11 +379,28 @@ export function DynastyProvider({ children }) {
     let nextWeek = dynasty.currentWeek + 1
     let nextPhase = dynasty.currentPhase
     let nextYear = dynasty.currentYear
+    let additionalUpdates = {}
 
     // Phase transitions
     if (dynasty.currentPhase === 'preseason' && nextWeek >= 1) {
       nextPhase = 'regular_season'
       nextWeek = 1
+
+      // Delete Google Sheet when advancing from preseason
+      if (dynasty.googleSheetId) {
+        try {
+          console.log('🗑️ Deleting Google Sheet after preseason...')
+          await deleteGoogleSheet(dynasty.googleSheetId)
+          additionalUpdates.googleSheetId = null
+          additionalUpdates.googleSheetUrl = null
+          console.log('✅ Google Sheet deleted successfully')
+        } catch (error) {
+          console.error('Failed to delete Google Sheet:', error)
+          // Continue anyway - don't block advancing
+          additionalUpdates.googleSheetId = null
+          additionalUpdates.googleSheetUrl = null
+        }
+      }
     } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 14) {
       nextPhase = 'postseason'
       nextWeek = 1
@@ -398,7 +416,8 @@ export function DynastyProvider({ children }) {
     await updateDynasty(dynastyId, {
       currentWeek: nextWeek,
       currentPhase: nextPhase,
-      currentYear: nextYear
+      currentYear: nextYear,
+      ...additionalUpdates
     })
   }
 
@@ -680,6 +699,79 @@ export function DynastyProvider({ children }) {
     }
   }
 
+  // Create a temporary Google Sheet pre-filled with existing data for editing
+  const createTempSheetWithData = async (dynastyId) => {
+    if (!user) {
+      throw new Error('You must be signed in to create Google Sheets')
+    }
+
+    let dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
+
+    if (!dynasty) {
+      throw new Error('Dynasty not found')
+    }
+
+    console.log('📝 Creating temporary Google Sheet with existing data...')
+
+    try {
+      // Create a new sheet
+      const sheetInfo = await createDynastySheet(
+        dynasty.teamName,
+        dynasty.coachName,
+        dynasty.currentYear
+      )
+
+      console.log('✅ Temporary sheet created:', sheetInfo.spreadsheetId)
+
+      // Get user team abbreviation
+      const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+
+      // Write existing schedule and roster data to the sheet
+      await writeExistingDataToSheet(
+        sheetInfo.spreadsheetId,
+        dynasty.schedule,
+        dynasty.players,
+        userTeamAbbr
+      )
+
+      console.log('✅ Existing data written to sheet')
+
+      // Update dynasty with temporary sheet ID (will be deleted after save)
+      await updateDynasty(dynastyId, {
+        googleSheetId: sheetInfo.spreadsheetId,
+        googleSheetUrl: sheetInfo.spreadsheetUrl
+      })
+
+      return sheetInfo
+    } catch (error) {
+      console.error('❌ Failed to create temporary sheet:', error)
+      throw error
+    }
+  }
+
+  // Delete the Google Sheet and clear references from dynasty
+  const deleteSheetAndClearRefs = async (dynastyId) => {
+    let dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
+
+    if (!dynasty || !dynasty.googleSheetId) {
+      return
+    }
+
+    try {
+      console.log('🗑️ Deleting Google Sheet...')
+      await deleteGoogleSheet(dynasty.googleSheetId)
+      console.log('✅ Sheet deleted')
+    } catch (error) {
+      console.error('Failed to delete sheet:', error)
+    }
+
+    // Clear references regardless of deletion success
+    await updateDynasty(dynastyId, {
+      googleSheetId: null,
+      googleSheetUrl: null
+    })
+  }
+
   const exportDynasty = (dynastyId) => {
     console.log('exportDynasty called:', { dynastyId })
 
@@ -781,6 +873,8 @@ export function DynastyProvider({ children }) {
     saveTeamRatings,
     updatePlayer,
     createGoogleSheetForDynasty,
+    createTempSheetWithData,
+    deleteSheetAndClearRefs,
     exportDynasty,
     importDynasty
   }

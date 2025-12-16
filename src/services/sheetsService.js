@@ -638,6 +638,40 @@ export async function readScheduleFromSheet(spreadsheetId) {
   }
 }
 
+// Delete a Google Sheet (move to trash)
+export async function deleteGoogleSheet(spreadsheetId) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Use Drive API to trash the file
+    const response = await fetch(`${DRIVE_API_BASE}/${spreadsheetId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        trashed: true
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Failed to delete sheet:', error)
+      throw new Error(`Failed to delete sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    console.log('✅ Google Sheet moved to trash:', spreadsheetId)
+    return true
+  } catch (error) {
+    console.error('Error deleting Google Sheet:', error)
+    throw error
+  }
+}
+
 // Read roster data from sheet
 export async function readRosterFromSheet(spreadsheetId) {
   try {
@@ -673,6 +707,97 @@ export async function readRosterFromSheet(spreadsheetId) {
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
+    throw error
+  }
+}
+
+// Write existing schedule and roster data to a sheet
+export async function writeExistingDataToSheet(spreadsheetId, schedule, players, userTeamAbbr) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Prepare schedule data (rows 2-13, columns A-D)
+    const scheduleValues = []
+    for (let i = 0; i < 12; i++) {
+      const game = schedule?.[i]
+      if (game) {
+        // Convert location back to sheet format
+        let site = 'Home'
+        if (game.location === 'away') site = 'Road'
+        else if (game.location === 'neutral') site = 'Neutral'
+
+        scheduleValues.push([
+          game.week || i + 1,
+          game.userTeam || userTeamAbbr || '',
+          game.opponent || '',
+          site
+        ])
+      } else {
+        scheduleValues.push([i + 1, userTeamAbbr || '', '', ''])
+      }
+    }
+
+    // Prepare roster data (rows 2-86, columns A-E)
+    const rosterValues = players?.map(player => [
+      player.name || '',
+      player.position || '',
+      player.year || '',
+      player.devTrait || 'Normal',
+      player.overall || ''
+    ]) || []
+
+    // Batch update both sheets
+    const requests = []
+
+    // Write schedule data
+    if (scheduleValues.length > 0) {
+      requests.push(
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Schedule!A2:D13?valueInputOption=RAW`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            values: scheduleValues
+          })
+        })
+      )
+    }
+
+    // Write roster data
+    if (rosterValues.length > 0) {
+      requests.push(
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:E${rosterValues.length + 1}?valueInputOption=RAW`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            values: rosterValues
+          })
+        })
+      )
+    }
+
+    const responses = await Promise.all(requests)
+
+    for (const response of responses) {
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Failed to write data:', error)
+        throw new Error(`Failed to write data: ${error.error?.message || 'Unknown error'}`)
+      }
+    }
+
+    console.log('✅ Existing data written to sheet')
+    return true
+  } catch (error) {
+    console.error('Error writing existing data to sheet:', error)
     throw error
   }
 }
