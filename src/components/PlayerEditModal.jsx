@@ -383,10 +383,10 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
 
-  const InputField = ({ label, name, type = "number", step = "any", className = "" }) => (
+  const InputField = ({ label, name, type = "number", step = "any", className = "", disabled = false }) => (
     <div className={className}>
-      <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-        {label}
+      <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: disabled ? 0.5 : 0.8 }}>
+        {label} {disabled && <span className="text-xs">(auto)</span>}
       </label>
       <input
         type={type}
@@ -394,10 +394,13 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         name={name}
         value={formData[name] ?? ''}
         onChange={handleChange}
+        disabled={disabled}
         className="w-full px-3 py-2 border-2 rounded-lg"
         style={{
           borderColor: teamColors.primary,
-          backgroundColor: '#ffffff'
+          backgroundColor: disabled ? '#f3f4f6' : '#ffffff',
+          color: disabled ? '#9ca3af' : 'inherit',
+          cursor: disabled ? 'not-allowed' : 'text'
         }}
       />
     </div>
@@ -630,21 +633,21 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <InputField label="Completions" name="passing_completions" />
                 <InputField label="Attempts" name="passing_attempts" />
-                <InputField label="Completion %" name="passing_completionPct" />
+                <InputField label="Completion %" name="passing_completionPct" disabled />
                 <InputField label="Yards" name="passing_yards" />
                 <InputField label="Touchdowns" name="passing_touchdowns" />
-                <InputField label="TD %" name="passing_tdPct" />
+                <InputField label="TD %" name="passing_tdPct" disabled />
                 <InputField label="Interceptions" name="passing_interceptions" />
-                <InputField label="INT %" name="passing_intPct" />
-                <InputField label="TD/INT Ratio" name="passing_tdIntRatio" />
-                <InputField label="Yards/Attempt" name="passing_yardsPerAttempt" />
-                <InputField label="Net Yards/Att" name="passing_netYardsPerAttempt" />
-                <InputField label="Adj Net Yards/Att" name="passing_adjNetYardsPerAttempt" />
-                <InputField label="Yards/Game" name="passing_yardsPerGame" />
-                <InputField label="Passer Rating" name="passing_passerRating" />
+                <InputField label="INT %" name="passing_intPct" disabled />
+                <InputField label="TD/INT Ratio" name="passing_tdIntRatio" disabled />
+                <InputField label="Yards/Attempt" name="passing_yardsPerAttempt" disabled />
+                <InputField label="Net Yards/Att" name="passing_netYardsPerAttempt" disabled />
+                <InputField label="Adj Net Yards/Att" name="passing_adjNetYardsPerAttempt" disabled />
+                <InputField label="Yards/Game" name="passing_yardsPerGame" disabled />
+                <InputField label="Passer Rating" name="passing_passerRating" disabled />
                 <InputField label="Passing Long" name="passing_passingLong" />
                 <InputField label="Sacks Taken" name="passing_sacksTaken" />
-                <InputField label="Sack %" name="passing_sackPct" />
+                <InputField label="Sack %" name="passing_sackPct" disabled />
               </div>
             </div>
 
@@ -657,15 +660,15 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <InputField label="Carries" name="rushing_carries" />
                 <InputField label="Yards" name="rushing_yards" />
-                <InputField label="Yards/Carry" name="rushing_yardsPerCarry" />
+                <InputField label="Yards/Carry" name="rushing_yardsPerCarry" disabled />
                 <InputField label="Touchdowns" name="rushing_touchdowns" />
-                <InputField label="Yards/Game" name="rushing_yardsPerGame" />
+                <InputField label="Yards/Game" name="rushing_yardsPerGame" disabled />
                 <InputField label="20+ Yard Runs" name="rushing_runs20Plus" />
                 <InputField label="Broken Tackles" name="rushing_brokenTackles" />
                 <InputField label="Yards After Contact" name="rushing_yardsAfterContact" />
                 <InputField label="Rushing Long" name="rushing_rushingLong" />
                 <InputField label="Fumbles" name="rushing_fumbles" />
-                <InputField label="Fumble %" name="rushing_fumblePct" />
+                <InputField label="Fumble %" name="rushing_fumblePct" disabled />
               </div>
             </div>
 
@@ -678,12 +681,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <InputField label="Receptions" name="receiving_receptions" />
                 <InputField label="Yards" name="receiving_yards" />
-                <InputField label="Yards/Catch" name="receiving_yardsPerCatch" />
+                <InputField label="Yards/Catch" name="receiving_yardsPerCatch" disabled />
                 <InputField label="Touchdowns" name="receiving_touchdowns" />
-                <InputField label="Yards/Game" name="receiving_yardsPerGame" />
+                <InputField label="Yards/Game" name="receiving_yardsPerGame" disabled />
                 <InputField label="Receiving Long" name="receiving_receivingLong" />
                 <InputField label="Run After Catch" name="receiving_runAfterCatch" />
-                <InputField label="RAC Average" name="receiving_racAverage" />
+                <InputField label="RAC Average" name="receiving_racAverage" disabled />
                 <InputField label="Drops" name="receiving_drops" />
               </div>
             </div>
@@ -708,12 +711,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <InputField label="Solo Tackles" name="defensive_soloTackles" />
                 <InputField label="Assisted Tackles" name="defensive_assistedTackles" />
-                <InputField label="Total Tackles" name="defensive_totalTackles" />
+                <InputField label="Total Tackles" name="defensive_totalTackles" disabled />
                 <InputField label="Tackles for Loss" name="defensive_tacklesForLoss" />
                 <InputField label="Sacks" name="defensive_sacks" />
                 <InputField label="Interceptions" name="defensive_interceptions" />
                 <InputField label="INT Return Yards" name="defensive_intReturnYards" />
-                <InputField label="Avg INT Return" name="defensive_avgIntReturn" />
+                <InputField label="Avg INT Return" name="defensive_avgIntReturn" disabled />
                 <InputField label="INT Long" name="defensive_intLong" />
                 <InputField label="Defensive TDs" name="defensive_defensiveTDs" />
                 <InputField label="Deflections" name="defensive_deflections" />
@@ -737,11 +740,11 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   <InputField label="FG Made" name="kicking_fgMade" />
                   <InputField label="FG Attempted" name="kicking_fgAttempted" />
-                  <InputField label="FG %" name="kicking_fgPct" />
+                  <InputField label="FG %" name="kicking_fgPct" disabled />
                   <InputField label="FG Long" name="kicking_fgLong" />
                   <InputField label="XP Made" name="kicking_xpMade" />
                   <InputField label="XP Attempted" name="kicking_xpAttempted" />
-                  <InputField label="XP %" name="kicking_xpPct" />
+                  <InputField label="XP %" name="kicking_xpPct" disabled />
                 </div>
                 <h4 className="text-sm font-bold" style={{ color: secondaryText }}>By Distance</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -758,7 +761,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <InputField label="Kickoffs" name="kicking_kickoffs" />
                   <InputField label="Touchbacks" name="kicking_touchbacks" />
-                  <InputField label="Touchback %" name="kicking_touchbackPct" />
+                  <InputField label="Touchback %" name="kicking_touchbackPct" disabled />
                   <InputField label="FG Blocked" name="kicking_fgBlocked" />
                   <InputField label="XP Blocked" name="kicking_xpBlocked" />
                 </div>
@@ -774,9 +777,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <InputField label="Punts" name="punting_punts" />
                 <InputField label="Punting Yards" name="punting_puntingYards" />
-                <InputField label="Yards/Punt" name="punting_yardsPerPunt" />
+                <InputField label="Yards/Punt" name="punting_yardsPerPunt" disabled />
                 <InputField label="Net Punting Yards" name="punting_netPuntingYards" />
-                <InputField label="Net Yards/Punt" name="punting_netYardsPerPunt" />
+                <InputField label="Net Yards/Punt" name="punting_netYardsPerPunt" disabled />
                 <InputField label="Punts Inside 20" name="punting_puntsInside20" />
                 <InputField label="Touchbacks" name="punting_touchbacks" />
                 <InputField label="Punt Long" name="punting_puntLong" />
@@ -793,7 +796,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <InputField label="Returns" name="kickReturn_returns" />
                 <InputField label="Return Yardage" name="kickReturn_returnYardage" />
-                <InputField label="Return Average" name="kickReturn_returnAverage" />
+                <InputField label="Return Average" name="kickReturn_returnAverage" disabled />
                 <InputField label="Touchdowns" name="kickReturn_touchdowns" />
                 <InputField label="Return Long" name="kickReturn_returnLong" />
               </div>
@@ -808,7 +811,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <InputField label="Returns" name="puntReturn_returns" />
                 <InputField label="Return Yardage" name="puntReturn_returnYardage" />
-                <InputField label="Return Average" name="puntReturn_returnAverage" />
+                <InputField label="Return Average" name="puntReturn_returnAverage" disabled />
                 <InputField label="Touchdowns" name="puntReturn_touchdowns" />
                 <InputField label="Return Long" name="puntReturn_returnLong" />
               </div>
@@ -823,9 +826,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <InputField label="Plays" name="scrimmage_plays" />
                 <InputField label="Yards" name="scrimmage_yards" />
-                <InputField label="Yards/Play" name="scrimmage_yardsPerPlay" />
+                <InputField label="Yards/Play" name="scrimmage_yardsPerPlay" disabled />
                 <InputField label="Touchdowns" name="scrimmage_touchdowns" />
-                <InputField label="Yards/Game" name="scrimmage_yardsPerGame" />
+                <InputField label="Yards/Game" name="scrimmage_yardsPerGame" disabled />
               </div>
             </div>
 
@@ -838,9 +841,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <InputField label="Plays" name="total_plays" />
                 <InputField label="Yardage" name="total_yardage" />
-                <InputField label="Yards/Play" name="total_yardsPerPlay" />
+                <InputField label="Yards/Play" name="total_yardsPerPlay" disabled />
                 <InputField label="Touchdowns" name="total_touchdowns" />
-                <InputField label="Yards/Game" name="total_yardsPerGame" />
+                <InputField label="Yards/Game" name="total_yardsPerGame" disabled />
               </div>
             </div>
           </div>
