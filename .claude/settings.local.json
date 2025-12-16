@@ -24,7 +24,8 @@
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
       "Bash(cat:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:firebase.google.com)"
     ],
     "deny": [],
     "ask": []
