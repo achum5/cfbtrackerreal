@@ -8,6 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CFB Dynasty Tracker is a React-based web application for tracking College Football (CFB) dynasty mode progression. Users can create dynasties, manage schedules, rosters, and track games through multiple seasons.
 
+## Deployment
+
+- **Production URL**: https://dynastytracker.vercel.app
+- **Hosting**: Vercel (auto-deploys from GitHub `main` branch)
+- **Firebase Project**: `cfbtracker-200ab`
+- **Firebase Console**: https://console.firebase.google.com/project/cfbtracker-200ab
+
 ## Development Commands
 
 ```bash
@@ -481,25 +488,14 @@ Can advance: true
 
 Google Sheets header rows are protected via `addProtectedRange` API request. If users report being able to edit headers, check that protection was applied during sheet creation in `initializeSheetHeaders()`.
 
-### Mobile Authentication (RESOLVED)
+### Mobile Authentication
 
-**Issue**: On mobile browsers, `signInWithRedirect` was failing silently - users would complete Google OAuth but be stuck on the login page.
+**Status**: Working on both desktop and mobile.
 
-**Root Cause**: Starting in 2024, modern browsers (Safari 16.1+, Firefox 109+, Chrome 115+) block third-party storage access, which completely breaks Firebase's `signInWithRedirect` flow. The redirect relies on cross-origin iframe storage that these browsers now block.
+**Implementation**: Uses `signInWithPopup` for ALL devices (desktop and mobile). On mobile browsers, the popup opens as a new tab.
 
-**Solution Implemented**: Switched to `signInWithPopup` for ALL devices.
-- Removed `signInWithRedirect` and `getRedirectResult` entirely
-- Removed mobile device detection logic
-- `signInWithPopup` works reliably on both desktop and mobile
-- On mobile browsers, the "popup" typically opens as a new tab
-
-**Why This Works**:
-- `signInWithPopup` doesn't rely on cross-origin storage
-- The popup/new tab is same-origin with the OAuth callback
-- Works consistently across all modern browsers
+**Why not `signInWithRedirect`?** Modern browsers (Safari 16.1+, Firefox 109+, Chrome 115+) block third-party storage access, breaking the redirect flow. Popup works reliably because it doesn't rely on cross-origin storage.
 
 **Error Handling**:
-- `auth/popup-blocked`: Shows user-friendly message to allow popups
-- `auth/popup-closed-by-user`: Returns `null` gracefully (user cancelled)
-
-**Reference**: [Firebase Best Practices for Redirect Sign-In](https://firebase.google.com/docs/auth/web/redirect-best-practices)
+- `auth/popup-blocked`: Shows message to allow popups
+- `auth/popup-closed-by-user`: Returns `null` gracefully
