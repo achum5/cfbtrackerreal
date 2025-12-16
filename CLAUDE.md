@@ -21,6 +21,19 @@ npm run build
 npm run preview
 ```
 
+## Code Quality Requirements
+
+**IMPORTANT**: After every code change, always run `npm run build` to check for type errors, syntax errors, and other issues. Fix any errors found before considering the change complete.
+
+**Workflow**:
+1. Make code changes
+2. Run `npm run build`
+3. If errors are found, fix them immediately
+4. Repeat until build passes cleanly
+5. Only then consider the task complete
+
+This ensures the codebase stays clean and prevents accumulation of technical debt from unchecked errors.
+
 ## Architecture
 
 ### Context Providers (State Management)
@@ -101,18 +114,20 @@ if (isDev || !user) {
 - Token available as `user.accessToken` throughout app
 
 **Authentication Flow**:
-- **Desktop**: Uses `signInWithPopup` (popup window)
-- **Mobile**: Uses `signInWithRedirect` (full page redirect to Google, then back)
-- Device detection via User-Agent string
-- Explicit `browserLocalPersistence` set to maintain auth state across redirects
+- Uses `signInWithPopup` on ALL devices (desktop and mobile)
+- `signInWithRedirect` was removed because it's broken on Safari 16.1+, Firefox 109+, and Chrome 115+ due to third-party storage blocking
+- On mobile browsers, the popup typically opens in a new tab
+- Returns `null` if user closes popup (handled gracefully, not as error)
 
 **Token Flow**:
-1. User signs in with Google OAuth (popup on desktop, redirect on mobile)
-2. Access token captured from `GoogleAuthProvider.credentialFromResult()`
-3. Token stored: `localStorage.setItem('google_access_token', token)`
-4. Expiry set: `localStorage.setItem('google_token_expiry', timestamp)` (1-hour expiry)
-5. On auth state change, token restored from localStorage if not expired
-6. Google Sheets API calls retrieve token via `getAccessToken()` helper (never falls back to Firebase ID tokens)
+1. User clicks "Sign in with Google"
+2. Popup opens (or new tab on mobile) for Google OAuth
+3. After authentication, popup closes and result is returned
+4. Access token captured from `GoogleAuthProvider.credentialFromResult()`
+5. Token stored: `localStorage.setItem('google_access_token', token)`
+6. Expiry set: `localStorage.setItem('google_token_expiry', timestamp)` (1-hour expiry)
+7. On subsequent page loads, token restored from localStorage if not expired
+8. Google Sheets API calls retrieve token via `getAccessToken()` helper
 
 **Critical**: The `getAccessToken()` function in `sheetsService.js` ONLY uses OAuth tokens from localStorage. It will throw an error if the token is missing or expired, prompting the user to sign out and back in. This prevents the common mistake of using Firebase ID tokens (which don't work with Google Sheets API).
 
@@ -466,41 +481,25 @@ Can advance: true
 
 Google Sheets header rows are protected via `addProtectedRange` API request. If users report being able to edit headers, check that protection was applied during sheet creation in `initializeSheetHeaders()`.
 
-### Mobile Authentication (IN PROGRESS)
+### Mobile Authentication (RESOLVED)
 
-**Current Status**: Working on fixing Google OAuth sign-in on mobile devices (as of 2024).
+**Issue**: On mobile browsers, `signInWithRedirect` was failing silently - users would complete Google OAuth but be stuck on the login page.
 
-**Issue**: On mobile browsers, after completing Google OAuth 2FA, users are redirected back to the login page instead of being authenticated and navigating to the home page.
+**Root Cause**: Starting in 2024, modern browsers (Safari 16.1+, Firefox 109+, Chrome 115+) block third-party storage access, which completely breaks Firebase's `signInWithRedirect` flow. The redirect relies on cross-origin iframe storage that these browsers now block.
 
-**Implementation Approach**:
-- **Desktop**: Uses `signInWithPopup` (opens OAuth in popup window)
-- **Mobile**: Uses `signInWithRedirect` (navigates to Google OAuth page and redirects back)
-- Mobile detection via User-Agent: `/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i`
+**Solution Implemented**: Switched to `signInWithPopup` for ALL devices.
+- Removed `signInWithRedirect` and `getRedirectResult` entirely
+- Removed mobile device detection logic
+- `signInWithPopup` works reliably on both desktop and mobile
+- On mobile browsers, the "popup" typically opens as a new tab
 
-**Changes Made** (`src/context/AuthContext.jsx`):
-1. **Explicit Auth Persistence**: Set `browserLocalPersistence` to ensure auth state persists across redirects
-2. **Device Detection**: `isMobileDevice()` function determines which auth flow to use
-3. **Redirect Result Handling**: `getRedirectResult()` processes OAuth callback on mobile
-4. **Improved Logging**: Console logs track auth flow for debugging
+**Why This Works**:
+- `signInWithPopup` doesn't rely on cross-origin storage
+- The popup/new tab is same-origin with the OAuth callback
+- Works consistently across all modern browsers
 
-**Auth Flow on Mobile**:
-1. User clicks "Sign in with Google" on mobile device
-2. `signInWithRedirect(auth, googleProvider)` initiates OAuth flow
-3. User redirected to Google, completes 2FA
-4. User redirected back to app (login page)
-5. `getRedirectResult(auth)` processes the OAuth result
-6. OAuth access token captured and stored in localStorage
-7. `onAuthStateChanged` fires with authenticated user
-8. Login page's useEffect navigates to home page
+**Error Handling**:
+- `auth/popup-blocked`: Shows user-friendly message to allow popups
+- `auth/popup-closed-by-user`: Returns `null` gracefully (user cancelled)
 
-**Known Issues**:
-- Auth state may not be persisting properly on some mobile browsers after redirect
-- Users report being "stuck" on login page after completing 2FA
-
-**Next Steps**:
-- Test with explicit persistence settings on various mobile browsers
-- Verify console logs show proper auth state changes
-- May need to investigate browser-specific localStorage/sessionStorage issues
-- Consider alternative auth flows if redirect continues to fail
-
-**Critical**: This issue MUST be resolved as Google Sheets integration requires OAuth authentication. Cannot fall back to localStorage-only mode without losing Google Sheets functionality.
+**Reference**: [Firebase Best Practices for Redirect Sign-In](https://firebase.google.com/docs/auth/web/redirect-best-practices)

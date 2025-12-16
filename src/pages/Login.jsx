@@ -16,14 +16,14 @@ export default function Login() {
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithGoogle()
-      // Only navigate if we got a result (popup flow)
-      // Redirect flow returns undefined and handles navigation via useEffect
+      // Navigate if sign-in was successful
+      // Returns null if user closed popup (not an error)
       if (result) {
         navigate('/')
       }
     } catch (error) {
       console.error('Sign in failed:', error)
-      alert('Failed to sign in. Please try again.')
+      alert(error.message || 'Failed to sign in. Please try again.')
     }
   }
 
