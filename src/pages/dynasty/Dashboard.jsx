@@ -264,15 +264,6 @@ export default function Dashboard() {
     )
   }
 
-  const getSeasonRecord = () => {
-    const seasonGames = currentDynasty.games.filter(
-      g => g.year === currentDynasty.currentYear
-    )
-    const wins = seasonGames.filter(g => g.result === 'win').length
-    const losses = seasonGames.filter(g => g.result === 'loss').length
-    return `${wins}-${losses}`
-  }
-
   const getPhaseDisplay = (phase) => {
     const phases = {
       preseason: 'Pre-Season',
@@ -312,25 +303,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Current Season Record */}
-      <div
-        className="rounded-lg shadow-md p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `2px solid ${teamColors.primary}`
-        }}
-      >
-        <div className="text-sm mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
-          Current Season Record
-        </div>
-        <div className="text-3xl font-bold" style={{ color: secondaryBgText }}>
-          {getSeasonRecord()}
-        </div>
-        <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.6 }}>
-          {currentDynasty.currentYear} • {getPhaseDisplay(currentDynasty.currentPhase)}
-        </div>
-      </div>
 
       {/* Phase-Specific Content */}
       {currentDynasty.currentPhase === 'preseason' ? (
