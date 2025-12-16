@@ -569,6 +569,8 @@ export default function Dashboard() {
               const mascotName = getMascotName(game.opponent)
               const opponentName = mascotName || getTeamNameFromAbbr(game.opponent) // Use mascot name if available
               const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
+              const isCurrentWeek = currentDynasty.currentPhase === 'regular_season' &&
+                Number(game.week) === Number(currentDynasty.currentWeek) && !playedGame
 
               return (
                 <div
@@ -580,7 +582,10 @@ export default function Dashboard() {
                       ? playedGame.result === 'win'
                         ? '#86efac'
                         : '#fca5a5'
-                      : opponentColors.backgroundColor
+                      : isCurrentWeek
+                        ? teamColors.primary
+                        : opponentColors.backgroundColor,
+                    boxShadow: isCurrentWeek ? `0 0 0 3px ${teamColors.primary}40, 0 4px 12px ${teamColors.primary}30` : 'none'
                   }}
                   onClick={() => {
                     if (playedGame) {
@@ -653,6 +658,16 @@ export default function Dashboard() {
                           {playedGame.teamScore} - {playedGame.opponentScore}
                         </div>
                       </div>
+                    </div>
+                  ) : isCurrentWeek ? (
+                    <div
+                      className="text-sm font-bold px-3 py-1 rounded"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: getContrastTextColor(teamColors.primary)
+                      }}
+                    >
+                      This Week
                     </div>
                   ) : (
                     <div className="text-sm font-medium" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
