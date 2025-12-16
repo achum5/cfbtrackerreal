@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { teams } from '../data/teams'
 
 export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave }) {
   const [formData, setFormData] = useState({})
@@ -464,7 +465,26 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                   </select>
                 </div>
 
-                <InputField label="School" name="school" type="text" />
+                <div>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
+                    School
+                  </label>
+                  <select
+                    name="school"
+                    value={formData.school ?? ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border-2 rounded-lg"
+                    style={{
+                      borderColor: teamColors.primary,
+                      backgroundColor: '#ffffff'
+                    }}
+                  >
+                    <option value="">Select School</option>
+                    {teams.map(team => (
+                      <option key={team} value={team}>{team}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
