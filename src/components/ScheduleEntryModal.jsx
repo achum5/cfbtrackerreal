@@ -148,7 +148,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
             Schedule and Roster Entry
           </h2>
@@ -161,6 +161,19 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+
+        {/* First-time roster note */}
+        <div
+          className="mb-4 p-3 rounded-lg text-sm"
+          style={{
+            backgroundColor: `${teamColors.primary}15`,
+            border: `2px solid ${teamColors.primary}40`
+          }}
+        >
+          <p style={{ color: teamColors.primary }}>
+            <strong>Note:</strong> This is the only time you'll need to enter your full roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions.
+          </p>
         </div>
 
         {isLoading ? (
@@ -230,11 +243,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 frameBorder="0"
                 title="Schedule Google Sheet"
               />
-            </div>
-
-            <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              <p><strong>Schedule Tab:</strong> Week | User Team | CPU Team | Site</p>
-              <p><strong>Roster Tab:</strong> Name | Position | Class | Dev Trait | Overall Rating</p>
             </div>
           </div>
         ) : (

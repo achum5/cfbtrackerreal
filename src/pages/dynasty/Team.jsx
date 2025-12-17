@@ -1,6 +1,5 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -162,10 +161,19 @@ const getMascotName = (abbr) => {
 
 export default function Team() {
   const { id, teamAbbr } = useParams()
+  const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
-  const userTeamColors = useTeamColors(currentDynasty?.teamName)
 
   if (!currentDynasty) return null
+
+  // Get all teams sorted alphabetically by mascot name
+  const allTeams = Object.entries(teamAbbreviations)
+    .map(([abbr, info]) => ({
+      abbr,
+      name: getMascotName(abbr) || info.name,
+      sortName: (getMascotName(abbr) || info.name).toLowerCase()
+    }))
+    .sort((a, b) => a.sortName.localeCompare(b.sortName))
 
   // Get team info
   const teamInfo = teamAbbreviations[teamAbbr]
@@ -173,25 +181,17 @@ export default function Team() {
     return (
       <div className="space-y-6">
         <div
-          className="rounded-lg shadow-lg p-6"
-          style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${userTeamColors.primary}`
-          }}
+          className="rounded-lg shadow-lg p-6 bg-gray-100 border-2 border-gray-400"
         >
-          <h1 className="text-2xl font-bold" style={{ color: userTeamColors.primary }}>
+          <h1 className="text-2xl font-bold text-gray-700">
             Team Not Found
           </h1>
-          <p className="mt-2" style={{ color: getContrastTextColor(userTeamColors.secondary), opacity: 0.8 }}>
+          <p className="mt-2 text-gray-600">
             The team "{teamAbbr}" was not found.
           </p>
           <Link
             to={`/dynasty/${id}/teams`}
-            className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold"
-            style={{
-              backgroundColor: userTeamColors.primary,
-              color: getContrastTextColor(userTeamColors.primary)
-            }}
+            className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold bg-gray-700 text-white hover:bg-gray-800"
           >
             Back to Teams
           </Link>
@@ -205,8 +205,7 @@ export default function Team() {
   const mascotName = getMascotName(teamAbbr)
   const teamLogo = mascotName ? getTeamLogo(mascotName) : null
   const teamBgText = getContrastTextColor(teamInfo.backgroundColor)
-  const secondaryBgText = getContrastTextColor(userTeamColors.secondary)
-  const primaryBgText = getContrastTextColor(userTeamColors.primary)
+  const teamPrimaryText = getContrastTextColor(teamInfo.textColor)
 
   // Get all games against this team
   const gamesAgainst = (currentDynasty.games || [])
@@ -271,15 +270,15 @@ export default function Team() {
 
   // Stat cell component
   const StatCell = ({ label, value, subValue }) => (
-    <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${userTeamColors.primary}10` }}>
-      <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: secondaryBgText, opacity: 0.6 }}>
+    <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+      <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
         {label}
       </div>
-      <div className="text-xl font-bold" style={{ color: userTeamColors.primary }}>
+      <div className="text-xl font-bold" style={{ color: teamBgText }}>
         {value}
       </div>
       {subValue && (
-        <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+        <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
           {subValue}
         </div>
       )}
@@ -288,20 +287,42 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
-      {/* Back Link */}
-      <Link
-        to={`/dynasty/${id}/teams`}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
-        style={{
-          backgroundColor: userTeamColors.secondary,
-          color: userTeamColors.primary
-        }}
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        All Teams
-      </Link>
+      {/* Navigation Row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Back Link */}
+        <Link
+          to={`/dynasty/${id}/teams`}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+          style={{
+            backgroundColor: teamInfo.backgroundColor,
+            color: teamBgText,
+            border: `2px solid ${teamBgText}40`
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          All Teams
+        </Link>
+
+        {/* Team Dropdown */}
+        <select
+          value={teamAbbr}
+          onChange={(e) => navigate(`/dynasty/${id}/team/${e.target.value}`)}
+          className="px-3 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 ml-auto"
+          style={{
+            backgroundColor: teamInfo.backgroundColor,
+            color: teamBgText,
+            border: `2px solid ${teamBgText}40`
+          }}
+        >
+          {allTeams.map((team) => (
+            <option key={team.abbr} value={team.abbr}>
+              {team.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Team Header */}
       <div
@@ -357,15 +378,15 @@ export default function Team() {
       <div
         className="rounded-lg shadow-lg overflow-hidden"
         style={{
-          backgroundColor: userTeamColors.secondary,
-          border: `3px solid ${userTeamColors.primary}`
+          backgroundColor: teamInfo.backgroundColor,
+          border: `3px solid ${teamInfo.textColor}`
         }}
       >
         <div
           className="px-4 py-3"
-          style={{ backgroundColor: userTeamColors.primary }}
+          style={{ backgroundColor: teamInfo.textColor }}
         >
-          <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+          <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
             Team Accomplishments
           </h2>
         </div>
@@ -406,15 +427,15 @@ export default function Team() {
       <div
         className="rounded-lg shadow-lg overflow-hidden"
         style={{
-          backgroundColor: userTeamColors.secondary,
-          border: `3px solid ${userTeamColors.primary}`
+          backgroundColor: teamInfo.backgroundColor,
+          border: `3px solid ${teamInfo.textColor}`
         }}
       >
         <div
           className="px-4 py-3"
-          style={{ backgroundColor: userTeamColors.primary }}
+          style={{ backgroundColor: teamInfo.textColor }}
         >
-          <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+          <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
             Your History
           </h2>
         </div>
@@ -424,15 +445,15 @@ export default function Team() {
             {/* Games As */}
             <div
               className="p-4 rounded-lg text-center"
-              style={{ backgroundColor: `${userTeamColors.primary}15` }}
+              style={{ backgroundColor: `${teamBgText}10` }}
             >
-              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Games As
               </div>
-              <div className="text-3xl font-bold" style={{ color: userTeamColors.primary }}>
+              <div className="text-3xl font-bold" style={{ color: teamBgText }}>
                 {teamHistoryData.gamesAs || '--'}
               </div>
-              <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
                 as {teamAbbr}
               </div>
             </div>
@@ -440,15 +461,15 @@ export default function Team() {
             {/* Win % As */}
             <div
               className="p-4 rounded-lg text-center"
-              style={{ backgroundColor: `${userTeamColors.primary}15` }}
+              style={{ backgroundColor: `${teamBgText}10` }}
             >
-              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Win % As
               </div>
-              <div className="text-3xl font-bold" style={{ color: userTeamColors.primary }}>
+              <div className="text-3xl font-bold" style={{ color: teamBgText }}>
                 {teamHistoryData.winPctAs ? `${teamHistoryData.winPctAs}%` : '--'}
               </div>
-              <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
                 as {teamAbbr}
               </div>
             </div>
@@ -456,15 +477,15 @@ export default function Team() {
             {/* Games Vs */}
             <div
               className="p-4 rounded-lg text-center"
-              style={{ backgroundColor: gamesAgainst.length > 0 ? `${userTeamColors.primary}15` : `${secondaryBgText}10` }}
+              style={{ backgroundColor: `${teamBgText}10` }}
             >
-              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Games Vs
               </div>
-              <div className="text-3xl font-bold" style={{ color: gamesAgainst.length > 0 ? userTeamColors.primary : `${secondaryBgText}50` }}>
+              <div className="text-3xl font-bold" style={{ color: gamesAgainst.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {gamesAgainst.length || '--'}
               </div>
-              <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
                 vs {teamAbbr}
               </div>
             </div>
@@ -472,9 +493,9 @@ export default function Team() {
             {/* Win % Vs */}
             <div
               className="p-4 rounded-lg text-center"
-              style={{ backgroundColor: winPctVs ? `${userTeamColors.primary}15` : `${secondaryBgText}10` }}
+              style={{ backgroundColor: `${teamBgText}10` }}
             >
-              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Win % Vs
               </div>
               <div
@@ -482,12 +503,12 @@ export default function Team() {
                 style={{
                   color: winPctVs
                     ? parseFloat(winPctVs) >= 50 ? '#16a34a' : '#dc2626'
-                    : `${secondaryBgText}50`
+                    : `${teamBgText}50`
                 }}
               >
                 {winPctVs ? `${winPctVs}%` : '--'}
               </div>
-              <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
                 {allTimeWins}-{allTimeLosses} record
               </div>
             </div>
@@ -500,21 +521,21 @@ export default function Team() {
         <div
           className="rounded-lg shadow-lg p-6"
           style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${userTeamColors.primary}`
+            backgroundColor: teamInfo.backgroundColor,
+            border: `3px solid ${teamInfo.textColor}`
           }}
         >
-          <h2 className="text-lg font-bold mb-4" style={{ color: userTeamColors.primary }}>
+          <h2 className="text-lg font-bold mb-4" style={{ color: teamBgText }}>
             Head-to-Head Record
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* All-Time Record */}
-            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${userTeamColors.primary}15` }}>
-              <div className="text-4xl font-bold" style={{ color: userTeamColors.primary }}>
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+              <div className="text-4xl font-bold" style={{ color: teamBgText }}>
                 {allTimeWins}-{allTimeLosses}
               </div>
-              <div className="text-sm font-semibold mt-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+              <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
                 All-Time Record
               </div>
             </div>
@@ -529,7 +550,7 @@ export default function Team() {
                 <div className="text-4xl font-bold" style={{ color: '#16a34a' }}>
                   {bestYear.wins}-{bestYear.losses}
                 </div>
-                <div className="text-sm font-semibold mt-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
                   Best Year ({bestYear.year})
                 </div>
               </Link>
@@ -545,7 +566,7 @@ export default function Team() {
                 <div className="text-4xl font-bold" style={{ color: '#dc2626' }}>
                   {worstYear.wins}-{worstYear.losses}
                 </div>
-                <div className="text-sm font-semibold mt-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
                   Worst Year ({worstYear.year})
                 </div>
               </Link>
@@ -558,15 +579,15 @@ export default function Team() {
       <div
         className="rounded-lg shadow-lg overflow-hidden"
         style={{
-          backgroundColor: userTeamColors.secondary,
-          border: `3px solid ${userTeamColors.primary}`
+          backgroundColor: teamInfo.backgroundColor,
+          border: `3px solid ${teamInfo.textColor}`
         }}
       >
         <div
           className="px-4 py-3"
-          style={{ backgroundColor: userTeamColors.primary }}
+          style={{ backgroundColor: teamInfo.textColor }}
         >
-          <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+          <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
             Season-by-Season vs {teamAbbr}
           </h2>
         </div>
@@ -578,25 +599,25 @@ export default function Team() {
               to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
               className={`p-4 rounded-lg text-center transition-transform ${hasGames ? 'hover:scale-[1.02]' : 'opacity-50'}`}
               style={{
-                backgroundColor: hasGames ? `${userTeamColors.primary}20` : `${secondaryBgText}10`,
-                border: `2px solid ${hasGames ? userTeamColors.primary : `${secondaryBgText}30`}`
+                backgroundColor: hasGames ? `${teamBgText}15` : `${teamBgText}05`,
+                border: `2px solid ${hasGames ? `${teamBgText}40` : `${teamBgText}20`}`
               }}
             >
-              <div className="text-lg font-bold" style={{ color: userTeamColors.primary }}>
+              <div className="text-lg font-bold" style={{ color: teamBgText }}>
                 {year}
               </div>
               <div
                 className="text-2xl font-bold mt-1"
                 style={{
                   color: hasGames
-                    ? wins > losses ? '#16a34a' : losses > wins ? '#dc2626' : secondaryBgText
-                    : `${secondaryBgText}50`
+                    ? wins > losses ? '#16a34a' : losses > wins ? '#dc2626' : teamBgText
+                    : `${teamBgText}50`
                 }}
               >
                 {hasGames ? `${wins}-${losses}` : '--'}
               </div>
               {!hasGames && (
-                <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.5 }}>
+                <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
                   No games
                 </div>
               )}

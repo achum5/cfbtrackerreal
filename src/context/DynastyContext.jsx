@@ -8,7 +8,7 @@ import {
   deleteDynasty as deleteDynastyFromFirestore,
   migrateLocalStorageData
 } from '../services/dynastyService'
-import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet } from '../services/sheetsService'
+import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet, createConferencesSheet, readConferencesFromSheet } from '../services/sheetsService'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
 const DynastyContext = createContext()
@@ -425,7 +425,34 @@ export function DynastyProvider({ children }) {
       // After conference championship, move to postseason (playoffs)
       nextPhase = 'postseason'
       nextWeek = 1
-    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 4) {
+
+      // Execute pending coordinator firing if any
+      const pendingFiring = dynasty.conferenceChampionshipData?.pendingFiring
+      if (pendingFiring && pendingFiring !== 'none') {
+        const firedOCName = (pendingFiring === 'oc' || pendingFiring === 'both') ? dynasty.coachingStaff?.ocName : null
+        const firedDCName = (pendingFiring === 'dc' || pendingFiring === 'both') ? dynasty.coachingStaff?.dcName : null
+
+        let updatedStaff = { ...dynasty.coachingStaff }
+        if (pendingFiring === 'oc' || pendingFiring === 'both') {
+          updatedStaff.ocName = null
+        }
+        if (pendingFiring === 'dc' || pendingFiring === 'both') {
+          updatedStaff.dcName = null
+        }
+
+        additionalUpdates.coachingStaff = updatedStaff
+        additionalUpdates.conferenceChampionshipData = {
+          ...dynasty.conferenceChampionshipData,
+          firingCoordinators: true,
+          coordinatorToFire: pendingFiring,
+          firedOCName,
+          firedDCName
+        }
+        // Reset coachingStaffEntered so user must re-enter in next preseason
+        additionalUpdates['preseasonSetup.coachingStaffEntered'] = false
+        console.log('🔥 Firing coordinator(s):', pendingFiring, { firedOCName, firedDCName })
+      }
+    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 5) {
       nextPhase = 'offseason'
       nextWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && nextWeek > 4) {
@@ -465,9 +492,9 @@ export function DynastyProvider({ children }) {
       prevPhase = 'conference_championship'
       prevWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && prevWeek < 1) {
-      // Go back to postseason week 4
+      // Go back to postseason week 5
       prevPhase = 'postseason'
-      prevWeek = 4
+      prevWeek = 5
     } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
       // Go back to previous year's offseason
       prevPhase = 'offseason'
@@ -917,6 +944,99 @@ export function DynastyProvider({ children }) {
     })
   }
 
+  // Create a Conferences Google Sheet for a dynasty
+  const createConferencesSheetForDynasty = async (dynastyId) => {
+    if (!user) {
+      throw new Error('You must be signed in to create Google Sheets')
+    }
+
+    let dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
+
+    if (!dynasty) {
+      throw new Error('Dynasty not found')
+    }
+
+    if (dynasty.conferencesSheetId) {
+      throw new Error('This dynasty already has a Conferences Sheet')
+    }
+
+    console.log('Creating Conferences Sheet for dynasty:', dynasty.teamName)
+
+    try {
+      const sheetInfo = await createConferencesSheet(
+        dynasty.teamName,
+        dynasty.currentYear
+      )
+
+      console.log('✅ Conferences Sheet created:', sheetInfo)
+
+      await updateDynasty(dynastyId, {
+        conferencesSheetId: sheetInfo.spreadsheetId,
+        conferencesSheetUrl: sheetInfo.spreadsheetUrl
+      })
+
+      return sheetInfo
+    } catch (error) {
+      console.error('❌ Failed to create Conferences Sheet:', error)
+      throw error
+    }
+  }
+
+  // Save conferences data from sheet to dynasty
+  const saveConferences = async (dynastyId, conferencesSheetId) => {
+    if (!user) {
+      throw new Error('You must be signed in to sync conferences')
+    }
+
+    let dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
+
+    if (!dynasty) {
+      throw new Error('Dynasty not found')
+    }
+
+    try {
+      // Read conferences from Google Sheet
+      const conferences = await readConferencesFromSheet(conferencesSheetId)
+      console.log('Read conferences from sheet:', conferences)
+
+      // Save to dynasty
+      const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+
+      if (isDev || !user) {
+        // Dev mode: Use localStorage with spread operator
+        const currentData = localStorage.getItem('cfb-dynasties')
+        const currentDynasties = currentData ? JSON.parse(currentData) : []
+        const dynastyToUpdate = currentDynasties.find(d => d.id === dynastyId)
+        if (dynastyToUpdate) {
+          dynastyToUpdate.customConferences = conferences
+          dynastyToUpdate.preseasonSetup = {
+            ...dynastyToUpdate.preseasonSetup,
+            conferencesEntered: true
+          }
+          dynastyToUpdate.lastModified = Date.now()
+          localStorage.setItem('cfb-dynasties', JSON.stringify(currentDynasties))
+          setDynasties(currentDynasties)
+          if (currentDynasty?.id === dynastyId) {
+            setCurrentDynasty(dynastyToUpdate)
+          }
+        }
+      } else {
+        // Production mode: Use Firestore dot notation
+        await updateDynastyInFirestore(dynastyId, {
+          customConferences: conferences,
+          'preseasonSetup.conferencesEntered': true,
+          lastModified: Date.now()
+        })
+      }
+
+      console.log('Conferences saved successfully')
+      return conferences
+    } catch (error) {
+      console.error('Error saving conferences:', error)
+      throw error
+    }
+  }
+
   const exportDynasty = (dynastyId) => {
     console.log('exportDynasty called:', { dynastyId })
 
@@ -1022,6 +1142,8 @@ export function DynastyProvider({ children }) {
     createGoogleSheetForDynasty,
     createTempSheetWithData,
     deleteSheetAndClearRefs,
+    createConferencesSheetForDynasty,
+    saveConferences,
     exportDynasty,
     importDynasty
   }

@@ -49,15 +49,21 @@ function getWeekPhaseDisplay(dynasty) {
 }
 
 export default function Home() {
-  const { dynasties, deleteDynasty, importDynasty } = useDynasty()
+  const { dynasties, deleteDynasty, importDynasty, exportDynasty, updateDynasty, loading } = useDynasty()
 
-  // Sort dynasties by lastModified (most recent first)
+  // Sort dynasties: favorites first, then by lastModified (most recent first)
   const sortedDynasties = [...dynasties].sort((a, b) => {
+    // Favorites come first
+    if (a.favorite && !b.favorite) return -1
+    if (!a.favorite && b.favorite) return 1
+    // Then sort by lastModified
     const aTime = a.lastModified || 0
     const bTime = b.lastModified || 0
     return bTime - aTime
   })
   const [dynastyToDelete, setDynastyToDelete] = useState(null)
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
@@ -70,9 +76,40 @@ export default function Home() {
 
   const handleConfirmDelete = () => {
     if (dynastyToDelete) {
+      // If it's a favorite, require extra confirmation
+      if (dynastyToDelete.favorite) {
+        setShowFinalConfirm(true)
+      } else {
+        deleteDynasty(dynastyToDelete.id)
+        setDynastyToDelete(null)
+      }
+    }
+  }
+
+  const handleFinalConfirmDelete = () => {
+    if (dynastyToDelete && confirmText === dynastyToDelete.teamName) {
       deleteDynasty(dynastyToDelete.id)
       setDynastyToDelete(null)
+      setShowFinalConfirm(false)
+      setConfirmText('')
     }
+  }
+
+  const handleCancelFinalConfirm = () => {
+    setShowFinalConfirm(false)
+    setConfirmText('')
+  }
+
+  const handleExportClick = (e, dynasty) => {
+    e.preventDefault()
+    e.stopPropagation()
+    exportDynasty(dynasty.id)
+  }
+
+  const handleFavoriteClick = async (e, dynasty) => {
+    e.preventDefault()
+    e.stopPropagation()
+    await updateDynasty(dynasty.id, { favorite: !dynasty.favorite })
   }
 
   const handleImportClick = () => {
@@ -97,6 +134,18 @@ export default function Home() {
     } finally {
       setImporting(false)
     }
+  }
+
+  // Show loading state while dynasties are being fetched
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center py-16">
+          <div className="animate-spin w-12 h-12 border-4 border-gray-300 border-t-gray-800 rounded-full mx-auto mb-4" />
+          <p className="text-gray-600">Loading dynasties...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -229,17 +278,50 @@ export default function Home() {
                     </div>
                   </Link>
 
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => handleDeleteClick(e, dynasty)}
-                    className="absolute top-3 right-3 p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
-                    style={{ color: colors.secondary }}
-                    title="Delete Dynasty"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {/* Action buttons */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1">
+                    {/* Favorite button */}
+                    <button
+                      onClick={(e) => handleFavoriteClick(e, dynasty)}
+                      className="p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
+                      style={{ color: colors.secondary }}
+                      title={dynasty.favorite ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      {dynasty.favorite ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {/* Export button */}
+                    <button
+                      onClick={(e) => handleExportClick(e, dynasty)}
+                      className="p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
+                      style={{ color: colors.secondary }}
+                      title="Export Dynasty"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </button>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => handleDeleteClick(e, dynasty)}
+                      className="p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
+                      style={{ color: colors.secondary }}
+                      title="Delete Dynasty"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -248,15 +330,66 @@ export default function Home() {
       )}
 
       <ConfirmModal
-        isOpen={!!dynastyToDelete}
+        isOpen={!!dynastyToDelete && !showFinalConfirm}
         onClose={() => setDynastyToDelete(null)}
         onConfirm={handleConfirmDelete}
-        title="Delete Dynasty?"
-        message={`Are you sure you want to delete the ${dynastyToDelete?.teamName} dynasty? This action cannot be undone.`}
-        confirmText="Delete"
+        title={dynastyToDelete?.favorite ? "Delete Favorited Dynasty?" : "Delete Dynasty?"}
+        message={
+          dynastyToDelete?.favorite
+            ? `WARNING: "${dynastyToDelete?.teamName}" is marked as a favorite! Are you absolutely sure you want to delete this dynasty? This action cannot be undone.`
+            : `Are you sure you want to delete the ${dynastyToDelete?.teamName} dynasty? This action cannot be undone.`
+        }
+        confirmText={dynastyToDelete?.favorite ? "Continue" : "Delete"}
         cancelText="Cancel"
         confirmButtonColor="#ef4444"
       />
+
+      {/* Extra confirmation modal for favorites - requires typing dynasty name */}
+      {showFinalConfirm && dynastyToDelete && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={handleCancelFinalConfirm}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-bold text-red-600 mb-4">
+              Final Confirmation Required
+            </h2>
+            <p className="text-gray-700 mb-4">
+              This is a <strong>favorited dynasty</strong>. To confirm deletion, please type the dynasty name exactly:
+            </p>
+            <p className="text-lg font-bold text-gray-900 mb-4 bg-gray-100 p-2 rounded">
+              {dynastyToDelete.teamName}
+            </p>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type dynasty name here..."
+              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg mb-4 focus:border-red-500 focus:outline-none"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleFinalConfirmDelete}
+                disabled={confirmText !== dynastyToDelete.teamName}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: confirmText === dynastyToDelete.teamName ? '#ef4444' : '#9ca3af' }}
+              >
+                Permanently Delete
+              </button>
+              <button
+                onClick={handleCancelFinalConfirm}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

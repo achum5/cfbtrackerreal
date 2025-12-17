@@ -1063,18 +1063,18 @@ export async function createConferenceChampionshipSheet(dynastyName, year, exclu
   try {
     const accessToken = await getAccessToken()
 
-    // Conference list for CFB
+    // Conference list for CFB (alphabetical order)
     let conferences = [
-      'SEC',
-      'Big Ten',
-      'Big 12',
       'ACC',
-      'Pac-12',
       'American',
-      'Mountain West',
-      'Sun Belt',
+      'Big 12',
+      'Big Ten',
+      'Conference USA',
       'MAC',
-      'Conference USA'
+      'Mountain West',
+      'Pac-12',
+      'SEC',
+      'Sun Belt'
     ]
 
     // Exclude user's conference if they already played their CC game
@@ -1439,6 +1439,1605 @@ export async function readConferenceChampionshipsFromSheet(spreadsheetId) {
     return championships
   } catch (error) {
     console.error('Error reading CC data:', error)
+    throw error
+  }
+}
+
+// Bowl games list for Bowl Week 1 (26 games - no CFP)
+const BOWL_GAMES_WEEK_1 = [
+  '68 Ventures Bowl',
+  'Alamo Bowl',
+  'Arizona Bowl',
+  'Armed Forces Bowl',
+  'Birmingham Bowl',
+  'Boca Raton Bowl',
+  'Cure Bowl',
+  'Famous Idaho Potato Bowl',
+  'Fenway Bowl',
+  'Frisco Bowl',
+  'GameAbove Sports Bowl',
+  'Gasparilla Bowl',
+  'Hawaii Bowl',
+  'Holiday Bowl',
+  'Independence Bowl',
+  'LA Bowl',
+  'Las Vegas Bowl',
+  'Liberty Bowl',
+  'Military Bowl',
+  'Music City Bowl',
+  'Myrtle Beach Bowl',
+  'New Mexico Bowl',
+  'New Orleans Bowl',
+  'Pop-Tarts Bowl',
+  'Rate Bowl',
+  'Salute to Veterans Bowl'
+]
+
+// Bowl games list for Bowl Week 2 (12 games)
+const BOWL_GAMES_WEEK_2 = [
+  'Citrus Bowl',
+  'Cotton Bowl',
+  "Duke's Mayo Bowl",
+  'First Responder Bowl',
+  'Gator Bowl',
+  'Orange Bowl',
+  'Reliaquest Bowl',
+  'Rose Bowl',
+  'Sugar Bowl',
+  'Sun Bowl',
+  'Texas Bowl',
+  'Xbox Bowl'
+]
+
+// All bowl games combined (for dropdown selection)
+const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
+
+// Create Bowl Week 1 sheet with all bowl games
+export async function createBowlWeek1Sheet(dynastyName, year) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const bowlGames = BOWL_GAMES_WEEK_1
+    const rowCount = bowlGames.length
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Bowl Games ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Bowl Games',
+              gridProperties: {
+                rowCount: rowCount + 1,
+                columnCount: 5,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create bowl sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const bowlSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating bowl week 1 sheet:', error)
+    throw error
+  }
+}
+
+// Generate conditional formatting rules for team colors in bowl sheet
+function generateBowlTeamFormattingRules(sheetId, columnIndex, rowCount) {
+  const rules = []
+
+  for (const [abbr, teamData] of Object.entries(teamAbbreviations)) {
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+  }
+
+  return rules
+}
+
+// Initialize the Bowl Week 1 sheet with headers and bowl game rows
+async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bowlGames) {
+  const teamAbbrs = getTeamAbbreviationsList()
+  const rowCount = bowlGames.length
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Bowl Game' } },
+            { userEnteredValue: { stringValue: 'Team 1' } },
+            { userEnteredValue: { stringValue: 'Team 2' } },
+            { userEnteredValue: { stringValue: 'Team 1 Score' } },
+            { userEnteredValue: { stringValue: 'Team 2 Score' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill bowl game names
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: bowlGames.map(bowl => ({
+          values: [{ userEnteredValue: { stringValue: bowl } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    },
+    // Format all cells: Bold, Italic, Center, Barlow font, size 10
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Add STRICT team dropdown validation for Team 1 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Add STRICT team dropdown validation for Team 2 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 2,
+          endColumnIndex: 3
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect bowl names column
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Bowl names - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 180 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 3
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 5
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add conditional formatting for team colors (Team 1 column)
+    ...generateBowlTeamFormattingRules(sheetId, 1, rowCount),
+    // Add conditional formatting for team colors (Team 2 column)
+    ...generateBowlTeamFormattingRules(sheetId, 2, rowCount)
+  ]
+
+  // Execute batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing bowl sheet:', error)
+    throw new Error(`Failed to initialize bowl sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read Bowl Games data from sheet
+export async function readBowlGamesFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const rowCount = BOWL_GAMES_WEEK_1.length
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:E${rowCount + 1}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read bowl data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse into structured data
+    const bowlGames = rows.map(row => ({
+      bowlName: row[0] || '',
+      team1: (row[1] || '').toUpperCase(),
+      team2: (row[2] || '').toUpperCase(),
+      team1Score: row[3] ? parseInt(row[3]) : null,
+      team2Score: row[4] ? parseInt(row[4]) : null,
+      winner: null
+    })).map(game => ({
+      ...game,
+      winner: game.team1Score !== null && game.team2Score !== null
+        ? (game.team1Score > game.team2Score ? game.team1 : game.team2)
+        : null
+    }))
+
+    return bowlGames
+  } catch (error) {
+    console.error('Error reading bowl data:', error)
+    throw error
+  }
+}
+
+// Get list of bowl games for reference
+export function getBowlGamesList() {
+  return [...BOWL_GAMES_WEEK_1]
+}
+
+// Get list of Week 1 bowl games (without CFP First Round for selection dropdown)
+export function getWeek1BowlGamesList() {
+  return BOWL_GAMES_WEEK_1.filter(b => b !== 'CFP First Round')
+}
+
+// Get list of Week 2 bowl games
+export function getWeek2BowlGamesList() {
+  return [...BOWL_GAMES_WEEK_2]
+}
+
+// Get all bowl games (for dropdown selection, no CFP)
+export function getAllBowlGamesList() {
+  return [...ALL_BOWL_GAMES]
+}
+
+// Check if a bowl game is in Week 1
+export function isBowlInWeek1(bowlName) {
+  return BOWL_GAMES_WEEK_1.some(b => b === bowlName)
+}
+
+// Check if a bowl game is in Week 2
+export function isBowlInWeek2(bowlName) {
+  return BOWL_GAMES_WEEK_2.some(b => b === bowlName)
+}
+
+// Create Bowl Week 2 sheet
+export async function createBowlWeek2Sheet(dynastyName, year) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const bowlGames = BOWL_GAMES_WEEK_2
+    const rowCount = bowlGames.length
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Bowl Week 2 ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Bowl Games',
+              gridProperties: {
+                rowCount: rowCount + 1,
+                columnCount: 5,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create bowl week 2 sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const bowlSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data (reuse the same initialization function)
+    await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating bowl week 2 sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Bowl Week 2 sheet with headers and bowl game rows
+async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bowlGames) {
+  const teamAbbrs = getTeamAbbreviationsList()
+  const rowCount = bowlGames.length
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Bowl Game' } },
+            { userEnteredValue: { stringValue: 'Team 1' } },
+            { userEnteredValue: { stringValue: 'Team 2' } },
+            { userEnteredValue: { stringValue: 'Team 1 Score' } },
+            { userEnteredValue: { stringValue: 'Team 2 Score' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill bowl game names
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: bowlGames.map(bowl => ({
+          values: [{ userEnteredValue: { stringValue: bowl } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    },
+    // Format all cells: Bold, Italic, Center, Barlow font, size 10
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Add STRICT team dropdown validation for Team 1 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Add STRICT team dropdown validation for Team 2 column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount + 1,
+          startColumnIndex: 2,
+          endColumnIndex: 3
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect bowl names column
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Bowl names - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 180 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 3
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 5
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add conditional formatting for team colors (Team 1 column)
+    ...generateBowlTeamFormattingRules(sheetId, 1, rowCount),
+    // Add conditional formatting for team colors (Team 2 column)
+    ...generateBowlTeamFormattingRules(sheetId, 2, rowCount)
+  ]
+
+  // Execute batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing bowl week 2 sheet:', error)
+    throw new Error(`Failed to initialize bowl week 2 sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read Bowl Week 2 Games data from sheet
+export async function readBowlWeek2GamesFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const rowCount = BOWL_GAMES_WEEK_2.length
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:E${rowCount + 1}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read bowl week 2 data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse into structured data
+    const bowlGames = rows.map(row => ({
+      bowlName: row[0] || '',
+      team1: (row[1] || '').toUpperCase(),
+      team2: (row[2] || '').toUpperCase(),
+      team1Score: row[3] ? parseInt(row[3]) : null,
+      team2Score: row[4] ? parseInt(row[4]) : null,
+      winner: null
+    })).map(game => ({
+      ...game,
+      winner: game.team1Score !== null && game.team2Score !== null
+        ? (game.team1Score > game.team2Score ? game.team1 : game.team2)
+        : null
+    }))
+
+    return bowlGames
+  } catch (error) {
+    console.error('Error reading bowl week 2 data:', error)
+    throw error
+  }
+}
+
+// ==================== CFP SHEETS ====================
+
+// Create CFP Seeds sheet (for entering seeds 1-12)
+export async function createCFPSeedsSheet(dynastyName, year) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - CFP Seeds ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'CFP Seeds',
+              gridProperties: {
+                rowCount: 14,
+                columnCount: 2,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create CFP seeds sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const cfpSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeCFPSeedsSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating CFP seeds sheet:', error)
+    throw error
+  }
+}
+
+// Initialize CFP Seeds sheet
+async function initializeCFPSeedsSheet(spreadsheetId, accessToken, sheetId) {
+  const teamList = getTeamAbbreviationsList()
+
+  // Generate team color formatting rules for the Team column (column B / index 1)
+  const teamFormattingRules = generateTeamFormattingRules(sheetId, 1)
+
+  const requests = [
+    // Headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 2
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Seed' } },
+            { userEnteredValue: { stringValue: 'Team' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill seed numbers 1-12
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: 13,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: Array.from({ length: 12 }, (_, i) => ({
+          values: [{ userEnteredValue: { numberValue: i + 1 } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    },
+    // Team dropdown validation (strict - only accepts values from list)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: 13,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamList.map(team => ({ userEnteredValue: team }))
+          },
+          strict: true,
+          showCustomUi: true
+        }
+      }
+    },
+    // Format all cells
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 14,
+          startColumnIndex: 0,
+          endColumnIndex: 2
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              fontFamily: 'Barlow',
+              fontSize: 10,
+              bold: true
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Freeze header row
+    {
+      updateSheetProperties: {
+        properties: {
+          sheetId: sheetId,
+          gridProperties: {
+            frozenRowCount: 1
+          }
+        },
+        fields: 'gridProperties.frozenRowCount'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 2
+          },
+          description: 'Header row',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect seed column
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Seed numbers',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 60 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 150 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add team color conditional formatting
+    ...teamFormattingRules
+  ]
+
+  await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+// Read CFP Seeds from sheet
+export async function readCFPSeedsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Seeds!A2:B13`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read CFP seeds: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse into structured data
+    const seeds = rows.map(row => ({
+      seed: row[0] ? parseInt(row[0]) : null,
+      team: (row[1] || '').toUpperCase()
+    })).filter(s => s.seed && s.team)
+
+    return seeds
+  } catch (error) {
+    console.error('Error reading CFP seeds:', error)
+    throw error
+  }
+}
+
+// Create CFP First Round sheet (4 games - seeds 5-12 play)
+export async function createCFPFirstRoundSheet(dynastyName, year) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - CFP First Round ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'CFP First Round',
+              gridProperties: {
+                rowCount: 6,
+                columnCount: 5,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create CFP First Round sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const cfpSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeCFPFirstRoundSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating CFP First Round sheet:', error)
+    throw error
+  }
+}
+
+// Initialize CFP First Round sheet
+async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId) {
+  const teamList = getTeamAbbreviationsList()
+
+  // CFP First Round matchups (seeds play each other: 5v12, 6v11, 7v10, 8v9)
+  const games = [
+    'Game 1 (5 vs 12)',
+    'Game 2 (6 vs 11)',
+    'Game 3 (7 vs 10)',
+    'Game 4 (8 vs 9)'
+  ]
+
+  const requests = [
+    // Headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Game' } },
+            { userEnteredValue: { stringValue: 'Higher Seed' } },
+            { userEnteredValue: { stringValue: 'Lower Seed' } },
+            { userEnteredValue: { stringValue: 'Higher Score' } },
+            { userEnteredValue: { stringValue: 'Lower Score' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill game names
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: 5,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: games.map(game => ({
+          values: [{ userEnteredValue: { stringValue: game } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    },
+    // Team dropdown validation for columns B and C
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: 5,
+          startColumnIndex: 1,
+          endColumnIndex: 3
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamList.map(team => ({ userEnteredValue: team }))
+          },
+          strict: true,
+          showCustomUi: true
+        }
+      }
+    },
+    // Format all cells
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 6,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              fontFamily: 'Barlow',
+              fontSize: 10,
+              bold: true
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 5
+          },
+          description: 'Header row',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect game column
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: 5,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Game names',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 3
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 5
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    }
+  ]
+
+  await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+// Read CFP First Round results from sheet
+export async function readCFPFirstRoundFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP First Round!A2:E5`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read CFP First Round: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse into structured data
+    const games = rows.map(row => ({
+      game: row[0] || '',
+      higherSeed: (row[1] || '').toUpperCase(),
+      lowerSeed: (row[2] || '').toUpperCase(),
+      higherSeedScore: row[3] ? parseInt(row[3]) : null,
+      lowerSeedScore: row[4] ? parseInt(row[4]) : null,
+      winner: null
+    })).map(game => ({
+      ...game,
+      winner: game.higherSeedScore !== null && game.lowerSeedScore !== null
+        ? (game.higherSeedScore > game.lowerSeedScore ? game.higherSeed : game.lowerSeed)
+        : null
+    }))
+
+    return games
+  } catch (error) {
+    console.error('Error reading CFP First Round:', error)
+    throw error
+  }
+}
+
+// ==================== CUSTOM CONFERENCES SHEET ====================
+
+// Default EA CFB 26 conference alignment
+const DEFAULT_CONFERENCES = {
+  "ACC": ["BC", "CAL", "CLEM", "DUKE", "FSU", "GT", "LOU", "MIA", "NCST", "UNC", "PITT", "SMU", "SYR", "STAN", "UVA", "VT", "WAKE"],
+  "American": ["ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TULN", "TLSA", "UAB", "USF", "UTSA"],
+  "Big 12": ["ARIZ", "ASU", "BU", "BYU", "UC", "COLO", "UH", "ISU", "KU", "KSU", "OKST", "TCU", "TTU", "UCF", "UTAH", "WVU"],
+  "Big Ten": ["ILL", "IU", "IOWA", "UMD", "MICH", "MSU", "MINN", "NEB", "NU", "OSU", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WISC"],
+  "Conference USA": ["FIU", "KENN", "LIB", "LT", "MTSU", "NMSU", "SHSU", "UTEP", "WKU"],
+  "Independent": ["ND", "CONN", "MASS"],
+  "MAC": ["AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU"],
+  "Mountain West": ["AFA", "BOIS", "CSU", "FRES", "HAW", "NEV", "SDSU", "SJSU", "UNLV", "USU", "WYO"],
+  "Pac-12": ["ORST", "WSU"],
+  "SEC": ["BAMA", "ARK", "AUB", "FLA", "UGA", "UK", "LSU", "MISS", "MSST", "MIZ", "OU", "SCAR", "UT", "TEX", "TAMU", "VAN"],
+  "Sun Belt": ["APP", "ARST", "CCU", "GASO", "GSU", "JMU", "JKST", "ULM", "UL", "MRSH", "ODU", "USA", "TXST", "TROY"]
+}
+
+// Get default conferences
+export function getDefaultConferences() {
+  return DEFAULT_CONFERENCES
+}
+
+// Create Custom Conferences sheet
+export async function createConferencesSheet(dynastyName, year) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Sort conferences alphabetically
+    const sortedConferences = Object.keys(DEFAULT_CONFERENCES).sort()
+    const columnCount = sortedConferences.length
+
+    // Find max teams in any conference (for row count)
+    const maxTeams = Math.max(...Object.values(DEFAULT_CONFERENCES).map(teams => teams.length))
+    const rowCount = maxTeams + 1 // +1 for header
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Conference Alignment ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Conferences',
+              gridProperties: {
+                rowCount: rowCount,
+                columnCount: columnCount,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create conferences sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const conferencesSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeConferencesSheet(sheet.spreadsheetId, accessToken, conferencesSheetId, sortedConferences, maxTeams)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating conferences sheet:', error)
+    throw error
+  }
+}
+
+// Generate conditional formatting rules for team colors in conferences sheet
+function generateConferencesTeamFormattingRules(sheetId, columnIndex, rowCount) {
+  const rules = []
+
+  for (const [abbr, teamData] of Object.entries(teamAbbreviations)) {
+    // Add rule for uppercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+
+    // Add rule for lowercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr.toLowerCase() }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+  }
+
+  return rules
+}
+
+// Initialize the Conferences sheet with headers and default team data
+async function initializeConferencesSheet(spreadsheetId, accessToken, sheetId, sortedConferences, maxTeams) {
+  const teamAbbrs = getTeamAbbreviationsList()
+
+  const requests = [
+    // Set conference headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: sortedConferences.length
+        },
+        rows: [{
+          values: sortedConferences.map(conf => ({
+            userEnteredValue: { stringValue: conf }
+          }))
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill default teams for each conference
+    ...sortedConferences.map((conf, colIndex) => {
+      const teams = DEFAULT_CONFERENCES[conf]
+      return {
+        updateCells: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: teams.length + 1,
+            startColumnIndex: colIndex,
+            endColumnIndex: colIndex + 1
+          },
+          rows: teams.map(team => ({
+            values: [{ userEnteredValue: { stringValue: team } }]
+          })),
+          fields: 'userEnteredValue'
+        }
+      }
+    }),
+    // Format all cells: Bold, Italic, Center, Barlow font, size 10
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Bold headers with different background
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: hexToRgb('#333333'),
+            textFormat: {
+              foregroundColor: hexToRgb('#FFFFFF'),
+              bold: true,
+              fontFamily: 'Barlow',
+              fontSize: 11
+            }
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat)'
+      }
+    },
+    // Add STRICT team dropdown validation for all columns
+    ...sortedConferences.map((conf, colIndex) => ({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: maxTeams + 1,
+          startColumnIndex: colIndex,
+          endColumnIndex: colIndex + 1
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    })),
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Conference headers - do not edit',
+          warningOnly: false
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: sortedConferences.length
+        },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add conditional formatting for team colors for each column
+    ...sortedConferences.flatMap((conf, colIndex) =>
+      generateConferencesTeamFormattingRules(sheetId, colIndex, maxTeams)
+    )
+  ]
+
+  // Execute batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing conferences sheet:', error)
+    throw new Error(`Failed to initialize conferences sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read conferences data from sheet
+export async function readConferencesFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Get all data from the Conferences sheet
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Conferences!A1:K19`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read conferences: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    if (rows.length === 0) return {}
+
+    // First row is headers (conference names)
+    const headers = rows[0]
+    const conferences = {}
+
+    // Build conference object
+    headers.forEach((confName, colIndex) => {
+      if (!confName) return
+
+      const teams = []
+      for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+        const team = rows[rowIndex]?.[colIndex]
+        if (team && team.trim()) {
+          teams.push(team.toUpperCase())
+        }
+      }
+      conferences[confName] = teams
+    })
+
+    return conferences
+  } catch (error) {
+    console.error('Error reading conferences:', error)
     throw error
   }
 }

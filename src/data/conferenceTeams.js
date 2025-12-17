@@ -6,25 +6,25 @@ export const conferenceTeams = {
     "BC", "CAL", "CLEM", "DUKE", "FSU", "GT", "LOU", "MIA", "NCST", "UNC", "PITT", "SMU", "SYR", "STAN", "UVA", "VT", "WAKE"
   ],
   "Big Ten": [
-    "ILL", "IU", "IOWA", "MRYD", "MICH", "MSU", "MINN", "NEB", "NU", "OHIO ST", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WISC"
+    "ILL", "IU", "IOWA", "UMD", "MICH", "MSU", "MINN", "NEB", "NU", "OSU", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WISC"
   ],
   "Big 12": [
-    "ARIZ", "ASU", "BU", "BYU", "CINN", "COLO", "HOU", "ISU", "KU", "KSU", "OKST", "TCU", "TTU", "UCF", "UTAH", "WVU"
+    "ARIZ", "ASU", "BU", "BYU", "UC", "COLO", "UH", "ISU", "KU", "KSU", "OKST", "TCU", "TTU", "UCF", "UTAH", "WVU"
   ],
   "SEC": [
-    "BAMA", "ARK", "AUB", "FLA", "UGA", "UK", "LSU", "MISS", "MSST", "MIZ", "OU", "SCAR", "TENN", "TEX", "TXAM", "VAND"
+    "BAMA", "ARK", "AUB", "FLA", "UGA", "UK", "LSU", "MISS", "MSST", "MIZ", "OU", "SCAR", "UT", "TEX", "TAMU", "VAN"
   ],
   "Pac-12": [
     "ORST", "WSU"
   ],
   "American": [
-    "ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TLNE", "TLSA", "UAB", "USF", "UTSA"
+    "ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TULN", "TLSA", "UAB", "USF", "UTSA"
   ],
   "Mountain West": [
     "AFA", "BOIS", "CSU", "FRES", "HAW", "NEV", "NMSU", "SDSU", "SJSU", "UNLV", "USU", "WYO"
   ],
   "Sun Belt": [
-    "APP", "ARST", "CCU", "GASO", "GSU", "JMU", "JKST", "ULM", "ULL", "MRSH", "ODU", "USA", "TXST", "TROY"
+    "APP", "ARST", "CCU", "GASO", "GSU", "JMU", "JKST", "ULM", "UL", "MRSH", "ODU", "USA", "TXST", "TROY"
   ],
   "MAC": [
     "AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU"

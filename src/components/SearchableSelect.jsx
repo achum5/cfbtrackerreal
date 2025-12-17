@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { getTeamColors } from '../data/teamColors'
 import { getTeamLogo } from '../data/teams'
+import { getContrastTextColor } from '../utils/colorUtils'
 
 export default function SearchableSelect({
   options,
@@ -125,7 +126,9 @@ export default function SearchableSelect({
           style={{
             borderColor: `${teamColors.primary}40`,
             paddingLeft: value && getTeamLogo(value) ? '2.75rem' : '1rem',
-            paddingRight: '2.75rem'
+            paddingRight: '2.75rem',
+            color: getContrastTextColor(teamColors.secondary),
+            backgroundColor: 'transparent'
           }}
           autoComplete="off"
           required={required}

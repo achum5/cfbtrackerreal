@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../components/SearchableSelect'
 import ConferenceSelect from '../components/ConferenceSelect'
+import DropdownSelect from '../components/DropdownSelect'
 import { teams } from '../data/teams'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { getTeamColors } from '../data/teamColors'
+import { getContrastTextColor } from '../utils/colorUtils'
 
 export default function CreateDynasty() {
   const navigate = useNavigate()
@@ -21,9 +23,10 @@ export default function CreateDynasty() {
   })
   const [creating, setCreating] = useState(false)
 
-  const selectedTeamColors = formData.teamName 
-    ? getTeamColors(formData.teamName) 
+  const selectedTeamColors = formData.teamName
+    ? getTeamColors(formData.teamName)
     : { primary: '#1f2937', secondary: '#ffffff' }
+  const textColor = getContrastTextColor(selectedTeamColors.secondary)
 
   const handleChange = (e) => {
     setFormData({
@@ -132,7 +135,9 @@ export default function CreateDynasty() {
               onChange={handleChange}
               className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
               style={{
-                borderColor: `${selectedTeamColors.primary}40`
+                borderColor: `${selectedTeamColors.primary}40`,
+                color: textColor,
+                backgroundColor: 'transparent'
               }}
               placeholder="Coach Smith"
               required
@@ -140,28 +145,19 @@ export default function CreateDynasty() {
           </div>
 
           <div>
-            <label
-              htmlFor="coachPosition"
-              className="block text-sm font-medium mb-2 transition-colors duration-300"
-              style={{ color: selectedTeamColors.primary }}
-            >
-              Coaching Position
-            </label>
-            <select
-              id="coachPosition"
-              name="coachPosition"
+            <DropdownSelect
+              label="Coaching Position"
+              options={[
+                { value: 'HC', label: 'Head Coach (HC)' },
+                { value: 'OC', label: 'Offensive Coordinator (OC)' },
+                { value: 'DC', label: 'Defensive Coordinator (DC)' }
+              ]}
               value={formData.coachPosition}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors bg-white"
-              style={{
-                borderColor: `${selectedTeamColors.primary}40`
-              }}
+              onChange={(value) => setFormData({ ...formData, coachPosition: value })}
+              placeholder="Search positions..."
               required
-            >
-              <option value="HC">Head Coach (HC)</option>
-              <option value="OC">Offensive Coordinator (OC)</option>
-              <option value="DC">Defensive Coordinator (DC)</option>
-            </select>
+              teamColors={selectedTeamColors}
+            />
           </div>
 
           <div>
@@ -181,8 +177,10 @@ export default function CreateDynasty() {
               min="2024"
               max="2099"
               className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
-              style={{ 
-                borderColor: `${selectedTeamColors.primary}40`
+              style={{
+                borderColor: `${selectedTeamColors.primary}40`,
+                color: textColor,
+                backgroundColor: 'transparent'
               }}
               required
             />

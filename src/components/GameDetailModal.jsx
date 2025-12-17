@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { getTeamLogo } from '../data/teams'
-import { teamAbbreviations } from '../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
@@ -9,6 +9,11 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   const { currentDynasty } = useDynasty()
 
   if (!isOpen || !game) return null
+
+  // Check if this is a CPU vs CPU game (has viewingTeam property)
+  const isCPUGame = !!game.viewingTeam
+  const displayTeam = isCPUGame ? game.viewingTeam : userTeam
+  const displayTeamAbbr = isCPUGame ? game.viewingTeamAbbr : getAbbreviationFromDisplayName(userTeam)
 
   // Helper to find player PID by name
   const getPlayerPID = (playerName) => {
@@ -21,7 +26,12 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   const opponentMascot = getMascotName(game.opponent)
   const opponentLogo = opponentMascot ? getTeamLogo(opponentMascot) : null
   const opponentColors = opponentMascot ? getTeamColors(opponentMascot) : { primary: '#666', secondary: '#fff' }
-  const userTeamLogo = getTeamLogo(userTeam)
+
+  // Get display team info (user's team or viewing team for CPU games)
+  const displayTeamLogo = getTeamLogo(displayTeam)
+  const displayTeamColors = isCPUGame
+    ? (getMascotName(displayTeamAbbr) ? getTeamColors(getMascotName(displayTeamAbbr)) : teamColors)
+    : teamColors
 
   // Get user team ratings
   const userRatings = currentDynasty?.teamRatings || {}
@@ -100,27 +110,32 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
 
   // Helper function to render a team
   const renderTeam = (side) => {
-    const isUser = side === 'user'
-    const teamName = isUser ? userTeam : (opponentMascot || game.opponent)
-    const logo = isUser ? userTeamLogo : opponentLogo
-    const colors = isUser ? teamColors : opponentColors
-    const rank = isUser ? game.userRank : game.opponentRank
-    const score = isUser ? userScore : opponentScore
-    const isWinner = isUser ? userWon : !userWon
+    const isDisplayTeam = side === 'user'
+    const teamName = isDisplayTeam ? displayTeam : (opponentMascot || game.opponent)
+    const logo = isDisplayTeam ? displayTeamLogo : opponentLogo
+    const colors = isDisplayTeam ? displayTeamColors : opponentColors
+    const rank = isDisplayTeam ? game.userRank : game.opponentRank
+    const score = isDisplayTeam ? userScore : opponentScore
+    const isWinner = isDisplayTeam ? userWon : !userWon
 
-    // For user, userRecord has both overall and conference
-    // For opponent, opponentRecord is already formatted with conference record
+    // Get team abbreviation for linking
+    const teamAbbr = isDisplayTeam ? displayTeamAbbr : game.opponent
+    const teamLink = `/dynasty/${currentDynasty?.id}/team/${teamAbbr}/${game.year}`
+
+    // For user's team, show record. For CPU games, don't show record
     let recordDisplay = null
-    if (isUser && userRecord.overall) {
+    if (isDisplayTeam && !isCPUGame && userRecord.overall) {
       recordDisplay = `${userRecord.overall} (${userRecord.conference})`
-    } else if (!isUser && opponentRecord) {
+    } else if (!isDisplayTeam && opponentRecord) {
       recordDisplay = opponentRecord
     }
 
     return (
       <div className="flex-1 text-center">
-        <div
-          className="w-32 h-32 mx-auto rounded-full flex items-center justify-center mb-4"
+        <Link
+          to={teamLink}
+          onClick={onClose}
+          className="w-32 h-32 mx-auto rounded-full flex items-center justify-center mb-4 hover:scale-105 transition-transform"
           style={{
             backgroundColor: '#FFFFFF',
             border: `3px solid ${colors.primary}`,
@@ -134,13 +149,15 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
               className="w-full h-full object-contain"
             />
           )}
-        </div>
-        <h3
-          className="text-2xl font-bold mb-2"
+        </Link>
+        <Link
+          to={teamLink}
+          onClick={onClose}
+          className="text-2xl font-bold mb-2 hover:underline block"
           style={{ color: colors.primary }}
         >
           {teamName}
-        </h3>
+        </Link>
         {rank && (
           <div className="text-sm font-semibold text-gray-600 mb-2">
             #{rank}
@@ -278,20 +295,28 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
         <div
           className="sticky top-0 z-10 p-6 rounded-t-xl"
           style={{
-            backgroundColor: teamColors.primary
+            backgroundColor: displayTeamColors.primary
           }}
         >
           <div className="flex items-center justify-between">
             <div className="text-white">
-              <div className="text-sm font-medium opacity-90">
-                {game.year} • Week {game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
-              </div>
-              <div className="text-2xl font-bold mt-1">
-                Game Recap
-              </div>
+              {game.isConferenceChampionship ? (
+                <div className="text-2xl font-bold">
+                  {game.year} {game.gameTitle}
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm font-medium opacity-90">
+                    {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
+                  </div>
+                  <div className="text-2xl font-bold mt-1">
+                    {game.gameTitle || 'Game Recap'}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              {onEdit && (
+              {onEdit && !game.gameTitle && (
                 <button
                   onClick={() => onEdit(game)}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-colors"
@@ -454,8 +479,8 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
             </div>
           )}
 
-          {/* Team Ratings Comparison */}
-          {(userRatings.overall || game.opponentOverall) && (
+          {/* Team Ratings Comparison - only for user's games, not CPU vs CPU */}
+          {!isCPUGame && (userRatings.overall || game.opponentOverall) && (
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h4 className="text-lg font-bold text-gray-800 mb-4">Team Ratings</h4>
               <div className="grid grid-cols-2 gap-6">
@@ -463,13 +488,13 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                 {leftTeam === 'user' ? (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="text-sm font-semibold text-gray-600 mb-3 text-center">
-                      {userTeam}
+                      {displayTeam}
                     </div>
                     <div className="space-y-2">
                       {userRatings.overall && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Overall</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.overall}
                           </span>
                         </div>
@@ -477,7 +502,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       {userRatings.offense && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Offense</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.offense}
                           </span>
                         </div>
@@ -485,7 +510,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       {userRatings.defense && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Defense</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.defense}
                           </span>
                         </div>
@@ -530,13 +555,13 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                 {rightTeam === 'user' ? (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="text-sm font-semibold text-gray-600 mb-3 text-center">
-                      {userTeam}
+                      {displayTeam}
                     </div>
                     <div className="space-y-2">
                       {userRatings.overall && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Overall</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.overall}
                           </span>
                         </div>
@@ -544,7 +569,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       {userRatings.offense && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Offense</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.offense}
                           </span>
                         </div>
@@ -552,7 +577,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       {userRatings.defense && (
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Defense</span>
-                          <span className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                          <span className="font-bold text-lg" style={{ color: displayTeamColors.primary }}>
                             {userRatings.defense}
                           </span>
                         </div>

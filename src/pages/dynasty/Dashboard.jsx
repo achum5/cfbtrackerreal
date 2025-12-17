@@ -4,18 +4,26 @@ import { useDynasty } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
-import { getTeamLogo } from '../../data/teams'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import { getTeamLogo, teams } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import SearchableSelect from '../../components/SearchableSelect'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
 import TeamRatingsModal from '../../components/TeamRatingsModal'
 import GameEntryModal from '../../components/GameEntryModal'
 import GameDetailModal from '../../components/GameDetailModal'
 import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 import CoachingStaffModal from '../../components/CoachingStaffModal'
+import BowlWeek1Modal from '../../components/BowlWeek1Modal'
+import BowlWeek2Modal from '../../components/BowlWeek2Modal'
+import BowlScoreModal from '../../components/BowlScoreModal'
+import CFPSeedsModal from '../../components/CFPSeedsModal'
+import CFPFirstRoundModal from '../../components/CFPFirstRoundModal'
+import ConferencesModal from '../../components/ConferencesModal'
+import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, addGame, createGoogleSheetForDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, createGoogleSheetForDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -27,6 +35,20 @@ export default function Dashboard() {
   const [showGameModal, setShowGameModal] = useState(false)
   const [showGameDetailModal, setShowGameDetailModal] = useState(false)
   const [showCCModal, setShowCCModal] = useState(false)
+  const [showBowlWeek1Modal, setShowBowlWeek1Modal] = useState(false)
+  const [showBowlWeek2Modal, setShowBowlWeek2Modal] = useState(false)
+  const [showBowlScoreModal, setShowBowlScoreModal] = useState(false)
+  const [showBowlGameModal, setShowBowlGameModal] = useState(false)
+  const [showCFPSeedsModal, setShowCFPSeedsModal] = useState(false)
+  const [showCFPFirstRoundModal, setShowCFPFirstRoundModal] = useState(false)
+  const [showConferencesModal, setShowConferencesModal] = useState(false)
+
+  // Bowl eligibility states
+  const [bowlEligible, setBowlEligible] = useState(null) // null = not answered, true/false = answered
+  const [selectedBowl, setSelectedBowl] = useState('')
+  const [bowlOpponent, setBowlOpponent] = useState('')
+  const [bowlOpponentSearch, setBowlOpponentSearch] = useState('')
+  const [showBowlOpponentDropdown, setShowBowlOpponentDropdown] = useState(false)
   const [editingWeek, setEditingWeek] = useState(null)
   const [editingYear, setEditingYear] = useState(null)
   const [selectedGame, setSelectedGame] = useState(null)
@@ -49,8 +71,15 @@ export default function Dashboard() {
       const ccData = currentDynasty.conferenceChampionshipData
       setCCMadeChampionship(ccData.madeChampionship ?? null)
       setCCOpponent(ccData.opponent || '')
-      setFiringCoordinators(ccData.firingCoordinators ?? null)
-      setCoordinatorToFire(ccData.coordinatorToFire || '')
+      // Restore pending firing selection
+      const pending = ccData.pendingFiring
+      if (pending !== undefined) {
+        setCoordinatorToFire(pending)
+        setFiringCoordinators(pending !== 'none' && pending !== '')
+      } else {
+        setFiringCoordinators(null)
+        setCoordinatorToFire('')
+      }
     } else {
       // Reset when no data
       setCCMadeChampionship(null)
@@ -59,6 +88,21 @@ export default function Dashboard() {
       setCoordinatorToFire('')
     }
   }, [currentDynasty?.id, currentDynasty?.conferenceChampionshipData])
+
+  // Restore bowl eligibility state from saved dynasty data
+  useEffect(() => {
+    if (currentDynasty?.bowlEligibilityData) {
+      const bowlData = currentDynasty.bowlEligibilityData
+      setBowlEligible(bowlData.eligible ?? null)
+      setSelectedBowl(bowlData.bowlGame || '')
+      setBowlOpponent(bowlData.opponent || '')
+    } else {
+      // Reset when no data
+      setBowlEligible(null)
+      setSelectedBowl('')
+      setBowlOpponent('')
+    }
+  }, [currentDynasty?.id, currentDynasty?.bowlEligibilityData])
 
   if (!currentDynasty) return null
 
@@ -343,62 +387,30 @@ export default function Dashboard() {
 
     if (!ccComplete) return false
 
-    // If HC with at least one coordinator, must answer firing question
+    // If HC with at least one coordinator, must make firing selection
     const hasCoordinators = currentDynasty.coachPosition === 'HC' &&
       (currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName)
     if (hasCoordinators) {
-      return firingCoordinators !== null
+      // Must have made a selection (including 'none')
+      return coordinatorToFire !== ''
     }
 
     return true
   }
 
-  // Handle coordinator firing answer
-  const handleFiringAnswer = async (isFiring) => {
-    setFiringCoordinators(isFiring)
-    if (!isFiring) {
-      // Not firing anyone, save decision
-      await updateDynasty(currentDynasty.id, {
-        conferenceChampionshipData: {
-          ...currentDynasty.conferenceChampionshipData,
-          firingCoordinators: false,
-          coordinatorToFire: null,
-          year: currentDynasty.currentYear
-        }
-      })
-    }
-  }
-
-  // Handle coordinator firing selection
-  const handleFireCoordinator = async (selection) => {
+  // Handle coordinator firing dropdown selection
+  // Only saves to pendingFiring - actual firing happens on advance
+  const handleFiringSelection = async (selection) => {
     setCoordinatorToFire(selection)
+    setFiringCoordinators(selection !== 'none')
 
-    // Save fired coordinator names before clearing
-    const firedOCName = (selection === 'oc' || selection === 'both') ? currentDynasty.coachingStaff?.ocName : null
-    const firedDCName = (selection === 'dc' || selection === 'both') ? currentDynasty.coachingStaff?.dcName : null
-
-    // Determine which coordinators to clear
-    let updatedStaff = { ...currentDynasty.coachingStaff }
-    if (selection === 'oc' || selection === 'both') {
-      updatedStaff.ocName = null
-    }
-    if (selection === 'dc' || selection === 'both') {
-      updatedStaff.dcName = null
-    }
-
-    // Save the firing decision and clear the coordinator(s)
+    // Save pending firing decision (actual firing happens on advance week)
     await updateDynasty(currentDynasty.id, {
-      coachingStaff: updatedStaff,
       conferenceChampionshipData: {
         ...currentDynasty.conferenceChampionshipData,
-        firingCoordinators: true,
-        coordinatorToFire: selection,
-        firedOCName,
-        firedDCName,
+        pendingFiring: selection, // 'none', 'oc', 'dc', or 'both'
         year: currentDynasty.currentYear
-      },
-      // Reset coachingStaffEntered so user must re-enter in next preseason
-      'preseasonSetup.coachingStaffEntered': false
+      }
     })
   }
 
@@ -448,7 +460,8 @@ export default function Dashboard() {
     const baseRequirements =
       currentDynasty.preseasonSetup?.scheduleEntered &&
       currentDynasty.preseasonSetup?.rosterEntered &&
-      currentDynasty.preseasonSetup?.teamRatingsEntered
+      currentDynasty.preseasonSetup?.teamRatingsEntered &&
+      currentDynasty.preseasonSetup?.conferencesEntered
 
     // If user is Head Coach, they must also enter coaching staff (coordinators)
     if (currentDynasty.coachPosition === 'HC') {
@@ -474,8 +487,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Google Sheets Status */}
-      {!currentDynasty.googleSheetId && user && (
+      {/* Google Sheets Status - only show during preseason when sheets are actually needed */}
+      {!currentDynasty.googleSheetId && user && currentDynasty.currentPhase === 'preseason' && (
         <div className="p-4 rounded-lg bg-blue-50 border-2 border-blue-500">
           <div className="flex items-start gap-3">
             <svg className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -515,7 +528,10 @@ export default function Dashboard() {
               border: `3px solid ${teamColors.secondary}`
             }}
           >
-            <div className="flex items-center gap-4">
+            <Link
+              to={`/dynasty/${currentDynasty.id}/team/${getAbbreviationFromDisplayName(currentDynasty.teamName)}/${currentDynasty.currentYear}`}
+              className="flex items-center gap-4 hover:opacity-80 transition-opacity"
+            >
               {getTeamLogo(currentDynasty.teamName) && (
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
@@ -541,7 +557,7 @@ export default function Dashboard() {
                   {wins}-{losses}{currentDynasty.currentPhase !== 'preseason' && currentDynasty.conference && ` • ${currentDynasty.conference}`}
                 </p>
               </div>
-            </div>
+            </Link>
             {currentDynasty.teamRatings && (
               <div className="flex items-center gap-3">
                 <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
@@ -603,9 +619,17 @@ export default function Dashboard() {
                 action: () => setShowTeamRatingsModal(true),
                 actionText: currentDynasty.preseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
+              {
+                num: 3,
+                title: 'Custom Conferences',
+                done: currentDynasty.preseasonSetup?.conferencesEntered,
+                conferences: currentDynasty.customConferences,
+                action: () => setShowConferencesModal(true),
+                actionText: currentDynasty.preseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
+              },
               // Only show coaching staff task for Head Coaches
               ...(currentDynasty.coachPosition === 'HC' ? [{
-                num: 3,
+                num: 4,
                 title: 'Enter Coordinators',
                 done: currentDynasty.preseasonSetup?.coachingStaffEntered,
                 coachingStaff: currentDynasty.coachingStaff,
@@ -693,6 +717,20 @@ export default function Dashboard() {
                         {item.coachingStaff?.ocName && item.coachingStaff?.dcName
                           ? `OC: ${item.coachingStaff.ocName} • DC: ${item.coachingStaff.dcName}`
                           : 'Not entered'}
+                        {item.done && <span className="ml-2">✓ Ready</span>}
+                      </div>
+                    )}
+                    {item.conferences !== undefined && (
+                      <div
+                        className="text-sm mt-1 font-medium"
+                        style={{
+                          color: item.done ? '#16a34a' : secondaryBgText,
+                          opacity: item.done ? 1 : 0.7
+                        }}
+                      >
+                        {item.conferences
+                          ? `${Object.keys(item.conferences).length} conferences configured`
+                          : 'Default EA CFB 26 alignment'}
                         {item.done && <span className="ml-2">✓ Ready</span>}
                       </div>
                     )}
@@ -881,109 +919,38 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Coordinator firing question for HC */}
-                  {hasCoordinators && firingCoordinators === null && (
+                  {/* Coordinator firing dropdown for HC */}
+                  {hasCoordinators && (
                     <div className="mt-4">
                       <p className="text-lg font-medium mb-3" style={{ color: secondaryBgText }}>
-                        Are you firing any coordinators?
+                        Coordinator Changes
                       </p>
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => handleFiringAnswer(true)}
-                          className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-                          style={{
-                            backgroundColor: teamColors.primary,
-                            color: primaryBgText
-                          }}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => handleFiringAnswer(false)}
-                          className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-                          style={{
-                            backgroundColor: teamColors.primary,
-                            color: primaryBgText
-                          }}
-                        >
-                          No
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* If firing, show dropdown */}
-                  {hasCoordinators && firingCoordinators === true && !coordinatorToFire && (
-                    <div className="mt-4">
-                      <p className="text-lg font-medium mb-3" style={{ color: secondaryBgText }}>
-                        Who are you firing?
-                      </p>
-                      <div className="flex flex-col gap-2">
+                      <select
+                        value={coordinatorToFire}
+                        onChange={(e) => handleFiringSelection(e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg font-semibold cursor-pointer"
+                        style={{
+                          backgroundColor: teamColors.primary,
+                          color: primaryBgText
+                        }}
+                      >
+                        <option value="">Select an option...</option>
+                        <option value="none">Keep both coordinators</option>
                         {currentDynasty.coachingStaff?.ocName && (
-                          <button
-                            onClick={() => handleFireCoordinator('oc')}
-                            className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                            style={{
-                              backgroundColor: teamColors.primary,
-                              color: primaryBgText
-                            }}
-                          >
-                            {currentDynasty.coachingStaff.ocName} (OC)
-                          </button>
+                          <option value="oc">Fire {currentDynasty.coachingStaff.ocName} (OC)</option>
                         )}
                         {currentDynasty.coachingStaff?.dcName && (
-                          <button
-                            onClick={() => handleFireCoordinator('dc')}
-                            className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                            style={{
-                              backgroundColor: teamColors.primary,
-                              color: primaryBgText
-                            }}
-                          >
-                            {currentDynasty.coachingStaff.dcName} (DC)
-                          </button>
+                          <option value="dc">Fire {currentDynasty.coachingStaff.dcName} (DC)</option>
                         )}
                         {currentDynasty.coachingStaff?.ocName && currentDynasty.coachingStaff?.dcName && (
-                          <button
-                            onClick={() => handleFireCoordinator('both')}
-                            className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                            style={{
-                              backgroundColor: '#ef4444',
-                              color: '#ffffff'
-                            }}
-                          >
-                            Both
-                          </button>
+                          <option value="both">Fire Both</option>
                         )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Show firing result */}
-                  {hasCoordinators && firingCoordinators === true && coordinatorToFire && (
-                    <div
-                      className="mt-4 p-4 rounded-lg border-2"
-                      style={{
-                        backgroundColor: '#fef2f2',
-                        borderColor: '#fca5a5'
-                      }}
-                    >
-                      <p className="font-semibold text-red-700">
-                        {coordinatorToFire === 'both' ? 'Fired both coordinators' :
-                         coordinatorToFire === 'oc' ? `Fired ${currentDynasty.conferenceChampionshipData?.firedOCName || 'OC'}` :
-                         `Fired ${currentDynasty.conferenceChampionshipData?.firedDCName || 'DC'}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Show not firing message */}
-                  {hasCoordinators && firingCoordinators === false && (
-                    <div
-                      className="mt-4 p-4 rounded-lg border-2 border-green-200 bg-green-50"
-                    >
-                      <p className="font-semibold text-green-700">
-                        Keeping current coordinators
-                      </p>
+                      </select>
+                      {coordinatorToFire && coordinatorToFire !== 'none' && (
+                        <p className="mt-2 text-sm text-red-600 font-medium">
+                          Will be fired when you advance to playoffs
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1005,55 +972,18 @@ export default function Dashboard() {
                   <p className="text-lg font-medium" style={{ color: secondaryBgText }}>
                     Congratulations! Who did you play in the {currentDynasty.conference} Championship?
                   </p>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={ccOpponentSearch}
-                      onChange={(e) => {
-                        setCCOpponentSearch(e.target.value)
-                        setShowCCOpponentDropdown(true)
-                      }}
-                      onFocus={() => setShowCCOpponentDropdown(true)}
-                      onBlur={() => {
-                        // Delay to allow click on dropdown items
-                        setTimeout(() => setShowCCOpponentDropdown(false), 200)
-                      }}
-                      placeholder="Search for opponent..."
-                      className="w-full px-4 py-3 rounded-lg border-2 font-semibold"
-                      style={{
-                        borderColor: teamColors.primary,
-                        backgroundColor: 'white',
-                        color: '#1f2937'
-                      }}
-                    />
-                    {showCCOpponentDropdown && (
-                      <div
-                        className="absolute z-10 w-full mt-1 rounded-lg shadow-lg max-h-60 overflow-y-auto border-2"
-                        style={{
-                          backgroundColor: 'white',
-                          borderColor: teamColors.primary
-                        }}
-                      >
-                        {getFilteredTeams().map(([abbr, team]) => {
-                          const teamColor = teamAbbreviations[abbr]
-                          return (
-                            <button
-                              key={abbr}
-                              onClick={() => handleCCOpponentSelect(abbr)}
-                              className="w-full px-4 py-3 text-left hover:opacity-80 transition-opacity flex items-center gap-3"
-                              style={{
-                                backgroundColor: teamColor?.backgroundColor || '#f3f4f6',
-                                color: teamColor?.textColor || '#1f2937'
-                              }}
-                            >
-                              <span className="font-bold">{abbr}</span>
-                              <span className="text-sm">{team.name}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <SearchableSelect
+                    options={teams}
+                    value=""
+                    onChange={(teamName) => {
+                      const abbr = getAbbreviationFromDisplayName(teamName)
+                      if (abbr) {
+                        handleCCOpponentSelect(abbr)
+                      }
+                    }}
+                    placeholder="Search for opponent..."
+                    teamColors={teamColors}
+                  />
                   <button
                     onClick={() => setCCMadeChampionship(null)}
                     className="text-sm underline hover:opacity-70"
@@ -1169,114 +1099,43 @@ export default function Dashboard() {
 
                     return (
                       <>
-                        {/* Coordinator firing question for HC */}
-                        {hasCoordinators && firingCoordinators === null && (
+                        {/* Coordinator firing dropdown for HC */}
+                        {hasCoordinators && (
                           <div className="mt-4">
                             <p className="text-lg font-medium mb-3" style={{ color: secondaryBgText }}>
-                              Are you firing any coordinators?
+                              Coordinator Changes
                             </p>
-                            <div className="flex gap-4">
-                              <button
-                                onClick={() => handleFiringAnswer(true)}
-                                className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-                                style={{
-                                  backgroundColor: teamColors.primary,
-                                  color: primaryBgText
-                                }}
-                              >
-                                Yes
-                              </button>
-                              <button
-                                onClick={() => handleFiringAnswer(false)}
-                                className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-                                style={{
-                                  backgroundColor: teamColors.primary,
-                                  color: primaryBgText
-                                }}
-                              >
-                                No
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* If firing, show dropdown */}
-                        {hasCoordinators && firingCoordinators === true && !coordinatorToFire && (
-                          <div className="mt-4">
-                            <p className="text-lg font-medium mb-3" style={{ color: secondaryBgText }}>
-                              Who are you firing?
-                            </p>
-                            <div className="flex flex-col gap-2">
+                            <select
+                              value={coordinatorToFire}
+                              onChange={(e) => handleFiringSelection(e.target.value)}
+                              className="w-full px-4 py-3 rounded-lg font-semibold cursor-pointer"
+                              style={{
+                                backgroundColor: teamColors.primary,
+                                color: primaryBgText
+                              }}
+                            >
+                              <option value="">Select an option...</option>
+                              <option value="none">Keep both coordinators</option>
                               {currentDynasty.coachingStaff?.ocName && (
-                                <button
-                                  onClick={() => handleFireCoordinator('oc')}
-                                  className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                                  style={{
-                                    backgroundColor: teamColors.primary,
-                                    color: primaryBgText
-                                  }}
-                                >
-                                  {currentDynasty.coachingStaff.ocName} (OC)
-                                </button>
+                                <option value="oc">Fire {currentDynasty.coachingStaff.ocName} (OC)</option>
                               )}
                               {currentDynasty.coachingStaff?.dcName && (
-                                <button
-                                  onClick={() => handleFireCoordinator('dc')}
-                                  className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                                  style={{
-                                    backgroundColor: teamColors.primary,
-                                    color: primaryBgText
-                                  }}
-                                >
-                                  {currentDynasty.coachingStaff.dcName} (DC)
-                                </button>
+                                <option value="dc">Fire {currentDynasty.coachingStaff.dcName} (DC)</option>
                               )}
                               {currentDynasty.coachingStaff?.ocName && currentDynasty.coachingStaff?.dcName && (
-                                <button
-                                  onClick={() => handleFireCoordinator('both')}
-                                  className="w-full px-4 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-left"
-                                  style={{
-                                    backgroundColor: '#ef4444',
-                                    color: '#ffffff'
-                                  }}
-                                >
-                                  Both
-                                </button>
+                                <option value="both">Fire Both</option>
                               )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Show firing result */}
-                        {hasCoordinators && firingCoordinators === true && coordinatorToFire && (
-                          <div
-                            className="mt-4 p-4 rounded-lg border-2"
-                            style={{
-                              backgroundColor: '#fef2f2',
-                              borderColor: '#fca5a5'
-                            }}
-                          >
-                            <p className="font-semibold text-red-700">
-                              {coordinatorToFire === 'both' ? 'Fired both coordinators' :
-                               coordinatorToFire === 'oc' ? `Fired ${currentDynasty.conferenceChampionshipData?.firedOCName || 'OC'}` :
-                               `Fired ${currentDynasty.conferenceChampionshipData?.firedDCName || 'DC'}`}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Show not firing message */}
-                        {hasCoordinators && firingCoordinators === false && (
-                          <div
-                            className="mt-4 p-4 rounded-lg border-2 border-green-200 bg-green-50"
-                          >
-                            <p className="font-semibold text-green-700">
-                              Keeping current coordinators
-                            </p>
+                            </select>
+                            {coordinatorToFire && coordinatorToFire !== 'none' && (
+                              <p className="mt-2 text-sm text-red-600 font-medium">
+                                Will be fired when you advance to playoffs
+                              </p>
+                            )}
                           </div>
                         )}
 
                         {/* Advance message - only show when firing decision is complete or not applicable */}
-                        {(!hasCoordinators || firingCoordinators !== null) && (
+                        {(!hasCoordinators || coordinatorToFire !== '') && (
                           <div
                             className="p-4 rounded-lg border-2"
                             style={{
@@ -1310,8 +1169,8 @@ export default function Dashboard() {
             }
           })()}
         </div>
-      ) : currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek === 1 && !currentDynasty.conferenceChampionships?.length ? (
-        // Show CC Google Sheet when entering postseason and CC data not yet entered
+      ) : currentDynasty.currentPhase === 'postseason' ? (
+        // Postseason / Bowl Weeks
         <div
           className="rounded-lg shadow-lg p-6"
           style={{
@@ -1319,23 +1178,511 @@ export default function Dashboard() {
             border: `3px solid ${teamColors.primary}`
           }}
         >
-          <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
-            Conference Championship Results
-          </h3>
-          <p className="mb-4" style={{ color: secondaryBgText, opacity: 0.8 }}>
-            Before continuing to the playoffs, enter the results of all conference championship games.
-          </p>
+          {(() => {
+            const week = currentDynasty.currentWeek
+            const hasCCData = currentDynasty.conferenceChampionships?.length > 0
+            const hasCFPSeedsData = currentDynasty.cfpSeedsByYear?.[currentDynasty.currentYear]?.length > 0
+            const hasCFPFirstRoundData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound?.length > 0
+            const hasBowlWeek1Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week1?.length > 0
+            const hasBowlWeek2Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2?.length > 0
+            const userBowlGame = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
+            const userBowlIsWeek1 = selectedBowl && isBowlInWeek1(selectedBowl)
+            const userBowlIsWeek2 = selectedBowl && isBowlInWeek2(selectedBowl)
 
-          <button
-            onClick={() => setShowCCModal(true)}
-            className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-            style={{
-              backgroundColor: teamColors.primary,
-              color: primaryBgText
-            }}
-          >
-            Enter Conference Championships
-          </button>
+            // Filter team dropdown for bowl opponent
+            const filteredBowlTeams = bowlOpponentSearch
+              ? Object.entries(teamAbbreviations)
+                  .filter(([abbr, data]) =>
+                    abbr.toLowerCase().includes(bowlOpponentSearch.toLowerCase()) ||
+                    data.name.toLowerCase().includes(bowlOpponentSearch.toLowerCase())
+                  )
+                  .slice(0, 8)
+              : Object.entries(teamAbbreviations).slice(0, 8)
+
+            // All bowl games for dropdown
+            const allBowlGames = getAllBowlGamesList()
+
+            // Week 1: CC data, bowl eligibility question, then bowl results
+            if (week === 1) {
+              return (
+                <>
+                  <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                    Bowl Week 1
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Task 1: CC Results */}
+                    <div
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        hasCCData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasCCData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            hasCCData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasCCData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasCCData ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold">1</span>}
+                        </div>
+                        <div>
+                          <div className="font-semibold" style={{ color: hasCCData ? '#16a34a' : secondaryBgText }}>
+                            Conference Championship Results
+                          </div>
+                          <div className="text-sm mt-1" style={{ color: hasCCData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasCCData ? '✓ Results entered' : '10 conference championships'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowCCModal(true)}
+                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasCCData ? 'View' : 'Enter'}
+                      </button>
+                    </div>
+
+                    {/* Task 2: CFP Seeds */}
+                    {hasCCData && (
+                      <div
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                          hasCFPSeedsData ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!hasCFPSeedsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              hasCFPSeedsData ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!hasCFPSeedsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {hasCFPSeedsData ? (
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold">2</span>}
+                          </div>
+                          <div>
+                            <div className="font-semibold" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText }}>
+                              CFP Seeds (1-12)
+                            </div>
+                            <div className="text-sm mt-1" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {hasCFPSeedsData ? '✓ Seeds entered' : '12 playoff teams'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowCFPSeedsModal(true)}
+                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasCFPSeedsData ? 'View/Edit' : 'Enter'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Task 3: Bowl Eligibility Question */}
+                    {hasCCData && hasCFPSeedsData && (
+                      <div
+                        className={`p-4 rounded-lg border-2 ${
+                          bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent))
+                            ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!(bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent)))
+                          ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent))
+                                ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!(bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent)))
+                              ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent)) ? (
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold">3</span>}
+                          </div>
+                          <div className="font-semibold" style={{ color: bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent)) ? '#16a34a' : secondaryBgText }}>
+                            Your Bowl Game
+                          </div>
+                        </div>
+
+                        {bowlEligible === null ? (
+                          <div className="ml-13 pl-10">
+                            <p className="mb-3" style={{ color: secondaryBgText, opacity: 0.8 }}>Did you make a bowl game?</p>
+                            <div className="flex gap-3">
+                              <button
+                                onClick={async () => {
+                                  setBowlEligible(true)
+                                  await updateDynasty(currentDynasty.id, {
+                                    bowlEligibilityData: { eligible: true, bowlGame: '', opponent: '' }
+                                  })
+                                }}
+                                className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  setBowlEligible(false)
+                                  await updateDynasty(currentDynasty.id, {
+                                    bowlEligibilityData: { eligible: false, bowlGame: null, opponent: null }
+                                  })
+                                }}
+                                className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                No
+                              </button>
+                            </div>
+                          </div>
+                        ) : bowlEligible === false ? (
+                          <div className="ml-13 pl-10">
+                            <p className="text-sm" style={{ color: '#16a34a' }}>✓ Not bowl eligible this year</p>
+                          </div>
+                        ) : !selectedBowl ? (
+                          <div className="ml-13 pl-10">
+                            <p className="mb-2" style={{ color: secondaryBgText, opacity: 0.8 }}>Which bowl game?</p>
+                            <select
+                              value={selectedBowl}
+                              onChange={async (e) => {
+                                const bowl = e.target.value
+                                setSelectedBowl(bowl)
+                                // CFP Bye doesn't need an opponent
+                                if (bowl === 'CFP Bye') {
+                                  setBowlOpponent('BYE')
+                                  await updateDynasty(currentDynasty.id, {
+                                    bowlEligibilityData: { ...currentDynasty.bowlEligibilityData, eligible: true, bowlGame: bowl, opponent: 'BYE' }
+                                  })
+                                } else {
+                                  await updateDynasty(currentDynasty.id, {
+                                    bowlEligibilityData: { ...currentDynasty.bowlEligibilityData, eligible: true, bowlGame: bowl }
+                                  })
+                                }
+                              }}
+                              className="w-full max-w-xs px-3 py-2 rounded-lg font-semibold"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              <option value="">Select bowl...</option>
+                              {allBowlGames.map(bowl => (
+                                <option key={bowl} value={bowl}>{bowl}</option>
+                              ))}
+                              <option value="CFP First Round">CFP First Round</option>
+                              <option value="CFP Bye">CFP Bye (Top 4 Seed)</option>
+                            </select>
+                          </div>
+                        ) : !bowlOpponent ? (
+                          <div className="ml-13 pl-10">
+                            <p className="mb-2" style={{ color: secondaryBgText, opacity: 0.8 }}>Playing in: <strong>{selectedBowl}</strong></p>
+                            <p className="mb-2" style={{ color: secondaryBgText, opacity: 0.8 }}>Who is your opponent?</p>
+                            <div className="max-w-xs">
+                              <SearchableSelect
+                                options={teams}
+                                value={bowlOpponent}
+                                onChange={async (value) => {
+                                  setBowlOpponent(value)
+                                  await updateDynasty(currentDynasty.id, {
+                                    bowlEligibilityData: { ...currentDynasty.bowlEligibilityData, opponent: value }
+                                  })
+                                }}
+                                placeholder="Search for opponent..."
+                                teamColors={teamColors}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="ml-13 pl-10">
+                            <p className="text-sm" style={{ color: '#16a34a' }}>
+                              {selectedBowl === 'CFP Bye' ? (
+                                <>✓ CFP Bye - Playing in Quarterfinals (Week 3)</>
+                              ) : (
+                                <>
+                                  ✓ {selectedBowl} vs {bowlOpponent}
+                                  {userBowlIsWeek2 && <span className="ml-2 opacity-70">(plays in Week 2)</span>}
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Task 4: Enter YOUR Bowl Game (if Week 1 bowl) */}
+                    {hasCCData && hasCFPSeedsData && bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek1 && (
+                      <div
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                          userBowlGame ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!userBowlGame ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              userBowlGame ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!userBowlGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {userBowlGame ? (
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold">4</span>}
+                          </div>
+                          <div>
+                            <div className="font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
+                              Enter Your {selectedBowl} Game
+                            </div>
+                            <div className="text-sm mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowBowlGameModal(true)}
+                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {userBowlGame ? 'Edit' : 'Enter'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Task 5: Enter Week 1 Bowl Results */}
+                    {hasCCData && hasCFPSeedsData && bowlEligible !== null && (bowlEligible === false || (selectedBowl && bowlOpponent)) && (
+                      <div
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                          hasBowlWeek1Data ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!hasBowlWeek1Data ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              hasBowlWeek1Data ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!hasBowlWeek1Data ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {hasBowlWeek1Data ? (
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold">{bowlEligible && userBowlIsWeek1 ? '5' : '4'}</span>}
+                          </div>
+                          <div>
+                            <div className="font-semibold" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText }}>
+                              Week 1 Bowl Results
+                            </div>
+                            <div className="text-sm mt-1" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {hasBowlWeek1Data ? '✓ Results entered' : '26 bowl games'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowBowlWeek1Modal(true)}
+                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasBowlWeek1Data ? 'View/Edit' : 'Enter'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            }
+
+            // Week 2: CFP First Round + User's bowl game (if Week 2 bowl) + Week 2 bowl results
+            if (week === 2) {
+              return (
+                <>
+                  <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                    Bowl Week 2
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Task 1: CFP First Round */}
+                    <div
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        hasCFPFirstRoundData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasCFPFirstRoundData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            hasCFPFirstRoundData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasCFPFirstRoundData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasCFPFirstRoundData ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold">1</span>}
+                        </div>
+                        <div>
+                          <div className="font-semibold" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText }}>
+                            CFP First Round Results
+                          </div>
+                          <div className="text-sm mt-1" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasCFPFirstRoundData ? '✓ Results entered' : '4 games (seeds 5-12)'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowCFPFirstRoundModal(true)}
+                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasCFPFirstRoundData ? 'View/Edit' : 'Enter'}
+                      </button>
+                    </div>
+
+                    {/* Task 2: Enter YOUR Bowl Game (if Week 2 bowl) */}
+                    {hasCFPFirstRoundData && bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2 && (
+                      <div
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                          userBowlGame ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!userBowlGame ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              userBowlGame ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!userBowlGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {userBowlGame ? (
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold">2</span>}
+                          </div>
+                          <div>
+                            <div className="font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
+                              Enter Your {selectedBowl} Game
+                            </div>
+                            <div className="text-sm mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowBowlGameModal(true)}
+                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {userBowlGame ? 'Edit' : 'Enter'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Task 3: Enter Week 2 Bowl Results */}
+                    {hasCFPFirstRoundData && (
+                    <div
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        hasBowlWeek2Data ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasBowlWeek2Data ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            hasBowlWeek2Data ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasBowlWeek2Data ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasBowlWeek2Data ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold">{bowlEligible && userBowlIsWeek2 ? '3' : '2'}</span>}
+                        </div>
+                        <div>
+                          <div className="font-semibold" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText }}>
+                            Week 2 Bowl Results
+                          </div>
+                          <div className="text-sm mt-1" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasBowlWeek2Data ? '✓ Results entered' : '12 bowl games'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowBowlWeek2Modal(true)}
+                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasBowlWeek2Data ? 'View/Edit' : 'Enter'}
+                      </button>
+                    </div>
+                    )}
+                  </div>
+                </>
+              )
+            }
+
+            // Weeks 3-5: CFP rounds (Quarterfinals, Semifinals, Championship)
+            const weekTitles = { 3: 'CFP Quarterfinals', 4: 'CFP Semifinals', 5: 'National Championship' }
+            const weekGames = { 3: '4 games', 4: '2 games', 5: '1 game' }
+            const cfpData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.[`week${week}`] || []
+            const hasCFPData = cfpData.length > 0
+
+            return (
+              <>
+                <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                  Postseason Week {week} - {weekTitles[week]}
+                </h3>
+                <div
+                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                    hasCFPData ? 'border-green-200 bg-green-50' : ''
+                  }`}
+                  style={!hasCFPData ? { borderColor: `${teamColors.primary}30` } : {}}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        hasCFPData ? 'bg-green-500 text-white' : ''
+                      }`}
+                      style={!hasCFPData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                    >
+                      {hasCFPData ? (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : <span className="font-bold">1</span>}
+                    </div>
+                    <div>
+                      <div className="font-semibold" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText }}>
+                        {weekTitles[week]}
+                      </div>
+                      <div className="text-sm mt-1" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                        {hasCFPData ? '✓ Results entered' : weekGames[week]}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowBowlScoreModal(true)}
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                    style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                  >
+                    {hasCFPData ? 'View/Edit' : 'Enter'}
+                  </button>
+                </div>
+              </>
+            )
+          })()}
         </div>
       ) : (
         <div
@@ -1351,77 +1698,6 @@ export default function Dashboard() {
           <p style={{ color: secondaryBgText, opacity: 0.8 }}>
             Click "Advance Week" in the header to progress through your dynasty.
           </p>
-
-          {/* Show saved CC data if in postseason */}
-          {currentDynasty.currentPhase === 'postseason' && (() => {
-            const ccResults = currentDynasty.conferenceChampionships?.filter(cc => cc.team1 && cc.team2) || []
-            const enteredCount = ccResults.length
-            const isComplete = enteredCount >= 10
-
-            return (
-              <div className="mt-4">
-                <div
-                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                    isComplete ? 'border-green-200 bg-green-50' : ''
-                  }`}
-                  style={!isComplete ? {
-                    borderColor: `${teamColors.primary}30`,
-                    backgroundColor: teamColors.secondary
-                  } : {}}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isComplete ? 'bg-green-500 text-white' : ''
-                      }`}
-                      style={!isComplete ? {
-                        backgroundColor: `${teamColors.primary}20`,
-                        color: teamColors.primary
-                      } : {}}
-                    >
-                      {isComplete ? (
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      )}
-                    </div>
-                    <div>
-                      <div
-                        className="font-semibold"
-                        style={{ color: isComplete ? '#16a34a' : secondaryBgText }}
-                      >
-                        Conference Championship Results
-                      </div>
-                      <div
-                        className="text-sm mt-1 font-medium"
-                        style={{
-                          color: isComplete ? '#16a34a' : secondaryBgText,
-                          opacity: isComplete ? 1 : 0.7
-                        }}
-                      >
-                        {enteredCount}/10 entered
-                        {isComplete && <span className="ml-2">✓ Ready to advance</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowCCModal(true)}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                    style={{
-                      backgroundColor: teamColors.primary,
-                      color: primaryBgText
-                    }}
-                  >
-                    {isComplete ? 'View' : 'Enter Results'}
-                  </button>
-                </div>
-              </div>
-            )
-          })()}
         </div>
       )}
 
@@ -1797,6 +2073,139 @@ export default function Dashboard() {
         opponent={ccOpponent}
         isConferenceChampionship={true}
         existingGame={getCCGame()}
+      />
+
+      {/* Bowl Week 1 Modal */}
+      <BowlWeek1Modal
+        isOpen={showBowlWeek1Modal}
+        onClose={() => setShowBowlWeek1Modal(false)}
+        onSave={async (bowlGames) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.bowlGamesByYear || {}
+          const existingYearData = existingByYear[year] || {}
+          await updateDynasty(currentDynasty.id, {
+            bowlGamesByYear: {
+              ...existingByYear,
+              [year]: {
+                ...existingYearData,
+                week1: bowlGames
+              }
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Bowl Week 2 Modal */}
+      <BowlWeek2Modal
+        isOpen={showBowlWeek2Modal}
+        onClose={() => setShowBowlWeek2Modal(false)}
+        onSave={async (bowlGames) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.bowlGamesByYear || {}
+          const existingYearData = existingByYear[year] || {}
+          await updateDynasty(currentDynasty.id, {
+            bowlGamesByYear: {
+              ...existingByYear,
+              [year]: {
+                ...existingYearData,
+                week2: bowlGames
+              }
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* CFP Seeds Modal */}
+      <CFPSeedsModal
+        isOpen={showCFPSeedsModal}
+        onClose={() => setShowCFPSeedsModal(false)}
+        onSave={async (seeds) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.cfpSeedsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            cfpSeedsByYear: {
+              ...existingByYear,
+              [year]: seeds
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* CFP First Round Modal */}
+      <CFPFirstRoundModal
+        isOpen={showCFPFirstRoundModal}
+        onClose={() => setShowCFPFirstRoundModal(false)}
+        onSave={async (games) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.cfpResultsByYear || {}
+          const existingYearData = existingByYear[year] || {}
+          await updateDynasty(currentDynasty.id, {
+            cfpResultsByYear: {
+              ...existingByYear,
+              [year]: {
+                ...existingYearData,
+                firstRound: games
+              }
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Bowl Score Modal (CFP Weeks 3-5) */}
+      <BowlScoreModal
+        isOpen={showBowlScoreModal}
+        onClose={() => setShowBowlScoreModal(false)}
+        onSave={async (cfpGames, week) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.cfpResultsByYear || {}
+          const existingYearData = existingByYear[year] || {}
+          await updateDynasty(currentDynasty.id, {
+            cfpResultsByYear: {
+              ...existingByYear,
+              [year]: {
+                ...existingYearData,
+                [`week${week}`]: cfpGames
+              }
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        currentWeek={currentDynasty.currentWeek}
+        teamColors={teamColors}
+      />
+
+      {/* Conferences Modal */}
+      <ConferencesModal
+        isOpen={showConferencesModal}
+        onClose={() => setShowConferencesModal(false)}
+        onSave={async (conferences) => {
+          const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+          if (isDev || !user) {
+            // Dev mode
+            await updateDynasty(currentDynasty.id, {
+              customConferences: conferences,
+              preseasonSetup: {
+                ...currentDynasty.preseasonSetup,
+                conferencesEntered: true
+              }
+            })
+          } else {
+            // Production mode - use dot notation
+            await updateDynasty(currentDynasty.id, {
+              customConferences: conferences,
+              'preseasonSetup.conferencesEntered': true
+            })
+          }
+        }}
+        teamColors={teamColors}
       />
     </div>
   )

@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { getConferenceLogo, conferences } from '../data/conferenceLogos'
 import { getContrastTextColor } from '../utils/colorUtils'
 
-export default function ConferenceSelect({
+export default function DropdownSelect({
+  options,
   value,
   onChange,
+  placeholder = "Search...",
   label,
   required = false,
   teamColors = { primary: '#1f2937', secondary: '#ffffff' }
@@ -18,9 +19,10 @@ export default function ConferenceSelect({
 
   const textColor = getContrastTextColor(teamColors.secondary)
 
-  const filteredConferences = conferences.filter(conf =>
-    conf.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredOptions = options.filter(opt => {
+    const optionLabel = typeof opt === 'string' ? opt : opt.label
+    return optionLabel.toLowerCase().includes(searchTerm.toLowerCase())
+  })
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -38,7 +40,7 @@ export default function ConferenceSelect({
     setHighlightedIndex(0)
   }, [searchTerm])
 
-  // Scroll highlighted option into view when navigating with keyboard
+  // Scroll highlighted option into view
   useEffect(() => {
     if (isOpen && optionRefs.current[highlightedIndex]) {
       optionRefs.current[highlightedIndex].scrollIntoView({
@@ -54,7 +56,8 @@ export default function ConferenceSelect({
   }
 
   const handleOptionClick = (option) => {
-    onChange(option)
+    const optionValue = typeof option === 'string' ? option : option.value
+    onChange(optionValue)
     setSearchTerm('')
     setIsOpen(false)
     inputRef.current?.blur()
@@ -77,7 +80,7 @@ export default function ConferenceSelect({
       case 'ArrowDown':
         e.preventDefault()
         setHighlightedIndex((prev) =>
-          prev < filteredConferences.length - 1 ? prev + 1 : prev
+          prev < filteredOptions.length - 1 ? prev + 1 : prev
         )
         break
       case 'ArrowUp':
@@ -86,8 +89,8 @@ export default function ConferenceSelect({
         break
       case 'Enter':
         e.preventDefault()
-        if (filteredConferences[highlightedIndex]) {
-          handleOptionClick(filteredConferences[highlightedIndex])
+        if (filteredOptions[highlightedIndex]) {
+          handleOptionClick(filteredOptions[highlightedIndex])
         }
         break
       case 'Escape':
@@ -100,7 +103,16 @@ export default function ConferenceSelect({
     }
   }
 
-  const displayValue = value || searchTerm
+  // Get display value
+  const getDisplayValue = () => {
+    if (searchTerm) return searchTerm
+    if (!value) return ''
+    const option = options.find(opt =>
+      typeof opt === 'string' ? opt === value : opt.value === value
+    )
+    if (!option) return value
+    return typeof option === 'string' ? option : option.label
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -115,28 +127,17 @@ export default function ConferenceSelect({
       )}
 
       <div className="relative">
-        {value && getConferenceLogo(value) && (
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <img
-              src={getConferenceLogo(value)}
-              alt={`${value} logo`}
-              className="w-6 h-6 object-contain"
-            />
-          </div>
-        )}
         <input
           ref={inputRef}
           type="text"
-          value={displayValue}
+          value={getDisplayValue()}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
-          placeholder="Search conferences..."
-          className="w-full py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
+          placeholder={placeholder}
+          className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
           style={{
             borderColor: `${teamColors.primary}40`,
-            paddingLeft: value && getConferenceLogo(value) ? '2.75rem' : '1rem',
-            paddingRight: '2.75rem',
             color: textColor,
             backgroundColor: 'transparent'
           }}
@@ -157,37 +158,31 @@ export default function ConferenceSelect({
         </div>
       </div>
 
-      {isOpen && filteredConferences.length > 0 && (
+      {isOpen && filteredOptions.length > 0 && (
         <div
           className="absolute z-10 w-full mt-1 bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto"
           style={{ borderColor: `${teamColors.primary}40` }}
         >
-          {filteredConferences.map((conference, index) => {
-            const logoUrl = getConferenceLogo(conference)
+          {filteredOptions.map((option, index) => {
+            const optionValue = typeof option === 'string' ? option : option.value
+            const optionLabel = typeof option === 'string' ? option : option.label
             const isHighlighted = index === highlightedIndex
-            const isSelected = value === conference
+            const isSelected = value === optionValue
 
             return (
               <div
-                key={conference}
+                key={optionValue}
                 ref={(el) => (optionRefs.current[index] = el)}
-                onClick={() => handleOptionClick(conference)}
+                onClick={() => handleOptionClick(option)}
                 onMouseEnter={() => setHighlightedIndex(index)}
-                className="px-4 py-2 cursor-pointer transition-colors flex items-center gap-3"
+                className="px-4 py-2 cursor-pointer transition-colors"
                 style={{
                   backgroundColor: isHighlighted ? teamColors.primary : isSelected ? `${teamColors.primary}20` : 'white',
                   color: isHighlighted ? teamColors.secondary : 'inherit'
                 }}
               >
-                {logoUrl && (
-                  <img
-                    src={logoUrl}
-                    alt={`${conference} logo`}
-                    className="w-8 h-8 object-contain"
-                  />
-                )}
                 <span className={isSelected ? 'font-medium' : ''}>
-                  {conference}
+                  {optionLabel}
                 </span>
               </div>
             )
@@ -195,12 +190,12 @@ export default function ConferenceSelect({
         </div>
       )}
 
-      {isOpen && searchTerm && filteredConferences.length === 0 && (
+      {isOpen && searchTerm && filteredOptions.length === 0 && (
         <div
           className="absolute z-10 w-full mt-1 bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500"
           style={{ borderColor: `${teamColors.primary}40` }}
         >
-          No conferences found matching "{searchTerm}"
+          No options found matching "{searchTerm}"
         </div>
       )}
     </div>
