@@ -4,7 +4,30 @@ import { useDynasty } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
 import { getTeamLogo } from '../data/teams'
 import { getConferenceLogo } from '../data/conferenceLogos'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { getTeamConference } from '../data/conferenceTeams'
 import ConfirmModal from '../components/ConfirmModal'
+
+// Helper to get team's conference from dynasty data
+function getDynastyTeamConference(dynasty) {
+  if (!dynasty.teamName) return null
+
+  // Get team abbreviation from display name
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+  if (!teamAbbr) return null
+
+  // Check custom conferences first (if user has set them)
+  if (dynasty.conferences && Object.keys(dynasty.conferences).length > 0) {
+    for (const [confName, teams] of Object.entries(dynasty.conferences)) {
+      if (teams.includes(teamAbbr)) {
+        return confName
+      }
+    }
+  }
+
+  // Fall back to default conference mapping
+  return getTeamConference(teamAbbr)
+}
 
 // Helper to format relative time (e.g., "2 hours ago")
 function getRelativeTime(timestamp) {
@@ -215,6 +238,7 @@ export default function Home() {
               const logoUrl = getTeamLogo(dynasty.teamName)
               const relativeTime = getRelativeTime(dynasty.lastModified)
               const weekPhase = getWeekPhaseDisplay(dynasty)
+              const conference = getDynastyTeamConference(dynasty)
               return (
                 <div
                   key={dynasty.id}
@@ -253,10 +277,10 @@ export default function Home() {
                           {dynasty.teamName}
                         </h2>
                         <div className="flex items-center gap-2">
-                          {getConferenceLogo(dynasty.conference) && (
+                          {conference && getConferenceLogo(conference) && (
                             <img
-                              src={getConferenceLogo(dynasty.conference)}
-                              alt={`${dynasty.conference} logo`}
+                              src={getConferenceLogo(conference)}
+                              alt={`${conference} logo`}
                               className="w-4 h-4 object-contain opacity-80"
                             />
                           )}
@@ -264,7 +288,7 @@ export default function Home() {
                             className="text-sm opacity-80"
                             style={{ color: colors.secondary }}
                           >
-                            {dynasty.conference} • {dynasty.currentYear}
+                            {conference ? `${conference} • ` : ''}{dynasty.currentYear}
                           </p>
                         </div>
                         <p

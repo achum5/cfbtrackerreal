@@ -242,7 +242,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <p className="text-lg" style={{ color: teamColors.primary }}>
-                Unable to create sheet. Please sign in with Google.
+                Your session has expired. Please sign out and sign back in to continue.
               </p>
             </div>
           </div>

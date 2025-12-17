@@ -540,9 +540,70 @@ export function DynastyProvider({ children }) {
       updatedGames = updatedGames.filter(g =>
         !(g.week === dynasty.currentWeek && g.year === dynasty.currentYear && g.isPostseason)
       )
-      // If reverting to CC phase, clear CC results
+
+      // Also remove bowl games for the current week
+      updatedGames = updatedGames.filter(g =>
+        !(g.isBowlGame && g.year === dynasty.currentYear && g.bowlWeek === dynasty.currentWeek)
+      )
+
+      // If reverting to CC phase (from Bowl Week 1), clear all Bowl Week 1 data
       if (prevPhase === 'conference_championship') {
         additionalUpdates.conferenceChampionships = null
+        // Clear CFP Seeds for current year
+        const existingCFPSeeds = dynasty.cfpSeedsByYear || {}
+        additionalUpdates.cfpSeedsByYear = { ...existingCFPSeeds, [dynasty.currentYear]: null }
+        // Clear bowl eligibility data
+        additionalUpdates.bowlEligibilityData = null
+        // Clear new job data
+        additionalUpdates.newJobData = null
+      }
+
+      // If reverting within postseason (e.g., Week 2 to Week 1), clear data for the current week
+      if (dynasty.currentWeek === 2) {
+        // Clear Bowl Week 1 results
+        const existingBowlGames = dynasty.bowlGamesByYear || {}
+        const yearBowlGames = existingBowlGames[dynasty.currentYear] || {}
+        additionalUpdates.bowlGamesByYear = {
+          ...existingBowlGames,
+          [dynasty.currentYear]: { ...yearBowlGames, week1: null }
+        }
+        // Clear CFP First Round results
+        const existingCFPResults = dynasty.cfpResultsByYear || {}
+        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [dynasty.currentYear]: { ...yearCFPResults, firstRound: null }
+        }
+      } else if (dynasty.currentWeek === 3) {
+        // Clear Bowl Week 2 results and CFP Quarterfinals
+        const existingBowlGames = dynasty.bowlGamesByYear || {}
+        const yearBowlGames = existingBowlGames[dynasty.currentYear] || {}
+        additionalUpdates.bowlGamesByYear = {
+          ...existingBowlGames,
+          [dynasty.currentYear]: { ...yearBowlGames, week2: null }
+        }
+        const existingCFPResults = dynasty.cfpResultsByYear || {}
+        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [dynasty.currentYear]: { ...yearCFPResults, week3: null }
+        }
+      } else if (dynasty.currentWeek === 4) {
+        // Clear CFP Semifinals
+        const existingCFPResults = dynasty.cfpResultsByYear || {}
+        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [dynasty.currentYear]: { ...yearCFPResults, week4: null }
+        }
+      } else if (dynasty.currentWeek === 5) {
+        // Clear National Championship
+        const existingCFPResults = dynasty.cfpResultsByYear || {}
+        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [dynasty.currentYear]: { ...yearCFPResults, week5: null }
+        }
       }
     }
 

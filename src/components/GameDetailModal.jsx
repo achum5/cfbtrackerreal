@@ -4,6 +4,7 @@ import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamA
 import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
+import { getBowlLogo } from '../data/bowlLogos'
 
 export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamColors, onEdit }) {
   const { currentDynasty } = useDynasty()
@@ -299,21 +300,33 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
           }}
         >
           <div className="flex items-center justify-between">
-            <div className="text-white">
-              {game.isConferenceChampionship ? (
-                <div className="text-2xl font-bold">
-                  {game.year} {game.gameTitle}
+            <div className="flex items-center gap-4">
+              {/* Bowl Logo */}
+              {game.gameTitle && getBowlLogo(game.gameTitle) && (
+                <div className="w-16 h-16 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
+                  <img
+                    src={getBowlLogo(game.gameTitle)}
+                    alt={`${game.gameTitle} logo`}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-              ) : (
-                <>
-                  <div className="text-sm font-medium opacity-90">
-                    {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
-                  </div>
-                  <div className="text-2xl font-bold mt-1">
-                    {game.gameTitle || 'Game Recap'}
-                  </div>
-                </>
               )}
+              <div className="text-white">
+                {game.isConferenceChampionship ? (
+                  <div className="text-2xl font-bold">
+                    {game.year} {game.gameTitle}
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium opacity-90">
+                      {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
+                    </div>
+                    <div className="text-2xl font-bold mt-1">
+                      {game.gameTitle || 'Game Recap'}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {onEdit && !game.gameTitle && (

@@ -558,6 +558,66 @@ export default function TeamYear() {
         </div>
       </div>
 
+      {/* Coaching Staff - Only show for user's team in current year */}
+      {isUserTeam && selectedYear === currentDynasty.currentYear && (currentDynasty.coachingStaff?.hcName || currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName) && (
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{
+            backgroundColor: teamInfo.backgroundColor,
+            border: `3px solid ${teamInfo.textColor}`
+          }}
+        >
+          <div
+            className="px-4 py-3"
+            style={{ backgroundColor: teamInfo.textColor }}
+          >
+            <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
+              Coaching Staff
+            </h2>
+          </div>
+
+          <div className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Head Coach */}
+              {currentDynasty.coachingStaff?.hcName && (
+                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
+                    Head Coach
+                  </div>
+                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
+                    {currentDynasty.coachingStaff.hcName}
+                  </div>
+                </div>
+              )}
+
+              {/* Offensive Coordinator */}
+              {currentDynasty.coachingStaff?.ocName && (
+                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
+                    Offensive Coordinator
+                  </div>
+                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
+                    {currentDynasty.coachingStaff.ocName}
+                  </div>
+                </div>
+              )}
+
+              {/* Defensive Coordinator */}
+              {currentDynasty.coachingStaff?.dcName && (
+                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
+                    Defensive Coordinator
+                  </div>
+                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
+                    {currentDynasty.coachingStaff.dcName}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Game Log (if user's team) - Exact Dashboard Style */}
       {isUserTeam && userYearGames.length > 0 && (
         <div

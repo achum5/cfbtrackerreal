@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
-import { teamAbbreviations } from '../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { getTeamConference } from '../data/conferenceTeams'
 
 export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame }) {
   const { currentDynasty } = useDynasty()
@@ -696,6 +697,19 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
     const favoriteStatus = calculateFavoriteStatus()
 
+    // Auto-detect if this is a conference game
+    const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+    const opponentAbbr = gameData.opponent || scheduledGame?.opponent
+    const userConference = getTeamConference(userTeamAbbr)
+    const opponentConference = getTeamConference(opponentAbbr)
+
+    // Conference game if both teams are in the same conference (and not independents)
+    // Conference Championship games are always conference games
+    const isConferenceGame = isConferenceChampionship ||
+      (userConference && opponentConference &&
+       userConference === opponentConference &&
+       userConference !== 'Independent')
+
     const processedData = {
       ...gameData,
       week: actualWeekNumber,  // Use actualWeekNumber instead of gameData.week
@@ -710,7 +724,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       opponentDefense: gameData.opponentDefense ? parseInt(gameData.opponentDefense) : null,
       conferencePOW: conferencePOW || null,
       nationalPOW: nationalPOW || null,
-      favoriteStatus: favoriteStatus
+      favoriteStatus: favoriteStatus,
+      isConferenceGame: isConferenceGame
     }
 
     console.log('Calling onSave with processedData:', processedData)
@@ -800,8 +815,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       opponentOverall: randomScore(70, 95).toString(),
       opponentOffense: randomScore(70, 95).toString(),
       opponentDefense: randomScore(70, 95).toString(),
-      opponentRecord: opponentRecord,
-      isConferenceGame: Math.random() > 0.5
+      opponentRecord: opponentRecord
     }))
 
     // Random player of the week (50% chance each)
@@ -879,26 +893,6 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         </div>
 
         <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Conference Game Checkbox */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <input
-              type="checkbox"
-              id="isConferenceGame"
-              checked={gameData.isConferenceGame}
-              onChange={(e) => setGameData({ ...gameData, isConferenceGame: e.target.checked })}
-              disabled={isConferenceChampionship}
-              className="w-5 h-5 rounded disabled:opacity-70"
-              style={{ accentColor: teamColors.primary }}
-            />
-            <label
-              htmlFor="isConferenceGame"
-              className={`font-semibold ${isConferenceChampionship ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-              style={{ color: teamColors.primary, opacity: isConferenceChampionship ? 0.7 : 1 }}
-            >
-              Conference Game {isConferenceChampionship && '(Required)'}
-            </label>
-          </div>
-
           {/* Score Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>

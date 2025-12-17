@@ -2692,7 +2692,7 @@ const DEFAULT_CONFERENCES = {
   "ACC": ["BC", "CAL", "CLEM", "DUKE", "FSU", "GT", "LOU", "MIA", "NCST", "UNC", "PITT", "SMU", "SYR", "STAN", "UVA", "VT", "WAKE"],
   "American": ["ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TULN", "TLSA", "UAB", "USF", "UTSA"],
   "Big 12": ["ARIZ", "ASU", "BU", "BYU", "UC", "COLO", "UH", "ISU", "KU", "KSU", "OKST", "TCU", "TTU", "UCF", "UTAH", "WVU"],
-  "Big Ten": ["ILL", "IU", "IOWA", "UMD", "MICH", "MSU", "MINN", "NEB", "NU", "OSU", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WISC"],
+  "Big Ten": ["ILL", "IU", "IOWA", "UMD", "MICH", "MSU", "MINN", "NEB", "NU", "OSU", "ORE", "PSU", "PUR", "RUTG", "UCLA", "USC", "WASH", "WIS"],
   "Conference USA": ["FIU", "KENN", "LIB", "LT", "MTSU", "NMSU", "SHSU", "UTEP", "WKU"],
   "Independent": ["ND", "CONN", "MASS"],
   "MAC": ["AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU"],
@@ -2993,6 +2993,15 @@ async function initializeConferencesSheet(spreadsheetId, accessToken, sheetId, s
 }
 
 // Read conferences data from sheet
+// Get all expected FBS teams from default conferences
+function getAllExpectedTeams() {
+  const allTeams = new Set()
+  Object.values(DEFAULT_CONFERENCES).forEach(teams => {
+    teams.forEach(team => allTeams.add(team))
+  })
+  return allTeams
+}
+
 export async function readConferencesFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
@@ -3034,6 +3043,39 @@ export async function readConferencesFromSheet(spreadsheetId) {
       }
       conferences[confName] = teams
     })
+
+    // Validation: Check for duplicates and missing teams
+    const allTeamsInSheet = []
+    const teamToConference = {}
+
+    Object.entries(conferences).forEach(([confName, teams]) => {
+      teams.forEach(team => {
+        allTeamsInSheet.push(team)
+        if (teamToConference[team]) {
+          teamToConference[team].push(confName)
+        } else {
+          teamToConference[team] = [confName]
+        }
+      })
+    })
+
+    // Check for duplicates
+    const duplicates = Object.entries(teamToConference)
+      .filter(([team, confs]) => confs.length > 1)
+      .map(([team, confs]) => `${team} (in ${confs.join(', ')})`)
+
+    if (duplicates.length > 0) {
+      throw new Error(`Duplicate teams found: ${duplicates.join('; ')}. Each team can only be in one conference.`)
+    }
+
+    // Check for missing teams
+    const expectedTeams = getAllExpectedTeams()
+    const teamsInSheet = new Set(allTeamsInSheet)
+    const missingTeams = [...expectedTeams].filter(team => !teamsInSheet.has(team))
+
+    if (missingTeams.length > 0) {
+      throw new Error(`Missing teams: ${missingTeams.join(', ')}. All FBS teams must be assigned to a conference.`)
+    }
 
     return conferences
   } catch (error) {

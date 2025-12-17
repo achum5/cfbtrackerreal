@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../components/SearchableSelect'
-import ConferenceSelect from '../components/ConferenceSelect'
 import DropdownSelect from '../components/DropdownSelect'
 import { teams } from '../data/teams'
 import { useDynasty } from '../context/DynastyContext'
@@ -16,7 +15,6 @@ export default function CreateDynasty() {
 
   const [formData, setFormData] = useState({
     teamName: '',
-    conference: '',
     coachName: '',
     coachPosition: 'HC',
     startYear: '2026'
@@ -104,16 +102,6 @@ export default function CreateDynasty() {
               value={formData.teamName}
               onChange={(value) => setFormData({ ...formData, teamName: value })}
               placeholder="Search for your team..."
-              required
-              teamColors={selectedTeamColors}
-            />
-          </div>
-
-          <div>
-            <ConferenceSelect
-              label="Conference"
-              value={formData.conference}
-              onChange={(value) => setFormData({ ...formData, conference: value })}
               required
               teamColors={selectedTeamColors}
             />

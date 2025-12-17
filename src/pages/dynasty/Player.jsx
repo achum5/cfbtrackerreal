@@ -413,8 +413,8 @@ export default function Player() {
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4 flex-1">
-            {/* Jersey Number or Player Picture */}
-            {player.pictureUrl ? (
+            {/* Player Picture - only show if image uploaded */}
+            {player.pictureUrl && (
               <img
                 src={player.pictureUrl}
                 alt={playerData.name}
@@ -422,16 +422,7 @@ export default function Player() {
                 style={{ borderColor: teamColors.secondary }}
                 onError={(e) => { e.target.style.display = 'none' }}
               />
-            ) : player.jerseyNumber ? (
-              <div
-                className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center rounded-lg border-2 flex-shrink-0"
-                style={{ borderColor: teamColors.secondary, backgroundColor: `${teamColors.secondary}20` }}
-              >
-                <span className="text-4xl md:text-5xl font-bold" style={{ color: teamColors.secondary }}>
-                  {player.jerseyNumber}
-                </span>
-              </div>
-            ) : null}
+            )}
 
             <div className="flex-1">
               {/* Name and Edit Button */}

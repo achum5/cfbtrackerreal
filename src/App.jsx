@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DynastyProvider } from './context/DynastyContext'
 import Layout from './components/Layout'
@@ -24,6 +25,8 @@ import TeamAchievements from './pages/dynasty/TeamAchievements'
 import Teams from './pages/dynasty/Teams'
 import Team from './pages/dynasty/Team'
 import TeamYear from './pages/dynasty/TeamYear'
+import BowlHistory from './pages/dynasty/BowlHistory'
+import CFPBracket from './pages/dynasty/CFPBracket'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -83,6 +86,8 @@ function AppRoutes() {
             <Route path="teams" element={<Teams />} />
             <Route path="team/:teamAbbr" element={<Team />} />
             <Route path="team/:teamAbbr/:year" element={<TeamYear />} />
+            <Route path="bowl-history" element={<BowlHistory />} />
+            <Route path="cfp-bracket" element={<CFPBracket />} />
           </Route>
         </Routes>
       </Router>
@@ -94,6 +99,7 @@ function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <Analytics />
     </AuthProvider>
   )
 }
