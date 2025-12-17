@@ -4,7 +4,7 @@ import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 
-export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame }) {
+export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName }) {
   const { currentDynasty } = useDynasty()
 
   // CRITICAL FIX: If in regular season but weekNumber is 0, use week 1
@@ -858,7 +858,9 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
             <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
               {isConferenceChampionship
                 ? `${currentDynasty?.conference || 'Conference'} Championship`
-                : `Week ${actualWeekNumber} Game Entry`}
+                : bowlName
+                  ? `${bowlName} Game Entry`
+                  : `Week ${actualWeekNumber} Game Entry`}
             </h2>
             {(scheduledGame || isConferenceChampionship) && (
               <p className="text-sm mt-1" style={{ color: teamColors.primary, opacity: 0.7 }}>
@@ -908,7 +910,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               <div className="space-y-2">
                 {(() => {
                   // Determine team order based on location
-                  const opponentAbbr = gameData.opponent || scheduledGame?.opponent
+                  const opponentAbbr = gameData.opponent || passedOpponent || scheduledGame?.opponent
                   const opponentMascotName = opponentAbbr ? getMascotName(opponentAbbr) : null
                   const opponentDisplayName = opponentMascotName || (opponentAbbr ? getOpponentTeamName(opponentAbbr) : 'Opponent')
                   const userTeamName = currentDynasty?.teamName || 'You'

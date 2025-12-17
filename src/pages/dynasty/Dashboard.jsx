@@ -2401,6 +2401,7 @@ export default function Dashboard() {
         teamColors={teamColors}
         opponent={currentDynasty.bowlEligibilityData?.opponent || bowlOpponent}
         existingGame={currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)}
+        bowlName={currentDynasty.bowlEligibilityData?.bowlGame || selectedBowl}
       />
 
       {/* Bowl Week 1 Modal */}
