@@ -8,6 +8,11 @@ import {
   getSheetEmbedUrl
 } from '../services/sheetsService'
 
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
 export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
@@ -17,7 +22,15 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
   const [creatingSheet, setCreatingSheet] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
-  const [retryCount, setRetryCount] = useState(0) // Used to trigger sheet creation retry
+  const [retryCount, setRetryCount] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    setIsMobile(isMobileDevice())
+    const handleResize = () => setIsMobile(isMobileDevice())
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -47,9 +60,13 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
         try {
           console.log('📝 Creating Bowl Week 1 sheet...')
 
+          // Get CFP seeds to pre-fill First Round teams
+          const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
+
           const sheetInfo = await createBowlWeek1Sheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            cfpSeeds
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -226,19 +243,39 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
               </div>
             </div>
 
-            <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-              <iframe
-                src={embedUrl}
-                className="w-full h-full"
-                frameBorder="0"
-                title="Bowl Week 1 Games Google Sheet"
-              />
-            </div>
-
-            <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              <p><strong>Columns:</strong> Bowl Game | Team 1 | Team 2 | Team 1 Score | Team 2 Score</p>
-              <p>Enter the teams and scores for each bowl game.</p>
-            </div>
+            {isMobile ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
+                  <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
+                <div className="text-left mb-6 max-w-xs">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
+                  <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                    <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter Bowl Week 1 results</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" to sync results</span></li>
+                  </ol>
+                </div>
+                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
+                  Open Google Sheets
+                </a>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
+                  <iframe src={embedUrl} className="w-full h-full" frameBorder="0" title="Bowl Week 1 Games Google Sheet" />
+                </div>
+                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                  <p><strong>Columns:</strong> Bowl Game | Team 1 | Team 2 | Team 1 Score | Team 2 Score</p>
+                  <p>Enter the teams and scores for each bowl game.</p>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">

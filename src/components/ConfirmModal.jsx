@@ -13,7 +13,8 @@ export default function ConfirmModal({
 
   const handleConfirm = () => {
     onConfirm()
-    onClose()
+    // Don't auto-close - let parent handle closing via onConfirm if needed
+    // This allows multi-step confirmations (e.g., favorited dynasty delete)
   }
 
   return (

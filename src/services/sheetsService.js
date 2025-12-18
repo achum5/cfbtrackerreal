@@ -57,7 +57,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 12,
+                columnCount: 11,
                 frozenRowCount: 1
               }
             }
@@ -235,7 +235,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           fields: 'userEnteredValue'
         }
       }] : []),
-      // Roster headers (12 columns)
+      // Roster headers (11 columns)
       {
         updateCells: {
           range: {
@@ -243,7 +243,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 12
+            endColumnIndex: 11
           },
           rows: [{
             values: [
@@ -257,8 +257,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } },
-              { userEnteredValue: { stringValue: 'Recruitment Stars' } }
+              { userEnteredValue: { stringValue: 'State' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -695,32 +694,6 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             strict: true
           }
         }
-      },
-      // Add data validation dropdown for Recruitment Stars column in Roster (L2:L86)
-      {
-        setDataValidation: {
-          range: {
-            sheetId: rosterSheetId,
-            startRowIndex: 1,
-            endRowIndex: 86,
-            startColumnIndex: 11,
-            endColumnIndex: 12
-          },
-          rule: {
-            condition: {
-              type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: '☆' },
-                { userEnteredValue: '☆☆' },
-                { userEnteredValue: '☆☆☆' },
-                { userEnteredValue: '☆☆☆☆' },
-                { userEnteredValue: '☆☆☆☆☆' }
-              ]
-            },
-            showCustomUi: true,
-            strict: true
-          }
-        }
       }
     ]
 
@@ -838,7 +811,7 @@ export async function createRosterSheet(dynastyName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 12,
+                columnCount: 11,
                 frozenRowCount: 1
               }
             }
@@ -1119,7 +1092,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
     console.log('Initializing roster sheet headers...')
 
     const requests = [
-      // Roster headers (12 columns)
+      // Roster headers (11 columns)
       {
         updateCells: {
           range: {
@@ -1127,7 +1100,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 12
+            endColumnIndex: 11
           },
           rows: [{
             values: [
@@ -1141,8 +1114,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } },
-              { userEnteredValue: { stringValue: 'Recruitment Stars' } }
+              { userEnteredValue: { stringValue: 'State' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1427,32 +1399,6 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
                 { userEnteredValue: 'TX' }, { userEnteredValue: 'UT' }, { userEnteredValue: 'VT' },
                 { userEnteredValue: 'VA' }, { userEnteredValue: 'WA' }, { userEnteredValue: 'WV' },
                 { userEnteredValue: 'WI' }, { userEnteredValue: 'WY' }, { userEnteredValue: 'DC' }
-              ]
-            },
-            showCustomUi: true,
-            strict: true
-          }
-        }
-      },
-      // Add data validation dropdown for Recruitment Stars column in Roster (L2:L86)
-      {
-        setDataValidation: {
-          range: {
-            sheetId: rosterSheetId,
-            startRowIndex: 1,
-            endRowIndex: 86,
-            startColumnIndex: 11,
-            endColumnIndex: 12
-          },
-          rule: {
-            condition: {
-              type: 'ONE_OF_LIST',
-              values: [
-                { userEnteredValue: '☆' },
-                { userEnteredValue: '☆☆' },
-                { userEnteredValue: '☆☆☆' },
-                { userEnteredValue: '☆☆☆☆' },
-                { userEnteredValue: '☆☆☆☆☆' }
               ]
             },
             showCustomUi: true,
@@ -2296,7 +2242,7 @@ export async function readConferenceChampionshipsFromSheet(spreadsheetId) {
   }
 }
 
-// Bowl games list for Bowl Week 1 (26 games - no CFP)
+// Bowl games list for Bowl Week 1 (26 regular bowls + 4 CFP First Round = 30 games)
 const BOWL_GAMES_WEEK_1 = [
   '68 Ventures Bowl',
   'Alamo Bowl',
@@ -2304,6 +2250,10 @@ const BOWL_GAMES_WEEK_1 = [
   'Armed Forces Bowl',
   'Birmingham Bowl',
   'Boca Raton Bowl',
+  'CFP First Round (#5 vs #12)',
+  'CFP First Round (#6 vs #11)',
+  'CFP First Round (#7 vs #10)',
+  'CFP First Round (#8 vs #9)',
   'Cure Bowl',
   'Famous Idaho Potato Bowl',
   'Fenway Bowl',
@@ -2324,6 +2274,14 @@ const BOWL_GAMES_WEEK_1 = [
   'Pop-Tarts Bowl',
   'Rate Bowl',
   'Salute to Veterans Bowl'
+]
+
+// CFP First Round matchups (seed pairs)
+const CFP_FIRST_ROUND_MATCHUPS = [
+  { game: 'CFP First Round (#5 vs #12)', seed1: 5, seed2: 12 },
+  { game: 'CFP First Round (#6 vs #11)', seed1: 6, seed2: 11 },
+  { game: 'CFP First Round (#7 vs #10)', seed1: 7, seed2: 10 },
+  { game: 'CFP First Round (#8 vs #9)', seed1: 8, seed2: 9 }
 ]
 
 // Bowl games list for Bowl Week 2 (12 games - 4 are CFP Quarterfinals)
@@ -2357,8 +2315,8 @@ const CFP_QF_MATCHUPS = {
 // All bowl games combined (for dropdown selection)
 const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
 
-// Create Bowl Week 1 sheet with all bowl games
-export async function createBowlWeek1Sheet(dynastyName, year) {
+// Create Bowl Week 1 sheet with all bowl games (including CFP First Round with pre-filled teams)
+export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -2400,8 +2358,8 @@ export async function createBowlWeek1Sheet(dynastyName, year) {
     const sheet = await response.json()
     const bowlSheetId = sheet.sheets[0].properties.sheetId
 
-    // Initialize headers and data
-    await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames)
+    // Initialize headers and data (pass cfpSeeds to pre-fill CFP First Round teams)
+    await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -2452,9 +2410,38 @@ function generateBowlTeamFormattingRules(sheetId, columnIndex, rowCount) {
 }
 
 // Initialize the Bowl Week 1 sheet with headers and bowl game rows
-async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bowlGames) {
+async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = []) {
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = bowlGames.length
+
+  // Build pre-filled team data for CFP First Round games
+  const getTeamBySeed = (seed) => {
+    const seedData = cfpSeeds.find(s => s.seed === seed)
+    return seedData?.team || ''
+  }
+
+  // Create rows with bowl names and pre-filled CFP teams
+  const bowlRows = bowlGames.map(bowl => {
+    const matchup = CFP_FIRST_ROUND_MATCHUPS.find(m => m.game === bowl)
+    if (matchup && cfpSeeds.length > 0) {
+      // This is a CFP First Round game - pre-fill teams based on seeds
+      return {
+        values: [
+          { userEnteredValue: { stringValue: bowl } },
+          { userEnteredValue: { stringValue: getTeamBySeed(matchup.seed1) } },
+          { userEnteredValue: { stringValue: getTeamBySeed(matchup.seed2) } }
+        ]
+      }
+    }
+    // Regular bowl game - just the name
+    return {
+      values: [
+        { userEnteredValue: { stringValue: bowl } },
+        { userEnteredValue: { stringValue: '' } },
+        { userEnteredValue: { stringValue: '' } }
+      ]
+    }
+  })
 
   const requests = [
     // Set headers
@@ -2479,7 +2466,7 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill bowl game names
+    // Pre-fill bowl game names and CFP teams
     {
       updateCells: {
         range: {
@@ -2487,11 +2474,9 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
           startRowIndex: 1,
           endRowIndex: rowCount + 1,
           startColumnIndex: 0,
-          endColumnIndex: 1
+          endColumnIndex: 3
         },
-        rows: bowlGames.map(bowl => ({
-          values: [{ userEnteredValue: { stringValue: bowl } }]
-        })),
+        rows: bowlRows,
         fields: 'userEnteredValue'
       }
     },

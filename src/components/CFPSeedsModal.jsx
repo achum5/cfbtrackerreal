@@ -8,6 +8,12 @@ import {
   getSheetEmbedUrl
 } from '../services/sheetsService'
 
+// Simple mobile detection
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
 export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
@@ -17,7 +23,16 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [creatingSheet, setCreatingSheet] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
-  const [retryCount, setRetryCount] = useState(0) // Used to trigger sheet creation retry
+  const [retryCount, setRetryCount] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check for mobile on mount and resize
+  useEffect(() => {
+    setIsMobile(isMobileDevice())
+    const handleResize = () => setIsMobile(isMobileDevice())
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -226,19 +241,44 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
               </div>
             </div>
 
-            <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-              <iframe
-                src={embedUrl}
-                className="w-full h-full"
-                frameBorder="0"
-                title="CFP Seeds Google Sheet"
-              />
-            </div>
-
-            <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              <p><strong>Columns:</strong> Seed | Team</p>
-              <p>Enter the team abbreviation for each seed (1-12). Seeds 1-4 get a bye to Quarterfinals.</p>
-            </div>
+            {/* Mobile View */}
+            {isMobile ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
+                  <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
+                <div className="text-left mb-6 max-w-xs">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
+                  <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                    <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter CFP seeds 1-12</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" to sync your seeds</span></li>
+                  </ol>
+                </div>
+                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
+                  Open Google Sheets
+                </a>
+                <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
+                  <p className="font-semibold mb-1">Info:</p>
+                  <p className="opacity-80">Seeds 1-4 get a bye to Quarterfinals. Use team abbreviations.</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
+                  <iframe src={embedUrl} className="w-full h-full" frameBorder="0" title="CFP Seeds Google Sheet" />
+                </div>
+                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                  <p><strong>Columns:</strong> Seed | Team</p>
+                  <p>Enter the team abbreviation for each seed (1-12). Seeds 1-4 get a bye to Quarterfinals.</p>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">

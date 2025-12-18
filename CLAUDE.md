@@ -6,38 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Multiple features and improvements:
+**Last Session (December 2024)**: CFP Bracket and Bowl Week improvements:
 
-1. **Jersey Number Field**: Added jersey number support across the app:
-   - Google Sheets Roster tab now has 12 columns (added Jersey # as column E, between Dev Trait and Archetype)
-   - RosterSpreadsheet.jsx entry form includes jersey number
-   - Roster.jsx page displays jersey # as first column (before Name)
-   - Player.jsx shows jersey number in header as "#XX" before position
-   - All data validation dropdowns properly aligned to new column positions
+1. **CFP First Round merged into Bowl Week 1**:
+   - CFP First Round (4 games) now included in Bowl Week 1 Google Sheet
+   - Games listed alphabetically in the C's: "CFP First Round (#5 vs #12)", etc.
+   - Teams pre-filled based on CFP seeds entered in previous week
+   - When Bowl Week 1 results are saved, CFP First Round games are extracted and saved separately to `cfpResultsByYear[year].firstRound`
 
-2. **Dynamic Team Stats - Conference Titles**: Team pages now show real data:
-   - Conference championships stored by year in `conferenceChampionshipsByYear` object
-   - Team.jsx calculates conference titles dynamically by counting wins from all years
-   - TeamYear.jsx shows conference championship game if team participated that year
-   - CC game display includes WIN/LOSS badge, score, conference name, opponent, and "🏆 CHAMPION" indicator
+2. **CFP Bracket Dynamic Updates** (`src/pages/dynasty/CFPBracket.jsx`):
+   - First Round results display with scores on each team slot
+   - Losing teams dimmed (60% opacity) to highlight winners
+   - Winners automatically populate Quarterfinal matchups
+   - Click any First Round game to see game recap modal with:
+     - Both teams with logos, seeds, and scores
+     - Losing team dimmed, winner highlighted
+     - Winner badge with team colors showing "🏆 [Team] wins!"
 
-3. **UI Improvements**:
-   - Team ratings edit button added to dashboard header (pencil icon next to OVR/OFF/DEF)
-   - Fixed coordinator firing Yes/No buttons to have same styling
-   - Fixed championship question Yes/No buttons to have same styling
-   - GameEntryModal "Random Fill" button now auto-saves (dev feature)
+3. **"Taking a New Job?" Question**:
+   - Now appears in every bowl week (1-5) until accepted or postseason ends
+   - Each bowl week's todo list includes this task
 
 4. **Bug Fixes**:
-   - Revert week now properly restores fired coordinators from `conferenceChampionshipData`
-   - Fixed bullet separator showing when team is unranked
+   - ConfirmModal no longer auto-closes after confirm (fixes favorited dynasty delete flow)
+   - Conference Championship Edit button now fully resets opponent selection
+   - Roster entry Google Sheet reduced to 11 columns (removed Stars column L)
 
 **TODO / Future Work**:
+- CFP Quarterfinals, Semifinals, Championship game entry and results
+- Bowl History page showing all bowl game results
 - Team stats still need implementation for:
-  - AP Top 25 Finishes (Media/Coaches polls)
-  - CFP Appearances, National Titles
+  - AP Top 25 Finishes, CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans
   - User's games as/against each team with win percentages
-- Conference titles now work dynamically! Other stats still show placeholder 0
 
 ## Project Overview
 
@@ -211,6 +212,8 @@ if (isDev || !user) {
     - `/dynasty/:id/teams` - All FBS teams list
     - `/dynasty/:id/team/:teamAbbr` - Individual team history
     - `/dynasty/:id/team/:teamAbbr/:year` - Team year details
+    - `/dynasty/:id/cfp-bracket` - College Football Playoff bracket
+    - `/dynasty/:id/bowl-history` - Bowl game history (placeholder)
 
 `ProtectedRoute` component in `App.jsx` checks dev mode first, then user authentication.
 
@@ -251,8 +254,7 @@ Each dynasty object contains:
     height: string, // Height (e.g., "6'2\"")
     weight: number, // Weight in lbs
     hometown: string,
-    state: string, // State abbreviation
-    stars: number // Recruitment stars (1-5)
+    state: string // State abbreviation
   }>,
   preseasonSetup: {
     scheduleEntered: boolean,
@@ -269,6 +271,29 @@ Each dynasty object contains:
       team2Score: number,
       winner: string // Team abbreviation of winner
     }>
+  },
+  cfpSeedsByYear: { // CFP seeds entered in Bowl Week 1
+    [year: number]: Array<{ seed: number, team: string }> // Seeds 1-12
+  },
+  cfpResultsByYear: { // CFP game results by round
+    [year: number]: {
+      firstRound: Array<{ // 4 games: 5v12, 8v9, 6v11, 7v10
+        seed1: number,
+        seed2: number,
+        team1: string,
+        team2: string,
+        team1Score: number,
+        team2Score: number,
+        winner: string
+      }>,
+      // Future: quarterfinals, semifinals, championship
+    }
+  },
+  bowlGamesByYear: { // Bowl game results by week
+    [year: number]: {
+      week1: Array<{ bowlName, team1, team2, team1Score, team2Score, winner }>,
+      // Future: week2, week3, etc.
+    }
   },
   lastModified: number, // Timestamp (Date.now()) - auto-updated on every dynasty update
   // ... additional fields
@@ -300,8 +325,8 @@ Each dynasty object contains:
   - **Conditional Formatting**: Team abbreviations automatically styled with team colors (background + text color)
   - All cells formatted with Barlow font, size 10, bold, italic, centered
 
-- **Roster Tab** (12 columns):
-  - A: Name, B: Position, C: Class, D: Dev Trait, E: Jersey #, F: Archetype, G: Overall, H: Height, I: Weight, J: Hometown, K: State, L: Recruitment Stars
+- **Roster Tab** (11 columns):
+  - A: Name, B: Position, C: Class, D: Dev Trait, E: Jersey #, F: Archetype, G: Overall, H: Height, I: Weight, J: Hometown, K: State
   - 85 rows for players (roster limit)
   - Header row is protected and frozen
   - **Data Validation**:
@@ -311,7 +336,6 @@ Each dynasty object contains:
     - Archetype (F): STRICT dropdown with all player archetypes
     - Height (H): Dropdown with heights from 5'6" to 6'8"
     - State (K): STRICT dropdown with all US state abbreviations
-    - Recruitment Stars (L): Dropdown with ☆ to ☆☆☆☆☆
   - All cells formatted with Barlow font, size 10, bold, italic, centered
 
 **Team Abbreviations**:
@@ -479,6 +503,47 @@ dynasty.teamHistories = {
   // ... other teams
 }
 ```
+
+### CFP Bracket (`src/pages/dynasty/CFPBracket.jsx`)
+
+- Route: `/dynasty/:id/cfp-bracket`
+- Displays 12-team College Football Playoff bracket
+- Year selector dropdown to view previous years' brackets
+
+**Bracket Structure**:
+- First Round: 4 games (5v12, 8v9, 6v11, 7v10)
+- Quarterfinals: 4 games hosted by seeds 1-4 (Sugar, Orange, Rose, Cotton Bowls)
+- Semifinals: Peach Bowl and Fiesta Bowl
+- Championship: National Championship
+
+**Data Flow**:
+1. Seeds entered during Bowl Week 1 → stored in `cfpSeedsByYear[year]`
+2. First Round results entered in Bowl Week 1 sheet → extracted and saved to `cfpResultsByYear[year].firstRound`
+3. Bracket auto-updates to show:
+   - Scores on First Round matchups
+   - Losing teams dimmed (60% opacity)
+   - Winners advancing to Quarterfinals
+
+**Click Interactions**:
+- Click any matchup to see game details modal
+- Played games show: both teams, logos, seeds, scores, winner badge
+- Unplayed games show: "Game not yet played" preview
+
+### Bowl Week Modals
+
+**BowlWeek1Modal.jsx** (`src/components/BowlWeek1Modal.jsx`):
+- Creates Google Sheet with 30 bowl games + 4 CFP First Round games
+- CFP First Round teams pre-filled based on seeds from previous task
+- Desktop: Shows embedded iframe
+- Mobile: Shows "Open in Google Sheets" button with instructions
+- "Save & Move to Trash" syncs data and deletes sheet
+- "Save & Keep Sheet" syncs data and keeps sheet for later editing
+
+**Bowl Games Data** (`src/services/sheetsService.js`):
+- `BOWL_GAMES_WEEK_1` array contains all 34 game names
+- `CFP_FIRST_ROUND_MATCHUPS` maps game names to seed pairings
+- `createBowlWeek1Sheet()` accepts `cfpSeeds` parameter for pre-filling
+- `readBowlGamesFromSheet()` reads all games with teams and scores
 
 ### Team Theming System
 

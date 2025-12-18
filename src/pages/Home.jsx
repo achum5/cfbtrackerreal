@@ -68,18 +68,17 @@ function getWeekPhaseDisplay(dynasty) {
   if (dynasty.currentPhase === 'preseason' || dynasty.currentPhase === 'conference_championship') {
     return phase
   }
+  if (dynasty.currentPhase === 'postseason') {
+    return `Bowl Week ${dynasty.currentWeek}`
+  }
   return `Week ${dynasty.currentWeek} • ${phase}`
 }
 
 export default function Home() {
   const { dynasties, deleteDynasty, importDynasty, exportDynasty, updateDynasty, loading } = useDynasty()
 
-  // Sort dynasties: favorites first, then by lastModified (most recent first)
+  // Sort dynasties by lastModified (most recent first)
   const sortedDynasties = [...dynasties].sort((a, b) => {
-    // Favorites come first
-    if (a.favorite && !b.favorite) return -1
-    if (!a.favorite && b.favorite) return 1
-    // Then sort by lastModified
     const aTime = a.lastModified || 0
     const bTime = b.lastModified || 0
     return bTime - aTime

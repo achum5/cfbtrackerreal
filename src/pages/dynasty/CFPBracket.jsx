@@ -113,6 +113,36 @@ export default function CFPBracket() {
 
   const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
+  // Get First Round results
+  const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
+  const firstRoundResults = cfpResults.firstRound || []
+
+  // Helper to get First Round winner by matchup seeds
+  const getFirstRoundWinner = (seed1, seed2) => {
+    const game = firstRoundResults.find(g =>
+      (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
+    )
+    return game?.winner || null
+  }
+
+  // Helper to get the seed of the First Round winner
+  const getWinnerSeed = (seed1, seed2) => {
+    const game = firstRoundResults.find(g =>
+      (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
+    )
+    if (!game?.winner) return null
+    if (game.team1 === game.winner) return game.seed1
+    if (game.team2 === game.winner) return game.seed2
+    return null
+  }
+
+  // Helper to get First Round game data
+  const getFirstRoundGame = (seed1, seed2) => {
+    return firstRoundResults.find(g =>
+      (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
+    ) || null
+  }
+
   // Sizing constants (scaled up for larger bracket)
   const SLOT_HEIGHT = 70
   const SLOT_GAP = 12
@@ -121,7 +151,7 @@ export default function CFPBracket() {
   const CONNECTOR_GAP = 60 // Gap between columns for connector lines
 
   // Team slot component
-  const TeamSlot = ({ team, seed }) => {
+  const TeamSlot = ({ team, seed, score, isWinner }) => {
     const teamData = team ? teamAbbreviations[team] : null
     const bgColor = teamData?.backgroundColor || '#4B5563'
     const txtColor = teamData?.textColor || '#D1D5DB'
@@ -135,7 +165,8 @@ export default function CFPBracket() {
           backgroundColor: bgColor,
           width: `${SLOT_WIDTH}px`,
           height: `${SLOT_HEIGHT}px`,
-          borderColor: team ? 'transparent' : '#6B7280'
+          borderColor: team ? 'transparent' : '#6B7280',
+          opacity: score !== undefined && !isWinner ? 0.6 : 1
         }}
       >
         <span className="text-lg font-bold w-8 opacity-70" style={{ color: txtColor }}>
@@ -146,14 +177,19 @@ export default function CFPBracket() {
           <Link
             to={`/dynasty/${id}/team/${team}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-xl font-semibold truncate hover:underline"
+            className="text-xl font-semibold truncate hover:underline flex-1"
             style={{ color: txtColor }}
           >
             {getShortName(team)}
           </Link>
         ) : (
-          <span className="text-xl font-semibold truncate" style={{ color: txtColor }}>
+          <span className="text-xl font-semibold truncate flex-1" style={{ color: txtColor }}>
             TBD
+          </span>
+        )}
+        {score !== undefined && (
+          <span className="text-xl font-bold ml-auto" style={{ color: txtColor }}>
+            {score}
           </span>
         )}
       </div>
@@ -161,16 +197,37 @@ export default function CFPBracket() {
   }
 
   // Matchup component - two team slots stacked
-  const Matchup = ({ team1, team2, seed1, seed2, style, onClick, round, bowl }) => (
-    <div
-      className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
-      style={{ gap: `${SLOT_GAP}px`, ...style }}
-      onClick={() => onClick && onClick({ team1, team2, seed1, seed2, round, bowl })}
-    >
-      <TeamSlot team={team1} seed={seed1} />
-      <TeamSlot team={team2} seed={seed2} />
-    </div>
-  )
+  const Matchup = ({ team1, team2, seed1, seed2, style, onClick, round, bowl, gameData }) => {
+    // Map scores correctly based on which team is which
+    // gameData has team1/team2 which may be in different order than visual display
+    let score1, score2
+    if (gameData) {
+      // Find which gameData team matches the visual team1/team2
+      if (gameData.team1 === team1) {
+        score1 = gameData.team1Score
+        score2 = gameData.team2Score
+      } else if (gameData.team2 === team1) {
+        score1 = gameData.team2Score
+        score2 = gameData.team1Score
+      } else {
+        // Fallback to default order
+        score1 = gameData.team1Score
+        score2 = gameData.team2Score
+      }
+    }
+    const winner = gameData?.winner
+
+    return (
+      <div
+        className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
+        style={{ gap: `${SLOT_GAP}px`, ...style }}
+        onClick={() => onClick && onClick({ team1, team2, seed1, seed2, round, bowl, gameData })}
+      >
+        <TeamSlot team={team1} seed={seed1} score={score1} isWinner={winner === team1} />
+        <TeamSlot team={team2} seed={seed2} score={score2} isWinner={winner === team2} />
+      </div>
+    )
+  }
 
   // Horizontal line
   const HLine = ({ top, left, width }) => (
@@ -300,9 +357,31 @@ export default function CFPBracket() {
 
   // Handle matchup click - find the game data if it exists
   const handleMatchupClick = (matchupInfo) => {
-    const { team1, team2, seed1, seed2, round, bowl } = matchupInfo
+    const { team1, team2, seed1, seed2, round, bowl, gameData } = matchupInfo
 
-    // Look for existing game in cfpGames
+    // Check if we have gameData from First Round results
+    if (gameData && gameData.winner) {
+      // Show game recap with scores using CFP modal style
+      setSelectedGame({
+        team1: gameData.team1,
+        team2: gameData.team2,
+        team1Score: gameData.team1Score,
+        team2Score: gameData.team2Score,
+        winner: gameData.winner,
+        seed1: gameData.seed1,
+        seed2: gameData.seed2,
+        round,
+        bowl,
+        year: displayYear,
+        gameTitle: bowl || round,
+        isPlayoff: true,
+        isPreview: true, // Use preview modal style for consistent look
+        hasScore: true   // Flag to show scores in the preview modal
+      })
+      return
+    }
+
+    // Look for existing game in cfpGames (for later rounds)
     const cfpGames = currentDynasty.cfpGamesByYear?.[displayYear] || []
     const existingGame = cfpGames.find(g =>
       g.round === round &&
@@ -386,10 +465,10 @@ export default function CFPBracket() {
           <div className="relative" style={{ height: `${BRACKET_HEIGHT}px`, width: `${BRACKET_WIDTH}px` }}>
 
             {/* ===== FIRST ROUND ===== */}
-            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
-            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
-            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
-            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
+            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(5, 12)} />
+            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(8, 9)} />
+            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(6, 11)} />
+            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(7, 10)} />
 
             {/* First Round → QF connectors (bracket from 2 teams to 1 output) */}
             {/* R1_M1: 12 vs 5 → QF top slot */}
@@ -417,10 +496,14 @@ export default function CFPBracket() {
             <HLine top={R1_M4_CENTER} left={CONN_X1 + CONNECTOR_GAP / 2} width={CONNECTOR_GAP / 2} />
 
             {/* ===== QUARTERFINALS ===== */}
-            <Matchup team1={null} team2={s4} seed1={null} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" />
-            <Matchup team1={null} team2={s1} seed1={null} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" />
-            <Matchup team1={null} team2={s3} seed1={null} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" />
-            <Matchup team1={null} team2={s2} seed1={null} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" />
+            {/* 5 vs 12 winner plays #4 seed */}
+            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" />
+            {/* 8 vs 9 winner plays #1 seed */}
+            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" />
+            {/* 6 vs 11 winner plays #3 seed */}
+            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" />
+            {/* 7 vs 10 winner plays #2 seed */}
+            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" />
 
             {/* QF Bowl Logos - positioned on right side, centered between both team slots */}
             <img
@@ -557,7 +640,7 @@ export default function CFPBracket() {
                       <Link
                         to={`/dynasty/${id}/team/${selectedGame.team1}`}
                         onClick={() => setSelectedGame(null)}
-                        className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2"
+                        className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2 ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team1 ? 'opacity-50' : ''}`}
                         style={{ borderColor: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#666' }}
                       >
                         {mascotMap[selectedGame.team1] && getTeamLogo(mascotMap[selectedGame.team1]) && (
@@ -568,11 +651,16 @@ export default function CFPBracket() {
                       <Link
                         to={`/dynasty/${id}/team/${selectedGame.team1}`}
                         onClick={() => setSelectedGame(null)}
-                        className="font-bold text-lg hover:underline"
+                        className={`font-bold text-lg hover:underline ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team1 ? 'opacity-50' : ''}`}
                         style={{ color: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#333' }}
                       >
                         {getShortName(selectedGame.team1)}
                       </Link>
+                      {selectedGame.hasScore && (
+                        <div className={`text-3xl font-bold mt-2 ${selectedGame.winner === selectedGame.team1 ? 'text-green-600' : 'text-gray-400'}`}>
+                          {selectedGame.team1Score}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>
@@ -584,8 +672,12 @@ export default function CFPBracket() {
                   )}
                 </div>
 
-                {/* VS */}
-                <div className="text-2xl font-bold text-gray-400">VS</div>
+                {/* VS or Score Separator */}
+                {selectedGame.hasScore ? (
+                  <div className="text-xl font-bold text-gray-400">-</div>
+                ) : (
+                  <div className="text-2xl font-bold text-gray-400">VS</div>
+                )}
 
                 {/* Team 2 */}
                 <div className="text-center flex-1">
@@ -594,7 +686,7 @@ export default function CFPBracket() {
                       <Link
                         to={`/dynasty/${id}/team/${selectedGame.team2}`}
                         onClick={() => setSelectedGame(null)}
-                        className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2"
+                        className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2 ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team2 ? 'opacity-50' : ''}`}
                         style={{ borderColor: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#666' }}
                       >
                         {mascotMap[selectedGame.team2] && getTeamLogo(mascotMap[selectedGame.team2]) && (
@@ -605,11 +697,16 @@ export default function CFPBracket() {
                       <Link
                         to={`/dynasty/${id}/team/${selectedGame.team2}`}
                         onClick={() => setSelectedGame(null)}
-                        className="font-bold text-lg hover:underline"
+                        className={`font-bold text-lg hover:underline ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team2 ? 'opacity-50' : ''}`}
                         style={{ color: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#333' }}
                       >
                         {getShortName(selectedGame.team2)}
                       </Link>
+                      {selectedGame.hasScore && (
+                        <div className={`text-3xl font-bold mt-2 ${selectedGame.winner === selectedGame.team2 ? 'text-green-600' : 'text-gray-400'}`}>
+                          {selectedGame.team2Score}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>
@@ -622,9 +719,23 @@ export default function CFPBracket() {
                 </div>
               </div>
 
-              <div className="mt-6 text-center text-gray-500 text-sm">
-                Game not yet played
-              </div>
+              {selectedGame.hasScore ? (
+                <div className="mt-6 text-center">
+                  <span
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold"
+                    style={{
+                      backgroundColor: teamAbbreviations[selectedGame.winner]?.backgroundColor || '#22c55e',
+                      color: teamAbbreviations[selectedGame.winner]?.textColor || '#fff'
+                    }}
+                  >
+                    🏆 {getShortName(selectedGame.winner)} wins!
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-6 text-center text-gray-500 text-sm">
+                  Game not yet played
+                </div>
+              )}
             </div>
           </div>
         </div>

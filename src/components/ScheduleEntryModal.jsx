@@ -266,12 +266,34 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
                   </svg>
                 </div>
 
-                <h3 className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>
                   Edit in Google Sheets
                 </h3>
-                <p className="text-sm mb-6 max-w-xs" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                  Tap below to open your schedule in Google Sheets. Edit your 12-game schedule, then return here and tap "Save".
-                </p>
+
+                {/* Step-by-step instructions */}
+                <div className="text-left mb-6 max-w-xs">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                    Instructions:
+                  </p>
+                  <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                    <li className="flex gap-2">
+                      <span className="font-bold">1.</span>
+                      <span>Tap the button below to open Google Sheets</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">2.</span>
+                      <span>Enter your 12-game schedule in the sheet</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">3.</span>
+                      <span>Return to this app when done</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">4.</span>
+                      <span>Tap "Save" to sync your schedule</span>
+                    </li>
+                  </ol>
+                </div>
 
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}

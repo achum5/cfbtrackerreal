@@ -100,6 +100,9 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
 
   const opponentRecord = calculateOpponentRecord()
 
+  // Check if this is a scheduled (not yet played) game
+  const isScheduledGame = game.scheduled === true
+
   // Determine winner/loser styling
   const userWon = game.result === 'win'
   const userScore = game.teamScore
@@ -169,11 +172,17 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
             {recordDisplay}
           </div>
         )}
-        <div
-          className={`text-3xl sm:text-4xl md:text-6xl font-bold ${isWinner ? 'text-green-600' : 'text-gray-400'}`}
-        >
-          {score}
-        </div>
+        {isScheduledGame ? (
+          <div className="text-3xl sm:text-4xl md:text-6xl font-bold text-gray-300">
+            -
+          </div>
+        ) : (
+          <div
+            className={`text-3xl sm:text-4xl md:text-6xl font-bold ${isWinner ? 'text-green-600' : 'text-gray-400'}`}
+          >
+            {score}
+          </div>
+        )}
       </div>
     )
   }
@@ -322,7 +331,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
                     </div>
                     <div className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1">
-                      {game.gameTitle || 'Game Recap'}
+                      {isScheduledGame ? 'Scheduled Game' : (game.gameTitle || 'Game Recap')}
                     </div>
                   </>
                 )}

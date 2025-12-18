@@ -199,7 +199,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
           }}
         >
           <p style={{ color: teamColors.primary }}>
-            <strong>Note:</strong> This is the only time you'll need to enter your full roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions.
+            <strong>Note:</strong> This is the only time you'll need to enter your roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions. All fields are optional - fill in whatever columns you want.
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                 Creating Roster Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up 85-player roster
+                Setting up roster sheet
               </p>
             </div>
           </div>
@@ -278,12 +278,34 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                   </svg>
                 </div>
 
-                <h3 className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>
                   Edit in Google Sheets
                 </h3>
-                <p className="text-sm mb-6 max-w-xs" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                  Tap below to open your roster in Google Sheets. Enter your 85-player roster, then return here and tap "Save".
-                </p>
+
+                {/* Step-by-step instructions */}
+                <div className="text-left mb-6 max-w-xs">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                    Instructions:
+                  </p>
+                  <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                    <li className="flex gap-2">
+                      <span className="font-bold">1.</span>
+                      <span>Tap the button below to open Google Sheets</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">2.</span>
+                      <span>Enter your roster in the sheet</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">3.</span>
+                      <span>Return to this app when done</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-bold">4.</span>
+                      <span>Tap "Save" to sync your roster</span>
+                    </li>
+                  </ol>
+                </div>
 
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
@@ -304,7 +326,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
 
                 <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
                   <p className="font-semibold mb-1">Columns to fill:</p>
-                  <p className="opacity-80">Name | Position | Class | Dev Trait | Jersey # | Archetype | OVR | Height | Weight | Hometown | State | Stars</p>
+                  <p className="opacity-80">Name | Position | Class | Dev Trait | Jersey # | Archetype | OVR | Height | Weight | Hometown | State</p>
                 </div>
               </div>
             ) : (
@@ -320,8 +342,8 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                 </div>
 
                 <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-                  <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Stars</p>
-                  <p>Enter your full 85-player roster. Use dropdown menus for validated fields.</p>
+                  <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State</p>
+                  <p>Enter your roster. All fields are optional. Use dropdown menus for validated fields.</p>
                 </div>
               </>
             )}
