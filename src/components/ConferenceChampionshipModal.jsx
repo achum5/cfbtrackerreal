@@ -17,6 +17,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   const [creatingSheet, setCreatingSheet] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
+  const [retryCount, setRetryCount] = useState(0) // Used to trigger sheet creation retry
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -258,7 +259,11 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                   onClick={async () => {
                     setRefreshing(true)
                     try {
-                      await refreshSession()
+                      const success = await refreshSession()
+                      if (success) {
+                        // Trigger sheet creation retry
+                        setRetryCount(c => c + 1)
+                      }
                     } catch (e) {
                       console.error('Refresh failed:', e)
                     }

@@ -8,9 +8,11 @@ import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/te
 import { getTeamLogo, teams } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
+import { getConferenceLogo } from '../../data/conferenceLogos'
 import SearchableSelect from '../../components/SearchableSelect'
 import DropdownSelect from '../../components/DropdownSelect'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
+import RosterEntryModal from '../../components/RosterEntryModal'
 import TeamRatingsModal from '../../components/TeamRatingsModal'
 import GameEntryModal from '../../components/GameEntryModal'
 import GameDetailModal from '../../components/GameDetailModal'
@@ -33,6 +35,7 @@ export default function Dashboard() {
   const primaryBgText = getContrastTextColor(teamColors.primary)
 
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showRosterModal, setShowRosterModal] = useState(false)
   const [showTeamRatingsModal, setShowTeamRatingsModal] = useState(false)
   const [showCoachingStaffModal, setShowCoachingStaffModal] = useState(false)
   const [showGameModal, setShowGameModal] = useState(false)
@@ -645,7 +648,7 @@ export default function Dashboard() {
 
         return (
           <div
-            className="rounded-lg shadow-lg p-4 flex items-center justify-between"
+            className="rounded-lg shadow-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
             style={{
               backgroundColor: teamColors.primary,
               border: `3px solid ${teamColors.secondary}`
@@ -653,11 +656,11 @@ export default function Dashboard() {
           >
             <Link
               to={`/dynasty/${currentDynasty.id}/team/${getAbbreviationFromDisplayName(currentDynasty.teamName)}/${currentDynasty.currentYear}`}
-              className="flex items-center gap-4 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0"
             >
               {getTeamLogo(currentDynasty.teamName) && (
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
                     backgroundColor: '#FFFFFF',
                     border: `2px solid ${teamColors.secondary}`,
@@ -671,29 +674,29 @@ export default function Dashboard() {
                   />
                 </div>
               )}
-              <div>
-                <h2 className="text-xl font-bold" style={{ color: primaryBgText }}>
-                  {currentRank && <span className="mr-2">#{currentRank}</span>}
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-xl font-bold truncate" style={{ color: primaryBgText }}>
+                  {currentRank && <span className="mr-1 sm:mr-2">#{currentRank}</span>}
                   {currentDynasty.teamName}
                 </h2>
-                <p className="text-sm font-semibold" style={{ color: primaryBgText, opacity: 0.8 }}>
+                <p className="text-xs sm:text-sm font-semibold" style={{ color: primaryBgText, opacity: 0.8 }}>
                   {wins}-{losses}{currentDynasty.currentPhase !== 'preseason' && currentDynasty.conference && ` • ${currentDynasty.conference}`}
                 </p>
               </div>
             </Link>
             {currentDynasty.teamRatings && (
-              <div className="flex items-center gap-3">
-                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+              <div className="flex items-center gap-2 sm:gap-3 justify-end sm:justify-start">
+                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OVR</div>
-                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.overall}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.overall}</div>
                 </div>
-                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OFF</div>
-                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.offense}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.offense}</div>
                 </div>
-                <div className="text-center px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
+                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>DEF</div>
-                  <div className="text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.defense}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.defense}</div>
                 </div>
                 <button
                   onClick={() => setShowTeamRatingsModal(true)}
@@ -714,28 +717,35 @@ export default function Dashboard() {
       {/* Phase-Specific Content */}
       {currentDynasty.currentPhase === 'preseason' ? (
         <div
-          className="rounded-lg shadow-lg p-6"
+          className="rounded-lg shadow-lg p-4 sm:p-6"
           style={{
             backgroundColor: teamColors.secondary,
             border: `3px solid ${teamColors.primary}`
           }}
         >
-          <h3 className="text-lg font-semibold mb-4" style={{ color: secondaryBgText }}>
+          <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
             Pre-Season Setup
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {[
               {
                 num: 1,
-                title: 'Enter Schedule & Roster',
-                done: currentDynasty.preseasonSetup?.scheduleEntered && currentDynasty.preseasonSetup?.rosterEntered,
+                title: 'Enter Schedule',
+                done: currentDynasty.preseasonSetup?.scheduleEntered,
                 scheduleCount: currentDynasty.schedule?.length || 0,
-                playerCount: currentDynasty.players?.length || 0,
                 action: () => setShowScheduleModal(true),
-                actionText: (currentDynasty.preseasonSetup?.scheduleEntered && currentDynasty.preseasonSetup?.rosterEntered) ? 'Edit' : 'Add Data'
+                actionText: currentDynasty.preseasonSetup?.scheduleEntered ? 'Edit' : 'Enter'
               },
               {
                 num: 2,
+                title: 'Enter Roster',
+                done: currentDynasty.preseasonSetup?.rosterEntered,
+                playerCount: currentDynasty.players?.length || 0,
+                action: () => setShowRosterModal(true),
+                actionText: currentDynasty.preseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
+              },
+              {
+                num: 3,
                 title: 'Enter Team Ratings',
                 done: currentDynasty.preseasonSetup?.teamRatingsEntered,
                 teamRatings: currentDynasty.teamRatings,
@@ -743,7 +753,7 @@ export default function Dashboard() {
                 actionText: currentDynasty.preseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
               {
-                num: 3,
+                num: 4,
                 title: 'Custom Conferences',
                 done: currentDynasty.preseasonSetup?.conferencesEntered,
                 conferences: currentDynasty.customConferences,
@@ -752,7 +762,7 @@ export default function Dashboard() {
               },
               // Only show coaching staff task for Head Coaches
               ...(currentDynasty.coachPosition === 'HC' ? [{
-                num: 4,
+                num: 5,
                 title: 'Enter Coordinators',
                 done: currentDynasty.preseasonSetup?.coachingStaffEntered,
                 coachingStaff: currentDynasty.coachingStaff,
@@ -772,7 +782,7 @@ export default function Dashboard() {
               return (
               <div
                 key={item.num}
-                className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${
                   item.done ? 'border-green-200 bg-green-50' : ''
                 }`}
                 style={!item.done ? {
@@ -780,9 +790,9 @@ export default function Dashboard() {
                   backgroundColor: teamColors.secondary
                 } : {}}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                       item.done ? 'bg-green-500 text-white' : ''
                     }`}
                     style={!item.done ? {
@@ -791,47 +801,59 @@ export default function Dashboard() {
                     } : {}}
                   >
                     {item.done ? (
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                       </svg>
                     ) : (
-                      <span className="font-bold text-lg">{item.num}</span>
+                      <span className="font-bold text-sm sm:text-lg">{item.num}</span>
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div
-                      className="font-semibold"
+                      className="font-semibold text-sm sm:text-base"
                       style={{ color: item.done ? '#16a34a' : secondaryBgText }}
                     >
                       {item.title}
                     </div>
-                    {(item.scheduleCount > 0 || item.playerCount > 0) && (
+                    {item.scheduleCount !== undefined && (
                       <div
-                        className="text-sm mt-1 font-medium"
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
                         style={{
                           color: item.done ? '#16a34a' : secondaryBgText,
                           opacity: item.done ? 1 : 0.7
                         }}
                       >
-                        {item.scheduleCount}/12 games • {item.playerCount}/85 players
-                        {item.done && <span className="ml-2">✓ Ready</span>}
+                        {item.scheduleCount}/12 games
+                        {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
+                      </div>
+                    )}
+                    {item.playerCount !== undefined && (
+                      <div
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
+                        style={{
+                          color: item.done ? '#16a34a' : secondaryBgText,
+                          opacity: item.done ? 1 : 0.7
+                        }}
+                      >
+                        {item.playerCount}/85 players
+                        {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
                       </div>
                     )}
                     {item.teamRatings && (
                       <div
-                        className="text-sm mt-1 font-medium"
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
                         style={{
                           color: item.done ? '#16a34a' : secondaryBgText,
                           opacity: item.done ? 1 : 0.7
                         }}
                       >
                         {item.teamRatings.overall ? `${item.teamRatings.overall} OVR • ${item.teamRatings.offense} OFF • ${item.teamRatings.defense} DEF` : 'Not entered'}
-                        {item.done && <span className="ml-2">✓ Ready</span>}
+                        {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
                       </div>
                     )}
                     {item.coachingStaff !== undefined && (
                       <div
-                        className="text-sm mt-1 font-medium"
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium truncate"
                         style={{
                           color: item.done ? '#16a34a' : secondaryBgText,
                           opacity: item.done ? 1 : 0.7
@@ -840,12 +862,12 @@ export default function Dashboard() {
                         {item.coachingStaff?.ocName && item.coachingStaff?.dcName
                           ? `OC: ${item.coachingStaff.ocName} • DC: ${item.coachingStaff.dcName}`
                           : 'Not entered'}
-                        {item.done && <span className="ml-2">✓ Ready</span>}
+                        {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
                       </div>
                     )}
                     {item.conferences !== undefined && (
                       <div
-                        className="text-sm mt-1 font-medium"
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
                         style={{
                           color: item.done ? '#16a34a' : secondaryBgText,
                           opacity: item.done ? 1 : 0.7
@@ -854,14 +876,14 @@ export default function Dashboard() {
                         {item.conferences
                           ? `${Object.keys(item.conferences).length} conferences configured`
                           : 'Default EA CFB 26 alignment'}
-                        {item.done && <span className="ml-2">✓ Ready</span>}
+                        {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
                       </div>
                     )}
                   </div>
                 </div>
                 <button
                   onClick={item.action}
-                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
                   style={item.optional && !item.done ? {
                     backgroundColor: `${secondaryBgText}20`,
                     color: secondaryBgText
@@ -974,13 +996,13 @@ export default function Dashboard() {
         </div>
       ) : currentDynasty.currentPhase === 'conference_championship' ? (
         <div
-          className="rounded-lg shadow-lg p-6"
+          className="rounded-lg shadow-lg p-4 sm:p-6"
           style={{
             backgroundColor: teamColors.secondary,
             border: `3px solid ${teamColors.primary}`
           }}
         >
-          <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+          <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
             Conference Championship Week
           </h3>
 
@@ -990,14 +1012,14 @@ export default function Dashboard() {
             // Step 1: Ask if they made the championship
             if (ccMadeChampionship === null) {
               return (
-                <div className="space-y-4">
-                  <p className="text-lg font-medium" style={{ color: secondaryBgText }}>
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-base sm:text-lg font-medium" style={{ color: secondaryBgText }}>
                     Did you make the {userTeamConference} Championship?
                   </p>
-                  <div className="flex gap-4">
+                  <div className="flex gap-3 sm:gap-4">
                     <button
                       onClick={() => handleCCAnswer(true)}
-                      className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+                      className="flex-1 sm:flex-none px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm sm:text-base"
                       style={{
                         backgroundColor: teamColors.primary,
                         color: primaryBgText
@@ -1007,7 +1029,7 @@ export default function Dashboard() {
                     </button>
                     <button
                       onClick={() => handleCCAnswer(false)}
-                      className="px-8 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+                      className="flex-1 sm:flex-none px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm sm:text-base"
                       style={{
                         backgroundColor: teamColors.primary,
                         color: primaryBgText
@@ -1026,17 +1048,17 @@ export default function Dashboard() {
                 (currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName)
 
               return (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div
-                    className="flex items-center gap-3 p-4 rounded-lg border-2 border-green-200 bg-green-50"
+                    className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg border-2 border-green-200 bg-green-50"
                   >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500 text-white">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-green-500 text-white flex-shrink-0">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
                     <div>
-                      <div className="font-semibold text-green-700">
+                      <div className="text-sm sm:text-base font-semibold text-green-700">
                         Conference Championship Week Complete
                       </div>
                     </div>
@@ -1044,14 +1066,14 @@ export default function Dashboard() {
 
                   {/* Coordinator firing dropdown for HC */}
                   {hasCoordinators && (
-                    <div className="mt-4">
-                      <p className="text-lg font-medium mb-3" style={{ color: secondaryBgText }}>
+                    <div className="mt-3 sm:mt-4">
+                      <p className="text-base sm:text-lg font-medium mb-2 sm:mb-3" style={{ color: secondaryBgText }}>
                         Coordinator Changes
                       </p>
                       <select
                         value={coordinatorToFire}
                         onChange={(e) => handleFiringSelection(e.target.value)}
-                        className="w-full px-4 py-3 rounded-lg font-semibold cursor-pointer"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-semibold cursor-pointer text-sm sm:text-base"
                         style={{
                           backgroundColor: teamColors.primary,
                           color: primaryBgText
@@ -1074,7 +1096,7 @@ export default function Dashboard() {
 
                   <button
                     onClick={() => setCCMadeChampionship(null)}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                    className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
                     style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                   >
                     Edit
@@ -1086,8 +1108,8 @@ export default function Dashboard() {
             // Step 3: They made it - ask who they played (if no opponent yet)
             if (ccMadeChampionship === true && !ccOpponent && !ccGame) {
               return (
-                <div className="space-y-4">
-                  <p className="text-lg font-medium" style={{ color: secondaryBgText }}>
+                <div className="space-y-3 sm:space-y-4">
+                  <p className="text-base sm:text-lg font-medium" style={{ color: secondaryBgText }}>
                     Congratulations! Who did you play in the {currentDynasty.conference} Championship?
                   </p>
                   <SearchableSelect
@@ -1104,7 +1126,7 @@ export default function Dashboard() {
                   />
                   <button
                     onClick={() => setCCMadeChampionship(null)}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                    className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
                     style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                   >
                     Edit
@@ -1121,9 +1143,9 @@ export default function Dashboard() {
               const opponentLogo = getMascotName(opponentAbbr) ? getTeamLogo(getMascotName(opponentAbbr)) : null
 
               return (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div
-                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                       ccGame ? 'border-green-200 bg-green-50' : ''
                     }`}
                     style={!ccGame ? {
@@ -1131,40 +1153,48 @@ export default function Dashboard() {
                       backgroundColor: teamColors.secondary
                     } : {}}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                           ccGame ? 'bg-green-500 text-white' : ''
                         }`}
                         style={!ccGame ? {
-                          backgroundColor: `${teamColors.primary}20`,
-                          color: teamColors.primary
+                          backgroundColor: '#FFFFFF',
+                          padding: '2px'
                         } : {}}
                       >
                         {ccGame ? (
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                          </svg>
+                          getConferenceLogo(userTeamConference) ? (
+                            <img
+                              src={getConferenceLogo(userTeamConference)}
+                              alt={`${userTeamConference} logo`}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                            </svg>
+                          )
                         )}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div
-                          className="font-semibold"
+                          className="text-sm sm:text-base font-semibold"
                           style={{ color: ccGame ? '#16a34a' : secondaryBgText }}
                         >
-                          {currentDynasty.conference} Championship
+                          {userTeamConference} Championship Game
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-sm" style={{ color: ccGame ? '#16a34a' : secondaryBgText, opacity: 0.8 }}>
+                        <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 sm:mt-1 flex-wrap">
+                          <span className="text-xs sm:text-sm" style={{ color: ccGame ? '#16a34a' : secondaryBgText, opacity: 0.8 }}>
                             vs
                           </span>
                           {opponentLogo && (
                             <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                              className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center flex-shrink-0"
                               style={{
                                 backgroundColor: '#FFFFFF',
                                 border: `1px solid ${opponentColors.textColor}`,
@@ -1179,7 +1209,7 @@ export default function Dashboard() {
                             </div>
                           )}
                           <span
-                            className="px-2 py-0.5 rounded text-sm font-bold"
+                            className="px-1.5 sm:px-2 py-0.5 rounded text-xs sm:text-sm font-bold truncate max-w-[150px] sm:max-w-none"
                             style={{
                               backgroundColor: opponentColors.backgroundColor,
                               color: opponentColors.textColor
@@ -1190,7 +1220,7 @@ export default function Dashboard() {
                         </div>
                         {ccGame && (
                           <div
-                            className="text-sm mt-1 font-medium"
+                            className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
                             style={{ color: '#16a34a' }}
                           >
                             {ccGame.result === 'win' ? 'W' : 'L'} {ccGame.teamScore}-{ccGame.opponentScore}
@@ -1201,7 +1231,7 @@ export default function Dashboard() {
                     </div>
                     <button
                       onClick={() => setShowCCGameModal(true)}
-                      className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm self-end sm:self-auto"
                       style={{
                         backgroundColor: teamColors.primary,
                         color: primaryBgText
@@ -1285,7 +1315,7 @@ export default function Dashboard() {
       ) : currentDynasty.currentPhase === 'postseason' ? (
         // Postseason / Bowl Weeks
         <div
-          className="rounded-lg shadow-lg p-6"
+          className="rounded-lg shadow-lg p-4 sm:p-6"
           style={{
             backgroundColor: teamColors.secondary,
             border: `3px solid ${teamColors.primary}`
@@ -1336,42 +1366,42 @@ export default function Dashboard() {
             if (week === 1) {
               return (
                 <>
-                  <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
                     Bowl Week 1
                   </h3>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {/* Task 1: CC Results */}
                     <div
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                         hasCCData ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={!hasCCData ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasCCData ? 'bg-green-500 text-white' : ''
                           }`}
                           style={!hasCCData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                         >
                           {hasCCData ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                          ) : <span className="font-bold">1</span>}
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
                         </div>
-                        <div>
-                          <div className="font-semibold" style={{ color: hasCCData ? '#16a34a' : secondaryBgText }}>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCCData ? '#16a34a' : secondaryBgText }}>
                             Conference Championship Results
                           </div>
-                          <div className="text-sm mt-1" style={{ color: hasCCData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCCData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasCCData ? '✓ Results entered' : '10 conference championships'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowCCModal(true)}
-                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                         style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                       >
                         {hasCCData ? 'Edit' : 'Enter'}
@@ -1380,36 +1410,36 @@ export default function Dashboard() {
 
                     {/* Task 2: CFP Seeds */}
                     <div
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                         hasCFPSeedsData ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={!hasCFPSeedsData ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasCFPSeedsData ? 'bg-green-500 text-white' : ''
                           }`}
                           style={!hasCFPSeedsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                         >
                           {hasCFPSeedsData ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                          ) : <span className="font-bold">2</span>}
+                          ) : <span className="font-bold text-sm sm:text-base">2</span>}
                         </div>
-                        <div>
-                          <div className="font-semibold" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText }}>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText }}>
                             CFP Seeds (1-12)
                           </div>
-                          <div className="text-sm mt-1" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCFPSeedsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasCFPSeedsData ? '✓ Seeds entered' : '12 playoff teams'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowCFPSeedsModal(true)}
-                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                         style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                       >
                         {hasCFPSeedsData ? 'Edit' : 'Enter'}
@@ -1423,43 +1453,43 @@ export default function Dashboard() {
 
                       return (
                         <div
-                          className={`p-4 rounded-lg border-2 ${bowlTaskComplete ? 'border-green-200 bg-green-50' : ''}`}
+                          className={`p-3 sm:p-4 rounded-lg border-2 ${bowlTaskComplete ? 'border-green-200 bg-green-50' : ''}`}
                           style={!bowlTaskComplete ? { borderColor: `${teamColors.primary}30` } : {}}
                         >
-                          <div className={`flex items-center justify-between ${!bowlTaskComplete || (!hasCFPSeedsData || bowlEligible === null || (!userCFPSeed && bowlEligible && (!selectedBowl || !bowlOpponent))) ? 'mb-3' : ''}`}>
-                            <div className="flex items-center gap-3">
+                          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 ${!bowlTaskComplete || (!hasCFPSeedsData || bowlEligible === null || (!userCFPSeed && bowlEligible && (!selectedBowl || !bowlOpponent))) ? 'mb-3' : ''}`}>
+                            <div className="flex items-center gap-2 sm:gap-3">
                               <div
-                                className={`w-10 h-10 rounded-full flex items-center justify-center ${bowlTaskComplete ? 'bg-green-500 text-white' : ''}`}
+                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bowlTaskComplete ? 'bg-green-500 text-white' : ''}`}
                                 style={!bowlTaskComplete ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                               >
                                 {bowlTaskComplete ? (
-                                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                   </svg>
-                                ) : <span className="font-bold">3</span>}
+                                ) : <span className="font-bold text-sm sm:text-base">3</span>}
                               </div>
-                              <div>
-                                <div className="font-semibold" style={{ color: bowlTaskComplete ? '#16a34a' : secondaryBgText }}>
+                              <div className="min-w-0">
+                                <div className="text-sm sm:text-base font-semibold" style={{ color: bowlTaskComplete ? '#16a34a' : secondaryBgText }}>
                                   {userCFPSeed ? 'Your CFP Game' : 'Your Bowl Game'}
                                 </div>
                                 {/* Show status text inline when complete */}
                                 {userHasCFPBye && (
-                                  <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                                  <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ #{userCFPSeed} Seed - Bye to Quarterfinals (Week 2)
                                   </div>
                                 )}
                                 {userInCFPFirstRound && (
-                                  <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                                  <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ #{userCFPSeed} Seed vs #{17 - userCFPSeed} {getMascotName(userCFPOpponent)}
                                   </div>
                                 )}
                                 {!userCFPSeed && bowlEligible === false && (
-                                  <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                                  <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ Not bowl eligible this year
                                   </div>
                                 )}
                                 {!userCFPSeed && bowlEligible && selectedBowl && bowlOpponent && (
-                                  <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                                  <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ {selectedBowl} vs {bowlOpponent}
                                     {userBowlIsWeek2 && <span className="ml-2 opacity-70">(plays in Week 2)</span>}
                                   </div>
@@ -1477,7 +1507,7 @@ export default function Dashboard() {
                                     bowlEligibilityData: null
                                   })
                                 }}
-                                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                                 style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                               >
                                 Edit
@@ -1570,29 +1600,29 @@ export default function Dashboard() {
                     {/* Task 4: Enter YOUR CFP First Round Game (if seeded 5-12) */}
                     {hasCFPSeedsData && userInCFPFirstRound && (
                       <div
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                           userCFPFirstRoundGame ? 'border-green-200 bg-green-50' : ''
                         }`}
                         style={!userCFPFirstRoundGame ? { borderColor: `${teamColors.primary}30` } : {}}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               userCFPFirstRoundGame ? 'bg-green-500 text-white' : ''
                             }`}
                             style={!userCFPFirstRoundGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                           >
                             {userCFPFirstRoundGame ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
-                            ) : <span className="font-bold">4</span>}
+                            ) : <span className="font-bold text-sm sm:text-base">4</span>}
                           </div>
-                          <div>
-                            <div className="font-semibold" style={{ color: userCFPFirstRoundGame ? '#16a34a' : secondaryBgText }}>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: userCFPFirstRoundGame ? '#16a34a' : secondaryBgText }}>
                               Enter Your CFP First Round Game
                             </div>
-                            <div className="text-sm mt-1" style={{ color: userCFPFirstRoundGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userCFPFirstRoundGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                               {userCFPFirstRoundGame ? `✓ ${userCFPFirstRoundGame.result === 'W' ? 'Won' : 'Lost'} ${userCFPFirstRoundGame.teamScore}-${userCFPFirstRoundGame.opponentScore}` : `#${userCFPSeed} vs #${17 - userCFPSeed} ${getMascotName(userCFPOpponent)}`}
                             </div>
                           </div>
@@ -1604,7 +1634,7 @@ export default function Dashboard() {
                             setEditingYear(currentDynasty.currentYear)
                             setShowGameModal(true)
                           }}
-                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                           style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                         >
                           {userCFPFirstRoundGame ? 'Edit' : 'Enter'}
@@ -1615,36 +1645,36 @@ export default function Dashboard() {
                     {/* Task 4b: Enter YOUR Bowl Game (if Week 1 bowl, non-CFP team) */}
                     {hasCFPSeedsData && !userCFPSeed && bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek1 && (
                       <div
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                           userBowlGame ? 'border-green-200 bg-green-50' : ''
                         }`}
                         style={!userBowlGame ? { borderColor: `${teamColors.primary}30` } : {}}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               userBowlGame ? 'bg-green-500 text-white' : ''
                             }`}
                             style={!userBowlGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                           >
                             {userBowlGame ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
-                            ) : <span className="font-bold">4</span>}
+                            ) : <span className="font-bold text-sm sm:text-base">4</span>}
                           </div>
-                          <div>
-                            <div className="font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
                               Enter Your {selectedBowl} Game
                             </div>
-                            <div className="text-sm mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                               {userBowlGame ? `✓ ${userBowlGame.result === 'W' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
                             </div>
                           </div>
                         </div>
                         <button
                           onClick={() => setShowBowlGameModal(true)}
-                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                           style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                         >
                           {userBowlGame ? 'Edit' : 'Enter'}
@@ -1654,36 +1684,36 @@ export default function Dashboard() {
 
                     {/* Task: Taking a New Job? */}
                     <div
-                      className={`p-4 rounded-lg border-2 ${
+                      className={`p-3 sm:p-4 rounded-lg border-2 ${
                         takingNewJob !== null ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={takingNewJob === null ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className={`flex items-center justify-between ${takingNewJob === null || (takingNewJob === true && (!newJobTeam || !newJobPosition)) ? 'mb-3' : ''}`}>
-                        <div className="flex items-center gap-3">
+                      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 ${takingNewJob === null || (takingNewJob === true && (!newJobTeam || !newJobPosition)) ? 'mb-3' : ''}`}>
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               takingNewJob !== null ? 'bg-green-500 text-white' : ''
                             }`}
                             style={takingNewJob === null ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                           >
                             {takingNewJob !== null ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
-                            ) : <span className="font-bold">5</span>}
+                            ) : <span className="font-bold text-sm sm:text-base">5</span>}
                           </div>
-                          <div>
-                            <div className="font-semibold" style={{ color: takingNewJob !== null ? '#16a34a' : secondaryBgText }}>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: takingNewJob !== null ? '#16a34a' : secondaryBgText }}>
                               Taking a New Job?
                             </div>
                             {takingNewJob === true && newJobTeam && newJobPosition && (
-                              <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                 ✓ {newJobPosition} at {teamAbbreviations[newJobTeam]?.name || newJobTeam}
                               </div>
                             )}
                             {takingNewJob === false && (
-                              <div className="text-sm mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                 ✓ Staying with current team
                               </div>
                             )}
@@ -1700,7 +1730,7 @@ export default function Dashboard() {
                                 newJobData: null
                               })
                             }}
-                            className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                           >
                             Edit
@@ -1794,42 +1824,42 @@ export default function Dashboard() {
             if (week === 2) {
               return (
                 <>
-                  <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
                     Bowl Week 2
                   </h3>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     {/* Task 1: Enter Week 1 Bowl Results */}
                     <div
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                         hasBowlWeek1Data ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={!hasBowlWeek1Data ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasBowlWeek1Data ? 'bg-green-500 text-white' : ''
                           }`}
                           style={!hasBowlWeek1Data ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                         >
                           {hasBowlWeek1Data ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                          ) : <span className="font-bold">1</span>}
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
                         </div>
-                        <div>
-                          <div className="font-semibold" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText }}>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText }}>
                             Week 1 Bowl Results
                           </div>
-                          <div className="text-sm mt-1" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasBowlWeek1Data ? '✓ Results entered' : '26 bowl games'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowBowlWeek1Modal(true)}
-                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                         style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                       >
                         {hasBowlWeek1Data ? 'Edit' : 'Enter'}
@@ -1838,36 +1868,36 @@ export default function Dashboard() {
 
                     {/* Task 2: CFP First Round */}
                     <div
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                         hasCFPFirstRoundData ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={!hasCFPFirstRoundData ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasCFPFirstRoundData ? 'bg-green-500 text-white' : ''
                           }`}
                           style={!hasCFPFirstRoundData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                         >
                           {hasCFPFirstRoundData ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                          ) : <span className="font-bold">2</span>}
+                          ) : <span className="font-bold text-sm sm:text-base">2</span>}
                         </div>
-                        <div>
-                          <div className="font-semibold" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText }}>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText }}>
                             CFP First Round Results
                           </div>
-                          <div className="text-sm mt-1" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCFPFirstRoundData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasCFPFirstRoundData ? '✓ Results entered' : '4 games (seeds 5-12)'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowCFPFirstRoundModal(true)}
-                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                         style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                       >
                         {hasCFPFirstRoundData ? 'Edit' : 'Enter'}
@@ -1877,36 +1907,36 @@ export default function Dashboard() {
                     {/* Task 3: Enter YOUR Bowl Game (if Week 2 bowl) */}
                     {hasCFPFirstRoundData && bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2 && (
                       <div
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                           userBowlGame ? 'border-green-200 bg-green-50' : ''
                         }`}
                         style={!userBowlGame ? { borderColor: `${teamColors.primary}30` } : {}}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                               userBowlGame ? 'bg-green-500 text-white' : ''
                             }`}
                             style={!userBowlGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                           >
                             {userBowlGame ? (
-                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
-                            ) : <span className="font-bold">3</span>}
+                            ) : <span className="font-bold text-sm sm:text-base">3</span>}
                           </div>
-                          <div>
-                            <div className="font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
                               Enter Your {selectedBowl} Game
                             </div>
-                            <div className="text-sm mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                               {userBowlGame ? `✓ ${userBowlGame.result === 'W' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
                             </div>
                           </div>
                         </div>
                         <button
                           onClick={() => setShowBowlGameModal(true)}
-                          className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                           style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                         >
                           {userBowlGame ? 'Edit' : 'Enter'}
@@ -1927,43 +1957,43 @@ export default function Dashboard() {
 
             return (
               <>
-                <h3 className="text-xl font-bold mb-4" style={{ color: secondaryBgText }}>
+                <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
                   Bowl Week {week}
                 </h3>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {/* Week 2 Bowl Results - only show in Week 3 */}
                   {week === 3 && (
                     <div
-                      className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                         hasBowlWeek2Data ? 'border-green-200 bg-green-50' : ''
                       }`}
                       style={!hasBowlWeek2Data ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasBowlWeek2Data ? 'bg-green-500 text-white' : ''
                           }`}
                           style={!hasBowlWeek2Data ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                         >
                           {hasBowlWeek2Data ? (
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
-                          ) : <span className="font-bold">1</span>}
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
                         </div>
-                        <div>
-                          <div className="font-semibold" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText }}>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText }}>
                             Week 2 Bowl Results
                           </div>
-                          <div className="text-sm mt-1" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                            {hasBowlWeek2Data ? '✓ Results entered' : '12 bowl games'}
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasBowlWeek2Data ? '✓ Results entered' : '12 bowl games (incl. CFP Quarterfinals)'}
                           </div>
                         </div>
                       </div>
                       <button
                         onClick={() => setShowBowlWeek2Modal(true)}
-                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                         style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                       >
                         {hasBowlWeek2Data ? 'Edit' : 'Enter'}
@@ -1971,43 +2001,45 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* CFP Round */}
-                  <div
-                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                      hasCFPData ? 'border-green-200 bg-green-50' : ''
-                    }`}
-                    style={!hasCFPData ? { borderColor: `${teamColors.primary}30` } : {}}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          hasCFPData ? 'bg-green-500 text-white' : ''
-                        }`}
-                        style={!hasCFPData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
-                      >
-                        {hasCFPData ? (
-                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : <span className="font-bold">{week === 3 ? '2' : '1'}</span>}
-                      </div>
-                      <div>
-                        <div className="font-semibold" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText }}>
-                          {weekTitles[week]}
-                        </div>
-                        <div className="text-sm mt-1" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                          {hasCFPData ? '✓ Results entered' : weekGames[week]}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => week === 3 ? setShowCFPQuarterfinalsModal(true) : setShowBowlScoreModal(true)}
-                      className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                      style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                  {/* CFP Round - only show for weeks 4 and 5 (CFP QF is part of Bowl Week 2 results) */}
+                  {week !== 3 && (
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasCFPData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasCFPData ? { borderColor: `${teamColors.primary}30` } : {}}
                     >
-                      {hasCFPData ? 'Edit' : 'Enter'}
-                    </button>
-                  </div>
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasCFPData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasCFPData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasCFPData ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText }}>
+                            {weekTitles[week]}
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCFPData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasCFPData ? '✓ Results entered' : weekGames[week]}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowBowlScoreModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasCFPData ? 'Edit' : 'Enter'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )
@@ -2032,23 +2064,23 @@ export default function Dashboard() {
 
       {/* Schedule Section */}
       <div
-        className="rounded-lg shadow-lg p-6"
+        className="rounded-lg shadow-lg p-4 sm:p-6"
         style={{
           backgroundColor: teamColors.secondary,
           border: `3px solid ${teamColors.primary}`
         }}
       >
-        <div className="flex items-center gap-3 mb-6">
-          <h2 className="text-2xl font-bold" style={{ color: secondaryBgText }}>
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-2xl font-bold" style={{ color: secondaryBgText }}>
             {currentDynasty.currentYear} Schedule
           </h2>
           <button
             onClick={() => setShowScheduleModal(true)}
-            className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+            className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
             style={{ color: secondaryBgText }}
             title="Edit Schedule"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
@@ -2068,7 +2100,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={index}
-                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${playedGame ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${playedGame ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
                   style={{
                     backgroundColor: opponentColors.backgroundColor,
                     borderColor: playedGame
@@ -2087,40 +2119,24 @@ export default function Dashboard() {
                     }
                   }}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm font-medium w-16" style={{ color: opponentColors.textColor, opacity: 0.9 }}>
-                      Week {game.week}
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: opponentColors.textColor, opacity: 0.9 }}>
+                      Wk {game.week}
                     </div>
-                    <div className="flex items-center gap-3">
-                      {game.location === 'home' ? (
-                        <span className="text-sm font-bold px-2 py-0.5 rounded" style={{
-                          backgroundColor: opponentColors.textColor,
-                          color: opponentColors.backgroundColor
-                        }}>
-                          vs
-                        </span>
-                      ) : game.location === 'away' ? (
-                        <span className="text-sm font-bold px-2 py-0.5 rounded" style={{
-                          backgroundColor: opponentColors.textColor,
-                          color: opponentColors.backgroundColor
-                        }}>
-                          @
-                        </span>
-                      ) : (
-                        <span className="text-sm font-bold px-2 py-0.5 rounded" style={{
-                          backgroundColor: opponentColors.textColor,
-                          color: opponentColors.backgroundColor
-                        }}>
-                          vs
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
+                        backgroundColor: opponentColors.textColor,
+                        color: opponentColors.backgroundColor
+                      }}>
+                        {game.location === 'away' ? '@' : 'vs'}
+                      </span>
                       {opponentLogo && (
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{
                             backgroundColor: '#FFFFFF',
                             border: `2px solid ${opponentColors.textColor}`,
-                            padding: '3px'
+                            padding: '2px'
                           }}
                         >
                           <img
@@ -2130,23 +2146,22 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        {/* Opponent ranking if ranked */}
+                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                         {playedGame?.opponentRank && (
-                          <span className="text-xs font-bold" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
+                          <span className="text-xs font-bold flex-shrink-0" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
                             #{playedGame.opponentRank}
                           </span>
                         )}
-                        <span className="font-semibold" style={{ color: opponentColors.textColor }}>
+                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: opponentColors.textColor }}>
                           {opponentName}
                         </span>
                       </div>
                     </div>
                   </div>
                   {playedGame ? (
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
                       <div
-                        className="text-lg font-bold px-3 py-1 rounded"
+                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
                         style={{
                           backgroundColor: playedGame.result === 'win' ? '#22c55e' : '#ef4444',
                           color: '#ffffff'
@@ -2155,9 +2170,8 @@ export default function Dashboard() {
                         {playedGame.result === 'win' ? 'W' : 'L'}
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: opponentColors.textColor }}>
+                        <div className="text-sm sm:text-base font-bold" style={{ color: opponentColors.textColor }}>
                           {playedGame.teamScore} - {playedGame.opponentScore}
-                          {/* OT indicator if game went to overtime */}
                           {playedGame.overtimes && playedGame.overtimes.length > 0 && (
                             <span className="ml-1 text-xs opacity-80">
                               {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
@@ -2168,7 +2182,7 @@ export default function Dashboard() {
                     </div>
                   ) : isCurrentWeek ? (
                     <div
-                      className="text-sm font-bold px-3 py-1 rounded"
+                      className="text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded self-end sm:self-auto"
                       style={{
                         backgroundColor: teamColors.primary,
                         color: getContrastTextColor(teamColors.primary)
@@ -2177,7 +2191,7 @@ export default function Dashboard() {
                       This Week
                     </div>
                   ) : (
-                    <div className="text-sm font-medium" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
+                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
                       Scheduled
                     </div>
                   )}
@@ -2198,7 +2212,7 @@ export default function Dashboard() {
 
               return (
                 <div
-                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${ccGame ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${ccGame ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
                   style={{
                     backgroundColor: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280',
                     borderColor: ccGame
@@ -2217,12 +2231,12 @@ export default function Dashboard() {
                     }
                   }}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm font-medium w-16" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
                       {currentDynasty.conference} CC
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold px-2 py-0.5 rounded" style={{
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
                         backgroundColor: hasOpponent ? ccOpponentColors.textColor : '#ffffff',
                         color: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280'
                       }}>
@@ -2230,11 +2244,11 @@ export default function Dashboard() {
                       </span>
                       {ccOpponentLogo && (
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{
                             backgroundColor: '#FFFFFF',
                             border: `2px solid ${ccOpponentColors.textColor}`,
-                            padding: '3px'
+                            padding: '2px'
                           }}
                         >
                           <img
@@ -2244,23 +2258,23 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                         {/* Opponent ranking if ranked */}
                         {ccGame?.opponentRank && (
-                          <span className="text-xs font-bold" style={{ color: ccOpponentColors.textColor, opacity: 0.7 }}>
+                          <span className="text-xs font-bold flex-shrink-0" style={{ color: ccOpponentColors.textColor, opacity: 0.7 }}>
                             #{ccGame.opponentRank}
                           </span>
                         )}
-                        <span className="font-semibold" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', fontStyle: hasOpponent ? 'normal' : 'italic' }}>
+                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', fontStyle: hasOpponent ? 'normal' : 'italic' }}>
                           {ccOpponentName}
                         </span>
                       </div>
                     </div>
                   </div>
                   {ccGame ? (
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
                       <div
-                        className="text-lg font-bold px-3 py-1 rounded"
+                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
                         style={{
                           backgroundColor: ccGame.result === 'win' ? '#22c55e' : '#ef4444',
                           color: '#ffffff'
@@ -2269,7 +2283,7 @@ export default function Dashboard() {
                         {ccGame.result === 'win' ? 'W' : 'L'}
                       </div>
                       <div className="text-right">
-                        <div className="font-bold" style={{ color: ccOpponentColors.textColor }}>
+                        <div className="text-sm sm:text-base font-bold" style={{ color: ccOpponentColors.textColor }}>
                           {ccGame.teamScore} - {ccGame.opponentScore}
                           {/* OT indicator if game went to overtime */}
                           {ccGame.overtimes && ccGame.overtimes.length > 0 && (
@@ -2282,7 +2296,7 @@ export default function Dashboard() {
                     </div>
                   ) : isCurrentCCWeek ? (
                     <div
-                      className="text-sm font-bold px-3 py-1 rounded"
+                      className="text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded self-end sm:self-auto"
                       style={{
                         backgroundColor: teamColors.primary,
                         color: getContrastTextColor(teamColors.primary)
@@ -2291,7 +2305,7 @@ export default function Dashboard() {
                       This Week
                     </div>
                   ) : (
-                    <div className="text-sm font-medium" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
+                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
                       Scheduled
                     </div>
                   )}
@@ -2321,7 +2335,14 @@ export default function Dashboard() {
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
         onSave={handleScheduleSave}
-        onRosterSave={handleRosterSave}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      <RosterEntryModal
+        isOpen={showRosterModal}
+        onClose={() => setShowRosterModal(false)}
+        onSave={handleRosterSave}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
       />

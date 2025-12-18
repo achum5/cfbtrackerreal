@@ -757,11 +757,864 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
   }
 }
 
+// Create a Schedule-only Google Sheet
+export async function createScheduleSheet(dynastyName, year, userTeamName) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with just Schedule tab
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} Dynasty - ${year} Schedule`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Schedule',
+              gridProperties: {
+                rowCount: 14,
+                columnCount: 4,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const scheduleSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize schedule headers
+    await initializeScheduleSheetOnly(sheet.spreadsheetId, accessToken, scheduleSheetId, userTeamName)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating schedule sheet:', error)
+    throw error
+  }
+}
+
+// Create a Roster-only Google Sheet
+export async function createRosterSheet(dynastyName, year) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with just Roster tab
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} Dynasty - ${year} Roster`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Roster',
+              gridProperties: {
+                rowCount: 86,
+                columnCount: 12,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const rosterSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize roster headers
+    await initializeRosterSheetOnly(sheet.spreadsheetId, accessToken, rosterSheetId)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating roster sheet:', error)
+    throw error
+  }
+}
+
+// Initialize Schedule-only sheet headers and formatting
+async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleSheetId, userTeamName) {
+  try {
+    console.log('Initializing schedule sheet headers...')
+
+    const userTeamAbbr = getAbbreviationFromDisplayName(userTeamName)
+    console.log('User team abbreviation:', userTeamAbbr, 'for team:', userTeamName)
+
+    const requests = [
+      // Schedule headers
+      {
+        updateCells: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          rows: [{
+            values: [
+              { userEnteredValue: { stringValue: 'Week' } },
+              { userEnteredValue: { stringValue: 'User Team' } },
+              { userEnteredValue: { stringValue: 'CPU Team' } },
+              { userEnteredValue: { stringValue: 'Site' } }
+            ]
+          }],
+          fields: 'userEnteredValue'
+        }
+      },
+      // Pre-fill Week column with weeks 1-12
+      {
+        updateCells: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          rows: Array.from({ length: 12 }, (_, i) => ({
+            values: [{ userEnteredValue: { numberValue: i + 1 } }]
+          })),
+          fields: 'userEnteredValue'
+        }
+      },
+      // Pre-fill User Team column with user's team abbreviation
+      ...(userTeamAbbr ? [{
+        updateCells: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 1,
+            endColumnIndex: 2
+          },
+          rows: Array.from({ length: 12 }, () => ({
+            values: [{ userEnteredValue: { stringValue: userTeamAbbr } }]
+          })),
+          fields: 'userEnteredValue'
+        }
+      }] : []),
+      // Bold headers
+      {
+        repeatCell: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: { bold: true }
+            }
+          },
+          fields: 'userEnteredFormat.textFormat.bold'
+        }
+      },
+      // Protect Schedule header row
+      {
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: scheduleSheetId,
+              startRowIndex: 0,
+              endRowIndex: 1
+            },
+            description: 'Protected header row',
+            warningOnly: false
+          }
+        }
+      },
+      // Protect Schedule Column A (Week)
+      {
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: scheduleSheetId,
+              startRowIndex: 1,
+              endRowIndex: 13,
+              startColumnIndex: 0,
+              endColumnIndex: 1
+            },
+            description: 'Protected Week column',
+            warningOnly: false
+          }
+        }
+      },
+      // Protect Schedule Column B (User Team)
+      {
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: scheduleSheetId,
+              startRowIndex: 1,
+              endRowIndex: 13,
+              startColumnIndex: 1,
+              endColumnIndex: 2
+            },
+            description: 'Protected User Team column',
+            warningOnly: false
+          }
+        }
+      },
+      // Format all cells in Schedule sheet: Bold, Italic, Center, Barlow font, size 10
+      {
+        repeatCell: {
+          range: {
+            sheetId: scheduleSheetId
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: {
+                bold: true,
+                italic: true,
+                fontFamily: 'Barlow',
+                fontSize: 10
+              },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE'
+            }
+          },
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      },
+      // Add data validation dropdown for User Team column (B2:B13)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 1,
+            endColumnIndex: 2
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for CPU Team column (C2:C13)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 2,
+            endColumnIndex: 3
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Site column (D2:D13)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: scheduleSheetId,
+            startRowIndex: 1,
+            endRowIndex: 13,
+            startColumnIndex: 3,
+            endColumnIndex: 4
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'Home' },
+                { userEnteredValue: 'Road' },
+                { userEnteredValue: 'Neutral' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      }
+    ]
+
+    // Add conditional formatting rules for User Team column (column B, index 1)
+    const userTeamFormattingRules = generateTeamFormattingRules(scheduleSheetId, 1)
+    requests.push(...userTeamFormattingRules)
+
+    // Add conditional formatting rules for CPU Team column (column C, index 2)
+    const cpuTeamFormattingRules = generateTeamFormattingRules(scheduleSheetId, 2)
+    requests.push(...cpuTeamFormattingRules)
+
+    console.log('Sending batchUpdate with', requests.length, 'requests')
+
+    const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('BatchUpdate failed:', error)
+      throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const result = await response.json()
+    console.log('Schedule sheet initialization complete:', result)
+  } catch (error) {
+    console.error('Error initializing schedule headers:', error)
+    throw error
+  }
+}
+
+// Initialize Roster-only sheet headers and formatting
+async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheetId) {
+  try {
+    console.log('Initializing roster sheet headers...')
+
+    const requests = [
+      // Roster headers (12 columns)
+      {
+        updateCells: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 12
+          },
+          rows: [{
+            values: [
+              { userEnteredValue: { stringValue: 'Name' } },
+              { userEnteredValue: { stringValue: 'Position' } },
+              { userEnteredValue: { stringValue: 'Class' } },
+              { userEnteredValue: { stringValue: 'Dev Trait' } },
+              { userEnteredValue: { stringValue: 'Jersey #' } },
+              { userEnteredValue: { stringValue: 'Archetype' } },
+              { userEnteredValue: { stringValue: 'Overall' } },
+              { userEnteredValue: { stringValue: 'Height' } },
+              { userEnteredValue: { stringValue: 'Weight' } },
+              { userEnteredValue: { stringValue: 'Hometown' } },
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Recruitment Stars' } }
+            ]
+          }],
+          fields: 'userEnteredValue'
+        }
+      },
+      // Bold headers
+      {
+        repeatCell: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: { bold: true }
+            }
+          },
+          fields: 'userEnteredFormat.textFormat.bold'
+        }
+      },
+      // Protect Roster header row
+      {
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: rosterSheetId,
+              startRowIndex: 0,
+              endRowIndex: 1
+            },
+            description: 'Protected header row',
+            warningOnly: false
+          }
+        }
+      },
+      // Format all cells in Roster sheet: Bold, Italic, Center, Barlow font, size 10
+      {
+        repeatCell: {
+          range: {
+            sheetId: rosterSheetId
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: {
+                bold: true,
+                italic: true,
+                fontFamily: 'Barlow',
+                fontSize: 10
+              },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE'
+            }
+          },
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      },
+      // Add data validation dropdown for Position column in Roster (B2:B86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 1,
+            endColumnIndex: 2
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'QB' },
+                { userEnteredValue: 'HB' },
+                { userEnteredValue: 'FB' },
+                { userEnteredValue: 'WR' },
+                { userEnteredValue: 'TE' },
+                { userEnteredValue: 'LT' },
+                { userEnteredValue: 'LG' },
+                { userEnteredValue: 'C' },
+                { userEnteredValue: 'RG' },
+                { userEnteredValue: 'RT' },
+                { userEnteredValue: 'LEDG' },
+                { userEnteredValue: 'REDG' },
+                { userEnteredValue: 'DT' },
+                { userEnteredValue: 'SAM' },
+                { userEnteredValue: 'MIKE' },
+                { userEnteredValue: 'WILL' },
+                { userEnteredValue: 'CB' },
+                { userEnteredValue: 'FS' },
+                { userEnteredValue: 'SS' },
+                { userEnteredValue: 'K' },
+                { userEnteredValue: 'P' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Class column in Roster (C2:C86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 2,
+            endColumnIndex: 3
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'Fr' },
+                { userEnteredValue: 'RS Fr' },
+                { userEnteredValue: 'So' },
+                { userEnteredValue: 'RS So' },
+                { userEnteredValue: 'Jr' },
+                { userEnteredValue: 'RS Jr' },
+                { userEnteredValue: 'Sr' },
+                { userEnteredValue: 'RS Sr' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Dev Trait column in Roster (D2:D86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 3,
+            endColumnIndex: 4
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'Elite' },
+                { userEnteredValue: 'Star' },
+                { userEnteredValue: 'Impact' },
+                { userEnteredValue: 'Normal' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Archetype column in Roster (F2:F86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 5,
+            endColumnIndex: 6
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                // QB Archetypes
+                { userEnteredValue: 'Backfield Creator' },
+                { userEnteredValue: 'Dual Threat' },
+                { userEnteredValue: 'Pocket Passer' },
+                { userEnteredValue: 'Pure Runner' },
+                // HB Archetypes
+                { userEnteredValue: 'Backfield Threat' },
+                { userEnteredValue: 'East/West Playmaker' },
+                { userEnteredValue: 'Elusive Bruiser' },
+                { userEnteredValue: 'North/South Receiver' },
+                { userEnteredValue: 'North/South Blocker' },
+                // FB Archetypes
+                { userEnteredValue: 'Blocking' },
+                { userEnteredValue: 'Utility' },
+                // WR Archetypes
+                { userEnteredValue: 'Contested Specialist' },
+                { userEnteredValue: 'Elusive Route Runner' },
+                { userEnteredValue: 'Gadget' },
+                { userEnteredValue: 'Gritty Possession' },
+                { userEnteredValue: 'Physical Route Runner' },
+                { userEnteredValue: 'Route Artist' },
+                { userEnteredValue: 'Speedster' },
+                // TE Archetypes
+                { userEnteredValue: 'Possession' },
+                { userEnteredValue: 'Pure Blocker' },
+                { userEnteredValue: 'Vertical Threat' },
+                // OL Archetypes
+                { userEnteredValue: 'Agile' },
+                { userEnteredValue: 'Pass Protector' },
+                { userEnteredValue: 'Raw Strength' },
+                { userEnteredValue: 'Ground and Pound' },
+                { userEnteredValue: 'Well Rounded' },
+                // DL Archetypes
+                { userEnteredValue: 'Edge Setter' },
+                { userEnteredValue: 'Gap Specialist' },
+                { userEnteredValue: 'Power Rusher' },
+                { userEnteredValue: 'Pure Power' },
+                { userEnteredValue: 'Speed Rusher' },
+                // LB Archetypes
+                { userEnteredValue: 'Lurker' },
+                { userEnteredValue: 'Signal Caller' },
+                { userEnteredValue: 'Thumper' },
+                // CB Archetypes
+                { userEnteredValue: 'Boundary' },
+                { userEnteredValue: 'Field' },
+                { userEnteredValue: 'Zone' },
+                // S Archetypes
+                { userEnteredValue: 'Box Specialist' },
+                { userEnteredValue: 'Coverage Specialist' },
+                { userEnteredValue: 'Hybrid' },
+                // K/P Archetypes
+                { userEnteredValue: 'Accurate' },
+                { userEnteredValue: 'Power' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Height column in Roster (H2:H86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 7,
+            endColumnIndex: 8
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' }, { userEnteredValue: '5\'8"' },
+                { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' }, { userEnteredValue: '5\'11"' },
+                { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' }, { userEnteredValue: '6\'2"' },
+                { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' }, { userEnteredValue: '6\'5"' },
+                { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' }, { userEnteredValue: '6\'8"' },
+                { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' }
+              ]
+            },
+            showCustomUi: true,
+            strict: false  // Allow typing for flexibility
+          }
+        }
+      },
+      // Add data validation dropdown for State column in Roster (K2:K86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 10,
+            endColumnIndex: 11
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: 'AL' }, { userEnteredValue: 'AK' }, { userEnteredValue: 'AZ' },
+                { userEnteredValue: 'AR' }, { userEnteredValue: 'CA' }, { userEnteredValue: 'CO' },
+                { userEnteredValue: 'CT' }, { userEnteredValue: 'DE' }, { userEnteredValue: 'FL' },
+                { userEnteredValue: 'GA' }, { userEnteredValue: 'HI' }, { userEnteredValue: 'ID' },
+                { userEnteredValue: 'IL' }, { userEnteredValue: 'IN' }, { userEnteredValue: 'IA' },
+                { userEnteredValue: 'KS' }, { userEnteredValue: 'KY' }, { userEnteredValue: 'LA' },
+                { userEnteredValue: 'ME' }, { userEnteredValue: 'MD' }, { userEnteredValue: 'MA' },
+                { userEnteredValue: 'MI' }, { userEnteredValue: 'MN' }, { userEnteredValue: 'MS' },
+                { userEnteredValue: 'MO' }, { userEnteredValue: 'MT' }, { userEnteredValue: 'NE' },
+                { userEnteredValue: 'NV' }, { userEnteredValue: 'NH' }, { userEnteredValue: 'NJ' },
+                { userEnteredValue: 'NM' }, { userEnteredValue: 'NY' }, { userEnteredValue: 'NC' },
+                { userEnteredValue: 'ND' }, { userEnteredValue: 'OH' }, { userEnteredValue: 'OK' },
+                { userEnteredValue: 'OR' }, { userEnteredValue: 'PA' }, { userEnteredValue: 'RI' },
+                { userEnteredValue: 'SC' }, { userEnteredValue: 'SD' }, { userEnteredValue: 'TN' },
+                { userEnteredValue: 'TX' }, { userEnteredValue: 'UT' }, { userEnteredValue: 'VT' },
+                { userEnteredValue: 'VA' }, { userEnteredValue: 'WA' }, { userEnteredValue: 'WV' },
+                { userEnteredValue: 'WI' }, { userEnteredValue: 'WY' }, { userEnteredValue: 'DC' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      },
+      // Add data validation dropdown for Recruitment Stars column in Roster (L2:L86)
+      {
+        setDataValidation: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 1,
+            endRowIndex: 86,
+            startColumnIndex: 11,
+            endColumnIndex: 12
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: [
+                { userEnteredValue: '☆' },
+                { userEnteredValue: '☆☆' },
+                { userEnteredValue: '☆☆☆' },
+                { userEnteredValue: '☆☆☆☆' },
+                { userEnteredValue: '☆☆☆☆☆' }
+              ]
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      }
+    ]
+
+    console.log('Sending batchUpdate with', requests.length, 'requests')
+
+    const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('BatchUpdate failed:', error)
+      throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const result = await response.json()
+    console.log('Roster sheet initialization complete:', result)
+  } catch (error) {
+    console.error('Error initializing roster headers:', error)
+    throw error
+  }
+}
+
+// Read schedule data from a Schedule-only sheet
+export async function readScheduleFromScheduleSheet(spreadsheetId) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Schedule!A2:D100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Failed to read schedule')
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    return rows
+      .filter(row => row[2]) // Has CPU Team (opponent)
+      .map((row, index) => {
+        let location = (row[3] || 'Home').toLowerCase()
+        if (location === 'road') {
+          location = 'away'
+        }
+
+        return {
+          week: parseInt(row[0]) || index + 1,
+          userTeam: (row[1] || '').toUpperCase(),
+          opponent: row[2].toUpperCase(),
+          location
+        }
+      })
+  } catch (error) {
+    console.error('Error reading schedule:', error)
+    throw error
+  }
+}
+
+// Read roster data from a Roster-only sheet
+export async function readRosterFromRosterSheet(spreadsheetId) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Failed to read roster')
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Helper to convert star symbols to number
+    const starsToNumber = (starsStr) => {
+      if (!starsStr) return null
+      const count = (starsStr.match(/☆/g) || []).length
+      return count > 0 ? count : null
+    }
+
+    // Helper to normalize height to 6'1" format
+    const normalizeHeight = (heightStr) => {
+      if (!heightStr) return ''
+      let h = heightStr.toString().trim()
+      h = h.replace(/['']/g, "'").replace(/[""]/g, '"')
+      if (/^\d['′']\d{1,2}["″"]$/.test(h)) {
+        return h.replace(/['′']/g, "'").replace(/["″"]/g, '"')
+      }
+      const missingQuoteMatch = h.match(/^(\d)['′'](\d{1,2})$/)
+      if (missingQuoteMatch) return `${missingQuoteMatch[1]}'${missingQuoteMatch[2]}"`
+      const dashMatch = h.match(/^(\d)-(\d{1,2})$/)
+      if (dashMatch) return `${dashMatch[1]}'${dashMatch[2]}"`
+      if (/^\d{2,3}$/.test(h)) {
+        if (h.length === 2) return `${h[0]}'${h[1]}"`
+        if (h.length === 3) return `${h[0]}'${h.slice(1)}"`
+      }
+      return h
+    }
+
+    return rows
+      .filter(row => row[0] && row[6]) // Has name (col A) and overall rating (col G)
+      .map(row => ({
+        name: row[0],
+        position: row[1] || 'QB',
+        year: row[2] || 'Fr',
+        devTrait: row[3] || 'Normal',
+        jerseyNumber: row[4] || '',
+        archetype: row[5] || '',
+        overall: parseInt(row[6]) || 0,
+        height: normalizeHeight(row[7]),
+        weight: row[8] ? parseInt(row[8]) : null,
+        hometown: row[9] || '',
+        state: row[10] || '',
+        stars: starsToNumber(row[11])
+      }))
+  } catch (error) {
+    console.error('Error reading roster:', error)
+    throw error
+  }
+}
+
 // Get embed URL for a sheet
 export function getSheetEmbedUrl(spreadsheetId, sheetName) {
-  // Get the sheet GID (0 for Schedule, 1 for Roster)
-  const gid = sheetName === 'Schedule' ? 0 : 1
+  // Get the sheet GID (0 for Schedule, 1 for Roster in combined sheet)
+  // For single-tab sheets, always use 0
+  const gid = sheetName === 'Roster' ? 1 : 0
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}&rm=minimal`
+}
+
+// Get embed URL for a single-tab sheet (always gid=0)
+export function getSingleSheetEmbedUrl(spreadsheetId) {
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=0&rm=minimal`
 }
 
 // Read schedule data from sheet
@@ -1473,21 +2326,33 @@ const BOWL_GAMES_WEEK_1 = [
   'Salute to Veterans Bowl'
 ]
 
-// Bowl games list for Bowl Week 2 (12 games)
+// Bowl games list for Bowl Week 2 (12 games - 4 are CFP Quarterfinals)
 const BOWL_GAMES_WEEK_2 = [
   'Citrus Bowl',
-  'Cotton Bowl',
+  'Cotton Bowl (CFP QF)',
   "Duke's Mayo Bowl",
   'First Responder Bowl',
   'Gator Bowl',
-  'Orange Bowl',
+  'Orange Bowl (CFP QF)',
   'Reliaquest Bowl',
-  'Rose Bowl',
-  'Sugar Bowl',
+  'Rose Bowl (CFP QF)',
+  'Sugar Bowl (CFP QF)',
   'Sun Bowl',
   'Texas Bowl',
   'Xbox Bowl'
 ]
+
+// CFP Quarterfinal matchup definitions
+// Sugar Bowl: 12/5 winner vs #4
+// Orange Bowl: 9/8 winner vs #1
+// Rose Bowl: 11/6 winner vs #3
+// Cotton Bowl: 10/7 winner vs #2
+const CFP_QF_MATCHUPS = {
+  'Sugar Bowl (CFP QF)': { firstRoundSeeds: [5, 12], topSeed: 4 },
+  'Orange Bowl (CFP QF)': { firstRoundSeeds: [8, 9], topSeed: 1 },
+  'Rose Bowl (CFP QF)': { firstRoundSeeds: [6, 11], topSeed: 3 },
+  'Cotton Bowl (CFP QF)': { firstRoundSeeds: [7, 10], topSeed: 2 }
+}
 
 // All bowl games combined (for dropdown selection)
 const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
@@ -1856,8 +2721,8 @@ export function isBowlInWeek2(bowlName) {
   return BOWL_GAMES_WEEK_2.some(b => b === bowlName)
 }
 
-// Create Bowl Week 2 sheet
-export async function createBowlWeek2Sheet(dynastyName, year) {
+// Create Bowl Week 2 sheet with CFP Quarterfinals teams pre-filled
+export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -1899,8 +2764,8 @@ export async function createBowlWeek2Sheet(dynastyName, year) {
     const sheet = await response.json()
     const bowlSheetId = sheet.sheets[0].properties.sheetId
 
-    // Initialize headers and data (reuse the same initialization function)
-    await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames)
+    // Initialize headers and data with CFP teams pre-filled
+    await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds, firstRoundResults)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -1913,9 +2778,39 @@ export async function createBowlWeek2Sheet(dynastyName, year) {
 }
 
 // Initialize the Bowl Week 2 sheet with headers and bowl game rows
-async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bowlGames) {
+async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = [], firstRoundResults = []) {
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = bowlGames.length
+
+  // Helper to get team by seed
+  const getTeamBySeed = (seed) => cfpSeeds?.find(s => s.seed === seed)?.team || ''
+
+  // Helper to get First Round winner
+  const getFirstRoundWinner = (higherSeed, lowerSeed) => {
+    if (!firstRoundResults || firstRoundResults.length === 0) return ''
+    const game = firstRoundResults.find(g =>
+      (g.higherSeed === higherSeed && g.lowerSeed === lowerSeed) ||
+      (g.higherSeed === lowerSeed && g.lowerSeed === higherSeed)
+    )
+    return game?.winner || ''
+  }
+
+  // Build row data with teams pre-filled for CFP QF games
+  const rowData = bowlGames.map(bowl => {
+    const matchup = CFP_QF_MATCHUPS[bowl]
+    if (matchup && cfpSeeds.length > 0) {
+      // This is a CFP QF game - pre-fill teams
+      const [seed1, seed2] = matchup.firstRoundSeeds
+      const firstRoundWinner = getFirstRoundWinner(seed1, seed2)
+      const topSeedTeam = getTeamBySeed(matchup.topSeed)
+      return {
+        bowl,
+        team1: firstRoundWinner,
+        team2: topSeedTeam
+      }
+    }
+    return { bowl, team1: '', team2: '' }
+  })
 
   const requests = [
     // Set headers
@@ -1940,7 +2835,7 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill bowl game names
+    // Pre-fill bowl game names and CFP QF teams
     {
       updateCells: {
         range: {
@@ -1948,10 +2843,14 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
           startRowIndex: 1,
           endRowIndex: rowCount + 1,
           startColumnIndex: 0,
-          endColumnIndex: 1
+          endColumnIndex: 3
         },
-        rows: bowlGames.map(bowl => ({
-          values: [{ userEnteredValue: { stringValue: bowl } }]
+        rows: rowData.map(row => ({
+          values: [
+            { userEnteredValue: { stringValue: row.bowl } },
+            { userEnteredValue: { stringValue: row.team1 } },
+            { userEnteredValue: { stringValue: row.team2 } }
+          ]
         })),
         fields: 'userEnteredValue'
       }

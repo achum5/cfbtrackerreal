@@ -174,25 +174,26 @@ export default function Layout({ children }) {
 
               <Link
                 to="/"
-                className="text-xl font-bold whitespace-nowrap"
+                className="text-base sm:text-xl font-bold whitespace-nowrap"
                 style={{ color: headerText }}
               >
-                CFB Dynasty Tracker
+                <span className="hidden sm:inline">CFB Dynasty Tracker</span>
+                <span className="sm:hidden">CFB</span>
               </Link>
             </div>
 
             {useTeamTheme ? (
               <>
-                <div className="flex items-center gap-2 md:gap-4 flex-1 justify-center">
+                <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 flex-1 justify-center min-w-0">
                   {/* Team Logo and Name */}
-                  <div className="flex items-center gap-2 md:gap-3">
+                  <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
                     {getTeamLogo(currentDynasty.teamName) && (
                       <div
-                        className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                        className="w-7 h-7 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
                           backgroundColor: '#FFFFFF',
                           border: `2px solid ${teamColors.secondary}`,
-                          padding: '3px'
+                          padding: '2px'
                         }}
                       >
                         <img
@@ -210,31 +211,57 @@ export default function Layout({ children }) {
                   {/* Separator - hidden on mobile */}
                   <span className="hidden md:inline" style={{ color: headerText, opacity: 0.5 }}>•</span>
 
-                  {/* Year - hidden on mobile */}
-                  <div className="hidden md:flex items-center gap-2">
-                    <span className="font-semibold" style={{ color: headerText }}>
+                  {/* Year */}
+                  <div className="flex items-center">
+                    <span className="font-semibold text-xs sm:text-sm md:text-base" style={{ color: headerText }}>
                       {currentDynasty.currentYear}
                     </span>
                   </div>
 
-                  {/* Separator - hidden on mobile */}
-                  <span className="hidden md:inline" style={{ color: headerText, opacity: 0.5 }}>•</span>
+                  {/* Separator */}
+                  <span className="text-xs sm:text-sm" style={{ color: headerText, opacity: 0.5 }}>•</span>
 
-                  {/* Phase and Week */}
-                  <div className="flex items-center gap-1 md:gap-2">
-                    <span className="font-medium text-sm md:text-base" style={{ color: headerText }}>
-                      {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
+                  {/* Phase and Week - abbreviated on mobile */}
+                  <div className="flex items-center gap-1 md:gap-2 min-w-0">
+                    <span className="font-medium text-xs sm:text-sm md:text-base truncate" style={{ color: headerText }}>
+                      <span className="sm:hidden">
+                        {currentDynasty.currentPhase === 'conference_championship' ? 'CC' :
+                         currentDynasty.currentPhase === 'regular_season' ? 'Wk' :
+                         currentDynasty.currentPhase === 'postseason' ? 'Bowl' :
+                         currentDynasty.currentPhase === 'preseason' ? 'Pre' :
+                         currentDynasty.currentPhase === 'offseason' ? 'Off' : ''}
+                        {currentDynasty.currentPhase !== 'conference_championship' && ` ${currentDynasty.currentWeek}`}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
+                      </span>
                     </span>
                     {currentDynasty.currentPhase !== 'postseason' && (
-                      <span className="text-xs md:text-sm hidden md:inline" style={{ color: headerText, opacity: 0.8 }}>
+                      <span className="text-xs md:text-sm hidden sm:inline" style={{ color: headerText, opacity: 0.8 }}>
                         Week {currentDynasty.currentWeek}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Advance Week Button with Dropdown - right side */}
+                {/* Home and Advance Week Buttons - right side */}
                 <div className="relative flex items-center gap-2">
+                  {/* Home Button */}
+                  <Link
+                    to={`/dynasty/${currentDynasty.id}`}
+                    className="p-1.5 md:p-2 rounded-lg font-semibold hover:opacity-90 transition-colors shadow-sm"
+                    style={{
+                      backgroundColor: buttonBg,
+                      color: buttonText
+                    }}
+                    title="Dashboard"
+                  >
+                    <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                  </Link>
+
+                  {/* Advance Week Button with Dropdown */}
                   <div className="flex">
                     <button
                       onClick={handleAdvanceWeek}

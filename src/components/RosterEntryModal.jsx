@@ -1,11 +1,39 @@
 import { useState, useEffect } from 'react'
 import RosterSpreadsheet from './RosterSpreadsheet'
-import { getSheetEmbedUrl, readRosterFromSheet } from '../services/sheetsService'
+import {
+  createRosterSheet,
+  readRosterFromRosterSheet,
+  deleteGoogleSheet,
+  getSingleSheetEmbedUrl
+} from '../services/sheetsService'
 import { useDynasty } from '../context/DynastyContext'
+import { useAuth } from '../context/AuthContext'
 
-export default function RosterEntryModal({ isOpen, onClose, onSave, teamColors }) {
-  const { currentDynasty } = useDynasty()
+// Simple mobile detection
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
+export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+  const { currentDynasty, updateDynasty } = useDynasty()
+  const { user, signOut, refreshSession } = useAuth()
+  const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [deletingSheet, setDeletingSheet] = useState(false)
+  const [creatingSheet, setCreatingSheet] = useState(false)
+  const [sheetId, setSheetId] = useState(null)
+  const [showDeletedNote, setShowDeletedNote] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check for mobile on mount and resize
+  useEffect(() => {
+    setIsMobile(isMobileDevice())
+    const handleResize = () => setIsMobile(isMobileDevice())
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -15,9 +43,53 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, teamColors }
       document.body.style.overflow = 'unset'
     }
 
-    // Cleanup on unmount
     return () => {
       document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  // Create roster sheet when modal opens
+  useEffect(() => {
+    const createSheet = async () => {
+      if (isOpen && user && !sheetId && !creatingSheet) {
+        // Check if we have an existing roster sheet
+        const existingSheetId = currentDynasty?.rosterSheetId
+        if (existingSheetId) {
+          setSheetId(existingSheetId)
+          return
+        }
+
+        setCreatingSheet(true)
+        try {
+          console.log('Creating Roster sheet...')
+
+          const sheetInfo = await createRosterSheet(
+            currentDynasty?.teamName || 'Dynasty',
+            currentYear
+          )
+          setSheetId(sheetInfo.spreadsheetId)
+
+          // Save sheet ID to dynasty
+          await updateDynasty(currentDynasty.id, {
+            rosterSheetId: sheetInfo.spreadsheetId
+          })
+
+          console.log('Roster sheet ready')
+        } catch (error) {
+          console.error('Failed to create roster sheet:', error)
+        } finally {
+          setCreatingSheet(false)
+        }
+      }
+    }
+
+    createSheet()
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setShowDeletedNote(false)
     }
   }, [isOpen])
 
@@ -32,33 +104,71 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, teamColors }
   }
 
   const handleSyncFromSheet = async () => {
-    if (!currentDynasty?.googleSheetId) return
+    if (!sheetId) return
 
     setSyncing(true)
     try {
-      const players = await readRosterFromSheet(currentDynasty.googleSheetId)
+      const players = await readRosterFromRosterSheet(sheetId)
       console.log('Players read from sheet:', players)
+
       await onSave(players)
       console.log('Roster saved successfully')
+
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure you have edit access.')
+      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
     } finally {
       setSyncing(false)
     }
   }
 
+  const handleSyncAndDelete = async () => {
+    if (!sheetId) return
+
+    setDeletingSheet(true)
+    try {
+      const players = await readRosterFromRosterSheet(sheetId)
+      await onSave(players)
+
+      // Delete the sheet
+      console.log('Deleting roster sheet...')
+      await deleteGoogleSheet(sheetId)
+
+      // Clear sheet ID from dynasty
+      await updateDynasty(currentDynasty.id, {
+        rosterSheetId: null
+      })
+
+      setSheetId(null)
+      console.log('Roster sheet deleted')
+
+      setShowDeletedNote(true)
+      setTimeout(() => {
+        onClose()
+      }, 2500)
+    } catch (error) {
+      alert('Failed to sync from Google Sheets.')
+      console.error(error)
+    } finally {
+      setDeletingSheet(false)
+    }
+  }
+
+  const handleClose = () => {
+    onClose()
+  }
+
   if (!isOpen) return null
 
-  const hasGoogleSheet = currentDynasty?.googleSheetId
-  const embedUrl = hasGoogleSheet ? getSheetEmbedUrl(currentDynasty.googleSheetId, 'Roster') : null
+  const embedUrl = sheetId ? getSingleSheetEmbedUrl(sheetId) : null
+  const isLoading = creatingSheet
 
   return (
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="rounded-lg shadow-xl w-[95vw] h-[95vh] flex flex-col p-6"
@@ -67,10 +177,10 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, teamColors }
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Schedule and Roster Entry
+            Roster Entry
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="hover:opacity-70"
             style={{ color: teamColors.primary }}
           >
@@ -80,41 +190,186 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, teamColors }
           </button>
         </div>
 
-        {hasGoogleSheet ? (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3">
-              <button
-                onClick={handleSyncFromSheet}
-                disabled={syncing}
-                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+        {/* First-time roster note */}
+        <div
+          className="mb-4 p-3 rounded-lg text-sm"
+          style={{
+            backgroundColor: `${teamColors.primary}15`,
+            border: `2px solid ${teamColors.primary}40`
+          }}
+        >
+          <p style={{ color: teamColors.primary }}>
+            <strong>Note:</strong> This is the only time you'll need to enter your full roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div
+                className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4"
                 style={{
-                  backgroundColor: teamColors.primary,
-                  color: teamColors.secondary
+                  borderColor: teamColors.primary,
+                  borderTopColor: 'transparent'
                 }}
-              >
-                {syncing ? 'Syncing...' : '✓ Sync & Save'}
-              </button>
-            </div>
-
-            <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-              <iframe
-                src={embedUrl}
-                className="w-full h-full"
-                frameBorder="0"
-                title="Roster Google Sheet"
               />
+              <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+                Creating Roster Sheet...
+              </p>
+              <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                Setting up 85-player roster
+              </p>
+            </div>
+          </div>
+        ) : showDeletedNote ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8 rounded-lg" style={{ backgroundColor: teamColors.primary }}>
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
+                Saved & Sheet Deleted!
+              </p>
+              <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
+                Roster saved to your dynasty.
+              </p>
+            </div>
+          </div>
+        ) : sheetId ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Action Buttons */}
+            <div className="mb-3">
+              <div className="flex gap-2 sm:gap-3 flex-wrap">
+                <button
+                  onClick={handleSyncAndDelete}
+                  disabled={syncing || deletingSheet}
+                  className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.secondary
+                  }}
+                >
+                  {deletingSheet ? 'Saving...' : '✓ Save & Delete Sheet'}
+                </button>
+                <button
+                  onClick={handleSyncFromSheet}
+                  disabled={syncing || deletingSheet}
+                  className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm border-2"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary
+                  }}
+                >
+                  {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                </button>
+              </div>
             </div>
 
-            <p className="text-xs mt-2" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              Format: Name | Position | Year (FR/SO/JR/SR) | Overall
-            </p>
+            {/* Mobile View - Open in Google Sheets button */}
+            {isMobile ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+                  style={{ backgroundColor: teamColors.primary }}
+                >
+                  <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+
+                <h3 className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
+                  Edit in Google Sheets
+                </h3>
+                <p className="text-sm mb-6 max-w-xs" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                  Tap below to open your roster in Google Sheets. Enter your 85-player roster, then return here and tap "Save".
+                </p>
+
+                <a
+                  href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4"
+                  style={{
+                    backgroundColor: '#0F9D58',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                    <path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/>
+                  </svg>
+                  Open Google Sheets
+                </a>
+
+                <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
+                  <p className="font-semibold mb-1">Columns to fill:</p>
+                  <p className="opacity-80">Name | Position | Class | Dev Trait | Jersey # | Archetype | OVR | Height | Weight | Hometown | State | Stars</p>
+                </div>
+              </div>
+            ) : (
+              /* Desktop View - Embedded iframe */
+              <>
+                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
+                  <iframe
+                    src={embedUrl}
+                    className="w-full h-full"
+                    frameBorder="0"
+                    title="Roster Google Sheet"
+                  />
+                </div>
+
+                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                  <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Stars</p>
+                  <p>Enter your full 85-player roster. Use dropdown menus for validated fields.</p>
+                </div>
+              </>
+            )}
           </div>
         ) : (
-          <RosterSpreadsheet
-            teamColors={teamColors}
-            onSave={handleSave}
-            onCancel={onClose}
-          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
+                Your session has expired. Click below to refresh.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={async () => {
+                    setRefreshing(true)
+                    try {
+                      const success = await refreshSession()
+                      if (success) {
+                        setRetryCount(c => c + 1)
+                      }
+                    } catch (e) {
+                      console.error('Refresh failed:', e)
+                    }
+                    setRefreshing(false)
+                  }}
+                  disabled={refreshing}
+                  className="px-4 py-2 rounded font-semibold transition-colors"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.primaryText || '#fff',
+                    opacity: refreshing ? 0.7 : 1
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
+                </button>
+                <button
+                  onClick={signOut}
+                  className="px-4 py-2 rounded font-semibold transition-colors border"
+                  style={{
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary,
+                    backgroundColor: 'transparent'
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

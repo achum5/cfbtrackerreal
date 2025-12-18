@@ -17,6 +17,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   const [creatingSheet, setCreatingSheet] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
+  const [retryCount, setRetryCount] = useState(0) // Used to trigger sheet creation retry
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -46,9 +47,15 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
         try {
           console.log('📝 Creating Bowl Week 2 sheet...')
 
+          // Get CFP data to pre-fill quarterfinal teams
+          const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
+          const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
+
           const sheetInfo = await createBowlWeek2Sheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            cfpSeeds,
+            firstRoundResults
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -67,7 +74,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -250,7 +257,11 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
                   onClick={async () => {
                     setRefreshing(true)
                     try {
-                      await refreshSession()
+                      const success = await refreshSession()
+                      if (success) {
+                        // Trigger sheet creation retry
+                        setRetryCount(c => c + 1)
+                      }
                     } catch (e) {
                       console.error('Refresh failed:', e)
                     }

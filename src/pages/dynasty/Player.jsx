@@ -4,13 +4,72 @@ import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
-import { getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import { getAbbreviationFromDisplayName, teamAbbreviations } from '../../data/teamAbbreviations'
+import { getTeamColors } from '../../data/teamColors'
 import PlayerEditModal from '../../components/PlayerEditModal'
+import GameDetailModal from '../../components/GameDetailModal'
+
+// Map abbreviation to mascot name for logo lookup
+const getMascotName = (abbr) => {
+  const mascotMap = {
+    'BAMA': 'Alabama Crimson Tide', 'AFA': 'Air Force Falcons', 'AKR': 'Akron Zips',
+    'APP': 'Appalachian State Mountaineers', 'ARIZ': 'Arizona Wildcats', 'ARK': 'Arkansas Razorbacks',
+    'ARMY': 'Army Black Knights', 'ARST': 'Arkansas State Red Wolves', 'ASU': 'Arizona State Sun Devils',
+    'AUB': 'Auburn Tigers', 'BALL': 'Ball State Cardinals', 'BC': 'Boston College Eagles',
+    'BGSU': 'Bowling Green Falcons', 'BOIS': 'Boise State Broncos', 'BU': 'Baylor Bears',
+    'BUFF': 'Buffalo Bulls', 'BYU': 'Brigham Young Cougars', 'CAL': 'California Golden Bears',
+    'CCU': 'Coastal Carolina Chanticleers', 'CHAR': 'Charlotte 49ers', 'CINN': 'Cincinnati Bearcats',
+    'CLEM': 'Clemson Tigers', 'CMU': 'Central Michigan Chippewas', 'COLO': 'Colorado Buffaloes',
+    'CONN': 'Connecticut Huskies', 'CSU': 'Colorado State Rams', 'DUKE': 'Duke Blue Devils',
+    'ECU': 'East Carolina Pirates', 'EMU': 'Eastern Michigan Eagles', 'FAU': 'Florida Atlantic Owls',
+    'FIU': 'Florida International Panthers', 'FLA': 'Florida Gators', 'FRES': 'Fresno State Bulldogs',
+    'FSU': 'Florida State Seminoles', 'GASO': 'Georgia Southern Eagles', 'GSU': 'Georgia State Panthers',
+    'GT': 'Georgia Tech Yellow Jackets', 'HAW': 'Hawaii Rainbow Warriors', 'HOU': 'Houston Cougars',
+    'ILL': 'Illinois Fighting Illini', 'IU': 'Indiana Hoosiers', 'IOWA': 'Iowa Hawkeyes',
+    'ISU': 'Iowa State Cyclones', 'JKST': 'Jacksonville State Gamecocks', 'JMU': 'James Madison Dukes',
+    'KENN': 'Kennesaw State Owls', 'KENT': 'Kent State Golden Flashes', 'KSU': 'Kansas State Wildcats',
+    'KU': 'Kansas Jayhawks', 'LIB': 'Liberty Flames', 'LOU': 'Louisville Cardinals',
+    'LSU': 'LSU Tigers', 'LT': 'Louisiana Tech Bulldogs', 'M-OH': 'Miami Redhawks',
+    'MASS': 'Massachusetts Minutemen', 'MEM': 'Memphis Tigers', 'MIA': 'Miami Hurricanes',
+    'MICH': 'Michigan Wolverines', 'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels',
+    'MIZ': 'Missouri Tigers', 'MRSH': 'Marshall Thundering Herd', 'MRYD': 'Maryland Terrapins',
+    'MSST': 'Mississippi State Bulldogs', 'MSU': 'Michigan State Spartans',
+    'MTSU': 'Middle Tennessee State Blue Raiders', 'NAVY': 'Navy Midshipmen',
+    'NCST': 'North Carolina State Wolfpack', 'ND': 'Notre Dame Fighting Irish',
+    'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack', 'NIU': 'Northern Illinois Huskies',
+    'NMSU': 'New Mexico State Aggies', 'NU': 'Northwestern Wildcats', 'ODU': 'Old Dominion Monarchs',
+    'OHIO': 'Ohio Bobcats', 'OSU': 'Ohio State Buckeyes', 'OKST': 'Oklahoma State Cowboys',
+    'ORE': 'Oregon Ducks', 'ORST': 'Oregon State Beavers', 'OU': 'Oklahoma Sooners',
+    'PITT': 'Pittsburgh Panthers', 'PSU': 'Penn State Nittany Lions', 'PUR': 'Purdue Boilermakers',
+    'RICE': 'Rice Owls', 'RUTG': 'Rutgers Scarlet Knights', 'SCAR': 'South Carolina Gamecocks',
+    'SDSU': 'San Diego State Aztecs', 'SHSU': 'Sam Houston State Bearkats', 'SJSU': 'San Jose State Spartans',
+    'SMU': 'SMU Mustangs', 'STAN': 'Stanford Cardinal', 'SYR': 'Syracuse Orange',
+    'TAMU': 'Texas A&M Aggies', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
+    'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TLNE': 'Tulane Green Wave',
+    'TLSA': 'Tulsa Golden Hurricane', 'TOL': 'Toledo Rockets', 'TROY': 'Troy Trojans',
+    'TTU': 'Texas Tech Red Raiders', 'TXST': 'Texas State Bobcats', 'UAB': 'UAB Blazers',
+    'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UGA': 'Georgia Bulldogs',
+    'UK': 'Kentucky Wildcats', 'ULL': 'Lafayette Ragin\' Cajuns', 'ULM': 'Monroe Warhawks',
+    'UNC': 'North Carolina Tar Heels', 'UNLV': 'UNLV Rebels', 'UNM': 'New Mexico Lobos',
+    'UNT': 'North Texas Mean Green', 'USA': 'South Alabama Jaguars', 'USC': 'USC Trojans',
+    'USF': 'South Florida Bulls', 'USM': 'Southern Mississippi Golden Eagles',
+    'USU': 'Utah State Aggies', 'UTAH': 'Utah Utes', 'UTEP': 'UTEP Miners',
+    'UTSA': 'UTSA Roadrunners', 'UVA': 'Virginia Cavaliers', 'VAND': 'Vanderbilt Commodores',
+    'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons', 'WASH': 'Washington Huskies',
+    'WIS': 'Wisconsin Badgers', 'WKU': 'Western Kentucky Hilltoppers', 'WMU': 'Western Michigan Broncos',
+    'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers', 'WYO': 'Wyoming Cowboys'
+  }
+  return mascotMap[abbr] || null
+}
 
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
   const { dynasties, currentDynasty, updatePlayer } = useDynasty()
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showAccoladeModal, setShowAccoladeModal] = useState(false)
+  const [accoladeType, setAccoladeType] = useState(null) // 'confPOW' or 'nationalPOW'
+  const [showGameDetailModal, setShowGameDetailModal] = useState(false)
+  const [selectedGame, setSelectedGame] = useState(null)
 
   // Scroll to top when player page loads or changes
   useEffect(() => {
@@ -46,20 +105,42 @@ export default function Player() {
     const games = dynasty.games || []
     let confPOW = 0
     let nationalPOW = 0
+    const confPOWGames = []
+    const nationalPOWGames = []
 
     games.forEach(game => {
       if (game.conferencePOW === player.name) {
         confPOW++
+        confPOWGames.push(game)
       }
       if (game.nationalPOW === player.name) {
         nationalPOW++
+        nationalPOWGames.push(game)
       }
     })
 
-    return { confPOW, nationalPOW }
+    return { confPOW, nationalPOW, confPOWGames, nationalPOWGames }
   }
 
   const powHonors = calculatePOWHonors()
+
+  // Handle clicking on an accolade badge
+  const handleAccoladeClick = (type) => {
+    setAccoladeType(type)
+    setShowAccoladeModal(true)
+  }
+
+  // Handle clicking on a game in the accolade modal
+  const handleGameClick = (game) => {
+    setSelectedGame(game)
+    setShowAccoladeModal(false)
+    setShowGameDetailModal(true)
+  }
+
+  // Get team name from abbreviation
+  const getTeamNameFromAbbr = (abbr) => {
+    return teamAbbreviations[abbr]?.name || abbr
+  }
 
   const handlePlayerSave = async (updatedPlayer) => {
     await updatePlayer(dynastyId, updatedPlayer)
@@ -592,26 +673,28 @@ export default function Player() {
         </h2>
         <div className="flex flex-wrap gap-2">
           {playerData.confPOW > 0 && (
-            <div
-              className="px-4 py-2 rounded-full font-semibold"
+            <button
+              onClick={() => handleAccoladeClick('confPOW')}
+              className="px-4 py-2 rounded-full font-semibold hover:opacity-80 transition-opacity cursor-pointer"
               style={{
                 backgroundColor: teamColors.secondary,
                 color: secondaryText
               }}
             >
               Conference Player of the Week {playerData.confPOW}x
-            </div>
+            </button>
           )}
           {playerData.nationalPOW > 0 && (
-            <div
-              className="px-4 py-2 rounded-full font-semibold"
+            <button
+              onClick={() => handleAccoladeClick('nationalPOW')}
+              className="px-4 py-2 rounded-full font-semibold hover:opacity-80 transition-opacity cursor-pointer"
               style={{
                 backgroundColor: teamColors.secondary,
                 color: secondaryText
               }}
             >
               National Player of the Week {playerData.nationalPOW}x
-            </div>
+            </button>
           )}
           {playerData.allConf1st > 0 && (
             <div
@@ -1055,6 +1138,139 @@ export default function Player() {
         teamColors={teamColors}
         onSave={handlePlayerSave}
         defaultSchool={dynasty.teamName}
+      />
+
+      {/* Accolade Games Modal */}
+      {showAccoladeModal && (
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowAccoladeModal(false)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="p-4 border-b sticky top-0"
+              style={{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold" style={{ color: primaryText }}>
+                    {accoladeType === 'confPOW' ? 'Conference Player of the Week' : 'National Player of the Week'}
+                  </h3>
+                  <p className="text-sm font-semibold mt-0.5" style={{ color: primaryText, opacity: 0.9 }}>
+                    {player.name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAccoladeModal(false)}
+                  className="hover:opacity-70"
+                  style={{ color: primaryText }}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-xs sm:text-sm mt-2" style={{ color: primaryText, opacity: 0.7 }}>
+                Click a game to view details
+              </p>
+            </div>
+
+            <div className="p-4 space-y-2">
+              {(accoladeType === 'confPOW' ? powHonors.confPOWGames : powHonors.nationalPOWGames).map((game, index) => {
+                const mascotName = getMascotName(game.opponent)
+                const opponentName = mascotName || getTeamNameFromAbbr(game.opponent)
+                const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
+                const opponentColors = getTeamColors(opponentName) || { primary: '#333', secondary: '#fff' }
+                const opponentBgColor = teamAbbreviations[game.opponent]?.backgroundColor || opponentColors.primary || '#333'
+                const opponentTextColor = teamAbbreviations[game.opponent]?.textColor || getContrastTextColor(opponentBgColor)
+                const isWin = game.result === 'win' || game.result === 'W'
+
+                return (
+                  <button
+                    key={game.id || index}
+                    onClick={() => handleGameClick(game)}
+                    className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 rounded-lg border-2 gap-2 sm:gap-0 hover:opacity-90 transition-opacity text-left"
+                    style={{
+                      backgroundColor: opponentBgColor,
+                      borderColor: isWin ? '#86efac' : '#fca5a5'
+                    }}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="text-xs font-medium w-16 sm:w-20 flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.9 }}>
+                        {game.year} Wk {game.week}
+                      </div>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{
+                          backgroundColor: opponentTextColor,
+                          color: opponentBgColor
+                        }}>
+                          {game.location === 'away' ? '@' : 'vs'}
+                        </span>
+                        {opponentLogo && (
+                          <div
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              border: `2px solid ${opponentTextColor}`,
+                              padding: '2px'
+                            }}
+                          >
+                            <img
+                              src={opponentLogo}
+                              alt={`${opponentName} logo`}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 min-w-0">
+                          {game.opponentRank && (
+                            <span className="text-xs font-bold flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.7 }}>
+                              #{game.opponentRank}
+                            </span>
+                          )}
+                          <span className="text-sm font-semibold truncate" style={{ color: opponentTextColor }}>
+                            {opponentName}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 justify-end sm:justify-start">
+                      <div
+                        className="text-sm font-bold px-2 py-0.5 rounded"
+                        style={{
+                          backgroundColor: isWin ? '#22c55e' : '#ef4444',
+                          color: '#ffffff'
+                        }}
+                      >
+                        {isWin ? 'W' : 'L'}
+                      </div>
+                      <div className="text-sm font-bold" style={{ color: opponentTextColor }}>
+                        {game.teamScore}-{game.opponentScore}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Game Detail Modal */}
+      <GameDetailModal
+        isOpen={showGameDetailModal}
+        onClose={() => {
+          setShowGameDetailModal(false)
+          setSelectedGame(null)
+        }}
+        game={selectedGame}
+        userTeam={dynasty.teamName}
+        teamColors={teamColors}
       />
     </div>
   )

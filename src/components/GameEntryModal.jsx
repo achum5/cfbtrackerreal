@@ -567,7 +567,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   const handleRecordChange = (e) => {
     const input = e.target.value
     // Remove all non-digit characters
-    const digits = input.replace(/\D/g, '')
+    const newDigits = input.replace(/\D/g, '')
+    const currentDigits = gameData.opponentRecord.replace(/\D/g, '')
+
+    // Detect if user is deleting (input is shorter than current formatted value)
+    const isDeleting = input.length < gameData.opponentRecord.length
+
+    // If deleting and we have fewer characters but same digits, remove last digit
+    let digits = newDigits
+    if (isDeleting && newDigits.length >= currentDigits.length && currentDigits.length > 0) {
+      digits = currentDigits.slice(0, -1)
+    }
 
     // Limit to 4 digits
     const limitedDigits = digits.slice(0, 4)
@@ -839,7 +849,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
   return (
     <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-2 sm:p-4"
       style={{ margin: 0 }}
       onClick={onClose}
     >
@@ -848,66 +858,72 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 px-6 py-4 flex items-center justify-between border-b-2 z-10"
+        <div className="sticky top-0 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b-2 z-10 gap-2"
           style={{
             backgroundColor: teamColors.secondary,
             borderColor: teamColors.primary
           }}
         >
-          <div>
-            <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base sm:text-2xl font-bold truncate" style={{ color: teamColors.primary }}>
               {isConferenceChampionship
                 ? `${currentDynasty?.conference || 'Conference'} Championship`
                 : bowlName
-                  ? `${bowlName} Game Entry`
+                  ? `${bowlName}`
                   : `Week ${actualWeekNumber} Game Entry`}
             </h2>
-            {(scheduledGame || isConferenceChampionship) && (
-              <p className="text-sm mt-1" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                {isConferenceChampionship ? 'vs' : (scheduledGame?.location === 'away' ? '@' : 'vs')} {passedOpponent || scheduledGame?.opponent}
-              </p>
-            )}
+            {(scheduledGame || isConferenceChampionship) && (() => {
+              const opponentAbbr = passedOpponent || scheduledGame?.opponent
+              const opponentFullName = opponentAbbr ? (getMascotName(opponentAbbr) || getOpponentTeamName(opponentAbbr)) : opponentAbbr
+              return (
+                <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                  {isConferenceChampionship ? 'vs' : (scheduledGame?.location === 'away' ? '@' : 'vs')} {opponentFullName}
+                </p>
+              )
+            })()}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
             {/* DEV: Random Fill Button */}
             <button
               type="button"
               onClick={handleRandomFill}
-              className="px-3 py-1 rounded text-xs font-semibold hover:opacity-80 transition-opacity"
+              className="px-2 sm:px-3 py-1 rounded text-xs font-semibold hover:opacity-80 transition-opacity"
               style={{
                 backgroundColor: '#f59e0b',
                 color: '#000'
               }}
               title="DEV: Fill with random data"
             >
-              Random Fill
+              <span className="hidden sm:inline">Random Fill</span>
+              <span className="sm:hidden">Fill</span>
             </button>
             <button
               onClick={onClose}
-              className="hover:opacity-70"
+              className="hover:opacity-70 p-1"
               style={{ color: teamColors.primary }}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* Score Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Final Score
             </h3>
 
             {/* Quarter by Quarter Scoring */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="text-sm font-semibold mb-3" style={{ color: teamColors.primary }}>
+            <div className="bg-gray-50 rounded-lg p-2 sm:p-4">
+              <h4 className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3" style={{ color: teamColors.primary }}>
                 Quarter by Quarter Scoring (Optional)
               </h4>
 
-              <div className="space-y-2">
+              <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
+                <div className="space-y-2 min-w-[360px]">
                 {(() => {
                   // Determine team order based on location
                   const opponentAbbr = gameData.opponent || passedOpponent || scheduledGame?.opponent
@@ -931,7 +947,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                   return (
                     <>
                       {/* Headers */}
-                      <div className="grid gap-2 items-center" style={{ gridTemplateColumns: `50px repeat(${4 + gameData.overtimes.length}, 60px) 70px` }}>
+                      <div className="grid gap-1 sm:gap-2 items-center" style={{ gridTemplateColumns: `40px repeat(${4 + gameData.overtimes.length}, minmax(40px, 50px)) minmax(50px, 60px)` }}>
                         <div className="text-xs font-semibold text-gray-600"></div>
                         <div className="text-xs font-semibold text-gray-600 text-center">Q1</div>
                         <div className="text-xs font-semibold text-gray-600 text-center">Q2</div>
@@ -948,13 +964,13 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                       </div>
 
                       {/* Quarter Inputs - Alternating between teams */}
-                      <div className="grid gap-2" style={{ gridTemplateColumns: `50px repeat(${4 + gameData.overtimes.length}, 60px) 70px` }}>
+                      <div className="grid gap-1 sm:gap-2" style={{ gridTemplateColumns: `40px repeat(${4 + gameData.overtimes.length}, minmax(40px, 50px)) minmax(50px, 60px)` }}>
                         {/* Team Logos Column */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center justify-center h-[34px]">
+                        <div className="flex flex-col gap-1 sm:gap-2">
+                          <div className="flex items-center justify-center h-[30px] sm:h-[34px]">
                             {topTeam.logo ? (
                               <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
                                   backgroundColor: '#FFFFFF',
                                   border: `2px solid ${topTeam.colors.primary}`,
@@ -968,13 +984,13 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                                 />
                               </div>
                             ) : (
-                              <div className="text-xs font-semibold text-gray-600">{topTeam.name}</div>
+                              <div className="text-xs font-semibold text-gray-600 truncate">{topTeam.name}</div>
                             )}
                           </div>
-                          <div className="flex items-center justify-center h-[34px]">
+                          <div className="flex items-center justify-center h-[30px] sm:h-[34px]">
                             {bottomTeam.logo ? (
                               <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
                                   backgroundColor: '#FFFFFF',
                                   border: `2px solid ${bottomTeam.colors.primary}`,
@@ -988,13 +1004,13 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                                 />
                               </div>
                             ) : (
-                              <div className="text-xs font-semibold text-gray-600">{bottomTeam.name}</div>
+                              <div className="text-xs font-semibold text-gray-600 truncate">{bottomTeam.name}</div>
                             )}
                           </div>
                         </div>
 
                         {/* Q1 Column */}
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q1}
@@ -1007,7 +1023,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q1"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1024,7 +1040,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q1"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1032,7 +1048,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                         </div>
 
                         {/* Q2 Column */}
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q2}
@@ -1045,7 +1061,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q2"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1062,7 +1078,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q2"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1070,7 +1086,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                         </div>
 
                         {/* Q3 Column */}
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q3}
@@ -1083,7 +1099,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q3"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1100,7 +1116,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q3"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1108,7 +1124,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                         </div>
 
                         {/* Q4 Column */}
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q4}
@@ -1121,7 +1137,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q4"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1140,7 +1156,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q4"
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
@@ -1149,7 +1165,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
                         {/* OT Columns */}
                         {gameData.overtimes.map((ot, otIdx) => (
-                          <div key={otIdx} className="space-y-2">
+                          <div key={otIdx} className="space-y-1 sm:space-y-2">
                             <input
                               type="number"
                               value={ot[topTeam.key]}
@@ -1162,7 +1178,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               }}
                               data-team={topTeam.key}
                               data-ot={otIdx}
-                              className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                              className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                               style={{ borderColor: topTeam.colors.primary }}
                               min="0"
                               placeholder="0"
@@ -1181,7 +1197,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               }}
                               data-team={bottomTeam.key}
                               data-ot={otIdx}
-                              className="w-full px-2 py-1 border-2 rounded text-center text-sm"
+                              className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
                               style={{ borderColor: bottomTeam.colors.primary }}
                               min="0"
                               placeholder="0"
@@ -1190,7 +1206,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                         ))}
 
                         {/* Total Column */}
-                        <div className="space-y-2">
+                        <div className="space-y-1 sm:space-y-2">
                           <input
                             type="number"
                             value={topTeam.key === 'team' ? gameData.teamScore : gameData.opponentScore}
@@ -1198,7 +1214,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               ...gameData,
                               [topTeam.key === 'team' ? 'teamScore' : 'opponentScore']: e.target.value
                             })}
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm font-bold"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold"
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             readOnly={hasQuarterScores()}
@@ -1212,7 +1228,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               ...gameData,
                               [bottomTeam.key === 'team' ? 'teamScore' : 'opponentScore']: e.target.value
                             })}
-                            className="w-full px-2 py-1 border-2 rounded text-center text-sm font-bold"
+                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold"
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             readOnly={hasQuarterScores()}
@@ -1224,45 +1240,46 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                     </>
                   )
                 })()}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Rankings Section */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
-              <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+              <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
                 National Rankings
               </h3>
-              <p className="text-xs mt-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+              <p className="text-xs mt-0.5 sm:mt-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
                 Leave blank if unranked
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   Your National Rank
                 </label>
                 <input
                   type="number"
                   value={gameData.userRank}
                   onChange={(e) => setGameData({ ...gameData, userRank: e.target.value })}
-                  className="w-full px-4 py-2 border-2 rounded-lg"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                   style={{ borderColor: teamColors.primary }}
                   min="1"
                   max="133"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
-                  Opponent National Rank
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                  Opponent Rank
                 </label>
                 <input
                   type="number"
                   value={gameData.opponentRank}
                   onChange={(e) => setGameData({ ...gameData, opponentRank: e.target.value })}
-                  className="w-full px-4 py-2 border-2 rounded-lg"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                   style={{ borderColor: teamColors.primary }}
                   min="1"
                   max="133"
@@ -1272,8 +1289,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
 
           {/* Opponent Team Ratings Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex items-center gap-2 sm:gap-3">
               {(() => {
                 const opponentAbbr = gameData.opponent || scheduledGame?.opponent
                 const opponentMascotName = opponentAbbr ? getMascotName(opponentAbbr) : null
@@ -1285,7 +1302,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                   <>
                     {opponentLogo && (
                       <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
                           backgroundColor: '#FFFFFF',
                           border: `2px solid ${opponentColors?.textColor || teamColors.primary}`,
@@ -1299,7 +1316,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                         />
                       </div>
                     )}
-                    <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+                    <h3 className="text-base sm:text-lg font-semibold truncate" style={{ color: teamColors.primary }}>
                       {opponentDisplayName} Team Ratings
                     </h3>
                   </>
@@ -1307,16 +1324,16 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               })()}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   Overall
                 </label>
                 <input
                   type="number"
                   value={gameData.opponentOverall}
                   onChange={(e) => setGameData({ ...gameData, opponentOverall: e.target.value })}
-                  className="w-full px-4 py-2 border-2 rounded-lg"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                   style={{ borderColor: teamColors.primary }}
                   min="0"
                   max="99"
@@ -1324,14 +1341,14 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   Offense
                 </label>
                 <input
                   type="number"
                   value={gameData.opponentOffense}
                   onChange={(e) => setGameData({ ...gameData, opponentOffense: e.target.value })}
-                  className="w-full px-4 py-2 border-2 rounded-lg"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                   style={{ borderColor: teamColors.primary }}
                   min="0"
                   max="99"
@@ -1339,14 +1356,14 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   Defense
                 </label>
                 <input
                   type="number"
                   value={gameData.opponentDefense}
                   onChange={(e) => setGameData({ ...gameData, opponentDefense: e.target.value })}
-                  className="w-full px-4 py-2 border-2 rounded-lg"
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                   style={{ borderColor: teamColors.primary }}
                   min="0"
                   max="99"
@@ -1357,22 +1374,22 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
 
           {/* Opponent Record Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Opponent Record
             </h3>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+              <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                 Record (Overall & Conference)
               </label>
               <input
                 type="text"
                 value={gameData.opponentRecord}
                 onChange={handleRecordChange}
-                className="w-full px-4 py-2 border-2 rounded-lg text-lg font-mono"
+                className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-lg font-mono"
                 style={{ borderColor: teamColors.primary }}
-                placeholder="Type 4 digits (e.g., 5231 → 5-2 (3-1))"
+                placeholder="Type 4 digits (e.g., 5231)"
               />
               <p className="text-xs mt-1 text-gray-500 text-center">
                 Format: Overall-Record (Conference-Record)
@@ -1381,15 +1398,15 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
 
           {/* Player of the Week Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Player of the Week Honors
             </h3>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {/* Conference POW */}
               <div className="relative" ref={confPOWDropdownRef}>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   Conference Player of the Week
                 </label>
                 <div className="relative">
@@ -1412,12 +1429,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                       setTimeout(() => setConfPOWOpen(false), 150)
                     }}
                     onKeyDown={handleConfPOWKeyDown}
-                    className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
                     style={{
                       borderColor: teamColors.primary,
                       paddingRight: '2.75rem'
                     }}
-                    placeholder="Search or select player..."
+                    placeholder="Search or select..."
                     autoComplete="off"
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -1472,7 +1489,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
               {/* National POW */}
               <div className="relative" ref={natlPOWDropdownRef}>
-                <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                   National Player of the Week
                 </label>
                 <div className="relative">
@@ -1495,12 +1512,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                       setTimeout(() => setNatlPOWOpen(false), 150)
                     }}
                     onKeyDown={handleNatlPOWKeyDown}
-                    className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
                     style={{
                       borderColor: teamColors.primary,
                       paddingRight: '2.75rem'
                     }}
-                    placeholder="Search or select player..."
+                    placeholder="Search or select..."
                     autoComplete="off"
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -1556,27 +1573,27 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
 
           {/* Game Note Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold" style={{ color: teamColors.primary }}>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Game Notes & Media
             </h3>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+              <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                 Game Notes
               </label>
               <textarea
                 value={gameData.gameNote}
                 onChange={(e) => setGameData({ ...gameData, gameNote: e.target.value })}
-                className="w-full px-4 py-2 border-2 rounded-lg"
+                className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                 style={{ borderColor: teamColors.primary }}
                 rows="3"
-                placeholder="Add notes about the game (key plays, injuries, etc.)..."
+                placeholder="Add notes about the game..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
+              <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
                 Links (YouTube, Imgur, etc.)
               </label>
               <div className="space-y-2">
@@ -1586,9 +1603,9 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                     type="text"
                     value={link}
                     onChange={(e) => handleLinkChange(index, e.target.value)}
-                    className="w-full px-4 py-2 border-2 rounded-lg"
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
                     style={{ borderColor: teamColors.primary }}
-                    placeholder={index === 0 ? "Paste YouTube or image link..." : "Add another link..."}
+                    placeholder={index === 0 ? "Paste link..." : "Add another link..."}
                   />
                 ))}
               </div>
@@ -1596,11 +1613,11 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-3 pt-4 border-t-2" style={{ borderColor: teamColors.primary }}>
+          <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4 border-t-2" style={{ borderColor: teamColors.primary }}>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 rounded-lg font-semibold border-2 hover:opacity-90 transition-colors"
+              className="flex-1 px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold border-2 hover:opacity-90 transition-colors text-sm sm:text-base"
               style={{
                 borderColor: teamColors.primary,
                 color: teamColors.primary,
@@ -1611,7 +1628,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+              className="flex-1 px-3 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm sm:text-base"
               style={{
                 backgroundColor: teamColors.primary,
                 color: teamColors.secondary

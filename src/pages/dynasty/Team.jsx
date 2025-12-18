@@ -159,6 +159,33 @@ const getMascotName = (abbr) => {
   return mascotMap[abbr] || null
 }
 
+// Extract just the school name from full mascot name
+const getSchoolName = (mascotName) => {
+  if (!mascotName) return ''
+
+  // Two-word mascots that need to be removed
+  const twoWordMascots = [
+    'Crimson Tide', 'Golden Bears', 'Sun Devils', 'Red Wolves', 'Black Knights',
+    'Blue Devils', 'Fighting Illini', 'Yellow Jackets', 'Fighting Irish', 'Nittany Lions',
+    'Scarlet Knights', 'Golden Eagles', 'Demon Deacons', 'Horned Frogs', 'Green Wave',
+    'Golden Hurricane', 'Mean Green', 'Tar Heels', 'Golden Gophers', 'Golden Flashes',
+    'Blue Raiders', 'Wolf Pack', "Ragin' Cajuns", 'Rainbow Warriors'
+  ]
+
+  for (const mascot of twoWordMascots) {
+    if (mascotName.endsWith(mascot)) {
+      return mascotName.replace(` ${mascot}`, '')
+    }
+  }
+
+  // Default: remove last word (single-word mascot)
+  const words = mascotName.split(' ')
+  if (words.length > 1) {
+    return words.slice(0, -1).join(' ')
+  }
+  return mascotName
+}
+
 export default function Team() {
   const { id, teamAbbr } = useParams()
   const navigate = useNavigate()
@@ -168,11 +195,15 @@ export default function Team() {
 
   // Get all teams sorted alphabetically by mascot name
   const allTeams = Object.entries(teamAbbreviations)
-    .map(([abbr, info]) => ({
-      abbr,
-      name: getMascotName(abbr) || info.name,
-      sortName: (getMascotName(abbr) || info.name).toLowerCase()
-    }))
+    .map(([abbr, info]) => {
+      const fullName = getMascotName(abbr) || info.name
+      return {
+        abbr,
+        name: fullName,
+        shortName: getSchoolName(fullName),
+        sortName: fullName.toLowerCase()
+      }
+    })
     .sort((a, b) => a.sortName.localeCompare(b.sortName))
 
   // Get team info
@@ -356,7 +387,7 @@ export default function Team() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          All Teams
+          History
         </Link>
 
         {/* Team Dropdown */}
@@ -372,7 +403,7 @@ export default function Team() {
         >
           {allTeams.map((team) => (
             <option key={team.abbr} value={team.abbr}>
-              {team.name}
+              {team.shortName}
             </option>
           ))}
         </select>

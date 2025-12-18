@@ -1,17 +1,39 @@
 import { useState, useEffect } from 'react'
 import ScheduleSpreadsheet from './ScheduleSpreadsheet'
-import { getSheetEmbedUrl, readScheduleFromSheet, readRosterFromSheet } from '../services/sheetsService'
+import {
+  createScheduleSheet,
+  readScheduleFromScheduleSheet,
+  deleteGoogleSheet,
+  getSingleSheetEmbedUrl
+} from '../services/sheetsService'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 
-export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSave, currentYear, teamColors }) {
-  const { currentDynasty, createTempSheetWithData, deleteSheetAndClearRefs } = useDynasty()
-  const { user } = useAuth()
+// Simple mobile detection
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false
+  return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+}
+
+export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+  const { currentDynasty, updateDynasty } = useDynasty()
+  const { user, signOut, refreshSession } = useAuth()
+  const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
-  const [sheetReady, setSheetReady] = useState(false)
+  const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check for mobile on mount and resize
+  useEffect(() => {
+    setIsMobile(isMobileDevice())
+    const handleResize = () => setIsMobile(isMobileDevice())
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -21,39 +43,53 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
       document.body.style.overflow = 'unset'
     }
 
-    // Cleanup on unmount
     return () => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
 
-  // Create a temporary sheet when modal opens if user is authenticated and no sheet exists
+  // Create schedule sheet when modal opens
   useEffect(() => {
-    const createTempSheet = async () => {
-      if (isOpen && user && currentDynasty && !currentDynasty.googleSheetId && !creatingSheet && !sheetReady) {
+    const createSheet = async () => {
+      if (isOpen && user && !sheetId && !creatingSheet) {
+        // Check if we have an existing schedule sheet
+        const existingSheetId = currentDynasty?.scheduleSheetId
+        if (existingSheetId) {
+          setSheetId(existingSheetId)
+          return
+        }
+
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating temporary sheet for editing...')
-          await createTempSheetWithData(currentDynasty.id)
-          setSheetReady(true)
-          console.log('✅ Temporary sheet ready')
+          console.log('Creating Schedule sheet...')
+
+          const sheetInfo = await createScheduleSheet(
+            currentDynasty?.teamName || 'Dynasty',
+            currentYear,
+            currentDynasty?.teamName || ''
+          )
+          setSheetId(sheetInfo.spreadsheetId)
+
+          // Save sheet ID to dynasty
+          await updateDynasty(currentDynasty.id, {
+            scheduleSheetId: sheetInfo.spreadsheetId
+          })
+
+          console.log('Schedule sheet ready')
         } catch (error) {
-          console.error('Failed to create temporary sheet:', error)
-          // Fall back to spreadsheet component
+          console.error('Failed to create schedule sheet:', error)
         } finally {
           setCreatingSheet(false)
         }
       }
     }
 
-    createTempSheet()
-  }, [isOpen, user, currentDynasty?.id, currentDynasty?.googleSheetId])
+    createSheet()
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSheetReady(false)
-      setCreatingSheet(false)
       setShowDeletedNote(false)
     }
   }, [isOpen])
@@ -69,27 +105,19 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
   }
 
   const handleSyncFromSheet = async () => {
-    if (!currentDynasty?.googleSheetId) return
+    if (!sheetId) return
 
     setSyncing(true)
     try {
-      // Sync both schedule and roster
-      const schedule = await readScheduleFromSheet(currentDynasty.googleSheetId)
+      const schedule = await readScheduleFromScheduleSheet(sheetId)
       console.log('Schedule read from sheet:', schedule)
 
-      const roster = await readRosterFromSheet(currentDynasty.googleSheetId)
-      console.log('Roster read from sheet:', roster)
-
-      // Save both
       await onSave(schedule)
       console.log('Schedule saved successfully')
 
-      await onRosterSave(roster)
-      console.log('Roster saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure you have edit access and data is properly formatted.')
+      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
     } finally {
       setSyncing(false)
@@ -97,24 +125,25 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
   }
 
   const handleSyncAndDelete = async () => {
-    if (!currentDynasty?.googleSheetId) return
+    if (!sheetId) return
 
     setDeletingSheet(true)
     try {
-      // Sync both schedule and roster
-      const schedule = await readScheduleFromSheet(currentDynasty.googleSheetId)
-      const roster = await readRosterFromSheet(currentDynasty.googleSheetId)
-
-      // Save both
+      const schedule = await readScheduleFromScheduleSheet(sheetId)
       await onSave(schedule)
-      await onRosterSave(roster)
 
       // Delete the sheet
-      console.log('🗑️ Deleting sheet...')
-      await deleteSheetAndClearRefs(currentDynasty.id)
-      console.log('✅ Sheet deleted')
+      console.log('Deleting schedule sheet...')
+      await deleteGoogleSheet(sheetId)
 
-      // Show note and close after a moment
+      // Clear sheet ID from dynasty
+      await updateDynasty(currentDynasty.id, {
+        scheduleSheetId: null
+      })
+
+      setSheetId(null)
+      console.log('Schedule sheet deleted')
+
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
@@ -133,8 +162,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
 
   if (!isOpen) return null
 
-  const hasGoogleSheet = currentDynasty?.googleSheetId
-  const embedUrl = hasGoogleSheet ? getSheetEmbedUrl(currentDynasty.googleSheetId, 'Schedule') : null
+  const embedUrl = sheetId ? getSingleSheetEmbedUrl(sheetId) : null
   const isLoading = creatingSheet
 
   return (
@@ -148,9 +176,9 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Schedule and Roster Entry
+            Schedule Entry
           </h2>
           <button
             onClick={handleClose}
@@ -161,19 +189,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-        </div>
-
-        {/* First-time roster note */}
-        <div
-          className="mb-4 p-3 rounded-lg text-sm"
-          style={{
-            backgroundColor: `${teamColors.primary}15`,
-            border: `2px solid ${teamColors.primary}40`
-          }}
-        >
-          <p style={{ color: teamColors.primary }}>
-            <strong>Note:</strong> This is the only time you'll need to enter your full roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions.
-          </p>
         </div>
 
         {isLoading ? (
@@ -187,10 +202,10 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Google Sheet...
+                Creating Schedule Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Pre-filling with existing data
+                Setting up 12-game schedule
               </p>
             </div>
           </div>
@@ -204,54 +219,145 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, onRosterSa
                 Saved & Sheet Deleted!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Data can still be edited anytime by opening this modal again.
+                Schedule saved to your dynasty.
               </p>
             </div>
           </div>
-        ) : hasGoogleSheet ? (
+        ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3 flex gap-3 flex-wrap">
-              <button
-                onClick={handleSyncAndDelete}
-                disabled={syncing || deletingSheet}
-                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                style={{
-                  backgroundColor: teamColors.primary,
-                  color: teamColors.secondary
-                }}
-              >
-                {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
-              </button>
-              <button
-                onClick={handleSyncFromSheet}
-                disabled={syncing || deletingSheet}
-                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
-                style={{
-                  backgroundColor: 'transparent',
-                  borderColor: teamColors.primary,
-                  color: teamColors.primary
-                }}
-              >
-                {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
-              </button>
+            {/* Action Buttons */}
+            <div className="mb-3">
+              <div className="flex gap-2 sm:gap-3 flex-wrap">
+                <button
+                  onClick={handleSyncAndDelete}
+                  disabled={syncing || deletingSheet}
+                  className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.secondary
+                  }}
+                >
+                  {deletingSheet ? 'Saving...' : '✓ Save & Delete Sheet'}
+                </button>
+                <button
+                  onClick={handleSyncFromSheet}
+                  disabled={syncing || deletingSheet}
+                  className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm border-2"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary
+                  }}
+                >
+                  {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-              <iframe
-                src={embedUrl}
-                className="w-full h-full"
-                frameBorder="0"
-                title="Schedule Google Sheet"
-              />
-            </div>
+            {/* Mobile View - Open in Google Sheets button */}
+            {isMobile ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+                  style={{ backgroundColor: teamColors.primary }}
+                >
+                  <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+
+                <h3 className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
+                  Edit in Google Sheets
+                </h3>
+                <p className="text-sm mb-6 max-w-xs" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                  Tap below to open your schedule in Google Sheets. Edit your 12-game schedule, then return here and tap "Save".
+                </p>
+
+                <a
+                  href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4"
+                  style={{
+                    backgroundColor: '#0F9D58',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                    <path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/>
+                  </svg>
+                  Open Google Sheets
+                </a>
+
+                <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
+                  <p className="font-semibold mb-1">Columns to fill:</p>
+                  <p className="opacity-80">Week | User Team | CPU Team | Site</p>
+                </div>
+              </div>
+            ) : (
+              /* Desktop View - Embedded iframe */
+              <>
+                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
+                  <iframe
+                    src={embedUrl}
+                    className="w-full h-full"
+                    frameBorder="0"
+                    title="Schedule Google Sheet"
+                  />
+                </div>
+
+                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                  <p><strong>Columns:</strong> Week | User Team | CPU Team | Site</p>
+                  <p>Enter your 12-game regular season schedule. Select opponents and Home/Road/Neutral for each game.</p>
+                </div>
+              </>
+            )}
           </div>
         ) : (
-          <ScheduleSpreadsheet
-            teamColors={teamColors}
-            currentYear={currentYear}
-            onSave={handleSave}
-            onCancel={handleClose}
-          />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
+                Your session has expired. Click below to refresh.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={async () => {
+                    setRefreshing(true)
+                    try {
+                      const success = await refreshSession()
+                      if (success) {
+                        setRetryCount(c => c + 1)
+                      }
+                    } catch (e) {
+                      console.error('Refresh failed:', e)
+                    }
+                    setRefreshing(false)
+                  }}
+                  disabled={refreshing}
+                  className="px-4 py-2 rounded font-semibold transition-colors"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.primaryText || '#fff',
+                    opacity: refreshing ? 0.7 : 1
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
+                </button>
+                <button
+                  onClick={signOut}
+                  className="px-4 py-2 rounded font-semibold transition-colors border"
+                  style={{
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary,
+                    backgroundColor: 'transparent'
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
