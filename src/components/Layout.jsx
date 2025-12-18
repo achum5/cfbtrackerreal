@@ -26,18 +26,21 @@ export default function Layout({ children }) {
 
   const isDynastyPage = location.pathname.startsWith('/dynasty/')
   const useTeamTheme = isDynastyPage && currentDynasty
+  const isCFPBracketPage = location.pathname.includes('/cfp-bracket')
 
   const headerBg = useTeamTheme ? teamColors.primary : '#1f2937'
   const headerText = useTeamTheme ? getContrastTextColor(teamColors.primary) : '#f9fafb'
   const buttonBg = useTeamTheme ? teamColors.secondary : '#f9fafb'
   const buttonText = useTeamTheme ? getContrastTextColor(teamColors.secondary) : '#1f2937'
 
-  const getPhaseDisplay = (phase) => {
+  const getPhaseDisplay = (phase, week) => {
+    if (phase === 'postseason') {
+      return `Bowl Week ${week}`
+    }
     const phases = {
       preseason: 'Pre-Season',
       regular_season: 'Regular Season',
       conference_championship: 'Conference Championships',
-      postseason: 'Post-Season',
       offseason: 'Off-Season'
     }
     return phases[phase] || phase
@@ -138,16 +141,20 @@ export default function Layout({ children }) {
   }
 
 
+  // Page background - CFP Bracket gets dark gray, otherwise team primary
+  const pageBg = isCFPBracketPage ? '#374151' : (useTeamTheme ? teamColors.primary : '#f3f4f6')
+
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{
-        backgroundColor: useTeamTheme ? teamColors.primary : '#f3f4f6'
-      }}
+      style={{ backgroundColor: pageBg }}
     >
       <header
         className="sticky top-0 z-50 shadow-sm"
-        style={{ backgroundColor: headerBg }}
+        style={{
+          backgroundColor: headerBg,
+          borderBottom: useTeamTheme ? `3px solid ${teamColors.secondary}` : '3px solid #374151'
+        }}
       >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between py-3 gap-4">
@@ -216,11 +223,13 @@ export default function Layout({ children }) {
                   {/* Phase and Week */}
                   <div className="flex items-center gap-1 md:gap-2">
                     <span className="font-medium text-sm md:text-base" style={{ color: headerText }}>
-                      {getPhaseDisplay(currentDynasty.currentPhase)}
+                      {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
                     </span>
-                    <span className="text-xs md:text-sm hidden md:inline" style={{ color: headerText, opacity: 0.8 }}>
-                      Week {currentDynasty.currentWeek}
-                    </span>
+                    {currentDynasty.currentPhase !== 'postseason' && (
+                      <span className="text-xs md:text-sm hidden md:inline" style={{ color: headerText, opacity: 0.8 }}>
+                        Week {currentDynasty.currentWeek}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -304,7 +313,7 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto px-4 py-6">
+      <main className={`flex-1 px-4 py-6 ${isDynastyPage ? '' : 'container mx-auto'}`}>
         {children}
       </main>
     </div>

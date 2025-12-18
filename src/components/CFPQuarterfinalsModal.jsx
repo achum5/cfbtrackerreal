@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import {
-  createConferenceChampionshipSheet,
-  readConferenceChampionshipsFromSheet,
+  createCFPQuarterfinalsSheet,
+  readCFPQuarterfinalsFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
 
-export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
@@ -31,12 +31,12 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     }
   }, [isOpen])
 
-  // Create a CC sheet when modal opens if user is authenticated
+  // Create CFP Quarterfinals sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet) {
-        // Check if we have an existing CC sheet for this year
-        const existingSheetId = currentDynasty?.conferenceChampionshipSheetId
+        // Check if we have an existing CFP Quarterfinals sheet for this year
+        const existingSheetId = currentDynasty?.cfpQuarterfinalsSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -44,32 +44,28 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
 
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating Conference Championship sheet...')
+          console.log('Creating CFP Quarterfinals sheet...')
 
-          // Check if user played in a CC game this year - if so, exclude their conference
-          const userCCGame = currentDynasty?.games?.find(
-            g => g.isConferenceChampionship && g.year === currentYear
-          )
-          const excludeConference = userCCGame ? currentDynasty?.conference : null
-          if (excludeConference) {
-            console.log(`Excluding ${excludeConference} from sheet - user already played CC game`)
-          }
+          // Get CFP seeds and First Round results
+          const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
+          const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.week2 || []
 
-          const sheetInfo = await createConferenceChampionshipSheet(
+          const sheetInfo = await createCFPQuarterfinalsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            excludeConference
+            cfpSeeds,
+            firstRoundResults
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            conferenceChampionshipSheetId: sheetInfo.spreadsheetId
+            cfpQuarterfinalsSheetId: sheetInfo.spreadsheetId
           })
 
-          console.log('✅ Conference Championship sheet ready')
+          console.log('CFP Quarterfinals sheet ready')
         } catch (error) {
-          console.error('Failed to create CC sheet:', error)
+          console.error('Failed to create CFP Quarterfinals sheet:', error)
         } finally {
           setCreatingSheet(false)
         }
@@ -91,15 +87,15 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
 
     setSyncing(true)
     try {
-      const championships = await readConferenceChampionshipsFromSheet(sheetId)
-      console.log('Conference Championships read from sheet:', championships)
+      const games = await readCFPQuarterfinalsFromSheet(sheetId)
+      console.log('CFP Quarterfinals games read from sheet:', games)
 
-      await onSave(championships)
-      console.log('Conference Championships saved successfully')
+      await onSave(games)
+      console.log('CFP Quarterfinals games saved successfully')
 
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      alert('Failed to sync from Google Sheets. Make sure all 4 games have scores entered.')
       console.error(error)
     } finally {
       setSyncing(false)
@@ -111,20 +107,20 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
 
     setDeletingSheet(true)
     try {
-      const championships = await readConferenceChampionshipsFromSheet(sheetId)
-      await onSave(championships)
+      const games = await readCFPQuarterfinalsFromSheet(sheetId)
+      await onSave(games)
 
       // Delete the sheet
-      console.log('🗑️ Deleting CC sheet...')
+      console.log('Deleting CFP Quarterfinals sheet...')
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
       await updateDynasty(currentDynasty.id, {
-        conferenceChampionshipSheetId: null
+        cfpQuarterfinalsSheetId: null
       })
 
       setSheetId(null)
-      console.log('✅ CC sheet deleted')
+      console.log('CFP Quarterfinals sheet deleted')
 
       setShowDeletedNote(true)
       setTimeout(() => {
@@ -144,7 +140,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Conference Championships') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'CFP Quarterfinals') : null
   const isLoading = creatingSheet
 
   return (
@@ -160,7 +156,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Conference Championship Week
+            CFP Quarterfinals Results
           </h2>
           <button
             onClick={handleClose}
@@ -184,10 +180,10 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Conference Championship Sheet...
+                Creating CFP Quarterfinals Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up conferences and team dropdowns
+                Auto-filling teams from First Round results
               </p>
             </div>
           </div>
@@ -201,36 +197,38 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                 Saved & Sheet Deleted!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Conference Championship data saved to your dynasty.
+                CFP Quarterfinals results saved to your dynasty.
               </p>
             </div>
           </div>
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3 flex gap-3 flex-wrap">
-              <button
-                onClick={handleSyncAndDelete}
-                disabled={syncing || deletingSheet}
-                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                style={{
-                  backgroundColor: teamColors.primary,
-                  color: teamColors.secondary
-                }}
-              >
-                {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
-              </button>
-              <button
-                onClick={handleSyncFromSheet}
-                disabled={syncing || deletingSheet}
-                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
-                style={{
-                  backgroundColor: 'transparent',
-                  borderColor: teamColors.primary,
-                  color: teamColors.primary
-                }}
-              >
-                {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
-              </button>
+            <div className="mb-3">
+              <div className="flex gap-3 flex-wrap">
+                <button
+                  onClick={handleSyncAndDelete}
+                  disabled={syncing || deletingSheet}
+                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.secondary
+                  }}
+                >
+                  {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                </button>
+                <button
+                  onClick={handleSyncFromSheet}
+                  disabled={syncing || deletingSheet}
+                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary
+                  }}
+                >
+                  {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
@@ -238,13 +236,13 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                 src={embedUrl}
                 className="w-full h-full"
                 frameBorder="0"
-                title="Conference Championships Google Sheet"
+                title="CFP Quarterfinals Google Sheet"
               />
             </div>
 
             <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-              <p><strong>Columns:</strong> Conference | Team 1 | Team 2 | Team 1 Score | Team 2 Score</p>
-              <p>Fill in the teams playing in each conference championship game and their scores.</p>
+              <p><strong>Teams are auto-filled!</strong> Just enter the scores for each game.</p>
+              <p><strong>Bowls:</strong> Sugar (vs #4), Orange (vs #1), Rose (vs #3), Cotton (vs #2)</p>
             </div>
           </div>
         ) : (

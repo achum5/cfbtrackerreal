@@ -26,7 +26,11 @@
       "Bash(cat:*)",
       "Bash(git push:*)",
       "WebFetch(domain:firebase.google.com)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(git checkout:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

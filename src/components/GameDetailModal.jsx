@@ -312,7 +312,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                 </div>
               )}
               <div className="text-white">
-                {game.isConferenceChampionship ? (
+                {game.isConferenceChampionship || game.isBowlGame || game.isPlayoff ? (
                   <div className="text-2xl font-bold">
                     {game.year} {game.gameTitle}
                   </div>

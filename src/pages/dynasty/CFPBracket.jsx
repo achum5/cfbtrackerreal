@@ -1,164 +1,221 @@
+import { useState, useEffect } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { teams } from '../../data/teams'
-import { getAbbreviationFromDisplayName, teamAbbreviations } from '../../data/teamAbbreviations'
+import { getTeamLogo } from '../../data/teams'
+import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { getBowlLogo } from '../../data/bowlGames'
+import GameDetailModal from '../../components/GameDetailModal'
 
-// Get mascot name from team abbreviation
-const getMascotName = (abbr) => {
-  if (!abbr) return null
+// Map abbreviations to mascot names for logo lookup
+const mascotMap = {
+  'AFA': 'Air Force Falcons', 'AKR': 'Akron Zips', 'APP': 'Appalachian State Mountaineers',
+  'ARIZ': 'Arizona Wildcats', 'ARK': 'Arkansas Razorbacks', 'ARMY': 'Army Black Knights',
+  'ARST': 'Arkansas State Red Wolves', 'ASU': 'Arizona State Sun Devils', 'AUB': 'Auburn Tigers',
+  'BALL': 'Ball State Cardinals', 'BAMA': 'Alabama Crimson Tide', 'BC': 'Boston College Eagles',
+  'BGSU': 'Bowling Green Falcons', 'BOIS': 'Boise State Broncos', 'BU': 'Baylor Bears',
+  'BUFF': 'Buffalo Bulls', 'BYU': 'Brigham Young Cougars', 'CAL': 'California Golden Bears',
+  'CCU': 'Coastal Carolina Chanticleers', 'CHAR': 'Charlotte 49ers', 'CLEM': 'Clemson Tigers',
+  'CMU': 'Central Michigan Chippewas', 'COLO': 'Colorado Buffaloes', 'CONN': 'Connecticut Huskies',
+  'CSU': 'Colorado State Rams', 'DUKE': 'Duke Blue Devils', 'ECU': 'East Carolina Pirates',
+  'EMU': 'Eastern Michigan Eagles', 'FIU': 'Florida International Panthers', 'FSU': 'Florida State Seminoles',
+  'FAU': 'Florida Atlantic Owls', 'FRES': 'Fresno State Bulldogs', 'UF': 'Florida Gators',
+  'GASO': 'Georgia Southern Eagles', 'GAST': 'Georgia State Panthers', 'GT': 'Georgia Tech Yellow Jackets',
+  'UGA': 'Georgia Bulldogs', 'HAW': 'Hawaii Rainbow Warriors', 'HOU': 'Houston Cougars',
+  'ILL': 'Illinois Fighting Illini', 'IU': 'Indiana Hoosiers', 'IOWA': 'Iowa Hawkeyes',
+  'ISU': 'Iowa State Cyclones', 'JKST': 'Jacksonville State Gamecocks', 'JMU': 'James Madison Dukes',
+  'KU': 'Kansas Jayhawks', 'KSU': 'Kansas State Wildcats', 'KENT': 'Kent State Golden Flashes',
+  'UK': 'Kentucky Wildcats', 'LIB': 'Liberty Flames', 'ULL': 'Lafayette Ragin\' Cajuns',
+  'LT': 'Louisiana Tech Bulldogs', 'LOU': 'Louisville Cardinals', 'LSU': 'LSU Tigers',
+  'UM': 'Miami Hurricanes', 'M-OH': 'Miami Redhawks', 'UMD': 'Maryland Terrapins',
+  'MASS': 'Massachusetts Minutemen', 'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
+  'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
+  'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels', 'MSST': 'Mississippi State Bulldogs',
+  'MZST': 'Missouri Tigers', 'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
+  'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack', 'UNM': 'New Mexico Lobos',
+  'NMSU': 'New Mexico State Aggies', 'UNC': 'North Carolina Tar Heels', 'NCST': 'North Carolina State Wolfpack',
+  'UNT': 'North Texas Mean Green', 'NU': 'Northwestern Wildcats', 'ND': 'Notre Dame Fighting Irish',
+  'NIU': 'Northern Illinois Huskies', 'OHIO': 'Ohio Bobcats', 'OSU': 'Ohio State Buckeyes',
+  'OKLA': 'Oklahoma Sooners', 'OKST': 'Oklahoma State Cowboys', 'ODU': 'Old Dominion Monarchs',
+  'ORE': 'Oregon Ducks', 'ORST': 'Oregon State Beavers', 'PSU': 'Penn State Nittany Lions',
+  'PITT': 'Pittsburgh Panthers', 'PUR': 'Purdue Boilermakers', 'RICE': 'Rice Owls',
+  'RUT': 'Rutgers Scarlet Knights', 'SDSU': 'San Diego State Aztecs', 'SJSU': 'San Jose State Spartans',
+  'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
+  'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
+  'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
+  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies',
+  'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
+  'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
+  'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
+  'UTEP': 'UTEP Miners', 'USA': 'South Alabama Jaguars', 'USU': 'Utah State Aggies',
+  'UTAH': 'Utah Utes', 'UTSA': 'UTSA Roadrunners', 'VAN': 'Vanderbilt Commodores',
+  'UVA': 'Virginia Cavaliers', 'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons',
+  'WASH': 'Washington Huskies', 'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers',
+  'WMU': 'Western Michigan Broncos', 'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers',
+  'WYO': 'Wyoming Cowboys', 'DEL': 'Delaware Fightin\' Blue Hens', 'FLA': 'Florida Gators',
+  'KENN': 'Kennesaw State Owls', 'ULM': 'Monroe Warhawks', 'UC': 'Cincinnati Bearcats',
+  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers'
+}
+
+const getShortName = (abbr) => {
+  if (!abbr) return 'TBD'
   const teamInfo = teamAbbreviations[abbr]
-  if (!teamInfo) return null
-  // Find the team in teams array that matches the name
-  const team = teams.find(t => t.name === teamInfo.name)
-  return team?.name || teamInfo.name
+  if (!teamInfo) return abbr
+  let name = teamInfo.name
+  if (name.includes('University of ')) {
+    name = name.replace('University of ', '').split(',')[0].trim()
+  } else if (name.includes(' University')) {
+    name = name.replace(' University', '').split(',')[0].trim()
+  }
+  return name
 }
 
 export default function CFPBracket() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
-  const primaryBgText = getContrastTextColor(teamColors.primary)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
+  const [selectedGame, setSelectedGame] = useState(null)
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  const [selectedYear, setSelectedYear] = useState(null)
+
+  // Track window width for responsive scaling
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Set initial selected year when dynasty loads
+  useEffect(() => {
+    if (currentDynasty && selectedYear === null) {
+      setSelectedYear(currentDynasty.currentYear)
+    }
+  }, [currentDynasty, selectedYear])
 
   if (!currentDynasty) {
     return <div className="p-6">Loading...</div>
   }
 
-  const currentYear = currentDynasty.currentYear
-  const cfpSeeds = currentDynasty.cfpSeedsByYear?.[currentYear] || []
-  const cfpResults = currentDynasty.cfpResultsByYear?.[currentYear] || {}
-  const firstRound = cfpResults.firstRound || []
-  const quarterfinals = cfpResults.week3 || []
-  const semifinals = cfpResults.week4 || []
-  const championship = cfpResults.week5 || []
+  // Get available years that have CFP seeds data
+  const availableYears = Object.keys(currentDynasty.cfpSeedsByYear || {})
+    .map(y => parseInt(y))
+    .sort((a, b) => b - a) // Most recent first
 
-  // Get team by seed
-  const getTeamBySeed = (seed) => {
-    const seedData = cfpSeeds.find(s => s.seed === seed)
-    return seedData?.team || null
+  // If no CFP data exists yet, show current year
+  if (availableYears.length === 0) {
+    availableYears.push(currentDynasty.currentYear)
   }
 
-  // Get first round winner (5v12, 6v11, 7v10, 8v9)
-  const getFirstRoundWinner = (higherSeed, lowerSeed) => {
-    // Higher seed is 5,6,7,8 and lower is 12,11,10,9
-    const game = firstRound.find(g => {
-      const team1 = g.team1
-      const team2 = g.team2
-      const team1Seed = cfpSeeds.find(s => s.team === team1)?.seed
-      const team2Seed = cfpSeeds.find(s => s.team === team2)?.seed
-      return (team1Seed === higherSeed && team2Seed === lowerSeed) ||
-             (team1Seed === lowerSeed && team2Seed === higherSeed)
-    })
-    if (!game || !game.team1Score || !game.team2Score) return null
-    return parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2
-  }
+  const displayYear = selectedYear || currentDynasty.currentYear
+  const cfpSeeds = currentDynasty.cfpSeedsByYear?.[displayYear] || []
+  const textColor = getContrastTextColor(teamColors.primary)
 
-  // Get quarterfinal winner
-  const getQuarterfinalWinner = (gameId) => {
-    const game = quarterfinals.find(g => g.id === gameId)
-    if (!game || !game.team1Score || !game.team2Score) return null
-    return parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2
-  }
+  const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
-  // Get semifinal winner
-  const getSemifinalWinner = (gameId) => {
-    const game = semifinals.find(g => g.id === gameId)
-    if (!game || !game.team1Score || !game.team2Score) return null
-    return parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2
-  }
-
-  // Get championship winner
-  const getChampionshipWinner = () => {
-    const game = championship.find(g => g.id === 'championship')
-    if (!game || !game.team1Score || !game.team2Score) return null
-    return parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2
-  }
-
-  // Calculate who advances to each round
-  const firstRoundWinners = {
-    '5v12': getFirstRoundWinner(5, 12),
-    '6v11': getFirstRoundWinner(6, 11),
-    '7v10': getFirstRoundWinner(7, 10),
-    '8v9': getFirstRoundWinner(8, 9)
-  }
-
-  const qfWinners = {
-    qf1: getQuarterfinalWinner('qf1'), // #1 vs 8/9 winner
-    qf2: getQuarterfinalWinner('qf2'), // #4 vs 5/12 winner
-    qf3: getQuarterfinalWinner('qf3'), // #3 vs 6/11 winner
-    qf4: getQuarterfinalWinner('qf4')  // #2 vs 7/10 winner
-  }
-
-  const sfWinners = {
-    sf1: getSemifinalWinner('sf1'), // qf1 vs qf2 winner
-    sf2: getSemifinalWinner('sf2')  // qf3 vs qf4 winner
-  }
-
-  const champion = getChampionshipWinner()
+  // Sizing constants (scaled up for larger bracket)
+  const SLOT_HEIGHT = 70
+  const SLOT_GAP = 12
+  const MATCHUP_HEIGHT = SLOT_HEIGHT * 2 + SLOT_GAP // 152px
+  const SLOT_WIDTH = 300
+  const CONNECTOR_GAP = 60 // Gap between columns for connector lines
 
   // Team slot component
-  const TeamSlot = ({ team, seed, isWinner = false, showSeed = true, size = 'normal' }) => {
-    if (!team) {
-      return (
-        <div
-          className={`flex items-center gap-2 ${size === 'small' ? 'p-1.5' : 'p-2'} rounded border-2 border-dashed`}
-          style={{ borderColor: `${teamColors.primary}40`, backgroundColor: `${teamColors.primary}10` }}
-        >
-          {showSeed && seed && <span className="text-xs font-bold opacity-50" style={{ color: secondaryBgText }}>#{seed}</span>}
-          <span className={`${size === 'small' ? 'text-xs' : 'text-sm'} opacity-50`} style={{ color: secondaryBgText }}>TBD</span>
-        </div>
-      )
-    }
-
-    const teamData = teamAbbreviations[team]
-    const mascotName = getMascotName(team) || teamData?.name || team
-    const bgColor = teamData?.backgroundColor || teamColors.primary
-    const textColor = getContrastTextColor(bgColor)
+  const TeamSlot = ({ team, seed }) => {
+    const teamData = team ? teamAbbreviations[team] : null
+    const bgColor = teamData?.backgroundColor || '#4B5563'
+    const txtColor = teamData?.textColor || '#D1D5DB'
+    const mascotName = team ? mascotMap[team] : null
+    const logo = mascotName ? getTeamLogo(mascotName) : null
 
     return (
       <div
-        className={`flex items-center gap-2 ${size === 'small' ? 'p-1.5' : 'p-2'} rounded shadow-sm ${isWinner ? 'ring-2 ring-yellow-400' : ''}`}
-        style={{ backgroundColor: bgColor, color: textColor }}
+        className="flex items-center gap-3 px-4 rounded border"
+        style={{
+          backgroundColor: bgColor,
+          width: `${SLOT_WIDTH}px`,
+          height: `${SLOT_HEIGHT}px`,
+          borderColor: team ? 'transparent' : '#6B7280'
+        }}
       >
-        {showSeed && seed && <span className={`${size === 'small' ? 'text-xs' : 'text-sm'} font-bold opacity-80`}>#{seed}</span>}
-        <img
-          src={`/logos/${mascotName.toLowerCase().replace(/[^a-z]/g, '')}.png`}
-          alt=""
-          className={`${size === 'small' ? 'w-4 h-4' : 'w-5 h-5'} object-contain`}
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-        <span className={`${size === 'small' ? 'text-xs' : 'text-sm'} font-semibold truncate`}>{team}</span>
-        {isWinner && <span className="text-yellow-300">W</span>}
+        <span className="text-lg font-bold w-8 opacity-70" style={{ color: txtColor }}>
+          {team ? seed : ''}
+        </span>
+        {logo && <img src={logo} alt="" className="w-10 h-10 object-contain" />}
+        {team ? (
+          <Link
+            to={`/dynasty/${id}/team/${team}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xl font-semibold truncate hover:underline"
+            style={{ color: txtColor }}
+          >
+            {getShortName(team)}
+          </Link>
+        ) : (
+          <span className="text-xl font-semibold truncate" style={{ color: txtColor }}>
+            TBD
+          </span>
+        )}
       </div>
     )
   }
 
-  // Matchup component
-  const Matchup = ({ team1, team2, seed1, seed2, winner, showSeeds = true, title, size = 'normal' }) => {
-    return (
-      <div className={`flex flex-col ${size === 'small' ? 'gap-0.5' : 'gap-1'}`}>
-        {title && <div className="text-xs font-semibold mb-1 opacity-70" style={{ color: secondaryBgText }}>{title}</div>}
-        <TeamSlot team={team1} seed={seed1} isWinner={winner === team1} showSeed={showSeeds} size={size} />
-        <TeamSlot team={team2} seed={seed2} isWinner={winner === team2} showSeed={showSeeds} size={size} />
-      </div>
-    )
-  }
+  // Matchup component - two team slots stacked
+  const Matchup = ({ team1, team2, seed1, seed2, style, onClick, round, bowl }) => (
+    <div
+      className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
+      style={{ gap: `${SLOT_GAP}px`, ...style }}
+      onClick={() => onClick && onClick({ team1, team2, seed1, seed2, round, bowl })}
+    >
+      <TeamSlot team={team1} seed={seed1} />
+      <TeamSlot team={team2} seed={seed2} />
+    </div>
+  )
 
-  // If no seeds entered yet
+  // Horizontal line
+  const HLine = ({ top, left, width }) => (
+    <div
+      className="absolute"
+      style={{
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+        height: '2px',
+        backgroundColor: `${teamColors.secondary}60`
+      }}
+    />
+  )
+
+  // Vertical line
+  const VLine = ({ top, left, height }) => (
+    <div
+      className="absolute"
+      style={{
+        top: `${top}px`,
+        left: `${left}px`,
+        width: '2px',
+        height: `${height}px`,
+        backgroundColor: `${teamColors.secondary}60`
+      }}
+    />
+  )
+
+  // No seeds entered
   if (cfpSeeds.length === 0) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-6" style={{ color: secondaryBgText }}>
-          {currentYear} CFP Bracket
-        </h1>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img src="https://i.imgur.com/ZKD9dQJ.png" alt="CFP Logo" className="h-10" />
+          <h1 className="text-2xl font-bold" style={{ color: textColor }}>
+            {displayYear} CFP Bracket
+          </h1>
+        </div>
         <div
-          className="p-8 rounded-lg text-center"
-          style={{ backgroundColor: `${teamColors.primary}10`, borderColor: `${teamColors.primary}30`, border: '2px dashed' }}
+          className="p-8 rounded-lg text-center border-2 border-dashed"
+          style={{ borderColor: `${teamColors.secondary}50`, backgroundColor: `${teamColors.primary}20` }}
         >
-          <p className="text-lg mb-2" style={{ color: secondaryBgText }}>CFP Seeds Not Yet Entered</p>
-          <p className="opacity-70" style={{ color: secondaryBgText }}>
+          <p className="text-lg mb-2" style={{ color: textColor }}>CFP Seeds Not Yet Entered</p>
+          <p className="opacity-70" style={{ color: textColor }}>
             Enter CFP seeds in Bowl Week 1 to see the bracket
           </p>
         </div>
@@ -166,174 +223,423 @@ export default function CFPBracket() {
     )
   }
 
-  // Build the bracket layout
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6" style={{ color: secondaryBgText }}>
-        {currentYear} CFP Bracket
-      </h1>
+  // Get all seeds
+  const s1 = getTeamBySeed(1), s2 = getTeamBySeed(2), s3 = getTeamBySeed(3), s4 = getTeamBySeed(4)
+  const s5 = getTeamBySeed(5), s6 = getTeamBySeed(6), s7 = getTeamBySeed(7), s8 = getTeamBySeed(8)
+  const s9 = getTeamBySeed(9), s10 = getTeamBySeed(10), s11 = getTeamBySeed(11), s12 = getTeamBySeed(12)
 
-      {/* Champion Display */}
-      {champion && (
-        <div className="mb-8 text-center">
-          <div className="inline-block p-4 rounded-lg shadow-lg" style={{ backgroundColor: teamColors.primary }}>
-            <div className="text-lg font-bold mb-2" style={{ color: primaryBgText }}>National Champion</div>
-            <TeamSlot team={champion} showSeed={false} isWinner={true} />
+  // Column positions (left edge of each column)
+  const COL1 = 0 // First Round matchups
+  const COL2 = SLOT_WIDTH + CONNECTOR_GAP // Quarterfinals
+  const COL3 = COL2 + SLOT_WIDTH + CONNECTOR_GAP // Semifinals
+  const COL4 = COL3 + SLOT_WIDTH + CONNECTOR_GAP // Championship
+
+  // Vertical positions - work backwards from championship
+  // We want even spacing that creates a clean bracket look
+
+  // First Round spacing
+  const R1_GAP = 36 // Gap between First Round matchups
+  const R1_START = 50 // Top of first matchup
+
+  // First Round matchup positions (4 matchups)
+  const R1_M1 = R1_START
+  const R1_M2 = R1_M1 + MATCHUP_HEIGHT + R1_GAP
+  const R1_M3 = R1_M2 + MATCHUP_HEIGHT + R1_GAP
+  const R1_M4 = R1_M3 + MATCHUP_HEIGHT + R1_GAP
+
+  // First Round centers (output lines come from center of each matchup)
+  const R1_M1_CENTER = R1_M1 + MATCHUP_HEIGHT / 2
+  const R1_M2_CENTER = R1_M2 + MATCHUP_HEIGHT / 2
+  const R1_M3_CENTER = R1_M3 + MATCHUP_HEIGHT / 2
+  const R1_M4_CENTER = R1_M4 + MATCHUP_HEIGHT / 2
+
+  // Quarterfinals - position each QF so its top slot center aligns with corresponding FR output
+  // QF top slot center = QF_TOP + SLOT_HEIGHT/2
+  // We want QF top slot center = R1 center, so QF_TOP = R1_CENTER - SLOT_HEIGHT/2
+  const QF_M1 = R1_M1_CENTER - SLOT_HEIGHT / 2
+  const QF_M2 = R1_M2_CENTER - SLOT_HEIGHT / 2
+  const QF_M3 = R1_M3_CENTER - SLOT_HEIGHT / 2
+  const QF_M4 = R1_M4_CENTER - SLOT_HEIGHT / 2
+
+  // QF centers
+  const QF_M1_CENTER = QF_M1 + MATCHUP_HEIGHT / 2
+  const QF_M2_CENTER = QF_M2 + MATCHUP_HEIGHT / 2
+  const QF_M3_CENTER = QF_M3 + MATCHUP_HEIGHT / 2
+  const QF_M4_CENTER = QF_M4 + MATCHUP_HEIGHT / 2
+
+  // Semifinals - centered between their two feeding QF matchups
+  const SF_M1 = (QF_M1_CENTER + QF_M2_CENTER) / 2 - MATCHUP_HEIGHT / 2
+  const SF_M2 = (QF_M3_CENTER + QF_M4_CENTER) / 2 - MATCHUP_HEIGHT / 2
+
+  // SF centers
+  const SF_M1_CENTER = SF_M1 + MATCHUP_HEIGHT / 2
+  const SF_M2_CENTER = SF_M2 + MATCHUP_HEIGHT / 2
+
+  // Championship - centered between the two semifinals
+  const CHAMP = (SF_M1_CENTER + SF_M2_CENTER) / 2 - MATCHUP_HEIGHT / 2
+  const CHAMP_CENTER = CHAMP + MATCHUP_HEIGHT / 2
+
+  // Connector X positions
+  const CONN_X1 = SLOT_WIDTH // End of First Round slots, start of connectors
+  const CONN_X2 = COL2 + SLOT_WIDTH // End of QF slots
+  const CONN_X3 = COL3 + SLOT_WIDTH // End of SF slots
+
+  // Vertical connector X positions (midway in the gap)
+  const VCONN_X2 = CONN_X2 + CONNECTOR_GAP / 2 // Between QF and SF
+  const VCONN_X3 = CONN_X3 + CONNECTOR_GAP / 2 // Between SF and CHAMP
+
+  const BRACKET_HEIGHT = R1_M4 + MATCHUP_HEIGHT + 160
+  const BRACKET_WIDTH = COL4 + SLOT_WIDTH + 40
+
+  // Calculate scale for mobile - fit bracket to viewport width with padding
+  const PADDING = 32 // 16px on each side
+  const availableWidth = windowWidth - PADDING
+  const scale = availableWidth < BRACKET_WIDTH ? availableWidth / BRACKET_WIDTH : 1
+  const scaledHeight = BRACKET_HEIGHT * scale
+  const scaledWidth = BRACKET_WIDTH * scale
+
+  // Handle matchup click - find the game data if it exists
+  const handleMatchupClick = (matchupInfo) => {
+    const { team1, team2, seed1, seed2, round, bowl } = matchupInfo
+
+    // Look for existing game in cfpGames
+    const cfpGames = currentDynasty.cfpGamesByYear?.[displayYear] || []
+    const existingGame = cfpGames.find(g =>
+      g.round === round &&
+      ((g.team1 === team1 && g.team2 === team2) || (g.team1 === team2 && g.team2 === team1))
+    )
+
+    if (existingGame) {
+      // Convert to GameDetailModal format
+      setSelectedGame({
+        ...existingGame,
+        opponent: existingGame.team1 === currentDynasty.teamName ? existingGame.team2 : existingGame.team1,
+        teamScore: existingGame.team1 === currentDynasty.teamName ? existingGame.team1Score : existingGame.team2Score,
+        opponentScore: existingGame.team1 === currentDynasty.teamName ? existingGame.team2Score : existingGame.team1Score,
+        result: existingGame.winner === currentDynasty.teamName ? 'win' : 'loss',
+        location: 'neutral',
+        year: displayYear,
+        week: round,
+        gameTitle: bowl || round,
+        isPlayoff: true
+      })
+    } else {
+      // Show matchup preview (no game played yet)
+      setSelectedGame({
+        team1,
+        team2,
+        seed1,
+        seed2,
+        round,
+        bowl,
+        year: displayYear,
+        gameTitle: bowl || round,
+        isPlayoff: true,
+        isPreview: true,
+        opponent: team1 || team2,
+        location: 'neutral'
+      })
+    }
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-center gap-3 md:gap-6 mb-6 md:mb-10">
+        <img src="https://i.imgur.com/ZKD9dQJ.png" alt="CFP Logo" className="h-10 md:h-20" />
+        <h1 className="text-xl md:text-4xl font-bold" style={{ color: textColor }}>
+          <select
+            value={displayYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="bg-transparent font-bold cursor-pointer hover:opacity-80 transition-opacity appearance-none pr-1"
+            style={{
+              color: textColor,
+              outline: 'none',
+              borderBottom: `2px solid ${textColor}40`
+            }}
+          >
+            {availableYears.map(year => (
+              <option key={year} value={year} style={{ color: '#000' }}>{year}</option>
+            ))}
+          </select>
+          {' '}College Football Playoff
+        </h1>
+      </div>
+
+      {/* Scaled Bracket Container */}
+      <div className="flex justify-center" style={{ height: `${scaledHeight + 40}px` }}>
+        <div
+          style={{
+            width: `${BRACKET_WIDTH}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top center'
+          }}
+        >
+          {/* Round Labels */}
+          <div className="flex mb-6 text-xl font-bold" style={{ color: textColor }}>
+            <div style={{ width: `${SLOT_WIDTH}px`, marginLeft: `${COL1}px` }} className="text-center">First Round</div>
+            <div style={{ width: `${SLOT_WIDTH}px`, marginLeft: `${CONNECTOR_GAP}px` }} className="text-center">Quarterfinals</div>
+            <div style={{ width: `${SLOT_WIDTH}px`, marginLeft: `${CONNECTOR_GAP}px` }} className="text-center">Semifinals</div>
+            <div style={{ width: `${SLOT_WIDTH}px`, marginLeft: `${CONNECTOR_GAP}px` }} className="text-center">Championship</div>
+          </div>
+
+          {/* Bracket Area */}
+          <div className="relative" style={{ height: `${BRACKET_HEIGHT}px`, width: `${BRACKET_WIDTH}px` }}>
+
+            {/* ===== FIRST ROUND ===== */}
+            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
+            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
+            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
+            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} onClick={handleMatchupClick} round="First Round" />
+
+            {/* First Round → QF connectors (bracket from 2 teams to 1 output) */}
+            {/* R1_M1: 12 vs 5 → QF top slot */}
+            <HLine top={R1_M1 + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <HLine top={R1_M1 + SLOT_HEIGHT + SLOT_GAP + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <VLine top={R1_M1 + SLOT_HEIGHT / 2} left={CONN_X1 + CONNECTOR_GAP / 2} height={SLOT_HEIGHT + SLOT_GAP} />
+            <HLine top={R1_M1_CENTER} left={CONN_X1 + CONNECTOR_GAP / 2} width={CONNECTOR_GAP / 2} />
+
+            {/* R1_M2: 9 vs 8 → QF top slot */}
+            <HLine top={R1_M2 + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <HLine top={R1_M2 + SLOT_HEIGHT + SLOT_GAP + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <VLine top={R1_M2 + SLOT_HEIGHT / 2} left={CONN_X1 + CONNECTOR_GAP / 2} height={SLOT_HEIGHT + SLOT_GAP} />
+            <HLine top={R1_M2_CENTER} left={CONN_X1 + CONNECTOR_GAP / 2} width={CONNECTOR_GAP / 2} />
+
+            {/* R1_M3: 11 vs 6 → QF top slot */}
+            <HLine top={R1_M3 + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <HLine top={R1_M3 + SLOT_HEIGHT + SLOT_GAP + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <VLine top={R1_M3 + SLOT_HEIGHT / 2} left={CONN_X1 + CONNECTOR_GAP / 2} height={SLOT_HEIGHT + SLOT_GAP} />
+            <HLine top={R1_M3_CENTER} left={CONN_X1 + CONNECTOR_GAP / 2} width={CONNECTOR_GAP / 2} />
+
+            {/* R1_M4: 10 vs 7 → QF top slot */}
+            <HLine top={R1_M4 + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <HLine top={R1_M4 + SLOT_HEIGHT + SLOT_GAP + SLOT_HEIGHT / 2} left={CONN_X1} width={CONNECTOR_GAP / 2} />
+            <VLine top={R1_M4 + SLOT_HEIGHT / 2} left={CONN_X1 + CONNECTOR_GAP / 2} height={SLOT_HEIGHT + SLOT_GAP} />
+            <HLine top={R1_M4_CENTER} left={CONN_X1 + CONNECTOR_GAP / 2} width={CONNECTOR_GAP / 2} />
+
+            {/* ===== QUARTERFINALS ===== */}
+            <Matchup team1={null} team2={s4} seed1={null} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" />
+            <Matchup team1={null} team2={s1} seed1={null} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" />
+            <Matchup team1={null} team2={s3} seed1={null} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" />
+            <Matchup team1={null} team2={s2} seed1={null} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" />
+
+            {/* QF Bowl Logos - positioned on right side, centered between both team slots */}
+            <img
+              src={getBowlLogo('Sugar Bowl')}
+              alt="Sugar Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: QF_M1 + MATCHUP_HEIGHT / 2 - 28, left: COL2 + SLOT_WIDTH - 10 }}
+            />
+            <img
+              src={getBowlLogo('Orange Bowl')}
+              alt="Orange Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: QF_M2 + MATCHUP_HEIGHT / 2 - 28, left: COL2 + SLOT_WIDTH - 10 }}
+            />
+            <img
+              src={getBowlLogo('Rose Bowl')}
+              alt="Rose Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: QF_M3 + MATCHUP_HEIGHT / 2 - 28, left: COL2 + SLOT_WIDTH - 10 }}
+            />
+            <img
+              src={getBowlLogo('Cotton Bowl')}
+              alt="Cotton Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: QF_M4 + MATCHUP_HEIGHT / 2 - 28, left: COL2 + SLOT_WIDTH - 10 }}
+            />
+
+            {/* QF → SF connectors */}
+            {/* QF1 + QF2 feed into SF1 */}
+            <HLine top={QF_M1_CENTER} left={CONN_X2} width={VCONN_X2 - CONN_X2} />
+            <HLine top={QF_M2_CENTER} left={CONN_X2} width={VCONN_X2 - CONN_X2} />
+            <VLine top={QF_M1_CENTER} left={VCONN_X2} height={QF_M2_CENTER - QF_M1_CENTER} />
+            <HLine top={SF_M1_CENTER} left={VCONN_X2} width={COL3 - VCONN_X2} />
+
+            {/* QF3 + QF4 feed into SF2 */}
+            <HLine top={QF_M3_CENTER} left={CONN_X2} width={VCONN_X2 - CONN_X2} />
+            <HLine top={QF_M4_CENTER} left={CONN_X2} width={VCONN_X2 - CONN_X2} />
+            <VLine top={QF_M3_CENTER} left={VCONN_X2} height={QF_M4_CENTER - QF_M3_CENTER} />
+            <HLine top={SF_M2_CENTER} left={VCONN_X2} width={COL3 - VCONN_X2} />
+
+            {/* ===== SEMIFINALS ===== */}
+            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: SF_M1, left: COL3 }} onClick={handleMatchupClick} round="Semifinal" bowl="Peach Bowl" />
+            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: SF_M2, left: COL3 }} onClick={handleMatchupClick} round="Semifinal" bowl="Fiesta Bowl" />
+
+            {/* SF Bowl Logos */}
+            <img
+              src={getBowlLogo('Peach Bowl')}
+              alt="Peach Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: SF_M1 + MATCHUP_HEIGHT / 2 - 28, left: COL3 + SLOT_WIDTH - 10 }}
+            />
+            <img
+              src={getBowlLogo('Fiesta Bowl')}
+              alt="Fiesta Bowl"
+              className="absolute w-14 h-14 object-contain z-10"
+              style={{ top: SF_M2 + MATCHUP_HEIGHT / 2 - 28, left: COL3 + SLOT_WIDTH - 10 }}
+            />
+
+            {/* SF → Championship connectors */}
+            <HLine top={SF_M1_CENTER} left={CONN_X3} width={VCONN_X3 - CONN_X3} />
+            <HLine top={SF_M2_CENTER} left={CONN_X3} width={VCONN_X3 - CONN_X3} />
+            <VLine top={SF_M1_CENTER} left={VCONN_X3} height={SF_M2_CENTER - SF_M1_CENTER} />
+            <HLine top={CHAMP_CENTER} left={VCONN_X3} width={COL4 - VCONN_X3} />
+
+            {/* ===== CHAMPIONSHIP ===== */}
+            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: CHAMP, left: COL4 }} onClick={handleMatchupClick} round="Championship" bowl="National Championship" />
+
+            {/* Trophy */}
+            <div className="absolute text-center" style={{ top: CHAMP + MATCHUP_HEIGHT + 30, left: COL4, width: `${SLOT_WIDTH}px` }}>
+              <img src="https://i.imgur.com/3goz1NK.png" alt="CFP Trophy" className="h-32 mx-auto mb-3" />
+              <div className="text-lg font-bold" style={{ color: textColor }}>National Champion</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Game Preview Modal (for unplayed games) */}
+      {selectedGame?.isPreview && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => setSelectedGame(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="p-6"
+              style={{ backgroundColor: teamColors.primary }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {selectedGame.bowl && getBowlLogo(selectedGame.bowl) && (
+                    <div className="w-14 h-14 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
+                      <img
+                        src={getBowlLogo(selectedGame.bowl)}
+                        alt={`${selectedGame.bowl} logo`}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="text-white">
+                    <Link
+                      to={`/dynasty/${id}/cfp-bracket`}
+                      onClick={() => setSelectedGame(null)}
+                      className="text-xl font-bold hover:underline"
+                    >
+                      {selectedGame.year} CFP {selectedGame.round}
+                    </Link>
+                    {selectedGame.bowl && selectedGame.round !== 'First Round' && (
+                      <div className="text-sm opacity-80">{selectedGame.bowl}</div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedGame(null)}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Matchup Preview */}
+            <div className="p-8">
+              <div className="flex items-center justify-center gap-6">
+                {/* Team 1 */}
+                <div className="text-center flex-1">
+                  {selectedGame.team1 ? (
+                    <>
+                      <Link
+                        to={`/dynasty/${id}/team/${selectedGame.team1}`}
+                        onClick={() => setSelectedGame(null)}
+                        className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2"
+                        style={{ borderColor: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#666' }}
+                      >
+                        {mascotMap[selectedGame.team1] && getTeamLogo(mascotMap[selectedGame.team1]) && (
+                          <img src={getTeamLogo(mascotMap[selectedGame.team1])} alt="" className="w-14 h-14 object-contain" />
+                        )}
+                      </Link>
+                      <div className="text-xs text-gray-500 mb-1">#{selectedGame.seed1} Seed</div>
+                      <Link
+                        to={`/dynasty/${id}/team/${selectedGame.team1}`}
+                        onClick={() => setSelectedGame(null)}
+                        className="font-bold text-lg hover:underline"
+                        style={{ color: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#333' }}
+                      >
+                        {getShortName(selectedGame.team1)}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 bg-gray-200 border-2 border-gray-300">
+                        <span className="text-gray-400 text-2xl font-bold">?</span>
+                      </div>
+                      <div className="font-bold text-lg text-gray-400">TBD</div>
+                    </>
+                  )}
+                </div>
+
+                {/* VS */}
+                <div className="text-2xl font-bold text-gray-400">VS</div>
+
+                {/* Team 2 */}
+                <div className="text-center flex-1">
+                  {selectedGame.team2 ? (
+                    <>
+                      <Link
+                        to={`/dynasty/${id}/team/${selectedGame.team2}`}
+                        onClick={() => setSelectedGame(null)}
+                        className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2"
+                        style={{ borderColor: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#666' }}
+                      >
+                        {mascotMap[selectedGame.team2] && getTeamLogo(mascotMap[selectedGame.team2]) && (
+                          <img src={getTeamLogo(mascotMap[selectedGame.team2])} alt="" className="w-14 h-14 object-contain" />
+                        )}
+                      </Link>
+                      <div className="text-xs text-gray-500 mb-1">#{selectedGame.seed2} Seed</div>
+                      <Link
+                        to={`/dynasty/${id}/team/${selectedGame.team2}`}
+                        onClick={() => setSelectedGame(null)}
+                        className="font-bold text-lg hover:underline"
+                        style={{ color: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#333' }}
+                      >
+                        {getShortName(selectedGame.team2)}
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 bg-gray-200 border-2 border-gray-300">
+                        <span className="text-gray-400 text-2xl font-bold">?</span>
+                      </div>
+                      <div className="font-bold text-lg text-gray-400">TBD</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 text-center text-gray-500 text-sm">
+                Game not yet played
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Bracket Grid - Horizontal Layout */}
-      <div className="overflow-x-auto">
-        <div className="min-w-[1000px] flex gap-4 items-center justify-between">
-
-          {/* First Round (Left Side) */}
-          <div className="flex flex-col gap-4 w-44">
-            <h3 className="text-sm font-bold text-center pb-2 border-b" style={{ color: secondaryBgText, borderColor: `${teamColors.primary}30` }}>
-              First Round
-            </h3>
-            <Matchup
-              team1={getTeamBySeed(5)}
-              team2={getTeamBySeed(12)}
-              seed1={5}
-              seed2={12}
-              winner={firstRoundWinners['5v12']}
-              title="At #5 Seed"
-              size="small"
-            />
-            <Matchup
-              team1={getTeamBySeed(8)}
-              team2={getTeamBySeed(9)}
-              seed1={8}
-              seed2={9}
-              winner={firstRoundWinners['8v9']}
-              title="At #8 Seed"
-              size="small"
-            />
-            <Matchup
-              team1={getTeamBySeed(6)}
-              team2={getTeamBySeed(11)}
-              seed1={6}
-              seed2={11}
-              winner={firstRoundWinners['6v11']}
-              title="At #6 Seed"
-              size="small"
-            />
-            <Matchup
-              team1={getTeamBySeed(7)}
-              team2={getTeamBySeed(10)}
-              seed1={7}
-              seed2={10}
-              winner={firstRoundWinners['7v10']}
-              title="At #7 Seed"
-              size="small"
-            />
-          </div>
-
-          {/* Quarterfinals */}
-          <div className="flex flex-col gap-4 w-44">
-            <h3 className="text-sm font-bold text-center pb-2 border-b" style={{ color: secondaryBgText, borderColor: `${teamColors.primary}30` }}>
-              Quarterfinals
-            </h3>
-            {/* QF1: #1 vs 8/9 winner (Fiesta or Peach) */}
-            <Matchup
-              team1={getTeamBySeed(1)}
-              team2={firstRoundWinners['8v9']}
-              seed1={1}
-              winner={qfWinners.qf1}
-              showSeeds={false}
-              title="#1 vs 8/9 Winner"
-              size="small"
-            />
-            {/* QF2: #4 vs 5/12 winner */}
-            <Matchup
-              team1={getTeamBySeed(4)}
-              team2={firstRoundWinners['5v12']}
-              seed1={4}
-              winner={qfWinners.qf2}
-              showSeeds={false}
-              title="#4 vs 5/12 Winner"
-              size="small"
-            />
-            {/* QF3: #3 vs 6/11 winner */}
-            <Matchup
-              team1={getTeamBySeed(3)}
-              team2={firstRoundWinners['6v11']}
-              seed1={3}
-              winner={qfWinners.qf3}
-              showSeeds={false}
-              title="#3 vs 6/11 Winner"
-              size="small"
-            />
-            {/* QF4: #2 vs 7/10 winner */}
-            <Matchup
-              team1={getTeamBySeed(2)}
-              team2={firstRoundWinners['7v10']}
-              seed1={2}
-              winner={qfWinners.qf4}
-              showSeeds={false}
-              title="#2 vs 7/10 Winner"
-              size="small"
-            />
-          </div>
-
-          {/* Semifinals */}
-          <div className="flex flex-col gap-8 w-44">
-            <h3 className="text-sm font-bold text-center pb-2 border-b" style={{ color: secondaryBgText, borderColor: `${teamColors.primary}30` }}>
-              Semifinals
-            </h3>
-            {/* SF1: QF1 winner vs QF2 winner */}
-            <Matchup
-              team1={qfWinners.qf1}
-              team2={qfWinners.qf2}
-              winner={sfWinners.sf1}
-              showSeeds={false}
-              title="QF1 vs QF2"
-              size="small"
-            />
-            {/* SF2: QF3 winner vs QF4 winner */}
-            <Matchup
-              team1={qfWinners.qf3}
-              team2={qfWinners.qf4}
-              winner={sfWinners.sf2}
-              showSeeds={false}
-              title="QF3 vs QF4"
-              size="small"
-            />
-          </div>
-
-          {/* Championship */}
-          <div className="flex flex-col gap-4 w-44">
-            <h3 className="text-sm font-bold text-center pb-2 border-b" style={{ color: secondaryBgText, borderColor: `${teamColors.primary}30` }}>
-              Championship
-            </h3>
-            <Matchup
-              team1={sfWinners.sf1}
-              team2={sfWinners.sf2}
-              winner={champion}
-              showSeeds={false}
-              title="National Championship"
-            />
-          </div>
-
-        </div>
-      </div>
-
-      {/* Seeds List */}
-      <div className="mt-8">
-        <h2 className="text-lg font-bold mb-4" style={{ color: secondaryBgText }}>
-          {currentYear} CFP Seeds
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {cfpSeeds.sort((a, b) => a.seed - b.seed).map(({ seed, team }) => (
-            <TeamSlot key={seed} team={team} seed={seed} showSeed={true} />
-          ))}
-        </div>
-        <div className="mt-4 text-sm opacity-70" style={{ color: secondaryBgText }}>
-          <p>Seeds 1-4 receive first-round byes and host quarterfinal games</p>
-          <p>Seeds 5-12 play first-round games at higher seed's home stadium</p>
-        </div>
-      </div>
+      {/* Game Detail Modal (for played games) */}
+      {selectedGame && !selectedGame.isPreview && (
+        <GameDetailModal
+          isOpen={true}
+          onClose={() => setSelectedGame(null)}
+          game={selectedGame}
+          userTeam={currentDynasty.teamName}
+          teamColors={teamColors}
+        />
+      )}
     </div>
   )
 }

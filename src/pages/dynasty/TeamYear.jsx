@@ -7,6 +7,7 @@ import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/te
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamLogo } from '../../data/teams'
+import { bowlLogos } from '../../data/bowlLogos'
 import GameDetailModal from '../../components/GameDetailModal'
 
 // Map abbreviation to mascot name for logo lookup
@@ -172,6 +173,7 @@ export default function TeamYear() {
   // Game detail modal state
   const [selectedGame, setSelectedGame] = useState(null)
   const [showGameDetailModal, setShowGameDetailModal] = useState(false)
+  const [showCoachingStaffTooltip, setShowCoachingStaffTooltip] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -253,7 +255,9 @@ export default function TeamYear() {
   const wonCC = teamCCGame?.winner === teamAbbr
 
   // Get bowl game for this team in this year
-  const bowlGames = currentDynasty.bowlGamesByYear?.[selectedYear] || []
+  // bowlGamesByYear[year] is an object with week1 and week2 arrays
+  const yearBowlData = currentDynasty.bowlGamesByYear?.[selectedYear] || {}
+  const bowlGames = [...(yearBowlData.week1 || []), ...(yearBowlData.week2 || [])]
   const teamBowlGame = bowlGames.find(bowl =>
     (bowl.team1 === teamAbbr || bowl.team2 === teamAbbr) && bowl.team1Score !== null && bowl.team2Score !== null
   )
@@ -510,9 +514,86 @@ export default function TeamYear() {
             <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
               {selectedYear} Season
             </p>
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
-              {mascotName || teamInfo.name}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
+                {mascotName || teamInfo.name}
+              </h1>
+              {/* Coaching Staff Info Icon - only for user's team in current year */}
+              {isUserTeam && selectedYear === currentDynasty.currentYear && (currentDynasty.coachName || currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName) && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCoachingStaffTooltip(!showCoachingStaffTooltip)}
+                    onMouseEnter={() => setShowCoachingStaffTooltip(true)}
+                    onMouseLeave={() => setShowCoachingStaffTooltip(false)}
+                    className="w-5 h-5 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+                    style={{
+                      backgroundColor: `${teamBgText}20`,
+                      color: teamBgText
+                    }}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                  {/* Coaching Staff Tooltip */}
+                  {showCoachingStaffTooltip && (
+                    <div
+                      className="absolute left-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-48"
+                      style={{
+                        backgroundColor: teamInfo.textColor,
+                        border: `2px solid ${teamBgText}40`
+                      }}
+                      onMouseEnter={() => setShowCoachingStaffTooltip(true)}
+                      onMouseLeave={() => setShowCoachingStaffTooltip(false)}
+                    >
+                      <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: teamPrimaryText, opacity: 0.7 }}>
+                        Coaching Staff
+                      </div>
+                      <div className="space-y-1">
+                        {/* Show user as their position */}
+                        {currentDynasty.coachPosition === 'HC' && currentDynasty.coachName && (
+                          <div className="text-sm font-semibold flex items-center gap-2" style={{ color: teamPrimaryText }}>
+                            <span>HC:</span>
+                            <span>{currentDynasty.coachName}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: teamInfo.backgroundColor, color: teamBgText }}>(You)</span>
+                          </div>
+                        )}
+                        {currentDynasty.coachPosition === 'OC' && currentDynasty.coachName && (
+                          <div className="text-sm font-semibold flex items-center gap-2" style={{ color: teamPrimaryText }}>
+                            <span>OC:</span>
+                            <span>{currentDynasty.coachName}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: teamInfo.backgroundColor, color: teamBgText }}>(You)</span>
+                          </div>
+                        )}
+                        {currentDynasty.coachPosition === 'DC' && currentDynasty.coachName && (
+                          <div className="text-sm font-semibold flex items-center gap-2" style={{ color: teamPrimaryText }}>
+                            <span>DC:</span>
+                            <span>{currentDynasty.coachName}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: teamInfo.backgroundColor, color: teamBgText }}>(You)</span>
+                          </div>
+                        )}
+                        {/* Show other coaches from coachingStaff */}
+                        {currentDynasty.coachingStaff?.hcName && currentDynasty.coachPosition !== 'HC' && (
+                          <div className="text-sm font-semibold" style={{ color: teamPrimaryText }}>
+                            HC: {currentDynasty.coachingStaff.hcName}
+                          </div>
+                        )}
+                        {currentDynasty.coachingStaff?.ocName && currentDynasty.coachPosition !== 'OC' && (
+                          <div className="text-sm font-semibold" style={{ color: teamPrimaryText }}>
+                            OC: {currentDynasty.coachingStaff.ocName}
+                          </div>
+                        )}
+                        {currentDynasty.coachingStaff?.dcName && currentDynasty.coachPosition !== 'DC' && (
+                          <div className="text-sm font-semibold" style={{ color: teamPrimaryText }}>
+                            DC: {currentDynasty.coachingStaff.dcName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {conference && (
               <div className="flex items-center gap-2 mt-1">
                 {conferenceLogo && (
@@ -539,6 +620,45 @@ export default function TeamYear() {
                 {wonCC ? '🏆' : '🥈'} {teamCCGame.conference} {wonCC ? 'Champions' : 'Runner-Up'}
               </div>
             )}
+            {/* Bowl Game Badge */}
+            {teamBowlGame && (
+              <button
+                onClick={() => {
+                  const isTeam1 = teamBowlGame.team1 === teamAbbr
+                  const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
+                  const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score
+                  const oppScore = isTeam1 ? teamBowlGame.team2Score : teamBowlGame.team1Score
+                  setSelectedGame({
+                    opponent: opponent,
+                    teamScore: thisTeamScore,
+                    opponentScore: oppScore,
+                    result: wonBowl ? 'win' : 'loss',
+                    year: selectedYear,
+                    week: 'Bowl',
+                    location: 'neutral',
+                    isBowlGame: true,
+                    gameTitle: teamBowlGame.bowlName || 'Bowl Game',
+                    viewingTeam: mascotName || teamInfo.name,
+                    viewingTeamAbbr: teamAbbr
+                  })
+                  setShowGameDetailModal(true)
+                }}
+                className="inline-flex items-center gap-1.5 mt-2 ml-2 px-3 py-1 rounded-full text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                style={{
+                  backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
+                  color: '#ffffff'
+                }}
+              >
+                {bowlLogos[teamBowlGame.bowlName] && (
+                  <img
+                    src={bowlLogos[teamBowlGame.bowlName]}
+                    alt=""
+                    className="w-4 h-4 object-contain"
+                  />
+                )}
+                {teamBowlGame.bowlName || 'Bowl Game'}{wonBowl ? ' Champion' : ''}
+              </button>
+            )}
           </div>
 
           {/* Season Record (if user's team) */}
@@ -557,66 +677,6 @@ export default function TeamYear() {
           )}
         </div>
       </div>
-
-      {/* Coaching Staff - Only show for user's team in current year */}
-      {isUserTeam && selectedYear === currentDynasty.currentYear && (currentDynasty.coachingStaff?.hcName || currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName) && (
-        <div
-          className="rounded-lg shadow-lg overflow-hidden"
-          style={{
-            backgroundColor: teamInfo.backgroundColor,
-            border: `3px solid ${teamInfo.textColor}`
-          }}
-        >
-          <div
-            className="px-4 py-3"
-            style={{ backgroundColor: teamInfo.textColor }}
-          >
-            <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
-              Coaching Staff
-            </h2>
-          </div>
-
-          <div className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Head Coach */}
-              {currentDynasty.coachingStaff?.hcName && (
-                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
-                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                    Head Coach
-                  </div>
-                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
-                    {currentDynasty.coachingStaff.hcName}
-                  </div>
-                </div>
-              )}
-
-              {/* Offensive Coordinator */}
-              {currentDynasty.coachingStaff?.ocName && (
-                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
-                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                    Offensive Coordinator
-                  </div>
-                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
-                    {currentDynasty.coachingStaff.ocName}
-                  </div>
-                </div>
-              )}
-
-              {/* Defensive Coordinator */}
-              {currentDynasty.coachingStaff?.dcName && (
-                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
-                  <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                    Defensive Coordinator
-                  </div>
-                  <div className="text-xl font-bold" style={{ color: teamBgText }}>
-                    {currentDynasty.coachingStaff.dcName}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Game Log (if user's team) - Exact Dashboard Style */}
       {isUserTeam && userYearGames.length > 0 && (
@@ -860,7 +920,7 @@ export default function TeamYear() {
             style={{ backgroundColor: wonBowl ? '#16a34a' : '#dc2626' }}
           >
             <h2 className="text-lg font-bold text-white">
-              {teamBowlGame.bowlName || 'Bowl Game'}
+              {teamBowlGame.bowlName || 'Bowl Game'}{wonBowl ? ' Champion' : ''}
             </h2>
           </div>
 

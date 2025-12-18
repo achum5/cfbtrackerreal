@@ -2433,7 +2433,7 @@ export async function createCFPFirstRoundSheet(dynastyName, year) {
             properties: {
               title: 'CFP First Round',
               gridProperties: {
-                rowCount: 6,
+                rowCount: 5,
                 columnCount: 5,
                 frozenRowCount: 1
               }
@@ -2542,7 +2542,7 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
         range: {
           sheetId: sheetId,
           startRowIndex: 0,
-          endRowIndex: 6,
+          endRowIndex: 5,
           startColumnIndex: 0,
           endColumnIndex: 5
         },
@@ -2551,7 +2551,8 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
             textFormat: {
               fontFamily: 'Barlow',
               fontSize: 10,
-              bold: true
+              bold: true,
+              italic: true
             },
             horizontalAlignment: 'CENTER',
             verticalAlignment: 'MIDDLE'
@@ -2628,7 +2629,11 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
         properties: { pixelSize: 100 },
         fields: 'pixelSize'
       }
-    }
+    },
+    // Add conditional formatting for team colors (Higher Seed column - column B)
+    ...generateBowlTeamFormattingRules(sheetId, 1, 4),
+    // Add conditional formatting for team colors (Lower Seed column - column C)
+    ...generateBowlTeamFormattingRules(sheetId, 2, 4)
   ]
 
   await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
@@ -2681,6 +2686,247 @@ export async function readCFPFirstRoundFromSheet(spreadsheetId) {
     return games
   } catch (error) {
     console.error('Error reading CFP First Round:', error)
+    throw error
+  }
+}
+
+// Create CFP Quarterfinals sheet with auto-filled teams
+export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, firstRoundResults) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - CFP Quarterfinals ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'CFP Quarterfinals',
+              gridProperties: {
+                rowCount: 6,
+                columnCount: 6
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to create CFP Quarterfinals sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const cfpSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize sheet with headers and auto-filled teams
+    await initializeCFPQuarterfinalsSheet(sheet.spreadsheetId, accessToken, cfpSheetId, cfpSeeds, firstRoundResults)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating CFP Quarterfinals sheet:', error)
+    throw error
+  }
+}
+
+// Initialize CFP Quarterfinals sheet with teams
+async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheetId, cfpSeeds, firstRoundResults) {
+  // Get seed teams
+  const getTeamBySeed = (seed) => cfpSeeds?.find(s => s.seed === seed)?.team || ''
+
+  // Get First Round winners
+  const getFirstRoundWinner = (higherSeed, lowerSeed) => {
+    if (!firstRoundResults || firstRoundResults.length === 0) return ''
+    const game = firstRoundResults.find(g =>
+      (g.higherSeed === higherSeed && g.lowerSeed === lowerSeed) ||
+      (g.higherSeed === lowerSeed && g.lowerSeed === higherSeed)
+    )
+    return game?.winner || ''
+  }
+
+  // Quarterfinal matchups with bowl games
+  // Sugar Bowl: 12/5 winner vs #4
+  // Orange Bowl: 9/8 winner vs #1
+  // Rose Bowl: 11/6 winner vs #3
+  // Cotton Bowl: 10/7 winner vs #2
+  const quarterfinals = [
+    {
+      bowl: 'Sugar Bowl',
+      team1: getFirstRoundWinner(getTeamBySeed(5), getTeamBySeed(12)),
+      team2: getTeamBySeed(4)
+    },
+    {
+      bowl: 'Orange Bowl',
+      team1: getFirstRoundWinner(getTeamBySeed(8), getTeamBySeed(9)),
+      team2: getTeamBySeed(1)
+    },
+    {
+      bowl: 'Rose Bowl',
+      team1: getFirstRoundWinner(getTeamBySeed(6), getTeamBySeed(11)),
+      team2: getTeamBySeed(3)
+    },
+    {
+      bowl: 'Cotton Bowl',
+      team1: getFirstRoundWinner(getTeamBySeed(7), getTeamBySeed(10)),
+      team2: getTeamBySeed(2)
+    }
+  ]
+
+  // Build the data rows
+  const headers = ['Bowl Game', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Winner']
+  const dataRows = quarterfinals.map(qf => [qf.bowl, qf.team1, qf.team2, '', '', ''])
+
+  // Update values
+  const updateResponse = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Quarterfinals!A1:F5?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        values: [headers, ...dataRows]
+      })
+    }
+  )
+
+  if (!updateResponse.ok) {
+    console.error('Failed to set CFP Quarterfinals data')
+  }
+
+  // Format the sheet
+  await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        requests: [
+          // Freeze header row
+          {
+            updateSheetProperties: {
+              properties: {
+                sheetId: sheetId,
+                gridProperties: { frozenRowCount: 1 }
+              },
+              fields: 'gridProperties.frozenRowCount'
+            }
+          },
+          // Bold header row
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true },
+                  backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+                  horizontalAlignment: 'CENTER'
+                }
+              },
+              fields: 'userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)'
+            }
+          },
+          // White text for header
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }
+                }
+              },
+              fields: 'userEnteredFormat.textFormat'
+            }
+          },
+          // Center all cells
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 1, endRowIndex: 5 },
+              cell: {
+                userEnteredFormat: { horizontalAlignment: 'CENTER' }
+              },
+              fields: 'userEnteredFormat.horizontalAlignment'
+            }
+          },
+          // Auto-resize columns
+          {
+            autoResizeDimensions: {
+              dimensions: {
+                sheetId: sheetId,
+                dimension: 'COLUMNS',
+                startIndex: 0,
+                endIndex: 6
+              }
+            }
+          }
+        ]
+      })
+    }
+  )
+}
+
+// Read CFP Quarterfinals results from sheet
+export async function readCFPQuarterfinalsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Quarterfinals!A2:F5`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read CFP Quarterfinals: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse rows into games
+    const games = rows.map(row => {
+      const team1Score = row[3] ? parseInt(row[3]) : null
+      const team2Score = row[4] ? parseInt(row[4]) : null
+      let winner = row[5] || null
+
+      // Auto-determine winner from scores if not specified
+      if (!winner && team1Score !== null && team2Score !== null) {
+        winner = team1Score > team2Score ? row[1] : row[2]
+      }
+
+      return {
+        bowl: row[0] || '',
+        team1: row[1]?.toUpperCase() || '',
+        team2: row[2]?.toUpperCase() || '',
+        team1Score,
+        team2Score,
+        winner: winner?.toUpperCase() || null
+      }
+    }).filter(game => game.team1 && game.team2)
+
+    return games
+  } catch (error) {
+    console.error('Error reading CFP Quarterfinals:', error)
     throw error
   }
 }

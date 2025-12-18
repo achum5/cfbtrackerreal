@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import {
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -21,6 +21,31 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [accessToken, setAccessToken] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [tokenExpiringSoon, setTokenExpiringSoon] = useState(false)
+  const refreshTimerRef = useRef(null)
+
+  // Set up a timer to warn when token is about to expire
+  const setupTokenRefreshTimer = (expiryTime) => {
+    // Clear any existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current)
+    }
+
+    const timeUntilExpiry = expiryTime - Date.now()
+    // Warn 5 minutes before expiry
+    const warnTime = timeUntilExpiry - (5 * 60 * 1000)
+
+    if (warnTime > 0) {
+      refreshTimerRef.current = setTimeout(() => {
+        console.log('⚠️ Token expiring in 5 minutes')
+        setTokenExpiringSoon(true)
+      }, warnTime)
+      console.log(`⏰ Token refresh warning scheduled in ${Math.round(warnTime / 60000)} minutes`)
+    } else if (timeUntilExpiry <= 0) {
+      // Already expired
+      setTokenExpiringSoon(true)
+    }
+  }
 
   useEffect(() => {
     // Set up auth state listener
@@ -39,18 +64,32 @@ export function AuthProvider({ children }) {
           if (Date.now() < expiryTime) {
             setAccessToken(storedToken)
             user.accessToken = storedToken
+            setTokenExpiringSoon(false)
+            setupTokenRefreshTimer(expiryTime)
             console.log('✅ Access token restored from localStorage')
           } else {
             // Token expired, clear it
             localStorage.removeItem('google_access_token')
             localStorage.removeItem('google_token_expiry')
+            setTokenExpiringSoon(true)
             console.log('⚠️ Access token expired, cleared from localStorage')
           }
         }
+      } else {
+        // User logged out, clear timer
+        if (refreshTimerRef.current) {
+          clearTimeout(refreshTimerRef.current)
+        }
+        setTokenExpiringSoon(false)
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+      }
+    }
   }, [])
 
   const signInWithGoogle = async () => {
@@ -69,8 +108,13 @@ export function AuthProvider({ children }) {
         result.user.accessToken = credential.accessToken
 
         // Store token in localStorage with 1 hour expiry
+        const expiryTime = Date.now() + 3600000 // 1 hour
         localStorage.setItem('google_access_token', credential.accessToken)
-        localStorage.setItem('google_token_expiry', (Date.now() + 3600000).toString()) // 1 hour
+        localStorage.setItem('google_token_expiry', expiryTime.toString())
+
+        // Reset expiring flag and setup refresh timer
+        setTokenExpiringSoon(false)
+        setupTokenRefreshTimer(expiryTime)
 
         console.log('✅ OAuth access token captured and stored')
       }
@@ -87,6 +131,40 @@ export function AuthProvider({ children }) {
         return null // User cancelled, don't throw
       }
       console.error('Error signing in with Google:', error)
+      throw error
+    }
+  }
+
+  // Refresh the session to get a new access token without full sign-out
+  const refreshSession = async () => {
+    try {
+      console.log('🔄 Refreshing session...')
+      const result = await signInWithPopup(auth, googleProvider)
+
+      const credential = GoogleAuthProvider.credentialFromResult(result)
+      if (credential?.accessToken) {
+        setAccessToken(credential.accessToken)
+        if (result.user) {
+          result.user.accessToken = credential.accessToken
+        }
+
+        const expiryTime = Date.now() + 3600000 // 1 hour
+        localStorage.setItem('google_access_token', credential.accessToken)
+        localStorage.setItem('google_token_expiry', expiryTime.toString())
+
+        setTokenExpiringSoon(false)
+        setupTokenRefreshTimer(expiryTime)
+
+        console.log('✅ Session refreshed successfully')
+        return true
+      }
+      return false
+    } catch (error) {
+      if (error.code === 'auth/popup-closed-by-user') {
+        console.log('ℹ️ User closed the refresh popup')
+        return false
+      }
+      console.error('Error refreshing session:', error)
       throw error
     }
   }
@@ -108,8 +186,10 @@ export function AuthProvider({ children }) {
     user,
     accessToken,
     loading,
+    tokenExpiringSoon,
     signInWithGoogle,
-    signOut
+    signOut,
+    refreshSession
   }
 
   return (

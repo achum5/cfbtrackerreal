@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -7,6 +7,7 @@ import { bowlLogos, getAllBowlNames } from '../../data/bowlLogos'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import GameDetailModal from '../../components/GameDetailModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -91,6 +92,8 @@ export default function BowlHistory() {
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedBowl, setExpandedBowl] = useState(null)
+  const [selectedGame, setSelectedGame] = useState(null)
+  const [showGameModal, setShowGameModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -304,11 +307,31 @@ export default function BowlHistory() {
                       const team1Colors = team1Mascot ? getTeamColors(team1Mascot) : { primary: '#666', secondary: '#fff' }
                       const team2Colors = team2Mascot ? getTeamColors(team2Mascot) : { primary: '#666', secondary: '#fff' }
 
+                      // Build game object for modal (from winner's perspective, or team1 if tie)
+                      const viewingTeam = winner || game.team1
+                      const isViewingTeam1 = viewingTeam === game.team1
+                      const gameForModal = {
+                        opponent: isViewingTeam1 ? game.team2 : game.team1,
+                        teamScore: isViewingTeam1 ? game.team1Score : game.team2Score,
+                        opponentScore: isViewingTeam1 ? game.team2Score : game.team1Score,
+                        result: winner === viewingTeam ? 'win' : 'loss',
+                        year: game.year,
+                        week: 'Bowl',
+                        location: 'neutral',
+                        isBowlGame: true,
+                        gameTitle: game.bowlName || bowlName,
+                        viewingTeam: getMascotName(viewingTeam) || teamAbbreviations[viewingTeam]?.name || viewingTeam,
+                        viewingTeamAbbr: viewingTeam
+                      }
+
                       return (
-                        <Link
+                        <div
                           key={`${game.year}-${idx}`}
-                          to={`/dynasty/${id}/team/${winner || game.team1}/${game.year}`}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform"
+                          onClick={() => {
+                            setSelectedGame(gameForModal)
+                            setShowGameModal(true)
+                          }}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform cursor-pointer"
                           style={{ border: `2px solid ${teamColors.primary}30` }}
                         >
                           {/* Year */}
@@ -377,7 +400,7 @@ export default function BowlHistory() {
                               </div>
                             )}
                           </div>
-                        </Link>
+                        </div>
                       )
                     })}
                   </div>
@@ -413,6 +436,18 @@ export default function BowlHistory() {
           </p>
         </div>
       )}
+
+      {/* Game Detail Modal */}
+      <GameDetailModal
+        isOpen={showGameModal}
+        onClose={() => {
+          setShowGameModal(false)
+          setSelectedGame(null)
+        }}
+        game={selectedGame}
+        userTeam={currentDynasty.teamName}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

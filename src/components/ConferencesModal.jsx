@@ -10,7 +10,8 @@ import {
 
 export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
-  const { user } = useAuth()
+  const { user, signOut, refreshSession } = useAuth()
+  const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -244,9 +245,42 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <p className="text-lg" style={{ color: teamColors.primary }}>
-                Your session has expired. Please sign out and sign back in to continue.
+              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
+                Your session has expired. Click below to refresh.
               </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={async () => {
+                    setRefreshing(true)
+                    try {
+                      await refreshSession()
+                    } catch (e) {
+                      console.error('Refresh failed:', e)
+                    }
+                    setRefreshing(false)
+                  }}
+                  disabled={refreshing}
+                  className="px-4 py-2 rounded font-semibold transition-colors"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: teamColors.primaryText || '#fff',
+                    opacity: refreshing ? 0.7 : 1
+                  }}
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
+                </button>
+                <button
+                  onClick={signOut}
+                  className="px-4 py-2 rounded font-semibold transition-colors border"
+                  style={{
+                    borderColor: teamColors.primary,
+                    color: teamColors.primary,
+                    backgroundColor: 'transparent'
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
           </div>
         )}

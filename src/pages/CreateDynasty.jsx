@@ -17,7 +17,7 @@ export default function CreateDynasty() {
     teamName: '',
     coachName: '',
     coachPosition: 'HC',
-    startYear: '2026'
+    startYear: '2025'
   })
   const [creating, setCreating] = useState(false)
 

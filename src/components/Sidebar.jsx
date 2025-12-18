@@ -190,11 +190,11 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Fixed on left edge, full height on mobile, below header on desktop */}
       <aside
-        className={`fixed top-0 left-0 h-full z-50 transition-transform duration-300 ${
+        className={`fixed left-0 z-40 transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 lg:static lg:z-0 w-64 shadow-lg`}
+        } lg:translate-x-0 w-56 shadow-lg overflow-y-auto top-0 h-full lg:top-[64px] lg:h-[calc(100vh-64px)]`}
         style={{ backgroundColor: teamColors.secondary }}
       >
         {/* Close button - mobile only */}

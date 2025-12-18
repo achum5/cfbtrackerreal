@@ -227,6 +227,60 @@ export default function Team() {
     .filter(cc => cc.winner === teamAbbr)
     .length
 
+  // Calculate bowl wins dynamically from bowlGamesByYear
+  const getBowlWinsForTeam = () => {
+    const bowlWins = []
+    const bowlGamesByYear = currentDynasty.bowlGamesByYear || {}
+
+    Object.entries(bowlGamesByYear).forEach(([year, yearData]) => {
+      const allBowls = [...(yearData?.week1 || []), ...(yearData?.week2 || [])]
+      allBowls.forEach(bowl => {
+        if (!bowl.team1 || !bowl.team2 || bowl.team1Score === null || bowl.team2Score === null) return
+
+        const isTeam1 = bowl.team1 === teamAbbr
+        const isTeam2 = bowl.team2 === teamAbbr
+        if (!isTeam1 && !isTeam2) return
+
+        const teamWon = (isTeam1 && bowl.team1Score > bowl.team2Score) ||
+                        (isTeam2 && bowl.team2Score > bowl.team1Score)
+
+        if (teamWon) {
+          bowlWins.push({
+            year: parseInt(year),
+            bowlName: bowl.bowlName
+          })
+        }
+      })
+    })
+
+    return bowlWins
+  }
+
+  const bowlWins = getBowlWinsForTeam()
+
+  // Get bowl result for a specific year (returns { bowlName, won } or null)
+  const getBowlResultForYear = (year) => {
+    const yearData = currentDynasty.bowlGamesByYear?.[year]
+    if (!yearData) return null
+
+    const allBowls = [...(yearData?.week1 || []), ...(yearData?.week2 || [])]
+    const teamBowl = allBowls.find(bowl =>
+      (bowl.team1 === teamAbbr || bowl.team2 === teamAbbr) &&
+      bowl.team1Score !== null && bowl.team2Score !== null
+    )
+
+    if (!teamBowl) return null
+
+    const isTeam1 = teamBowl.team1 === teamAbbr
+    const won = (isTeam1 && teamBowl.team1Score > teamBowl.team2Score) ||
+                (!isTeam1 && teamBowl.team2Score > teamBowl.team1Score)
+
+    return {
+      bowlName: teamBowl.bowlName,
+      won
+    }
+  }
+
   // Get all dynasty years
   const startYear = currentDynasty.startYear
   const currentYear = currentDynasty.currentYear
@@ -403,16 +457,16 @@ export default function Team() {
               value={conferenceTitles}
             />
             <StatCell
+              label="Bowl Wins"
+              value={bowlWins.length}
+            />
+            <StatCell
               label="CFP Apps"
               value={teamHistoryData.cfpAppearances || 0}
             />
             <StatCell
               label="Natl Titles"
               value={teamHistoryData.nationalTitles || 0}
-            />
-            <StatCell
-              label="Heismans"
-              value={teamHistoryData.heismanWinners || 0}
             />
             <StatCell
               label="All-Americans"
@@ -593,36 +647,53 @@ export default function Team() {
         </div>
 
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {yearRecords.map(({ year, wins, losses, hasGames }) => (
-            <Link
-              key={year}
-              to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
-              className={`p-4 rounded-lg text-center transition-transform ${hasGames ? 'hover:scale-[1.02]' : 'opacity-50'}`}
-              style={{
-                backgroundColor: hasGames ? `${teamBgText}15` : `${teamBgText}05`,
-                border: `2px solid ${hasGames ? `${teamBgText}40` : `${teamBgText}20`}`
-              }}
-            >
-              <div className="text-lg font-bold" style={{ color: teamBgText }}>
-                {year}
-              </div>
-              <div
-                className="text-2xl font-bold mt-1"
+          {yearRecords.map(({ year, wins, losses, hasGames }) => {
+            const bowlResult = getBowlResultForYear(year)
+
+            return (
+              <Link
+                key={year}
+                to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
+                className={`p-4 rounded-lg text-center transition-transform hover:scale-[1.02]`}
                 style={{
-                  color: hasGames
-                    ? wins > losses ? '#16a34a' : losses > wins ? '#dc2626' : teamBgText
-                    : `${teamBgText}50`
+                  backgroundColor: bowlResult?.won ? '#16a34a15' : hasGames ? `${teamBgText}15` : `${teamBgText}05`,
+                  border: bowlResult?.won
+                    ? '2px solid #16a34a'
+                    : `2px solid ${hasGames ? `${teamBgText}40` : `${teamBgText}20`}`
                 }}
               >
-                {hasGames ? `${wins}-${losses}` : '--'}
-              </div>
-              {!hasGames && (
-                <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                  No games
+                <div className="text-lg font-bold" style={{ color: teamBgText }}>
+                  {year}
                 </div>
-              )}
-            </Link>
-          ))}
+                <div
+                  className="text-2xl font-bold mt-1"
+                  style={{
+                    color: hasGames
+                      ? wins > losses ? '#16a34a' : losses > wins ? '#dc2626' : teamBgText
+                      : `${teamBgText}50`
+                  }}
+                >
+                  {hasGames ? `${wins}-${losses}` : '--'}
+                </div>
+                {bowlResult && (
+                  <div
+                    className="text-xs mt-2 font-semibold px-2 py-1 rounded"
+                    style={{
+                      backgroundColor: bowlResult.won ? '#16a34a' : '#dc2626',
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    {bowlResult.bowlName}{bowlResult.won ? ' Champion' : ''}
+                  </div>
+                )}
+                {!hasGames && !bowlResult && (
+                  <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                    No games
+                  </div>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>
