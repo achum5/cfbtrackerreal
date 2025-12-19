@@ -36,7 +36,10 @@
       "Bash(git remote set-url:*)",
       "Bash(xargs:*)",
       "Bash(mkdir:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(identify:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []
