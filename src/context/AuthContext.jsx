@@ -37,10 +37,8 @@ export function AuthProvider({ children }) {
 
     if (warnTime > 0) {
       refreshTimerRef.current = setTimeout(() => {
-        console.log('⚠️ Token expiring in 5 minutes')
         setTokenExpiringSoon(true)
       }, warnTime)
-      console.log(`⏰ Token refresh warning scheduled in ${Math.round(warnTime / 60000)} minutes`)
     } else if (timeUntilExpiry <= 0) {
       // Already expired
       setTokenExpiringSoon(true)
@@ -50,7 +48,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     // Set up auth state listener
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('🔐 Auth state changed:', user ? `Logged in as ${user.email}` : 'Not logged in')
       setUser(user)
       setLoading(false)
 
@@ -66,13 +63,11 @@ export function AuthProvider({ children }) {
             user.accessToken = storedToken
             setTokenExpiringSoon(false)
             setupTokenRefreshTimer(expiryTime)
-            console.log('✅ Access token restored from localStorage')
           } else {
             // Token expired, clear it
             localStorage.removeItem('google_access_token')
             localStorage.removeItem('google_token_expiry')
             setTokenExpiringSoon(true)
-            console.log('⚠️ Access token expired, cleared from localStorage')
           }
         }
       } else {
@@ -97,7 +92,6 @@ export function AuthProvider({ children }) {
       // Always use popup flow - it works on both desktop and mobile
       // signInWithRedirect is broken on Safari 16.1+, Firefox 109+, Chrome 115+
       // due to third-party storage blocking
-      console.log('🔐 Starting Google sign-in with popup...')
       const result = await signInWithPopup(auth, googleProvider)
 
       // Get the OAuth access token
@@ -116,7 +110,6 @@ export function AuthProvider({ children }) {
         setTokenExpiringSoon(false)
         setupTokenRefreshTimer(expiryTime)
 
-        console.log('✅ OAuth access token captured and stored')
       }
 
       return result.user
@@ -127,7 +120,6 @@ export function AuthProvider({ children }) {
         throw new Error('Sign-in popup was blocked. Please allow popups for this site and try again.')
       }
       if (error.code === 'auth/popup-closed-by-user') {
-        console.log('ℹ️ User closed the sign-in popup')
         return null // User cancelled, don't throw
       }
       console.error('Error signing in with Google:', error)
@@ -138,7 +130,6 @@ export function AuthProvider({ children }) {
   // Refresh the session to get a new access token without full sign-out
   const refreshSession = async () => {
     try {
-      console.log('🔄 Refreshing session...')
       const result = await signInWithPopup(auth, googleProvider)
 
       const credential = GoogleAuthProvider.credentialFromResult(result)
@@ -155,13 +146,11 @@ export function AuthProvider({ children }) {
         setTokenExpiringSoon(false)
         setupTokenRefreshTimer(expiryTime)
 
-        console.log('✅ Session refreshed successfully')
         return true
       }
       return false
     } catch (error) {
       if (error.code === 'auth/popup-closed-by-user') {
-        console.log('ℹ️ User closed the refresh popup')
         return false
       }
       console.error('Error refreshing session:', error)

@@ -86,7 +86,6 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
     e.preventDefault()
     const pastedData = e.clipboardData.getData('text')
 
-    console.log('Pasted data:', pastedData)
 
     const pastedRows = pastedData.split('\n').filter(row => row.trim())
 
@@ -104,7 +103,6 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
       }
 
       const cells = pastedRow.split('\t')
-      console.log('Row', index, 'cells:', cells)
 
       // Simple approach: just map columns directly
       // Assume format is: Name, Position, Year, Jersey #, Overall (or with row # at start)
@@ -134,7 +132,6 @@ export default function RosterSpreadsheet({ teamColors, onSave, onCancel }) {
       const jerseyNumber = jerseyIdx >= 0 ? (cells[jerseyIdx]?.trim() || '') : ''
       const overall = cells[overallIdx]?.trim() || ''
 
-      console.log('Parsed:', { name, position, year, jerseyNumber, overall })
 
       updatedRows[rowIndex] = {
         ...updatedRows[rowIndex],

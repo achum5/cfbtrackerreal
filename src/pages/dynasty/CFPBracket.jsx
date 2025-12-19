@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getBowlLogo } from '../../data/bowlGames'
 import GameDetailModal from '../../components/GameDetailModal'
 
@@ -73,11 +73,14 @@ const getShortName = (abbr) => {
 
 export default function CFPBracket() {
   const { id } = useParams()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedGame, setSelectedGame] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [selectedYear, setSelectedYear] = useState(null)
+  const [editingGame, setEditingGame] = useState(null)
+  const [editGameNote, setEditGameNote] = useState('')
+  const [editGameLinks, setEditGameLinks] = useState('')
 
   // Track window width for responsive scaling
   useEffect(() => {
@@ -113,9 +116,12 @@ export default function CFPBracket() {
 
   const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
-  // Get First Round results
+  // Get CFP results for each round
   const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
   const firstRoundResults = cfpResults.firstRound || []
+  const quarterfinalsResults = cfpResults.week3 || []
+  const semifinalsResults = cfpResults.week4 || []
+  const championshipResults = cfpResults.week5 || []
 
   // Helper to get First Round winner by matchup seeds
   const getFirstRoundWinner = (seed1, seed2) => {
@@ -141,6 +147,40 @@ export default function CFPBracket() {
     return firstRoundResults.find(g =>
       (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
     ) || null
+  }
+
+  // Helper to get Quarterfinal winner by bowl name
+  const getQFWinner = (bowlName) => {
+    const game = quarterfinalsResults.find(g => g.bowl === bowlName)
+    return game?.winner || null
+  }
+
+  // Helper to get the seed of a team
+  const getSeedByTeam = (team) => {
+    if (!team) return null
+    const seedEntry = cfpSeeds.find(s => s.team === team)
+    return seedEntry?.seed || null
+  }
+
+  // Helper to get Quarterfinal game data
+  const getQFGame = (bowlName) => {
+    return quarterfinalsResults.find(g => g.bowl === bowlName) || null
+  }
+
+  // Helper to get Semifinal winner by bowl name
+  const getSFWinner = (bowlName) => {
+    const game = semifinalsResults.find(g => g.bowl === bowlName)
+    return game?.winner || null
+  }
+
+  // Helper to get Semifinal game data
+  const getSFGame = (bowlName) => {
+    return semifinalsResults.find(g => g.bowl === bowlName) || null
+  }
+
+  // Helper to get Championship game data
+  const getChampGame = () => {
+    return championshipResults[0] || null
   }
 
   // Sizing constants (scaled up for larger bracket)
@@ -173,20 +213,22 @@ export default function CFPBracket() {
           {team ? seed : ''}
         </span>
         {logo && <img src={logo} alt="" className="w-10 h-10 object-contain" />}
-        {team ? (
-          <Link
-            to={`/dynasty/${id}/team/${team}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xl font-semibold truncate hover:underline flex-1"
-            style={{ color: txtColor }}
-          >
-            {getShortName(team)}
-          </Link>
-        ) : (
-          <span className="text-xl font-semibold truncate flex-1" style={{ color: txtColor }}>
-            TBD
-          </span>
-        )}
+        <div className="flex-1 truncate">
+          {team ? (
+            <Link
+              to={`/dynasty/${id}/team/${team}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xl font-semibold hover:underline"
+              style={{ color: txtColor }}
+            >
+              {getShortName(team)}
+            </Link>
+          ) : (
+            <span className="text-xl font-semibold" style={{ color: txtColor }}>
+              TBD
+            </span>
+          )}
+        </div>
         {score !== undefined && (
           <span className="text-xl font-bold ml-auto" style={{ color: txtColor }}>
             {score}
@@ -359,25 +401,55 @@ export default function CFPBracket() {
   const handleMatchupClick = (matchupInfo) => {
     const { team1, team2, seed1, seed2, round, bowl, gameData } = matchupInfo
 
+    // Get saved notes/links for this game
+    const gameKey = round || bowl || 'unknown'
+    const savedNotes = currentDynasty.cfpGameNotes?.[displayYear]?.[gameKey] || {}
+
     // Check if we have gameData from First Round results
     if (gameData && gameData.winner) {
-      // Show game recap with scores using CFP modal style
-      setSelectedGame({
-        team1: gameData.team1,
-        team2: gameData.team2,
-        team1Score: gameData.team1Score,
-        team2Score: gameData.team2Score,
-        winner: gameData.winner,
-        seed1: gameData.seed1,
-        seed2: gameData.seed2,
-        round,
-        bowl,
-        year: displayYear,
-        gameTitle: bowl || round,
-        isPlayoff: true,
-        isPreview: true, // Use preview modal style for consistent look
-        hasScore: true   // Flag to show scores in the preview modal
-      })
+      // Check if user's team is involved
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userInGame = gameData.team1 === userTeamAbbr || gameData.team2 === userTeamAbbr
+
+      if (userInGame) {
+        // User's team is in this game - format as normal game
+        const isUserTeam1 = gameData.team1 === userTeamAbbr
+        setSelectedGame({
+          opponent: isUserTeam1 ? gameData.team2 : gameData.team1,
+          teamScore: isUserTeam1 ? gameData.team1Score : gameData.team2Score,
+          opponentScore: isUserTeam1 ? gameData.team2Score : gameData.team1Score,
+          result: gameData.winner === userTeamAbbr ? 'win' : 'loss',
+          location: 'neutral',
+          year: displayYear,
+          week: round,
+          round,
+          gameTitle: `CFP ${round}`,
+          isPlayoff: true,
+          isBowlGame: true,
+          gameNote: savedNotes.gameNote || '',
+          links: savedNotes.links || ''
+        })
+      } else {
+        // CPU vs CPU game - format with viewingTeam (show from winner's perspective)
+        const winnerIsTeam1 = gameData.team1 === gameData.winner
+        setSelectedGame({
+          viewingTeam: mascotMap[gameData.winner] || gameData.winner,
+          viewingTeamAbbr: gameData.winner,
+          opponent: winnerIsTeam1 ? gameData.team2 : gameData.team1,
+          teamScore: winnerIsTeam1 ? gameData.team1Score : gameData.team2Score,
+          opponentScore: winnerIsTeam1 ? gameData.team2Score : gameData.team1Score,
+          result: 'win',
+          location: 'neutral',
+          year: displayYear,
+          week: round,
+          round,
+          gameTitle: `CFP ${round}`,
+          isPlayoff: true,
+          isBowlGame: true,
+          gameNote: savedNotes.gameNote || '',
+          links: savedNotes.links || ''
+        })
+      }
       return
     }
 
@@ -399,8 +471,11 @@ export default function CFPBracket() {
         location: 'neutral',
         year: displayYear,
         week: round,
+        round,
         gameTitle: bowl || round,
-        isPlayoff: true
+        isPlayoff: true,
+        gameNote: savedNotes.gameNote || '',
+        links: savedNotes.links || ''
       })
     } else {
       // Show matchup preview (no game played yet)
@@ -416,9 +491,50 @@ export default function CFPBracket() {
         isPlayoff: true,
         isPreview: true,
         opponent: team1 || team2,
-        location: 'neutral'
+        location: 'neutral',
+        gameNote: savedNotes.gameNote || '',
+        links: savedNotes.links || ''
       })
     }
+  }
+
+  // Handle edit game click
+  const handleEditGame = (game) => {
+    // Load existing notes/links if available
+    const cfpNotes = currentDynasty.cfpGameNotes?.[displayYear] || {}
+    const gameKey = game.round || game.gameTitle || 'unknown'
+    const existingNote = cfpNotes[gameKey]
+
+    setEditingGame(game)
+    setEditGameNote(existingNote?.gameNote || game.gameNote || '')
+    setEditGameLinks(existingNote?.links || game.links || '')
+    setSelectedGame(null)
+  }
+
+  // Save edited game
+  const handleSaveEditGame = async () => {
+    if (!editingGame) return
+
+    const gameKey = editingGame.round || editingGame.gameTitle || 'unknown'
+    const cfpGameNotes = currentDynasty.cfpGameNotes || {}
+    const yearNotes = cfpGameNotes[displayYear] || {}
+
+    await updateDynasty(currentDynasty.id, {
+      cfpGameNotes: {
+        ...cfpGameNotes,
+        [displayYear]: {
+          ...yearNotes,
+          [gameKey]: {
+            gameNote: editGameNote,
+            links: editGameLinks
+          }
+        }
+      }
+    })
+
+    setEditingGame(null)
+    setEditGameNote('')
+    setEditGameLinks('')
   }
 
   return (
@@ -497,13 +613,13 @@ export default function CFPBracket() {
 
             {/* ===== QUARTERFINALS ===== */}
             {/* 5 vs 12 winner plays #4 seed */}
-            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" />
+            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" gameData={getQFGame('Sugar Bowl')} />
             {/* 8 vs 9 winner plays #1 seed */}
-            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" />
+            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" gameData={getQFGame('Orange Bowl')} />
             {/* 6 vs 11 winner plays #3 seed */}
-            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" />
+            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" gameData={getQFGame('Rose Bowl')} />
             {/* 7 vs 10 winner plays #2 seed */}
-            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" />
+            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" gameData={getQFGame('Cotton Bowl')} />
 
             {/* QF Bowl Logos - positioned on right side, centered between both team slots */}
             <img
@@ -545,8 +661,30 @@ export default function CFPBracket() {
             <HLine top={SF_M2_CENTER} left={VCONN_X2} width={COL3 - VCONN_X2} />
 
             {/* ===== SEMIFINALS ===== */}
-            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: SF_M1, left: COL3 }} onClick={handleMatchupClick} round="Semifinal" bowl="Peach Bowl" />
-            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: SF_M2, left: COL3 }} onClick={handleMatchupClick} round="Semifinal" bowl="Fiesta Bowl" />
+            {/* Peach Bowl: Sugar Bowl winner vs Orange Bowl winner */}
+            <Matchup
+              team1={getQFWinner('Sugar Bowl')}
+              team2={getQFWinner('Orange Bowl')}
+              seed1={getSeedByTeam(getQFWinner('Sugar Bowl'))}
+              seed2={getSeedByTeam(getQFWinner('Orange Bowl'))}
+              style={{ top: SF_M1, left: COL3 }}
+              onClick={handleMatchupClick}
+              round="Semifinal"
+              bowl="Peach Bowl"
+              gameData={getSFGame('Peach Bowl')}
+            />
+            {/* Fiesta Bowl: Rose Bowl winner vs Cotton Bowl winner */}
+            <Matchup
+              team1={getQFWinner('Rose Bowl')}
+              team2={getQFWinner('Cotton Bowl')}
+              seed1={getSeedByTeam(getQFWinner('Rose Bowl'))}
+              seed2={getSeedByTeam(getQFWinner('Cotton Bowl'))}
+              style={{ top: SF_M2, left: COL3 }}
+              onClick={handleMatchupClick}
+              round="Semifinal"
+              bowl="Fiesta Bowl"
+              gameData={getSFGame('Fiesta Bowl')}
+            />
 
             {/* SF Bowl Logos */}
             <img
@@ -569,7 +707,17 @@ export default function CFPBracket() {
             <HLine top={CHAMP_CENTER} left={VCONN_X3} width={COL4 - VCONN_X3} />
 
             {/* ===== CHAMPIONSHIP ===== */}
-            <Matchup team1={null} team2={null} seed1={null} seed2={null} style={{ top: CHAMP, left: COL4 }} onClick={handleMatchupClick} round="Championship" bowl="National Championship" />
+            <Matchup
+              team1={getSFWinner('Peach Bowl')}
+              team2={getSFWinner('Fiesta Bowl')}
+              seed1={getSeedByTeam(getSFWinner('Peach Bowl'))}
+              seed2={getSeedByTeam(getSFWinner('Fiesta Bowl'))}
+              style={{ top: CHAMP, left: COL4 }}
+              onClick={handleMatchupClick}
+              round="Championship"
+              bowl="National Championship"
+              gameData={getChampGame()}
+            />
 
             {/* Trophy */}
             <div className="absolute text-center" style={{ top: CHAMP + MATCHUP_HEIGHT + 30, left: COL4, width: `${SLOT_WIDTH}px` }}>
@@ -619,14 +767,25 @@ export default function CFPBracket() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedGame(null)}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEditGame(selectedGame)}
+                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
+                    title="Edit Game"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setSelectedGame(null)}
+                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -749,7 +908,94 @@ export default function CFPBracket() {
           game={selectedGame}
           userTeam={currentDynasty.teamName}
           teamColors={teamColors}
+          onEdit={handleEditGame}
         />
+      )}
+
+      {/* Edit Game Modal */}
+      {editingGame && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          onClick={() => setEditingGame(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="p-4"
+              style={{ backgroundColor: teamColors.primary }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-white">
+                  <div className="text-lg font-bold">
+                    Edit Game Details
+                  </div>
+                  <div className="text-sm opacity-80">
+                    {editingGame.year || displayYear} CFP {editingGame.round || editingGame.gameTitle}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setEditingGame(null)}
+                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Game Notes
+                </label>
+                <textarea
+                  value={editGameNote}
+                  onChange={(e) => setEditGameNote(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  rows={4}
+                  placeholder="Add notes about this game..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Media Links
+                </label>
+                <textarea
+                  value={editGameLinks}
+                  onChange={(e) => setEditGameLinks(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  rows={2}
+                  placeholder="YouTube, Imgur links (comma-separated)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Separate multiple links with commas
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveEditGame}
+                  className="flex-1 py-2 px-4 rounded-lg font-semibold text-white transition-colors"
+                  style={{ backgroundColor: teamColors.primary }}
+                >
+                  Save Changes
+                </button>
+                <button
+                  onClick={() => setEditingGame(null)}
+                  className="flex-1 py-2 px-4 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

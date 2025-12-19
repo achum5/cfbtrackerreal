@@ -32,7 +32,9 @@
       "WebFetch(domain:github.com)",
       "Bash(npm uninstall:*)",
       "Bash(gh auth:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

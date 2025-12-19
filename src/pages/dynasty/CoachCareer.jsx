@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 
 export default function CoachCareer() {
   const { currentDynasty } = useDynasty()
+  const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -118,18 +120,47 @@ export default function CoachCareer() {
 
           {/* As Favorite */}
           <div
-            className="text-center p-4 rounded-lg border-2"
+            className="text-center p-4 rounded-lg border-2 relative"
             style={{
               backgroundColor: teamColors.secondary,
               borderColor: primaryText
             }}
           >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+            <div className="text-xs font-semibold mb-1 flex items-center justify-center gap-1" style={{ color: secondaryText, opacity: 0.7 }}>
               As Favorite
+              <button
+                className="w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-80 cursor-help"
+                style={{ backgroundColor: primaryText, color: teamColors.primary }}
+                onMouseEnter={() => setShowFavoriteTooltip(true)}
+                onMouseLeave={() => setShowFavoriteTooltip(false)}
+                onClick={() => setShowFavoriteTooltip(!showFavoriteTooltip)}
+              >
+                ?
+              </button>
             </div>
             <div className="text-2xl font-bold" style={{ color: secondaryText }}>
               {stats.favoriteRecord}
             </div>
+            {/* Tooltip */}
+            {showFavoriteTooltip && (
+              <div
+                className="absolute z-50 p-3 rounded-lg shadow-lg text-left text-xs w-64 -translate-x-1/2 left-1/2"
+                style={{
+                  backgroundColor: teamColors.primary,
+                  color: primaryText,
+                  top: '100%',
+                  marginTop: '8px'
+                }}
+              >
+                <div className="font-bold mb-1">How is this calculated?</div>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li>Ranked vs unranked: ranked team is favorite</li>
+                  <li>Both ranked: lower rank is favorite</li>
+                  <li>Both unranked: higher overall rating is favorite</li>
+                  <li>Home team gets +5 ranking or +3 overall boost</li>
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* As Underdog */}

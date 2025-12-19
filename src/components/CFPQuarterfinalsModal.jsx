@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createCFPQuarterfinalsSheet,
   readCFPQuarterfinalsFromSheet,
@@ -24,6 +25,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -48,7 +50,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   // Create CFP Quarterfinals sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing CFP Quarterfinals sheet for this year
         const existingSheetId = currentDynasty?.cfpQuarterfinalsSheetId
         if (existingSheetId) {
@@ -58,11 +60,9 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
 
         setCreatingSheet(true)
         try {
-          console.log('Creating CFP Quarterfinals sheet...')
-
           // Get CFP seeds and First Round results
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
-          const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.week2 || []
+          const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
 
           const sheetInfo = await createCFPQuarterfinalsSheet(
             currentDynasty?.teamName || 'Dynasty',
@@ -76,8 +76,6 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
           await updateDynasty(currentDynasty.id, {
             cfpQuarterfinalsSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('CFP Quarterfinals sheet ready')
         } catch (error) {
           console.error('Failed to create CFP Quarterfinals sheet:', error)
         } finally {
@@ -87,7 +85,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -102,15 +100,15 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
     setSyncing(true)
     try {
       const games = await readCFPQuarterfinalsFromSheet(sheetId)
-      console.log('CFP Quarterfinals games read from sheet:', games)
-
       await onSave(games)
-      console.log('CFP Quarterfinals games saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure all 4 games have scores entered.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure all 4 games have scores entered.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -124,8 +122,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
       const games = await readCFPQuarterfinalsFromSheet(sheetId)
       await onSave(games)
 
-      // Delete the sheet
-      console.log('Deleting CFP Quarterfinals sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -134,15 +131,17 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
       })
 
       setSheetId(null)
-      console.log('CFP Quarterfinals sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets.')
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -208,7 +207,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 CFP Quarterfinals results saved to your dynasty.
@@ -329,6 +328,13 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

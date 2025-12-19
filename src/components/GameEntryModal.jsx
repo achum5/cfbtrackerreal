@@ -519,12 +519,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWSearch('')
         setConfPOWOpen(false)
         setNatlPOWOpen(false)
-      } else if (scheduledGame || isConferenceChampionship) {
-        // New game - load from schedule or CC opponent
+      } else if (scheduledGame || isConferenceChampionship || bowlName || passedOpponent) {
+        // New game - load from schedule, CC opponent, or bowl opponent
         setGameData(prev => ({
           ...prev,
           opponent: passedOpponent || scheduledGame?.opponent || '',
-          location: isConferenceChampionship ? 'neutral' : (scheduledGame?.location || 'home'),
+          location: isConferenceChampionship ? 'neutral' : bowlName ? 'neutral' : (scheduledGame?.location || 'home'),
           teamScore: '',
           opponentScore: '',
           isConferenceGame: isConferenceChampionship || false,
@@ -550,7 +550,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWOpen(false)
       }
     }
-  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame])
+  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame, bowlName])
 
   const handleLinkChange = (index, value) => {
     const newLinks = [...links]
@@ -603,7 +603,6 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    console.log('handleSubmit called with gameData:', gameData)
 
     // Validate required fields
     if (!gameData.teamScore || !gameData.opponentScore) {
@@ -738,11 +737,9 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       isConferenceGame: isConferenceGame
     }
 
-    console.log('Calling onSave with processedData:', processedData)
 
     try {
       await onSave(processedData)
-      console.log('onSave completed successfully')
 
       // Reset form
       setGameData({
@@ -867,7 +864,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-2xl font-bold truncate" style={{ color: teamColors.primary }}>
               {isConferenceChampionship
-                ? `${currentDynasty?.conference || 'Conference'} Championship`
+                ? `${currentDynasty?.conference || getTeamConference(getAbbreviationFromDisplayName(currentDynasty?.teamName)) || 'Conference'} Championship`
                 : bowlName
                   ? `${bowlName}`
                   : `Week ${actualWeekNumber} Game Entry`}

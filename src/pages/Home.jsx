@@ -6,6 +6,7 @@ import { getTeamLogo } from '../data/teams'
 import { getConferenceLogo } from '../data/conferenceLogos'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
+import { getContrastTextColor } from '../utils/colorUtils'
 import ConfirmModal from '../components/ConfirmModal'
 
 // Helper to get team's conference from dynasty data
@@ -238,6 +239,7 @@ export default function Home() {
               const relativeTime = getRelativeTime(dynasty.lastModified)
               const weekPhase = getWeekPhaseDisplay(dynasty)
               const conference = getDynastyTeamConference(dynasty)
+              const textColor = getContrastTextColor(colors.primary)
               return (
                 <div
                   key={dynasty.id}
@@ -271,7 +273,7 @@ export default function Home() {
                       <div className="flex-1 min-w-0">
                         <h2
                           className="text-base sm:text-lg font-bold truncate"
-                          style={{ color: colors.secondary }}
+                          style={{ color: textColor }}
                         >
                           {dynasty.teamName}
                         </h2>
@@ -285,14 +287,14 @@ export default function Home() {
                           )}
                           <p
                             className="text-xs sm:text-sm opacity-80 truncate"
-                            style={{ color: colors.secondary }}
+                            style={{ color: textColor }}
                           >
                             {conference ? `${conference} • ` : ''}{dynasty.currentYear}
                           </p>
                         </div>
                         <p
                           className="text-xs mt-0.5 sm:mt-1 opacity-70 truncate"
-                          style={{ color: colors.secondary }}
+                          style={{ color: textColor }}
                         >
                           {weekPhase}
                           {relativeTime && <span className="ml-1 sm:ml-2">• {relativeTime}</span>}
@@ -305,7 +307,7 @@ export default function Home() {
                         <button
                           onClick={(e) => handleFavoriteClick(e, dynasty)}
                           className="p-1.5 sm:p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
-                          style={{ color: colors.secondary }}
+                          style={{ color: textColor }}
                           title={dynasty.favorite ? "Remove from favorites" : "Add to favorites"}
                         >
                           {dynasty.favorite ? (
@@ -323,7 +325,7 @@ export default function Home() {
                         <button
                           onClick={(e) => handleExportClick(e, dynasty)}
                           className="p-1.5 sm:p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
-                          style={{ color: colors.secondary }}
+                          style={{ color: textColor }}
                           title="Export Dynasty"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -335,7 +337,7 @@ export default function Home() {
                         <button
                           onClick={(e) => handleDeleteClick(e, dynasty)}
                           className="p-1.5 sm:p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
-                          style={{ color: colors.secondary }}
+                          style={{ color: textColor }}
                           title="Delete Dynasty"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

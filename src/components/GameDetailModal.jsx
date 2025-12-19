@@ -338,7 +338,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-              {onEdit && !game.gameTitle && (
+              {onEdit && (
                 <button
                   onClick={() => onEdit(game)}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1.5 sm:p-2 transition-colors"

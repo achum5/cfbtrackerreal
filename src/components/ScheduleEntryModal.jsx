@@ -51,7 +51,8 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   // Create schedule sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      // Don't create a new sheet if we just deleted one (showing success message)
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing schedule sheet
         const existingSheetId = currentDynasty?.scheduleSheetId
         if (existingSheetId) {
@@ -61,8 +62,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
 
         setCreatingSheet(true)
         try {
-          console.log('Creating Schedule sheet...')
-
           const sheetInfo = await createScheduleSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
@@ -74,8 +73,6 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
           await updateDynasty(currentDynasty.id, {
             scheduleSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('Schedule sheet ready')
         } catch (error) {
           console.error('Failed to create schedule sheet:', error)
         } finally {
@@ -85,7 +82,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -110,11 +107,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
     setSyncing(true)
     try {
       const schedule = await readScheduleFromScheduleSheet(sheetId)
-      console.log('Schedule read from sheet:', schedule)
-
       await onSave(schedule)
-      console.log('Schedule saved successfully')
-
       onClose()
     } catch (error) {
       alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
@@ -132,8 +125,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
       const schedule = await readScheduleFromScheduleSheet(sheetId)
       await onSave(schedule)
 
-      // Delete the sheet
-      console.log('Deleting schedule sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -142,15 +134,13 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
       })
 
       setSheetId(null)
-      console.log('Schedule sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
-      console.error(error)
+      console.error('Failed to sync/move to trash:', error)
+      alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
     } finally {
       setDeletingSheet(false)
     }
@@ -216,7 +206,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Schedule saved to your dynasty.
@@ -237,7 +227,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
                     color: teamColors.secondary
                   }}
                 >
-                  {deletingSheet ? 'Saving...' : '✓ Save & Delete Sheet'}
+                  {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                 </button>
                 <button
                   onClick={handleSyncFromSheet}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import RosterSpreadsheet from './RosterSpreadsheet'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createRosterSheet,
   readRosterFromRosterSheet,
@@ -26,6 +27,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   // Create roster sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing roster sheet
         const existingSheetId = currentDynasty?.rosterSheetId
         if (existingSheetId) {
@@ -61,8 +63,6 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
 
         setCreatingSheet(true)
         try {
-          console.log('Creating Roster sheet...')
-
           const sheetInfo = await createRosterSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear
@@ -73,8 +73,6 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
           await updateDynasty(currentDynasty.id, {
             rosterSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('Roster sheet ready')
         } catch (error) {
           console.error('Failed to create roster sheet:', error)
         } finally {
@@ -84,7 +82,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -109,15 +107,15 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
     setSyncing(true)
     try {
       const players = await readRosterFromRosterSheet(sheetId)
-      console.log('Players read from sheet:', players)
-
       await onSave(players)
-      console.log('Roster saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -131,8 +129,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
       const players = await readRosterFromRosterSheet(sheetId)
       await onSave(players)
 
-      // Delete the sheet
-      console.log('Deleting roster sheet...')
+      // Move the sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -141,15 +138,17 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
       })
 
       setSheetId(null)
-      console.log('Roster sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
-      console.error(error)
+      console.error('Error in handleSyncAndDelete:', error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -228,7 +227,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Roster saved to your dynasty.
@@ -249,7 +248,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                     color: teamColors.secondary
                   }}
                 >
-                  {deletingSheet ? 'Saving...' : '✓ Save & Delete Sheet'}
+                  {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                 </button>
                 <button
                   onClick={handleSyncFromSheet}
@@ -294,7 +293,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                     </li>
                     <li className="flex gap-2">
                       <span className="font-bold">2.</span>
-                      <span>Enter your roster in the sheet</span>
+                      <span>Enter your full roster in the sheet</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="font-bold">3.</span>
@@ -343,7 +342,7 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
 
                 <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
                   <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State</p>
-                  <p>Enter your roster. All fields are optional. Use dropdown menus for validated fields.</p>
+                  <p>Enter your full roster. All fields are optional. Use dropdown menus for validated fields.</p>
                 </div>
               </>
             )}
@@ -394,6 +393,13 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

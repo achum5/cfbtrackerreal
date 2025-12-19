@@ -28,7 +28,7 @@ import ConferencesModal from '../../components/ConferencesModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, createGoogleSheetForDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -59,7 +59,6 @@ export default function Dashboard() {
   const [editingWeek, setEditingWeek] = useState(null)
   const [editingYear, setEditingYear] = useState(null)
   const [selectedGame, setSelectedGame] = useState(null)
-  const [creatingSheet, setCreatingSheet] = useState(false)
 
   // Conference Championship states
   const [ccMadeChampionship, setCCMadeChampionship] = useState(null) // null = not answered, true/false = answered
@@ -324,11 +323,18 @@ export default function Dashboard() {
   }
 
   const getOpponentColors = (abbr) => {
-    const team = teamAbbreviations[abbr]
+    let team = teamAbbreviations[abbr]
+
+    // If team is a string, it means abbr was a mascot name and we got back the abbreviation
+    // Look up again with the actual abbreviation
+    if (typeof team === 'string') {
+      team = teamAbbreviations[team]
+    }
+
     const mascotName = getMascotName(abbr)
     const colors = mascotName ? getTeamColors(mascotName) : null
 
-    if (team) {
+    if (team && typeof team === 'object') {
       return {
         backgroundColor: team.backgroundColor,
         textColor: team.textColor,
@@ -360,12 +366,13 @@ export default function Dashboard() {
   }
 
   const handleGameSave = async (gameData) => {
-    console.log('Dashboard handleGameSave called with:', gameData)
     try {
-      await addGame(currentDynasty.id, gameData)
-      console.log('Game saved successfully')
-      console.log('Current dynasty games after save:', currentDynasty.games)
-      console.log('Current week:', currentDynasty.currentWeek, 'Current year:', currentDynasty.currentYear)
+      // Check if this is a CFP First Round game (editingWeek is set to 'CFP First Round')
+      const isCFPFirstRound = editingWeek === 'CFP First Round'
+      await addGame(currentDynasty.id, {
+        ...gameData,
+        ...(isCFPFirstRound && { isCFPFirstRound: true })
+      })
       // Close the modal after successful save
       setShowGameModal(false)
       setEditingWeek(null)
@@ -407,7 +414,6 @@ export default function Dashboard() {
 
   // Handle CC game save
   const handleCCGameSave = async (gameData) => {
-    console.log('CC Game save called with:', gameData)
     try {
       // Add the game with special flag for conference championship
       await addGame(currentDynasty.id, {
@@ -432,7 +438,6 @@ export default function Dashboard() {
 
   // Handle user's bowl game save
   const handleBowlGameSave = async (gameData) => {
-    console.log('Bowl Game save called with:', gameData)
     try {
       // Get the bowl week from the selected bowl
       const bowlWeek = currentDynasty.bowlEligibilityData?.bowlGame
@@ -520,29 +525,13 @@ export default function Dashboard() {
       .sort((a, b) => a[1].name.localeCompare(b[1].name))
   }
 
-  const handleEnableGoogleSheets = async () => {
-    if (!user) {
-      alert('Please sign in to enable Google Sheets integration')
-      return
-    }
-
-    setCreatingSheet(true)
-    try {
-      await createGoogleSheetForDynasty(currentDynasty.id)
-      alert('Google Sheets enabled! Your schedule and roster modals will now use Google Sheets.')
-    } catch (error) {
-      alert(error.message || 'Failed to create Google Sheet. Check the console for details.')
-    } finally {
-      setCreatingSheet(false)
-    }
-  }
-
   const canAdvanceFromPreseason = () => {
+    // Note: conferencesEntered is NOT required - default conferences are always valid
+    // The task shows as optional/incomplete until user customizes, but doesn't block advancement
     const baseRequirements =
       currentDynasty.preseasonSetup?.scheduleEntered &&
       currentDynasty.preseasonSetup?.rosterEntered &&
-      currentDynasty.preseasonSetup?.teamRatingsEntered &&
-      currentDynasty.preseasonSetup?.conferencesEntered
+      currentDynasty.preseasonSetup?.teamRatingsEntered
 
     // If user is Head Coach, they must also enter coaching staff (coordinators)
     if (currentDynasty.coachPosition === 'HC') {
@@ -570,29 +559,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Google Sheets Status - only show during preseason when sheets are actually needed */}
-      {!currentDynasty.googleSheetId && user && currentDynasty.currentPhase === 'preseason' && (
-        <div className="p-4 rounded-lg bg-blue-50 border-2 border-blue-500">
-          <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <p className="font-semibold text-blue-900">Enable Google Sheets Integration</p>
-              <p className="text-sm text-blue-700 mt-1">
-                This dynasty was created before Google Sheets integration. Click below to create a Google Sheet for schedule and roster management.
-              </p>
-              <button
-                onClick={handleEnableGoogleSheets}
-                disabled={creatingSheet}
-                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm disabled:opacity-50"
-              >
-                {creatingSheet ? 'Creating Sheet...' : 'Enable Google Sheets'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Note: Google Sheets are now created lazily when user opens entry modals */}
 
       {/* New Job Banner - show when user is taking a new job */}
       {takingNewJob === true && newJobTeam && newJobPosition && (() => {
@@ -770,15 +737,6 @@ export default function Dashboard() {
                 actionText: currentDynasty.preseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
               }] : [])
             ].map(item => {
-              // Debug logging
-              console.log('Preseason Setup Task:', {
-                scheduleEntered: currentDynasty.preseasonSetup?.scheduleEntered,
-                rosterEntered: currentDynasty.preseasonSetup?.rosterEntered,
-                done: item.done,
-                scheduleCount: item.scheduleCount,
-                playerCount: item.playerCount
-              })
-
               return (
               <div
                 key={item.num}
@@ -1523,8 +1481,14 @@ export default function Dashboard() {
                                   setBowlEligible(null)
                                   setSelectedBowl('')
                                   setBowlOpponent('')
+                                  // Remove any existing bowl game from games array
+                                  const existingBowlGame = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
+                                  const updatedGames = existingBowlGame
+                                    ? currentDynasty.games.filter(g => !(g.isBowlGame && g.year === currentDynasty.currentYear))
+                                    : currentDynasty.games
                                   await updateDynasty(currentDynasty.id, {
-                                    bowlEligibilityData: null
+                                    bowlEligibilityData: null,
+                                    games: updatedGames
                                   })
                                 }}
                                 className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -1725,7 +1689,7 @@ export default function Dashboard() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-sm sm:text-base font-semibold" style={{ color: takingNewJob !== null ? '#16a34a' : secondaryBgText }}>
-                              Taking a New Job?
+                              Taking a New Job? (Bowl Week 1)
                             </div>
                             {takingNewJob === true && newJobTeam && newJobPosition && (
                               <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
@@ -1760,7 +1724,6 @@ export default function Dashboard() {
 
                       {takingNewJob === null && (
                         <div className="ml-13 pl-10">
-                          <p className="mb-3" style={{ color: secondaryBgText, opacity: 0.8 }}>Are you taking a new job?</p>
                           <div className="flex gap-3">
                             <button
                               onClick={async () => {
@@ -1953,7 +1916,7 @@ export default function Dashboard() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-sm sm:text-base font-semibold" style={{ color: takingNewJob !== null ? '#16a34a' : secondaryBgText }}>
-                              Taking a New Job?
+                              Taking a New Job? (Bowl Week 2)
                             </div>
                             {takingNewJob === true && newJobTeam && newJobPosition && (
                               <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
@@ -1987,7 +1950,6 @@ export default function Dashboard() {
 
                       {takingNewJob === null && (
                         <div className="ml-13 pl-10">
-                          <p className="mb-3" style={{ color: secondaryBgText, opacity: 0.8 }}>Are you taking a new job?</p>
                           <div className="flex gap-3">
                             <button
                               onClick={async () => {
@@ -2184,7 +2146,7 @@ export default function Dashboard() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm sm:text-base font-semibold" style={{ color: takingNewJob !== null ? '#16a34a' : secondaryBgText }}>
-                            Taking a New Job?
+                            Taking a New Job? (Bowl Week {week})
                           </div>
                           {takingNewJob === true && newJobTeam && newJobPosition && (
                             <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
@@ -2218,7 +2180,6 @@ export default function Dashboard() {
 
                     {takingNewJob === null && (
                       <div className="ml-13 pl-10">
-                        <p className="mb-3" style={{ color: secondaryBgText, opacity: 0.8 }}>Are you taking a new job?</p>
                         <div className="flex gap-3">
                           <button
                             onClick={async () => {
@@ -2466,7 +2427,10 @@ export default function Dashboard() {
               const ccOpponentAbbr = ccGame?.opponent || ccOpponent || currentDynasty.conferenceChampionshipData?.opponent
               const hasOpponent = !!ccOpponentAbbr
               const ccOpponentColors = hasOpponent ? getOpponentColors(ccOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              const ccMascotName = hasOpponent ? getMascotName(ccOpponentAbbr) : null
+              // ccOpponentAbbr could be an abbreviation OR a mascot name
+              // If getMascotName returns null, check if the input itself is a mascot name (has a logo)
+              const ccMascotFromAbbr = hasOpponent ? getMascotName(ccOpponentAbbr) : null
+              const ccMascotName = ccMascotFromAbbr || (hasOpponent && getTeamLogo(ccOpponentAbbr) ? ccOpponentAbbr : null)
               const ccOpponentName = ccMascotName || (hasOpponent ? getTeamNameFromAbbr(ccOpponentAbbr) : 'Opponent Unknown')
               const ccOpponentLogo = ccMascotName ? getTeamLogo(ccMascotName) : null
               const isCurrentCCWeek = currentDynasty.currentPhase === 'conference_championship' && !ccGame
@@ -2567,6 +2531,119 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
+                      Scheduled
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Bowl Game - shows when user has a bowl game */}
+            {(() => {
+              const userBowlGameData = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
+              const bowlData = currentDynasty.bowlEligibilityData
+              const hasBowlEligibility = bowlData?.eligible === true && bowlData?.bowlGame && bowlData?.opponent
+
+              // Only show if user has a bowl game (either played or scheduled via eligibility)
+              if (!userBowlGameData && !hasBowlEligibility) return null
+
+              const bowlOpponentAbbr = userBowlGameData?.opponent || bowlData?.opponent
+              const bowlGameName = userBowlGameData?.bowlName || bowlData?.bowlGame
+              const hasOpponent = !!bowlOpponentAbbr
+              const bowlOpponentColors = hasOpponent ? getOpponentColors(bowlOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
+              // bowlOpponentAbbr could be an abbreviation OR a mascot name
+              // If getMascotName returns null, check if the input itself is a mascot name (has a logo)
+              const mascotFromAbbr = hasOpponent ? getMascotName(bowlOpponentAbbr) : null
+              const bowlMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(bowlOpponentAbbr) ? bowlOpponentAbbr : null)
+              const bowlOpponentName = bowlMascotName || (hasOpponent ? getTeamNameFromAbbr(bowlOpponentAbbr) : 'Opponent Unknown')
+              const bowlOpponentLogo = bowlMascotName ? getTeamLogo(bowlMascotName) : null
+
+              return (
+                <div
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${userBowlGameData ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                  style={{
+                    backgroundColor: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280',
+                    borderColor: userBowlGameData
+                      ? userBowlGameData.result === 'win'
+                        ? '#86efac'
+                        : '#fca5a5'
+                      : hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280'
+                  }}
+                  onClick={() => {
+                    if (userBowlGameData) {
+                      setSelectedGame(userBowlGameData)
+                      setShowGameDetailModal(true)
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
+                      Bowl
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
+                        backgroundColor: hasOpponent ? bowlOpponentColors.textColor : '#ffffff',
+                        color: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280'
+                      }}>
+                        vs
+                      </span>
+                      {bowlOpponentLogo && (
+                        <div
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${bowlOpponentColors.textColor}`,
+                            padding: '2px'
+                          }}
+                        >
+                          <img
+                            src={bowlOpponentLogo}
+                            alt={`${bowlOpponentName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          {userBowlGameData?.opponentRank && (
+                            <span className="text-xs font-bold flex-shrink-0" style={{ color: bowlOpponentColors.textColor, opacity: 0.7 }}>
+                              #{userBowlGameData.opponentRank}
+                            </span>
+                          )}
+                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff' }}>
+                            {bowlOpponentName}
+                          </span>
+                        </div>
+                        <span className="text-xs opacity-70 truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff' }}>
+                          {bowlGameName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {userBowlGameData ? (
+                    <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
+                      <div
+                        className="text-xs sm:text-sm font-bold px-2 py-1 rounded"
+                        style={{
+                          backgroundColor: userBowlGameData.result === 'win' ? '#22c55e' : '#ef4444',
+                          color: '#ffffff'
+                        }}
+                      >
+                        {userBowlGameData.result === 'win' ? 'W' : 'L'}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm sm:text-base font-bold" style={{ color: bowlOpponentColors.textColor }}>
+                          {userBowlGameData.teamScore} - {userBowlGameData.opponentScore}
+                          {userBowlGameData.overtimes && userBowlGameData.overtimes.length > 0 && (
+                            <span className="ml-1 text-xs opacity-80">
+                              {userBowlGameData.overtimes.length > 1 ? `${userBowlGameData.overtimes.length}OT` : 'OT'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
                       Scheduled
                     </div>
                   )}

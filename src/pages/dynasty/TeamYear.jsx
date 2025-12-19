@@ -175,6 +175,10 @@ export default function TeamYear() {
   const [showGameDetailModal, setShowGameDetailModal] = useState(false)
   const [showCoachingStaffTooltip, setShowCoachingStaffTooltip] = useState(false)
 
+  // Roster sorting state
+  const [rosterSort, setRosterSort] = useState('position') // 'position', 'overall', 'jerseyNumber', 'name'
+  const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
+
   if (!currentDynasty) return null
 
   // Get all teams sorted alphabetically by mascot name
@@ -291,6 +295,48 @@ export default function TeamYear() {
   // Calculate vs user record
   const vsUserWins = vsUserGames.filter(g => g.result === 'W').length
   const vsUserLosses = vsUserGames.filter(g => g.result === 'L').length
+
+  // Sort roster based on current sort settings
+  const posOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+
+  const handleRosterSort = (sortKey) => {
+    if (rosterSort === sortKey) {
+      // Toggle direction if same key
+      setRosterSortDir(rosterSortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      // New sort key - set appropriate default direction
+      setRosterSort(sortKey)
+      setRosterSortDir(sortKey === 'overall' ? 'desc' : 'asc')
+    }
+  }
+
+  const sortedTeamPlayers = [...teamPlayers].sort((a, b) => {
+    let result = 0
+    switch (rosterSort) {
+      case 'overall':
+        result = (b.overall || 0) - (a.overall || 0)
+        break
+      case 'jerseyNumber':
+        const numA = parseInt(a.jerseyNumber) || 999
+        const numB = parseInt(b.jerseyNumber) || 999
+        result = numA - numB
+        break
+      case 'name':
+        result = (a.name || '').localeCompare(b.name || '')
+        break
+      case 'position':
+      default:
+        const aPos = posOrder.indexOf(a.position)
+        const bPos = posOrder.indexOf(b.position)
+        if (aPos !== bPos) {
+          result = aPos - bPos
+        } else {
+          result = (b.overall || 0) - (a.overall || 0)
+        }
+        break
+    }
+    return rosterSortDir === 'desc' ? -result : result
+  })
 
   // Build unified game list for non-user teams
   // Includes: games vs user, CC game, bowl game, CFP games
@@ -708,6 +754,195 @@ export default function TeamYear() {
         </div>
       </div>
 
+      {/* Roster Section - User's Team */}
+      {isUserTeam && sortedTeamPlayers.length > 0 && (
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{
+            backgroundColor: teamInfo.backgroundColor,
+            border: `3px solid ${teamInfo.textColor}`
+          }}
+        >
+          <div
+            className="px-3 sm:px-4 py-2 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+            style={{ backgroundColor: teamInfo.textColor }}
+          >
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <h2 className="text-sm sm:text-lg font-bold" style={{ color: teamPrimaryText }}>
+                {selectedYear} Roster
+              </h2>
+              <span
+                className="text-xs sm:text-sm font-semibold px-2 py-0.5 sm:py-1 rounded"
+                style={{
+                  backgroundColor: teamInfo.backgroundColor,
+                  color: teamBgText
+                }}
+              >
+                {sortedTeamPlayers.length} Players
+              </span>
+            </div>
+            {/* Sort Controls */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-xs font-medium mr-1" style={{ color: teamPrimaryText, opacity: 0.7 }}>Sort:</span>
+              {[
+                { key: 'position', label: 'Pos' },
+                { key: 'overall', label: 'OVR' },
+                { key: 'jerseyNumber', label: '#' },
+                { key: 'name', label: 'Name' }
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => handleRosterSort(key)}
+                  className="px-2 py-0.5 rounded text-xs font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    backgroundColor: rosterSort === key ? teamInfo.backgroundColor : `${teamInfo.backgroundColor}50`,
+                    color: rosterSort === key ? teamBgText : teamPrimaryText
+                  }}
+                >
+                  {label}
+                  {rosterSort === key && (
+                    <span className="ml-0.5">{rosterSortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-2 sm:p-4">
+            {/* Mobile: Card Layout */}
+            <div className="sm:hidden space-y-2">
+              {sortedTeamPlayers.map((player) => (
+                <Link
+                  key={player.pid}
+                  to={`/dynasty/${id}/player/${player.pid}`}
+                  className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
+                  style={{
+                    borderColor: `${teamInfo.textColor}40`,
+                    backgroundColor: `${teamInfo.textColor}10`
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                        style={{
+                          backgroundColor: teamInfo.textColor,
+                          color: teamPrimaryText
+                        }}
+                      >
+                        {player.jerseyNumber || '-'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate" style={{ color: teamInfo.textColor }}>
+                          {player.name}
+                        </div>
+                        <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: teamBgText, opacity: 0.8 }}>
+                          <span>{player.position}</span>
+                          <span>•</span>
+                          <span>{player.year}</span>
+                          {player.devTrait && player.devTrait !== 'Normal' && (
+                            <>
+                              <span>•</span>
+                              <span>{player.devTrait}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="text-xl font-bold flex-shrink-0 ml-2"
+                      style={{ color: teamBgText }}
+                    >
+                      {player.overall}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* Desktop: Table Layout */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${teamInfo.textColor}40` }}>
+                    <th
+                      className="text-left py-2 px-2 font-semibold cursor-pointer hover:opacity-80"
+                      style={{ color: teamBgText }}
+                      onClick={() => handleRosterSort('jerseyNumber')}
+                    >
+                      # {rosterSort === 'jerseyNumber' && (rosterSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th
+                      className="text-left py-2 px-2 font-semibold cursor-pointer hover:opacity-80"
+                      style={{ color: teamBgText }}
+                      onClick={() => handleRosterSort('name')}
+                    >
+                      Name {rosterSort === 'name' && (rosterSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th
+                      className="text-left py-2 px-2 font-semibold cursor-pointer hover:opacity-80"
+                      style={{ color: teamBgText }}
+                      onClick={() => handleRosterSort('position')}
+                    >
+                      Pos {rosterSort === 'position' && (rosterSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>Year</th>
+                    <th
+                      className="text-left py-2 px-2 font-semibold cursor-pointer hover:opacity-80"
+                      style={{ color: teamBgText }}
+                      onClick={() => handleRosterSort('overall')}
+                    >
+                      OVR {rosterSort === 'overall' && (rosterSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="text-left py-2 px-2 font-semibold hidden md:table-cell" style={{ color: teamBgText }}>Dev</th>
+                    <th className="text-left py-2 px-2 font-semibold hidden lg:table-cell" style={{ color: teamBgText }}>Archetype</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTeamPlayers.map((player) => (
+                    <tr
+                      key={player.pid}
+                      className="hover:opacity-80 cursor-pointer"
+                      style={{ borderBottom: `1px solid ${teamInfo.textColor}20` }}
+                      onClick={() => window.location.href = `/dynasty/${id}/player/${player.pid}`}
+                    >
+                      <td className="py-2 px-2 font-bold" style={{ color: teamBgText }}>
+                        {player.jerseyNumber || '-'}
+                      </td>
+                      <td className="py-2 px-2">
+                        <Link
+                          to={`/dynasty/${id}/player/${player.pid}`}
+                          className="font-semibold hover:underline"
+                          style={{ color: teamBgText }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {player.name}
+                        </Link>
+                      </td>
+                      <td className="py-2 px-2 font-semibold" style={{ color: teamBgText }}>
+                        {player.position}
+                      </td>
+                      <td className="py-2 px-2" style={{ color: teamBgText }}>
+                        {player.year}
+                      </td>
+                      <td className="py-2 px-2 font-bold" style={{ color: teamBgText }}>
+                        {player.overall}
+                      </td>
+                      <td className="py-2 px-2 hidden md:table-cell" style={{ color: teamBgText, opacity: 0.8 }}>
+                        {player.devTrait || '-'}
+                      </td>
+                      <td className="py-2 px-2 hidden lg:table-cell" style={{ color: teamBgText, opacity: 0.8 }}>
+                        {player.archetype || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Game Log (if user's team) - Exact Dashboard Style */}
       {isUserTeam && userYearGames.length > 0 && (
         <div
@@ -829,48 +1064,220 @@ export default function TeamYear() {
                 </div>
               )
             })}
-          </div>
-        </div>
-      )}
 
-      {/* Conference Championship Game - only for user's team (non-user teams show in unified game log) */}
-      {isUserTeam && teamCCGame && (
-        <div
-          className="rounded-lg shadow-lg overflow-hidden"
-          style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${wonCC ? '#16a34a' : '#dc2626'}`
-          }}
-        >
-          <div
-            className="px-3 sm:px-4 py-2 sm:py-3"
-            style={{ backgroundColor: wonCC ? '#16a34a' : '#dc2626' }}
-          >
-            <h2 className="text-sm sm:text-lg font-bold text-white">
-              {teamCCGame.conference} Championship {wonCC ? '- CHAMPION' : ''}
-            </h2>
-          </div>
+            {/* Conference Championship Game - inline in schedule */}
+            {(() => {
+              // Get the user's CC game from games array OR from conferenceChampionshipsByYear
+              const ccGameFromGames = userYearGames.find(g => g.isConferenceChampionship)
 
-          <div className="p-3 sm:p-4">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              <span
-                className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-bold"
-                style={{
-                  backgroundColor: wonCC ? '#16a34a' : '#dc2626',
-                  color: '#FFFFFF'
-                }}
-              >
-                {wonCC ? 'WIN' : 'LOSS'}
-              </span>
-              <span className="text-lg sm:text-xl font-bold" style={{ color: secondaryBgText }}>
-                {teamCCGame.team1 === teamAbbr
-                  ? `${teamCCGame.team1Score} - ${teamCCGame.team2Score}`
-                  : `${teamCCGame.team2Score} - ${teamCCGame.team1Score}`}
-              </span>
-              <span className="text-xs sm:text-sm" style={{ color: secondaryBgText, opacity: 0.8 }}>
-                vs {teamCCGame.team1 === teamAbbr ? teamCCGame.team2 : teamCCGame.team1}
-              </span>
-            </div>
+              // If CC game is already in userYearGames, skip (it's rendered above)
+              if (ccGameFromGames) return null
+
+              // Check if user made the championship from conferenceChampionshipData
+              const ccData = currentDynasty.conferenceChampionshipData
+              const madeChampionship = ccData?.madeChampionship === true
+
+              // If user didn't make championship or no CC game data, skip
+              if (!madeChampionship && !teamCCGame) return null
+
+              // Get opponent from ccData or teamCCGame
+              const ccOpponentAbbr = ccData?.opponent || (teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team2 : teamCCGame.team1) : null)
+              if (!ccOpponentAbbr) return null
+
+              // Handle both abbreviation and mascot name formats
+              const ccOppMascotFromAbbr = getMascotName(ccOpponentAbbr)
+              const ccOppMascot = ccOppMascotFromAbbr || (getTeamLogo(ccOpponentAbbr) ? ccOpponentAbbr : null)
+              const ccOppLogo = ccOppMascot ? getTeamLogo(ccOppMascot) : null
+
+              // Get opponent colors
+              let ccOppColors = teamAbbreviations[ccOpponentAbbr]
+              if (typeof ccOppColors === 'string') {
+                ccOppColors = teamAbbreviations[ccOppColors]
+              }
+              ccOppColors = ccOppColors || { backgroundColor: '#6b7280', textColor: '#ffffff' }
+
+              const ccOpponentDisplayName = ccOppMascot || ccOpponentAbbr
+
+              // Determine if we have a result
+              const hasResult = teamCCGame && teamCCGame.team1Score !== null && teamCCGame.team2Score !== null
+              const isWin = hasResult && wonCC
+              const isLoss = hasResult && !wonCC
+
+              // Calculate scores from this team's perspective
+              const thisTeamScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team1Score : teamCCGame.team2Score) : null
+              const oppScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team2Score : teamCCGame.team1Score) : null
+
+              return (
+                <div
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                  style={{
+                    backgroundColor: ccOppColors.backgroundColor,
+                    borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : ccOppColors.backgroundColor
+                  }}
+                  onClick={() => {
+                    if (hasResult) {
+                      setSelectedGame({
+                        opponent: ccOpponentAbbr,
+                        teamScore: thisTeamScore,
+                        opponentScore: oppScore,
+                        result: isWin ? 'win' : 'loss',
+                        year: selectedYear,
+                        week: 'CCG',
+                        location: 'neutral',
+                        isConferenceChampionship: true,
+                        gameTitle: `${teamCCGame.conference} Championship Game`
+                      })
+                      setShowGameDetailModal(true)
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: ccOppColors.textColor, opacity: 0.9 }}>
+                      CCG
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <span
+                        className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
+                        style={{
+                          backgroundColor: ccOppColors.textColor,
+                          color: ccOppColors.backgroundColor
+                        }}
+                      >
+                        vs
+                      </span>
+                      {ccOppLogo && (
+                        <div
+                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${ccOppColors.textColor}`,
+                            padding: '2px'
+                          }}
+                        >
+                          <img
+                            src={ccOppLogo}
+                            alt={`${ccOpponentDisplayName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-semibold text-sm sm:text-base truncate" style={{ color: ccOppColors.textColor }}>
+                          {ccOpponentDisplayName}
+                        </span>
+                        {teamCCGame?.conference && (
+                          <span className="text-xs opacity-70 truncate" style={{ color: ccOppColors.textColor }}>
+                            {teamCCGame.conference} Championship
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {hasResult ? (
+                    <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
+                      <div
+                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
+                        style={{
+                          backgroundColor: isWin ? '#22c55e' : '#ef4444',
+                          color: '#ffffff'
+                        }}
+                      >
+                        {isWin ? 'W' : 'L'}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-sm sm:text-base" style={{ color: ccOppColors.textColor }}>
+                          {thisTeamScore} - {oppScore}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: ccOppColors.textColor, opacity: 0.7 }}>
+                      Scheduled
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Scheduled Bowl Game - show if bowl is scheduled but not played */}
+            {(() => {
+              const bowlData = currentDynasty.bowlEligibilityData
+              const hasBowlScheduled = bowlData?.eligible === true && bowlData?.bowlGame && bowlData?.opponent
+              const bowlGamePlayed = userYearGames.some(g => g.isBowlGame)
+
+              // Only show if bowl is scheduled but not yet played, and viewing current year
+              if (!hasBowlScheduled || bowlGamePlayed || selectedYear !== currentDynasty.currentYear) return null
+
+              const bowlOpponentValue = bowlData.opponent
+              // Handle both abbreviation and mascot name formats
+              const oppMascotFromAbbr = getMascotName(bowlOpponentValue)
+              const oppMascot = oppMascotFromAbbr || (getTeamLogo(bowlOpponentValue) ? bowlOpponentValue : null)
+              const oppLogo = oppMascot ? getTeamLogo(oppMascot) : null
+
+              // Get opponent colors - handle both abbreviation and mascot name
+              let oppColors = teamAbbreviations[bowlOpponentValue]
+              if (typeof oppColors === 'string') {
+                // It was a mascot name that returned an abbreviation
+                oppColors = teamAbbreviations[oppColors]
+              }
+              oppColors = oppColors || { backgroundColor: '#6b7280', textColor: '#ffffff' }
+
+              const opponentDisplayName = oppMascot || bowlOpponentValue
+
+              return (
+                <div
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
+                  style={{
+                    backgroundColor: oppColors.backgroundColor,
+                    borderColor: oppColors.backgroundColor
+                  }}
+                >
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
+                      Bowl
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <span
+                        className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
+                        style={{
+                          backgroundColor: oppColors.textColor,
+                          color: oppColors.backgroundColor
+                        }}
+                      >
+                        vs
+                      </span>
+                      {oppLogo && (
+                        <div
+                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${oppColors.textColor}`,
+                            padding: '2px'
+                          }}
+                        >
+                          <img
+                            src={oppLogo}
+                            alt={`${opponentDisplayName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-semibold text-sm sm:text-base truncate" style={{ color: oppColors.textColor }}>
+                          {opponentDisplayName}
+                        </span>
+                        <span className="text-xs opacity-70 truncate" style={{ color: oppColors.textColor }}>
+                          {bowlData.bowlGame}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: oppColors.textColor, opacity: 0.7 }}>
+                    Scheduled
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -1108,27 +1515,27 @@ export default function TeamYear() {
         </div>
       )}
 
-      {/* Players */}
-      {teamPlayers.length > 0 && (
+      {/* Players from Other Teams (Transfers) */}
+      {!isUserTeam && teamPlayers.length > 0 && (
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
-            backgroundColor: isUserTeam ? teamInfo.backgroundColor : userTeamColors.secondary,
-            border: `3px solid ${isUserTeam ? teamInfo.textColor : userTeamColors.primary}`
+            backgroundColor: userTeamColors.secondary,
+            border: `3px solid ${userTeamColors.primary}`
           }}
         >
           <div
             className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between"
-            style={{ backgroundColor: isUserTeam ? teamInfo.textColor : userTeamColors.primary }}
+            style={{ backgroundColor: userTeamColors.primary }}
           >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: isUserTeam ? teamPrimaryText : getContrastTextColor(userTeamColors.primary) }}>
-              {isUserTeam ? `${selectedYear} Roster` : `Players from ${mascotName || teamAbbr}`}
+            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(userTeamColors.primary) }}>
+              Players from {mascotName || teamAbbr}
             </h2>
             <span
               className="text-xs sm:text-sm font-semibold px-2 py-0.5 sm:py-1 rounded"
               style={{
-                backgroundColor: isUserTeam ? teamInfo.backgroundColor : userTeamColors.secondary,
-                color: isUserTeam ? teamBgText : secondaryBgText
+                backgroundColor: userTeamColors.secondary,
+                color: secondaryBgText
               }}
             >
               {teamPlayers.length} Players
@@ -1136,161 +1543,33 @@ export default function TeamYear() {
           </div>
 
           <div className="p-2 sm:p-4">
-            {isUserTeam ? (
-              <>
-                {/* Mobile: Card Layout */}
-                <div className="sm:hidden space-y-2">
-                  {teamPlayers
-                    .sort((a, b) => {
-                      const posOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
-                      const aPos = posOrder.indexOf(a.position)
-                      const bPos = posOrder.indexOf(b.position)
-                      if (aPos !== bPos) return aPos - bPos
-                      return (b.overall || 0) - (a.overall || 0)
-                    })
-                    .map((player) => (
-                      <Link
-                        key={player.pid}
-                        to={`/dynasty/${id}/player/${player.pid}`}
-                        className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
-                        style={{
-                          borderColor: `${teamInfo.textColor}40`,
-                          backgroundColor: `${teamInfo.textColor}10`
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-                              style={{
-                                backgroundColor: teamInfo.textColor,
-                                color: teamPrimaryText
-                              }}
-                            >
-                              {player.jerseyNumber || '-'}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold truncate" style={{ color: teamInfo.textColor }}>
-                                {player.name}
-                              </div>
-                              <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: teamBgText, opacity: 0.8 }}>
-                                <span>{player.position}</span>
-                                <span>•</span>
-                                <span>{player.year}</span>
-                                {player.devTrait && player.devTrait !== 'Normal' && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{player.devTrait}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div
-                            className="text-xl font-bold flex-shrink-0 ml-2"
-                            style={{ color: teamBgText }}
-                          >
-                            {player.overall}
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
-                </div>
-
-                {/* Desktop: Table Layout */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ borderBottom: `2px solid ${teamInfo.textColor}40` }}>
-                        <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>#</th>
-                        <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>Name</th>
-                        <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>Pos</th>
-                        <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>Year</th>
-                        <th className="text-left py-2 px-2 font-semibold" style={{ color: teamBgText }}>OVR</th>
-                        <th className="text-left py-2 px-2 font-semibold hidden md:table-cell" style={{ color: teamBgText }}>Dev</th>
-                        <th className="text-left py-2 px-2 font-semibold hidden lg:table-cell" style={{ color: teamBgText }}>Archetype</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teamPlayers
-                        .sort((a, b) => {
-                          const posOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
-                          const aPos = posOrder.indexOf(a.position)
-                          const bPos = posOrder.indexOf(b.position)
-                          if (aPos !== bPos) return aPos - bPos
-                          return (b.overall || 0) - (a.overall || 0)
-                        })
-                        .map((player) => (
-                          <tr
-                            key={player.pid}
-                            className="hover:opacity-80 cursor-pointer"
-                            style={{ borderBottom: `1px solid ${teamInfo.textColor}20` }}
-                            onClick={() => window.location.href = `/dynasty/${id}/player/${player.pid}`}
-                          >
-                            <td className="py-2 px-2 font-bold" style={{ color: teamBgText }}>
-                              {player.jerseyNumber || '-'}
-                            </td>
-                            <td className="py-2 px-2">
-                              <Link
-                                to={`/dynasty/${id}/player/${player.pid}`}
-                                className="font-semibold hover:underline"
-                                style={{ color: teamBgText }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {player.name}
-                              </Link>
-                            </td>
-                            <td className="py-2 px-2 font-semibold" style={{ color: teamBgText }}>
-                              {player.position}
-                            </td>
-                            <td className="py-2 px-2" style={{ color: teamBgText }}>
-                              {player.year}
-                            </td>
-                            <td className="py-2 px-2 font-bold" style={{ color: teamBgText }}>
-                              {player.overall}
-                            </td>
-                            <td className="py-2 px-2 hidden md:table-cell" style={{ color: teamBgText, opacity: 0.8 }}>
-                              {player.devTrait || '-'}
-                            </td>
-                            <td className="py-2 px-2 hidden lg:table-cell" style={{ color: teamBgText, opacity: 0.8 }}>
-                              {player.archetype || '-'}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              // Grid view for transfers from other teams
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                {teamPlayers.map((player) => (
-                  <Link
-                    key={player.pid}
-                    to={`/dynasty/${id}/player/${player.pid}`}
-                    className="flex items-center gap-2 sm:gap-3 p-2 rounded hover:opacity-80 transition-opacity"
-                    style={{ backgroundColor: `${userTeamColors.primary}10` }}
-                  >
-                    {player.jerseyNumber && (
-                      <span
-                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded text-xs sm:text-sm font-bold flex-shrink-0"
-                        style={{ backgroundColor: userTeamColors.primary, color: getContrastTextColor(userTeamColors.primary) }}
-                      >
-                        {player.jerseyNumber}
-                      </span>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-xs sm:text-sm truncate" style={{ color: secondaryBgText }}>
-                        {player.name}
-                      </div>
-                      <div className="text-xs" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                        {player.position} • {player.overall} OVR • Transfer
-                      </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {teamPlayers.map((player) => (
+                <Link
+                  key={player.pid}
+                  to={`/dynasty/${id}/player/${player.pid}`}
+                  className="flex items-center gap-2 sm:gap-3 p-2 rounded hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: `${userTeamColors.primary}10` }}
+                >
+                  {player.jerseyNumber && (
+                    <span
+                      className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded text-xs sm:text-sm font-bold flex-shrink-0"
+                      style={{ backgroundColor: userTeamColors.primary, color: getContrastTextColor(userTeamColors.primary) }}
+                    >
+                      {player.jerseyNumber}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-xs sm:text-sm truncate" style={{ color: secondaryBgText }}>
+                      {player.name}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
+                    <div className="text-xs" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                      {player.position} • {player.overall} OVR • Transfer
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       )}

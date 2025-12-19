@@ -18,7 +18,7 @@ async function getAccessToken() {
   }
 
   // Token not found or expired
-  throw new Error('OAuth access token not found or expired. Please sign out and sign back in.')
+  throw new Error('OAuth access token not found or expired. Try refreshing your session or sign out and sign back in.')
 }
 
 // Create a new Google Sheet for a dynasty
@@ -77,8 +77,6 @@ export async function createDynastySheet(dynastyName, coachName, year) {
     // Extract actual sheet IDs from the response
     const scheduleSheetId = sheet.sheets[0].properties.sheetId
     const rosterSheetId = sheet.sheets[1].properties.sheetId
-
-    console.log('Sheet IDs:', { scheduleSheetId, rosterSheetId })
 
     // Initialize headers with actual sheet IDs and user's team name
     await initializeSheetHeaders(sheet.spreadsheetId, accessToken, scheduleSheetId, rosterSheetId, dynastyName)
@@ -175,11 +173,8 @@ function generateTeamFormattingRules(sheetId, columnIndex) {
 // Initialize sheet headers
 async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetId, rosterSheetId, userTeamName) {
   try {
-    console.log('Initializing sheet headers and data...')
-
     // Get user team abbreviation
     const userTeamAbbr = getAbbreviationFromDisplayName(userTeamName)
-    console.log('User team abbreviation:', userTeamAbbr, 'for team:', userTeamName)
 
     const requests = [
       // Schedule headers
@@ -705,8 +700,6 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
     const cpuTeamFormattingRules = generateTeamFormattingRules(scheduleSheetId, 2)
     requests.push(...cpuTeamFormattingRules)
 
-    console.log('Sending batchUpdate with', requests.length, 'requests')
-
     const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
       method: 'POST',
       headers: {
@@ -722,10 +715,9 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
       throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const result = await response.json()
-    console.log('✅ Sheet initialization complete:', result)
+    await response.json()
   } catch (error) {
-    console.error('❌ Error initializing headers:', error)
+    console.error('Error initializing headers:', error)
     throw error
   }
 }
@@ -845,10 +837,7 @@ export async function createRosterSheet(dynastyName, year) {
 // Initialize Schedule-only sheet headers and formatting
 async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleSheetId, userTeamName) {
   try {
-    console.log('Initializing schedule sheet headers...')
-
     const userTeamAbbr = getAbbreviationFromDisplayName(userTeamName)
-    console.log('User team abbreviation:', userTeamAbbr, 'for team:', userTeamName)
 
     const requests = [
       // Schedule headers
@@ -1061,8 +1050,6 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
     const cpuTeamFormattingRules = generateTeamFormattingRules(scheduleSheetId, 2)
     requests.push(...cpuTeamFormattingRules)
 
-    console.log('Sending batchUpdate with', requests.length, 'requests')
-
     const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
       method: 'POST',
       headers: {
@@ -1078,8 +1065,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
       throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const result = await response.json()
-    console.log('Schedule sheet initialization complete:', result)
+    await response.json()
   } catch (error) {
     console.error('Error initializing schedule headers:', error)
     throw error
@@ -1089,7 +1075,6 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
 // Initialize Roster-only sheet headers and formatting
 async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheetId) {
   try {
-    console.log('Initializing roster sheet headers...')
 
     const requests = [
       // Roster headers (11 columns)
@@ -1408,8 +1393,6 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
       }
     ]
 
-    console.log('Sending batchUpdate with', requests.length, 'requests')
-
     const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
       method: 'POST',
       headers: {
@@ -1425,8 +1408,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
       throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const result = await response.json()
-    console.log('Roster sheet initialization complete:', result)
+    await response.json()
   } catch (error) {
     console.error('Error initializing roster headers:', error)
     throw error
@@ -1612,13 +1594,19 @@ export async function readScheduleFromSheet(spreadsheetId) {
 // Delete a Google Sheet (move to trash)
 export async function deleteGoogleSheet(spreadsheetId) {
   try {
+    if (!spreadsheetId) {
+      throw new Error('No spreadsheet ID provided')
+    }
+
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
 
     const accessToken = await getAccessToken()
 
     // Use Drive API to trash the file
-    const response = await fetch(`${DRIVE_API_BASE}/${spreadsheetId}`, {
+    const url = `${DRIVE_API_BASE}/${spreadsheetId}`
+
+    const response = await fetch(url, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -1630,12 +1618,18 @@ export async function deleteGoogleSheet(spreadsheetId) {
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      console.error('Failed to delete sheet:', error)
-      throw new Error(`Failed to delete sheet: ${error.error?.message || 'Unknown error'}`)
+      const errorText = await response.text()
+      let errorMessage = 'Unknown error'
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.error?.message || errorText
+      } catch {
+        errorMessage = errorText
+      }
+      throw new Error(`Failed to delete sheet: ${errorMessage}`)
     }
 
-    console.log('✅ Google Sheet moved to trash:', spreadsheetId)
+    await response.json()
     return true
   } catch (error) {
     console.error('Error deleting Google Sheet:', error)
@@ -1848,7 +1842,6 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       }
     }
 
-    console.log('✅ Existing data written to sheet')
     return true
   } catch (error) {
     console.error('Error writing existing data to sheet:', error)
@@ -2691,9 +2684,9 @@ export function getWeek2BowlGamesList() {
   return [...BOWL_GAMES_WEEK_2]
 }
 
-// Get all bowl games (for dropdown selection, no CFP)
+// Get all bowl games (for dropdown selection, no CFP games)
 export function getAllBowlGamesList() {
-  return [...ALL_BOWL_GAMES]
+  return ALL_BOWL_GAMES.filter(b => !b.includes('CFP'))
 }
 
 // Check if a bowl game is in Week 1
@@ -2771,16 +2764,17 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
   const getTeamBySeed = (seed) => cfpSeeds?.find(s => s.seed === seed)?.team || ''
 
   // Helper to get First Round winner
-  const getFirstRoundWinner = (higherSeed, lowerSeed) => {
+  const getFirstRoundWinner = (seedA, seedB) => {
     if (!firstRoundResults || firstRoundResults.length === 0) return ''
     const game = firstRoundResults.find(g =>
-      (g.higherSeed === higherSeed && g.lowerSeed === lowerSeed) ||
-      (g.higherSeed === lowerSeed && g.lowerSeed === higherSeed)
+      (g.seed1 === seedA && g.seed2 === seedB) ||
+      (g.seed1 === seedB && g.seed2 === seedA)
     )
     return game?.winner || ''
   }
 
   // Build row data with teams pre-filled for CFP QF games
+  // Team 1 = higher seed (1-4), Team 2 = lower seed (First Round winner)
   const rowData = bowlGames.map(bowl => {
     const matchup = CFP_QF_MATCHUPS[bowl]
     if (matchup && cfpSeeds.length > 0) {
@@ -2790,8 +2784,8 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
       const topSeedTeam = getTeamBySeed(matchup.topSeed)
       return {
         bowl,
-        team1: firstRoundWinner,
-        team2: topSeedTeam
+        team1: topSeedTeam,        // Higher seed (1-4)
+        team2: firstRoundWinner    // Lower seed (First Round winner)
       }
     }
     return { bowl, team1: '', team2: '' }
@@ -3630,41 +3624,42 @@ async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheet
   // Get seed teams
   const getTeamBySeed = (seed) => cfpSeeds?.find(s => s.seed === seed)?.team || ''
 
-  // Get First Round winners
-  const getFirstRoundWinner = (higherSeed, lowerSeed) => {
+  // Get First Round winner by seed numbers
+  const getFirstRoundWinner = (seedA, seedB) => {
     if (!firstRoundResults || firstRoundResults.length === 0) return ''
     const game = firstRoundResults.find(g =>
-      (g.higherSeed === higherSeed && g.lowerSeed === lowerSeed) ||
-      (g.higherSeed === lowerSeed && g.lowerSeed === higherSeed)
+      (g.seed1 === seedA && g.seed2 === seedB) ||
+      (g.seed1 === seedB && g.seed2 === seedA)
     )
     return game?.winner || ''
   }
 
   // Quarterfinal matchups with bowl games
-  // Sugar Bowl: 12/5 winner vs #4
-  // Orange Bowl: 9/8 winner vs #1
-  // Rose Bowl: 11/6 winner vs #3
-  // Cotton Bowl: 10/7 winner vs #2
+  // Team 1 = higher seed (1-4), Team 2 = lower seed (First Round winner)
+  // Sugar Bowl: #4 vs 5/12 winner
+  // Orange Bowl: #1 vs 8/9 winner
+  // Rose Bowl: #3 vs 6/11 winner
+  // Cotton Bowl: #2 vs 7/10 winner
   const quarterfinals = [
     {
       bowl: 'Sugar Bowl',
-      team1: getFirstRoundWinner(getTeamBySeed(5), getTeamBySeed(12)),
-      team2: getTeamBySeed(4)
+      team1: getTeamBySeed(4),
+      team2: getFirstRoundWinner(5, 12)
     },
     {
       bowl: 'Orange Bowl',
-      team1: getFirstRoundWinner(getTeamBySeed(8), getTeamBySeed(9)),
-      team2: getTeamBySeed(1)
+      team1: getTeamBySeed(1),
+      team2: getFirstRoundWinner(8, 9)
     },
     {
       bowl: 'Rose Bowl',
-      team1: getFirstRoundWinner(getTeamBySeed(6), getTeamBySeed(11)),
-      team2: getTeamBySeed(3)
+      team1: getTeamBySeed(3),
+      team2: getFirstRoundWinner(6, 11)
     },
     {
       bowl: 'Cotton Bowl',
-      team1: getFirstRoundWinner(getTeamBySeed(7), getTeamBySeed(10)),
-      team2: getTeamBySeed(2)
+      team1: getTeamBySeed(2),
+      team2: getFirstRoundWinner(7, 10)
     }
   ]
 

@@ -33,25 +33,15 @@ export function DynastyProvider({ children }) {
     // In dev mode, use localStorage fallback (even without user)
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     if (isDev) {
-      console.log('Loading dynasties from localStorage (dev mode)')
       // Load from localStorage in dev mode
       const saved = localStorage.getItem('cfb-dynasties')
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
-          console.log('Loaded', parsed.length, 'dynasties from localStorage')
-
-          // VERIFICATION: Check if schedules are present
-          parsed.forEach(d => {
-            console.log(`Dynasty ${d.teamName}: schedule =`, d.schedule?.length || 0, 'games, players =', d.players?.length || 0, 'players')
-          })
-
           setDynasties(parsed)
         } catch (error) {
           console.error('Error loading dynasties:', error)
         }
-      } else {
-        console.log('No dynasties found in localStorage')
       }
       setLoading(false)
       return
@@ -79,10 +69,7 @@ export function DynastyProvider({ children }) {
     migrateData()
 
     // Subscribe to real-time updates
-    console.log('Setting up real-time listener for user:', user.uid)
     const unsubscribe = subscribeToDynasties(user.uid, (firestoreDynasties) => {
-      console.log('🔄 Real-time listener fired! Received', firestoreDynasties.length, 'dynasties from Firestore')
-      console.log('Dynasty IDs from Firestore:', firestoreDynasties.map(d => d.id))
       setDynasties(firestoreDynasties)
       setLoading(false)
 
@@ -91,9 +78,7 @@ export function DynastyProvider({ children }) {
         const updated = firestoreDynasties.find(d => d.id === currentDynasty.id)
         if (updated) {
           setCurrentDynasty(updated)
-          console.log('Current dynasty updated from listener')
         } else {
-          console.log('Current dynasty not found in Firestore list, clearing it')
           setCurrentDynasty(null)
         }
       }
@@ -109,11 +94,8 @@ export function DynastyProvider({ children }) {
     // Don't save during initial load
     if (loading) return
 
-    console.log('localStorage save effect triggered:', { isDev, dynastyCount: dynasties.length })
     if (isDev && dynasties.length > 0) {
-      console.log('Saving', dynasties.length, 'dynasties to localStorage')
       localStorage.setItem('cfb-dynasties', JSON.stringify(dynasties))
-      console.log('Saved to localStorage successfully')
     }
     // Note: We don't remove from localStorage when empty to avoid accidental data loss
   }, [dynasties, loading])
@@ -135,7 +117,8 @@ export function DynastyProvider({ children }) {
         scheduleEntered: false,
         rosterEntered: false,
         teamRatingsEntered: false,
-        coachingStaffEntered: false
+        coachingStaffEntered: false,
+        conferencesEntered: false  // Shows as incomplete, but defaults are valid if user skips
       },
       teamRatings: {
         overall: null,
@@ -151,51 +134,21 @@ export function DynastyProvider({ children }) {
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
 
-    // Try to create Google Sheet (works in both dev and production if user is authenticated)
-    let sheetInfo = null
-    if (user) {
-      console.log('User authenticated, attempting to create Google Sheet...')
-      console.log('User access token available:', !!user.accessToken)
-      try {
-        sheetInfo = await createDynastySheet(
-          dynastyData.teamName,
-          dynastyData.coachName,
-          dynastyData.startYear
-        )
-        console.log('✅ Google Sheet created successfully:', sheetInfo)
-      } catch (sheetError) {
-        console.error('❌ Failed to create Google Sheet:', sheetError)
-        console.error('Error details:', sheetError.message)
-        // Continue without sheet - user can still use custom spreadsheets
-      }
-    } else {
-      console.log('⚠️ User not authenticated - skipping Google Sheet creation')
-      console.log('To use Google Sheets integration, please sign in with Google')
-    }
-
-    // Add sheet info to dynasty data
-    const dynastyWithSheet = {
-      ...newDynastyData,
-      ...(sheetInfo && {
-        googleSheetId: sheetInfo.spreadsheetId,
-        googleSheetUrl: sheetInfo.spreadsheetUrl
-      })
-    }
+    // Note: Google Sheet is created lazily when user opens Schedule Entry modal
+    // This avoids creating sheets that may never be used
 
     if (isDev || !user) {
-      // Dev mode: use localStorage (but with sheet info if available)
+      // Dev mode: use localStorage
       const newDynasty = {
         id: Date.now().toString(),
-        ...dynastyWithSheet,
+        ...newDynastyData,
         createdAt: new Date().toISOString(),
         lastModified: Date.now()
       }
-      console.log('Creating dynasty in dev mode:', newDynasty)
 
       // Immediately save to localStorage before updating state
       const existingDynasties = dynasties
       const updatedDynasties = [...existingDynasties, newDynasty]
-      console.log('Saving to localStorage immediately:', updatedDynasties.length, 'dynasties')
       localStorage.setItem('cfb-dynasties', JSON.stringify(updatedDynasties))
 
       setDynasties(updatedDynasties)
@@ -206,7 +159,7 @@ export function DynastyProvider({ children }) {
     // Production: use Firestore
     try {
       const newDynasty = await createDynastyInFirestore(user.uid, {
-        ...dynastyWithSheet,
+        ...newDynastyData,
         lastModified: Date.now()
       })
       setCurrentDynasty(newDynasty)
@@ -219,7 +172,6 @@ export function DynastyProvider({ children }) {
 
   const updateDynasty = async (dynastyId, updates) => {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
-    console.log('updateDynasty called:', { dynastyId, isDev, hasUser: !!user, updates: Object.keys(updates) })
 
     // Add lastModified timestamp to all updates
     const updatesWithTimestamp = {
@@ -229,19 +181,15 @@ export function DynastyProvider({ children }) {
 
     if (isDev || !user) {
       // Dev mode: update local state
-      console.log('Updating dynasty in dev mode')
 
       // CRITICAL FIX: Read from localStorage to get the absolute latest data
       // This prevents race conditions when multiple updates happen in quick succession
       const currentData = localStorage.getItem('cfb-dynasties')
       const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
-      console.log('Reading latest data from localStorage, found', currentDynasties.length, 'dynasties')
 
       const updated = currentDynasties.map(d => (String(d.id) === String(dynastyId) ? { ...d, ...updatesWithTimestamp } : d))
-      console.log('Dynasties after update:', updated)
 
       // Immediately save to localStorage
-      console.log('Saving updated dynasties to localStorage immediately')
       localStorage.setItem('cfb-dynasties', JSON.stringify(updated))
 
       setDynasties(updated)
@@ -250,10 +198,8 @@ export function DynastyProvider({ children }) {
       // instead of just merging updates (which can miss nested object changes)
       if (String(currentDynasty?.id) === String(dynastyId)) {
         const updatedDynasty = updated.find(d => String(d.id) === String(dynastyId))
-        console.log('Updating currentDynasty with full object:', updatedDynasty?.preseasonSetup)
         setCurrentDynasty(updatedDynasty)
       }
-      console.log('Dynasty updated in local state and localStorage')
       return
     }
 
@@ -268,51 +214,37 @@ export function DynastyProvider({ children }) {
   }
 
   const deleteDynasty = async (dynastyId) => {
-    console.log('deleteDynasty called with ID:', dynastyId)
-    console.log('Current dynasties count:', dynasties.length)
-    console.log('Dynasty IDs:', dynasties.map(d => ({ id: d.id, type: typeof d.id })))
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
 
     if (isDev || !user) {
       // Dev mode: delete from local state
-      console.log('Using dev mode delete')
       const updated = dynasties.filter(d => {
         const match = String(d.id) !== String(dynastyId)
-        console.log(`Comparing ${d.id} (${typeof d.id}) !== ${dynastyId} (${typeof dynastyId}): ${match}`)
         return match
       })
 
-      console.log('Dynasties after filter:', updated.length)
 
       // Immediately save to localStorage
       if (updated.length > 0) {
         localStorage.setItem('cfb-dynasties', JSON.stringify(updated))
-        console.log('Saved to localStorage')
       } else {
         localStorage.removeItem('cfb-dynasties')
-        console.log('Removed from localStorage (empty)')
       }
 
       setDynasties(updated)
-      console.log('State updated')
 
       if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
-        console.log('Current dynasty cleared')
       }
       return
     }
 
     // Production: delete from Firestore
-    console.log('Using production mode delete (Firestore)')
     try {
-      console.log('Calling deleteDynastyFromFirestore with ID:', dynastyId)
       await deleteDynastyFromFirestore(dynastyId)
-      console.log('Firestore delete successful')
       if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
-        console.log('Current dynasty cleared')
       }
     } catch (error) {
       console.error('❌ Error deleting dynasty from Firestore:', error)
@@ -326,9 +258,6 @@ export function DynastyProvider({ children }) {
   }
 
   const addGame = async (dynastyId, gameData) => {
-    console.log('========== ADD GAME START ==========')
-    console.log('addGame: Saving game for week', gameData.week, 'year', gameData.year)
-    console.log('Full gameData:', JSON.stringify(gameData, null, 2))
 
     // CRITICAL: Read from localStorage to get the latest data
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
@@ -359,7 +288,6 @@ export function DynastyProvider({ children }) {
 
     if (existingGameIndex !== -1 && existingGameIndex !== undefined) {
       // Update existing game
-      console.log('Updating existing game')
       game = {
         ...dynasty.games[existingGameIndex],
         ...gameData,
@@ -369,7 +297,6 @@ export function DynastyProvider({ children }) {
       updatedGames[existingGameIndex] = game
     } else {
       // Add new game
-      console.log('Adding new game')
       game = {
         id: Date.now().toString(),
         ...gameData,
@@ -378,12 +305,8 @@ export function DynastyProvider({ children }) {
       updatedGames = [...(dynasty.games || []), game]
     }
 
-    console.log('Saved game with week:', game.week, 'year:', game.year)
-    console.log('Final game object:', JSON.stringify(game, null, 2))
-    console.log('Total games in array:', updatedGames.length)
 
     await updateDynasty(dynastyId, { games: updatedGames })
-    console.log('========== ADD GAME COMPLETE ==========')
 
     return game
   }
@@ -405,11 +328,9 @@ export function DynastyProvider({ children }) {
       // Delete Google Sheet when advancing from preseason
       if (dynasty.googleSheetId) {
         try {
-          console.log('🗑️ Deleting Google Sheet after preseason...')
           await deleteGoogleSheet(dynasty.googleSheetId)
           additionalUpdates.googleSheetId = null
           additionalUpdates.googleSheetUrl = null
-          console.log('✅ Google Sheet deleted successfully')
         } catch (error) {
           console.error('Failed to delete Google Sheet:', error)
           // Continue anyway - don't block advancing
@@ -450,7 +371,6 @@ export function DynastyProvider({ children }) {
         }
         // Reset coachingStaffEntered so user must re-enter in next preseason
         additionalUpdates['preseasonSetup.coachingStaffEntered'] = false
-        console.log('🔥 Firing coordinator(s):', pendingFiring, { firedOCName, firedDCName })
       }
     } else if (dynasty.currentPhase === 'postseason' && nextWeek > 5) {
       nextPhase = 'offseason'
@@ -617,10 +537,6 @@ export function DynastyProvider({ children }) {
   }
 
   const saveSchedule = async (dynastyId, schedule) => {
-    console.log('saveSchedule called:', { dynastyId, schedule })
-    console.log('Available dynasties:', dynasties.map(d => ({ id: d.id, idType: typeof d.id, name: d.teamName })))
-    console.log('Looking for ID:', dynastyId, 'Type:', typeof dynastyId)
-    console.log('Current dynasty:', currentDynasty?.id, currentDynasty?.teamName)
 
     // CRITICAL: Read from localStorage to get the latest data
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
@@ -646,9 +562,6 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    console.log('Saving schedule to dynasty:', dynasty.teamName)
-    console.log('Current preseasonSetup BEFORE schedule save:', dynasty.preseasonSetup)
-    console.log('Schedule being saved:', schedule)
 
     const scheduleUpdates = isDev || !user
       ? {
@@ -662,19 +575,15 @@ export function DynastyProvider({ children }) {
           schedule,
           'preseasonSetup.scheduleEntered': true  // Firestore dot notation for nested field merge
         }
-    console.log('Schedule updates object:', scheduleUpdates)
 
     await updateDynasty(dynastyId, scheduleUpdates)
 
-    console.log('Schedule saved successfully')
-    console.log('After schedule save, reading back from localStorage...')
 
     // Verify it was saved
     const verification = localStorage.getItem('cfb-dynasties')
     if (verification) {
       const parsed = JSON.parse(verification)
       const saved = parsed.find(d => String(d.id) === String(dynastyId))
-      console.log('VERIFICATION - preseasonSetup after schedule save:', saved?.preseasonSetup)
     }
 
     // VERIFICATION: Check localStorage to confirm schedule was saved
@@ -683,22 +592,15 @@ export function DynastyProvider({ children }) {
       if (saved) {
         const parsed = JSON.parse(saved)
         const savedDynasty = parsed.find(d => String(d.id) === String(dynastyId))
-        console.log('✅ VERIFICATION - Dynasty in localStorage:', savedDynasty?.teamName)
-        console.log('✅ VERIFICATION - Schedule in localStorage:', savedDynasty?.schedule)
         if (!savedDynasty?.schedule || savedDynasty.schedule.length === 0) {
           console.error('❌ ERROR: Schedule NOT in localStorage!')
         } else {
-          console.log(`✅ SUCCESS: ${savedDynasty.schedule.length} games saved to localStorage`)
         }
       }
     }
   }
 
   const saveRoster = async (dynastyId, players) => {
-    console.log('saveRoster called:', { dynastyId, playerCount: players.length })
-    console.log('Available dynasties:', dynasties.map(d => ({ id: d.id, idType: typeof d.id, name: d.teamName })))
-    console.log('Looking for ID:', dynastyId, 'Type:', typeof dynastyId)
-    console.log('Current dynasty:', currentDynasty?.id, currentDynasty?.teamName)
 
     // CRITICAL: Read from localStorage to get the latest data (including any recent schedule save)
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
@@ -724,9 +626,6 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    console.log('Saving roster to dynasty:', dynasty.teamName, 'Phase:', dynasty.currentPhase)
-    console.log('Current preseasonSetup BEFORE roster save:', dynasty.preseasonSetup)
-    console.log('Will merge to create:', { ...dynasty.preseasonSetup, rosterEntered: true })
 
     // During preseason, replace roster completely (to avoid duplicates on re-sync)
     // After preseason, merge with existing (for recruiting additions)
@@ -744,7 +643,6 @@ export function DynastyProvider({ children }) {
       }))
       finalPlayers = playersWithPIDs
       newNextPID = players.length + 1
-      console.log('Preseason mode: Replaced roster with', finalPlayers.length, 'players, nextPID:', newNextPID)
     } else {
       // Post-preseason: Merge with existing roster
       const nextPID = dynasty.nextPID || 1
@@ -756,7 +654,6 @@ export function DynastyProvider({ children }) {
       const existingPlayers = dynasty.players || []
       finalPlayers = [...existingPlayers, ...playersWithPIDs]
       newNextPID = nextPID + players.length
-      console.log('Post-preseason mode: Merged roster, total players:', finalPlayers.length, 'nextPID:', newNextPID)
     }
 
     const rosterUpdates = isDev || !user
@@ -775,15 +672,9 @@ export function DynastyProvider({ children }) {
         }
 
     await updateDynasty(dynastyId, rosterUpdates)
-    console.log('Roster saved successfully')
-    console.log('Final preseasonSetup after roster save:', {
-      ...dynasty.preseasonSetup,
-      rosterEntered: true
-    })
   }
 
   const saveTeamRatings = async (dynastyId, ratings) => {
-    console.log('saveTeamRatings called:', { dynastyId, ratings })
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -817,11 +708,9 @@ export function DynastyProvider({ children }) {
         }
 
     await updateDynasty(dynastyId, teamRatingsUpdates)
-    console.log('Team ratings saved successfully')
   }
 
   const saveCoachingStaff = async (dynastyId, staff) => {
-    console.log('saveCoachingStaff called:', { dynastyId, staff })
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -855,11 +744,9 @@ export function DynastyProvider({ children }) {
         }
 
     await updateDynasty(dynastyId, coachingStaffUpdates)
-    console.log('Coaching staff saved successfully')
   }
 
   const updatePlayer = async (dynastyId, updatedPlayer) => {
-    console.log('updatePlayer called:', { dynastyId, playerId: updatedPlayer.pid })
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -885,7 +772,6 @@ export function DynastyProvider({ children }) {
     )
 
     await updateDynasty(dynastyId, { players: updatedPlayers })
-    console.log('Player updated successfully')
   }
 
   const createGoogleSheetForDynasty = async (dynastyId) => {
@@ -893,9 +779,6 @@ export function DynastyProvider({ children }) {
       throw new Error('You must be signed in to create Google Sheets')
     }
 
-    console.log('Looking for dynasty:', dynastyId)
-    console.log('Available dynasties:', dynasties.map(d => ({ id: d.id, name: d.teamName })))
-    console.log('Current dynasty:', currentDynasty?.id, currentDynasty?.teamName)
 
     // Use currentDynasty if IDs match, otherwise search in array
     let dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
@@ -909,7 +792,6 @@ export function DynastyProvider({ children }) {
       throw new Error('This dynasty already has a Google Sheet')
     }
 
-    console.log('Creating Google Sheet for dynasty:', dynasty.teamName)
 
     try {
       const sheetInfo = await createDynastySheet(
@@ -918,7 +800,6 @@ export function DynastyProvider({ children }) {
         dynasty.startYear
       )
 
-      console.log('✅ Google Sheet created:', sheetInfo)
 
       await updateDynasty(dynastyId, {
         googleSheetId: sheetInfo.spreadsheetId,
@@ -944,7 +825,6 @@ export function DynastyProvider({ children }) {
       throw new Error('Dynasty not found')
     }
 
-    console.log('📝 Creating temporary Google Sheet with existing data...')
 
     try {
       // Create a new sheet
@@ -954,7 +834,6 @@ export function DynastyProvider({ children }) {
         dynasty.currentYear
       )
 
-      console.log('✅ Temporary sheet created:', sheetInfo.spreadsheetId)
 
       // Get user team abbreviation
       const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
@@ -967,7 +846,6 @@ export function DynastyProvider({ children }) {
         userTeamAbbr
       )
 
-      console.log('✅ Existing data written to sheet')
 
       // Update dynasty with temporary sheet ID (will be deleted after save)
       await updateDynasty(dynastyId, {
@@ -991,9 +869,7 @@ export function DynastyProvider({ children }) {
     }
 
     try {
-      console.log('🗑️ Deleting Google Sheet...')
       await deleteGoogleSheet(dynasty.googleSheetId)
-      console.log('✅ Sheet deleted')
     } catch (error) {
       console.error('Failed to delete sheet:', error)
     }
@@ -1021,7 +897,6 @@ export function DynastyProvider({ children }) {
       throw new Error('This dynasty already has a Conferences Sheet')
     }
 
-    console.log('Creating Conferences Sheet for dynasty:', dynasty.teamName)
 
     try {
       const sheetInfo = await createConferencesSheet(
@@ -1029,7 +904,6 @@ export function DynastyProvider({ children }) {
         dynasty.currentYear
       )
 
-      console.log('✅ Conferences Sheet created:', sheetInfo)
 
       await updateDynasty(dynastyId, {
         conferencesSheetId: sheetInfo.spreadsheetId,
@@ -1058,7 +932,6 @@ export function DynastyProvider({ children }) {
     try {
       // Read conferences from Google Sheet
       const conferences = await readConferencesFromSheet(conferencesSheetId)
-      console.log('Read conferences from sheet:', conferences)
 
       // Save to dynasty
       const isDev = import.meta.env.VITE_DEV_MODE === 'true'
@@ -1090,7 +963,6 @@ export function DynastyProvider({ children }) {
         })
       }
 
-      console.log('Conferences saved successfully')
       return conferences
     } catch (error) {
       console.error('Error saving conferences:', error)
@@ -1099,7 +971,6 @@ export function DynastyProvider({ children }) {
   }
 
   const exportDynasty = (dynastyId) => {
-    console.log('exportDynasty called:', { dynastyId })
 
     // Find the dynasty to export
     const dynasty = dynasties.find(d => String(d.id) === String(dynastyId))
@@ -1127,11 +998,9 @@ export function DynastyProvider({ children }) {
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
 
-    console.log('Dynasty exported successfully:', filename)
   }
 
   const importDynasty = async (jsonFile) => {
-    console.log('importDynasty called')
 
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -1159,15 +1028,11 @@ export function DynastyProvider({ children }) {
             const updatedDynasties = [...currentDynasties, importedDynasty]
             localStorage.setItem('cfb-dynasties', JSON.stringify(updatedDynasties))
             setDynasties(updatedDynasties)
-            console.log('Dynasty imported to localStorage with new ID:', newId)
           } else {
             // Production mode: Firestore - let Firestore generate the ID
-            console.log('Importing to Firestore...')
             const result = await createDynastyInFirestore(user.uid, cleanDynastyData)
-            console.log('Dynasty imported to Firestore with ID:', result.id)
           }
 
-          console.log('Dynasty imported successfully')
           resolve(cleanDynastyData)
         } catch (error) {
           console.error('Error importing dynasty:', error)

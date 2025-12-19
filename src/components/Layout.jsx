@@ -58,14 +58,6 @@ export default function Layout({ children }) {
   const handleAdvanceWeek = () => {
     if (!currentDynasty) return
 
-    console.log('=== ADVANCE WEEK CHECK ===')
-    console.log('Current phase:', currentDynasty.currentPhase)
-    console.log('preseasonSetup:', currentDynasty.preseasonSetup)
-    console.log('scheduleEntered:', currentDynasty.preseasonSetup?.scheduleEntered)
-    console.log('rosterEntered:', currentDynasty.preseasonSetup?.rosterEntered)
-    console.log('Can advance:', canAdvanceFromPreseason())
-    console.log('Schedule length:', currentDynasty.schedule?.length)
-    console.log('Players length:', currentDynasty.players?.length)
 
     if (currentDynasty.currentPhase === 'preseason' && !canAdvanceFromPreseason()) {
       alert('Please complete schedule, roster, and team ratings before advancing to the regular season.')
@@ -104,14 +96,17 @@ export default function Layout({ children }) {
       }
     }
 
-    // In postseason, check if all 10 CC results have been entered
+    // In postseason, check if all CC results have been entered
+    // If user made their own CC, they only need to enter 9 others (their own is in games)
     if (currentDynasty.currentPhase === 'postseason') {
       const ccResults = currentDynasty.conferenceChampionships?.filter(cc => cc.team1 && cc.team2) || []
       const enteredCount = ccResults.length
+      const userMadeCC = currentDynasty.conferenceChampionshipData?.madeChampionship === true
+      const expectedCount = userMadeCC ? 9 : 10
 
-      if (enteredCount < 10) {
+      if (enteredCount < expectedCount) {
         const confirmAdvance = window.confirm(
-          `You have only entered ${enteredCount}/10 Conference Championship results. Are you sure you want to advance?`
+          `You have only entered ${enteredCount}/${expectedCount} Conference Championship results. Are you sure you want to advance?`
         )
         if (!confirmAdvance) {
           return

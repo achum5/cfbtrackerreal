@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createCFPSeedsSheet,
   readCFPSeedsFromSheet,
@@ -25,6 +26,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   // Create CFP seeds sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing CFP seeds sheet for this year
         const existingSheetId = currentDynasty?.cfpSeedsSheetId
         if (existingSheetId) {
@@ -60,8 +62,6 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
         setCreatingSheet(true)
         try {
-          console.log('Creating CFP Seeds sheet...')
-
           const sheetInfo = await createCFPSeedsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear
@@ -72,8 +72,6 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
           await updateDynasty(currentDynasty.id, {
             cfpSeedsSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('CFP Seeds sheet ready')
         } catch (error) {
           console.error('Failed to create CFP seeds sheet:', error)
         } finally {
@@ -83,7 +81,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -98,15 +96,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     setSyncing(true)
     try {
       const seeds = await readCFPSeedsFromSheet(sheetId)
-      console.log('CFP Seeds read from sheet:', seeds)
-
       await onSave(seeds)
-      console.log('CFP Seeds saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure all 12 seeds are entered.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure all 12 seeds are entered.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -120,8 +118,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
       const seeds = await readCFPSeedsFromSheet(sheetId)
       await onSave(seeds)
 
-      // Delete the sheet
-      console.log('Deleting CFP seeds sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -130,15 +127,17 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
       })
 
       setSheetId(null)
-      console.log('CFP seeds sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets.')
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -204,7 +203,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 CFP Seeds saved to your dynasty.
@@ -327,6 +326,13 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

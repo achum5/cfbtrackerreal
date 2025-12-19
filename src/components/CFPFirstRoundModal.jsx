@@ -48,7 +48,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   // Create CFP First Round sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing CFP First Round sheet for this year
         const existingSheetId = currentDynasty?.cfpFirstRoundSheetId
         if (existingSheetId) {
@@ -58,8 +58,6 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
         setCreatingSheet(true)
         try {
-          console.log('Creating CFP First Round sheet...')
-
           const sheetInfo = await createCFPFirstRoundSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear
@@ -70,8 +68,6 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
           await updateDynasty(currentDynasty.id, {
             cfpFirstRoundSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('CFP First Round sheet ready')
         } catch (error) {
           console.error('Failed to create CFP First Round sheet:', error)
         } finally {
@@ -81,7 +77,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -96,11 +92,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     setSyncing(true)
     try {
       const games = await readCFPFirstRoundFromSheet(sheetId)
-      console.log('CFP First Round games read from sheet:', games)
-
       await onSave(games)
-      console.log('CFP First Round games saved successfully')
-
       onClose()
     } catch (error) {
       alert('Failed to sync from Google Sheets. Make sure all 4 games are entered with scores.')
@@ -118,8 +110,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
       const games = await readCFPFirstRoundFromSheet(sheetId)
       await onSave(games)
 
-      // Delete the sheet
-      console.log('Deleting CFP First Round sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -128,8 +119,6 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
       })
 
       setSheetId(null)
-      console.log('CFP First Round sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
@@ -202,7 +191,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 CFP First Round results saved to your dynasty.

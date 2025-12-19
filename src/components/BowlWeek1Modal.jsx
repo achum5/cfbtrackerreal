@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createBowlWeek1Sheet,
   readBowlGamesFromSheet,
@@ -24,6 +25,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -48,7 +50,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
   // Create bowl sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing bowl sheet for this year
         const existingSheetId = currentDynasty?.bowlWeek1SheetId
         if (existingSheetId) {
@@ -58,8 +60,6 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
 
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating Bowl Week 1 sheet...')
-
           // Get CFP seeds to pre-fill First Round teams
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
 
@@ -74,8 +74,6 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
           await updateDynasty(currentDynasty.id, {
             bowlWeek1SheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('✅ Bowl Week 1 sheet ready')
         } catch (error) {
           console.error('Failed to create bowl sheet:', error)
         } finally {
@@ -85,7 +83,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -100,15 +98,15 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     setSyncing(true)
     try {
       const bowlGames = await readBowlGamesFromSheet(sheetId)
-      console.log('Bowl Games read from sheet:', bowlGames)
-
       await onSave(bowlGames)
-      console.log('Bowl Games saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -122,8 +120,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
       const bowlGames = await readBowlGamesFromSheet(sheetId)
       await onSave(bowlGames)
 
-      // Delete the sheet
-      console.log('🗑️ Deleting bowl sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -132,15 +129,17 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
       })
 
       setSheetId(null)
-      console.log('✅ Bowl sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
-      console.error(error)
+      console.error('Error in handleSyncAndDelete:', error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert(`Failed to sync/delete: ${error.message || 'Unknown error'}`)
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -206,7 +205,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Bowl Week 1 data saved to your dynasty.
@@ -324,6 +323,13 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

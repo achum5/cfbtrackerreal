@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createBowlWeek2Sheet,
   readBowlWeek2GamesFromSheet,
@@ -24,6 +25,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -48,7 +50,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   // Create bowl sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing bowl Week 2 sheet for this year
         const existingSheetId = currentDynasty?.bowlWeek2SheetId
         if (existingSheetId) {
@@ -58,8 +60,6 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
 
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating Bowl Week 2 sheet...')
-
           // Get CFP data to pre-fill quarterfinal teams
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
           const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
@@ -76,8 +76,6 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
           await updateDynasty(currentDynasty.id, {
             bowlWeek2SheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('✅ Bowl Week 2 sheet ready')
         } catch (error) {
           console.error('Failed to create bowl Week 2 sheet:', error)
         } finally {
@@ -87,7 +85,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -102,15 +100,15 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     setSyncing(true)
     try {
       const bowlGames = await readBowlWeek2GamesFromSheet(sheetId)
-      console.log('Bowl Week 2 Games read from sheet:', bowlGames)
-
       await onSave(bowlGames)
-      console.log('Bowl Week 2 Games saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -124,8 +122,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
       const bowlGames = await readBowlWeek2GamesFromSheet(sheetId)
       await onSave(bowlGames)
 
-      // Delete the sheet
-      console.log('🗑️ Deleting bowl Week 2 sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -134,15 +131,17 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
       })
 
       setSheetId(null)
-      console.log('✅ Bowl Week 2 sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets.')
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -208,7 +207,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Bowl Week 2 data saved to your dynasty.
@@ -326,6 +325,13 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

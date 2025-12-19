@@ -50,7 +50,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   // Create Conferences sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing conferences sheet
         const existingSheetId = currentDynasty?.conferencesSheetId
         if (existingSheetId) {
@@ -60,8 +60,6 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
 
         setCreatingSheet(true)
         try {
-          console.log('Creating Conferences sheet...')
-
           const sheetInfo = await createConferencesSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentDynasty?.currentYear || new Date().getFullYear()
@@ -73,8 +71,6 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
             conferencesSheetId: sheetInfo.spreadsheetId,
             conferencesSheetUrl: sheetInfo.spreadsheetUrl
           })
-
-          console.log('Conferences sheet ready')
         } catch (error) {
           console.error('Failed to create conferences sheet:', error)
         } finally {
@@ -84,7 +80,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -99,11 +95,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
     setSyncing(true)
     try {
       const conferences = await readConferencesFromSheet(sheetId)
-      console.log('Conferences read from sheet:', conferences)
-
       await onSave(conferences)
-      console.log('Conferences saved successfully')
-
       onClose()
     } catch (error) {
       alert('Failed to sync from Google Sheets.')
@@ -121,8 +113,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       const conferences = await readConferencesFromSheet(sheetId)
       await onSave(conferences)
 
-      // Delete the sheet
-      console.log('Deleting conferences sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -132,15 +123,13 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       })
 
       setSheetId(null)
-      console.log('Conferences sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
-      console.error(error)
+      console.error('Failed to sync/move to trash:', error)
+      alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
     } finally {
       setDeletingSheet(false)
     }
@@ -206,7 +195,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Conference alignment saved to your dynasty.

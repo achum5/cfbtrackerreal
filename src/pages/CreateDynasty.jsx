@@ -39,7 +39,6 @@ export default function CreateDynasty() {
 
     try {
       const newDynasty = await createDynasty(formData)
-      console.log('Dynasty created:', newDynasty)
       navigate(`/dynasty/${newDynasty.id}`)
     } catch (error) {
       console.error('Failed to create dynasty:', error)

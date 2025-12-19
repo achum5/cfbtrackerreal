@@ -23,8 +23,10 @@ const conferenceLogoSlugs = {
   "Big 12": "big_12",
   "Big Ten": "big_ten",
   "CUSA": "conference_usa",
+  "Conference USA": "conference_usa",
   "MAC": "mac",
   "MWC": "mountain_west",
+  "Mountain West": "mountain_west",
   "Pac-12": "pac_12",
   "SEC": "sec",
   "Sun Belt": "sun_belt"

@@ -146,7 +146,6 @@ export async function migrateLocalStorageData(userId) {
 
     // Clear localStorage after successful migration
     localStorage.removeItem('cfb-dynasties')
-    console.log(`Migrated ${migratedDynasties.length} dynasties to Firestore`)
 
     return migratedDynasties
   } catch (error) {

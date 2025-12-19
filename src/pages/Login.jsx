@@ -8,7 +8,6 @@ export default function Login() {
 
   useEffect(() => {
     if (user) {
-      console.log('👤 User detected in Login page, navigating to home...')
       navigate('/')
     }
   }, [user, navigate])

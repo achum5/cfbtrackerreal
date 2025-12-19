@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
 import {
   createConferenceChampionshipSheet,
   readConferenceChampionshipsFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { getTeamConference } from '../data/conferenceTeams'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -24,6 +27,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -48,7 +52,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   // Create a CC sheet when modal opens if user is authenticated
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet) {
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing CC sheet for this year
         const existingSheetId = currentDynasty?.conferenceChampionshipSheetId
         if (existingSheetId) {
@@ -58,16 +62,14 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
 
         setCreatingSheet(true)
         try {
-          console.log('📝 Creating Conference Championship sheet...')
-
           // Check if user played in a CC game this year - if so, exclude their conference
           const userCCGame = currentDynasty?.games?.find(
             g => g.isConferenceChampionship && g.year === currentYear
           )
-          const excludeConference = userCCGame ? currentDynasty?.conference : null
-          if (excludeConference) {
-            console.log(`Excluding ${excludeConference} from sheet - user already played CC game`)
-          }
+          // Get user's conference dynamically from their team name
+          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const userConference = userTeamAbbr ? getTeamConference(userTeamAbbr) : null
+          const excludeConference = userCCGame ? userConference : null
 
           const sheetInfo = await createConferenceChampionshipSheet(
             currentDynasty?.teamName || 'Dynasty',
@@ -80,8 +82,6 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
           await updateDynasty(currentDynasty.id, {
             conferenceChampionshipSheetId: sheetInfo.spreadsheetId
           })
-
-          console.log('✅ Conference Championship sheet ready')
         } catch (error) {
           console.error('Failed to create CC sheet:', error)
         } finally {
@@ -91,7 +91,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -106,15 +106,15 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     setSyncing(true)
     try {
       const championships = await readConferenceChampionshipsFromSheet(sheetId)
-      console.log('Conference Championships read from sheet:', championships)
-
       await onSave(championships)
-      console.log('Conference Championships saved successfully')
-
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -128,8 +128,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
       const championships = await readConferenceChampionshipsFromSheet(sheetId)
       await onSave(championships)
 
-      // Delete the sheet
-      console.log('🗑️ Deleting CC sheet...')
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
@@ -138,15 +137,17 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
       })
 
       setSheetId(null)
-      console.log('✅ CC sheet deleted')
-
       setShowDeletedNote(true)
       setTimeout(() => {
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets.')
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -212,7 +213,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <p className="text-xl font-bold mb-2" style={{ color: teamColors.secondary }}>
-                Saved & Sheet Deleted!
+                Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
                 Conference Championship data saved to your dynasty.
@@ -328,6 +329,13 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }
