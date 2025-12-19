@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import logo from '../assets/logo.png'
 
 export default function Login() {
   const { user, signInWithGoogle } = useAuth()
@@ -33,11 +34,7 @@ export default function Login() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
+              <img src={logo} alt="CFB Dynasty Tracker" className="w-24 h-24 md:w-32 md:h-32 object-contain" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">
               CFB Dynasty Tracker

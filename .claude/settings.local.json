@@ -34,7 +34,9 @@
       "Bash(gh auth:*)",
       "Bash(grep:*)",
       "Bash(git remote set-url:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)"
     ],
     "deny": [],
     "ask": []

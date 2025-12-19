@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogo } from '../data/teams'
 import { getContrastTextColor } from '../utils/colorUtils'
+import logo from '../assets/logo.png'
 
 export default function Layout({ children }) {
   const location = useLocation()
@@ -169,9 +170,10 @@ export default function Layout({ children }) {
 
               <Link
                 to="/"
-                className="text-base sm:text-xl font-bold whitespace-nowrap"
+                className="flex items-center gap-2 text-base sm:text-xl font-bold whitespace-nowrap"
                 style={{ color: headerText }}
               >
+                <img src={logo} alt="CFB Dynasty Tracker" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
                 <span className="hidden sm:inline">CFB Dynasty Tracker</span>
                 <span className="sm:hidden">CFB</span>
               </Link>
