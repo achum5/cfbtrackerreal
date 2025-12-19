@@ -4,8 +4,11 @@ import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 
-export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName }) {
+export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName, team1: passedTeam1, team2: passedTeam2 }) {
   const { currentDynasty } = useDynasty()
+
+  // Detect if this is a CPU vs CPU game (both teams are passed, not user's team)
+  const isCPUGame = passedTeam1 && passedTeam2
 
   // CRITICAL FIX: If in regular season but weekNumber is 0, use week 1
   // This handles cases where dynasty phase transitioned but week didn't update correctly
@@ -183,7 +186,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
     opponentOverall: '',
     opponentOffense: '',
     opponentDefense: '',
-    opponentRecord: '',
+    overallRecord: '',
+    conferenceRecord: '',
     gameNote: '',
     week: actualWeekNumber,
     year: currentYear,
@@ -493,7 +497,20 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           opponentOverall: existingGame.opponentOverall?.toString() || '',
           opponentOffense: existingGame.opponentOffense?.toString() || '',
           opponentDefense: existingGame.opponentDefense?.toString() || '',
-          opponentRecord: existingGame.opponentRecord || '',
+          overallRecord: (() => {
+            if (existingGame.opponentRecord) {
+              const match = existingGame.opponentRecord.match(/^(\d+-\d+)/)
+              return match ? match[1] : ''
+            }
+            return ''
+          })(),
+          conferenceRecord: (() => {
+            if (existingGame.opponentRecord) {
+              const match = existingGame.opponentRecord.match(/\((\d+-\d+)\)/)
+              return match ? match[1] : ''
+            }
+            return ''
+          })(),
           gameNote: existingGame.gameNote || '',
           week: actualWeekNumber,
           year: currentYear,
@@ -533,7 +550,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           opponentOverall: '',
           opponentOffense: '',
           opponentDefense: '',
-          opponentRecord: '',
+          overallRecord: '',
+          conferenceRecord: '',
           gameNote: '',
           quarters: {
             team: { Q1: '', Q2: '', Q3: '', Q4: '' },
@@ -564,40 +582,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
     setLinks(newLinks)
   }
 
-  const handleRecordChange = (e) => {
-    const input = e.target.value
-    // Remove all non-digit characters
-    const newDigits = input.replace(/\D/g, '')
-    const currentDigits = gameData.opponentRecord.replace(/\D/g, '')
-
-    // Detect if user is deleting (input is shorter than current formatted value)
-    const isDeleting = input.length < gameData.opponentRecord.length
-
-    // If deleting and we have fewer characters but same digits, remove last digit
-    let digits = newDigits
-    if (isDeleting && newDigits.length >= currentDigits.length && currentDigits.length > 0) {
-      digits = currentDigits.slice(0, -1)
-    }
-
-    // Limit to 4 digits
-    const limitedDigits = digits.slice(0, 4)
-
-    // Format based on how many digits we have
-    let formatted = ''
-    if (limitedDigits.length > 0) {
-      formatted = limitedDigits[0]
-      if (limitedDigits.length > 1) {
-        formatted += '-' + limitedDigits[1]
-        if (limitedDigits.length > 2) {
-          formatted += ' (' + limitedDigits[2]
-          if (limitedDigits.length > 3) {
-            formatted += '-' + limitedDigits[3] + ')'
-          }
-        }
-      }
-    }
-
-    setGameData({ ...gameData, opponentRecord: formatted })
+  // Helper to validate record format (e.g., "10-2" or "5-3")
+  const isValidRecordFormat = (value) => {
+    if (!value || value.trim() === '') return true // Empty is valid
+    return /^\d{1,2}-\d{1,2}$/.test(value.trim())
   }
 
   const handleSubmit = async (e) => {
@@ -619,14 +607,26 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       return
     }
 
-    // Validate opponent record if provided
-    if (gameData.opponentRecord && gameData.opponentRecord.trim() !== '') {
-      const recordMatch = gameData.opponentRecord.match(/(\d+)-(\d+)\s*\((\d+)-(\d+)\)/)
-      if (recordMatch) {
-        const overallWins = parseInt(recordMatch[1])
-        const overallLosses = parseInt(recordMatch[2])
-        const confWins = parseInt(recordMatch[3])
-        const confLosses = parseInt(recordMatch[4])
+    // Validate opponent records format
+    if (!isValidRecordFormat(gameData.overallRecord)) {
+      alert('Invalid overall record format. Use format like "10-2" or "5-3"')
+      return
+    }
+    if (!isValidRecordFormat(gameData.conferenceRecord)) {
+      alert('Invalid conference record format. Use format like "5-3" or "8-1"')
+      return
+    }
+
+    // Validate conference record doesn't exceed overall
+    if (gameData.overallRecord && gameData.conferenceRecord) {
+      const overallMatch = gameData.overallRecord.match(/(\d+)-(\d+)/)
+      const confMatch = gameData.conferenceRecord.match(/(\d+)-(\d+)/)
+
+      if (overallMatch && confMatch) {
+        const overallWins = parseInt(overallMatch[1])
+        const overallLosses = parseInt(overallMatch[2])
+        const confWins = parseInt(confMatch[1])
+        const confLosses = parseInt(confMatch[2])
 
         const totalGames = overallWins + overallLosses
         const confGames = confWins + confLosses
@@ -636,6 +636,14 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
           return
         }
       }
+    }
+
+    // Combine records into opponentRecord format for storage
+    let opponentRecord = ''
+    if (gameData.overallRecord && gameData.conferenceRecord) {
+      opponentRecord = `${gameData.overallRecord} (${gameData.conferenceRecord})`
+    } else if (gameData.overallRecord) {
+      opponentRecord = gameData.overallRecord
     }
 
     // Filter out empty links and join them
@@ -719,8 +727,18 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
        userConference === opponentConference &&
        userConference !== 'Independent')
 
-    const processedData = {
-      ...gameData,
+    // Destructure to exclude overallRecord and conferenceRecord from the spread
+    const { overallRecord: _or, conferenceRecord: _cr, ...restGameData } = gameData
+
+    // Helper to remove undefined values (Firestore doesn't accept undefined)
+    const removeUndefined = (obj) => {
+      return Object.fromEntries(
+        Object.entries(obj).filter(([_, v]) => v !== undefined)
+      )
+    }
+
+    const processedData = removeUndefined({
+      ...restGameData,
       week: actualWeekNumber,  // Use actualWeekNumber instead of gameData.week
       links: filteredLinks,
       result: result,
@@ -731,11 +749,22 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       opponentOverall: gameData.opponentOverall ? parseInt(gameData.opponentOverall) : null,
       opponentOffense: gameData.opponentOffense ? parseInt(gameData.opponentOffense) : null,
       opponentDefense: gameData.opponentDefense ? parseInt(gameData.opponentDefense) : null,
+      opponentRecord: opponentRecord || '',  // Combined from overallRecord + conferenceRecord
       conferencePOW: conferencePOW || null,
       nationalPOW: nationalPOW || null,
-      favoriteStatus: favoriteStatus,
-      isConferenceGame: isConferenceGame
-    }
+      favoriteStatus: favoriteStatus !== undefined ? favoriteStatus : null,
+      isConferenceGame: isConferenceGame,
+      ...(bowlName && { bowlName: bowlName }),  // Include bowl name for CFP games
+      // CPU vs CPU game data
+      ...(isCPUGame && {
+        isCPUGame: true,
+        team1: passedTeam1,
+        team2: passedTeam2,
+        team1Score: teamScore,
+        team2Score: opponentScore,
+        winner: teamScore > opponentScore ? passedTeam1 : passedTeam2
+      })
+    })
 
 
     try {
@@ -753,7 +782,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         opponentOverall: '',
         opponentOffense: '',
         opponentDefense: '',
-        opponentRecord: '',
+        overallRecord: '',
+        conferenceRecord: '',
         gameNote: '',
         week: actualWeekNumber,
         year: currentYear,
@@ -798,12 +828,13 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
     // Make sure it's not a tie (would require OT handling)
     const finalTeamScore = teamTotal === oppTotal ? teamTotal + 7 : teamTotal
 
-    // Generate random opponent record
+    // Generate random opponent records
     const oppWins = randomScore(0, 11)
     const oppLosses = randomScore(0, 11 - oppWins)
     const confWins = randomScore(0, Math.min(oppWins, 8))
     const confLosses = randomScore(0, Math.min(oppLosses, 8 - confWins))
-    const opponentRecord = `${oppWins}-${oppLosses} (${confWins}-${confLosses})`
+    const overallRecord = `${oppWins}-${oppLosses}`
+    const conferenceRecord = `${confWins}-${confLosses}`
 
     // Random national rankings (sometimes ranked, sometimes not)
     const userRank = Math.random() > 0.5 ? randomScore(1, 25).toString() : ''
@@ -822,7 +853,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       opponentOverall: randomScore(70, 95).toString(),
       opponentOffense: randomScore(70, 95).toString(),
       opponentDefense: randomScore(70, 95).toString(),
-      opponentRecord: opponentRecord
+      overallRecord: overallRecord,
+      conferenceRecord: conferenceRecord
     }))
 
     // Random player of the week (50% chance each)
@@ -869,14 +901,26 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                   ? `${bowlName}`
                   : `Week ${actualWeekNumber} Game Entry`}
             </h2>
-            {(scheduledGame || isConferenceChampionship) && (() => {
-              const opponentAbbr = passedOpponent || scheduledGame?.opponent
-              const opponentFullName = opponentAbbr ? (getMascotName(opponentAbbr) || getOpponentTeamName(opponentAbbr)) : opponentAbbr
-              return (
-                <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                  {isConferenceChampionship ? 'vs' : (scheduledGame?.location === 'away' ? '@' : 'vs')} {opponentFullName}
-                </p>
-              )
+            {(() => {
+              if (isCPUGame) {
+                // CPU vs CPU game - show both teams
+                const team1Name = getMascotName(passedTeam1) || getOpponentTeamName(passedTeam1)
+                const team2Name = getMascotName(passedTeam2) || getOpponentTeamName(passedTeam2)
+                return (
+                  <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                    {team1Name} vs {team2Name}
+                  </p>
+                )
+              } else if (scheduledGame || isConferenceChampionship || passedOpponent) {
+                const opponentAbbr = passedOpponent || scheduledGame?.opponent
+                const opponentFullName = opponentAbbr ? (getMascotName(opponentAbbr) || getOpponentTeamName(opponentAbbr)) : opponentAbbr
+                return (
+                  <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                    {isConferenceChampionship ? 'vs' : (scheduledGame?.location === 'away' ? '@' : 'vs')} {opponentFullName}
+                  </p>
+                )
+              }
+              return null
             })()}
           </div>
           <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
@@ -923,23 +967,34 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                 <div className="space-y-2 min-w-[360px]">
                 {(() => {
                   // Determine team order based on location
-                  const opponentAbbr = gameData.opponent || passedOpponent || scheduledGame?.opponent
-                  const opponentMascotName = opponentAbbr ? getMascotName(opponentAbbr) : null
-                  const opponentDisplayName = opponentMascotName || (opponentAbbr ? getOpponentTeamName(opponentAbbr) : 'Opponent')
-                  const userTeamName = currentDynasty?.teamName || 'You'
+                  // For CPU vs CPU games, use passed team1 and team2
+                  const team1Abbr = isCPUGame ? passedTeam1 : getAbbreviationFromDisplayName(currentDynasty?.teamName)
+                  const team2Abbr = isCPUGame ? passedTeam2 : (gameData.opponent || passedOpponent || scheduledGame?.opponent)
+
+                  const team1MascotName = team1Abbr ? getMascotName(team1Abbr) : null
+                  const team2MascotName = team2Abbr ? getMascotName(team2Abbr) : null
+                  const team1DisplayName = team1MascotName || (isCPUGame ? getOpponentTeamName(team1Abbr) : currentDynasty?.teamName) || 'Team 1'
+                  const team2DisplayName = team2MascotName || (team2Abbr ? getOpponentTeamName(team2Abbr) : 'Team 2')
 
                   // Get team logos
-                  const userTeamLogo = getTeamLogo(userTeamName)
-                  const opponentLogo = opponentMascotName ? getTeamLogo(opponentMascotName) : null
+                  const team1Logo = team1MascotName ? getTeamLogo(team1MascotName) : (isCPUGame ? null : getTeamLogo(currentDynasty?.teamName))
+                  const team2Logo = team2MascotName ? getTeamLogo(team2MascotName) : null
 
-                  // Away team on top, home team on bottom
+                  // Get team colors
+                  const team1Colors = isCPUGame
+                    ? { primary: teamAbbreviations[team1Abbr]?.backgroundColor || '#666' }
+                    : teamColors
+                  const team2Colors = { primary: teamAbbreviations[team2Abbr]?.backgroundColor || '#666' }
+
+                  // For CPU games at neutral site, team1 on top, team2 on bottom
+                  // For user games: Away team on top, home team on bottom
                   const isUserAway = gameData.location === 'away'
-                  const topTeam = isUserAway
-                    ? { name: userTeamName, key: 'team', colors: teamColors, logo: userTeamLogo }
-                    : { name: opponentDisplayName, key: 'opponent', colors: { primary: '#666' }, logo: opponentLogo }
-                  const bottomTeam = isUserAway
-                    ? { name: opponentDisplayName, key: 'opponent', colors: { primary: '#666' }, logo: opponentLogo }
-                    : { name: userTeamName, key: 'team', colors: teamColors, logo: userTeamLogo }
+                  const topTeam = (isCPUGame || !isUserAway)
+                    ? { name: team2DisplayName, key: 'opponent', colors: team2Colors, logo: team2Logo }
+                    : { name: team1DisplayName, key: 'team', colors: team1Colors, logo: team1Logo }
+                  const bottomTeam = (isCPUGame || !isUserAway)
+                    ? { name: team1DisplayName, key: 'team', colors: team1Colors, logo: team1Logo }
+                    : { name: team2DisplayName, key: 'opponent', colors: team2Colors, logo: team2Logo }
 
                   return (
                     <>
@@ -1256,7 +1311,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  Your National Rank
+                  {isCPUGame ? `${getOpponentTeamName(passedTeam1)} Rank` : 'Your National Rank'}
                 </label>
                 <input
                   type="number"
@@ -1270,7 +1325,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  Opponent Rank
+                  {isCPUGame ? `${getOpponentTeamName(passedTeam2)} Rank` : 'Opponent Rank'}
                 </label>
                 <input
                   type="number"
@@ -1285,7 +1340,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
             </div>
           </div>
 
-          {/* Opponent Team Ratings Section */}
+          {/* Opponent Team Ratings Section - hide for CPU vs CPU games */}
+          {!isCPUGame && (
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center gap-2 sm:gap-3">
               {(() => {
@@ -1369,32 +1425,50 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               </div>
             </div>
           </div>
+          )}
 
-          {/* Opponent Record Section */}
+          {/* Opponent Record Section - hide for CPU vs CPU games */}
+          {!isCPUGame && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Opponent Record
             </h3>
 
-            <div>
-              <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                Record (Overall & Conference)
-              </label>
-              <input
-                type="text"
-                value={gameData.opponentRecord}
-                onChange={handleRecordChange}
-                className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-lg font-mono"
-                style={{ borderColor: teamColors.primary }}
-                placeholder="Type 4 digits (e.g., 5231)"
-              />
-              <p className="text-xs mt-1 text-gray-500 text-center">
-                Format: Overall-Record (Conference-Record)
-              </p>
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                  Overall Record
+                </label>
+                <input
+                  type="text"
+                  value={gameData.overallRecord}
+                  onChange={(e) => setGameData({ ...gameData, overallRecord: e.target.value })}
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-lg font-mono text-center"
+                  style={{ borderColor: teamColors.primary }}
+                  placeholder="10-2"
+                  maxLength="5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                  Conference Record
+                </label>
+                <input
+                  type="text"
+                  value={gameData.conferenceRecord}
+                  onChange={(e) => setGameData({ ...gameData, conferenceRecord: e.target.value })}
+                  className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-lg font-mono text-center"
+                  style={{ borderColor: teamColors.primary }}
+                  placeholder="6-2"
+                  maxLength="5"
+                />
+              </div>
             </div>
           </div>
+          )}
 
-          {/* Player of the Week Section */}
+          {/* Player of the Week Section - hide for CPU vs CPU games */}
+          {!isCPUGame && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
               Player of the Week Honors
@@ -1568,6 +1642,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               </div>
             </div>
           </div>
+          )}
 
           {/* Game Note Section */}
           <div className="space-y-3 sm:space-y-4">

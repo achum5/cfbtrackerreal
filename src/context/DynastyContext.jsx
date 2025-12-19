@@ -173,11 +173,27 @@ export function DynastyProvider({ children }) {
   const updateDynasty = async (dynastyId, updates) => {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
 
-    // Add lastModified timestamp to all updates
-    const updatesWithTimestamp = {
+    // Helper to recursively remove undefined values (Firestore doesn't accept undefined)
+    const removeUndefined = (obj) => {
+      if (obj === null || obj === undefined) return obj
+      if (Array.isArray(obj)) {
+        return obj.map(item => removeUndefined(item))
+      }
+      if (typeof obj === 'object') {
+        return Object.fromEntries(
+          Object.entries(obj)
+            .filter(([_, v]) => v !== undefined)
+            .map(([k, v]) => [k, removeUndefined(v)])
+        )
+      }
+      return obj
+    }
+
+    // Add lastModified timestamp to all updates and sanitize
+    const updatesWithTimestamp = removeUndefined({
       ...updates,
       lastModified: Date.now()
-    }
+    })
 
     if (isDev || !user) {
       // Dev mode: update local state
@@ -258,6 +274,24 @@ export function DynastyProvider({ children }) {
   }
 
   const addGame = async (dynastyId, gameData) => {
+    // Helper to recursively remove undefined values (Firestore doesn't accept undefined)
+    const removeUndefined = (obj) => {
+      if (obj === null || obj === undefined) return obj
+      if (Array.isArray(obj)) {
+        return obj.map(item => removeUndefined(item))
+      }
+      if (typeof obj === 'object') {
+        return Object.fromEntries(
+          Object.entries(obj)
+            .filter(([_, v]) => v !== undefined)
+            .map(([k, v]) => [k, removeUndefined(v)])
+        )
+      }
+      return obj
+    }
+
+    // Clean the gameData of any undefined values
+    const cleanGameData = removeUndefined(gameData)
 
     // CRITICAL: Read from localStorage to get the latest data
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
@@ -279,9 +313,37 @@ export function DynastyProvider({ children }) {
     }
 
     // Check if game already exists for this week/year
-    const existingGameIndex = dynasty.games?.findIndex(
-      g => Number(g.week) === Number(gameData.week) && Number(g.year) === Number(gameData.year)
-    )
+    // Special handling for CC games, bowl games, and CFP games
+    let existingGameIndex
+    if (cleanGameData.isConferenceChampionship) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isConferenceChampionship && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else if (cleanGameData.isBowlGame) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isBowlGame && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else if (cleanGameData.isCFPFirstRound) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isCFPFirstRound && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else if (cleanGameData.isCFPQuarterfinal) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isCFPQuarterfinal && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else if (cleanGameData.isCFPSemifinal) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isCFPSemifinal && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else if (cleanGameData.isCFPChampionship) {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => g.isCFPChampionship && Number(g.year) === Number(cleanGameData.year)
+      )
+    } else {
+      existingGameIndex = dynasty.games?.findIndex(
+        g => Number(g.week) === Number(cleanGameData.week) && Number(g.year) === Number(cleanGameData.year)
+      )
+    }
 
     let updatedGames
     let game
@@ -290,7 +352,7 @@ export function DynastyProvider({ children }) {
       // Update existing game
       game = {
         ...dynasty.games[existingGameIndex],
-        ...gameData,
+        ...cleanGameData,
         updatedAt: new Date().toISOString()
       }
       updatedGames = [...dynasty.games]
@@ -299,14 +361,97 @@ export function DynastyProvider({ children }) {
       // Add new game
       game = {
         id: Date.now().toString(),
-        ...gameData,
+        ...cleanGameData,
         createdAt: new Date().toISOString()
       }
       updatedGames = [...(dynasty.games || []), game]
     }
 
+    // Build updates object
+    let updates = { games: updatedGames }
 
-    await updateDynasty(dynastyId, { games: updatedGames })
+    // If this is a CFP game, also update cfpResultsByYear so the bracket updates
+    if (cleanGameData.isCFPFirstRound || cleanGameData.isCFPQuarterfinal ||
+        cleanGameData.isCFPSemifinal || cleanGameData.isCFPChampionship) {
+      const year = cleanGameData.year
+      const existingCFPResults = dynasty.cfpResultsByYear || {}
+      const yearResults = existingCFPResults[year] || {}
+
+      // Get user's team abbreviation
+      const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+
+      // Determine winner based on scores
+      const userScore = parseInt(cleanGameData.teamScore)
+      const oppScore = parseInt(cleanGameData.opponentScore)
+      const winner = userScore > oppScore ? userTeamAbbr : cleanGameData.opponent
+
+      // Create the result entry
+      const resultEntry = {
+        team1: userTeamAbbr,
+        team2: cleanGameData.opponent,
+        team1Score: userScore,
+        team2Score: oppScore,
+        winner: winner
+      }
+
+      if (cleanGameData.isCFPFirstRound) {
+        // Get user's seed to add seed info
+        const cfpSeeds = dynasty.cfpSeedsByYear?.[year] || []
+        const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
+        const oppSeed = userSeed ? 17 - userSeed : null
+
+        resultEntry.seed1 = userSeed
+        resultEntry.seed2 = oppSeed
+
+        const existingFirstRound = yearResults.firstRound || []
+        // Remove any existing entry for this matchup
+        const filteredFirstRound = existingFirstRound.filter(g =>
+          !(g.seed1 === userSeed || g.seed2 === userSeed)
+        )
+        updates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearResults, firstRound: [...filteredFirstRound, resultEntry] }
+        }
+      } else if (cleanGameData.isCFPQuarterfinal) {
+        // Add bowl name for quarterfinal games (e.g., "Orange Bowl", "Rose Bowl")
+        if (cleanGameData.bowlName) {
+          resultEntry.bowlName = cleanGameData.bowlName
+        }
+        const existingQF = yearResults.quarterfinals || []
+        // Remove any existing entry with user's team
+        const filteredQF = existingQF.filter(g =>
+          g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr
+        )
+        updates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearResults, quarterfinals: [...filteredQF, resultEntry] }
+        }
+      } else if (cleanGameData.isCFPSemifinal) {
+        // Add bowl name for semifinal games (Peach Bowl or Fiesta Bowl)
+        if (cleanGameData.bowlName) {
+          resultEntry.bowlName = cleanGameData.bowlName
+        }
+        const existingSF = yearResults.semifinals || []
+        const filteredSF = existingSF.filter(g =>
+          g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr
+        )
+        updates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearResults, semifinals: [...filteredSF, resultEntry] }
+        }
+      } else if (cleanGameData.isCFPChampionship) {
+        // Add game name for championship
+        if (cleanGameData.bowlName) {
+          resultEntry.bowlName = cleanGameData.bowlName
+        }
+        updates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearResults, championship: [resultEntry] }
+        }
+      }
+    }
+
+    await updateDynasty(dynastyId, updates)
 
     return game
   }
@@ -372,13 +517,29 @@ export function DynastyProvider({ children }) {
         // Reset coachingStaffEntered so user must re-enter in next preseason
         additionalUpdates['preseasonSetup.coachingStaffEntered'] = false
       }
-    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 5) {
+    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 4) {
       nextPhase = 'offseason'
       nextWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && nextWeek > 4) {
       nextPhase = 'preseason'
       nextWeek = 0
       nextYear = dynasty.currentYear + 1
+
+      // Apply pending coordinator hires for the new season
+      const pendingHires = dynasty.pendingCoordinatorHires
+      if (pendingHires) {
+        let updatedStaff = { ...dynasty.coachingStaff }
+        if (pendingHires.filledOC && pendingHires.newOCName) {
+          updatedStaff.ocName = pendingHires.newOCName
+        }
+        if (pendingHires.filledDC && pendingHires.newDCName) {
+          updatedStaff.dcName = pendingHires.newDCName
+        }
+        additionalUpdates.coachingStaff = updatedStaff
+        // Clear the pending hires and CC firing data for the new season
+        additionalUpdates.pendingCoordinatorHires = null
+        additionalUpdates.conferenceChampionshipData = null
+      }
     }
 
     await updateDynasty(dynastyId, {
@@ -412,9 +573,9 @@ export function DynastyProvider({ children }) {
       prevPhase = 'conference_championship'
       prevWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && prevWeek < 1) {
-      // Go back to postseason week 5
+      // Go back to postseason week 4 (National Championship)
       prevPhase = 'postseason'
-      prevWeek = 5
+      prevWeek = 4
     } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
       // Go back to previous year's offseason
       prevPhase = 'offseason'
@@ -508,21 +669,21 @@ export function DynastyProvider({ children }) {
           ...existingCFPResults,
           [dynasty.currentYear]: { ...yearCFPResults, week3: null }
         }
-      } else if (dynasty.currentWeek === 4) {
+      } else if (dynasty.currentWeek === 3) {
         // Clear CFP Semifinals
         const existingCFPResults = dynasty.cfpResultsByYear || {}
         const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, week4: null }
+          [dynasty.currentYear]: { ...yearCFPResults, semifinals: null }
         }
-      } else if (dynasty.currentWeek === 5) {
+      } else if (dynasty.currentWeek === 4) {
         // Clear National Championship
         const existingCFPResults = dynasty.cfpResultsByYear || {}
         const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, week5: null }
+          [dynasty.currentYear]: { ...yearCFPResults, championship: null }
         }
       }
     }

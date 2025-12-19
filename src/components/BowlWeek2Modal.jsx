@@ -6,8 +6,11 @@ import {
   createBowlWeek2Sheet,
   readBowlWeek2GamesFromSheet,
   deleteGoogleSheet,
-  getSheetEmbedUrl
+  getSheetEmbedUrl,
+  getCFPQuarterfinalGameName,
+  isBowlInWeek2
 } from '../services/sheetsService'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -64,11 +67,46 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
           const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
 
+          // Calculate which games to exclude (user's CFP QF game + user's Week 2 bowl game)
+          const excludeGames = []
+
+          // Check if user is in CFP (seeds 1-12)
+          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const userCFPSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed || null
+
+          if (userCFPSeed) {
+            // Seeds 1-4 have bye, play in QF
+            if (userCFPSeed >= 1 && userCFPSeed <= 4) {
+              const qfGameName = getCFPQuarterfinalGameName(userCFPSeed)
+              if (qfGameName) {
+                excludeGames.push(qfGameName)
+              }
+            }
+            // Seeds 5-12 who won First Round also play in QF
+            else if (userCFPSeed >= 5 && userCFPSeed <= 12) {
+              // Check if user won their First Round game
+              const userFirstRoundGame = firstRoundResults.find(g => g.winner === userTeamAbbr)
+              if (userFirstRoundGame) {
+                const qfGameName = getCFPQuarterfinalGameName(userCFPSeed, firstRoundResults)
+                if (qfGameName) {
+                  excludeGames.push(qfGameName)
+                }
+              }
+            }
+          }
+
+          // Check if user has a Week 2 bowl game
+          const userBowlGame = currentDynasty?.bowlEligibilityData?.bowlGame
+          if (userBowlGame && isBowlInWeek2(userBowlGame)) {
+            excludeGames.push(userBowlGame)
+          }
+
           const sheetInfo = await createBowlWeek2Sheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             cfpSeeds,
-            firstRoundResults
+            firstRoundResults,
+            excludeGames
           )
           setSheetId(sheetInfo.spreadsheetId)
 

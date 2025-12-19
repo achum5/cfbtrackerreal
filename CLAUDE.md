@@ -6,34 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: CFP Bracket and Bowl Week improvements:
+**Last Session (December 2024)**: Unified modal system and postseason structure:
 
-1. **CFP First Round merged into Bowl Week 1**:
-   - CFP First Round (4 games) now included in Bowl Week 1 Google Sheet
-   - Games listed alphabetically in the C's: "CFP First Round (#5 vs #12)", etc.
-   - Teams pre-filled based on CFP seeds entered in previous week
-   - When Bowl Week 1 results are saved, CFP First Round games are extracted and saved separately to `cfpResultsByYear[year].firstRound`
+1. **Postseason Reduced to 4 Weeks**:
+   - Bowl Week 1: Bowl games + CFP First Round (4 games)
+   - Bowl Week 2: Bowl games + CFP Quarterfinals (user's QF game only if in CFP)
+   - Bowl Week 3: Bowl games + CFP Semifinals (user's SF game only if in CFP)
+   - Bowl Week 4: National Championship (enter all remaining CFP results)
+   - "Taking a New Job?" question only appears in Bowl Weeks 1-3 (not in Championship week)
 
-2. **CFP Bracket Dynamic Updates** (`src/pages/dynasty/CFPBracket.jsx`):
-   - First Round results display with scores on each team slot
-   - Losing teams dimmed (60% opacity) to highlight winners
-   - Winners automatically populate Quarterfinal matchups
-   - Click any First Round game to see game recap modal with:
-     - Both teams with logos, seeds, and scores
-     - Losing team dimmed, winner highlighted
-     - Winner badge with team colors showing "🏆 [Team] wins!"
+2. **Unified Modal System for All Games**:
+   - All CFP games (user and CPU vs CPU) use the same `GameDetailModal` for recaps
+   - All games use the same `GameEntryModal` for editing/entering scores
+   - `GameEntryModal` now supports CPU vs CPU games via `team1` and `team2` props
+   - For CPU games: hides user-specific sections (Opponent Ratings, Opponent Record, Player of the Week)
+   - CPU game saves go to `cfpResultsByYear` instead of `games` array
 
-3. **"Taking a New Job?" Question**:
-   - Now appears in every bowl week (1-5) until accepted or postseason ends
-   - Each bowl week's todo list includes this task
+3. **CFP Display Logic Fixed**:
+   - Bowl Week 3: Only shows user's SF game if they're in it (no "CFP Semifinals - 2 games" task)
+   - Bowl Week 4: Shows separate tasks for SF results (CPU games) and Championship
+   - User doesn't see CPU vs CPU game results until they advance to that week
 
-4. **Bug Fixes**:
-   - ConfirmModal no longer auto-closes after confirm (fixes favorited dynasty delete flow)
-   - Conference Championship Edit button now fully resets opponent selection
-   - Roster entry Google Sheet reduced to 11 columns (removed Stars column L)
+4. **KNOWN BUG - CFP Bracket Advancement**:
+   - The bracket does NOT correctly advance teams after phase/week changes
+   - Winners from earlier rounds don't properly populate later rounds
+   - This needs investigation and fixing
 
 **TODO / Future Work**:
-- CFP Quarterfinals, Semifinals, Championship game entry and results
+- **FIX**: CFP Bracket team advancement after phase changes
 - Bowl History page showing all bowl game results
 - Team stats still need implementation for:
   - AP Top 25 Finishes, CFP Appearances, National Titles
@@ -519,15 +519,23 @@ dynasty.teamHistories = {
 **Data Flow**:
 1. Seeds entered during Bowl Week 1 → stored in `cfpSeedsByYear[year]`
 2. First Round results entered in Bowl Week 1 sheet → extracted and saved to `cfpResultsByYear[year].firstRound`
-3. Bracket auto-updates to show:
-   - Scores on First Round matchups
-   - Losing teams dimmed (60% opacity)
-   - Winners advancing to Quarterfinals
+3. User's CFP games entered via `GameEntryModal` → saved to both `games` array and `cfpResultsByYear`
+4. CPU vs CPU games entered via `GameEntryModal` → saved to `cfpResultsByYear` only
+
+**Unified Modal System**:
+- All games (user and CPU) use `GameDetailModal` for viewing recaps
+- All games use `GameEntryModal` for editing/entering scores
+- Edit button appears for ALL games (user and CPU vs CPU)
+- `GameEntryModal` accepts `team1` and `team2` props for CPU games
+- CPU game saves handled by `handleGameSave` in CFPBracket, which updates `cfpResultsByYear`
 
 **Click Interactions**:
-- Click any matchup to see game details modal
+- Click any matchup to see `GameDetailModal`
 - Played games show: both teams, logos, seeds, scores, winner badge
-- Unplayed games show: "Game not yet played" preview
+- Unplayed games show: scheduled game preview with "Game not yet played"
+- Edit button opens `GameEntryModal` for all game types
+
+**KNOWN ISSUE**: Bracket advancement is broken - winners don't properly populate later rounds after phase changes. This needs fixing.
 
 ### Bowl Week Modals
 
@@ -569,7 +577,11 @@ Schedule and Roster entry use custom spreadsheet-like components:
 Dynasties progress through phases:
 1. **Preseason** - Week 0, setup mode (schedule/roster entry)
 2. **Regular Season** - Weeks 1-14, game entry
-3. **Postseason** - Weeks 1-4 (conference championship, playoffs, bowls)
+3. **Postseason** - Weeks 1-4:
+   - Week 1: Conference Championship + Bowl Week 1 (including CFP First Round)
+   - Week 2: Bowl Week 2 (user's CFP Quarterfinal if applicable)
+   - Week 3: Bowl Week 3 (user's CFP Semifinal if applicable)
+   - Week 4: National Championship (all remaining CFP results + Championship)
 4. **Offseason** - Weeks 1-4, then cycles to next year's preseason
 
 `advanceWeek()` in DynastyContext handles phase transitions automatically.

@@ -6,8 +6,11 @@ import {
   createBowlWeek1Sheet,
   readBowlGamesFromSheet,
   deleteGoogleSheet,
-  getSheetEmbedUrl
+  getSheetEmbedUrl,
+  getCFPFirstRoundGameName,
+  isBowlInWeek1
 } from '../services/sheetsService'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -63,10 +66,30 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
           // Get CFP seeds to pre-fill First Round teams
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
 
+          // Calculate which games to exclude (user's CFP First Round game + user's bowl game)
+          const excludeGames = []
+
+          // Check if user is in CFP First Round (seeds 5-12)
+          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const userCFPSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed || null
+          if (userCFPSeed >= 5 && userCFPSeed <= 12) {
+            const cfpGameName = getCFPFirstRoundGameName(userCFPSeed)
+            if (cfpGameName) {
+              excludeGames.push(cfpGameName)
+            }
+          }
+
+          // Check if user has a Week 1 bowl game
+          const userBowlGame = currentDynasty?.bowlEligibilityData?.bowlGame
+          if (userBowlGame && isBowlInWeek1(userBowlGame)) {
+            excludeGames.push(userBowlGame)
+          }
+
           const sheetInfo = await createBowlWeek1Sheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            cfpSeeds
+            cfpSeeds,
+            excludeGames
           )
           setSheetId(sheetInfo.spreadsheetId)
 

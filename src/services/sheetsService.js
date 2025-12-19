@@ -46,7 +46,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
             properties: {
               title: 'Schedule',
               gridProperties: {
-                rowCount: 14,
+                rowCount: 13,
                 columnCount: 4,
                 frozenRowCount: 1
               }
@@ -746,7 +746,7 @@ export async function createScheduleSheet(dynastyName, year, userTeamName) {
             properties: {
               title: 'Schedule',
               gridProperties: {
-                rowCount: 14,
+                rowCount: 13,
                 columnCount: 4,
                 frozenRowCount: 1
               }
@@ -2309,11 +2309,13 @@ const CFP_QF_MATCHUPS = {
 const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
 
 // Create Bowl Week 1 sheet with all bowl games (including CFP First Round with pre-filled teams)
-export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = []) {
+// excludeGames: array of game names to exclude (user's CFP First Round game, user's bowl game)
+export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = []) {
   try {
     const accessToken = await getAccessToken()
 
-    const bowlGames = BOWL_GAMES_WEEK_1
+    // Filter out games that the user is playing in (they enter those separately)
+    const bowlGames = BOWL_GAMES_WEEK_1.filter(game => !excludeGames.includes(game))
     const rowCount = bowlGames.length
 
     // Create the spreadsheet
@@ -2699,12 +2701,48 @@ export function isBowlInWeek2(bowlName) {
   return BOWL_GAMES_WEEK_2.some(b => b === bowlName)
 }
 
+// Get CFP First Round game name based on seed (for seeds 5-12)
+export function getCFPFirstRoundGameName(seed) {
+  if (seed < 5 || seed > 12) return null
+  const matchup = CFP_FIRST_ROUND_MATCHUPS.find(m => m.seed1 === seed || m.seed2 === seed)
+  return matchup?.game || null
+}
+
+// Get CFP Quarterfinal bowl name based on seed (for seeds 1-4 or First Round winners)
+export function getCFPQuarterfinalGameName(seed, firstRoundResults = []) {
+  // Seeds 1-4 have byes and play in specific bowls
+  // #1 plays in Orange Bowl, #2 in Cotton Bowl, #3 in Rose Bowl, #4 in Sugar Bowl
+  if (seed >= 1 && seed <= 4) {
+    const bowlBySeed = {
+      1: 'Orange Bowl (CFP QF)',
+      2: 'Cotton Bowl (CFP QF)',
+      3: 'Rose Bowl (CFP QF)',
+      4: 'Sugar Bowl (CFP QF)'
+    }
+    return bowlBySeed[seed]
+  }
+
+  // For seeds 5-12, check if they won their First Round game
+  if (seed >= 5 && seed <= 12 && firstRoundResults.length > 0) {
+    // Find which QF bowl the winner of this seed's First Round game goes to
+    for (const [bowlName, matchup] of Object.entries(CFP_QF_MATCHUPS)) {
+      if (matchup.firstRoundSeeds.includes(seed)) {
+        return bowlName
+      }
+    }
+  }
+
+  return null
+}
+
 // Create Bowl Week 2 sheet with CFP Quarterfinals teams pre-filled
-export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = []) {
+// excludeGames: array of game names to exclude (user's QF game, user's Week 2 bowl game)
+export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = [], excludeGames = []) {
   try {
     const accessToken = await getAccessToken()
 
-    const bowlGames = BOWL_GAMES_WEEK_2
+    // Filter out games that the user is playing in (they enter those separately)
+    const bowlGames = BOWL_GAMES_WEEK_2.filter(game => !excludeGames.includes(game))
     const rowCount = bowlGames.length
 
     // Create the spreadsheet
@@ -3053,7 +3091,7 @@ export async function createCFPSeedsSheet(dynastyName, year) {
             properties: {
               title: 'CFP Seeds',
               gridProperties: {
-                rowCount: 14,
+                rowCount: 13,
                 columnCount: 2,
                 frozenRowCount: 1
               }

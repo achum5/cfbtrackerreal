@@ -5,6 +5,8 @@ import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
 import { getBowlLogo } from '../data/bowlLogos'
+import { getConferenceLogo } from '../data/conferenceLogos'
+import { getTeamConference } from '../data/conferenceTeams'
 
 export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamColors, onEdit }) {
   const { currentDynasty } = useDynasty()
@@ -16,16 +18,32 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   const displayTeam = isCPUGame ? game.viewingTeam : userTeam
   const displayTeamAbbr = isCPUGame ? game.viewingTeamAbbr : getAbbreviationFromDisplayName(userTeam)
 
+  // Get the user's team conference - fallback computation if not stored in game
+  const userTeamAbbr = getAbbreviationFromDisplayName(userTeam)
+  const computedConference = userTeamAbbr ? getTeamConference(userTeamAbbr) : null
+
   // Helper to find player PID by name
   const getPlayerPID = (playerName) => {
     const player = currentDynasty?.players?.find(p => p.name === playerName)
     return player?.pid
   }
 
-  // Get opponent info
+  // Get opponent info - handle both abbreviations and full mascot names
   const opponentTeamInfo = teamAbbreviations[game.opponent]
-  const opponentMascot = getMascotName(game.opponent)
-  const opponentLogo = opponentMascot ? getTeamLogo(opponentMascot) : null
+  // First try to get mascot from abbreviation, if that fails check if opponent IS a mascot name
+  let opponentMascot = getMascotName(game.opponent)
+  let opponentLogo = opponentMascot ? getTeamLogo(opponentMascot) : null
+
+  // If no mascot found by abbreviation, try using opponent directly as mascot name
+  if (!opponentLogo) {
+    opponentLogo = getTeamLogo(game.opponent)
+    if (opponentLogo) {
+      opponentMascot = game.opponent
+    }
+  }
+
+  // Also try getting abbreviation from display name for colors
+  const opponentAbbr = opponentMascot ? getAbbreviationFromDisplayName(opponentMascot) : game.opponent
   const opponentColors = opponentMascot ? getTeamColors(opponentMascot) : { primary: '#666', secondary: '#fff' }
 
   // Get display team info (user's team or viewing team for CPU games)
@@ -139,12 +157,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
         <Link
           to={teamLink}
           onClick={onClose}
-          className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto rounded-full flex items-center justify-center mb-2 sm:mb-4 hover:scale-105 transition-transform"
-          style={{
-            backgroundColor: '#FFFFFF',
-            border: `3px solid ${colors.primary}`,
-            padding: '4px'
-          }}
+          className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 mx-auto flex items-center justify-center mb-2 sm:mb-4 hover:scale-105 transition-transform"
         >
           {logo && (
             <img
@@ -310,20 +323,40 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
         >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-              {/* Bowl Logo */}
-              {game.gameTitle && getBowlLogo(game.gameTitle) && (
-                <div className="w-10 h-10 sm:w-16 sm:h-16 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
-                  <img
-                    src={getBowlLogo(game.gameTitle)}
-                    alt={`${game.gameTitle} logo`}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              )}
+              {/* Bowl Logo - check both gameTitle and bowlName */}
+              {(() => {
+                const bowlNameForLogo = game.bowlName || game.gameTitle
+                const bowlLogo = bowlNameForLogo ? getBowlLogo(bowlNameForLogo) : null
+                return bowlLogo ? (
+                  <div className="w-10 h-10 sm:w-16 sm:h-16 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
+                    <img
+                      src={bowlLogo}
+                      alt={`${bowlNameForLogo} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : null
+              })()}
+              {/* Conference Logo for Championship Games */}
+              {game.isConferenceChampionship && (() => {
+                const confName = game.conference || currentDynasty?.conference || computedConference
+                const confLogo = confName ? getConferenceLogo(confName) : null
+                return confLogo ? (
+                  <div className="w-10 h-10 sm:w-16 sm:h-16 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
+                    <img
+                      src={confLogo}
+                      alt={`${confName} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : null
+              })()}
               <div className="text-white min-w-0">
                 {game.isConferenceChampionship || game.isBowlGame || game.isPlayoff ? (
                   <div className="text-base sm:text-2xl font-bold truncate">
-                    {game.year} {game.gameTitle}
+                    {game.year} {game.isConferenceChampionship
+                      ? `${game.conference || currentDynasty?.conference || computedConference || ''} Championship Game`
+                      : (game.bowlName || game.gameTitle || '')}
                   </div>
                 ) : (
                   <>

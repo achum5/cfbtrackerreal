@@ -36,7 +36,7 @@ export default function Layout({ children }) {
 
   const getPhaseDisplay = (phase, week) => {
     if (phase === 'postseason') {
-      return `Bowl Week ${week}`
+      return week === 5 ? 'National Championship' : `Bowl Week ${week}`
     }
     const phases = {
       preseason: 'Pre-Season',

@@ -1,11 +1,90 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { getTeamLogo } from '../../data/teams'
+import GameDetailModal from '../../components/GameDetailModal'
+
+// Map abbreviations to mascot names for logo lookup
+const mascotMap = {
+  'AFA': 'Air Force Falcons', 'AKR': 'Akron Zips', 'APP': 'Appalachian State Mountaineers',
+  'ARIZ': 'Arizona Wildcats', 'ARK': 'Arkansas Razorbacks', 'ARMY': 'Army Black Knights',
+  'ARST': 'Arkansas State Red Wolves', 'ASU': 'Arizona State Sun Devils', 'AUB': 'Auburn Tigers',
+  'BALL': 'Ball State Cardinals', 'BAMA': 'Alabama Crimson Tide', 'BC': 'Boston College Eagles',
+  'BGSU': 'Bowling Green Falcons', 'BOIS': 'Boise State Broncos', 'BU': 'Baylor Bears',
+  'BUFF': 'Buffalo Bulls', 'BYU': 'Brigham Young Cougars', 'CAL': 'California Golden Bears',
+  'CCU': 'Coastal Carolina Chanticleers', 'CHAR': 'Charlotte 49ers', 'CLEM': 'Clemson Tigers',
+  'CMU': 'Central Michigan Chippewas', 'COLO': 'Colorado Buffaloes', 'CONN': 'Connecticut Huskies',
+  'CSU': 'Colorado State Rams', 'DUKE': 'Duke Blue Devils', 'ECU': 'East Carolina Pirates',
+  'EMU': 'Eastern Michigan Eagles', 'FIU': 'Florida International Panthers', 'FSU': 'Florida State Seminoles',
+  'FAU': 'Florida Atlantic Owls', 'FRES': 'Fresno State Bulldogs', 'UF': 'Florida Gators',
+  'GASO': 'Georgia Southern Eagles', 'GAST': 'Georgia State Panthers', 'GT': 'Georgia Tech Yellow Jackets',
+  'UGA': 'Georgia Bulldogs', 'HAW': 'Hawaii Rainbow Warriors', 'HOU': 'Houston Cougars',
+  'ILL': 'Illinois Fighting Illini', 'IU': 'Indiana Hoosiers', 'IOWA': 'Iowa Hawkeyes',
+  'ISU': 'Iowa State Cyclones', 'JKST': 'Jacksonville State Gamecocks', 'JMU': 'James Madison Dukes',
+  'KU': 'Kansas Jayhawks', 'KSU': 'Kansas State Wildcats', 'KENT': 'Kent State Golden Flashes',
+  'UK': 'Kentucky Wildcats', 'LIB': 'Liberty Flames', 'ULL': 'Lafayette Ragin\' Cajuns',
+  'LT': 'Louisiana Tech Bulldogs', 'LOU': 'Louisville Cardinals', 'LSU': 'LSU Tigers',
+  'UM': 'Miami Hurricanes', 'M-OH': 'Miami Redhawks', 'UMD': 'Maryland Terrapins',
+  'MASS': 'Massachusetts Minutemen', 'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
+  'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
+  'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels', 'MSST': 'Mississippi State Bulldogs',
+  'MZST': 'Missouri Tigers', 'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
+  'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack', 'UNM': 'New Mexico Lobos',
+  'NMSU': 'New Mexico State Aggies', 'UNC': 'North Carolina Tar Heels', 'NCST': 'North Carolina State Wolfpack',
+  'UNT': 'North Texas Mean Green', 'NU': 'Northwestern Wildcats', 'ND': 'Notre Dame Fighting Irish',
+  'NIU': 'Northern Illinois Huskies', 'OHIO': 'Ohio Bobcats', 'OSU': 'Ohio State Buckeyes',
+  'OKLA': 'Oklahoma Sooners', 'OKST': 'Oklahoma State Cowboys', 'ODU': 'Old Dominion Monarchs',
+  'ORE': 'Oregon Ducks', 'ORST': 'Oregon State Beavers', 'PSU': 'Penn State Nittany Lions',
+  'PITT': 'Pittsburgh Panthers', 'PUR': 'Purdue Boilermakers', 'RICE': 'Rice Owls',
+  'RUT': 'Rutgers Scarlet Knights', 'SDSU': 'San Diego State Aztecs', 'SJSU': 'San Jose State Spartans',
+  'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
+  'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
+  'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
+  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies',
+  'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
+  'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
+  'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
+  'UTEP': 'UTEP Miners', 'USA': 'South Alabama Jaguars', 'USU': 'Utah State Aggies',
+  'UTAH': 'Utah Utes', 'UTSA': 'UTSA Roadrunners', 'VAN': 'Vanderbilt Commodores',
+  'UVA': 'Virginia Cavaliers', 'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons',
+  'WASH': 'Washington Huskies', 'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers',
+  'WMU': 'Western Michigan Broncos', 'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers',
+  'WYO': 'Wyoming Cowboys', 'DEL': 'Delaware Fightin\' Blue Hens', 'FLA': 'Florida Gators',
+  'KENN': 'Kennesaw State Owls', 'ULM': 'Monroe Warhawks', 'UC': 'Cincinnati Bearcats',
+  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers'
+}
+
+const getMascotName = (abbr) => mascotMap[abbr] || null
+
+const getOpponentColors = (abbr) => {
+  const team = teamAbbreviations[abbr]
+  return {
+    backgroundColor: team?.backgroundColor || '#4B5563',
+    textColor: team?.textColor || '#FFFFFF'
+  }
+}
 
 export default function CoachCareer() {
   const { currentDynasty } = useDynasty()
   const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
+  const [showGamesModal, setShowGamesModal] = useState(false)
+  const [gamesModalType, setGamesModalType] = useState(null) // 'favorite' or 'underdog'
+  const [selectedGame, setSelectedGame] = useState(null)
+  const [showGameDetailModal, setShowGameDetailModal] = useState(false)
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (showGamesModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [showGamesModal])
 
   if (!currentDynasty) return null
 
@@ -41,6 +120,8 @@ export default function CoachCareer() {
       overallRecord,
       favoriteRecord,
       underdogRecord,
+      favoriteGames,
+      underdogGames,
       confChampionships,
       playoffAppearances,
       nationalChampionships,
@@ -59,6 +140,35 @@ export default function CoachCareer() {
   const teamColors = useTeamColors(currentDynasty.teamName)
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
+
+  // Get games for the modal
+  const getGamesForModal = () => {
+    if (gamesModalType === 'favorite') {
+      return stats.favoriteGames
+    } else if (gamesModalType === 'underdog') {
+      return stats.underdogGames
+    }
+    return []
+  }
+
+  // Sort games by year (descending) then week (ascending)
+  const sortedGames = getGamesForModal().sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year
+    return (a.week || 0) - (b.week || 0)
+  })
+
+  // Group games by year for display
+  const gamesByYear = sortedGames.reduce((acc, game) => {
+    const year = game.year || 'Unknown'
+    if (!acc[year]) acc[year] = []
+    acc[year].push(game)
+    return acc
+  }, {})
+
+  const openGamesModal = (type) => {
+    setGamesModalType(type)
+    setShowGamesModal(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -118,28 +228,32 @@ export default function CoachCareer() {
             </div>
           </div>
 
-          {/* As Favorite */}
+          {/* As Favorite - Clickable */}
           <div
-            className="text-center p-4 rounded-lg border-2 relative"
+            className="text-center p-4 rounded-lg border-2 relative cursor-pointer hover:scale-105 transition-transform"
             style={{
               backgroundColor: teamColors.secondary,
               borderColor: primaryText
             }}
+            onClick={() => openGamesModal('favorite')}
           >
             <div className="text-xs font-semibold mb-1 flex items-center justify-center gap-1" style={{ color: secondaryText, opacity: 0.7 }}>
               As Favorite
               <button
                 className="w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-80 cursor-help"
                 style={{ backgroundColor: primaryText, color: teamColors.primary }}
-                onMouseEnter={() => setShowFavoriteTooltip(true)}
-                onMouseLeave={() => setShowFavoriteTooltip(false)}
-                onClick={() => setShowFavoriteTooltip(!showFavoriteTooltip)}
+                onMouseEnter={(e) => { e.stopPropagation(); setShowFavoriteTooltip(true) }}
+                onMouseLeave={(e) => { e.stopPropagation(); setShowFavoriteTooltip(false) }}
+                onClick={(e) => { e.stopPropagation(); setShowFavoriteTooltip(!showFavoriteTooltip) }}
               >
                 ?
               </button>
             </div>
             <div className="text-2xl font-bold" style={{ color: secondaryText }}>
               {stats.favoriteRecord}
+            </div>
+            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
+              Click to view games
             </div>
             {/* Tooltip */}
             {showFavoriteTooltip && (
@@ -163,19 +277,23 @@ export default function CoachCareer() {
             )}
           </div>
 
-          {/* As Underdog */}
+          {/* As Underdog - Clickable */}
           <div
-            className="text-center p-4 rounded-lg border-2"
+            className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
             style={{
               backgroundColor: teamColors.secondary,
               borderColor: primaryText
             }}
+            onClick={() => openGamesModal('underdog')}
           >
             <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
               As Underdog
             </div>
             <div className="text-2xl font-bold" style={{ color: secondaryText }}>
               {stats.underdogRecord}
+            </div>
+            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
+              Click to view games
             </div>
           </div>
 
@@ -281,6 +399,204 @@ export default function CoachCareer() {
           <p>* Some statistics are not yet tracked and will be updated as features are implemented.</p>
         </div>
       </div>
+
+      {/* Games Modal */}
+      {showGamesModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowGamesModal(false)}
+        >
+          <div
+            className="rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-6 py-4 flex items-center justify-between flex-shrink-0"
+              style={{ backgroundColor: teamColors.primary }}
+            >
+              <div>
+                <h3 className="text-xl font-bold" style={{ color: primaryText }}>
+                  Games as {gamesModalType === 'favorite' ? 'Favorite' : 'Underdog'}
+                </h3>
+                <p className="text-sm mt-0.5 opacity-80" style={{ color: primaryText }}>
+                  {sortedGames.length} game{sortedGames.length !== 1 ? 's' : ''} •
+                  {gamesModalType === 'favorite' ? ` ${stats.favoriteRecord}` : ` ${stats.underdogRecord}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGamesModal(false)}
+                className="p-2 rounded-full hover:bg-white/20 transition-colors"
+                style={{ color: primaryText }}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {sortedGames.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: secondaryText }}>
+                  <svg className="w-16 h-16 mx-auto mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
+                  </svg>
+                  <p className="text-lg font-semibold">No games yet</p>
+                  <p className="text-sm mt-1">Games will appear here as you play them</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {Object.entries(gamesByYear).map(([year, yearGames]) => (
+                    <div key={year}>
+                      {/* Year Header - scrolls with content */}
+                      <div
+                        className="px-3 py-2 rounded-lg mb-2 font-bold text-sm"
+                        style={{ backgroundColor: teamColors.primary, color: primaryText }}
+                      >
+                        {year} Season
+                      </div>
+
+                      {/* Games for this year */}
+                      <div className="space-y-2">
+                        {yearGames.map((game, index) => {
+                          const opponentColors = getOpponentColors(game.opponent)
+                          const mascotName = getMascotName(game.opponent)
+                          const opponentName = mascotName || teamAbbreviations[game.opponent]?.name || game.opponent
+                          const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
+                          const isWin = game.result === 'win'
+
+                          return (
+                            <div
+                              key={`${year}-${game.week}-${index}`}
+                              className="flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity"
+                              style={{
+                                backgroundColor: opponentColors.backgroundColor,
+                                borderColor: isWin ? '#86efac' : '#fca5a5'
+                              }}
+                              onClick={() => {
+                                setSelectedGame(game)
+                                setShowGameDetailModal(true)
+                              }}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {/* Week */}
+                                <div
+                                  className="text-xs font-medium w-14 flex-shrink-0 opacity-80"
+                                  style={{ color: opponentColors.textColor }}
+                                >
+                                  {game.isConferenceChampionship ? 'CC' :
+                                   game.isBowlGame ? 'Bowl' :
+                                   game.isPlayoff ? 'CFP' :
+                                   `Wk ${game.week}`}
+                                </div>
+
+                                {/* Location Badge */}
+                                <span
+                                  className="text-xs font-bold px-2 py-0.5 rounded flex-shrink-0"
+                                  style={{
+                                    backgroundColor: opponentColors.textColor,
+                                    color: opponentColors.backgroundColor
+                                  }}
+                                >
+                                  {game.location === 'away' ? '@' : 'vs'}
+                                </span>
+
+                                {/* Team Logo */}
+                                {opponentLogo && (
+                                  <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{
+                                      backgroundColor: '#FFFFFF',
+                                      border: `2px solid ${opponentColors.textColor}`,
+                                      padding: '2px'
+                                    }}
+                                  >
+                                    <img
+                                      src={opponentLogo}
+                                      alt={opponentName}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Opponent Info */}
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  {game.opponentRank && (
+                                    <span
+                                      className="text-xs font-bold opacity-70 flex-shrink-0"
+                                      style={{ color: opponentColors.textColor }}
+                                    >
+                                      #{game.opponentRank}
+                                    </span>
+                                  )}
+                                  <span
+                                    className="font-semibold truncate"
+                                    style={{ color: opponentColors.textColor }}
+                                  >
+                                    {opponentName}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Result */}
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span
+                                  className="text-xs font-bold px-2 py-1 rounded"
+                                  style={{
+                                    backgroundColor: isWin ? '#16a34a' : '#dc2626',
+                                    color: '#FFFFFF'
+                                  }}
+                                >
+                                  {isWin ? 'W' : 'L'}
+                                </span>
+                                <span
+                                  className="font-bold text-sm"
+                                  style={{ color: opponentColors.textColor }}
+                                >
+                                  {game.teamScore}-{game.opponentScore}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="px-6 py-4 border-t flex-shrink-0"
+              style={{ borderColor: `${secondaryText}20` }}
+            >
+              <button
+                onClick={() => setShowGamesModal(false)}
+                className="w-full py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
+                style={{ backgroundColor: teamColors.primary, color: primaryText }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Game Detail Modal */}
+      <GameDetailModal
+        isOpen={showGameDetailModal}
+        onClose={() => {
+          setShowGameDetailModal(false)
+          setSelectedGame(null)
+        }}
+        game={selectedGame}
+        userTeam={currentDynasty.teamName}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

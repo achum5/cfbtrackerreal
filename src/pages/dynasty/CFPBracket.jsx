@@ -7,6 +7,7 @@ import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getBowlLogo } from '../../data/bowlGames'
 import GameDetailModal from '../../components/GameDetailModal'
+import GameEntryModal from '../../components/GameEntryModal'
 
 // Map abbreviations to mascot names for logo lookup
 const mascotMap = {
@@ -73,14 +74,13 @@ const getShortName = (abbr) => {
 
 export default function CFPBracket() {
   const { id } = useParams()
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedGame, setSelectedGame] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [selectedYear, setSelectedYear] = useState(null)
-  const [editingGame, setEditingGame] = useState(null)
-  const [editGameNote, setEditGameNote] = useState('')
-  const [editGameLinks, setEditGameLinks] = useState('')
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingGameData, setEditingGameData] = useState(null)
 
   // Track window width for responsive scaling
   useEffect(() => {
@@ -119,9 +119,9 @@ export default function CFPBracket() {
   // Get CFP results for each round
   const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
   const firstRoundResults = cfpResults.firstRound || []
-  const quarterfinalsResults = cfpResults.week3 || []
-  const semifinalsResults = cfpResults.week4 || []
-  const championshipResults = cfpResults.week5 || []
+  const quarterfinalsResults = cfpResults.quarterfinals || []
+  const semifinalsResults = cfpResults.semifinals || []
+  const championshipResults = cfpResults.championship || []
 
   // Helper to get First Round winner by matchup seeds
   const getFirstRoundWinner = (seed1, seed2) => {
@@ -151,7 +151,7 @@ export default function CFPBracket() {
 
   // Helper to get Quarterfinal winner by bowl name
   const getQFWinner = (bowlName) => {
-    const game = quarterfinalsResults.find(g => g.bowl === bowlName)
+    const game = quarterfinalsResults.find(g => g.bowlName === bowlName)
     return game?.winner || null
   }
 
@@ -164,18 +164,18 @@ export default function CFPBracket() {
 
   // Helper to get Quarterfinal game data
   const getQFGame = (bowlName) => {
-    return quarterfinalsResults.find(g => g.bowl === bowlName) || null
+    return quarterfinalsResults.find(g => g.bowlName === bowlName) || null
   }
 
   // Helper to get Semifinal winner by bowl name
   const getSFWinner = (bowlName) => {
-    const game = semifinalsResults.find(g => g.bowl === bowlName)
+    const game = semifinalsResults.find(g => g.bowlName === bowlName)
     return game?.winner || null
   }
 
   // Helper to get Semifinal game data
   const getSFGame = (bowlName) => {
-    return semifinalsResults.find(g => g.bowl === bowlName) || null
+    return semifinalsResults.find(g => g.bowlName === bowlName) || null
   }
 
   // Helper to get Championship game data
@@ -390,10 +390,12 @@ export default function CFPBracket() {
   const BRACKET_HEIGHT = R1_M4 + MATCHUP_HEIGHT + 160
   const BRACKET_WIDTH = COL4 + SLOT_WIDTH + 40
 
-  // Calculate scale for mobile - fit bracket to viewport width with padding
+  // Calculate scale to always fit bracket to viewport width with padding
   const PADDING = 32 // 16px on each side
-  const availableWidth = windowWidth - PADDING
-  const scale = availableWidth < BRACKET_WIDTH ? availableWidth / BRACKET_WIDTH : 1
+  const SIDEBAR_WIDTH = 224 // w-56 sidebar shown on lg+ screens (1024px+)
+  const sidebarOffset = windowWidth >= 1024 ? SIDEBAR_WIDTH : 0
+  const availableWidth = windowWidth - PADDING - sidebarOffset
+  const scale = availableWidth / BRACKET_WIDTH
   const scaledHeight = BRACKET_HEIGHT * scale
   const scaledWidth = BRACKET_WIDTH * scale
 
@@ -478,63 +480,152 @@ export default function CFPBracket() {
         links: savedNotes.links || ''
       })
     } else {
-      // Show matchup preview (no game played yet)
-      setSelectedGame({
-        team1,
-        team2,
-        seed1,
-        seed2,
-        round,
-        bowl,
-        year: displayYear,
-        gameTitle: bowl || round,
-        isPlayoff: true,
-        isPreview: true,
-        opponent: team1 || team2,
-        location: 'neutral',
-        gameNote: savedNotes.gameNote || '',
-        links: savedNotes.links || ''
-      })
+      // Show matchup preview (no game played yet) - use scheduled: true for GameDetailModal
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userInGame = team1 === userTeamAbbr || team2 === userTeamAbbr
+
+      if (userInGame) {
+        // User's team is in this matchup - format from user's perspective
+        const isUserTeam1 = team1 === userTeamAbbr
+        setSelectedGame({
+          opponent: isUserTeam1 ? team2 : team1,
+          location: 'neutral',
+          year: displayYear,
+          week: round,
+          round,
+          gameTitle: bowl || `CFP ${round}`,
+          bowlName: bowl,
+          isPlayoff: true,
+          isBowlGame: true,
+          scheduled: true, // This tells GameDetailModal it's an unplayed game
+          gameNote: savedNotes.gameNote || '',
+          links: savedNotes.links || '',
+          // Store seeds for reference
+          userSeed: isUserTeam1 ? seed1 : seed2,
+          opponentSeed: isUserTeam1 ? seed2 : seed1
+        })
+      } else {
+        // CPU vs CPU matchup - show from first team's perspective
+        setSelectedGame({
+          viewingTeam: team1 ? mascotMap[team1] || team1 : 'TBD',
+          viewingTeamAbbr: team1,
+          opponent: team2,
+          location: 'neutral',
+          year: displayYear,
+          week: round,
+          round,
+          gameTitle: bowl || `CFP ${round}`,
+          bowlName: bowl,
+          isPlayoff: true,
+          isBowlGame: true,
+          scheduled: true, // This tells GameDetailModal it's an unplayed game
+          gameNote: savedNotes.gameNote || '',
+          links: savedNotes.links || '',
+          // Store seeds for reference
+          seed1,
+          seed2
+        })
+      }
     }
   }
 
-  // Handle edit game click
+  // Handle edit game click - opens GameEntryModal
   const handleEditGame = (game) => {
-    // Load existing notes/links if available
-    const cfpNotes = currentDynasty.cfpGameNotes?.[displayYear] || {}
-    const gameKey = game.round || game.gameTitle || 'unknown'
-    const existingNote = cfpNotes[gameKey]
+    // Check if user's team is in this game
+    const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+    const gameOpponent = game.opponent
+    const isUserGame = !game.viewingTeam // If no viewingTeam, it's a user game
 
-    setEditingGame(game)
-    setEditGameNote(existingNote?.gameNote || game.gameNote || '')
-    setEditGameLinks(existingNote?.links || game.links || '')
+    if (isUserGame) {
+      // User's game - find existing game data
+      const existingGame = currentDynasty.games?.find(g =>
+        g.year === (game.year || displayYear) &&
+        g.opponent === gameOpponent &&
+        (g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
+      )
+
+      setEditingGameData({
+        opponent: gameOpponent,
+        bowlName: game.bowlName || game.gameTitle,
+        existingGame: existingGame || null,
+        round: game.round,
+        isUserGame: true
+      })
+    } else {
+      // CPU vs CPU game - pass both teams
+      setEditingGameData({
+        team1: game.viewingTeamAbbr,
+        team2: game.opponent,
+        bowlName: game.bowlName || game.gameTitle,
+        round: game.round,
+        isUserGame: false,
+        // Pass existing data if the game has been played
+        existingTeam1Score: game.teamScore,
+        existingTeam2Score: game.opponentScore
+      })
+    }
+
     setSelectedGame(null)
+    setShowEditModal(true)
   }
 
-  // Save edited game
-  const handleSaveEditGame = async () => {
-    if (!editingGame) return
+  // Handle game save from GameEntryModal
+  const handleGameSave = async (gameData) => {
+    try {
+      if (gameData.isCPUGame) {
+        // CPU vs CPU game - save to cfpResultsByYear
+        const roundKey = editingGameData.round === 'First Round' ? 'firstRound'
+          : editingGameData.round === 'Quarterfinals' ? 'quarterfinals'
+          : editingGameData.round === 'Semifinals' ? 'semifinals'
+          : 'championship'
 
-    const gameKey = editingGame.round || editingGame.gameTitle || 'unknown'
-    const cfpGameNotes = currentDynasty.cfpGameNotes || {}
-    const yearNotes = cfpGameNotes[displayYear] || {}
+        const existingCFP = currentDynasty.cfpResultsByYear || {}
+        const existingYear = existingCFP[displayYear] || {}
+        const existingRound = existingYear[roundKey] || []
 
-    await updateDynasty(currentDynasty.id, {
-      cfpGameNotes: {
-        ...cfpGameNotes,
-        [displayYear]: {
-          ...yearNotes,
-          [gameKey]: {
-            gameNote: editGameNote,
-            links: editGameLinks
-          }
+        // Find and update or add the game
+        const gameIndex = existingRound.findIndex(g =>
+          (g.team1 === gameData.team1 && g.team2 === gameData.team2) ||
+          (g.team1 === gameData.team2 && g.team2 === gameData.team1)
+        )
+
+        const newGame = {
+          team1: gameData.team1,
+          team2: gameData.team2,
+          team1Score: gameData.team1Score,
+          team2Score: gameData.team2Score,
+          winner: gameData.winner,
+          bowlName: gameData.bowlName,
+          gameNote: gameData.gameNote,
+          links: gameData.links
         }
-      }
-    })
 
-    setEditingGame(null)
-    setEditGameNote('')
-    setEditGameLinks('')
+        const newRound = [...existingRound]
+        if (gameIndex >= 0) {
+          newRound[gameIndex] = newGame
+        } else {
+          newRound.push(newGame)
+        }
+
+        await updateDynasty(currentDynasty.id, {
+          cfpResultsByYear: {
+            ...existingCFP,
+            [displayYear]: {
+              ...existingYear,
+              [roundKey]: newRound
+            }
+          }
+        })
+      } else {
+        // User's game - save via addGame
+        await addGame(currentDynasty.id, gameData)
+      }
+
+      setShowEditModal(false)
+      setEditingGameData(null)
+    } catch (error) {
+      console.error('Error saving game:', error)
+    }
   }
 
   return (
@@ -728,180 +819,8 @@ export default function CFPBracket() {
         </div>
       </div>
 
-      {/* Game Preview Modal (for unplayed games) */}
-      {selectedGame?.isPreview && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
-          onClick={() => setSelectedGame(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div
-              className="p-6"
-              style={{ backgroundColor: teamColors.primary }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  {selectedGame.bowl && getBowlLogo(selectedGame.bowl) && (
-                    <div className="w-14 h-14 flex-shrink-0 bg-white rounded-lg p-1 flex items-center justify-center">
-                      <img
-                        src={getBowlLogo(selectedGame.bowl)}
-                        alt={`${selectedGame.bowl} logo`}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
-                  <div className="text-white">
-                    <Link
-                      to={`/dynasty/${id}/cfp-bracket`}
-                      onClick={() => setSelectedGame(null)}
-                      className="text-xl font-bold hover:underline"
-                    >
-                      {selectedGame.year} CFP {selectedGame.round}
-                    </Link>
-                    {selectedGame.bowl && selectedGame.round !== 'First Round' && (
-                      <div className="text-sm opacity-80">{selectedGame.bowl}</div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleEditGame(selectedGame)}
-                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
-                    title="Edit Game"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setSelectedGame(null)}
-                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Matchup Preview */}
-            <div className="p-8">
-              <div className="flex items-center justify-center gap-6">
-                {/* Team 1 */}
-                <div className="text-center flex-1">
-                  {selectedGame.team1 ? (
-                    <>
-                      <Link
-                        to={`/dynasty/${id}/team/${selectedGame.team1}`}
-                        onClick={() => setSelectedGame(null)}
-                        className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2 ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team1 ? 'opacity-50' : ''}`}
-                        style={{ borderColor: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#666' }}
-                      >
-                        {mascotMap[selectedGame.team1] && getTeamLogo(mascotMap[selectedGame.team1]) && (
-                          <img src={getTeamLogo(mascotMap[selectedGame.team1])} alt="" className="w-14 h-14 object-contain" />
-                        )}
-                      </Link>
-                      <div className="text-xs text-gray-500 mb-1">#{selectedGame.seed1} Seed</div>
-                      <Link
-                        to={`/dynasty/${id}/team/${selectedGame.team1}`}
-                        onClick={() => setSelectedGame(null)}
-                        className={`font-bold text-lg hover:underline ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team1 ? 'opacity-50' : ''}`}
-                        style={{ color: teamAbbreviations[selectedGame.team1]?.backgroundColor || '#333' }}
-                      >
-                        {getShortName(selectedGame.team1)}
-                      </Link>
-                      {selectedGame.hasScore && (
-                        <div className={`text-3xl font-bold mt-2 ${selectedGame.winner === selectedGame.team1 ? 'text-green-600' : 'text-gray-400'}`}>
-                          {selectedGame.team1Score}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 bg-gray-200 border-2 border-gray-300">
-                        <span className="text-gray-400 text-2xl font-bold">?</span>
-                      </div>
-                      <div className="font-bold text-lg text-gray-400">TBD</div>
-                    </>
-                  )}
-                </div>
-
-                {/* VS or Score Separator */}
-                {selectedGame.hasScore ? (
-                  <div className="text-xl font-bold text-gray-400">-</div>
-                ) : (
-                  <div className="text-2xl font-bold text-gray-400">VS</div>
-                )}
-
-                {/* Team 2 */}
-                <div className="text-center flex-1">
-                  {selectedGame.team2 ? (
-                    <>
-                      <Link
-                        to={`/dynasty/${id}/team/${selectedGame.team2}`}
-                        onClick={() => setSelectedGame(null)}
-                        className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 hover:scale-105 transition-transform bg-white border-2 ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team2 ? 'opacity-50' : ''}`}
-                        style={{ borderColor: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#666' }}
-                      >
-                        {mascotMap[selectedGame.team2] && getTeamLogo(mascotMap[selectedGame.team2]) && (
-                          <img src={getTeamLogo(mascotMap[selectedGame.team2])} alt="" className="w-14 h-14 object-contain" />
-                        )}
-                      </Link>
-                      <div className="text-xs text-gray-500 mb-1">#{selectedGame.seed2} Seed</div>
-                      <Link
-                        to={`/dynasty/${id}/team/${selectedGame.team2}`}
-                        onClick={() => setSelectedGame(null)}
-                        className={`font-bold text-lg hover:underline ${selectedGame.hasScore && selectedGame.winner !== selectedGame.team2 ? 'opacity-50' : ''}`}
-                        style={{ color: teamAbbreviations[selectedGame.team2]?.backgroundColor || '#333' }}
-                      >
-                        {getShortName(selectedGame.team2)}
-                      </Link>
-                      {selectedGame.hasScore && (
-                        <div className={`text-3xl font-bold mt-2 ${selectedGame.winner === selectedGame.team2 ? 'text-green-600' : 'text-gray-400'}`}>
-                          {selectedGame.team2Score}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-3 bg-gray-200 border-2 border-gray-300">
-                        <span className="text-gray-400 text-2xl font-bold">?</span>
-                      </div>
-                      <div className="font-bold text-lg text-gray-400">TBD</div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {selectedGame.hasScore ? (
-                <div className="mt-6 text-center">
-                  <span
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold"
-                    style={{
-                      backgroundColor: teamAbbreviations[selectedGame.winner]?.backgroundColor || '#22c55e',
-                      color: teamAbbreviations[selectedGame.winner]?.textColor || '#fff'
-                    }}
-                  >
-                    🏆 {getShortName(selectedGame.winner)} wins!
-                  </span>
-                </div>
-              ) : (
-                <div className="mt-6 text-center text-gray-500 text-sm">
-                  Game not yet played
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Game Detail Modal (for played games) */}
-      {selectedGame && !selectedGame.isPreview && (
+      {/* Game Detail Modal (for all games - played and scheduled) */}
+      {selectedGame && (
         <GameDetailModal
           isOpen={true}
           onClose={() => setSelectedGame(null)}
@@ -912,90 +831,24 @@ export default function CFPBracket() {
         />
       )}
 
-      {/* Edit Game Modal */}
-      {editingGame && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
-          onClick={() => setEditingGame(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div
-              className="p-4"
-              style={{ backgroundColor: teamColors.primary }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-white">
-                  <div className="text-lg font-bold">
-                    Edit Game Details
-                  </div>
-                  <div className="text-sm opacity-80">
-                    {editingGame.year || displayYear} CFP {editingGame.round || editingGame.gameTitle}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setEditingGame(null)}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Form */}
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Game Notes
-                </label>
-                <textarea
-                  value={editGameNote}
-                  onChange={(e) => setEditGameNote(e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  rows={4}
-                  placeholder="Add notes about this game..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Media Links
-                </label>
-                <textarea
-                  value={editGameLinks}
-                  onChange={(e) => setEditGameLinks(e.target.value)}
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  rows={2}
-                  placeholder="YouTube, Imgur links (comma-separated)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Separate multiple links with commas
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleSaveEditGame}
-                  className="flex-1 py-2 px-4 rounded-lg font-semibold text-white transition-colors"
-                  style={{ backgroundColor: teamColors.primary }}
-                >
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => setEditingGame(null)}
-                  className="flex-1 py-2 px-4 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Game Entry Modal (for editing/entering games - both user and CPU) */}
+      {showEditModal && editingGameData && (
+        <GameEntryModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingGameData(null)
+          }}
+          onSave={handleGameSave}
+          weekNumber={currentDynasty.currentPhase === 'postseason' ? currentDynasty.currentWeek : 1}
+          currentYear={displayYear}
+          teamColors={teamColors}
+          opponent={editingGameData.isUserGame ? editingGameData.opponent : undefined}
+          bowlName={editingGameData.bowlName}
+          existingGame={editingGameData.existingGame}
+          team1={editingGameData.isUserGame ? undefined : editingGameData.team1}
+          team2={editingGameData.isUserGame ? undefined : editingGameData.team2}
+        />
       )}
     </div>
   )

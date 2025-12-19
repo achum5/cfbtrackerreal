@@ -1,0 +1,361 @@
+import { useState, useEffect } from 'react'
+import { useDynasty } from '../context/DynastyContext'
+import { teamAbbreviations } from '../data/teamAbbreviations'
+import { getTeamLogo } from '../data/teams'
+
+// Map abbreviations to mascot names for logo lookup
+const mascotMap = {
+  'AFA': 'Air Force Falcons', 'AKR': 'Akron Zips', 'APP': 'Appalachian State Mountaineers',
+  'ARIZ': 'Arizona Wildcats', 'ARK': 'Arkansas Razorbacks', 'ARMY': 'Army Black Knights',
+  'ARST': 'Arkansas State Red Wolves', 'ASU': 'Arizona State Sun Devils', 'AUB': 'Auburn Tigers',
+  'BALL': 'Ball State Cardinals', 'BAMA': 'Alabama Crimson Tide', 'BC': 'Boston College Eagles',
+  'BGSU': 'Bowling Green Falcons', 'BOIS': 'Boise State Broncos', 'BU': 'Baylor Bears',
+  'BUFF': 'Buffalo Bulls', 'BYU': 'Brigham Young Cougars', 'CAL': 'California Golden Bears',
+  'CCU': 'Coastal Carolina Chanticleers', 'CHAR': 'Charlotte 49ers', 'CLEM': 'Clemson Tigers',
+  'CMU': 'Central Michigan Chippewas', 'COLO': 'Colorado Buffaloes', 'CONN': 'Connecticut Huskies',
+  'CSU': 'Colorado State Rams', 'DUKE': 'Duke Blue Devils', 'ECU': 'East Carolina Pirates',
+  'EMU': 'Eastern Michigan Eagles', 'FIU': 'Florida International Panthers', 'FSU': 'Florida State Seminoles',
+  'FAU': 'Florida Atlantic Owls', 'FRES': 'Fresno State Bulldogs', 'UF': 'Florida Gators',
+  'GASO': 'Georgia Southern Eagles', 'GAST': 'Georgia State Panthers', 'GT': 'Georgia Tech Yellow Jackets',
+  'UGA': 'Georgia Bulldogs', 'HAW': 'Hawaii Rainbow Warriors', 'HOU': 'Houston Cougars',
+  'ILL': 'Illinois Fighting Illini', 'IU': 'Indiana Hoosiers', 'IOWA': 'Iowa Hawkeyes',
+  'ISU': 'Iowa State Cyclones', 'JKST': 'Jacksonville State Gamecocks', 'JMU': 'James Madison Dukes',
+  'KU': 'Kansas Jayhawks', 'KSU': 'Kansas State Wildcats', 'KENT': 'Kent State Golden Flashes',
+  'UK': 'Kentucky Wildcats', 'LIB': 'Liberty Flames', 'ULL': 'Lafayette Ragin\' Cajuns',
+  'LT': 'Louisiana Tech Bulldogs', 'LOU': 'Louisville Cardinals', 'LSU': 'LSU Tigers',
+  'UM': 'Miami Hurricanes', 'M-OH': 'Miami Redhawks', 'UMD': 'Maryland Terrapins',
+  'MASS': 'Massachusetts Minutemen', 'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
+  'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
+  'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels', 'MSST': 'Mississippi State Bulldogs',
+  'MZST': 'Missouri Tigers', 'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
+  'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack', 'UNM': 'New Mexico Lobos',
+  'NMSU': 'New Mexico State Aggies', 'UNC': 'North Carolina Tar Heels', 'NCST': 'North Carolina State Wolfpack',
+  'UNT': 'North Texas Mean Green', 'NU': 'Northwestern Wildcats', 'ND': 'Notre Dame Fighting Irish',
+  'NIU': 'Northern Illinois Huskies', 'OHIO': 'Ohio Bobcats', 'OSU': 'Ohio State Buckeyes',
+  'OKLA': 'Oklahoma Sooners', 'OKST': 'Oklahoma State Cowboys', 'ODU': 'Old Dominion Monarchs',
+  'ORE': 'Oregon Ducks', 'ORST': 'Oregon State Beavers', 'PSU': 'Penn State Nittany Lions',
+  'PITT': 'Pittsburgh Panthers', 'PUR': 'Purdue Boilermakers', 'RICE': 'Rice Owls',
+  'RUT': 'Rutgers Scarlet Knights', 'SDSU': 'San Diego State Aztecs', 'SJSU': 'San Jose State Spartans',
+  'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
+  'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
+  'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
+  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies',
+  'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
+  'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
+  'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
+  'UTEP': 'UTEP Miners', 'USA': 'South Alabama Jaguars', 'USU': 'Utah State Aggies',
+  'UTAH': 'Utah Utes', 'UTSA': 'UTSA Roadrunners', 'VAN': 'Vanderbilt Commodores',
+  'UVA': 'Virginia Cavaliers', 'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons',
+  'WASH': 'Washington Huskies', 'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers',
+  'WMU': 'Western Michigan Broncos', 'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers',
+  'WYO': 'Wyoming Cowboys', 'DEL': 'Delaware Fightin\' Blue Hens', 'FLA': 'Florida Gators',
+  'KENN': 'Kennesaw State Owls', 'ULM': 'Monroe Warhawks', 'UC': 'Cincinnati Bearcats',
+  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers'
+}
+
+const TROPHY_URL = 'https://i.imgur.com/3goz1NK.png'
+
+export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+  const { currentDynasty } = useDynasty()
+  const [game, setGame] = useState({
+    id: 'championship',
+    bowlName: 'National Championship',
+    team1: '',
+    team2: '',
+    team1Score: '',
+    team2Score: ''
+  })
+  const [saving, setSaving] = useState(false)
+
+  // Get seed by team
+  const getSeedByTeam = (team) => {
+    const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
+    const seedEntry = cfpSeeds.find(s => s.team === team)
+    return seedEntry?.seed || null
+  }
+
+  // Get team info for display
+  const getTeamInfo = (abbr) => {
+    if (!abbr) return null
+    const teamData = teamAbbreviations[abbr]
+    const mascotName = mascotMap[abbr]
+    const logo = mascotName ? getTeamLogo(mascotName) : null
+    return {
+      abbr,
+      name: teamData?.name || abbr,
+      fullMascot: mascotName,
+      backgroundColor: teamData?.backgroundColor || '#4B5563',
+      textColor: teamData?.textColor || '#FFFFFF',
+      logo,
+      seed: getSeedByTeam(abbr)
+    }
+  }
+
+  // Initialize game with teams from semifinal results
+  useEffect(() => {
+    if (isOpen) {
+      const sfResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
+      const existingChamp = currentDynasty?.cfpResultsByYear?.[currentYear]?.championship?.[0]
+
+      if (existingChamp) {
+        setGame(existingChamp)
+      } else {
+        // Get winners from semifinals
+        const peachWinner = sfResults.find(g => g.bowlName === 'Peach Bowl')?.winner || ''
+        const fiestaWinner = sfResults.find(g => g.bowlName === 'Fiesta Bowl')?.winner || ''
+
+        setGame({
+          id: 'championship',
+          bowlName: 'National Championship',
+          team1: peachWinner,
+          team2: fiestaWinner,
+          team1Score: '',
+          team2Score: ''
+        })
+      }
+    }
+  }, [isOpen, currentYear, currentDynasty])
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  const handleScoreChange = (field, value) => {
+    setGame(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleSave = async () => {
+    if (!game.team1 || !game.team2 || game.team1Score === '' || game.team2Score === '') {
+      alert('Please enter scores for the game')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const processedGame = {
+        ...game,
+        team1Score: parseInt(game.team1Score),
+        team2Score: parseInt(game.team2Score),
+        winner: parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2,
+        seed1: getSeedByTeam(game.team1),
+        seed2: getSeedByTeam(game.team2)
+      }
+
+      await onSave([processedGame])
+      onClose()
+    } catch (error) {
+      console.error('Error saving National Championship result:', error)
+      alert('Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  const team1Info = getTeamInfo(game.team1)
+  const team2Info = getTeamInfo(game.team2)
+
+  return (
+    <div
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] p-4"
+      style={{ margin: 0 }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto"
+        style={{
+          background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header with Trophy */}
+        <div
+          className="relative px-6 py-8 text-center overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FFD700 100%)'
+          }}
+        >
+          {/* Decorative elements */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full translate-x-1/2 translate-y-1/2" />
+          </div>
+
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-black/60 hover:text-black hover:bg-black/10 rounded-full p-2 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Trophy */}
+          <div className="relative z-10">
+            <img
+              src={TROPHY_URL}
+              alt="National Championship Trophy"
+              className="w-24 h-24 mx-auto mb-4 object-contain drop-shadow-lg"
+            />
+            <h2 className="text-3xl font-black text-black tracking-tight">
+              National Championship
+            </h2>
+            <p className="text-black/70 font-semibold mt-1">
+              {currentYear} College Football Playoff
+            </p>
+          </div>
+        </div>
+
+        {/* Game Content */}
+        <div className="p-6">
+          {/* Matchup Display */}
+          <div className="flex items-stretch gap-4">
+            {/* Team 1 */}
+            <div className="flex-1">
+              {team1Info ? (
+                <div
+                  className="rounded-xl p-5 h-full flex flex-col items-center justify-center text-center"
+                  style={{
+                    backgroundColor: team1Info.backgroundColor,
+                    boxShadow: `0 8px 32px ${team1Info.backgroundColor}60`
+                  }}
+                >
+                  {team1Info.logo && (
+                    <div className="w-20 h-20 bg-white rounded-full p-2 flex items-center justify-center mb-3 shadow-lg">
+                      <img
+                        src={team1Info.logo}
+                        alt={team1Info.fullMascot}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="text-xs font-bold opacity-70 mb-1" style={{ color: team1Info.textColor }}>
+                    #{team1Info.seed} Seed
+                  </div>
+                  <div className="text-lg font-bold leading-tight" style={{ color: team1Info.textColor }}>
+                    {team1Info.fullMascot?.split(' ').slice(-2).join(' ') || team1Info.abbr}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl p-5 bg-gray-700 h-full flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 bg-gray-600 rounded-full flex items-center justify-center mb-3">
+                    <span className="text-3xl text-gray-400">?</span>
+                  </div>
+                  <span className="text-lg font-semibold text-gray-400">TBD</span>
+                  <p className="text-xs text-gray-500 mt-1">Awaiting semifinal result</p>
+                </div>
+              )}
+            </div>
+
+            {/* Score Inputs */}
+            <div className="flex flex-col items-center justify-center gap-3">
+              <input
+                type="number"
+                min="0"
+                value={game.team1Score}
+                onChange={(e) => handleScoreChange('team1Score', e.target.value)}
+                className="w-20 h-20 text-center text-3xl font-black rounded-xl border-3 focus:outline-none focus:ring-4 focus:ring-yellow-500/50 transition-all"
+                style={{
+                  backgroundColor: team1Info?.backgroundColor || '#374151',
+                  color: team1Info?.textColor || '#fff',
+                  borderColor: '#FFD700'
+                }}
+                placeholder="0"
+                disabled={!game.team1}
+              />
+              <div className="text-2xl font-black text-yellow-500">VS</div>
+              <input
+                type="number"
+                min="0"
+                value={game.team2Score}
+                onChange={(e) => handleScoreChange('team2Score', e.target.value)}
+                className="w-20 h-20 text-center text-3xl font-black rounded-xl border-3 focus:outline-none focus:ring-4 focus:ring-yellow-500/50 transition-all"
+                style={{
+                  backgroundColor: team2Info?.backgroundColor || '#374151',
+                  color: team2Info?.textColor || '#fff',
+                  borderColor: '#FFD700'
+                }}
+                placeholder="0"
+                disabled={!game.team2}
+              />
+            </div>
+
+            {/* Team 2 */}
+            <div className="flex-1">
+              {team2Info ? (
+                <div
+                  className="rounded-xl p-5 h-full flex flex-col items-center justify-center text-center"
+                  style={{
+                    backgroundColor: team2Info.backgroundColor,
+                    boxShadow: `0 8px 32px ${team2Info.backgroundColor}60`
+                  }}
+                >
+                  {team2Info.logo && (
+                    <div className="w-20 h-20 bg-white rounded-full p-2 flex items-center justify-center mb-3 shadow-lg">
+                      <img
+                        src={team2Info.logo}
+                        alt={team2Info.fullMascot}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="text-xs font-bold opacity-70 mb-1" style={{ color: team2Info.textColor }}>
+                    #{team2Info.seed} Seed
+                  </div>
+                  <div className="text-lg font-bold leading-tight" style={{ color: team2Info.textColor }}>
+                    {team2Info.fullMascot?.split(' ').slice(-2).join(' ') || team2Info.abbr}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl p-5 bg-gray-700 h-full flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 bg-gray-600 rounded-full flex items-center justify-center mb-3">
+                    <span className="text-3xl text-gray-400">?</span>
+                  </div>
+                  <span className="text-lg font-semibold text-gray-400">TBD</span>
+                  <p className="text-xs text-gray-500 mt-1">Awaiting semifinal result</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-5 border-t border-white/10">
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving || !game.team1 || !game.team2}
+              className="flex-1 px-6 py-4 rounded-xl font-bold text-black transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 text-lg"
+              style={{
+                background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                boxShadow: '0 4px 20px rgba(255,215,0,0.4)'
+              }}
+            >
+              {saving ? 'Saving...' : 'Crown the Champion'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-6 py-4 rounded-xl font-bold text-white/80 hover:text-white transition-colors border border-white/20 hover:border-white/40"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

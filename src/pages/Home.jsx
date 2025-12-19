@@ -70,7 +70,7 @@ function getWeekPhaseDisplay(dynasty) {
     return phase
   }
   if (dynasty.currentPhase === 'postseason') {
-    return `Bowl Week ${dynasty.currentWeek}`
+    return dynasty.currentWeek === 5 ? 'National Championship' : `Bowl Week ${dynasty.currentWeek}`
   }
   return `Week ${dynasty.currentWeek} • ${phase}`
 }
