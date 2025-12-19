@@ -168,14 +168,8 @@ export default function Layout({ children }) {
                 </button>
               )}
 
-              <Link
-                to="/"
-                className="flex items-center gap-2 text-base sm:text-xl font-bold whitespace-nowrap"
-                style={{ color: headerText }}
-              >
-                <img src={logo} alt="CFB Dynasty Tracker" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
-                <span className="hidden sm:inline">CFB Dynasty Tracker</span>
-                <span className="sm:hidden">CFB</span>
+              <Link to="/">
+                <img src={logo} alt="Dynasty Tracker" className="h-10 sm:h-12 object-contain" />
               </Link>
             </div>
 
