@@ -349,10 +349,12 @@ export function DynastyProvider({ children }) {
     let game
 
     if (existingGameIndex !== -1 && existingGameIndex !== undefined) {
-      // Update existing game
+      // Update existing game - ensure it has an ID (for legacy games that might not have one)
+      const existingGame = dynasty.games[existingGameIndex]
       game = {
-        ...dynasty.games[existingGameIndex],
+        ...existingGame,
         ...cleanGameData,
+        id: existingGame.id || Date.now().toString(), // Ensure ID exists
         updatedAt: new Date().toISOString()
       }
       updatedGames = [...dynasty.games]
@@ -456,6 +458,185 @@ export function DynastyProvider({ children }) {
     return game
   }
 
+  // Add or update CPU bowl games as proper game entries in the games[] array
+  // This ensures ALL games (user and CPU) are stored uniformly
+  const saveCPUBowlGames = async (dynastyId, bowlGames, year, week = 'week1') => {
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+    const existingGames = dynasty.games || []
+
+    // Filter out existing CPU bowl games for this year and week to avoid duplicates
+    const filteredGames = existingGames.filter(g => {
+      // Keep user games
+      if (!g.isCPUGame) return true
+      // Keep games from different years
+      if (Number(g.year) !== Number(year)) return true
+      // Keep games from different bowl weeks
+      if (g.bowlWeek !== week) return true
+      // Remove CPU bowl games from same year/week (will be replaced)
+      return false
+    })
+
+    // Create game entries for each bowl game
+    const newGames = bowlGames
+      .filter(bowl => {
+        // Only process games with valid data
+        if (!bowl.team1 || !bowl.team2) return false
+        if (bowl.team1Score === null || bowl.team1Score === undefined) return false
+        if (bowl.team2Score === null || bowl.team2Score === undefined) return false
+        // Skip user's bowl game (they enter it separately with full details)
+        if (bowl.team1 === userTeamAbbr || bowl.team2 === userTeamAbbr) return false
+        return true
+      })
+      .map(bowl => {
+        // Determine winner
+        const team1Score = parseInt(bowl.team1Score)
+        const team2Score = parseInt(bowl.team2Score)
+        const winner = team1Score > team2Score ? bowl.team1 : bowl.team2
+        const winnerIsTeam1 = winner === bowl.team1
+
+        return {
+          id: `bowl-${year}-${bowl.bowlName?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
+          isCPUGame: true,
+          isBowlGame: true,
+          bowlName: bowl.bowlName,
+          bowlWeek: week,
+          year: Number(year),
+          week: 'Bowl',
+          location: 'neutral',
+          // Store both teams' data
+          team1: bowl.team1,
+          team2: bowl.team2,
+          team1Score: team1Score,
+          team2Score: team2Score,
+          winner: winner,
+          // For display purposes (from winner's perspective)
+          viewingTeamAbbr: winner,
+          opponent: winnerIsTeam1 ? bowl.team2 : bowl.team1,
+          teamScore: winnerIsTeam1 ? team1Score : team2Score,
+          opponentScore: winnerIsTeam1 ? team2Score : team1Score,
+          result: 'win',
+          // Preserve any notes/links if they exist
+          gameNote: bowl.gameNote || '',
+          links: bowl.links || '',
+          createdAt: new Date().toISOString()
+        }
+      })
+
+    const updatedGames = [...filteredGames, ...newGames]
+
+    await updateDynasty(dynastyId, { games: updatedGames })
+
+    console.log(`Saved ${newGames.length} CPU bowl games to games[]`)
+    return newGames
+  }
+
+  // Add or update CPU conference championship games as proper game entries in the games[] array
+  // This ensures ALL games (user and CPU) are stored uniformly
+  const saveCPUConferenceChampionships = async (dynastyId, championships, year) => {
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+    const existingGames = dynasty.games || []
+
+    // Filter out existing CPU conference championship games for this year to avoid duplicates
+    const filteredGames = existingGames.filter(g => {
+      // Keep user games
+      if (!g.isCPUGame) return true
+      // Keep games from different years
+      if (Number(g.year) !== Number(year)) return true
+      // Keep non-CC games
+      if (!g.isConferenceChampionship) return true
+      // Remove CPU CC games from same year (will be replaced)
+      return false
+    })
+
+    // Create game entries for each conference championship game
+    const newGames = championships
+      .filter(cc => {
+        // Only process games with valid data
+        if (!cc.team1 || !cc.team2) return false
+        if (cc.team1Score === null || cc.team1Score === undefined) return false
+        if (cc.team2Score === null || cc.team2Score === undefined) return false
+        // Skip user's CC game (they enter it separately with full details)
+        if (cc.team1 === userTeamAbbr || cc.team2 === userTeamAbbr) return false
+        return true
+      })
+      .map(cc => {
+        // Determine winner
+        const team1Score = parseInt(cc.team1Score)
+        const team2Score = parseInt(cc.team2Score)
+        const winner = team1Score > team2Score ? cc.team1 : cc.team2
+        const winnerIsTeam1 = winner === cc.team1
+
+        return {
+          id: `cc-${year}-${cc.conference?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
+          isCPUGame: true,
+          isConferenceChampionship: true,
+          conference: cc.conference,
+          year: Number(year),
+          week: 'CCG',
+          location: 'neutral',
+          // Store both teams' data
+          team1: cc.team1,
+          team2: cc.team2,
+          team1Score: team1Score,
+          team2Score: team2Score,
+          winner: winner,
+          // For display purposes (from winner's perspective)
+          viewingTeamAbbr: winner,
+          opponent: winnerIsTeam1 ? cc.team2 : cc.team1,
+          teamScore: winnerIsTeam1 ? team1Score : team2Score,
+          opponentScore: winnerIsTeam1 ? team2Score : team1Score,
+          result: 'win',
+          // Preserve any notes/links if they exist
+          gameNote: cc.gameNote || '',
+          links: cc.links || '',
+          createdAt: new Date().toISOString()
+        }
+      })
+
+    const updatedGames = [...filteredGames, ...newGames]
+
+    await updateDynasty(dynastyId, { games: updatedGames })
+
+    console.log(`Saved ${newGames.length} CPU conference championship games to games[]`)
+    return newGames
+  }
+
   const advanceWeek = async (dynastyId) => {
     const dynasty = dynasties.find(d => d.id === dynastyId)
     if (!dynasty) return
@@ -517,7 +698,8 @@ export function DynastyProvider({ children }) {
         // Reset coachingStaffEntered so user must re-enter in next preseason
         additionalUpdates['preseasonSetup.coachingStaffEntered'] = false
       }
-    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 4) {
+    } else if (dynasty.currentPhase === 'postseason' && nextWeek > 5) {
+      // After Week 5 (End of Season Recap), move to offseason
       nextPhase = 'offseason'
       nextWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && nextWeek > 4) {
@@ -573,9 +755,9 @@ export function DynastyProvider({ children }) {
       prevPhase = 'conference_championship'
       prevWeek = 1
     } else if (dynasty.currentPhase === 'offseason' && prevWeek < 1) {
-      // Go back to postseason week 4 (National Championship)
+      // Go back to postseason week 5 (End of Season Recap)
       prevPhase = 'postseason'
-      prevWeek = 4
+      prevWeek = 5
     } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
       // Go back to previous year's offseason
       prevPhase = 'offseason'
@@ -585,21 +767,22 @@ export function DynastyProvider({ children }) {
 
     // Remove game data from the week we're reverting from
     let updatedGames = [...(dynasty.games || [])]
+    const year = dynasty.currentYear
 
     if (dynasty.currentPhase === 'regular_season') {
       // Remove regular season game for current week
       updatedGames = updatedGames.filter(g =>
-        !(g.week === dynasty.currentWeek && g.year === dynasty.currentYear && !g.isConferenceChampionship)
+        !(g.week === dynasty.currentWeek && g.year === year && !g.isConferenceChampionship)
       )
     } else if (dynasty.currentPhase === 'conference_championship') {
-      // Remove CC game and CC data
+      // Remove CC game from games array
       updatedGames = updatedGames.filter(g =>
-        !(g.isConferenceChampionship && g.year === dynasty.currentYear)
+        !(g.isConferenceChampionship && g.year === year)
       )
 
       // Restore fired coordinators if any were fired during this CC phase
       const ccData = dynasty.conferenceChampionshipData
-      if (ccData && ccData.year === dynasty.currentYear) {
+      if (ccData && ccData.year === year) {
         // Restore coordinator names that were fired
         if (ccData.firedOCName || ccData.firedDCName) {
           const restoredStaff = { ...dynasty.coachingStaff }
@@ -615,77 +798,147 @@ export function DynastyProvider({ children }) {
         }
       }
 
+      // Clear all CC data
       additionalUpdates.conferenceChampionshipData = null
+      // Clear CC sheet ID
+      additionalUpdates.conferenceChampionshipSheetId = null
     } else if (dynasty.currentPhase === 'postseason') {
-      // Remove postseason game for current week
-      updatedGames = updatedGames.filter(g =>
-        !(g.week === dynasty.currentWeek && g.year === dynasty.currentYear && g.isPostseason)
-      )
+      // Postseason has 4 weeks:
+      // Week 1: Bowl Week 1 + CFP First Round (seeds 5-12)
+      // Week 2: Bowl Week 2 + CFP Quarterfinals (seeds 1-4 enter)
+      // Week 3: Bowl Week 3 + CFP Semifinals
+      // Week 4: National Championship
 
-      // Also remove bowl games for the current week
-      updatedGames = updatedGames.filter(g =>
-        !(g.isBowlGame && g.year === dynasty.currentYear && g.bowlWeek === dynasty.currentWeek)
-      )
+      const existingBowlGames = dynasty.bowlGamesByYear || {}
+      const yearBowlGames = existingBowlGames[year] || {}
+      const existingCFPResults = dynasty.cfpResultsByYear || {}
+      const yearCFPResults = existingCFPResults[year] || {}
 
-      // If reverting to CC phase (from Bowl Week 1), clear all Bowl Week 1 data
-      if (prevPhase === 'conference_championship') {
+      if (dynasty.currentWeek === 1) {
+        // Reverting FROM Week 1 TO Conference Championship phase
+        // Clear ALL Bowl Week 1 data
+
+        // Remove user's CFP First Round game and bowl game from games array
+        updatedGames = updatedGames.filter(g =>
+          !(g.isCFPFirstRound && g.year === year) &&
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 1)
+        )
+
+        // Clear conference championships data
         additionalUpdates.conferenceChampionships = null
+        const existingCCByYear = dynasty.conferenceChampionshipsByYear || {}
+        additionalUpdates.conferenceChampionshipsByYear = { ...existingCCByYear, [year]: null }
+
         // Clear CFP Seeds for current year
         const existingCFPSeeds = dynasty.cfpSeedsByYear || {}
-        additionalUpdates.cfpSeedsByYear = { ...existingCFPSeeds, [dynasty.currentYear]: null }
+        additionalUpdates.cfpSeedsByYear = { ...existingCFPSeeds, [year]: null }
+
         // Clear bowl eligibility data
         additionalUpdates.bowlEligibilityData = null
+
         // Clear new job data
         additionalUpdates.newJobData = null
-      }
 
-      // If reverting within postseason (e.g., Week 2 to Week 1), clear data for the current week
-      if (dynasty.currentWeek === 2) {
         // Clear Bowl Week 1 results
-        const existingBowlGames = dynasty.bowlGamesByYear || {}
-        const yearBowlGames = existingBowlGames[dynasty.currentYear] || {}
         additionalUpdates.bowlGamesByYear = {
           ...existingBowlGames,
-          [dynasty.currentYear]: { ...yearBowlGames, week1: null }
+          [year]: { ...yearBowlGames, week1: null }
         }
+
         // Clear CFP First Round results
-        const existingCFPResults = dynasty.cfpResultsByYear || {}
-        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, firstRound: null }
+          [year]: { ...yearCFPResults, firstRound: null }
         }
-      } else if (dynasty.currentWeek === 3) {
-        // Clear Bowl Week 2 results and CFP Quarterfinals
-        const existingBowlGames = dynasty.bowlGamesByYear || {}
-        const yearBowlGames = existingBowlGames[dynasty.currentYear] || {}
+
+        // Clear all sheet IDs for this phase
+        additionalUpdates.bowlWeek1SheetId = null
+        additionalUpdates.cfpSeedsSheetId = null
+        additionalUpdates.cfpFirstRoundSheetId = null
+
+      } else if (dynasty.currentWeek === 2) {
+        // Reverting FROM Week 2 TO Week 1
+        // Clear Week 2 data (Bowl Week 2 + CFP Quarterfinals)
+
+        // Remove user's CFP Quarterfinal game and bowl game from games array
+        updatedGames = updatedGames.filter(g =>
+          !(g.isCFPQuarterfinal && g.year === year) &&
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 2)
+        )
+
+        // Clear Bowl Week 2 results
         additionalUpdates.bowlGamesByYear = {
           ...existingBowlGames,
-          [dynasty.currentYear]: { ...yearBowlGames, week2: null }
+          [year]: { ...yearBowlGames, week2: null }
         }
-        const existingCFPResults = dynasty.cfpResultsByYear || {}
-        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+
+        // Clear CFP Quarterfinal results
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, week3: null }
+          [year]: { ...yearCFPResults, quarterfinals: null }
         }
+
+        // Clear all sheet IDs for this phase
+        additionalUpdates.bowlWeek2SheetId = null
+        additionalUpdates.cfpQuarterfinalsSheetId = null
+
       } else if (dynasty.currentWeek === 3) {
-        // Clear CFP Semifinals
-        const existingCFPResults = dynasty.cfpResultsByYear || {}
-        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
-        additionalUpdates.cfpResultsByYear = {
-          ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, semifinals: null }
+        // Reverting FROM Week 3 TO Week 2
+        // Clear Week 3 data (Bowl Week 3 + CFP Semifinals)
+
+        // Remove user's CFP Semifinal game and bowl game from games array
+        updatedGames = updatedGames.filter(g =>
+          !(g.isCFPSemifinal && g.year === year) &&
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 3)
+        )
+
+        // Clear Bowl Week 3 results (if exists)
+        additionalUpdates.bowlGamesByYear = {
+          ...existingBowlGames,
+          [year]: { ...yearBowlGames, week3: null }
         }
-      } else if (dynasty.currentWeek === 4) {
-        // Clear National Championship
-        const existingCFPResults = dynasty.cfpResultsByYear || {}
-        const yearCFPResults = existingCFPResults[dynasty.currentYear] || {}
+
+        // Clear CFP Semifinal results
         additionalUpdates.cfpResultsByYear = {
           ...existingCFPResults,
-          [dynasty.currentYear]: { ...yearCFPResults, championship: null }
+          [year]: { ...yearCFPResults, semifinals: null }
+        }
+
+        // Clear all sheet IDs for this phase (if they exist)
+        additionalUpdates.bowlWeek3SheetId = null
+        additionalUpdates.cfpSemifinalsSheetId = null
+
+      } else if (dynasty.currentWeek === 4) {
+        // Reverting FROM Week 4 TO Week 3
+        // Clear Week 4 data (National Championship)
+
+        // Remove user's CFP Championship game from games array
+        updatedGames = updatedGames.filter(g =>
+          !(g.isCFPChampionship && g.year === year)
+        )
+
+        // Clear CFP Championship results
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearCFPResults, championship: null }
+        }
+
+        // Clear sheet ID (if exists)
+        additionalUpdates.cfpChampionshipSheetId = null
+      } else if (dynasty.currentWeek === 5) {
+        // Reverting FROM Week 5 TO Week 4
+        // Week 5 (End of Season Recap) - only clears championship data
+        // that was entered by users who weren't in the championship
+
+        // Clear CFP Championship results (if entered during recap week)
+        additionalUpdates.cfpResultsByYear = {
+          ...existingCFPResults,
+          [year]: { ...yearCFPResults, championship: null }
         }
       }
+    } else if (dynasty.currentPhase === 'offseason') {
+      // Reverting within offseason - generally no game data to clear
+      // But if reverting to postseason week 5, no additional clearing needed
     }
 
     await updateDynasty(dynastyId, {
@@ -1219,6 +1472,8 @@ export function DynastyProvider({ children }) {
     deleteDynasty,
     selectDynasty,
     addGame,
+    saveCPUBowlGames,
+    saveCPUConferenceChampionships,
     advanceWeek,
     revertWeek,
     saveSchedule,

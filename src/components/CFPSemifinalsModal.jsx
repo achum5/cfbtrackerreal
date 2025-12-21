@@ -72,10 +72,11 @@ const SEMIFINAL_GAMES = [
   }
 ]
 
-export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYear, teamColors, userTeamAbbr }) {
   const { currentDynasty } = useDynasty()
   const [games, setGames] = useState([])
   const [saving, setSaving] = useState(false)
+  const [userGameIndex, setUserGameIndex] = useState(-1) // Index of user's game (if any)
 
   // Get seed by team
   const getSeedByTeam = (team) => {
@@ -108,7 +109,10 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
       const qfResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
       const existingSemis = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
 
-      const initialGames = SEMIFINAL_GAMES.map(sf => {
+      // Find user's CFP Semifinal game from their games array
+      const userSFGame = currentDynasty?.games?.find(g => g.isCFPSemifinal && g.year === currentYear)
+
+      const initialGames = SEMIFINAL_GAMES.map((sf, index) => {
         // Check if we have existing semifinal data
         const existing = existingSemis.find(g => g.bowlName === sf.bowlName)
         if (existing) {
@@ -119,11 +123,33 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         const qf1 = qfResults.find(g => g.bowlName === sf.qfBowl1)
         const qf2 = qfResults.find(g => g.bowlName === sf.qfBowl2)
 
+        const team1 = qf1?.winner || ''
+        const team2 = qf2?.winner || ''
+
+        // Check if user's team is in this game and they have entered their game
+        const userInThisGame = userTeamAbbr && (team1 === userTeamAbbr || team2 === userTeamAbbr)
+        if (userInThisGame && userSFGame) {
+          // Pre-fill from user's game entry
+          // User's score goes to their team's position
+          const userIsTeam1 = team1 === userTeamAbbr
+          return {
+            id: sf.id,
+            bowlName: sf.bowlName,
+            team1,
+            team2,
+            team1Score: userIsTeam1 ? userSFGame.teamScore : userSFGame.opponentScore,
+            team2Score: userIsTeam1 ? userSFGame.opponentScore : userSFGame.teamScore,
+            qfBowl1: sf.qfBowl1,
+            qfBowl2: sf.qfBowl2,
+            userGame: true // Flag to indicate this is user's game
+          }
+        }
+
         return {
           id: sf.id,
           bowlName: sf.bowlName,
-          team1: qf1?.winner || '',
-          team2: qf2?.winner || '',
+          team1,
+          team2,
           team1Score: '',
           team2Score: '',
           qfBowl1: sf.qfBowl1,
@@ -131,9 +157,13 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         }
       })
 
+      // Track which game index is the user's
+      const userIdx = initialGames.findIndex(g => g.userGame)
+      setUserGameIndex(userIdx)
+
       setGames(initialGames)
     }
-  }, [isOpen, currentYear, currentDynasty])
+  }, [isOpen, currentYear, currentDynasty, userTeamAbbr])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -207,7 +237,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         <div
           className="sticky top-0 z-10 px-6 py-5 rounded-t-xl"
           style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+            background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)'
           }}
         >
           <div className="flex items-center justify-between">
@@ -257,7 +287,9 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                 <div
                   className="px-5 py-4 flex items-center gap-4"
                   style={{
-                    background: 'linear-gradient(90deg, rgba(102,126,234,0.2) 0%, rgba(118,75,162,0.2) 100%)',
+                    background: game.userGame
+                      ? 'linear-gradient(90deg, rgba(34,197,94,0.2) 0%, rgba(22,163,74,0.2) 100%)'
+                      : 'linear-gradient(90deg, rgba(30,58,95,0.3) 0%, rgba(15,39,68,0.3) 100%)',
                     borderBottom: '1px solid rgba(255,255,255,0.1)'
                   }}
                 >
@@ -270,9 +302,17 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                       />
                     </div>
                   )}
-                  <h3 className="text-lg font-bold text-white">
+                  <h3 className="text-lg font-bold text-white flex-1">
                     {game.bowlName}
                   </h3>
+                  {game.userGame && (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500 text-white flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      YOUR GAME
+                    </span>
+                  )}
                 </div>
 
                 {/* Teams */}
@@ -302,7 +342,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                               #{team1Info.seed} Seed
                             </div>
                             <div className="text-lg font-bold truncate" style={{ color: team1Info.textColor }}>
-                              {team1Info.fullMascot?.split(' ').slice(-2).join(' ') || team1Info.abbr}
+                              {team1Info.name}
                             </div>
                           </div>
                         </div>
@@ -321,14 +361,16 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                         min="0"
                         value={game.team1Score}
                         onChange={(e) => handleScoreChange(index, 'team1Score', e.target.value)}
-                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
                         style={{
                           backgroundColor: team1Info?.backgroundColor || '#374151',
                           color: team1Info?.textColor || '#fff',
-                          borderColor: 'rgba(255,255,255,0.2)'
+                          borderColor: game.userGame ? 'rgba(34,197,94,0.6)' : 'rgba(255,255,255,0.2)',
+                          opacity: game.userGame ? 0.9 : 1
                         }}
                         placeholder="0"
-                        disabled={!game.team1}
+                        disabled={!game.team1 || game.userGame}
+                        readOnly={game.userGame}
                       />
                       <div className="text-white/40 text-xl font-bold px-2">-</div>
                       <input
@@ -336,14 +378,16 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                         min="0"
                         value={game.team2Score}
                         onChange={(e) => handleScoreChange(index, 'team2Score', e.target.value)}
-                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
                         style={{
                           backgroundColor: team2Info?.backgroundColor || '#374151',
                           color: team2Info?.textColor || '#fff',
-                          borderColor: 'rgba(255,255,255,0.2)'
+                          borderColor: game.userGame ? 'rgba(34,197,94,0.6)' : 'rgba(255,255,255,0.2)',
+                          opacity: game.userGame ? 0.9 : 1
                         }}
                         placeholder="0"
-                        disabled={!game.team2}
+                        disabled={!game.team2 || game.userGame}
+                        readOnly={game.userGame}
                       />
                     </div>
 
@@ -371,7 +415,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                               #{team2Info.seed} Seed
                             </div>
                             <div className="text-lg font-bold truncate" style={{ color: team2Info.textColor }}>
-                              {team2Info.fullMascot?.split(' ').slice(-2).join(' ') || team2Info.abbr}
+                              {team2Info.name}
                             </div>
                           </div>
                         </div>
@@ -397,8 +441,8 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
               disabled={saving || games.some(g => !g.team1 || !g.team2)}
               className="flex-1 px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
               style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
+                background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)',
+                boxShadow: '0 4px 15px rgba(30,58,95,0.4)'
               }}
             >
               {saving ? 'Saving...' : 'Save Results'}

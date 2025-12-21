@@ -55,21 +55,50 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   // Get user team ratings
   const userRatings = currentDynasty?.teamRatings || {}
 
-  // Calculate user's record up to this game
+  // Calculate user's record up to and including this game
   const calculateUserRecord = () => {
-    const games = currentDynasty?.games || []
-    // Get all games in this year up to and including this game's week
-    const gamesUpToThisWeek = games.filter(g =>
-      g.year === game.year && g.week <= game.week
-    )
+    const allGames = currentDynasty?.games || []
+    // Filter to same year only
+    const yearGames = allGames.filter(g => Number(g.year) === Number(game.year))
 
-    const wins = gamesUpToThisWeek.filter(g => g.result === 'win').length
-    const losses = gamesUpToThisWeek.filter(g => g.result === 'loss').length
+    // Helper to get game order for sorting
+    const getGameOrder = (g) => {
+      // Regular season games (weeks 1-14)
+      if (typeof g.week === 'number' && g.week >= 1 && g.week <= 14 &&
+          !g.isConferenceChampionship && !g.isBowlGame &&
+          !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship) {
+        return g.week
+      }
+      // Conference Championship
+      if (g.isConferenceChampionship) return 15
+      // Bowl games (non-CFP)
+      if (g.isBowlGame && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship) {
+        return 16 + (g.bowlWeek || 0)
+      }
+      // CFP First Round
+      if (g.isCFPFirstRound) return 20
+      // CFP Quarterfinal
+      if (g.isCFPQuarterfinal) return 21
+      // CFP Semifinal
+      if (g.isCFPSemifinal) return 22
+      // CFP Championship
+      if (g.isCFPChampionship) return 23
+      // Default - treat as regular season
+      return g.week || 0
+    }
 
-    // Conference record - always calculate, even if 0-0
-    const confGames = gamesUpToThisWeek.filter(g => g.isConferenceGame)
-    const confWins = confGames.filter(g => g.result === 'win').length
-    const confLosses = confGames.filter(g => g.result === 'loss').length
+    const currentGameOrder = getGameOrder(game)
+
+    // Get all games up to and including this game
+    const gamesUpToThis = yearGames.filter(g => getGameOrder(g) <= currentGameOrder)
+
+    const wins = gamesUpToThis.filter(g => g.result === 'win' || g.result === 'W').length
+    const losses = gamesUpToThis.filter(g => g.result === 'loss' || g.result === 'L').length
+
+    // Conference record - only regular season conference games
+    const confGames = gamesUpToThis.filter(g => g.isConferenceGame && !g.isConferenceChampionship)
+    const confWins = confGames.filter(g => g.result === 'win' || g.result === 'W').length
+    const confLosses = confGames.filter(g => g.result === 'loss' || g.result === 'L').length
 
     return {
       overall: `${wins}-${losses}`,

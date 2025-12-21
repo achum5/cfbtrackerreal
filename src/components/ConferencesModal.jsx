@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import AuthErrorModal from './AuthErrorModal'
+import SheetToolbar from './SheetToolbar'
 import {
   createConferencesSheet,
   readConferencesFromSheet,
@@ -25,6 +27,9 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0) // Used to trigger sheet creation retry
   const [isMobile, setIsMobile] = useState(false)
+  const [showAuthError, setShowAuthError] = useState(false)
+  const [useEmbedded, setUseEmbedded] = useState(false) // Default to "Open in New Tab" mode
+  const [highlightSave, setHighlightSave] = useState(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -46,6 +51,31 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
+
+  // Highlight save button when user returns to the window
+  useEffect(() => {
+    if (!isOpen || !sheetId || useEmbedded) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setHighlightSave(true)
+        setTimeout(() => setHighlightSave(false), 5000)
+      }
+    }
+
+    const handleFocus = () => {
+      setHighlightSave(true)
+      setTimeout(() => setHighlightSave(false), 5000)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [isOpen, sheetId, useEmbedded])
 
   // Create Conferences sheet when modal opens
   useEffect(() => {
@@ -204,36 +234,61 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
           </div>
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3">
-              <div className="flex gap-3 flex-wrap">
+            {/* Action Buttons - only show at top for embedded view */}
+            {!isMobile && useEmbedded && (
+              <div className="mb-3">
+                <div className="flex gap-3 flex-wrap items-center">
+                  <button
+                    onClick={handleSyncAndDelete}
+                    disabled={syncing || deletingSheet}
+                    className={`px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`}
+                    style={{
+                      backgroundColor: teamColors.primary,
+                      color: teamColors.secondary
+                    }}
+                  >
+                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                  </button>
+                  <button
+                    onClick={handleSyncFromSheet}
+                    disabled={syncing || deletingSheet}
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: teamColors.primary,
+                      color: teamColors.primary
+                    }}
+                  >
+                    {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  </button>
+                  {highlightSave && (
+                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
+
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Toggle between embedded and new tab */}
+            {!isMobile && (
+              <div className="flex items-center justify-end mb-2">
                 <button
-                  onClick={handleSyncAndDelete}
-                  disabled={syncing || deletingSheet}
-                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                  onClick={() => setUseEmbedded(!useEmbedded)}
+                  className="text-xs px-3 py-1 rounded-full border transition-colors"
                   style={{
-                    backgroundColor: teamColors.primary,
-                    color: teamColors.secondary
-                  }}
-                >
-                  {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
-                </button>
-                <button
-                  onClick={handleSyncFromSheet}
-                  disabled={syncing || deletingSheet}
-                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
-                  style={{
-                    backgroundColor: 'transparent',
                     borderColor: teamColors.primary,
-                    color: teamColors.primary
+                    color: teamColors.primary,
+                    backgroundColor: 'transparent'
                   }}
                 >
-                  {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  {useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}
                 </button>
               </div>
-            </div>
+            )}
 
             {/* Mobile View - Open in Google Sheets button */}
-            {isMobile ? (
+            {isMobile || !useEmbedded ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div
                   className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
@@ -268,7 +323,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
                     </li>
                     <li className="flex gap-2">
                       <span className="font-bold">4.</span>
-                      <span>Tap "Save" to sync your conferences</span>
+                      <span>Tap "Save" below to sync your conferences</span>
                     </li>
                   </ol>
                 </div>
@@ -277,7 +332,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
                   href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4"
+                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6"
                   style={{
                     backgroundColor: '#0F9D58',
                     color: '#FFFFFF'
@@ -290,20 +345,53 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
                   Open Google Sheets
                 </a>
 
+                {/* Centered Save Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 items-center justify-center mb-4">
+                  <button
+                    onClick={handleSyncAndDelete}
+                    disabled={syncing || deletingSheet}
+                    className={`px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`}
+                    style={{
+                      backgroundColor: teamColors.primary,
+                      color: teamColors.secondary
+                    }}
+                  >
+                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                  </button>
+                  <button
+                    onClick={handleSyncFromSheet}
+                    disabled={syncing || deletingSheet}
+                    className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: teamColors.primary,
+                      color: teamColors.primary
+                    }}
+                  >
+                    {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  </button>
+                </div>
+                {highlightSave && (
+                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
+
+                  </span>
+                )}
+
                 <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
                   <p className="font-semibold mb-1">Info:</p>
                   <p className="opacity-80">Pre-filled with EA CFB 26 default alignment. Use team abbreviations (e.g., BAMA, OSU, UGA).</p>
                 </div>
               </div>
             ) : (
-              /* Desktop View - Embedded iframe */
+              /* Desktop View - Embedded iframe with toolbar */
               <>
-                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-                  <iframe
-                    src={embedUrl}
-                    className="w-full h-full"
-                    frameBorder="0"
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <SheetToolbar
+                    sheetId={sheetId}
+                    embedUrl={embedUrl}
+                    teamColors={teamColors}
                     title="Conference Alignment Google Sheet"
+                    onSessionError={() => setShowAuthError(true)}
                   />
                 </div>
 
@@ -362,6 +450,13 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
           </div>
         )}
       </div>
+
+      {/* Auth Error Modal */}
+      <AuthErrorModal
+        isOpen={showAuthError}
+        onClose={() => setShowAuthError(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

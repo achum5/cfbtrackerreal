@@ -67,6 +67,17 @@ export default function DropdownSelect({
     setIsOpen(true)
   }
 
+  const handleInputBlur = (e) => {
+    // Use a small timeout to allow click events on options to fire first
+    setTimeout(() => {
+      // Check if the new focused element is within the dropdown
+      if (dropdownRef.current && !dropdownRef.current.contains(document.activeElement)) {
+        setIsOpen(false)
+        setSearchTerm('')
+      }
+    }, 150)
+  }
+
   const handleKeyDown = (e) => {
     if (!isOpen) {
       if (e.key === 'Enter' || e.key === 'ArrowDown') {
@@ -133,6 +144,7 @@ export default function DropdownSelect({
           value={getDisplayValue()}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors"

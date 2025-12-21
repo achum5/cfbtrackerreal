@@ -6,35 +6,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Unified modal system and postseason structure:
+**Last Session (December 2024)**: Dedicated game pages replace all modals:
 
-1. **Postseason Reduced to 4 Weeks**:
+1. **Game Pages Replace Modals**:
+   - All games now link to dedicated game pages at `/dynasty/:id/game/:gameId`
+   - `GameDetailModal` is NO LONGER USED anywhere in the app
+   - Sports broadcast-style UI with gradient headers, dark scoreboard, team logos
+   - Supports all game types: regular season, conference championships, bowl games, CFP games
+   - Edit button on game page opens `GameEntryModal` for modifications
+
+2. **Game ID Patterns** (for fallback lookups in Game.jsx):
+   - Direct ID: Games in `games[]` array have unique IDs
+   - `cc-{year}` or `cc-{year}-{conference-slug}`: Conference championships
+   - `bowl-{year}-{bowl-slug}`: Bowl games (e.g., `bowl-2025-rose-bowl`)
+   - `cfp-{year}-{round}`: CFP games (e.g., `cfp-2025-sugar-bowl`, `cfp-2025-national-championship`)
+
+3. **Pages Updated to Use Game Links**:
+   - Dashboard.jsx - Schedule games link to game pages
+   - TeamYear.jsx - All game cards link to game pages
+   - ConferenceChampionshipHistory.jsx - CC games link to game pages
+   - CFPBracket.jsx - All bracket matchups link to game pages
+   - BowlHistory.jsx - All bowl results link to game pages
+   - CoachCareer.jsx - Favorite/underdog games link to game pages
+   - Player.jsx - Player of the Week games link to game pages
+
+4. **Postseason Structure (4 Weeks)**:
    - Bowl Week 1: Bowl games + CFP First Round (4 games)
    - Bowl Week 2: Bowl games + CFP Quarterfinals (user's QF game only if in CFP)
    - Bowl Week 3: Bowl games + CFP Semifinals (user's SF game only if in CFP)
-   - Bowl Week 4: National Championship (enter all remaining CFP results)
-   - "Taking a New Job?" question only appears in Bowl Weeks 1-3 (not in Championship week)
+   - Bowl Week 4: National Championship (all remaining CFP results)
 
-2. **Unified Modal System for All Games**:
-   - All CFP games (user and CPU vs CPU) use the same `GameDetailModal` for recaps
-   - All games use the same `GameEntryModal` for editing/entering scores
-   - `GameEntryModal` now supports CPU vs CPU games via `team1` and `team2` props
-   - For CPU games: hides user-specific sections (Opponent Ratings, Opponent Record, Player of the Week)
-   - CPU game saves go to `cfpResultsByYear` instead of `games` array
-
-3. **CFP Display Logic Fixed**:
-   - Bowl Week 3: Only shows user's SF game if they're in it (no "CFP Semifinals - 2 games" task)
-   - Bowl Week 4: Shows separate tasks for SF results (CPU games) and Championship
-   - User doesn't see CPU vs CPU game results until they advance to that week
-
-4. **KNOWN BUG - CFP Bracket Advancement**:
+5. **KNOWN BUG - CFP Bracket Advancement**:
    - The bracket does NOT correctly advance teams after phase/week changes
    - Winners from earlier rounds don't properly populate later rounds
    - This needs investigation and fixing
 
 **TODO / Future Work**:
 - **FIX**: CFP Bracket team advancement after phase changes
-- Bowl History page showing all bowl game results
 - Team stats still need implementation for:
   - AP Top 25 Finishes, CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans
@@ -213,7 +221,8 @@ if (isDev || !user) {
     - `/dynasty/:id/team/:teamAbbr` - Individual team history
     - `/dynasty/:id/team/:teamAbbr/:year` - Team year details
     - `/dynasty/:id/cfp-bracket` - College Football Playoff bracket
-    - `/dynasty/:id/bowl-history` - Bowl game history (placeholder)
+    - `/dynasty/:id/bowl-history` - Bowl game history
+    - `/dynasty/:id/game/:gameId` - Individual game detail page
 
 `ProtectedRoute` component in `App.jsx` checks dev mode first, then user authentication.
 
@@ -522,20 +531,42 @@ dynasty.teamHistories = {
 3. User's CFP games entered via `GameEntryModal` → saved to both `games` array and `cfpResultsByYear`
 4. CPU vs CPU games entered via `GameEntryModal` → saved to `cfpResultsByYear` only
 
-**Unified Modal System**:
-- All games (user and CPU) use `GameDetailModal` for viewing recaps
-- All games use `GameEntryModal` for editing/entering scores
-- Edit button appears for ALL games (user and CPU vs CPU)
-- `GameEntryModal` accepts `team1` and `team2` props for CPU games
-- CPU game saves handled by `handleGameSave` in CFPBracket, which updates `cfpResultsByYear`
-
 **Click Interactions**:
-- Click any matchup to see `GameDetailModal`
-- Played games show: both teams, logos, seeds, scores, winner badge
-- Unplayed games show: scheduled game preview with "Game not yet played"
-- Edit button opens `GameEntryModal` for all game types
+- Click any played matchup to navigate to game page (`/dynasty/:id/game/:gameId`)
+- Game pages show full game details with sports broadcast-style UI
+- Edit button on game page opens `GameEntryModal` for modifications
+- Unplayed matchups are not clickable
 
 **KNOWN ISSUE**: Bracket advancement is broken - winners don't properly populate later rounds after phase changes. This needs fixing.
+
+### Game Page (`src/pages/dynasty/Game.jsx`)
+
+- Route: `/dynasty/:id/game/:gameId`
+- Dedicated page for viewing individual game details
+- Sports broadcast-style UI design
+
+**Visual Design**:
+- Gradient header bar using both teams' colors
+- Dark scoreboard section (gray-900 to gray-800 gradient)
+- Team logos in colored circular containers with hover effects
+- Large score display with winner highlighted in white, loser grayed out
+- "WIN" badge (green pill) under winning team's score
+- Ranking badges (yellow circles) for ranked teams
+
+**Sections**:
+- Scoreboard with teams, logos, scores, rankings
+- Scoring Summary table (if quarters data exists)
+- Team Ratings cards (OVR, OFF, DEF for both teams)
+- Player of the Week cards (Conference and National POW)
+- Game Notes section
+- Media Links section
+
+**Game Lookup** (in `findGame` function):
+- First tries direct ID match in `games[]` array
+- Fallback patterns for special game types:
+  - `cc-{year}` or `cc-{year}-{slug}`: Conference championships from `conferenceChampionshipsByYear`
+  - `bowl-{year}-{slug}`: Bowl games from `games[]` or `bowlGamesByYear`
+  - `cfp-{year}-{slug}`: CFP games from `cfpResultsByYear` (quarterfinals, semifinals, championship)
 
 ### Bowl Week Modals
 

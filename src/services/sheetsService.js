@@ -21,6 +21,33 @@ async function getAccessToken() {
   throw new Error('OAuth access token not found or expired. Try refreshing your session or sign out and sign back in.')
 }
 
+// Share a Google Sheet with "anyone with the link can edit"
+// This is required for embedding sheets in iframes since iframes can't share auth cookies
+async function shareSheetPublicly(spreadsheetId, accessToken) {
+  try {
+    const response = await fetch(`${DRIVE_API_BASE}/${spreadsheetId}/permissions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        role: 'writer',
+        type: 'anyone'
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Failed to share sheet:', error)
+      // Don't throw - sheet still works, just won't embed properly
+    }
+  } catch (error) {
+    console.error('Error sharing sheet:', error)
+    // Don't throw - sheet still works, just won't embed properly
+  }
+}
+
 // Create a new Google Sheet for a dynasty
 export async function createDynastySheet(dynastyName, coachName, year) {
   try {
@@ -80,6 +107,9 @@ export async function createDynastySheet(dynastyName, coachName, year) {
 
     // Initialize headers with actual sheet IDs and user's team name
     await initializeSheetHeaders(sheet.spreadsheetId, accessToken, scheduleSheetId, rosterSheetId, dynastyName)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -768,6 +798,9 @@ export async function createScheduleSheet(dynastyName, year, userTeamName) {
     // Initialize schedule headers
     await initializeScheduleSheetOnly(sheet.spreadsheetId, accessToken, scheduleSheetId, userTeamName)
 
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -823,6 +856,9 @@ export async function createRosterSheet(dynastyName, year) {
 
     // Initialize roster headers
     await initializeRosterSheetOnly(sheet.spreadsheetId, accessToken, rosterSheetId)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -1533,16 +1569,18 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
 }
 
 // Get embed URL for a sheet
+// Using usp=sharing to tell Google to treat this as a shared link access
+// The sheet is shared publicly ("anyone with link can edit")
 export function getSheetEmbedUrl(spreadsheetId, sheetName) {
   // Get the sheet GID (0 for Schedule, 1 for Roster in combined sheet)
   // For single-tab sheets, always use 0
   const gid = sheetName === 'Roster' ? 1 : 0
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${gid}&rm=minimal`
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=${gid}`
 }
 
 // Get embed URL for a single-tab sheet (always gid=0)
 export function getSingleSheetEmbedUrl(spreadsheetId) {
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=0&rm=minimal`
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=0`
 }
 
 // Read schedule data from sheet
@@ -1913,6 +1951,9 @@ export async function createConferenceChampionshipSheet(dynastyName, year, exclu
 
     // Initialize headers and data
     await initializeConferenceChampionshipSheet(sheet.spreadsheetId, accessToken, ccSheetId, conferences)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -2356,6 +2397,9 @@ export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], exc
     // Initialize headers and data (pass cfpSeeds to pre-fill CFP First Round teams)
     await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds)
 
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -2783,6 +2827,9 @@ export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], fir
     // Initialize headers and data with CFP teams pre-filled
     await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds, firstRoundResults)
 
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -3113,6 +3160,9 @@ export async function createCFPSeedsSheet(dynastyName, year) {
     // Initialize headers and data
     await initializeCFPSeedsSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
 
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -3370,6 +3420,9 @@ export async function createCFPFirstRoundSheet(dynastyName, year) {
 
     // Initialize headers and data
     await initializeCFPFirstRoundSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
     return {
       spreadsheetId: sheet.spreadsheetId,
@@ -3647,6 +3700,9 @@ export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, f
     // Initialize sheet with headers and auto-filled teams
     await initializeCFPQuarterfinalsSheet(sheet.spreadsheetId, accessToken, cfpSheetId, cfpSeeds, firstRoundResults)
 
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -3920,6 +3976,9 @@ export async function createConferencesSheet(dynastyName, year) {
 
     // Initialize headers and data
     await initializeConferencesSheet(sheet.spreadsheetId, accessToken, conferencesSheetId, sortedConferences, maxTeams)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
     return {
       spreadsheetId: sheet.spreadsheetId,

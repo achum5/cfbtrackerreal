@@ -51,7 +51,7 @@ export const teamAbbreviations = {
   "KU": { name: "University of Kansas", backgroundColor: "#0051BA", textColor: "#FFFFFF" },
   "LIB": { name: "Liberty University", backgroundColor: "#002D62", textColor: "#FFFFFF" },
   "LOU": { name: "University of Louisville", backgroundColor: "#AD0000", textColor: "#FFFFFF" },
-  "LSU": { name: "Louisiana State University", backgroundColor: "#582c83", textColor: "#ffc72c" },
+  "LSU": { name: "LSU", backgroundColor: "#582c83", textColor: "#ffc72c" },
   "LT": { name: "Louisiana Tech", backgroundColor: "#003087", textColor: "#CB333B" },
   "M-OH": { name: "University of Miami (OH)", backgroundColor: "#B61E2E", textColor: "#FFFFFF" },
   "MASS": { name: "Massachusetts", backgroundColor: "#881c1c", textColor: "#FFFFFF" },

@@ -70,7 +70,7 @@ function getWeekPhaseDisplay(dynasty) {
     return phase
   }
   if (dynasty.currentPhase === 'postseason') {
-    return dynasty.currentWeek === 5 ? 'National Championship' : `Bowl Week ${dynasty.currentWeek}`
+    return dynasty.currentWeek === 4 ? 'National Championship' : `Bowl Week ${dynasty.currentWeek}`
   }
   return `Week ${dynasty.currentWeek} • ${phase}`
 }
@@ -88,8 +88,14 @@ export default function Home() {
   const [showFinalConfirm, setShowFinalConfirm] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [importing, setImporting] = useState(false)
+  const [showDeleteAllConfirm1, setShowDeleteAllConfirm1] = useState(false)
+  const [showDeleteAllConfirm2, setShowDeleteAllConfirm2] = useState(false)
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('')
+  const [deletingAll, setDeletingAll] = useState(false)
   const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
+  const nonStarredDynasties = dynasties.filter(d => !d.favorite)
+  const hasNonStarred = nonStarredDynasties.length > 0
 
   const handleDeleteClick = (e, dynasty) => {
     e.preventDefault()
@@ -159,6 +165,43 @@ export default function Home() {
     }
   }
 
+  // Delete All Non-Starred handlers
+  const handleDeleteAllClick = () => {
+    if (hasNonStarred) {
+      setShowDeleteAllConfirm1(true)
+    }
+  }
+
+  const handleDeleteAllConfirm1 = () => {
+    setShowDeleteAllConfirm1(false)
+    setShowDeleteAllConfirm2(true)
+  }
+
+  const handleDeleteAllConfirm2 = async () => {
+    if (deleteAllConfirmText !== 'DELETE ALL') return
+
+    setDeletingAll(true)
+    try {
+      // Delete all non-starred dynasties
+      for (const dynasty of nonStarredDynasties) {
+        await deleteDynasty(dynasty.id)
+      }
+    } catch (error) {
+      console.error('Error deleting dynasties:', error)
+      alert('Failed to delete some dynasties. Please try again.')
+    } finally {
+      setDeletingAll(false)
+      setShowDeleteAllConfirm2(false)
+      setDeleteAllConfirmText('')
+    }
+  }
+
+  const handleCancelDeleteAll = () => {
+    setShowDeleteAllConfirm1(false)
+    setShowDeleteAllConfirm2(false)
+    setDeleteAllConfirmText('')
+  }
+
   // Show loading state while dynasties are being fetched
   if (loading) {
     return (
@@ -222,6 +265,18 @@ export default function Home() {
                 </svg>
                 {importing ? 'Importing...' : 'Import'}
               </button>
+              {hasNonStarred && (
+                <button
+                  onClick={handleDeleteAllClick}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-red-700 flex items-center gap-2"
+                  title={`Delete ${nonStarredDynasties.length} non-starred dynasties`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete All
+                </button>
+              )}
             </div>
           </div>
           <input
@@ -408,6 +463,116 @@ export default function Home() {
               <button
                 onClick={handleCancelFinalConfirm}
                 className="flex-1 px-4 py-2 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All - First Confirmation */}
+      {showDeleteAllConfirm1 && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={handleCancelDeleteAll}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Delete All Non-Starred Dynasties?
+              </h2>
+            </div>
+            <p className="text-gray-700 mb-4">
+              You are about to delete <strong className="text-red-600">{nonStarredDynasties.length} {nonStarredDynasties.length === 1 ? 'dynasty' : 'dynasties'}</strong> that are not starred.
+            </p>
+            <div className="bg-gray-100 rounded-lg p-3 mb-4 max-h-32 overflow-y-auto">
+              <p className="text-sm font-medium text-gray-600 mb-2">Dynasties to be deleted:</p>
+              <ul className="text-sm text-gray-800 space-y-1">
+                {nonStarredDynasties.map(d => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                    {d.teamName}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Starred dynasties will not be affected.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteAllConfirm1}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors"
+              >
+                Continue
+              </button>
+              <button
+                onClick={handleCancelDeleteAll}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All - Second/Final Confirmation */}
+      {showDeleteAllConfirm2 && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={handleCancelDeleteAll}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-red-600">
+                Final Confirmation
+              </h2>
+            </div>
+            <p className="text-gray-700 mb-4">
+              This action <strong>cannot be undone</strong>. All {nonStarredDynasties.length} non-starred {nonStarredDynasties.length === 1 ? 'dynasty' : 'dynasties'} will be permanently deleted.
+            </p>
+            <p className="text-gray-700 mb-2">
+              To confirm, type <strong className="font-mono bg-gray-100 px-2 py-0.5 rounded">DELETE ALL</strong> below:
+            </p>
+            <input
+              type="text"
+              value={deleteAllConfirmText}
+              onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+              placeholder="Type DELETE ALL here..."
+              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg mb-4 focus:border-red-500 focus:outline-none font-mono"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteAllConfirm2}
+                disabled={deleteAllConfirmText !== 'DELETE ALL' || deletingAll}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: deleteAllConfirmText === 'DELETE ALL' ? '#ef4444' : '#9ca3af' }}
+              >
+                {deletingAll ? 'Deleting...' : `Delete ${nonStarredDynasties.length} ${nonStarredDynasties.length === 1 ? 'Dynasty' : 'Dynasties'}`}
+              </button>
+              <button
+                onClick={handleCancelDeleteAll}
+                disabled={deletingAll}
+                className="flex-1 px-4 py-2 rounded-lg font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

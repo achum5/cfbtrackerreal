@@ -7,7 +7,6 @@ import { getTeamLogo } from '../../data/teams'
 import { getAbbreviationFromDisplayName, teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamColors } from '../../data/teamColors'
 import PlayerEditModal from '../../components/PlayerEditModal'
-import GameDetailModal from '../../components/GameDetailModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -68,8 +67,6 @@ export default function Player() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAccoladeModal, setShowAccoladeModal] = useState(false)
   const [accoladeType, setAccoladeType] = useState(null) // 'confPOW' or 'nationalPOW'
-  const [showGameDetailModal, setShowGameDetailModal] = useState(false)
-  const [selectedGame, setSelectedGame] = useState(null)
 
   // Scroll to top when player page loads or changes
   useEffect(() => {
@@ -128,13 +125,6 @@ export default function Player() {
   const handleAccoladeClick = (type) => {
     setAccoladeType(type)
     setShowAccoladeModal(true)
-  }
-
-  // Handle clicking on a game in the accolade modal
-  const handleGameClick = (game) => {
-    setSelectedGame(game)
-    setShowAccoladeModal(false)
-    setShowGameDetailModal(true)
   }
 
   // Get team name from abbreviation
@@ -1191,9 +1181,9 @@ export default function Player() {
                 const isWin = game.result === 'win' || game.result === 'W'
 
                 return (
-                  <button
+                  <Link
                     key={game.id || index}
-                    onClick={() => handleGameClick(game)}
+                    to={`/dynasty/${dynastyId}/game/${game.id}`}
                     className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 rounded-lg border-2 gap-2 sm:gap-0 hover:opacity-90 transition-opacity text-left"
                     style={{
                       backgroundColor: opponentBgColor,
@@ -1253,7 +1243,7 @@ export default function Player() {
                         {game.teamScore}-{game.opponentScore}
                       </div>
                     </div>
-                  </button>
+                  </Link>
                 )
               })}
             </div>
@@ -1261,17 +1251,6 @@ export default function Player() {
         </div>
       )}
 
-      {/* Game Detail Modal */}
-      <GameDetailModal
-        isOpen={showGameDetailModal}
-        onClose={() => {
-          setShowGameDetailModal(false)
-          setSelectedGame(null)
-        }}
-        game={selectedGame}
-        userTeam={dynasty.teamName}
-        teamColors={teamColors}
-      />
     </div>
   )
 }

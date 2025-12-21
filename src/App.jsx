@@ -26,7 +26,9 @@ import Teams from './pages/dynasty/Teams'
 import Team from './pages/dynasty/Team'
 import TeamYear from './pages/dynasty/TeamYear'
 import BowlHistory from './pages/dynasty/BowlHistory'
+import ConferenceChampionshipHistory from './pages/dynasty/ConferenceChampionshipHistory'
 import CFPBracket from './pages/dynasty/CFPBracket'
+import Game from './pages/dynasty/Game'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -87,7 +89,9 @@ function AppRoutes() {
             <Route path="team/:teamAbbr" element={<Team />} />
             <Route path="team/:teamAbbr/:year" element={<TeamYear />} />
             <Route path="bowl-history" element={<BowlHistory />} />
+            <Route path="conference-championship-history" element={<ConferenceChampionshipHistory />} />
             <Route path="cfp-bracket" element={<CFPBracket />} />
+            <Route path="game/:gameId" element={<Game />} />
           </Route>
         </Routes>
       </Router>

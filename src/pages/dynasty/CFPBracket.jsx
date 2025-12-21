@@ -6,7 +6,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getBowlLogo } from '../../data/bowlGames'
-import GameDetailModal from '../../components/GameDetailModal'
+// GameDetailModal removed - now using game pages instead
 import GameEntryModal from '../../components/GameEntryModal'
 
 // Map abbreviations to mascot names for logo lookup
@@ -76,18 +76,10 @@ export default function CFPBracket() {
   const { id } = useParams()
   const { currentDynasty, updateDynasty, addGame } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
-  const [selectedGame, setSelectedGame] = useState(null)
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200)
+  // selectedGame removed - now using game pages instead
   const [selectedYear, setSelectedYear] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingGameData, setEditingGameData] = useState(null)
-
-  // Track window width for responsive scaling
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
 
   // Set initial selected year when dynasty loads
   useEffect(() => {
@@ -216,7 +208,7 @@ export default function CFPBracket() {
         <div className="flex-1 truncate">
           {team ? (
             <Link
-              to={`/dynasty/${id}/team/${team}`}
+              to={`/dynasty/${id}/team/${team}/${displayYear}`}
               onClick={(e) => e.stopPropagation()}
               className="text-xl font-semibold hover:underline"
               style={{ color: txtColor }}
@@ -239,7 +231,8 @@ export default function CFPBracket() {
   }
 
   // Matchup component - two team slots stacked
-  const Matchup = ({ team1, team2, seed1, seed2, style, onClick, round, bowl, gameData }) => {
+  // Now uses Link to game page instead of onClick modal
+  const Matchup = ({ team1, team2, seed1, seed2, style, round, bowl, gameData }) => {
     // Map scores correctly based on which team is which
     // gameData has team1/team2 which may be in different order than visual display
     let score1, score2
@@ -258,15 +251,62 @@ export default function CFPBracket() {
       }
     }
     const winner = gameData?.winner
+    const hasResult = !!winner
 
-    return (
-      <div
-        className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
-        style={{ gap: `${SLOT_GAP}px`, ...style }}
-        onClick={() => onClick && onClick({ team1, team2, seed1, seed2, round, bowl, gameData })}
-      >
+    // Generate game ID for linking
+    const getGameId = () => {
+      if (!hasResult) return null
+      // Try to find in games[] array first
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userInGame = team1 === userTeamAbbr || team2 === userTeamAbbr
+
+      if (userInGame) {
+        // User's game - find in games[]
+        const cfpFlag = round === 'First Round' ? 'isCFPFirstRound'
+          : round === 'Quarterfinal' || round === 'Quarterfinals' ? 'isCFPQuarterfinal'
+          : round === 'Semifinal' || round === 'Semifinals' ? 'isCFPSemifinal'
+          : 'isCFPChampionship'
+        const fullGame = currentDynasty.games?.find(g =>
+          g[cfpFlag] && Number(g.year) === Number(displayYear)
+        )
+        if (fullGame?.id) return fullGame.id
+      }
+
+      // Fallback ID based on round/bowl
+      const roundSlug = round.toLowerCase().replace(/\s+/g, '-')
+      const bowlSlug = bowl ? bowl.toLowerCase().replace(/\s+/g, '-') : roundSlug
+      return `cfp-${displayYear}-${bowlSlug}`
+    }
+
+    const gameId = getGameId()
+
+    const matchupContent = (
+      <>
         <TeamSlot team={team1} seed={seed1} score={score1} isWinner={winner === team1} />
         <TeamSlot team={team2} seed={seed2} score={score2} isWinner={winner === team2} />
+      </>
+    )
+
+    // If there's a result, render as Link to game page
+    if (hasResult && gameId) {
+      return (
+        <Link
+          to={`/dynasty/${id}/game/${gameId}`}
+          className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
+          style={{ gap: `${SLOT_GAP}px`, ...style }}
+        >
+          {matchupContent}
+        </Link>
+      )
+    }
+
+    // No result yet - just render as div (not clickable to game page)
+    return (
+      <div
+        className="absolute flex flex-col"
+        style={{ gap: `${SLOT_GAP}px`, ...style }}
+      >
+        {matchupContent}
       </div>
     )
   }
@@ -390,214 +430,134 @@ export default function CFPBracket() {
   const BRACKET_HEIGHT = R1_M4 + MATCHUP_HEIGHT + 160
   const BRACKET_WIDTH = COL4 + SLOT_WIDTH + 40
 
-  // Calculate scale to always fit bracket to viewport width with padding
-  const PADDING = 32 // 16px on each side
-  const SIDEBAR_WIDTH = 224 // w-56 sidebar shown on lg+ screens (1024px+)
-  const sidebarOffset = windowWidth >= 1024 ? SIDEBAR_WIDTH : 0
-  const availableWidth = windowWidth - PADDING - sidebarOffset
-  const scale = availableWidth / BRACKET_WIDTH
-  const scaledHeight = BRACKET_HEIGHT * scale
-  const scaledWidth = BRACKET_WIDTH * scale
+  // handleMatchupClick removed - now using Links to game pages instead
 
-  // Handle matchup click - find the game data if it exists
-  const handleMatchupClick = (matchupInfo) => {
-    const { team1, team2, seed1, seed2, round, bowl, gameData } = matchupInfo
-
-    // Get saved notes/links for this game
-    const gameKey = round || bowl || 'unknown'
-    const savedNotes = currentDynasty.cfpGameNotes?.[displayYear]?.[gameKey] || {}
-
-    // Check if we have gameData from First Round results
-    if (gameData && gameData.winner) {
-      // Check if user's team is involved
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userInGame = gameData.team1 === userTeamAbbr || gameData.team2 === userTeamAbbr
-
-      if (userInGame) {
-        // User's team is in this game - format as normal game
-        const isUserTeam1 = gameData.team1 === userTeamAbbr
-        setSelectedGame({
-          opponent: isUserTeam1 ? gameData.team2 : gameData.team1,
-          teamScore: isUserTeam1 ? gameData.team1Score : gameData.team2Score,
-          opponentScore: isUserTeam1 ? gameData.team2Score : gameData.team1Score,
-          result: gameData.winner === userTeamAbbr ? 'win' : 'loss',
-          location: 'neutral',
-          year: displayYear,
-          week: round,
-          round,
-          gameTitle: `CFP ${round}`,
-          isPlayoff: true,
-          isBowlGame: true,
-          gameNote: savedNotes.gameNote || '',
-          links: savedNotes.links || ''
-        })
-      } else {
-        // CPU vs CPU game - format with viewingTeam (show from winner's perspective)
-        const winnerIsTeam1 = gameData.team1 === gameData.winner
-        setSelectedGame({
-          viewingTeam: mascotMap[gameData.winner] || gameData.winner,
-          viewingTeamAbbr: gameData.winner,
-          opponent: winnerIsTeam1 ? gameData.team2 : gameData.team1,
-          teamScore: winnerIsTeam1 ? gameData.team1Score : gameData.team2Score,
-          opponentScore: winnerIsTeam1 ? gameData.team2Score : gameData.team1Score,
-          result: 'win',
-          location: 'neutral',
-          year: displayYear,
-          week: round,
-          round,
-          gameTitle: `CFP ${round}`,
-          isPlayoff: true,
-          isBowlGame: true,
-          gameNote: savedNotes.gameNote || '',
-          links: savedNotes.links || ''
-        })
-      }
-      return
-    }
-
-    // Look for existing game in cfpGames (for later rounds)
-    const cfpGames = currentDynasty.cfpGamesByYear?.[displayYear] || []
-    const existingGame = cfpGames.find(g =>
-      g.round === round &&
-      ((g.team1 === team1 && g.team2 === team2) || (g.team1 === team2 && g.team2 === team1))
-    )
-
-    if (existingGame) {
-      // Convert to GameDetailModal format
-      setSelectedGame({
-        ...existingGame,
-        opponent: existingGame.team1 === currentDynasty.teamName ? existingGame.team2 : existingGame.team1,
-        teamScore: existingGame.team1 === currentDynasty.teamName ? existingGame.team1Score : existingGame.team2Score,
-        opponentScore: existingGame.team1 === currentDynasty.teamName ? existingGame.team2Score : existingGame.team1Score,
-        result: existingGame.winner === currentDynasty.teamName ? 'win' : 'loss',
-        location: 'neutral',
-        year: displayYear,
-        week: round,
-        round,
-        gameTitle: bowl || round,
-        isPlayoff: true,
-        gameNote: savedNotes.gameNote || '',
-        links: savedNotes.links || ''
-      })
-    } else {
-      // Show matchup preview (no game played yet) - use scheduled: true for GameDetailModal
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userInGame = team1 === userTeamAbbr || team2 === userTeamAbbr
-
-      if (userInGame) {
-        // User's team is in this matchup - format from user's perspective
-        const isUserTeam1 = team1 === userTeamAbbr
-        setSelectedGame({
-          opponent: isUserTeam1 ? team2 : team1,
-          location: 'neutral',
-          year: displayYear,
-          week: round,
-          round,
-          gameTitle: bowl || `CFP ${round}`,
-          bowlName: bowl,
-          isPlayoff: true,
-          isBowlGame: true,
-          scheduled: true, // This tells GameDetailModal it's an unplayed game
-          gameNote: savedNotes.gameNote || '',
-          links: savedNotes.links || '',
-          // Store seeds for reference
-          userSeed: isUserTeam1 ? seed1 : seed2,
-          opponentSeed: isUserTeam1 ? seed2 : seed1
-        })
-      } else {
-        // CPU vs CPU matchup - show from first team's perspective
-        setSelectedGame({
-          viewingTeam: team1 ? mascotMap[team1] || team1 : 'TBD',
-          viewingTeamAbbr: team1,
-          opponent: team2,
-          location: 'neutral',
-          year: displayYear,
-          week: round,
-          round,
-          gameTitle: bowl || `CFP ${round}`,
-          bowlName: bowl,
-          isPlayoff: true,
-          isBowlGame: true,
-          scheduled: true, // This tells GameDetailModal it's an unplayed game
-          gameNote: savedNotes.gameNote || '',
-          links: savedNotes.links || '',
-          // Store seeds for reference
-          seed1,
-          seed2
-        })
-      }
-    }
-  }
-
-  // Handle edit game click - opens GameEntryModal
+  // Handle edit game click - opens GameEntryModal (kept for editing from game pages)
   const handleEditGame = (game) => {
-    // Check if user's team is in this game
-    const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-    const gameOpponent = game.opponent
     const isUserGame = !game.viewingTeam // If no viewingTeam, it's a user game
 
     if (isUserGame) {
-      // User's game - find existing game data
-      const existingGame = currentDynasty.games?.find(g =>
-        g.year === (game.year || displayYear) &&
-        g.opponent === gameOpponent &&
-        (g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
-      )
-
+      // User's game - pass the FULL game so all fields can be edited (notes, quarters, etc.)
+      // The game object passed here already contains all the data from the games array
       setEditingGameData({
-        opponent: gameOpponent,
+        opponent: game.opponent,
         bowlName: game.bowlName || game.gameTitle,
-        existingGame: existingGame || null,
+        existingGame: game, // Pass the full game for editing
         round: game.round,
         isUserGame: true
       })
     } else {
-      // CPU vs CPU game - pass both teams
-      setEditingGameData({
-        team1: game.viewingTeamAbbr,
-        team2: game.opponent,
-        bowlName: game.bowlName || game.gameTitle,
-        round: game.round,
-        isUserGame: false,
-        // Pass existing data if the game has been played
-        existingTeam1Score: game.teamScore,
-        existingTeam2Score: game.opponentScore
-      })
+      // CPU vs CPU game - FETCH FRESH DATA from cfpResultsByYear
+      // This ensures we always edit the latest saved data, not stale references
+      const round = game.round
+      const roundKey = (round === 'First Round') ? 'firstRound'
+        : (round === 'Quarterfinal' || round === 'Quarterfinals') ? 'quarterfinals'
+        : (round === 'Semifinal' || round === 'Semifinals') ? 'semifinals'
+        : 'championship'
+
+      const cfpData = currentDynasty.cfpResultsByYear?.[displayYear] || {}
+      const roundData = cfpData[roundKey] || []
+
+      // Find the fresh game data by seeds (First Round) or bowlName (other rounds)
+      let freshGame = null
+      const origRef = game.originalGameData
+
+      if (origRef?.seed1 !== undefined) {
+        // First Round - find by seeds
+        freshGame = roundData.find(g =>
+          g.seed1 === origRef.seed1 && g.seed2 === origRef.seed2
+        )
+      } else if (game.bowlName) {
+        // Other rounds - find by bowlName
+        freshGame = roundData.find(g => g.bowlName === game.bowlName)
+      }
+
+      // Use fresh data if found, otherwise fall back to original reference
+      const gameToEdit = freshGame || origRef
+
+      if (gameToEdit) {
+        setEditingGameData({
+          team1: gameToEdit.team1,
+          team2: gameToEdit.team2,
+          bowlName: game.bowlName || game.gameTitle,
+          round: game.round,
+          isUserGame: false,
+          existingTeam1Score: gameToEdit.team1Score,
+          existingTeam2Score: gameToEdit.team2Score,
+          existingGameNote: gameToEdit.gameNote || '',
+          existingLinks: gameToEdit.links || '',
+          originalGameData: gameToEdit
+        })
+      } else {
+        // Fallback if no data found (shouldn't happen)
+        setEditingGameData({
+          team1: game.viewingTeamAbbr,
+          team2: game.opponent,
+          bowlName: game.bowlName || game.gameTitle,
+          round: game.round,
+          isUserGame: false,
+          existingTeam1Score: game.teamScore,
+          existingTeam2Score: game.opponentScore,
+          existingGameNote: game.gameNote || '',
+          existingLinks: game.links || '',
+          originalGameData: null
+        })
+      }
     }
 
-    setSelectedGame(null)
     setShowEditModal(true)
   }
 
   // Handle game save from GameEntryModal
   const handleGameSave = async (gameData) => {
     try {
+      // Map round names to storage keys (handle both singular and plural)
+      const round = editingGameData.round
+      const roundKey = (round === 'First Round') ? 'firstRound'
+        : (round === 'Quarterfinal' || round === 'Quarterfinals') ? 'quarterfinals'
+        : (round === 'Semifinal' || round === 'Semifinals') ? 'semifinals'
+        : 'championship'
+
       if (gameData.isCPUGame) {
         // CPU vs CPU game - save to cfpResultsByYear
-        const roundKey = editingGameData.round === 'First Round' ? 'firstRound'
-          : editingGameData.round === 'Quarterfinals' ? 'quarterfinals'
-          : editingGameData.round === 'Semifinals' ? 'semifinals'
-          : 'championship'
-
+        // BULLETPROOF: Since we now edit using original team order, just save directly
         const existingCFP = currentDynasty.cfpResultsByYear || {}
         const existingYear = existingCFP[displayYear] || {}
         const existingRound = existingYear[roundKey] || []
+        const originalGame = editingGameData.originalGameData
 
-        // Find and update or add the game
-        const gameIndex = existingRound.findIndex(g =>
-          (g.team1 === gameData.team1 && g.team2 === gameData.team2) ||
-          (g.team1 === gameData.team2 && g.team2 === gameData.team1)
-        )
+        // Find the game using seeds (First Round) or bowlName (other rounds)
+        const gameIndex = existingRound.findIndex(g => {
+          if (originalGame) {
+            // Match by seeds for First Round
+            if (originalGame.seed1 !== undefined && g.seed1 !== undefined) {
+              return g.seed1 === originalGame.seed1 && g.seed2 === originalGame.seed2
+            }
+            // Match by bowlName for other rounds
+            if (originalGame.bowlName && g.bowlName) {
+              return g.bowlName === originalGame.bowlName
+            }
+          }
+          // Fallback: exact team match (since editor uses original order)
+          return g.team1 === gameData.team1 && g.team2 === gameData.team2
+        })
 
+        // Scores come directly from editor in original team order - no mapping needed
+        const team1Score = parseInt(gameData.team1Score)
+        const team2Score = parseInt(gameData.team2Score)
+        const winner = team1Score > team2Score ? gameData.team1 : gameData.team2
+
+        // Build new game preserving ALL original fields (seeds, etc.)
         const newGame = {
+          ...(originalGame || {}),
           team1: gameData.team1,
           team2: gameData.team2,
-          team1Score: gameData.team1Score,
-          team2Score: gameData.team2Score,
-          winner: gameData.winner,
-          bowlName: gameData.bowlName,
-          gameNote: gameData.gameNote,
-          links: gameData.links
+          team1Score: team1Score,
+          team2Score: team2Score,
+          winner: winner,
+          bowlName: editingGameData.bowlName,
+          gameNote: gameData.gameNote || '',
+          links: gameData.links || ''
         }
 
         const newRound = [...existingRound]
@@ -617,8 +577,20 @@ export default function CFPBracket() {
           }
         })
       } else {
-        // User's game - save via addGame
-        await addGame(currentDynasty.id, gameData)
+        // User's CFP game - use addGame which handles both games array AND cfpResultsByYear
+        const cfpFlag = roundKey === 'firstRound' ? 'isCFPFirstRound'
+          : roundKey === 'quarterfinals' ? 'isCFPQuarterfinal'
+          : roundKey === 'semifinals' ? 'isCFPSemifinal'
+          : 'isCFPChampionship'
+
+        await addGame(currentDynasty.id, {
+          ...gameData,
+          opponent: gameData.opponent || editingGameData.opponent,
+          year: displayYear,
+          bowlName: editingGameData.bowlName,
+          [cfpFlag]: true,
+          location: 'neutral'
+        })
       }
 
       setShowEditModal(false)
@@ -651,14 +623,11 @@ export default function CFPBracket() {
         </h1>
       </div>
 
-      {/* Scaled Bracket Container */}
-      <div className="flex justify-center" style={{ height: `${scaledHeight + 40}px` }}>
+      {/* Bracket Container - scrollable on small screens, centered on large */}
+      <div className="overflow-x-auto">
         <div
-          style={{
-            width: `${BRACKET_WIDTH}px`,
-            transform: `scale(${scale})`,
-            transformOrigin: 'top center'
-          }}
+          className="mx-auto"
+          style={{ width: `${BRACKET_WIDTH}px`, minWidth: `${BRACKET_WIDTH}px` }}
         >
           {/* Round Labels */}
           <div className="flex mb-6 text-xl font-bold" style={{ color: textColor }}>
@@ -672,10 +641,10 @@ export default function CFPBracket() {
           <div className="relative" style={{ height: `${BRACKET_HEIGHT}px`, width: `${BRACKET_WIDTH}px` }}>
 
             {/* ===== FIRST ROUND ===== */}
-            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(5, 12)} />
-            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(8, 9)} />
-            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(6, 11)} />
-            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} onClick={handleMatchupClick} round="First Round" gameData={getFirstRoundGame(7, 10)} />
+            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} round="First Round" gameData={getFirstRoundGame(5, 12)} />
+            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} round="First Round" gameData={getFirstRoundGame(8, 9)} />
+            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} round="First Round" gameData={getFirstRoundGame(6, 11)} />
+            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} round="First Round" gameData={getFirstRoundGame(7, 10)} />
 
             {/* First Round → QF connectors (bracket from 2 teams to 1 output) */}
             {/* R1_M1: 12 vs 5 → QF top slot */}
@@ -704,13 +673,13 @@ export default function CFPBracket() {
 
             {/* ===== QUARTERFINALS ===== */}
             {/* 5 vs 12 winner plays #4 seed */}
-            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Sugar Bowl" gameData={getQFGame('Sugar Bowl')} />
+            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} round="Quarterfinal" bowl="Sugar Bowl" gameData={getQFGame('Sugar Bowl')} />
             {/* 8 vs 9 winner plays #1 seed */}
-            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Orange Bowl" gameData={getQFGame('Orange Bowl')} />
+            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} round="Quarterfinal" bowl="Orange Bowl" gameData={getQFGame('Orange Bowl')} />
             {/* 6 vs 11 winner plays #3 seed */}
-            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Rose Bowl" gameData={getQFGame('Rose Bowl')} />
+            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} round="Quarterfinal" bowl="Rose Bowl" gameData={getQFGame('Rose Bowl')} />
             {/* 7 vs 10 winner plays #2 seed */}
-            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} onClick={handleMatchupClick} round="Quarterfinal" bowl="Cotton Bowl" gameData={getQFGame('Cotton Bowl')} />
+            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} round="Quarterfinal" bowl="Cotton Bowl" gameData={getQFGame('Cotton Bowl')} />
 
             {/* QF Bowl Logos - positioned on right side, centered between both team slots */}
             <img
@@ -759,7 +728,6 @@ export default function CFPBracket() {
               seed1={getSeedByTeam(getQFWinner('Sugar Bowl'))}
               seed2={getSeedByTeam(getQFWinner('Orange Bowl'))}
               style={{ top: SF_M1, left: COL3 }}
-              onClick={handleMatchupClick}
               round="Semifinal"
               bowl="Peach Bowl"
               gameData={getSFGame('Peach Bowl')}
@@ -771,7 +739,6 @@ export default function CFPBracket() {
               seed1={getSeedByTeam(getQFWinner('Rose Bowl'))}
               seed2={getSeedByTeam(getQFWinner('Cotton Bowl'))}
               style={{ top: SF_M2, left: COL3 }}
-              onClick={handleMatchupClick}
               round="Semifinal"
               bowl="Fiesta Bowl"
               gameData={getSFGame('Fiesta Bowl')}
@@ -804,7 +771,6 @@ export default function CFPBracket() {
               seed1={getSeedByTeam(getSFWinner('Peach Bowl'))}
               seed2={getSeedByTeam(getSFWinner('Fiesta Bowl'))}
               style={{ top: CHAMP, left: COL4 }}
-              onClick={handleMatchupClick}
               round="Championship"
               bowl="National Championship"
               gameData={getChampGame()}
@@ -819,17 +785,7 @@ export default function CFPBracket() {
         </div>
       </div>
 
-      {/* Game Detail Modal (for all games - played and scheduled) */}
-      {selectedGame && (
-        <GameDetailModal
-          isOpen={true}
-          onClose={() => setSelectedGame(null)}
-          game={selectedGame}
-          userTeam={currentDynasty.teamName}
-          teamColors={teamColors}
-          onEdit={handleEditGame}
-        />
-      )}
+      {/* GameDetailModal removed - now using game pages instead */}
 
       {/* Game Entry Modal (for editing/entering games - both user and CPU) */}
       {showEditModal && editingGameData && (
@@ -845,9 +801,13 @@ export default function CFPBracket() {
           teamColors={teamColors}
           opponent={editingGameData.isUserGame ? editingGameData.opponent : undefined}
           bowlName={editingGameData.bowlName}
-          existingGame={editingGameData.existingGame}
+          existingGame={editingGameData.isUserGame ? editingGameData.existingGame : null}
           team1={editingGameData.isUserGame ? undefined : editingGameData.team1}
           team2={editingGameData.isUserGame ? undefined : editingGameData.team2}
+          existingTeam1Score={editingGameData.existingTeam1Score}
+          existingTeam2Score={editingGameData.existingTeam2Score}
+          existingGameNote={editingGameData.existingGameNote}
+          existingLinks={editingGameData.existingLinks}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
+import SheetToolbar from './SheetToolbar'
 import {
   createCFPSeedsSheet,
   readCFPSeedsFromSheet,
@@ -27,6 +28,8 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
+  const [useEmbedded, setUseEmbedded] = useState(false) // Default to "Open in New Tab" mode
+  const [highlightSave, setHighlightSave] = useState(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -48,6 +51,31 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
+
+  // Highlight save button when user returns to the window
+  useEffect(() => {
+    if (!isOpen || !sheetId || useEmbedded) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setHighlightSave(true)
+        setTimeout(() => setHighlightSave(false), 5000)
+      }
+    }
+
+    const handleFocus = () => {
+      setHighlightSave(true)
+      setTimeout(() => setHighlightSave(false), 5000)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [isOpen, sheetId, useEmbedded])
 
   // Create CFP seeds sheet when modal opens
   useEffect(() => {
@@ -212,36 +240,61 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
           </div>
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-3">
-              <div className="flex gap-3 flex-wrap">
+            {/* Action Buttons - only show at top for embedded view */}
+            {!isMobile && useEmbedded && (
+              <div className="mb-3">
+                <div className="flex gap-3 flex-wrap items-center">
+                  <button
+                    onClick={handleSyncAndDelete}
+                    disabled={syncing || deletingSheet}
+                    className={`px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`}
+                    style={{
+                      backgroundColor: teamColors.primary,
+                      color: teamColors.secondary
+                    }}
+                  >
+                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                  </button>
+                  <button
+                    onClick={handleSyncFromSheet}
+                    disabled={syncing || deletingSheet}
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: teamColors.primary,
+                      color: teamColors.primary
+                    }}
+                  >
+                    {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  </button>
+                  {highlightSave && (
+                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
+
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Toggle between embedded and new tab */}
+            {!isMobile && (
+              <div className="flex items-center justify-end mb-2">
                 <button
-                  onClick={handleSyncAndDelete}
-                  disabled={syncing || deletingSheet}
-                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                  onClick={() => setUseEmbedded(!useEmbedded)}
+                  className="text-xs px-3 py-1 rounded-full border transition-colors"
                   style={{
-                    backgroundColor: teamColors.primary,
-                    color: teamColors.secondary
-                  }}
-                >
-                  {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
-                </button>
-                <button
-                  onClick={handleSyncFromSheet}
-                  disabled={syncing || deletingSheet}
-                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
-                  style={{
-                    backgroundColor: 'transparent',
                     borderColor: teamColors.primary,
-                    color: teamColors.primary
+                    color: teamColors.primary,
+                    backgroundColor: 'transparent'
                   }}
                 >
-                  {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  {useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}
                 </button>
               </div>
-            </div>
+            )}
 
             {/* Mobile View */}
-            {isMobile ? (
+            {isMobile || !useEmbedded ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
@@ -255,13 +308,46 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
                     <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter CFP seeds 1-12</span></li>
                     <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" to sync your seeds</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync your seeds</span></li>
                   </ol>
                 </div>
-                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-4" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
+                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
                   Open Google Sheets
                 </a>
+
+                {/* Centered Save Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 items-center justify-center mb-4">
+                  <button
+                    onClick={handleSyncAndDelete}
+                    disabled={syncing || deletingSheet}
+                    className={`px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`}
+                    style={{
+                      backgroundColor: teamColors.primary,
+                      color: teamColors.secondary
+                    }}
+                  >
+                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                  </button>
+                  <button
+                    onClick={handleSyncFromSheet}
+                    disabled={syncing || deletingSheet}
+                    className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: teamColors.primary,
+                      color: teamColors.primary
+                    }}
+                  >
+                    {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
+                  </button>
+                </div>
+                {highlightSave && (
+                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
+
+                  </span>
+                )}
+
                 <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
                   <p className="font-semibold mb-1">Info:</p>
                   <p className="opacity-80">Seeds 1-4 get a bye to Quarterfinals. Use team abbreviations.</p>
@@ -269,8 +355,14 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
               </div>
             ) : (
               <>
-                <div className="flex-1 border-4 rounded-lg overflow-hidden" style={{ borderColor: teamColors.primary }}>
-                  <iframe src={embedUrl} className="w-full h-full" frameBorder="0" title="CFP Seeds Google Sheet" />
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  <SheetToolbar
+                    sheetId={sheetId}
+                    embedUrl={embedUrl}
+                    teamColors={teamColors}
+                    title="CFP Seeds Google Sheet"
+                    onSessionError={() => setShowAuthError(true)}
+                  />
                 </div>
                 <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
                   <p><strong>Columns:</strong> Seed | Team</p>

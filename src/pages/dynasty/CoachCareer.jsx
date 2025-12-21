@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
-import GameDetailModal from '../../components/GameDetailModal'
 
 // Map abbreviations to mascot names for logo lookup
 const mascotMap = {
@@ -67,12 +67,11 @@ const getOpponentColors = (abbr) => {
 }
 
 export default function CoachCareer() {
+  const { id } = useParams()
   const { currentDynasty } = useDynasty()
   const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
   const [showGamesModal, setShowGamesModal] = useState(false)
   const [gamesModalType, setGamesModalType] = useState(null) // 'favorite' or 'underdog'
-  const [selectedGame, setSelectedGame] = useState(null)
-  const [showGameDetailModal, setShowGameDetailModal] = useState(false)
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -469,16 +468,13 @@ export default function CoachCareer() {
                           const isWin = game.result === 'win'
 
                           return (
-                            <div
+                            <Link
                               key={`${year}-${game.week}-${index}`}
-                              className="flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity"
+                              to={`/dynasty/${id}/game/${game.id}`}
+                              className="flex items-center justify-between p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
                               style={{
                                 backgroundColor: opponentColors.backgroundColor,
                                 borderColor: isWin ? '#86efac' : '#fca5a5'
-                              }}
-                              onClick={() => {
-                                setSelectedGame(game)
-                                setShowGameDetailModal(true)
                               }}
                             >
                               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -559,7 +555,7 @@ export default function CoachCareer() {
                                   {game.teamScore}-{game.opponentScore}
                                 </span>
                               </div>
-                            </div>
+                            </Link>
                           )
                         })}
                       </div>
@@ -586,17 +582,6 @@ export default function CoachCareer() {
         </div>
       )}
 
-      {/* Game Detail Modal */}
-      <GameDetailModal
-        isOpen={showGameDetailModal}
-        onClose={() => {
-          setShowGameDetailModal(false)
-          setSelectedGame(null)
-        }}
-        game={selectedGame}
-        userTeam={currentDynasty.teamName}
-        teamColors={teamColors}
-      />
     </div>
   )
 }

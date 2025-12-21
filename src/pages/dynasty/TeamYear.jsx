@@ -8,7 +8,8 @@ import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamLogo } from '../../data/teams'
 import { bowlLogos } from '../../data/bowlLogos'
-import GameDetailModal from '../../components/GameDetailModal'
+// GameDetailModal removed - now using game pages
+import GameEntryModal from '../../components/GameEntryModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -166,14 +167,17 @@ const getMascotName = (abbr) => {
 export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame } = useDynasty()
   const userTeamColors = useTeamColors(currentDynasty?.teamName)
   const selectedYear = parseInt(year)
 
-  // Game detail modal state
+  // Game state for editing
   const [selectedGame, setSelectedGame] = useState(null)
-  const [showGameDetailModal, setShowGameDetailModal] = useState(false)
   const [showCoachingStaffTooltip, setShowCoachingStaffTooltip] = useState(false)
+
+  // Game edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingGameData, setEditingGameData] = useState(null)
 
   // Roster sorting state
   const [rosterSort, setRosterSort] = useState('position') // 'position', 'overall', 'jerseyNumber', 'name'
@@ -251,26 +255,117 @@ export default function TeamYear() {
   const userWins = userYearGames.filter(g => g.result === 'win' || g.result === 'W').length
   const userLosses = userYearGames.filter(g => g.result === 'loss' || g.result === 'L').length
 
+  // Get all games array for unified lookups
+  const allGamesArray = currentDynasty.games || []
+
   // Get conference championship data for this team in this year
-  const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[selectedYear] || []
-  const teamCCGame = yearChampionships.find(cc =>
-    (cc.team1 === teamAbbr || cc.team2 === teamAbbr) && cc.team1Score !== null && cc.team2Score !== null
+  // UNIFIED: First check games[] array, then fallback to conferenceChampionshipsByYear
+  const ccGamesFromGames = allGamesArray.filter(g =>
+    g.isConferenceChampionship && Number(g.year) === selectedYear &&
+    (g.team1 === teamAbbr || g.team2 === teamAbbr) &&
+    g.team1Score !== null && g.team1Score !== undefined
   )
+
+  // Fallback: Also check conferenceChampionshipsByYear for backward compatibility
+  const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[selectedYear] || []
+  const ccGamesFromLegacy = yearChampionships.filter(cc =>
+    (cc.team1 === teamAbbr || cc.team2 === teamAbbr) &&
+    cc.team1Score !== null && cc.team2Score !== null &&
+    // Avoid duplicates - skip if already in games[]
+    !ccGamesFromGames.some(g => g.conference === cc.conference)
+  )
+
+  // Use games[] version first, then legacy
+  const teamCCGame = ccGamesFromGames[0] || ccGamesFromLegacy[0] || null
   const wonCC = teamCCGame?.winner === teamAbbr
 
   // Get bowl game for this team in this year
-  // bowlGamesByYear[year] is an object with week1 and week2 arrays
-  const yearBowlData = currentDynasty.bowlGamesByYear?.[selectedYear] || {}
-  const bowlGames = [...(yearBowlData.week1 || []), ...(yearBowlData.week2 || [])]
-  const teamBowlGame = bowlGames.find(bowl =>
-    (bowl.team1 === teamAbbr || bowl.team2 === teamAbbr) && bowl.team1Score !== null && bowl.team2Score !== null
+  // UNIFIED: First check games[] array, then fallback to bowlGamesByYear
+  const bowlGamesFromGames = allGamesArray.filter(g =>
+    g.isBowlGame && g.year === selectedYear &&
+    (g.team1 === teamAbbr || g.team2 === teamAbbr) &&
+    g.team1Score !== null && g.team1Score !== undefined
   )
+
+  // Fallback: Also check bowlGamesByYear for backward compatibility
+  const yearBowlData = currentDynasty.bowlGamesByYear?.[selectedYear] || {}
+  const bowlGamesFromLegacy = [...(yearBowlData.week1 || []), ...(yearBowlData.week2 || [])]
+    .filter(bowl =>
+      (bowl.team1 === teamAbbr || bowl.team2 === teamAbbr) &&
+      bowl.team1Score !== null && bowl.team2Score !== null &&
+      // Avoid duplicates - skip if already in games[]
+      !bowlGamesFromGames.some(g => g.bowlName === bowl.bowlName)
+    )
+
+  const bowlGames = [...bowlGamesFromGames, ...bowlGamesFromLegacy]
+  const teamBowlGame = bowlGames[0] // Just need the first match for this team
+
   const wonBowl = teamBowlGame && (
     (teamBowlGame.team1 === teamAbbr && teamBowlGame.team1Score > teamBowlGame.team2Score) ||
     (teamBowlGame.team2 === teamAbbr && teamBowlGame.team2Score > teamBowlGame.team1Score)
   )
 
-  // Get CFP games for this team in this year
+  // Get CFP results for this team in this year from cfpResultsByYear
+  const cfpResults = currentDynasty.cfpResultsByYear?.[selectedYear] || {}
+  const allCFPGames = [
+    ...(cfpResults.firstRound || []),
+    ...(cfpResults.quarterfinals || []),
+    ...(cfpResults.semifinals || []),
+    ...(cfpResults.championship || [])
+  ]
+
+  // Find all CFP games involving this team
+  const teamCFPGamesFromResults = allCFPGames.filter(game =>
+    (game.team1 === teamAbbr || game.team2 === teamAbbr) &&
+    game.team1Score !== null && game.team2Score !== null
+  )
+
+  // Determine CFP result for this team
+  const getCFPResult = () => {
+    if (teamCFPGamesFromResults.length === 0) return null
+
+    // Check championship first
+    const champGame = (cfpResults.championship || []).find(g =>
+      g.team1 === teamAbbr || g.team2 === teamAbbr
+    )
+    if (champGame) {
+      const wonChamp = champGame.winner === teamAbbr
+      return wonChamp ? 'champion' : 'lost-championship'
+    }
+
+    // Check semifinals
+    const sfGame = (cfpResults.semifinals || []).find(g =>
+      g.team1 === teamAbbr || g.team2 === teamAbbr
+    )
+    if (sfGame) {
+      const wonSF = sfGame.winner === teamAbbr
+      if (!wonSF) return 'lost-semifinal'
+    }
+
+    // Check quarterfinals
+    const qfGame = (cfpResults.quarterfinals || []).find(g =>
+      g.team1 === teamAbbr || g.team2 === teamAbbr
+    )
+    if (qfGame) {
+      const wonQF = qfGame.winner === teamAbbr
+      if (!wonQF) return 'lost-quarterfinal'
+    }
+
+    // Check first round
+    const frGame = (cfpResults.firstRound || []).find(g =>
+      g.team1 === teamAbbr || g.team2 === teamAbbr
+    )
+    if (frGame) {
+      const wonFR = frGame.winner === teamAbbr
+      if (!wonFR) return 'lost-first-round'
+    }
+
+    return null
+  }
+
+  const cfpResult = getCFPResult()
+
+  // Legacy: Get CFP games from cfpGamesByYear (older format)
   const cfpGames = currentDynasty.cfpGamesByYear?.[selectedYear] || []
   const teamCFPGames = cfpGames.filter(game =>
     (game.team1 === teamAbbr || game.team2 === teamAbbr) && game.team1Score !== null && game.team2Score !== null
@@ -358,7 +453,8 @@ export default function TeamYear() {
         location: game.location === 'home' ? 'away' : game.location === 'away' ? 'home' : 'neutral',
         overtimes: game.overtimes,
         originalGame: game,
-        sortOrder: game.week
+        sortOrder: game.week,
+        gameId: game.id // Include game ID for linking
       })
     })
 
@@ -379,6 +475,7 @@ export default function TeamYear() {
         opponentScore: oppScore,
         location: 'neutral',
         sortOrder: 100,
+        gameId: teamCCGame.id || `cc-${selectedYear}`, // Include game ID for linking
         // Create game object for modal (from this team's perspective)
         gameForModal: {
           opponent: opponent,
@@ -389,10 +486,17 @@ export default function TeamYear() {
           week: 'CCG',
           location: 'neutral',
           isConferenceChampionship: true,
+          conference: teamCCGame.conference,
           gameTitle: `${teamCCGame.conference} Championship Game`,
           // For CPU vs CPU games, specify the viewing team
           viewingTeam: mascotName || teamInfo.name,
-          viewingTeamAbbr: teamAbbr
+          viewingTeamAbbr: teamAbbr,
+          // Include data for editing
+          team1: teamCCGame.team1,
+          team2: teamCCGame.team2,
+          gameNote: teamCCGame.gameNote || '',
+          links: teamCCGame.links || '',
+          gameRef: teamCCGame // Reference to the full game object for updating
         }
       })
     }
@@ -418,6 +522,7 @@ export default function TeamYear() {
         opponentScore: oppScore,
         location: 'neutral',
         sortOrder: 100 + (game.round || idx),
+        gameId: game.id || `cfp-${selectedYear}-round${game.round}`, // Include game ID for linking
         gameForModal: {
           opponent: opponent,
           teamScore: thisTeamScore,
@@ -440,6 +545,7 @@ export default function TeamYear() {
       const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
       const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score
       const oppScore = isTeam1 ? teamBowlGame.team2Score : teamBowlGame.team1Score
+      const bowlSlug = (teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')
       allGames.push({
         type: 'bowl',
         week: 'Bowl',
@@ -451,6 +557,7 @@ export default function TeamYear() {
         opponentScore: oppScore,
         location: 'neutral',
         sortOrder: 200,
+        gameId: teamBowlGame.id || `bowl-${selectedYear}-${bowlSlug}`, // Include game ID for linking
         gameForModal: {
           opponent: opponent,
           teamScore: thisTeamScore,
@@ -460,9 +567,16 @@ export default function TeamYear() {
           week: 'Bowl',
           location: 'neutral',
           isBowlGame: true,
+          bowlName: teamBowlGame.bowlName,
           gameTitle: teamBowlGame.bowlName || 'Bowl Game',
           viewingTeam: mascotName || teamInfo.name,
-          viewingTeamAbbr: teamAbbr
+          viewingTeamAbbr: teamAbbr,
+          // Include data for editing
+          team1: teamBowlGame.team1,
+          team2: teamBowlGame.team2,
+          gameNote: teamBowlGame.gameNote || '',
+          links: teamBowlGame.links || '',
+          gameRef: teamBowlGame // Reference to the full game object for updating
         }
       })
     }
@@ -472,6 +586,219 @@ export default function TeamYear() {
   }
 
   const teamGameLog = !isUserTeam ? buildTeamGameLog() : []
+
+  // Handle edit game click - opens GameEntryModal
+  const handleEditGame = (game) => {
+    const isCPUGame = !!game.viewingTeam // If has viewingTeam, it's a CPU vs CPU game
+
+    if (isCPUGame) {
+      // CPU vs CPU game - pass both teams and existing data
+      setEditingGameData({
+        team1: game.viewingTeamAbbr,
+        team2: game.opponent,
+        bowlName: game.bowlName || game.gameTitle,
+        gameType: game.isBowlGame ? 'bowl' : game.isConferenceChampionship ? 'cc' : 'cfp',
+        isUserGame: false,
+        existingTeam1Score: game.teamScore,
+        existingTeam2Score: game.opponentScore,
+        existingGameNote: game.gameNote || '',
+        existingLinks: game.links || '',
+        gameRef: game.gameRef // Reference to the full game object in games[] for updating
+      })
+    } else {
+      // User's game - pass the full game for editing
+      setEditingGameData({
+        opponent: game.opponent,
+        bowlName: game.bowlName || game.gameTitle,
+        existingGame: game,
+        isUserGame: true
+      })
+    }
+
+    setShowEditModal(true)
+  }
+
+  // Handle game save from GameEntryModal
+  const handleGameSave = async (gameData) => {
+    try {
+      if (gameData.isCPUGame) {
+        // CPU vs CPU game - save to unified games[] array
+        const gameType = editingGameData.gameType
+
+        if (gameType === 'bowl') {
+          // UNIFIED: Save to games[] array
+          const existingGames = currentDynasty.games || []
+          const gameRef = editingGameData.gameRef
+
+          // Find the game in games[] by ID or by bowlName + year
+          const gameIndex = existingGames.findIndex(g =>
+            g.id === gameRef?.id ||
+            (g.isBowlGame && g.bowlName === editingGameData.bowlName && g.year === selectedYear)
+          )
+
+          if (gameIndex >= 0) {
+            const originalGame = existingGames[gameIndex]
+
+            // CRITICAL: Match incoming teams to original team order
+            // The editor might show teams in a different order than stored
+            const incomingTeam1 = gameData.team1
+            const incomingTeam2 = gameData.team2
+            const incomingTeam1Score = parseInt(gameData.team1Score)
+            const incomingTeam2Score = parseInt(gameData.team2Score)
+
+            // Determine if the incoming team1 matches the original team1 or team2
+            const team1MatchesOriginal = incomingTeam1 === originalGame.team1
+            const team2MatchesOriginal = incomingTeam2 === originalGame.team1
+
+            // Map scores to original team order
+            let originalTeam1Score, originalTeam2Score
+            if (team1MatchesOriginal) {
+              // Incoming order matches original order
+              originalTeam1Score = incomingTeam1Score
+              originalTeam2Score = incomingTeam2Score
+            } else if (team2MatchesOriginal) {
+              // Incoming order is reversed from original
+              originalTeam1Score = incomingTeam2Score
+              originalTeam2Score = incomingTeam1Score
+            } else {
+              // Fallback - use incoming order (shouldn't happen)
+              originalTeam1Score = incomingTeam1Score
+              originalTeam2Score = incomingTeam2Score
+            }
+
+            const winner = originalTeam1Score > originalTeam2Score
+              ? originalGame.team1 : originalGame.team2
+            const winnerIsTeam1 = winner === originalGame.team1
+
+            const updatedGame = {
+              ...originalGame,
+              team1Score: originalTeam1Score,
+              team2Score: originalTeam2Score,
+              winner: winner,
+              viewingTeamAbbr: winner,
+              opponent: winnerIsTeam1 ? originalGame.team2 : originalGame.team1,
+              teamScore: winnerIsTeam1 ? originalTeam1Score : originalTeam2Score,
+              opponentScore: winnerIsTeam1 ? originalTeam2Score : originalTeam1Score,
+              result: 'win',
+              gameNote: gameData.gameNote || '',
+              links: gameData.links || '',
+              updatedAt: new Date().toISOString()
+            }
+
+            const updatedGames = [...existingGames]
+            updatedGames[gameIndex] = updatedGame
+            await updateDynasty(currentDynasty.id, { games: updatedGames })
+          }
+        } else if (gameType === 'cc') {
+          // UNIFIED: Save to games[] array (like bowl games)
+          const existingGames = currentDynasty.games || []
+          const gameRef = editingGameData.gameRef
+
+          // Find the game in games[] by ID or by conference + year
+          const gameIndex = existingGames.findIndex(g =>
+            g.id === gameRef?.id ||
+            (g.isConferenceChampionship && g.conference === editingGameData.bowlName && Number(g.year) === selectedYear)
+          )
+
+          if (gameIndex >= 0) {
+            const originalGame = existingGames[gameIndex]
+
+            // CRITICAL: Match incoming teams to original team order
+            const incomingTeam1 = gameData.team1
+            const incomingTeam2 = gameData.team2
+            const incomingTeam1Score = parseInt(gameData.team1Score)
+            const incomingTeam2Score = parseInt(gameData.team2Score)
+
+            // Determine if the incoming team1 matches the original team1 or team2
+            const team1MatchesOriginal = incomingTeam1 === originalGame.team1
+            const team2MatchesOriginal = incomingTeam2 === originalGame.team1
+
+            // Map scores to original team order
+            let originalTeam1Score, originalTeam2Score
+            if (team1MatchesOriginal) {
+              originalTeam1Score = incomingTeam1Score
+              originalTeam2Score = incomingTeam2Score
+            } else if (team2MatchesOriginal) {
+              originalTeam1Score = incomingTeam2Score
+              originalTeam2Score = incomingTeam1Score
+            } else {
+              originalTeam1Score = incomingTeam1Score
+              originalTeam2Score = incomingTeam2Score
+            }
+
+            const winner = originalTeam1Score > originalTeam2Score
+              ? originalGame.team1 : originalGame.team2
+            const winnerIsTeam1 = winner === originalGame.team1
+
+            const updatedGame = {
+              ...originalGame,
+              team1Score: originalTeam1Score,
+              team2Score: originalTeam2Score,
+              winner: winner,
+              viewingTeamAbbr: winner,
+              opponent: winnerIsTeam1 ? originalGame.team2 : originalGame.team1,
+              teamScore: winnerIsTeam1 ? originalTeam1Score : originalTeam2Score,
+              opponentScore: winnerIsTeam1 ? originalTeam2Score : originalTeam1Score,
+              result: 'win',
+              gameNote: gameData.gameNote || '',
+              links: gameData.links || '',
+              updatedAt: new Date().toISOString()
+            }
+
+            const updatedGames = [...existingGames]
+            updatedGames[gameIndex] = updatedGame
+            await updateDynasty(currentDynasty.id, { games: updatedGames })
+          } else {
+            // Fallback: Save to conferenceChampionshipsByYear for legacy data
+            const existingByYear = currentDynasty.conferenceChampionshipsByYear || {}
+            const existingYear = existingByYear[selectedYear] || []
+
+            const ccIndex = existingYear.findIndex(g =>
+              (g.team1 === gameData.team1 && g.team2 === gameData.team2) ||
+              (g.team1 === gameData.team2 && g.team2 === gameData.team1)
+            )
+
+            const newGame = {
+              ...existingYear[ccIndex],
+              team1: gameData.team1,
+              team2: gameData.team2,
+              team1Score: parseInt(gameData.team1Score),
+              team2Score: parseInt(gameData.team2Score),
+              winner: gameData.winner,
+              gameNote: gameData.gameNote || '',
+              links: gameData.links || ''
+            }
+
+            const newYear = [...existingYear]
+            if (ccIndex >= 0) {
+              newYear[ccIndex] = newGame
+            } else {
+              newYear.push(newGame)
+            }
+
+            await updateDynasty(currentDynasty.id, {
+              conferenceChampionshipsByYear: {
+                ...existingByYear,
+                [selectedYear]: newYear
+              }
+            })
+          }
+        }
+        // CFP games would be handled similarly if needed
+      } else {
+        // User's game - use addGame
+        await addGame(currentDynasty.id, {
+          ...gameData,
+          year: selectedYear
+        })
+      }
+
+      setShowEditModal(false)
+      setEditingGameData(null)
+    } catch (error) {
+      console.error('Error saving game:', error)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -684,10 +1011,72 @@ export default function TeamYear() {
                 </span>
               </div>
             )}
+            {/* Postseason Result Badge */}
+            {cfpResult === 'champion' && (
+              <div
+                className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-full text-sm font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+                  color: '#78350f',
+                  boxShadow: '0 2px 8px rgba(251, 191, 36, 0.4)'
+                }}
+              >
+                <img
+                  src="https://i.imgur.com/3goz1NK.png"
+                  alt="National Champions Trophy"
+                  className="w-5 h-5 object-contain"
+                />
+                National Champions
+              </div>
+            )}
+            {cfpResult === 'lost-championship' && (
+              <div
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                style={{ backgroundColor: '#c0c0c0', color: '#1f2937' }}
+              >
+                🥈 Championship Game
+              </div>
+            )}
+            {cfpResult === 'lost-semifinal' && (
+              <div
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                style={{ backgroundColor: '#d1d5db', color: '#374151' }}
+              >
+                Made CFP Semifinals
+              </div>
+            )}
+            {cfpResult === 'lost-quarterfinal' && (
+              <div
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                style={{ backgroundColor: '#e5e7eb', color: '#4b5563' }}
+              >
+                Made CFP Quarterfinals
+              </div>
+            )}
+            {cfpResult === 'lost-first-round' && (
+              <div
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                style={{ backgroundColor: '#f3f4f6', color: '#6b7280' }}
+              >
+                Made CFP First Round
+              </div>
+            )}
+            {/* Bowl Game Result (only if not in CFP) */}
+            {!cfpResult && teamBowlGame && (
+              <div
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                style={{
+                  backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
+                  color: '#ffffff'
+                }}
+              >
+                {wonBowl ? 'Won' : 'Lost'} {teamBowlGame.bowlName}
+              </div>
+            )}
             {/* Conference Championship Badge */}
             {teamCCGame && (
               <div
-                className="inline-flex items-center gap-1 sm:gap-2 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+                className="inline-flex items-center gap-1 sm:gap-2 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
                 style={{
                   backgroundColor: wonCC ? '#fbbf24' : '#9ca3af',
                   color: wonCC ? '#78350f' : '#1f2937'
@@ -696,45 +1085,29 @@ export default function TeamYear() {
                 {wonCC ? '🏆' : '🥈'} <span className="hidden sm:inline">{teamCCGame.conference}</span> {wonCC ? 'Champions' : 'Runner-Up'}
               </div>
             )}
-            {/* Bowl Game Badge */}
-            {teamBowlGame && (
-              <button
-                onClick={() => {
-                  const isTeam1 = teamBowlGame.team1 === teamAbbr
-                  const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
-                  const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score
-                  const oppScore = isTeam1 ? teamBowlGame.team2Score : teamBowlGame.team1Score
-                  setSelectedGame({
-                    opponent: opponent,
-                    teamScore: thisTeamScore,
-                    opponentScore: oppScore,
-                    result: wonBowl ? 'win' : 'loss',
-                    year: selectedYear,
-                    week: 'Bowl',
-                    location: 'neutral',
-                    isBowlGame: true,
-                    gameTitle: teamBowlGame.bowlName || 'Bowl Game',
-                    viewingTeam: mascotName || teamInfo.name,
-                    viewingTeamAbbr: teamAbbr
-                  })
-                  setShowGameDetailModal(true)
-                }}
-                className="inline-flex items-center gap-1 sm:gap-1.5 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
-                style={{
-                  backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
-                  color: '#ffffff'
-                }}
-              >
-                {bowlLogos[teamBowlGame.bowlName] && (
-                  <img
-                    src={bowlLogos[teamBowlGame.bowlName]}
-                    alt=""
-                    className="w-3 h-3 sm:w-4 sm:h-4 object-contain"
-                  />
-                )}
-                <span className="truncate max-w-[120px] sm:max-w-none">{teamBowlGame.bowlName || 'Bowl Game'}{wonBowl ? ' Champion' : ''}</span>
-              </button>
-            )}
+            {/* Bowl Game Badge - only show clickable version if in CFP (otherwise shown above) */}
+            {cfpResult && teamBowlGame && (() => {
+              const bowlGameId = teamBowlGame.id || `bowl-${selectedYear}-${(teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')}`
+              return (
+                <Link
+                  to={`/dynasty/${id}/game/${bowlGameId}`}
+                  className="inline-flex items-center gap-1 sm:gap-1.5 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                  style={{
+                    backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
+                    color: '#ffffff'
+                  }}
+                >
+                  {bowlLogos[teamBowlGame.bowlName] && (
+                    <img
+                      src={bowlLogos[teamBowlGame.bowlName]}
+                      alt=""
+                      className="w-3 h-3 sm:w-4 sm:h-4 object-contain"
+                    />
+                  )}
+                  <span className="truncate max-w-[120px] sm:max-w-none">{teamBowlGame.bowlName || 'Bowl Game'}{wonBowl ? ' Champion' : ''}</span>
+                </Link>
+              )
+            })()}
           </div>
 
           {/* Season Record (desktop only - mobile shown above) */}
@@ -970,21 +1343,9 @@ export default function TeamYear() {
               const isLoss = game.result === 'loss' || game.result === 'L'
               const hasResult = isWin || isLoss
 
-              return (
-                <div
-                  key={index}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
-                  style={{
-                    backgroundColor: oppColors.backgroundColor,
-                    borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : oppColors.backgroundColor
-                  }}
-                  onClick={() => {
-                    if (hasResult) {
-                      setSelectedGame(game)
-                      setShowGameDetailModal(true)
-                    }
-                  }}
-                >
+              // Content for the game display
+              const gameContent = (
+                <>
                   <div className="flex items-center gap-2 sm:gap-4">
                     <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
                       {game.isBowlGame ? 'Bowl' : game.isPlayoff ? 'CFP' : game.isConferenceChampionship ? 'CCG' : `Wk ${game.week}`}
@@ -1061,6 +1422,36 @@ export default function TeamYear() {
                       Scheduled
                     </div>
                   )}
+                </>
+              )
+
+              // Return the wrapped content
+              if (game.id) {
+                return (
+                  <Link
+                    key={index}
+                    to={`/dynasty/${id}/game/${game.id}`}
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 block ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                    style={{
+                      backgroundColor: oppColors.backgroundColor,
+                      borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : oppColors.backgroundColor
+                    }}
+                  >
+                    {gameContent}
+                  </Link>
+                )
+              }
+
+              return (
+                <div
+                  key={index}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
+                  style={{
+                    backgroundColor: oppColors.backgroundColor,
+                    borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : oppColors.backgroundColor
+                  }}
+                >
+                  {gameContent}
                 </div>
               )
             })}
@@ -1107,30 +1498,26 @@ export default function TeamYear() {
               const thisTeamScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team1Score : teamCCGame.team2Score) : null
               const oppScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team2Score : teamCCGame.team1Score) : null
 
+              // Use Link for CC games with results
+              const ccGameId = teamCCGame?.id || `cc-${selectedYear}`
+              const WrapperComponent = hasResult ? Link : 'div'
+              const wrapperProps = hasResult ? {
+                to: `/dynasty/${id}/game/${ccGameId}`,
+                className: 'flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block',
+                style: {
+                  backgroundColor: ccOppColors.backgroundColor,
+                  borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : ccOppColors.backgroundColor
+                }
+              } : {
+                className: 'flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0',
+                style: {
+                  backgroundColor: ccOppColors.backgroundColor,
+                  borderColor: ccOppColors.backgroundColor
+                }
+              }
+
               return (
-                <div
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
-                  style={{
-                    backgroundColor: ccOppColors.backgroundColor,
-                    borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : ccOppColors.backgroundColor
-                  }}
-                  onClick={() => {
-                    if (hasResult) {
-                      setSelectedGame({
-                        opponent: ccOpponentAbbr,
-                        teamScore: thisTeamScore,
-                        opponentScore: oppScore,
-                        result: isWin ? 'win' : 'loss',
-                        year: selectedYear,
-                        week: 'CCG',
-                        location: 'neutral',
-                        isConferenceChampionship: true,
-                        gameTitle: `${teamCCGame.conference} Championship Game`
-                      })
-                      setShowGameDetailModal(true)
-                    }
-                  }}
-                >
+                <WrapperComponent {...wrapperProps}>
                   <div className="flex items-center gap-2 sm:gap-4">
                     <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: ccOppColors.textColor, opacity: 0.9 }}>
                       CCG
@@ -1195,7 +1582,7 @@ export default function TeamYear() {
                       Scheduled
                     </div>
                   )}
-                </div>
+                </WrapperComponent>
               )
             })()}
 
@@ -1413,23 +1800,96 @@ export default function TeamYear() {
                   const oppLogo = oppMascot ? getTeamLogo(oppMascot) : null
                   const oppColors = teamAbbreviations[game.opponent] || { backgroundColor: '#6b7280', textColor: '#ffffff' }
 
+                  // Use Link to game page if gameId available
+                  if (game.gameId) {
+                    return (
+                      <Link
+                        key={index}
+                        to={`/dynasty/${id}/game/${game.gameId}`}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity gap-2 sm:gap-0 block"
+                        style={{
+                          backgroundColor: oppColors.backgroundColor,
+                          borderColor: game.thisTeamWon ? '#86efac' : '#fca5a5'
+                        }}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-4">
+                          <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
+                            {typeof game.week === 'number' ? `Wk ${game.week}` : game.week}
+                          </div>
+                          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                            <span
+                              className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
+                              style={{
+                                backgroundColor: oppColors.textColor,
+                                color: oppColors.backgroundColor
+                              }}
+                            >
+                              {game.location === 'away' ? '@' : 'vs'}
+                            </span>
+                            {oppLogo && (
+                              <div
+                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{
+                                  backgroundColor: '#FFFFFF',
+                                  border: `2px solid ${oppColors.textColor}`,
+                                  padding: '2px'
+                                }}
+                              >
+                                <img
+                                  src={oppLogo}
+                                  alt={`${oppMascot} logo`}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
+                              {game.opponentRank && (
+                                <span className="text-xs font-bold flex-shrink-0" style={{ color: oppColors.textColor, opacity: 0.7 }}>
+                                  #{game.opponentRank}
+                                </span>
+                              )}
+                              <span
+                                className="font-semibold text-sm sm:text-base truncate"
+                                style={{ color: oppColors.textColor }}
+                              >
+                                {oppMascot || game.opponent}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
+                          <div
+                            className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
+                            style={{
+                              backgroundColor: game.thisTeamWon ? '#22c55e' : '#ef4444',
+                              color: '#ffffff'
+                            }}
+                          >
+                            {game.thisTeamWon ? 'W' : 'L'}
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
+                              {game.thisTeamScore} - {game.opponentScore}
+                              {game.overtimes && game.overtimes.length > 0 && (
+                                <span className="ml-1 text-xs opacity-80">
+                                  {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  }
+
+                  // Fallback for games without ID (shouldn't happen)
                   return (
                     <div
                       key={index}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity gap-2 sm:gap-0"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
                       style={{
                         backgroundColor: oppColors.backgroundColor,
                         borderColor: game.thisTeamWon ? '#86efac' : '#fca5a5'
-                      }}
-                      onClick={() => {
-                        // Open modal for any game with data
-                        if (game.originalGame) {
-                          setSelectedGame(game.originalGame)
-                          setShowGameDetailModal(true)
-                        } else if (game.gameForModal) {
-                          setSelectedGame(game.gameForModal)
-                          setShowGameDetailModal(true)
-                        }
                       }}
                     >
                       <div className="flex items-center gap-2 sm:gap-4">
@@ -1447,22 +1907,20 @@ export default function TeamYear() {
                             {game.location === 'away' ? '@' : 'vs'}
                           </span>
                           {oppLogo && (
-                            <Link
-                              to={`/dynasty/${id}/team/${game.opponent}/${selectedYear}`}
-                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform"
+                            <div
+                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
                               style={{
                                 backgroundColor: '#FFFFFF',
                                 border: `2px solid ${oppColors.textColor}`,
                                 padding: '2px'
                               }}
-                              onClick={(e) => e.stopPropagation()}
                             >
                               <img
                                 src={oppLogo}
                                 alt={`${oppMascot} logo`}
                                 className="w-full h-full object-contain"
                               />
-                            </Link>
+                            </div>
                           )}
                           <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
                             {game.opponentRank && (
@@ -1470,14 +1928,12 @@ export default function TeamYear() {
                                 #{game.opponentRank}
                               </span>
                             )}
-                            <Link
-                              to={`/dynasty/${id}/team/${game.opponent}/${selectedYear}`}
-                              className="font-semibold hover:underline text-sm sm:text-base truncate"
+                            <span
+                              className="font-semibold text-sm sm:text-base truncate"
                               style={{ color: oppColors.textColor }}
-                              onClick={(e) => e.stopPropagation()}
                             >
                               {oppMascot || game.opponent}
-                            </Link>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1574,17 +2030,30 @@ export default function TeamYear() {
         </div>
       )}
 
-      {/* Game Detail Modal */}
-      <GameDetailModal
-        isOpen={showGameDetailModal}
-        onClose={() => {
-          setShowGameDetailModal(false)
-          setSelectedGame(null)
-        }}
-        game={selectedGame}
-        userTeam={currentDynasty.teamName}
-        teamColors={userTeamColors}
-      />
+
+      {/* Game Entry Modal (for editing games) */}
+      {showEditModal && editingGameData && (
+        <GameEntryModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingGameData(null)
+          }}
+          onSave={handleGameSave}
+          weekNumber={selectedGame?.week || 'Bowl'}
+          currentYear={selectedYear}
+          teamColors={userTeamColors}
+          opponent={editingGameData.isUserGame ? editingGameData.opponent : undefined}
+          bowlName={editingGameData.bowlName}
+          existingGame={editingGameData.isUserGame ? editingGameData.existingGame : null}
+          team1={editingGameData.isUserGame ? undefined : editingGameData.team1}
+          team2={editingGameData.isUserGame ? undefined : editingGameData.team2}
+          existingTeam1Score={editingGameData.existingTeam1Score}
+          existingTeam2Score={editingGameData.existingTeam2Score}
+          existingGameNote={editingGameData.existingGameNote}
+          existingLinks={editingGameData.existingLinks}
+        />
+      )}
     </div>
   )
 }

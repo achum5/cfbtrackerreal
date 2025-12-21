@@ -4,7 +4,7 @@ import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 
-export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName, team1: passedTeam1, team2: passedTeam2 }) {
+export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName, team1: passedTeam1, team2: passedTeam2, existingTeam1Score, existingTeam2Score, existingGameNote, existingLinks, minimalMode }) {
   const { currentDynasty } = useDynasty()
 
   // Detect if this is a CPU vs CPU game (both teams are passed, not user's team)
@@ -215,6 +215,73 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   const confPOWDropdownRef = useRef(null)
   const natlPOWDropdownRef = useRef(null)
   const formRef = useRef(null)
+
+  // Determine if scores should be locked
+  // Only allow editing if current phase/week is the same as the game OR one week after
+  const isScoreLocked = (() => {
+    // CPU games from CFP bracket are never locked (they can be edited anytime)
+    if (isCPUGame) return false
+
+    // Helper to get a numeric order for any phase/week combination
+    const getOrder = (phase, week, gameFlags = {}) => {
+      if (phase === 'preseason') return 0
+      if (phase === 'regular_season') return week // 1-14
+      if (phase === 'postseason') {
+        // Postseason weeks 1-4 map to orders 15-18
+        return 14 + week
+      }
+      if (phase === 'offseason') return 100
+      return 0
+    }
+
+    // Get current dynasty position
+    const currentPhase = currentDynasty?.currentPhase
+    const currentWeek = currentDynasty?.currentWeek || 1
+    const currentOrder = getOrder(currentPhase, currentWeek)
+
+    // Determine this game's phase and week
+    let gamePhase = 'regular_season'
+    let gameWeek = actualWeekNumber
+
+    if (isConferenceChampionship || bowlName ||
+        weekNumber === 'CFP First Round' || weekNumber === 'CFP Quarterfinal' ||
+        weekNumber === 'CFP Semifinal' || weekNumber === 'CFP Championship') {
+      gamePhase = 'postseason'
+      // Map CFP rounds to postseason weeks
+      if (isConferenceChampionship || weekNumber === 'CFP First Round') {
+        gameWeek = 1
+      } else if (weekNumber === 'CFP Quarterfinal') {
+        gameWeek = 2
+      } else if (weekNumber === 'CFP Semifinal') {
+        gameWeek = 3
+      } else if (weekNumber === 'CFP Championship') {
+        gameWeek = 4
+      } else if (bowlName) {
+        // Bowl games - try to get from passed existing game or default to week 1
+        gameWeek = passedExistingGame?.week || 1
+      }
+    }
+
+    // Check if passed existing game has postseason flags
+    if (passedExistingGame) {
+      if (passedExistingGame.isConferenceChampionship || passedExistingGame.isBowlGame ||
+          passedExistingGame.isCFPFirstRound || passedExistingGame.isCFPQuarterfinal ||
+          passedExistingGame.isCFPSemifinal || passedExistingGame.isCFPChampionship) {
+        gamePhase = 'postseason'
+        if (passedExistingGame.isCFPFirstRound || passedExistingGame.isConferenceChampionship) gameWeek = 1
+        else if (passedExistingGame.isCFPQuarterfinal) gameWeek = 2
+        else if (passedExistingGame.isCFPSemifinal) gameWeek = 3
+        else if (passedExistingGame.isCFPChampionship) gameWeek = 4
+        else if (passedExistingGame.isBowlGame) gameWeek = passedExistingGame.week || 1
+      }
+    }
+
+    const gameOrder = getOrder(gamePhase, gameWeek)
+
+    // Allow editing only if current is same week or 1 week ahead (just advanced)
+    // Locked if current is more than 1 week ahead of the game
+    return currentOrder > gameOrder + 1
+  })()
 
   // Get list of player names for selection
   const playerNames = (currentDynasty?.players || [])
@@ -479,10 +546,11 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   // Load existing game data or scheduled game data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Check if there's an existing game for this week (or use passed existing game for CC)
-      const existingGame = passedExistingGame || (isConferenceChampionship
+      // In minimalMode (CFP bracket edits), skip the games array lookup entirely
+      // Only use the scores passed directly via props
+      const existingGame = minimalMode ? null : (passedExistingGame || (isConferenceChampionship
         ? currentDynasty?.games?.find(g => g.isConferenceChampionship && g.year === currentYear)
-        : currentDynasty?.games?.find(g => g.week === actualWeekNumber && g.year === currentYear))
+        : currentDynasty?.games?.find(g => g.week === actualWeekNumber && g.year === currentYear)))
 
       if (existingGame) {
         // Load existing game data for editing
@@ -536,6 +604,44 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWSearch('')
         setConfPOWOpen(false)
         setNatlPOWOpen(false)
+      } else if (existingTeam1Score !== undefined || existingTeam2Score !== undefined) {
+        // Game with minimal data (scores only) - for CFP games from bracket or CPU games
+        // Only load teams and scores, leave everything else blank
+        setGameData(prev => ({
+          ...prev,
+          opponent: passedOpponent || passedTeam2 || '',
+          location: 'neutral',
+          teamScore: existingTeam1Score?.toString() || '',
+          opponentScore: existingTeam2Score?.toString() || '',
+          isConferenceGame: false,
+          userRank: '',
+          opponentRank: '',
+          opponentOverall: '',
+          opponentOffense: '',
+          opponentDefense: '',
+          overallRecord: '',
+          conferenceRecord: '',
+          gameNote: existingGameNote || '',
+          quarters: {
+            team: { Q1: '', Q2: '', Q3: '', Q4: '' },
+            opponent: { Q1: '', Q2: '', Q3: '', Q4: '' }
+          },
+          overtimes: []
+        }))
+
+        // Load existing links if provided
+        if (existingLinks) {
+          const linkArray = existingLinks.split(',').map(link => link.trim()).filter(link => link)
+          setLinks(linkArray.length > 0 ? [...linkArray, ''] : [''])
+        } else {
+          setLinks([''])
+        }
+        setConferencePOW('')
+        setNationalPOW('')
+        setConfPOWSearch('')
+        setNatlPOWSearch('')
+        setConfPOWOpen(false)
+        setNatlPOWOpen(false)
       } else if (scheduledGame || isConferenceChampionship || bowlName || passedOpponent) {
         // New game - load from schedule, CC opponent, or bowl opponent
         setGameData(prev => ({
@@ -568,7 +674,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWOpen(false)
       }
     }
-  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame, bowlName])
+  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame, bowlName, isCPUGame, existingTeam1Score, existingTeam2Score, existingGameNote, existingLinks, passedTeam2, minimalMode])
 
   const handleLinkChange = (index, value) => {
     const newLinks = [...links]
@@ -953,9 +1059,19 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         <form ref={formRef} onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* Score Section */}
           <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
-              Final Score
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
+                Final Score
+              </h3>
+              {isScoreLocked && (
+                <span className="text-xs sm:text-sm px-2 py-1 bg-gray-200 text-gray-600 rounded-md flex items-center gap-1">
+                  <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Locked
+                </span>
+              )}
+            </div>
 
             {/* Quarter by Quarter Scoring */}
             <div className="bg-gray-50 rounded-lg p-2 sm:p-4">
@@ -1066,7 +1182,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q1}
-                            onChange={(e) => handleQuarterChange(topTeam.key, 'Q1', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(topTeam.key, 'Q1', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1075,15 +1191,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q1"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                           <input
                             type="number"
                             value={gameData.quarters[bottomTeam.key].Q1}
-                            onChange={(e) => handleQuarterChange(bottomTeam.key, 'Q1', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(bottomTeam.key, 'Q1', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1092,10 +1210,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q1"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                         </div>
 
@@ -1104,7 +1224,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q2}
-                            onChange={(e) => handleQuarterChange(topTeam.key, 'Q2', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(topTeam.key, 'Q2', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1113,15 +1233,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q2"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                           <input
                             type="number"
                             value={gameData.quarters[bottomTeam.key].Q2}
-                            onChange={(e) => handleQuarterChange(bottomTeam.key, 'Q2', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(bottomTeam.key, 'Q2', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1130,10 +1252,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q2"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                         </div>
 
@@ -1142,7 +1266,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q3}
-                            onChange={(e) => handleQuarterChange(topTeam.key, 'Q3', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(topTeam.key, 'Q3', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1151,15 +1275,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q3"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                           <input
                             type="number"
                             value={gameData.quarters[bottomTeam.key].Q3}
-                            onChange={(e) => handleQuarterChange(bottomTeam.key, 'Q3', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(bottomTeam.key, 'Q3', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1168,10 +1294,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q3"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                         </div>
 
@@ -1180,7 +1308,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                           <input
                             type="number"
                             value={gameData.quarters[topTeam.key].Q4}
-                            onChange={(e) => handleQuarterChange(topTeam.key, 'Q4', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(topTeam.key, 'Q4', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey) {
                                 e.preventDefault()
@@ -1189,15 +1317,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={topTeam.key}
                             data-quarter="Q4"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                           <input
                             type="number"
                             value={gameData.quarters[bottomTeam.key].Q4}
-                            onChange={(e) => handleQuarterChange(bottomTeam.key, 'Q4', e.target.value)}
+                            onChange={(e) => !isScoreLocked && handleQuarterChange(bottomTeam.key, 'Q4', e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Tab' && !e.shiftKey && gameData.overtimes.length > 0) {
                                 e.preventDefault()
@@ -1208,10 +1338,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             }}
                             data-team={bottomTeam.key}
                             data-quarter="Q4"
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
                             placeholder="0"
+                            disabled={isScoreLocked}
+                            readOnly={isScoreLocked}
                           />
                         </div>
 
@@ -1221,7 +1353,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                             <input
                               type="number"
                               value={ot[topTeam.key]}
-                              onChange={(e) => handleOvertimeChange(otIdx, topTeam.key, e.target.value)}
+                              onChange={(e) => !isScoreLocked && handleOvertimeChange(otIdx, topTeam.key, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Tab' && !e.shiftKey) {
                                   e.preventDefault()
@@ -1230,15 +1362,17 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               }}
                               data-team={topTeam.key}
                               data-ot={otIdx}
-                              className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                              className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               style={{ borderColor: topTeam.colors.primary }}
                               min="0"
                               placeholder="0"
+                              disabled={isScoreLocked}
+                              readOnly={isScoreLocked}
                             />
                             <input
                               type="number"
                               value={ot[bottomTeam.key]}
-                              onChange={(e) => handleOvertimeChange(otIdx, bottomTeam.key, e.target.value)}
+                              onChange={(e) => !isScoreLocked && handleOvertimeChange(otIdx, bottomTeam.key, e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Tab' && !e.shiftKey && otIdx < gameData.overtimes.length - 1) {
                                   e.preventDefault()
@@ -1249,10 +1383,12 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                               }}
                               data-team={bottomTeam.key}
                               data-ot={otIdx}
-                              className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm"
+                              className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm ${isScoreLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                               style={{ borderColor: bottomTeam.colors.primary }}
                               min="0"
                               placeholder="0"
+                              disabled={isScoreLocked}
+                              readOnly={isScoreLocked}
                             />
                           </div>
                         ))}
@@ -1262,29 +1398,29 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                           <input
                             type="number"
                             value={topTeam.key === 'team' ? gameData.teamScore : gameData.opponentScore}
-                            onChange={(e) => !hasQuarterScores() && setGameData({
+                            onChange={(e) => !hasQuarterScores() && !isScoreLocked && setGameData({
                               ...gameData,
                               [topTeam.key === 'team' ? 'teamScore' : 'opponentScore']: e.target.value
                             })}
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold ${isScoreLocked || hasQuarterScores() ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: topTeam.colors.primary }}
                             min="0"
-                            readOnly={hasQuarterScores()}
-                            disabled={hasQuarterScores()}
+                            readOnly={hasQuarterScores() || isScoreLocked}
+                            disabled={hasQuarterScores() || isScoreLocked}
                             required
                           />
                           <input
                             type="number"
                             value={bottomTeam.key === 'team' ? gameData.teamScore : gameData.opponentScore}
-                            onChange={(e) => !hasQuarterScores() && setGameData({
+                            onChange={(e) => !hasQuarterScores() && !isScoreLocked && setGameData({
                               ...gameData,
                               [bottomTeam.key === 'team' ? 'teamScore' : 'opponentScore']: e.target.value
                             })}
-                            className="w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold"
+                            className={`w-full px-1 sm:px-2 py-1 border-2 rounded text-center text-xs sm:text-sm font-bold ${isScoreLocked || hasQuarterScores() ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             style={{ borderColor: bottomTeam.colors.primary }}
                             min="0"
-                            readOnly={hasQuarterScores()}
-                            disabled={hasQuarterScores()}
+                            readOnly={hasQuarterScores() || isScoreLocked}
+                            disabled={hasQuarterScores() || isScoreLocked}
                             required
                           />
                         </div>
