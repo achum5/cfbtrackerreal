@@ -131,6 +131,7 @@ export default function Game() {
       if (ccGame) {
         return {
           ...ccGame,
+          id: gameId,  // CRITICAL: Include ID for save functionality
           year: year,
           isConferenceChampionship: true,
           isCPUGame: true,
@@ -164,6 +165,7 @@ export default function Game() {
           const winner = bowlGame.team1Score > bowlGame.team2Score ? bowlGame.team1 : bowlGame.team2
           return {
             ...bowlGame,
+            id: gameId,  // CRITICAL: Include ID for save functionality
             year: year,
             isBowlGame: true,
             isCPUGame: true,
@@ -223,6 +225,7 @@ export default function Game() {
         if (qfGame) {
           return {
             ...qfGame,
+            id: gameId,  // CRITICAL: Include ID for save functionality
             year: year,
             isCFPQuarterfinal: true,
             isBowlGame: true,
@@ -237,6 +240,7 @@ export default function Game() {
         if (sfGame) {
           return {
             ...sfGame,
+            id: gameId,  // CRITICAL: Include ID for save functionality
             year: year,
             isCFPSemifinal: true,
             isBowlGame: true,
@@ -250,6 +254,7 @@ export default function Game() {
         if (champGame) {
           return {
             ...champGame,
+            id: gameId,  // CRITICAL: Include ID for save functionality
             year: year,
             isCFPChampionship: true,
             isBowlGame: true,
@@ -263,12 +268,67 @@ export default function Game() {
         if (frGame) {
           return {
             ...frGame,
+            id: gameId,  // CRITICAL: Include ID for save functionality
             year: year,
             isCFPFirstRound: true,
             isBowlGame: true,
             isPlayoff: true,
             isCPUGame: true,
             gameTitle: 'CFP First Round'
+          }
+        }
+      } else if (bowlSlug.startsWith('first-round-')) {
+        // Handle cfp-{year}-first-round-{seed1}-vs-{seed2} pattern
+        const seedMatch = bowlSlug.match(/^first-round-(\d+)-vs-(\d+)$/)
+        if (seedMatch) {
+          const seed1 = parseInt(seedMatch[1])
+          const seed2 = parseInt(seedMatch[2])
+          // Find the game matching these seeds
+          const frGame = (cfpResults.firstRound || []).find(g =>
+            (g.seed1 === seed1 && g.seed2 === seed2) ||
+            (g.seed1 === seed2 && g.seed2 === seed1)
+          )
+          if (frGame) {
+            return {
+              ...frGame,
+              id: gameId,
+              year: year,
+              isCFPFirstRound: true,
+              isBowlGame: true,
+              isPlayoff: true,
+              isCPUGame: true,
+              gameTitle: 'CFP First Round'
+            }
+          }
+        }
+      } else {
+        // Handle cfp-{year}-{team1}-vs-{team2} pattern
+        const teamsMatch = bowlSlug.match(/^(.+)-vs-(.+)$/)
+        if (teamsMatch) {
+          const team1Slug = teamsMatch[1].toUpperCase()
+          const team2Slug = teamsMatch[2].toUpperCase()
+          // Search all CFP rounds for this matchup
+          const allRounds = [
+            ...(cfpResults.firstRound || []).map(g => ({ ...g, roundFlag: 'isCFPFirstRound', title: 'CFP First Round' })),
+            ...(cfpResults.quarterfinals || []).map(g => ({ ...g, roundFlag: 'isCFPQuarterfinal', title: g.bowlName || 'CFP Quarterfinal' })),
+            ...(cfpResults.semifinals || []).map(g => ({ ...g, roundFlag: 'isCFPSemifinal', title: g.bowlName || 'CFP Semifinal' })),
+            ...(cfpResults.championship ? [{ ...cfpResults.championship, roundFlag: 'isCFPChampionship', title: 'National Championship' }] : [])
+          ]
+          const matchingGame = allRounds.find(g =>
+            (g.team1 === team1Slug && g.team2 === team2Slug) ||
+            (g.team1 === team2Slug && g.team2 === team1Slug)
+          )
+          if (matchingGame) {
+            return {
+              ...matchingGame,
+              id: gameId,
+              year: year,
+              [matchingGame.roundFlag]: true,
+              isBowlGame: true,
+              isPlayoff: true,
+              isCPUGame: true,
+              gameTitle: matchingGame.title
+            }
           }
         }
       }
@@ -443,12 +503,10 @@ export default function Game() {
       const existingGames = currentDynasty.games || []
       const gameIndex = existingGames.findIndex(g => g.id === gameId)
 
-      if (gameIndex < 0) {
-        console.error('Game not found in games array')
-        return
-      }
-
-      const originalGame = existingGames[gameIndex]
+      // Use the game from games[] if found, otherwise use the constructed game object
+      // This handles games loaded from cfpResultsByYear, bowlGamesByYear, etc.
+      const originalGame = gameIndex >= 0 ? existingGames[gameIndex] : game
+      const isNewGame = gameIndex < 0
 
       let updatedGame
       if (isCPUGame) {
@@ -472,6 +530,7 @@ export default function Game() {
 
         updatedGame = {
           ...originalGame,
+          id: gameId,  // Ensure ID is set
           team1Score: finalTeam1Score,
           team2Score: finalTeam2Score,
           winner: winner,
@@ -482,19 +541,32 @@ export default function Game() {
           result: 'win',
           gameNote: gameData.gameNote || '',
           links: gameData.links || '',
+          quarters: gameData.quarters,
+          overtimes: gameData.overtimes,
+          // Include rankings for CPU games
+          userRank: gameData.userRank,
+          opponentRank: gameData.opponentRank,
           updatedAt: new Date().toISOString()
         }
       } else {
         updatedGame = {
           ...originalGame,
           ...gameData,
-          id: originalGame.id,
+          id: gameId,  // Ensure ID is set
           updatedAt: new Date().toISOString()
         }
       }
 
-      const updatedGames = [...existingGames]
-      updatedGames[gameIndex] = updatedGame
+      let updatedGames
+      if (isNewGame) {
+        // Game was constructed from fallback data - add to games array
+        updatedGames = [...existingGames, updatedGame]
+      } else {
+        // Game exists in array - update in place
+        updatedGames = [...existingGames]
+        updatedGames[gameIndex] = updatedGame
+      }
+
       await updateDynasty(currentDynasty.id, { games: updatedGames })
 
       setShowEditModal(false)
@@ -558,331 +630,312 @@ export default function Game() {
   const rightData = getTeamData(rightTeam)
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Navigation Bar */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: teamColors.primary, color: getContrastTextColor(teamColors.primary) }}
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-        <button
-          onClick={() => setShowEditModal(true)}
-          className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity bg-gray-100 text-gray-700 hover:bg-gray-200"
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Edit
-        </button>
-      </div>
-
-      {/* Main Scoreboard Card */}
-      <div className="rounded-2xl overflow-hidden shadow-xl">
-        {/* Header with game info */}
+    <div className="space-y-4">
+      {/* Compact Header Bar */}
+      <div className="bg-gray-900 rounded-xl overflow-hidden shadow-lg">
+        {/* Top bar with game info and navigation */}
         <div
-          className="px-4 py-3 sm:px-6 sm:py-4 text-center relative"
-          style={{ background: `linear-gradient(135deg, ${displayTeamColors.primary} 0%, ${opponentColors.primary} 100%)` }}
+          className="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center justify-between"
+          style={{ background: `linear-gradient(90deg, ${displayTeamColors.primary} 0%, ${opponentColors.primary} 100%)` }}
         >
-          {eventLogo && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-lg p-1.5 shadow-lg hidden sm:flex items-center justify-center">
-              <img src={eventLogo} alt="Event logo" className="w-full h-full object-contain" />
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm bg-black/20 text-white hover:bg-black/30 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {eventLogo && (
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-white rounded p-0.5 shadow">
+                <img src={eventLogo} alt="Event" className="w-full h-full object-contain" />
+              </div>
+            )}
+            <div className="text-white text-center">
+              <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
+              <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
             </div>
-          )}
-          <div className="text-white">
-            <div className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">{gameTitle}</div>
-            <div className="text-xs sm:text-sm opacity-90 mt-0.5">{gameSubtitle}</div>
           </div>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1 bg-black/30 rounded-full">
-            <span className="text-white text-xs sm:text-sm font-bold tracking-wider">FINAL</span>
-          </div>
+
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm bg-black/20 text-white hover:bg-black/30 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="hidden sm:inline">Edit</span>
+          </button>
         </div>
 
-        {/* Scoreboard */}
-        <div className="bg-gradient-to-b from-gray-900 to-gray-800 px-4 py-6 sm:px-8 sm:py-10">
-          <div className="flex items-center justify-between max-w-3xl mx-auto">
+        {/* Compact Scoreboard */}
+        <div className="px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-center gap-4 sm:gap-8">
             {/* Left Team */}
-            <div className="flex-1 text-center">
-              <Link to={`/dynasty/${id}/team/${leftData.abbr}/${game.year}`} className="group inline-block">
-                <div className="relative">
-                  {leftData.rank && (
-                    <div className="absolute -top-2 -left-2 sm:-top-3 sm:-left-3 w-6 h-6 sm:w-8 sm:h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg z-10">
-                      <span className="text-xs sm:text-sm font-bold text-gray-900">{leftData.rank}</span>
-                    </div>
+            <Link to={`/dynasty/${id}/team/${leftData.abbr}/${game.year}`} className="group flex-1">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div
+                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0"
+                  style={{ backgroundColor: leftData.colors.primary }}
+                >
+                  {leftData.logo && (
+                    <img src={leftData.logo} alt={leftData.name} className="w-full h-full object-contain" />
                   )}
-                  <div
-                    className="w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 mx-auto rounded-full flex items-center justify-center p-3 sm:p-4 group-hover:scale-105 transition-transform shadow-xl"
-                    style={{ backgroundColor: leftData.colors.primary }}
-                  >
-                    {leftData.logo && (
-                      <img src={leftData.logo} alt={leftData.name} className="w-full h-full object-contain drop-shadow-lg" />
-                    )}
-                  </div>
                 </div>
-                <div className="mt-3 sm:mt-4">
-                  <div className="text-white font-bold text-sm sm:text-lg md:text-xl group-hover:underline truncate px-2">
-                    {leftData.name}
+                <div>
+                  <div className="text-white font-bold text-xs sm:text-sm md:text-base group-hover:underline">
+                    <span className="sm:hidden">{leftData.rank ? `#${leftData.rank} ` : ''}{leftData.abbr}</span>
+                    <span className="hidden sm:inline">{leftData.rank ? `#${leftData.rank} ` : ''}{leftData.name}</span>
                   </div>
                   {leftData.record && (
-                    <div className="text-gray-400 text-xs sm:text-sm mt-0.5">{leftData.record}</div>
+                    <div className="text-gray-400 text-[10px] sm:text-xs">{leftData.record}</div>
                   )}
                 </div>
-              </Link>
-              <div className={`text-5xl sm:text-6xl md:text-8xl font-black mt-3 sm:mt-4 tabular-nums ${leftData.isWinner ? 'text-white' : 'text-gray-500'}`}>
-                {leftData.score}
               </div>
-              {leftData.isWinner && (
-                <div className="mt-2 inline-flex items-center px-3 py-1 sm:px-4 sm:py-1.5 bg-green-500 rounded-full">
-                  <span className="text-white text-xs sm:text-sm font-bold">WIN</span>
-                </div>
-              )}
-            </div>
+            </Link>
 
-            {/* VS Divider */}
-            <div className="flex-shrink-0 px-2 sm:px-6">
-              <div className="w-px h-24 sm:h-32 md:h-40 bg-gray-600 mx-auto relative">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-700 px-2 py-1 sm:px-3 sm:py-2 rounded">
-                  <span className="text-gray-400 text-xs sm:text-sm font-bold">VS</span>
+            {/* Scores */}
+            <div className="flex items-center gap-3 sm:gap-5">
+              <div className="text-center">
+                <div className={`text-3xl sm:text-4xl md:text-5xl font-black tabular-nums ${leftData.isWinner ? 'text-white' : 'text-gray-500'}`}>
+                  {leftData.score}
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-gray-500 text-xs font-medium">FINAL</span>
+                {game.overtimes && game.overtimes.length > 0 && (
+                  <span className="text-yellow-400 text-[10px] font-bold">
+                    {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
+                  </span>
+                )}
+              </div>
+
+              <div className="text-center">
+                <div className={`text-3xl sm:text-4xl md:text-5xl font-black tabular-nums ${rightData.isWinner ? 'text-white' : 'text-gray-500'}`}>
+                  {rightData.score}
                 </div>
               </div>
             </div>
 
             {/* Right Team */}
-            <div className="flex-1 text-center">
-              <Link to={`/dynasty/${id}/team/${rightData.abbr}/${game.year}`} className="group inline-block">
-                <div className="relative">
-                  {rightData.rank && (
-                    <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 w-6 h-6 sm:w-8 sm:h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg z-10">
-                      <span className="text-xs sm:text-sm font-bold text-gray-900">{rightData.rank}</span>
-                    </div>
-                  )}
-                  <div
-                    className="w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 mx-auto rounded-full flex items-center justify-center p-3 sm:p-4 group-hover:scale-105 transition-transform shadow-xl"
-                    style={{ backgroundColor: rightData.colors.primary }}
-                  >
-                    {rightData.logo && (
-                      <img src={rightData.logo} alt={rightData.name} className="w-full h-full object-contain drop-shadow-lg" />
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3 sm:mt-4">
-                  <div className="text-white font-bold text-sm sm:text-lg md:text-xl group-hover:underline truncate px-2">
-                    {rightData.name}
+            <Link to={`/dynasty/${id}/team/${rightData.abbr}/${game.year}`} className="group flex-1">
+              <div className="flex items-center justify-end gap-2 sm:gap-3">
+                <div className="text-right">
+                  <div className="text-white font-bold text-xs sm:text-sm md:text-base group-hover:underline">
+                    <span className="sm:hidden">{rightData.rank ? `#${rightData.rank} ` : ''}{rightData.abbr}</span>
+                    <span className="hidden sm:inline">{rightData.rank ? `#${rightData.rank} ` : ''}{rightData.name}</span>
                   </div>
                   {rightData.record && (
-                    <div className="text-gray-400 text-xs sm:text-sm mt-0.5">{rightData.record}</div>
+                    <div className="text-gray-400 text-[10px] sm:text-xs">{rightData.record}</div>
                   )}
                 </div>
-              </Link>
-              <div className={`text-5xl sm:text-6xl md:text-8xl font-black mt-3 sm:mt-4 tabular-nums ${rightData.isWinner ? 'text-white' : 'text-gray-500'}`}>
-                {rightData.score}
-              </div>
-              {rightData.isWinner && (
-                <div className="mt-2 inline-flex items-center px-3 py-1 sm:px-4 sm:py-1.5 bg-green-500 rounded-full">
-                  <span className="text-white text-xs sm:text-sm font-bold">WIN</span>
+                <div
+                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0"
+                  style={{ backgroundColor: rightData.colors.primary }}
+                >
+                  {rightData.logo && (
+                    <img src={rightData.logo} alt={rightData.name} className="w-full h-full object-contain" />
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            </Link>
           </div>
-
-          {/* Overtime indicator */}
-          {game.overtimes && game.overtimes.length > 0 && (
-            <div className="text-center mt-4">
-              <span className="text-yellow-400 text-sm font-bold">
-                {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OVERTIME'}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Details Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Quarter by Quarter Scores */}
-        {game.quarters && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100" style={{ backgroundColor: `${teamColors.primary}10` }}>
-              <h3 className="font-bold text-gray-800 text-sm sm:text-base">Scoring Summary</h3>
-            </div>
-            <div className="p-3 sm:p-4 overflow-x-auto">
-              <table className="w-full min-w-[300px]">
-                <thead>
-                  <tr className="text-xs text-gray-500 uppercase tracking-wider">
-                    <th className="text-left pb-2 font-semibold">Team</th>
-                    <th className="text-center pb-2 w-10 font-semibold">1</th>
-                    <th className="text-center pb-2 w-10 font-semibold">2</th>
-                    <th className="text-center pb-2 w-10 font-semibold">3</th>
-                    <th className="text-center pb-2 w-10 font-semibold">4</th>
-                    {game.overtimes?.map((_, i) => (
-                      <th key={i} className="text-center pb-2 w-10 font-semibold">OT</th>
-                    ))}
-                    <th className="text-center pb-2 w-12 font-semibold">T</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {[leftData, rightData].map((team, idx) => {
-                    const quarterKey = (idx === 0 ? leftTeam : rightTeam) === 'user' ? 'team' : 'opponent'
-                    return (
-                      <tr key={idx} className={idx === 0 ? 'border-b border-gray-100' : ''}>
-                        <td className="py-2">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-6 h-6 rounded-full flex items-center justify-center p-0.5"
-                              style={{ backgroundColor: team.colors.primary }}
-                            >
-                              {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
-                            </div>
-                            <span className="font-semibold text-gray-800 truncate max-w-[100px] sm:max-w-none">{team.name}</span>
-                          </div>
-                        </td>
-                        {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                          <td key={q} className="text-center py-2 text-gray-600">{game.quarters[quarterKey]?.[q] ?? 0}</td>
-                        ))}
-                        {game.overtimes?.map((ot, i) => (
-                          <td key={i} className="text-center py-2 text-gray-600">{ot[quarterKey] ?? 0}</td>
-                        ))}
-                        <td className={`text-center py-2 font-bold ${team.isWinner ? 'text-green-600' : 'text-gray-800'}`}>
-                          {team.score}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* Box Score - Separate Card (only show if quarter data exists) */}
+      {game.quarters && (() => {
+        const t = game.quarters.team || {}
+        const o = game.quarters.opponent || {}
+        // Check if any quarter has actual data (number or non-empty string)
+        const hasData = [t.Q1, t.Q2, t.Q3, t.Q4, o.Q1, o.Q2, o.Q3, o.Q4].some(
+          v => v !== undefined && v !== '' && v !== null
+        )
+        return hasData
+      })() && (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Box Score</h3>
           </div>
-        )}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                  <th className="text-left py-2.5 px-4 font-semibold w-1/3">Team</th>
+                  <th className="text-center py-2.5 px-2 font-semibold w-12">1</th>
+                  <th className="text-center py-2.5 px-2 font-semibold w-12">2</th>
+                  <th className="text-center py-2.5 px-2 font-semibold w-12">3</th>
+                  <th className="text-center py-2.5 px-2 font-semibold w-12">4</th>
+                  {game.overtimes?.map((_, i) => (
+                    <th key={i} className="text-center py-2.5 px-2 font-semibold w-12">OT</th>
+                  ))}
+                  <th className="text-center py-2.5 px-4 font-semibold w-16">T</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {[leftData, rightData].map((team, idx) => {
+                  const quarterKey = (idx === 0 ? leftTeam : rightTeam) === 'user' ? 'team' : 'opponent'
+                  return (
+                    <tr key={idx} className={idx === 0 ? 'border-b border-gray-100' : ''}>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-6 h-6 rounded flex items-center justify-center p-0.5 flex-shrink-0"
+                            style={{ backgroundColor: team.colors.primary }}
+                          >
+                            {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
+                          </div>
+                          <span className="font-semibold text-gray-800">
+                            <span className="sm:hidden">{team.abbr}</span>
+                            <span className="hidden sm:inline">{team.name}</span>
+                          </span>
+                        </div>
+                      </td>
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
+                        <td key={q} className="text-center py-3 px-2 text-gray-600 font-medium">{game.quarters[quarterKey]?.[q] ?? 0}</td>
+                      ))}
+                      {game.overtimes?.map((ot, i) => (
+                        <td key={i} className="text-center py-3 px-2 text-gray-600 font-medium">{ot[quarterKey] ?? 0}</td>
+                      ))}
+                      <td className={`text-center py-3 px-4 font-bold text-lg ${team.isWinner ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {team.score}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-        {/* Team Ratings - only for user games with opponent ratings */}
+      {/* Details Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Team Ratings */}
         {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100" style={{ backgroundColor: `${teamColors.primary}10` }}>
-              <h3 className="font-bold text-gray-800 text-sm sm:text-base">Team Ratings</h3>
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Team Ratings</h3>
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="space-y-3">
-                {[leftData, rightData].map((team, idx) => {
-                  const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
-                  const ratings = isOpponent
-                    ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
-                    : { ovr: currentDynasty.teamRatings?.overall, off: currentDynasty.teamRatings?.offense, def: currentDynasty.teamRatings?.defense }
+            <div className="p-4 space-y-3">
+              {[leftData, rightData].map((team, idx) => {
+                const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
+                const ratings = isOpponent
+                  ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
+                  : { ovr: currentDynasty.teamRatings?.overall, off: currentDynasty.teamRatings?.offense, def: currentDynasty.teamRatings?.defense }
 
-                  if (!ratings.ovr && !ratings.off && !ratings.def) return null
+                if (!ratings.ovr && !ratings.off && !ratings.def) return null
 
-                  return (
-                    <div key={idx} className="flex items-center gap-3">
+                return (
+                  <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div className="flex items-center gap-2">
                       <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center p-1 flex-shrink-0"
+                        className="w-6 h-6 rounded flex items-center justify-center p-0.5"
                         style={{ backgroundColor: team.colors.primary }}
                       >
                         {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-800 text-sm truncate">{team.name}</div>
-                        <div className="flex gap-3 mt-1">
-                          {ratings.ovr && (
-                            <div className="text-xs">
-                              <span className="text-gray-500">OVR</span>
-                              <span className="ml-1 font-bold text-gray-800">{ratings.ovr}</span>
-                            </div>
-                          )}
-                          {ratings.off && (
-                            <div className="text-xs">
-                              <span className="text-gray-500">OFF</span>
-                              <span className="ml-1 font-bold text-gray-800">{ratings.off}</span>
-                            </div>
-                          )}
-                          {ratings.def && (
-                            <div className="text-xs">
-                              <span className="text-gray-500">DEF</span>
-                              <span className="ml-1 font-bold text-gray-800">{ratings.def}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <span className="font-medium text-gray-800 text-sm">{team.name?.split(' ').pop()}</span>
                     </div>
-                  )
-                })}
-              </div>
+                    <div className="flex gap-4 text-sm">
+                      {ratings.ovr && (
+                        <div className="text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">OVR</div>
+                          <div className="font-bold text-gray-800">{ratings.ovr}</div>
+                        </div>
+                      )}
+                      {ratings.off && (
+                        <div className="text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">OFF</div>
+                          <div className="font-bold text-gray-800">{ratings.off}</div>
+                        </div>
+                      )}
+                      {ratings.def && (
+                        <div className="text-center">
+                          <div className="text-[10px] text-gray-400 uppercase">DEF</div>
+                          <div className="font-bold text-gray-800">{ratings.def}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
 
-        {/* Player of the Week Honors - only for user games */}
+        {/* Player of the Week */}
         {!isCPUGame && (game.conferencePOW || game.nationalPOW) && (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100" style={{ backgroundColor: `${teamColors.primary}10` }}>
-              <h3 className="font-bold text-gray-800 text-sm sm:text-base">Player of the Week</h3>
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Player of the Week</h3>
             </div>
-            <div className="p-3 sm:p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {game.conferencePOW && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg" style={{ backgroundColor: `${teamColors.primary}08` }}>
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: teamColors.primary }}
-                    >
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs text-gray-500 font-medium">Conference POW</div>
-                      {getPlayerPID(game.conferencePOW) ? (
-                        <Link
-                          to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
-                          className="font-bold hover:underline truncate block"
-                          style={{ color: teamColors.primary }}
-                        >
-                          {game.conferencePOW}
-                        </Link>
-                      ) : (
-                        <div className="font-bold truncate" style={{ color: teamColors.primary }}>
-                          {game.conferencePOW}
-                        </div>
-                      )}
-                    </div>
+            <div className="p-4 space-y-3">
+              {game.conferencePOW && (
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: teamColors.primary }}
+                  >
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
                   </div>
-                )}
-                {game.nationalPOW && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-50">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400">
-                      <svg className="w-5 h-5 text-yellow-800" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs text-yellow-700 font-medium">National POW</div>
-                      {getPlayerPID(game.nationalPOW) ? (
-                        <Link
-                          to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
-                          className="font-bold text-yellow-800 hover:underline truncate block"
-                        >
-                          {game.nationalPOW}
-                        </Link>
-                      ) : (
-                        <div className="font-bold text-yellow-800 truncate">{game.nationalPOW}</div>
-                      )}
-                    </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-gray-400 uppercase font-medium">Conference</div>
+                    {getPlayerPID(game.conferencePOW) ? (
+                      <Link
+                        to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
+                        className="font-bold text-sm hover:underline truncate block"
+                        style={{ color: teamColors.primary }}
+                      >
+                        {game.conferencePOW}
+                      </Link>
+                    ) : (
+                      <div className="font-bold text-sm truncate" style={{ color: teamColors.primary }}>
+                        {game.conferencePOW}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              {game.nationalPOW && (
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400">
+                    <svg className="w-4 h-4 text-yellow-800" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-yellow-600 uppercase font-medium">National</div>
+                    {getPlayerPID(game.nationalPOW) ? (
+                      <Link
+                        to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
+                        className="font-bold text-sm text-yellow-800 hover:underline truncate block"
+                      >
+                        {game.nationalPOW}
+                      </Link>
+                    ) : (
+                      <div className="font-bold text-sm text-yellow-800 truncate">{game.nationalPOW}</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Game Notes */}
         {game.gameNote && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100" style={{ backgroundColor: `${teamColors.primary}10` }}>
-              <h3 className="font-bold text-gray-800 text-sm sm:text-base">Game Notes</h3>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden md:col-span-2 lg:col-span-1">
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Game Notes</h3>
             </div>
-            <div className="p-3 sm:p-4">
+            <div className="p-4">
               <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{game.gameNote}</p>
             </div>
           </div>
@@ -892,16 +945,16 @@ export default function Game() {
       {/* Media Links */}
       {links.length > 0 && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100" style={{ backgroundColor: `${teamColors.primary}10` }}>
-            <h3 className="font-bold text-gray-800 text-sm sm:text-base">Media & Links</h3>
+          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Media</h3>
           </div>
-          <div className="p-3 sm:p-4 space-y-4">
+          <div className="p-4 space-y-4">
             {links.map((link, index) => {
               const youtubeEmbedUrl = isYouTubeLink(link) ? getYouTubeEmbedUrl(link) : null
 
               if (youtubeEmbedUrl) {
                 return (
-                  <div key={index} className="rounded-lg overflow-hidden shadow-md aspect-video">
+                  <div key={index} className="rounded-lg overflow-hidden shadow aspect-video">
                     <iframe
                       width="100%"
                       height="100%"
@@ -915,7 +968,7 @@ export default function Game() {
                 )
               } else if (isImageLink(link)) {
                 return (
-                  <div key={index} className="rounded-lg overflow-hidden shadow-md">
+                  <div key={index} className="rounded-lg overflow-hidden shadow">
                     <img src={link} alt={`Game media ${index + 1}`} className="w-full h-auto" />
                   </div>
                 )
@@ -926,10 +979,10 @@ export default function Game() {
                     href={link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group"
                   >
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </div>
@@ -947,32 +1000,8 @@ export default function Game() {
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSave={handleGameSave}
-        weekNumber={game.week}
-        currentYear={game.year}
         teamColors={teamColors}
-        opponent={isCPUGame ? null : game.opponent}
-        location={game.location}
-        existingTeamScore={isCPUGame ? game.team1Score : game.teamScore}
-        existingOpponentScore={isCPUGame ? game.team2Score : game.opponentScore}
-        existingGameNote={game.gameNote}
-        existingLinks={game.links}
-        existingQuarters={game.quarters}
-        existingOvertimes={game.overtimes}
-        existingOpponentRecord={game.opponentRecord}
-        existingOpponentRatings={{
-          overall: game.opponentOverall,
-          offense: game.opponentOffense,
-          defense: game.opponentDefense
-        }}
-        existingConferencePOW={game.conferencePOW}
-        existingNationalPOW={game.nationalPOW}
-        existingOpponentRank={game.opponentRank}
-        existingUserRank={game.userRank}
-        existingIsConferenceGame={game.isConferenceGame}
-        isCPUGame={isCPUGame}
-        team1={isCPUGame ? game.team1 : null}
-        team2={isCPUGame ? game.team2 : null}
-        bowlName={game.bowlName || game.conference}
+        existingGame={game}
       />
     </div>
   )

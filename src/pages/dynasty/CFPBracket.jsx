@@ -59,17 +59,49 @@ const mascotMap = {
   'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers'
 }
 
+// Map abbreviations to short team names (without mascot)
+const shortNameMap = {
+  'AFA': 'Air Force', 'AKR': 'Akron', 'APP': 'App State', 'ARIZ': 'Arizona',
+  'ARK': 'Arkansas', 'ARMY': 'Army', 'ARST': 'Arkansas State', 'ASU': 'Arizona State',
+  'AUB': 'Auburn', 'BALL': 'Ball State', 'BAMA': 'Alabama', 'BC': 'Boston College',
+  'BGSU': 'Bowling Green', 'BOIS': 'Boise State', 'BU': 'Baylor', 'BUFF': 'Buffalo',
+  'BYU': 'BYU', 'CAL': 'Cal', 'CCU': 'Coastal Carolina', 'CHAR': 'Charlotte',
+  'CLEM': 'Clemson', 'CMU': 'Central Michigan', 'COLO': 'Colorado', 'CONN': 'UConn',
+  'CSU': 'Colorado State', 'DEL': 'Delaware', 'DUKE': 'Duke', 'ECU': 'East Carolina',
+  'EMU': 'Eastern Michigan', 'FAU': 'FAU', 'FIU': 'FIU', 'FLA': 'Florida',
+  'FRES': 'Fresno State', 'FSU': 'Florida State', 'GASO': 'Georgia Southern',
+  'GSU': 'Georgia State', 'GT': 'Georgia Tech', 'HAW': 'Hawaii', 'ILL': 'Illinois',
+  'IOWA': 'Iowa', 'ISU': 'Iowa State', 'IU': 'Indiana', 'JKST': 'Jacksonville State',
+  'JMU': 'James Madison', 'KENN': 'Kennesaw State', 'KENT': 'Kent State',
+  'KSU': 'Kansas State', 'KU': 'Kansas', 'LIB': 'Liberty', 'LOU': 'Louisville',
+  'LSU': 'LSU', 'LT': 'Louisiana Tech', 'M-OH': 'Miami (OH)', 'MASS': 'UMass',
+  'MEM': 'Memphis', 'MIA': 'Miami', 'MICH': 'Michigan', 'MINN': 'Minnesota',
+  'MISS': 'Ole Miss', 'MIZ': 'Missouri', 'MRSH': 'Marshall', 'MSST': 'Mississippi State',
+  'MSU': 'Michigan State', 'MTSU': 'Middle Tennessee', 'MZST': 'Missouri State',
+  'NAVY': 'Navy', 'NCST': 'NC State', 'ND': 'Notre Dame', 'NEB': 'Nebraska',
+  'NEV': 'Nevada', 'NIU': 'NIU', 'NMSU': 'New Mexico State', 'NU': 'Northwestern',
+  'ODU': 'Old Dominion', 'OHIO': 'Ohio', 'OKST': 'Oklahoma State', 'ORE': 'Oregon',
+  'ORST': 'Oregon State', 'OSU': 'Ohio State', 'OU': 'Oklahoma', 'PITT': 'Pitt',
+  'PSU': 'Penn State', 'PUR': 'Purdue', 'RICE': 'Rice', 'RUTG': 'Rutgers',
+  'SCAR': 'South Carolina', 'SDSU': 'San Diego State', 'SHSU': 'Sam Houston',
+  'SJSU': 'San Jose State', 'SMU': 'SMU', 'STAN': 'Stanford', 'SYR': 'Syracuse',
+  'TAMU': 'Texas A&M', 'TCU': 'TCU', 'TEM': 'Temple', 'TEX': 'Texas',
+  'TLSA': 'Tulsa', 'TOL': 'Toledo', 'TROY': 'Troy', 'TTU': 'Texas Tech',
+  'TULN': 'Tulane', 'TXST': 'Texas State', 'UAB': 'UAB', 'UC': 'Cincinnati',
+  'UCF': 'UCF', 'UCLA': 'UCLA', 'UGA': 'Georgia', 'UH': 'Houston',
+  'UK': 'Kentucky', 'UL': 'Louisiana', 'ULM': 'UL Monroe', 'UMD': 'Maryland',
+  'UNC': 'North Carolina', 'UNLV': 'UNLV', 'UNM': 'New Mexico', 'UNT': 'North Texas',
+  'USA': 'South Alabama', 'USC': 'USC', 'USF': 'South Florida', 'USM': 'Southern Miss',
+  'USU': 'Utah State', 'UT': 'Tennessee', 'UTAH': 'Utah', 'UTEP': 'UTEP',
+  'UTSA': 'UTSA', 'UVA': 'Virginia', 'VAN': 'Vanderbilt', 'VT': 'Virginia Tech',
+  'WAKE': 'Wake Forest', 'WASH': 'Washington', 'WIS': 'Wisconsin', 'WKU': 'WKU',
+  'WMU': 'Western Michigan', 'WSU': 'Washington State', 'WVU': 'West Virginia',
+  'WYO': 'Wyoming'
+}
+
 const getShortName = (abbr) => {
   if (!abbr) return 'TBD'
-  const teamInfo = teamAbbreviations[abbr]
-  if (!teamInfo) return abbr
-  let name = teamInfo.name
-  if (name.includes('University of ')) {
-    name = name.replace('University of ', '').split(',')[0].trim()
-  } else if (name.includes(' University')) {
-    name = name.replace(' University', '').split(',')[0].trim()
-  }
-  return name
+  return shortNameMap[abbr] || abbr
 }
 
 export default function CFPBracket() {
@@ -108,12 +140,124 @@ export default function CFPBracket() {
 
   const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
-  // Get CFP results for each round
+  // Get CFP results - prefer games[] array (single source of truth), fall back to cfpResultsByYear
+  const allGames = currentDynasty.games || []
   const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
-  const firstRoundResults = cfpResults.firstRound || []
-  const quarterfinalsResults = cfpResults.quarterfinals || []
-  const semifinalsResults = cfpResults.semifinals || []
-  const championshipResults = cfpResults.championship || []
+  const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+
+  // Helper to find a game in games[] array and convert to bracket format
+  const findGameInGamesArray = (cfpFlag, year) => {
+    const game = allGames.find(g => g[cfpFlag] && Number(g.year) === Number(year))
+    if (!game) return null
+
+    // Convert games[] format to bracket format
+    // User games have: opponent, teamScore, opponentScore, result
+    // CPU games have: team1, team2, team1Score, team2Score, winner
+    if (game.isCPUGame) {
+      return {
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        seed1: game.seed1,
+        seed2: game.seed2,
+        bowlName: game.bowlName
+      }
+    } else {
+      // User game - user team is always team1
+      const userScore = parseInt(game.teamScore)
+      const oppScore = parseInt(game.opponentScore)
+      return {
+        team1: userTeamAbbr,
+        team2: game.opponent,
+        team1Score: userScore,
+        team2Score: oppScore,
+        winner: game.result === 'W' ? userTeamAbbr : game.opponent,
+        seed1: game.seed1,
+        seed2: game.seed2,
+        bowlName: game.bowlName
+      }
+    }
+  }
+
+  // Helper to merge games[] data with cfpResultsByYear data, preferring games[]
+  const mergeResults = (cfpFlag, cfpResultsArray) => {
+    // First, get all games from the games[] array for this round
+    const gamesFromArray = allGames
+      .filter(g => g[cfpFlag] && Number(g.year) === Number(displayYear))
+      .map(game => {
+        if (game.isCPUGame) {
+          return {
+            team1: game.team1,
+            team2: game.team2,
+            team1Score: game.team1Score,
+            team2Score: game.team2Score,
+            winner: game.winner,
+            seed1: game.seed1,
+            seed2: game.seed2,
+            bowlName: game.bowlName
+          }
+        } else {
+          const userScore = parseInt(game.teamScore)
+          const oppScore = parseInt(game.opponentScore)
+          return {
+            team1: userTeamAbbr,
+            team2: game.opponent,
+            team1Score: userScore,
+            team2Score: oppScore,
+            winner: game.result === 'W' ? userTeamAbbr : game.opponent,
+            seed1: game.seed1,
+            seed2: game.seed2,
+            bowlName: game.bowlName
+          }
+        }
+      })
+
+    // For each result in cfpResultsByYear, check if we have an updated version in games[]
+    const mergedResults = (cfpResultsArray || []).map(cfpGame => {
+      // Find matching game in gamesFromArray by seeds (for first round) or bowl name
+      const matchingGame = gamesFromArray.find(g => {
+        if (cfpGame.seed1 !== undefined && g.seed1 !== undefined) {
+          return (g.seed1 === cfpGame.seed1 && g.seed2 === cfpGame.seed2) ||
+                 (g.seed1 === cfpGame.seed2 && g.seed2 === cfpGame.seed1)
+        }
+        if (cfpGame.bowlName && g.bowlName) {
+          return g.bowlName === cfpGame.bowlName
+        }
+        // Match by teams
+        return (g.team1 === cfpGame.team1 && g.team2 === cfpGame.team2) ||
+               (g.team1 === cfpGame.team2 && g.team2 === cfpGame.team1)
+      })
+      return matchingGame || cfpGame
+    })
+
+    // Also add any games from games[] that aren't in cfpResultsByYear
+    gamesFromArray.forEach(game => {
+      const exists = mergedResults.some(r => {
+        if (game.seed1 !== undefined && r.seed1 !== undefined) {
+          return (r.seed1 === game.seed1 && r.seed2 === game.seed2) ||
+                 (r.seed1 === game.seed2 && r.seed2 === game.seed1)
+        }
+        if (game.bowlName && r.bowlName) {
+          return r.bowlName === game.bowlName
+        }
+        return (r.team1 === game.team1 && r.team2 === game.team2) ||
+               (r.team1 === game.team2 && r.team2 === game.team1)
+      })
+      if (!exists) {
+        mergedResults.push(game)
+      }
+    })
+
+    return mergedResults
+  }
+
+  // Get merged results for each round
+  const firstRoundResults = mergeResults('isCFPFirstRound', cfpResults.firstRound)
+  const quarterfinalsResults = mergeResults('isCFPQuarterfinal', cfpResults.quarterfinals)
+  const semifinalsResults = mergeResults('isCFPSemifinal', cfpResults.semifinals)
+  const championshipResults = mergeResults('isCFPChampionship', cfpResults.championship)
 
   // Helper to get First Round winner by matchup seeds
   const getFirstRoundWinner = (seed1, seed2) => {
@@ -256,26 +400,48 @@ export default function CFPBracket() {
     // Generate game ID for linking
     const getGameId = () => {
       if (!hasResult) return null
-      // Try to find in games[] array first
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userInGame = team1 === userTeamAbbr || team2 === userTeamAbbr
 
-      if (userInGame) {
-        // User's game - find in games[]
-        const cfpFlag = round === 'First Round' ? 'isCFPFirstRound'
-          : round === 'Quarterfinal' || round === 'Quarterfinals' ? 'isCFPQuarterfinal'
-          : round === 'Semifinal' || round === 'Semifinals' ? 'isCFPSemifinal'
-          : 'isCFPChampionship'
-        const fullGame = currentDynasty.games?.find(g =>
-          g[cfpFlag] && Number(g.year) === Number(displayYear)
-        )
-        if (fullGame?.id) return fullGame.id
+      const cfpFlag = round === 'First Round' ? 'isCFPFirstRound'
+        : round === 'Quarterfinal' || round === 'Quarterfinals' ? 'isCFPQuarterfinal'
+        : round === 'Semifinal' || round === 'Semifinals' ? 'isCFPSemifinal'
+        : 'isCFPChampionship'
+
+      // Try to find the specific game in games[] array by matching teams
+      const allGamesForRound = currentDynasty.games?.filter(g =>
+        g[cfpFlag] && Number(g.year) === Number(displayYear)
+      ) || []
+
+      // Find the game that matches these specific teams
+      const matchingGame = allGamesForRound.find(g => {
+        // For user games: check opponent
+        if (!g.isCPUGame) {
+          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+          return (team1 === userTeamAbbr && team2 === g.opponent) ||
+                 (team2 === userTeamAbbr && team1 === g.opponent)
+        }
+        // For CPU games: check team1/team2
+        return (g.team1 === team1 && g.team2 === team2) ||
+               (g.team1 === team2 && g.team2 === team1)
+      })
+
+      if (matchingGame?.id) return matchingGame.id
+
+      // Fallback ID - make it unique by including teams or seeds
+      if (bowl) {
+        const bowlSlug = bowl.toLowerCase().replace(/\s+/g, '-')
+        return `cfp-${displayYear}-${bowlSlug}`
       }
-
-      // Fallback ID based on round/bowl
-      const roundSlug = round.toLowerCase().replace(/\s+/g, '-')
-      const bowlSlug = bowl ? bowl.toLowerCase().replace(/\s+/g, '-') : roundSlug
-      return `cfp-${displayYear}-${bowlSlug}`
+      // For First Round, use seeds to make unique ID
+      if (seed1 && seed2) {
+        const lowSeed = Math.min(seed1, seed2)
+        const highSeed = Math.max(seed1, seed2)
+        return `cfp-${displayYear}-first-round-${lowSeed}-vs-${highSeed}`
+      }
+      // Last resort: use teams
+      if (team1 && team2) {
+        return `cfp-${displayYear}-${team1.toLowerCase()}-vs-${team2.toLowerCase()}`
+      }
+      return `cfp-${displayYear}-${round.toLowerCase().replace(/\s+/g, '-')}`
     }
 
     const gameId = getGameId()

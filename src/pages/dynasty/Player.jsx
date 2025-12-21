@@ -137,7 +137,171 @@ export default function Player() {
     setShowEditModal(false)
   }
 
-  // Player data with placeholders
+  // Get player stats from detailedStatsByYear - aggregate across all years
+  const getPlayerDetailedStats = () => {
+    const detailedStatsByYear = dynasty.detailedStatsByYear || {}
+    const playerPid = player.pid
+
+    // Initialize aggregated stats
+    const stats = {
+      passing: null,
+      rushing: null,
+      receiving: null,
+      blocking: null,
+      defensive: null,
+      kicking: null,
+      punting: null,
+      kickReturn: null,
+      puntReturn: null
+    }
+
+    // Helper to find player in a tab's data by PID
+    const findPlayerInTab = (tabData) => {
+      if (!tabData || !Array.isArray(tabData)) return null
+      return tabData.find(p => p.pid === playerPid)
+    }
+
+    // Aggregate stats across all years
+    Object.keys(detailedStatsByYear).forEach(year => {
+      const yearData = detailedStatsByYear[year]
+      if (!yearData) return
+
+      // Passing
+      const passingData = findPlayerInTab(yearData.Passing)
+      if (passingData) {
+        if (!stats.passing) stats.passing = { completions: 0, attempts: 0, yards: 0, touchdowns: 0, interceptions: 0, netYardsPerAttempt: 0, adjNetYardsPerAttempt: 0 }
+        stats.passing.completions += passingData['Completions'] || 0
+        stats.passing.attempts += passingData['Attempts'] || 0
+        stats.passing.yards += passingData['Yards'] || 0
+        stats.passing.touchdowns += passingData['Touchdowns'] || 0
+        stats.passing.interceptions += passingData['Interceptions'] || 0
+        // These are averages, take from most recent year with data
+        if (passingData['Net Yards/Attempt']) stats.passing.netYardsPerAttempt = passingData['Net Yards/Attempt']
+        if (passingData['Adjusted Net Yards/Attempt']) stats.passing.adjNetYardsPerAttempt = passingData['Adjusted Net Yards/Attempt']
+      }
+
+      // Rushing
+      const rushingData = findPlayerInTab(yearData.Rushing)
+      if (rushingData) {
+        if (!stats.rushing) stats.rushing = { carries: 0, yards: 0, touchdowns: 0, runs20Plus: 0, brokenTackles: 0, yardsAfterContact: 0, rushingLong: 0, fumbles: 0 }
+        stats.rushing.carries += rushingData['Carries'] || 0
+        stats.rushing.yards += rushingData['Yards'] || 0
+        stats.rushing.touchdowns += rushingData['Touchdowns'] || 0
+        stats.rushing.runs20Plus += rushingData['20+ Yard Runs'] || 0
+        stats.rushing.brokenTackles += rushingData['Broken Tackles'] || 0
+        stats.rushing.yardsAfterContact += rushingData['Yards After Contact'] || 0
+        stats.rushing.rushingLong = Math.max(stats.rushing.rushingLong, rushingData['Rushing Long'] || 0)
+        stats.rushing.fumbles += rushingData['Fumbles'] || 0
+      }
+
+      // Receiving
+      const receivingData = findPlayerInTab(yearData.Receiving)
+      if (receivingData) {
+        if (!stats.receiving) stats.receiving = { receptions: 0, yards: 0, touchdowns: 0, receivingLong: 0, runAfterCatch: 0, drops: 0 }
+        stats.receiving.receptions += receivingData['Receptions'] || 0
+        stats.receiving.yards += receivingData['Yards'] || 0
+        stats.receiving.touchdowns += receivingData['Touchdowns'] || 0
+        stats.receiving.receivingLong = Math.max(stats.receiving.receivingLong, receivingData['Receiving Long'] || 0)
+        stats.receiving.runAfterCatch += receivingData['Run After Catch'] || 0
+        stats.receiving.drops += receivingData['Drops'] || 0
+      }
+
+      // Blocking
+      const blockingData = findPlayerInTab(yearData.Blocking)
+      if (blockingData) {
+        if (!stats.blocking) stats.blocking = { sacksAllowed: 0 }
+        stats.blocking.sacksAllowed += blockingData['Sacks Allowed'] || 0
+      }
+
+      // Defensive
+      const defensiveData = findPlayerInTab(yearData.Defensive)
+      if (defensiveData) {
+        if (!stats.defensive) stats.defensive = { soloTackles: 0, assistedTackles: 0, tacklesForLoss: 0, sacks: 0, interceptions: 0, intReturnYards: 0, intLong: 0, defensiveTDs: 0, deflections: 0, catchesAllowed: 0, forcedFumbles: 0, fumbleRecoveries: 0, fumbleReturnYards: 0, blocks: 0, safeties: 0 }
+        stats.defensive.soloTackles += defensiveData['Solo Tackles'] || 0
+        stats.defensive.assistedTackles += defensiveData['Assisted Tackles'] || 0
+        stats.defensive.tacklesForLoss += defensiveData['Tackles for Loss'] || 0
+        stats.defensive.sacks += defensiveData['Sacks'] || 0
+        stats.defensive.interceptions += defensiveData['Interceptions'] || 0
+        stats.defensive.intReturnYards += defensiveData['INT Return Yards'] || 0
+        stats.defensive.intLong = Math.max(stats.defensive.intLong, defensiveData['INT Long'] || 0)
+        stats.defensive.defensiveTDs += defensiveData['Defensive TDs'] || 0
+        stats.defensive.deflections += defensiveData['Deflections'] || 0
+        stats.defensive.catchesAllowed += defensiveData['Catches Allowed'] || 0
+        stats.defensive.forcedFumbles += defensiveData['Forced Fumbles'] || 0
+        stats.defensive.fumbleRecoveries += defensiveData['Fumble Recoveries'] || 0
+        stats.defensive.fumbleReturnYards += defensiveData['Fumble Return Yards'] || 0
+        stats.defensive.blocks += defensiveData['Blocks'] || 0
+        stats.defensive.safeties += defensiveData['Safeties'] || 0
+      }
+
+      // Kicking
+      const kickingData = findPlayerInTab(yearData.Kicking)
+      if (kickingData) {
+        if (!stats.kicking) stats.kicking = { fgMade: 0, fgAttempted: 0, fgLong: 0, xpMade: 0, xpAttempted: 0, fg0_29Made: 0, fg0_29Attempted: 0, fg30_39Made: 0, fg30_39Attempted: 0, fg40_49Made: 0, fg40_49Attempted: 0, fg50PlusMade: 0, fg50PlusAttempted: 0, kickoffs: 0, touchbacks: 0, fgBlocked: 0, xpBlocked: 0 }
+        stats.kicking.fgMade += kickingData['FG Made'] || 0
+        stats.kicking.fgAttempted += kickingData['FG Attempted'] || 0
+        stats.kicking.fgLong = Math.max(stats.kicking.fgLong, kickingData['FG Long'] || 0)
+        stats.kicking.xpMade += kickingData['XP Made'] || 0
+        stats.kicking.xpAttempted += kickingData['XP Attempted'] || 0
+        stats.kicking.fg0_29Made += kickingData['FG Made (0-29)'] || 0
+        stats.kicking.fg0_29Attempted += kickingData['FG Att (0-29)'] || 0
+        stats.kicking.fg30_39Made += kickingData['FG Made (30-39)'] || 0
+        stats.kicking.fg30_39Attempted += kickingData['FG Att (30-39)'] || 0
+        stats.kicking.fg40_49Made += kickingData['FG Made (40-49)'] || 0
+        stats.kicking.fg40_49Attempted += kickingData['FG Att (40-49)'] || 0
+        stats.kicking.fg50PlusMade += kickingData['FG Made (50+)'] || 0
+        stats.kicking.fg50PlusAttempted += kickingData['FG Att (50+)'] || 0
+        stats.kicking.kickoffs += kickingData['Kickoffs'] || 0
+        stats.kicking.touchbacks += kickingData['Touchbacks'] || 0
+        stats.kicking.fgBlocked += kickingData['FG Blocked'] || 0
+        stats.kicking.xpBlocked += kickingData['XP Blocked'] || 0
+      }
+
+      // Punting
+      const puntingData = findPlayerInTab(yearData.Punting)
+      if (puntingData) {
+        if (!stats.punting) stats.punting = { punts: 0, puntingYards: 0, netPuntingYards: 0, puntsInside20: 0, touchbacks: 0, puntLong: 0, puntsBlocked: 0 }
+        stats.punting.punts += puntingData['Punts'] || 0
+        stats.punting.puntingYards += puntingData['Punting Yards'] || 0
+        stats.punting.netPuntingYards += puntingData['Net Punting Yards'] || 0
+        stats.punting.puntsInside20 += puntingData['Punts Inside 20'] || 0
+        stats.punting.touchbacks += puntingData['Touchbacks'] || 0
+        stats.punting.puntLong = Math.max(stats.punting.puntLong, puntingData['Punt Long'] || 0)
+        stats.punting.puntsBlocked += puntingData['Punts Blocked'] || 0
+      }
+
+      // Kick Return
+      const kickReturnData = findPlayerInTab(yearData['Kick Return'])
+      if (kickReturnData) {
+        if (!stats.kickReturn) stats.kickReturn = { returns: 0, returnYardage: 0, touchdowns: 0, returnLong: 0 }
+        stats.kickReturn.returns += kickReturnData['Kickoff Returns'] || 0
+        stats.kickReturn.returnYardage += kickReturnData['KR Yardage'] || 0
+        stats.kickReturn.touchdowns += kickReturnData['KR Touchdowns'] || 0
+        stats.kickReturn.returnLong = Math.max(stats.kickReturn.returnLong, kickReturnData['KR Long'] || 0)
+      }
+
+      // Punt Return
+      const puntReturnData = findPlayerInTab(yearData['Punt Return'])
+      if (puntReturnData) {
+        if (!stats.puntReturn) stats.puntReturn = { returns: 0, returnYardage: 0, touchdowns: 0, returnLong: 0 }
+        stats.puntReturn.returns += puntReturnData['Punt Returns'] || 0
+        stats.puntReturn.returnYardage += puntReturnData['PR Yardage'] || 0
+        stats.puntReturn.touchdowns += puntReturnData['PR Touchdowns'] || 0
+        stats.puntReturn.returnLong = Math.max(stats.puntReturn.returnLong, puntReturnData['PR Long'] || 0)
+      }
+    })
+
+    return stats
+  }
+
+  const detailedStats = getPlayerDetailedStats()
+
+  // Calculate derived stats
+  const calcPct = (made, att) => att > 0 ? Math.round((made / att) * 1000) / 10 : 0
+  const calcAvg = (total, count) => count > 0 ? Math.round((total / count) * 10) / 10 : 0
+  const calcRatio = (a, b) => b > 0 ? Math.round((a / b) * 100) / 100 : 0
+
+  // Player data with real stats from detailedStatsByYear
   const playerData = {
     // Biographical
     name: player.name,
@@ -190,8 +354,26 @@ export default function Player() {
     allAm2nd: 0,
     allAmFr: 0,
 
-    // Passing
-    passing: {
+    // Passing - from detailed stats
+    passing: detailedStats.passing ? {
+      completions: detailedStats.passing.completions,
+      attempts: detailedStats.passing.attempts,
+      completionPct: calcPct(detailedStats.passing.completions, detailedStats.passing.attempts),
+      yards: detailedStats.passing.yards,
+      touchdowns: detailedStats.passing.touchdowns,
+      tdPct: calcPct(detailedStats.passing.touchdowns, detailedStats.passing.attempts),
+      interceptions: detailedStats.passing.interceptions,
+      intPct: calcPct(detailedStats.passing.interceptions, detailedStats.passing.attempts),
+      tdIntRatio: calcRatio(detailedStats.passing.touchdowns, detailedStats.passing.interceptions),
+      yardsPerAttempt: calcAvg(detailedStats.passing.yards, detailedStats.passing.attempts),
+      netYardsPerAttempt: detailedStats.passing.netYardsPerAttempt || 0,
+      adjNetYardsPerAttempt: detailedStats.passing.adjNetYardsPerAttempt || 0,
+      yardsPerGame: 0, // Would need games played
+      passerRating: 0, // Complex calculation
+      passingLong: 0,
+      sacksTaken: 0,
+      sackPct: 0
+    } : {
       completions: 0, attempts: 0, completionPct: 0,
       yards: 0, touchdowns: 0, tdPct: 0,
       interceptions: 0, intPct: 0, tdIntRatio: 0,
@@ -200,8 +382,20 @@ export default function Player() {
       passingLong: 0, sacksTaken: 0, sackPct: 0
     },
 
-    // Rushing
-    rushing: {
+    // Rushing - from detailed stats
+    rushing: detailedStats.rushing ? {
+      carries: detailedStats.rushing.carries,
+      yards: detailedStats.rushing.yards,
+      yardsPerCarry: calcAvg(detailedStats.rushing.yards, detailedStats.rushing.carries),
+      touchdowns: detailedStats.rushing.touchdowns,
+      yardsPerGame: 0, // Would need games played
+      runs20Plus: detailedStats.rushing.runs20Plus,
+      brokenTackles: detailedStats.rushing.brokenTackles,
+      yardsAfterContact: detailedStats.rushing.yardsAfterContact,
+      rushingLong: detailedStats.rushing.rushingLong,
+      fumbles: detailedStats.rushing.fumbles,
+      fumblePct: calcPct(detailedStats.rushing.fumbles, detailedStats.rushing.carries)
+    } : {
       carries: 0, yards: 0, yardsPerCarry: 0,
       touchdowns: 0, yardsPerGame: 0,
       runs20Plus: 0, brokenTackles: 0,
@@ -209,21 +403,51 @@ export default function Player() {
       fumbles: 0, fumblePct: 0
     },
 
-    // Receiving
-    receiving: {
+    // Receiving - from detailed stats
+    receiving: detailedStats.receiving ? {
+      receptions: detailedStats.receiving.receptions,
+      yards: detailedStats.receiving.yards,
+      yardsPerCatch: calcAvg(detailedStats.receiving.yards, detailedStats.receiving.receptions),
+      touchdowns: detailedStats.receiving.touchdowns,
+      yardsPerGame: 0, // Would need games played
+      receivingLong: detailedStats.receiving.receivingLong,
+      runAfterCatch: detailedStats.receiving.runAfterCatch,
+      racAverage: calcAvg(detailedStats.receiving.runAfterCatch, detailedStats.receiving.receptions),
+      drops: detailedStats.receiving.drops
+    } : {
       receptions: 0, yards: 0, yardsPerCatch: 0,
       touchdowns: 0, yardsPerGame: 0,
       receivingLong: 0, runAfterCatch: 0,
       racAverage: 0, drops: 0
     },
 
-    // Blocking
-    blocking: {
+    // Blocking - from detailed stats
+    blocking: detailedStats.blocking ? {
+      sacksAllowed: detailedStats.blocking.sacksAllowed
+    } : {
       sacksAllowed: 0
     },
 
-    // Defensive
-    defensive: {
+    // Defensive - from detailed stats
+    defensive: detailedStats.defensive ? {
+      soloTackles: detailedStats.defensive.soloTackles,
+      assistedTackles: detailedStats.defensive.assistedTackles,
+      totalTackles: detailedStats.defensive.soloTackles + detailedStats.defensive.assistedTackles,
+      tacklesForLoss: detailedStats.defensive.tacklesForLoss,
+      sacks: detailedStats.defensive.sacks,
+      interceptions: detailedStats.defensive.interceptions,
+      intReturnYards: detailedStats.defensive.intReturnYards,
+      avgIntReturn: calcAvg(detailedStats.defensive.intReturnYards, detailedStats.defensive.interceptions),
+      intLong: detailedStats.defensive.intLong,
+      defensiveTDs: detailedStats.defensive.defensiveTDs,
+      deflections: detailedStats.defensive.deflections,
+      catchesAllowed: detailedStats.defensive.catchesAllowed,
+      forcedFumbles: detailedStats.defensive.forcedFumbles,
+      fumbleRecoveries: detailedStats.defensive.fumbleRecoveries,
+      fumbleReturnYards: detailedStats.defensive.fumbleReturnYards,
+      blocks: detailedStats.defensive.blocks,
+      safeties: detailedStats.defensive.safeties
+    } : {
       soloTackles: 0, assistedTackles: 0, totalTackles: 0,
       tacklesForLoss: 0, sacks: 0,
       interceptions: 0, intReturnYards: 0,
@@ -234,8 +458,29 @@ export default function Player() {
       blocks: 0, safeties: 0
     },
 
-    // Kicking
-    kicking: {
+    // Kicking - from detailed stats
+    kicking: detailedStats.kicking ? {
+      fgMade: detailedStats.kicking.fgMade,
+      fgAttempted: detailedStats.kicking.fgAttempted,
+      fgPct: calcPct(detailedStats.kicking.fgMade, detailedStats.kicking.fgAttempted),
+      fgLong: detailedStats.kicking.fgLong,
+      xpMade: detailedStats.kicking.xpMade,
+      xpAttempted: detailedStats.kicking.xpAttempted,
+      xpPct: calcPct(detailedStats.kicking.xpMade, detailedStats.kicking.xpAttempted),
+      fg0_29Made: detailedStats.kicking.fg0_29Made,
+      fg0_29Attempted: detailedStats.kicking.fg0_29Attempted,
+      fg30_39Made: detailedStats.kicking.fg30_39Made,
+      fg30_39Attempted: detailedStats.kicking.fg30_39Attempted,
+      fg40_49Made: detailedStats.kicking.fg40_49Made,
+      fg40_49Attempted: detailedStats.kicking.fg40_49Attempted,
+      fg50PlusMade: detailedStats.kicking.fg50PlusMade,
+      fg50PlusAttempted: detailedStats.kicking.fg50PlusAttempted,
+      kickoffs: detailedStats.kicking.kickoffs,
+      touchbacks: detailedStats.kicking.touchbacks,
+      touchbackPct: calcPct(detailedStats.kicking.touchbacks, detailedStats.kicking.kickoffs),
+      fgBlocked: detailedStats.kicking.fgBlocked,
+      xpBlocked: detailedStats.kicking.xpBlocked
+    } : {
       fgMade: 0, fgAttempted: 0, fgPct: 0, fgLong: 0,
       xpMade: 0, xpAttempted: 0, xpPct: 0,
       fg0_29Made: 0, fg0_29Attempted: 0,
@@ -246,36 +491,70 @@ export default function Player() {
       fgBlocked: 0, xpBlocked: 0
     },
 
-    // Punting
-    punting: {
+    // Punting - from detailed stats
+    punting: detailedStats.punting ? {
+      punts: detailedStats.punting.punts,
+      puntingYards: detailedStats.punting.puntingYards,
+      yardsPerPunt: calcAvg(detailedStats.punting.puntingYards, detailedStats.punting.punts),
+      netPuntingYards: detailedStats.punting.netPuntingYards,
+      netYardsPerPunt: calcAvg(detailedStats.punting.netPuntingYards, detailedStats.punting.punts),
+      puntsInside20: detailedStats.punting.puntsInside20,
+      touchbacks: detailedStats.punting.touchbacks,
+      puntLong: detailedStats.punting.puntLong,
+      puntsBlocked: detailedStats.punting.puntsBlocked
+    } : {
       punts: 0, puntingYards: 0, yardsPerPunt: 0,
       netPuntingYards: 0, netYardsPerPunt: 0,
       puntsInside20: 0, touchbacks: 0,
       puntLong: 0, puntsBlocked: 0
     },
 
-    // Kick Return
-    kickReturn: {
+    // Kick Return - from detailed stats
+    kickReturn: detailedStats.kickReturn ? {
+      returns: detailedStats.kickReturn.returns,
+      returnYardage: detailedStats.kickReturn.returnYardage,
+      returnAverage: calcAvg(detailedStats.kickReturn.returnYardage, detailedStats.kickReturn.returns),
+      touchdowns: detailedStats.kickReturn.touchdowns,
+      returnLong: detailedStats.kickReturn.returnLong
+    } : {
       returns: 0, returnYardage: 0, returnAverage: 0,
       touchdowns: 0, returnLong: 0
     },
 
-    // Punt Return
-    puntReturn: {
+    // Punt Return - from detailed stats
+    puntReturn: detailedStats.puntReturn ? {
+      returns: detailedStats.puntReturn.returns,
+      returnYardage: detailedStats.puntReturn.returnYardage,
+      returnAverage: calcAvg(detailedStats.puntReturn.returnYardage, detailedStats.puntReturn.returns),
+      touchdowns: detailedStats.puntReturn.touchdowns,
+      returnLong: detailedStats.puntReturn.returnLong
+    } : {
       returns: 0, returnYardage: 0, returnAverage: 0,
       touchdowns: 0, returnLong: 0
     },
 
-    // Scrimmage
+    // Scrimmage - calculated from rushing + receiving
     scrimmage: {
-      plays: 0, yards: 0, yardsPerPlay: 0,
-      touchdowns: 0, yardsPerGame: 0
+      plays: (detailedStats.rushing?.carries || 0) + (detailedStats.receiving?.receptions || 0),
+      yards: (detailedStats.rushing?.yards || 0) + (detailedStats.receiving?.yards || 0),
+      yardsPerPlay: calcAvg(
+        (detailedStats.rushing?.yards || 0) + (detailedStats.receiving?.yards || 0),
+        (detailedStats.rushing?.carries || 0) + (detailedStats.receiving?.receptions || 0)
+      ),
+      touchdowns: (detailedStats.rushing?.touchdowns || 0) + (detailedStats.receiving?.touchdowns || 0),
+      yardsPerGame: 0 // Would need games played
     },
 
-    // Total
+    // Total - calculated from all offensive stats + returns
     total: {
-      plays: 0, yardage: 0, yardsPerPlay: 0,
-      touchdowns: 0, yardsPerGame: 0
+      plays: (detailedStats.rushing?.carries || 0) + (detailedStats.receiving?.receptions || 0) + (detailedStats.kickReturn?.returns || 0) + (detailedStats.puntReturn?.returns || 0),
+      yardage: (detailedStats.rushing?.yards || 0) + (detailedStats.receiving?.yards || 0) + (detailedStats.kickReturn?.returnYardage || 0) + (detailedStats.puntReturn?.returnYardage || 0),
+      yardsPerPlay: calcAvg(
+        (detailedStats.rushing?.yards || 0) + (detailedStats.receiving?.yards || 0) + (detailedStats.kickReturn?.returnYardage || 0) + (detailedStats.puntReturn?.returnYardage || 0),
+        (detailedStats.rushing?.carries || 0) + (detailedStats.receiving?.receptions || 0) + (detailedStats.kickReturn?.returns || 0) + (detailedStats.puntReturn?.returns || 0)
+      ),
+      touchdowns: (detailedStats.rushing?.touchdowns || 0) + (detailedStats.receiving?.touchdowns || 0) + (detailedStats.kickReturn?.touchdowns || 0) + (detailedStats.puntReturn?.touchdowns || 0),
+      yardsPerGame: 0 // Would need games played
     }
   }
 

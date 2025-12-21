@@ -6,9 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Dedicated game pages replace all modals:
+**Last Session (December 2024)**: PID column added to all stats sheets for robust player linking:
 
-1. **Game Pages Replace Modals**:
+1. **PID Column Implementation**:
+   - All stats entry sheets (Player Stats and Detailed Stats) now include PID as first column
+   - PID links players from Google Sheets to player pages (prevents name collision issues)
+   - `readStatsFromSheet` and `readDetailedStatsFromSheet` read PID from column A
+   - Player.jsx uses PID-based lookup: `tabData.find(p => p.pid === playerPid)`
+   - Stats entry sheets: PID + Player + Position + Class + Dev Trait + Overall + GP + GS + Snaps (9 columns)
+   - Detailed stats sheets: PID + Name + Pos + Snaps + stat columns
+
+2. **Game Pages Replace Modals**:
    - All games now link to dedicated game pages at `/dynasty/:id/game/:gameId`
    - `GameDetailModal` is NO LONGER USED anywhere in the app
    - Sports broadcast-style UI with gradient headers, dark scoreboard, team logos

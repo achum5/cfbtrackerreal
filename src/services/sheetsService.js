@@ -669,16 +669,17 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             condition: {
               type: 'ONE_OF_LIST',
               values: [
-                { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' }, { userEnteredValue: '5\'8"' },
-                { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' }, { userEnteredValue: '5\'11"' },
-                { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' }, { userEnteredValue: '6\'2"' },
-                { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' }, { userEnteredValue: '6\'5"' },
-                { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' }, { userEnteredValue: '6\'8"' },
-                { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' }
+                { userEnteredValue: '5\'5"' }, { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' },
+                { userEnteredValue: '5\'8"' }, { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' },
+                { userEnteredValue: '5\'11"' }, { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' },
+                { userEnteredValue: '6\'2"' }, { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' },
+                { userEnteredValue: '6\'5"' }, { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' },
+                { userEnteredValue: '6\'8"' }, { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' },
+                { userEnteredValue: '6\'11"' }, { userEnteredValue: '7\'0"' }
               ]
             },
             showCustomUi: true,
-            strict: false  // Allow typing for flexibility
+            strict: true  // Only accept dropdown values, typing filters options
           }
         }
       },
@@ -1376,16 +1377,17 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             condition: {
               type: 'ONE_OF_LIST',
               values: [
-                { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' }, { userEnteredValue: '5\'8"' },
-                { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' }, { userEnteredValue: '5\'11"' },
-                { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' }, { userEnteredValue: '6\'2"' },
-                { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' }, { userEnteredValue: '6\'5"' },
-                { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' }, { userEnteredValue: '6\'8"' },
-                { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' }
+                { userEnteredValue: '5\'5"' }, { userEnteredValue: '5\'6"' }, { userEnteredValue: '5\'7"' },
+                { userEnteredValue: '5\'8"' }, { userEnteredValue: '5\'9"' }, { userEnteredValue: '5\'10"' },
+                { userEnteredValue: '5\'11"' }, { userEnteredValue: '6\'0"' }, { userEnteredValue: '6\'1"' },
+                { userEnteredValue: '6\'2"' }, { userEnteredValue: '6\'3"' }, { userEnteredValue: '6\'4"' },
+                { userEnteredValue: '6\'5"' }, { userEnteredValue: '6\'6"' }, { userEnteredValue: '6\'7"' },
+                { userEnteredValue: '6\'8"' }, { userEnteredValue: '6\'9"' }, { userEnteredValue: '6\'10"' },
+                { userEnteredValue: '6\'11"' }, { userEnteredValue: '7\'0"' }
               ]
             },
             showCustomUi: true,
-            strict: false  // Allow typing for flexibility
+            strict: true  // Only accept dropdown values, typing filters options
           }
         }
       },
@@ -1564,6 +1566,59 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
+    throw error
+  }
+}
+
+// Pre-fill roster data into a Roster-only sheet
+export async function prefillRosterSheet(spreadsheetId, players) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Prepare roster data
+    // Columns: Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State
+    const rosterValues = players.map(p => [
+      p.name || '',
+      p.position || '',
+      p.year || '',
+      p.devTrait || 'Normal',
+      p.jerseyNumber || '',
+      p.archetype || '',
+      p.overall || '',
+      p.height || '',
+      p.weight || '',
+      p.hometown || '',
+      p.state || ''
+    ])
+
+    if (rosterValues.length === 0) return
+
+    // Write roster data starting at row 2 (after header)
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:K${rosterValues.length + 1}?valueInputOption=RAW`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          values: rosterValues
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to prefill roster: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error prefilling roster:', error)
     throw error
   }
 }
@@ -4302,6 +4357,794 @@ export async function readConferencesFromSheet(spreadsheetId) {
     return conferences
   } catch (error) {
     console.error('Error reading conferences:', error)
+    throw error
+  }
+}
+
+// ============================================
+// STATS ENTRY SHEET
+// ============================================
+
+/**
+ * Create a Stats Entry sheet for end of season player statistics
+ * Columns: Player, Position, Class, Dev Trait, Overall Rating (before game one), Games Played, Games Started, Snaps Played
+ * Pre-fills player info from roster data
+ */
+export async function createStatsEntrySheet(dynastyName, year, players = []) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with Stats tab
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} Dynasty - ${year} Season Stats`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Player Stats',
+              gridProperties: {
+                rowCount: Math.max(players.length + 1, 86),
+                columnCount: 9, // PID + Player + Position + Class + Dev Trait + Overall + GP + GS + Snaps
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const statsSheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and pre-fill player data
+    await initializeStatsEntrySheet(sheet.spreadsheetId, accessToken, statsSheetId, players)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating stats entry sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Stats Entry sheet with headers and player data
+async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, players) {
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 9
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'PID' } },
+            { userEnteredValue: { stringValue: 'Player' } },
+            { userEnteredValue: { stringValue: 'Position' } },
+            { userEnteredValue: { stringValue: 'Class' } },
+            { userEnteredValue: { stringValue: 'Dev Trait' } },
+            { userEnteredValue: { stringValue: 'Overall Rating\n(before game one)' } },
+            { userEnteredValue: { stringValue: 'Games Played' } },
+            { userEnteredValue: { stringValue: 'Games Started' } },
+            { userEnteredValue: { stringValue: 'Snaps Played' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Bold and center headers
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: { bold: true },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE',
+            wrapStrategy: 'WRAP'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)'
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 50 }, // PID column
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 180 }, // Player name
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 2,
+          endIndex: 3
+        },
+        properties: { pixelSize: 80 }, // Position
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 4
+        },
+        properties: { pixelSize: 70 }, // Class
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 4,
+          endIndex: 5
+        },
+        properties: { pixelSize: 80 }, // Dev Trait
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 5,
+          endIndex: 6
+        },
+        properties: { pixelSize: 100 }, // Overall Rating
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 6,
+          endIndex: 9
+        },
+        properties: { pixelSize: 90 }, // GP, GS, Snaps
+        fields: 'pixelSize'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect columns A-F (pre-filled data: PID, Player, Position, Class, Dev Trait, Overall)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 6
+          },
+          description: 'Protected player info columns',
+          warningOnly: false
+        }
+      }
+    }
+  ]
+
+  // Pre-fill player data if available
+  if (players.length > 0) {
+    // Sort players by position order and then by overall rating
+    const positionOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+    const sortedPlayers = [...players].sort((a, b) => {
+      const posA = positionOrder.indexOf(a.position) !== -1 ? positionOrder.indexOf(a.position) : 999
+      const posB = positionOrder.indexOf(b.position) !== -1 ? positionOrder.indexOf(b.position) : 999
+      if (posA !== posB) return posA - posB
+      return (b.overall || 0) - (a.overall || 0)
+    })
+
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: sortedPlayers.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 6
+        },
+        rows: sortedPlayers.map(player => ({
+          values: [
+            { userEnteredValue: { numberValue: player.pid || 0 } },
+            { userEnteredValue: { stringValue: player.name || '' } },
+            { userEnteredValue: { stringValue: player.position || '' } },
+            { userEnteredValue: { stringValue: player.year || '' } },
+            { userEnteredValue: { stringValue: player.devTrait || '' } },
+            { userEnteredValue: { numberValue: player.overall || 0 } }
+          ]
+        })),
+        fields: 'userEnteredValue'
+      }
+    })
+
+    // Center all data cells (columns B-I, skipping PID column A which is already numeric)
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: sortedPlayers.length + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 9
+        },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat.horizontalAlignment'
+      }
+    })
+
+    // Add auto-filter to header row
+    requests.push({
+      setBasicFilter: {
+        filter: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: sortedPlayers.length + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 9
+          }
+        }
+      }
+    })
+  }
+
+  // Execute all requests
+  const batchResponse = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    }
+  )
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing stats sheet:', error)
+    throw new Error(`Failed to initialize sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+/**
+ * Read stats data from the stats entry sheet
+ */
+export async function readStatsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Read all data from the Player Stats sheet (A-I: PID, Player, Position, Class, Dev Trait, Overall, GP, GS, Snaps)
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'Player Stats'!A2:I200`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read stats: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    return rows.map(row => ({
+      pid: parseInt(row[0]) || 0,
+      name: row[1] || '',
+      position: row[2] || '',
+      year: row[3] || '',
+      devTrait: row[4] || '',
+      overall: parseInt(row[5]) || 0,
+      gamesPlayed: parseInt(row[6]) || 0,
+      gamesStarted: parseInt(row[7]) || 0,
+      snapsPlayed: parseInt(row[8]) || 0
+    })).filter(player => player.pid > 0) // Filter by PID instead of name for robustness
+  } catch (error) {
+    console.error('Error reading stats from sheet:', error)
+    throw error
+  }
+}
+
+// ============================================
+// DETAILED STATS SHEET (9 TABS)
+// ============================================
+
+// Define columns for each stat category
+const DETAILED_STATS_TABS = {
+  'Passing': [
+    'Completions', 'Attempts', 'Yards', 'Touchdowns', 'Interceptions',
+    'Net Yards/Attempt', 'Adjusted Net Yards/Attempt'
+  ],
+  'Rushing': [
+    'Carries', 'Yards', 'Touchdowns', '20+ Yard Runs', 'Broken Tackles',
+    'Yards After Contact', 'Rushing Long', 'Fumbles'
+  ],
+  'Receiving': [
+    'Receptions', 'Yards', 'Touchdowns', 'Receiving Long', 'Run After Catch', 'Drops'
+  ],
+  'Blocking': [
+    'Sacks Allowed'
+  ],
+  'Defensive': [
+    'Solo Tackles', 'Assisted Tackles', 'Tackles for Loss', 'Sacks', 'Interceptions',
+    'INT Return Yards', 'INT Long', 'Defensive TDs', 'Deflections', 'Catches Allowed',
+    'Forced Fumbles', 'Fumble Recoveries', 'Fumble Return Yards', 'Blocks', 'Safeties'
+  ],
+  'Kicking': [
+    'FG Made', 'FG Attempted', 'FG Long', 'XP Made', 'XP Attempted',
+    'FG Made (0-29)', 'FG Att (0-29)', 'FG Made (30-39)', 'FG Att (30-39)',
+    'FG Made (40-49)', 'FG Att (40-49)', 'FG Made (50+)', 'FG Att (50+)',
+    'Kickoffs', 'Touchbacks', 'FG Blocked', 'XP Blocked'
+  ],
+  'Punting': [
+    'Punts', 'Punting Yards', 'Net Punting Yards', 'Punts Inside 20',
+    'Touchbacks', 'Punt Long', 'Punts Blocked'
+  ],
+  'Kick Return': [
+    'Kickoff Returns', 'KR Yardage', 'KR Touchdowns', 'KR Long'
+  ],
+  'Punt Return': [
+    'Punt Returns', 'PR Yardage', 'PR Touchdowns', 'PR Long'
+  ]
+}
+
+/**
+ * Create a Detailed Stats sheet with 9 tabs for all football statistics
+ * Each tab has: Name, Snaps Played (pre-filled), then stat-specific columns
+ */
+export async function createDetailedStatsSheet(dynastyName, year, playerStats = []) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    const tabNames = Object.keys(DETAILED_STATS_TABS)
+    const rowCount = Math.max(playerStats.length + 1, 86)
+
+    // Create the spreadsheet with all 9 tabs
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} Dynasty - ${year} Detailed Stats`
+        },
+        sheets: tabNames.map((tabName, index) => ({
+          properties: {
+            title: tabName,
+            index: index,
+            gridProperties: {
+              rowCount: rowCount,
+              columnCount: DETAILED_STATS_TABS[tabName].length + 4, // +4 for PID, Name, Position, and Snaps
+              frozenRowCount: 1
+            }
+          }
+        }))
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+
+    // Initialize each tab with headers and player data
+    for (let i = 0; i < tabNames.length; i++) {
+      const tabName = tabNames[i]
+      const sheetId = sheet.sheets[i].properties.sheetId
+      await initializeDetailedStatsTab(sheet.spreadsheetId, accessToken, sheetId, tabName, playerStats)
+    }
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating detailed stats sheet:', error)
+    throw error
+  }
+}
+
+// Position filters for each detailed stats tab
+const TAB_POSITION_FILTERS = {
+  'Passing': ['QB'],
+  'Rushing': ['QB', 'HB', 'FB', 'WR', 'TE'],
+  'Receiving': ['HB', 'FB', 'WR', 'TE'],
+  'Blocking': ['LT', 'LG', 'C', 'RG', 'RT'],
+  'Defensive': ['LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS'],
+  'Kicking': ['K', 'P'],
+  'Punting': ['K', 'P'],
+  'Kick Return': ['HB', 'FB', 'WR', 'CB', 'FS', 'SS'],
+  'Punt Return': ['HB', 'FB', 'WR', 'CB', 'FS', 'SS']
+}
+
+// Initialize a single tab of the detailed stats sheet
+async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, tabName, playerStats) {
+  const statColumns = DETAILED_STATS_TABS[tabName]
+  const totalColumns = statColumns.length + 4 // PID + Name + Position + Snaps + stat columns
+
+  // Filter players by positions relevant to this tab
+  const allowedPositions = TAB_POSITION_FILTERS[tabName] || []
+  const filteredPlayers = playerStats.filter(p => allowedPositions.includes(p.position))
+
+  // Sort by snaps played (highest to lowest)
+  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+    return (b.snapsPlayed || 0) - (a.snapsPlayed || 0)
+  })
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: totalColumns
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'PID' } },
+            { userEnteredValue: { stringValue: 'Name' } },
+            { userEnteredValue: { stringValue: 'Pos' } },
+            { userEnteredValue: { stringValue: 'Snaps' } },
+            ...statColumns.map(col => ({ userEnteredValue: { stringValue: col } }))
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Bold and center headers
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: { bold: true },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE',
+            wrapStrategy: 'WRAP'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)'
+      }
+    },
+    // Set PID column width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 50 },
+        fields: 'pixelSize'
+      }
+    },
+    // Set Name column width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 180 },
+        fields: 'pixelSize'
+      }
+    },
+    // Set Position column width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 2,
+          endIndex: 3
+        },
+        properties: { pixelSize: 50 },
+        fields: 'pixelSize'
+      }
+    },
+    // Set Snaps column width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 4
+        },
+        properties: { pixelSize: 60 },
+        fields: 'pixelSize'
+      }
+    },
+    // Set stat columns width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 4,
+          endIndex: totalColumns
+        },
+        properties: { pixelSize: 85 },
+        fields: 'pixelSize'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect PID, Name, Position and Snaps columns (pre-filled data)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          description: 'Protected player info columns',
+          warningOnly: false
+        }
+      }
+    }
+  ]
+
+  // Pre-fill player data if available
+  if (sortedPlayers.length > 0) {
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: sortedPlayers.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 4
+        },
+        rows: sortedPlayers.map(player => ({
+          values: [
+            { userEnteredValue: { numberValue: player.pid || 0 } },
+            { userEnteredValue: { stringValue: player.name || '' } },
+            { userEnteredValue: { stringValue: player.position || '' } },
+            { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
+          ]
+        })),
+        fields: 'userEnteredValue'
+      }
+    })
+
+    // Center all data cells (except Name column)
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: sortedPlayers.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat.horizontalAlignment'
+      }
+    })
+
+    // Center Position, Snaps and stat columns
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: sortedPlayers.length + 1,
+          startColumnIndex: 2,
+          endColumnIndex: totalColumns
+        },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat.horizontalAlignment'
+      }
+    })
+
+    // Add auto-filter to header row
+    requests.push({
+      setBasicFilter: {
+        filter: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: sortedPlayers.length + 1,
+            startColumnIndex: 0,
+            endColumnIndex: totalColumns
+          }
+        }
+      }
+    })
+  }
+
+  // Execute all requests
+  const batchResponse = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    }
+  )
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error(`Error initializing ${tabName} tab:`, error)
+    throw new Error(`Failed to initialize ${tabName} tab: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+/**
+ * Read detailed stats data from all tabs
+ */
+export async function readDetailedStatsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+    const result = {}
+
+    for (const tabName of Object.keys(DETAILED_STATS_TABS)) {
+      const statColumns = DETAILED_STATS_TABS[tabName]
+      const lastColumn = String.fromCharCode(65 + statColumns.length + 3) // A=65, +4 for PID/Name/Pos/Snaps
+
+      const response = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A2:${lastColumn}200`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error(`Failed to read ${tabName}:`, error)
+        continue
+      }
+
+      const data = await response.json()
+      const rows = data.values || []
+
+      result[tabName] = rows.map(row => {
+        const player = {
+          pid: parseInt(row[0]) || 0,
+          name: row[1] || '',
+          position: row[2] || '',
+          snapsPlayed: parseInt(row[3]) || 0
+        }
+        // Map stat columns (starting at column index 4)
+        statColumns.forEach((col, i) => {
+          const value = row[i + 4]
+          // Try to parse as number, otherwise keep as string
+          player[col] = value !== undefined && value !== '' ? (isNaN(parseFloat(value)) ? value : parseFloat(value)) : null
+        })
+        return player
+      }).filter(player => player.pid > 0) // Filter out empty rows (check for valid PID)
+    }
+
+    return result
+  } catch (error) {
+    console.error('Error reading detailed stats from sheet:', error)
     throw error
   }
 }

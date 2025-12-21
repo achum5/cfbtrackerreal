@@ -27,6 +27,8 @@ import CFPQuarterfinalsModal from '../../components/CFPQuarterfinalsModal'
 import CFPSemifinalsModal from '../../components/CFPSemifinalsModal'
 import CFPChampionshipModal from '../../components/CFPChampionshipModal'
 import ConferencesModal from '../../components/ConferencesModal'
+import StatsEntryModal from '../../components/StatsEntryModal'
+import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 export default function Dashboard() {
@@ -53,6 +55,8 @@ export default function Dashboard() {
   const [showCFPSemifinalsModal, setShowCFPSemifinalsModal] = useState(false)
   const [showCFPChampionshipModal, setShowCFPChampionshipModal] = useState(false)
   const [showConferencesModal, setShowConferencesModal] = useState(false)
+  const [showStatsEntryModal, setShowStatsEntryModal] = useState(false)
+  const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
 
   // Bowl eligibility states
   const [bowlEligible, setBowlEligible] = useState(null) // null = not answered, true/false = answered
@@ -608,8 +612,8 @@ export default function Dashboard() {
     return phases[phase] || phase
   }
 
-  const currentYearGames = currentDynasty.games
-    .filter(g => g.year === currentDynasty.currentYear)
+  const currentYearGames = (currentDynasty.games || [])
+    .filter(g => Number(g.year) === Number(currentDynasty.currentYear) && !g.isCPUGame)
     .sort((a, b) => a.week - b.week)
 
   return (
@@ -2419,6 +2423,110 @@ export default function Dashboard() {
                         </button>
                       </div>
                     )}
+
+                    {/* Task: Player Stats Entry */}
+                    {(() => {
+                      const hasStatsData = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length > 0
+                      const taskNumber = !userInCFPChampionship ? 2 : 1
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasStatsData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasStatsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasStatsData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasStatsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasStatsData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasStatsData ? '#16a34a' : secondaryBgText }}>
+                                Player Stats Entry
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasStatsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasStatsData
+                                  ? `✓ Stats entered for ${currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0} players`
+                                  : 'Enter games played, starts, and snaps for each player'}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowStatsEntryModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasStatsData ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Detailed Stats Entry */}
+                    {(() => {
+                      const hasStatsData = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length > 0
+                      const hasDetailedStats = currentDynasty?.detailedStatsByYear?.[currentDynasty.currentYear] &&
+                        Object.keys(currentDynasty.detailedStatsByYear[currentDynasty.currentYear]).length > 0
+                      const taskNumber = !userInCFPChampionship ? 3 : 2
+                      const isLocked = !hasStatsData
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasDetailedStats ? 'border-green-200 bg-green-50' : ''
+                          } ${isLocked ? 'opacity-50' : ''}`}
+                          style={!hasDetailedStats ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasDetailedStats ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasDetailedStats ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasDetailedStats ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : isLocked ? (
+                                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText }}>
+                                Detailed Stats Entry
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasDetailedStats
+                                  ? '✓ Detailed stats entered across all categories'
+                                  : isLocked
+                                    ? 'Complete Player Stats Entry first'
+                                    : 'Passing, rushing, receiving, defensive, kicking stats'}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => !isLocked && setShowDetailedStatsModal(true)}
+                            disabled={isLocked}
+                            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-sm self-end sm:self-auto ${isLocked ? 'cursor-not-allowed' : 'hover:opacity-90'}`}
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText, opacity: isLocked ? 0.5 : 1 }}
+                          >
+                            {hasDetailedStats ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
 
                   </div>
                 </>
@@ -4285,6 +4393,42 @@ export default function Dashboard() {
             })
           }
         }}
+        teamColors={teamColors}
+      />
+
+      {/* Stats Entry Modal (End of Season Recap) */}
+      <StatsEntryModal
+        isOpen={showStatsEntryModal}
+        onClose={() => setShowStatsEntryModal(false)}
+        onSave={async (stats) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.playerStatsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            playerStatsByYear: {
+              ...existingByYear,
+              [year]: stats
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Detailed Stats Entry Modal (End of Season Recap) */}
+      <DetailedStatsEntryModal
+        isOpen={showDetailedStatsModal}
+        onClose={() => setShowDetailedStatsModal(false)}
+        onSave={async (detailedStats) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.detailedStatsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            detailedStatsByYear: {
+              ...existingByYear,
+              [year]: detailedStats
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
       />
     </div>

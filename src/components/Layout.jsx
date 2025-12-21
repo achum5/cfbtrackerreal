@@ -36,6 +36,7 @@ export default function Layout({ children }) {
 
   const getPhaseDisplay = (phase, week) => {
     if (phase === 'postseason') {
+      if (week === 5) return 'End of Season Recap'
       return week === 4 ? 'National Championship' : `Bowl Week ${week}`
     }
     const phases = {
@@ -218,10 +219,11 @@ export default function Layout({ children }) {
                       <span className="sm:hidden">
                         {currentDynasty.currentPhase === 'conference_championship' ? 'CC' :
                          currentDynasty.currentPhase === 'regular_season' ? 'Wk' :
-                         currentDynasty.currentPhase === 'postseason' ? 'Bowl' :
+                         currentDynasty.currentPhase === 'postseason' ? (currentDynasty.currentWeek === 5 ? 'Recap' : (currentDynasty.currentWeek === 4 ? 'Champ' : 'Bowl')) :
                          currentDynasty.currentPhase === 'preseason' ? 'Pre' :
                          currentDynasty.currentPhase === 'offseason' ? 'Off' : ''}
-                        {currentDynasty.currentPhase !== 'conference_championship' && ` ${currentDynasty.currentWeek}`}
+                        {currentDynasty.currentPhase !== 'conference_championship' && currentDynasty.currentPhase !== 'postseason' && ` ${currentDynasty.currentWeek}`}
+                        {currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek < 4 && ` ${currentDynasty.currentWeek}`}
                       </span>
                       <span className="hidden sm:inline">
                         {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}

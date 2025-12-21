@@ -4,15 +4,45 @@ import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 
-export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, currentYear, teamColors, opponent: passedOpponent, isConferenceChampionship, existingGame: passedExistingGame, bowlName, team1: passedTeam1, team2: passedTeam2, existingTeam1Score, existingTeam2Score, existingGameNote, existingLinks, minimalMode }) {
+export default function GameEntryModal({
+  isOpen,
+  onClose,
+  onSave,
+  weekNumber,
+  currentYear,
+  teamColors,
+  opponent: passedOpponent,
+  isConferenceChampionship,
+  existingGame,
+  bowlName,
+  minimalMode,
+  // Backward compatibility props (used by TeamYear, CFPBracket)
+  team1: passedTeam1,
+  team2: passedTeam2,
+  existingTeam1Score,
+  existingTeam2Score,
+  existingGameNote,
+  existingLinks
+}) {
   const { currentDynasty } = useDynasty()
 
-  // Detect if this is a CPU vs CPU game (both teams are passed, not user's team)
-  const isCPUGame = passedTeam1 && passedTeam2
+  // Detect if this is a CPU vs CPU game from existingGame or passed props
+  const isCPUGame = existingGame?.isCPUGame || (existingGame?.team1 && existingGame?.team2) || (passedTeam1 && passedTeam2)
 
-  // CRITICAL FIX: If in regular season but weekNumber is 0, use week 1
-  // This handles cases where dynasty phase transitioned but week didn't update correctly
-  const actualWeekNumber = isConferenceChampionship ? 'CC' : (currentDynasty?.currentPhase === 'regular_season' && weekNumber === 0 ? 1 : weekNumber)
+  // Merge existingGame with backward compat props (existingGame takes priority)
+  const effectiveGame = existingGame ? existingGame : (passedTeam1 && passedTeam2 ? {
+    team1: passedTeam1,
+    team2: passedTeam2,
+    team1Score: existingTeam1Score,
+    team2Score: existingTeam2Score,
+    gameNote: existingGameNote,
+    links: existingLinks,
+    isCPUGame: true
+  } : null)
+
+  // Use existing game's week if available, otherwise use passed weekNumber
+  const actualWeekNumber = existingGame?.week ?? (isConferenceChampionship ? 'CC' : (currentDynasty?.currentPhase === 'regular_season' && weekNumber === 0 ? 1 : weekNumber))
+  const actualYear = existingGame?.year ?? currentYear ?? currentDynasty?.currentYear
 
   // Find the scheduled game for this week (not for CC games)
   const scheduledGame = isConferenceChampionship ? null : currentDynasty?.schedule?.find(g => g.week === actualWeekNumber)
@@ -258,21 +288,21 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         gameWeek = 4
       } else if (bowlName) {
         // Bowl games - try to get from passed existing game or default to week 1
-        gameWeek = passedExistingGame?.week || 1
+        gameWeek = existingGame?.week || 1
       }
     }
 
     // Check if passed existing game has postseason flags
-    if (passedExistingGame) {
-      if (passedExistingGame.isConferenceChampionship || passedExistingGame.isBowlGame ||
-          passedExistingGame.isCFPFirstRound || passedExistingGame.isCFPQuarterfinal ||
-          passedExistingGame.isCFPSemifinal || passedExistingGame.isCFPChampionship) {
+    if (existingGame) {
+      if (existingGame.isConferenceChampionship || existingGame.isBowlGame ||
+          existingGame.isCFPFirstRound || existingGame.isCFPQuarterfinal ||
+          existingGame.isCFPSemifinal || existingGame.isCFPChampionship) {
         gamePhase = 'postseason'
-        if (passedExistingGame.isCFPFirstRound || passedExistingGame.isConferenceChampionship) gameWeek = 1
-        else if (passedExistingGame.isCFPQuarterfinal) gameWeek = 2
-        else if (passedExistingGame.isCFPSemifinal) gameWeek = 3
-        else if (passedExistingGame.isCFPChampionship) gameWeek = 4
-        else if (passedExistingGame.isBowlGame) gameWeek = passedExistingGame.week || 1
+        if (existingGame.isCFPFirstRound || existingGame.isConferenceChampionship) gameWeek = 1
+        else if (existingGame.isCFPQuarterfinal) gameWeek = 2
+        else if (existingGame.isCFPSemifinal) gameWeek = 3
+        else if (existingGame.isCFPChampionship) gameWeek = 4
+        else if (existingGame.isBowlGame) gameWeek = existingGame.week || 1
       }
     }
 
@@ -482,28 +512,38 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       newGameData.opponentScore = calculateTotalFromQuarters('opponent', newQuarters, gameData.overtimes).toString()
     }
 
-    setGameData(newGameData)
-
-    // Auto-add OT1 if all quarters are filled and scores are tied
+    // Check if all quarters are filled
     const allQuartersFilled =
       newQuarters.team.Q1 !== '' && newQuarters.team.Q2 !== '' &&
       newQuarters.team.Q3 !== '' && newQuarters.team.Q4 !== '' &&
       newQuarters.opponent.Q1 !== '' && newQuarters.opponent.Q2 !== '' &&
       newQuarters.opponent.Q3 !== '' && newQuarters.opponent.Q4 !== ''
 
-    if (allQuartersFilled && gameData.overtimes.length === 0) {
-      const teamTotal = calculateTotalFromQuarters('team', newQuarters, [])
-      const opponentTotal = calculateTotalFromQuarters('opponent', newQuarters, [])
+    if (allQuartersFilled) {
+      // Calculate regulation-only totals (no OT)
+      const teamRegulation = calculateTotalFromQuarters('team', newQuarters, [])
+      const opponentRegulation = calculateTotalFromQuarters('opponent', newQuarters, [])
 
-      if (teamTotal === opponentTotal) {
-        setTimeout(() => {
-          setGameData(prev => ({
-            ...prev,
-            overtimes: [{ team: '', opponent: '' }]
-          }))
-        }, 100)
+      if (teamRegulation === opponentRegulation) {
+        // Regulation is tied - add OT1 if none exists
+        if (gameData.overtimes.length === 0) {
+          newGameData.overtimes = [{ team: '', opponent: '' }]
+        }
+      } else {
+        // Regulation is NOT tied - clear any OT data
+        newGameData.overtimes = []
+        // Recalculate totals without OT
+        newGameData.teamScore = teamRegulation.toString()
+        newGameData.opponentScore = opponentRegulation.toString()
+      }
+    } else {
+      // Not all quarters filled yet - clear OT
+      if (gameData.overtimes.length > 0) {
+        newGameData.overtimes = []
       }
     }
+
+    setGameData(newGameData)
   }
 
   // Handle overtime score change
@@ -546,98 +586,113 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
   // Load existing game data or scheduled game data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // In minimalMode (CFP bracket edits), skip the games array lookup entirely
-      // Only use the scores passed directly via props
-      const existingGame = minimalMode ? null : (passedExistingGame || (isConferenceChampionship
-        ? currentDynasty?.games?.find(g => g.isConferenceChampionship && g.year === currentYear)
-        : currentDynasty?.games?.find(g => g.week === actualWeekNumber && g.year === currentYear)))
+      // SIMPLE APPROACH: If existingGame or effectiveGame is provided, use it directly
+      const gameToLoad = effectiveGame
+      if (gameToLoad) {
+        // For CPU vs CPU games, use team1Score/team2Score; for user games use teamScore/opponentScore
+        const teamScore = gameToLoad.isCPUGame ? gameToLoad.team1Score : gameToLoad.teamScore
+        const oppScore = gameToLoad.isCPUGame ? gameToLoad.team2Score : gameToLoad.opponentScore
 
-      if (existingGame) {
-        // Load existing game data for editing
+        // Parse opponent record into parts
+        let overallRecord = ''
+        let conferenceRecord = ''
+        if (gameToLoad.opponentRecord) {
+          const overallMatch = gameToLoad.opponentRecord.match(/^(\d+-\d+)/)
+          const confMatch = gameToLoad.opponentRecord.match(/\((\d+-\d+)\)/)
+          overallRecord = overallMatch ? overallMatch[1] : ''
+          conferenceRecord = confMatch ? confMatch[1] : ''
+        }
+
         setGameData({
-          opponent: existingGame.opponent || '',
-          location: existingGame.location || 'home',
-          teamScore: existingGame.teamScore?.toString() || '',
-          opponentScore: existingGame.opponentScore?.toString() || '',
-          isConferenceGame: existingGame.isConferenceGame || isConferenceChampionship || false,
-          userRank: existingGame.userRank?.toString() || '',
-          opponentRank: existingGame.opponentRank?.toString() || '',
-          opponentOverall: existingGame.opponentOverall?.toString() || '',
-          opponentOffense: existingGame.opponentOffense?.toString() || '',
-          opponentDefense: existingGame.opponentDefense?.toString() || '',
-          overallRecord: (() => {
-            if (existingGame.opponentRecord) {
-              const match = existingGame.opponentRecord.match(/^(\d+-\d+)/)
-              return match ? match[1] : ''
-            }
-            return ''
-          })(),
-          conferenceRecord: (() => {
-            if (existingGame.opponentRecord) {
-              const match = existingGame.opponentRecord.match(/\((\d+-\d+)\)/)
-              return match ? match[1] : ''
-            }
-            return ''
-          })(),
-          gameNote: existingGame.gameNote || '',
-          week: actualWeekNumber,
-          year: currentYear,
-          quarters: existingGame.quarters || {
+          opponent: gameToLoad.opponent || gameToLoad.team2 || '',
+          location: gameToLoad.location || 'neutral',
+          teamScore: teamScore?.toString() || '',
+          opponentScore: oppScore?.toString() || '',
+          isConferenceGame: gameToLoad.isConferenceGame || isConferenceChampionship || false,
+          userRank: gameToLoad.userRank?.toString() || '',
+          opponentRank: gameToLoad.opponentRank?.toString() || '',
+          opponentOverall: gameToLoad.opponentOverall?.toString() || '',
+          opponentOffense: gameToLoad.opponentOffense?.toString() || '',
+          opponentDefense: gameToLoad.opponentDefense?.toString() || '',
+          overallRecord: overallRecord,
+          conferenceRecord: conferenceRecord,
+          gameNote: gameToLoad.gameNote || '',
+          week: gameToLoad.week ?? actualWeekNumber,
+          year: gameToLoad.year ?? actualYear,
+          quarters: gameToLoad.quarters || {
             team: { Q1: '', Q2: '', Q3: '', Q4: '' },
             opponent: { Q1: '', Q2: '', Q3: '', Q4: '' }
           },
-          overtimes: existingGame.overtimes || []
+          overtimes: gameToLoad.overtimes || []
         })
 
         // Load links
-        if (existingGame.links) {
-          const linkArray = existingGame.links.split(',').map(link => link.trim()).filter(link => link)
+        if (gameToLoad.links) {
+          const linkArray = gameToLoad.links.split(',').map(link => link.trim()).filter(link => link)
           setLinks(linkArray.length > 0 ? [...linkArray, ''] : [''])
         } else {
           setLinks([''])
         }
 
         // Load Player of the Week selections
-        setConferencePOW(existingGame.conferencePOW || '')
-        setNationalPOW(existingGame.nationalPOW || '')
+        setConferencePOW(gameToLoad.conferencePOW || '')
+        setNationalPOW(gameToLoad.nationalPOW || '')
         setConfPOWSearch('')
         setNatlPOWSearch('')
         setConfPOWOpen(false)
         setNatlPOWOpen(false)
-      } else if (existingTeam1Score !== undefined || existingTeam2Score !== undefined) {
-        // Game with minimal data (scores only) - for CFP games from bracket or CPU games
-        // Only load teams and scores, leave everything else blank
-        setGameData(prev => ({
-          ...prev,
-          opponent: passedOpponent || passedTeam2 || '',
-          location: 'neutral',
-          teamScore: existingTeam1Score?.toString() || '',
-          opponentScore: existingTeam2Score?.toString() || '',
-          isConferenceGame: false,
-          userRank: '',
-          opponentRank: '',
-          opponentOverall: '',
-          opponentOffense: '',
-          opponentDefense: '',
-          overallRecord: '',
-          conferenceRecord: '',
-          gameNote: existingGameNote || '',
-          quarters: {
+        return
+      }
+
+      // No existingGame - check if we can find one in dynasty's games array
+      const foundGame = minimalMode ? null : (isConferenceChampionship
+        ? currentDynasty?.games?.find(g => g.isConferenceChampionship && g.year === actualYear)
+        : currentDynasty?.games?.find(g => g.week === actualWeekNumber && g.year === actualYear))
+
+      if (foundGame) {
+        // Parse opponent record into parts
+        let overallRecord = ''
+        let conferenceRecord = ''
+        if (foundGame.opponentRecord) {
+          const overallMatch = foundGame.opponentRecord.match(/^(\d+-\d+)/)
+          const confMatch = foundGame.opponentRecord.match(/\((\d+-\d+)\)/)
+          overallRecord = overallMatch ? overallMatch[1] : ''
+          conferenceRecord = confMatch ? confMatch[1] : ''
+        }
+
+        setGameData({
+          opponent: foundGame.opponent || '',
+          location: foundGame.location || 'home',
+          teamScore: foundGame.teamScore?.toString() || '',
+          opponentScore: foundGame.opponentScore?.toString() || '',
+          isConferenceGame: foundGame.isConferenceGame || isConferenceChampionship || false,
+          userRank: foundGame.userRank?.toString() || '',
+          opponentRank: foundGame.opponentRank?.toString() || '',
+          opponentOverall: foundGame.opponentOverall?.toString() || '',
+          opponentOffense: foundGame.opponentOffense?.toString() || '',
+          opponentDefense: foundGame.opponentDefense?.toString() || '',
+          overallRecord: overallRecord,
+          conferenceRecord: conferenceRecord,
+          gameNote: foundGame.gameNote || '',
+          week: actualWeekNumber,
+          year: actualYear,
+          quarters: foundGame.quarters || {
             team: { Q1: '', Q2: '', Q3: '', Q4: '' },
             opponent: { Q1: '', Q2: '', Q3: '', Q4: '' }
           },
-          overtimes: []
-        }))
+          overtimes: foundGame.overtimes || []
+        })
 
-        // Load existing links if provided
-        if (existingLinks) {
-          const linkArray = existingLinks.split(',').map(link => link.trim()).filter(link => link)
+        // Load links
+        if (foundGame.links) {
+          const linkArray = foundGame.links.split(',').map(link => link.trim()).filter(link => link)
           setLinks(linkArray.length > 0 ? [...linkArray, ''] : [''])
         } else {
           setLinks([''])
         }
-        setConferencePOW('')
-        setNationalPOW('')
+
+        setConferencePOW(foundGame.conferencePOW || '')
+        setNationalPOW(foundGame.nationalPOW || '')
         setConfPOWSearch('')
         setNatlPOWSearch('')
         setConfPOWOpen(false)
@@ -674,7 +729,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         setNatlPOWOpen(false)
       }
     }
-  }, [isOpen, scheduledGame, actualWeekNumber, currentYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, passedExistingGame, bowlName, isCPUGame, existingTeam1Score, existingTeam2Score, existingGameNote, existingLinks, passedTeam2, minimalMode])
+  }, [isOpen, scheduledGame, actualWeekNumber, actualYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, effectiveGame, bowlName, minimalMode])
 
   const handleLinkChange = (index, value) => {
     const newLinks = [...links]
@@ -845,7 +900,10 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
 
     const processedData = removeUndefined({
       ...restGameData,
-      week: actualWeekNumber,  // Use actualWeekNumber instead of gameData.week
+      // CRITICAL: Include game ID so we know which game to update
+      id: effectiveGame?.id,
+      week: effectiveGame?.week ?? actualWeekNumber,
+      year: effectiveGame?.year ?? actualYear,
       links: filteredLinks,
       result: result,
       teamScore: teamScore,
@@ -860,15 +918,23 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
       nationalPOW: nationalPOW || null,
       favoriteStatus: favoriteStatus !== undefined ? favoriteStatus : null,
       isConferenceGame: isConferenceGame,
-      ...(bowlName && { bowlName: bowlName }),  // Include bowl name for CFP games
+      // Preserve special game type flags from existing game
+      ...(effectiveGame?.bowlName && { bowlName: effectiveGame.bowlName }),
+      ...(effectiveGame?.isConferenceChampionship && { isConferenceChampionship: true }),
+      ...(effectiveGame?.isCFPFirstRound && { isCFPFirstRound: true }),
+      ...(effectiveGame?.isCFPQuarterfinal && { isCFPQuarterfinal: true }),
+      ...(effectiveGame?.isCFPSemifinal && { isCFPSemifinal: true }),
+      ...(effectiveGame?.isCFPChampionship && { isCFPChampionship: true }),
+      ...(effectiveGame?.isBowlGame && { isBowlGame: true }),
+      ...(bowlName && !effectiveGame?.bowlName && { bowlName: bowlName }),
       // CPU vs CPU game data
       ...(isCPUGame && {
         isCPUGame: true,
-        team1: passedTeam1,
-        team2: passedTeam2,
+        team1: effectiveGame?.team1,
+        team2: effectiveGame?.team2,
         team1Score: teamScore,
         team2Score: opponentScore,
-        winner: teamScore > opponentScore ? passedTeam1 : passedTeam2
+        winner: teamScore > opponentScore ? effectiveGame?.team1 : effectiveGame?.team2
       })
     })
 
@@ -1001,17 +1067,25 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
         >
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-2xl font-bold truncate" style={{ color: teamColors.primary }}>
-              {isConferenceChampionship
-                ? `${currentDynasty?.conference || getTeamConference(getAbbreviationFromDisplayName(currentDynasty?.teamName)) || 'Conference'} Championship`
-                : bowlName
-                  ? `${bowlName}`
-                  : `Week ${actualWeekNumber} Game Entry`}
+              {isConferenceChampionship || effectiveGame?.isConferenceChampionship
+                ? `${currentDynasty?.conference || effectiveGame?.conference || getTeamConference(getAbbreviationFromDisplayName(currentDynasty?.teamName)) || 'Conference'} Championship`
+                : effectiveGame?.isCFPChampionship
+                  ? 'National Championship'
+                  : effectiveGame?.isCFPSemifinal
+                    ? effectiveGame?.bowlName || 'CFP Semifinal'
+                    : effectiveGame?.isCFPQuarterfinal
+                      ? effectiveGame?.bowlName || 'CFP Quarterfinal'
+                      : effectiveGame?.isCFPFirstRound
+                        ? 'CFP First Round'
+                        : bowlName || effectiveGame?.bowlName
+                          ? bowlName || effectiveGame?.bowlName
+                          : `Week ${actualWeekNumber} Game Entry`}
             </h2>
             {(() => {
               if (isCPUGame) {
                 // CPU vs CPU game - show both teams
-                const team1Name = getMascotName(passedTeam1) || getOpponentTeamName(passedTeam1)
-                const team2Name = getMascotName(passedTeam2) || getOpponentTeamName(passedTeam2)
+                const team1Name = getMascotName(effectiveGame?.team1) || getOpponentTeamName(effectiveGame?.team1)
+                const team2Name = getMascotName(effectiveGame?.team2) || getOpponentTeamName(effectiveGame?.team2)
                 return (
                   <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
                     {team1Name} vs {team2Name}
@@ -1084,8 +1158,8 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
                 {(() => {
                   // Determine team order based on location
                   // For CPU vs CPU games, use passed team1 and team2
-                  const team1Abbr = isCPUGame ? passedTeam1 : getAbbreviationFromDisplayName(currentDynasty?.teamName)
-                  const team2Abbr = isCPUGame ? passedTeam2 : (gameData.opponent || passedOpponent || scheduledGame?.opponent)
+                  const team1Abbr = isCPUGame ? effectiveGame?.team1 : getAbbreviationFromDisplayName(currentDynasty?.teamName)
+                  const team2Abbr = isCPUGame ? effectiveGame?.team2 : (gameData.opponent || passedOpponent || scheduledGame?.opponent)
 
                   const team1MascotName = team1Abbr ? getMascotName(team1Abbr) : null
                   const team2MascotName = team2Abbr ? getMascotName(team2Abbr) : null
@@ -1447,7 +1521,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  {isCPUGame ? `${getOpponentTeamName(passedTeam1)} Rank` : 'Your National Rank'}
+                  {isCPUGame ? `${getOpponentTeamName(effectiveGame?.team1)} Rank` : 'Your National Rank'}
                 </label>
                 <input
                   type="number"
@@ -1461,7 +1535,7 @@ export default function GameEntryModal({ isOpen, onClose, onSave, weekNumber, cu
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  {isCPUGame ? `${getOpponentTeamName(passedTeam2)} Rank` : 'Opponent Rank'}
+                  {isCPUGame ? `${getOpponentTeamName(effectiveGame?.team2)} Rank` : 'Opponent Rank'}
                 </label>
                 <input
                   type="number"

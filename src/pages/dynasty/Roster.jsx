@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import RosterEntryModal from '../../components/RosterEntryModal'
+import RosterEditModal from '../../components/RosterEditModal'
 
 export default function Roster() {
   const { currentDynasty, saveRoster } = useDynasty()
@@ -253,8 +253,8 @@ export default function Roster() {
         )}
       </div>
 
-      {/* Roster Entry Modal */}
-      <RosterEntryModal
+      {/* Roster Edit Modal */}
+      <RosterEditModal
         isOpen={showRosterModal}
         onClose={() => setShowRosterModal(false)}
         onSave={handleRosterSave}

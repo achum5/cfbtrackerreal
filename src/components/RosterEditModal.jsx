@@ -4,19 +4,19 @@ import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
 import {
-  createCFPSeedsSheet,
-  readCFPSeedsFromSheet,
+  createRosterSheet,
+  readRosterFromRosterSheet,
   deleteGoogleSheet,
-  getSheetEmbedUrl
+  getSingleSheetEmbedUrl,
+  prefillRosterSheet
 } from '../services/sheetsService'
 
-// Simple mobile detection
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
@@ -28,29 +28,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
-  const [useEmbedded, setUseEmbedded] = useState(false) // Default to "Open in New Tab" mode
+  const [useEmbedded, setUseEmbedded] = useState(false)
   const [highlightSave, setHighlightSave] = useState(false)
 
-  // Check for mobile on mount and resize
   useEffect(() => {
     setIsMobile(isMobileDevice())
     const handleResize = () => setIsMobile(isMobileDevice())
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen])
 
   // Highlight save button when user returns to the window
   useEffect(() => {
@@ -77,12 +63,25 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Create CFP seeds sheet when modal opens
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  // Create roster sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP seeds sheet for this year
-        const existingSheetId = currentDynasty?.cfpSeedsSheetId
+        // Check if we have an existing roster edit sheet
+        const existingSheetId = currentDynasty?.rosterEditSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -90,18 +89,29 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createCFPSeedsSheet(
+          // Create the roster sheet
+          const sheetInfo = await createRosterSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear
           )
+
+          // Pre-fill with existing roster if available
+          const existingPlayers = currentDynasty?.players || []
+          if (existingPlayers.length > 0) {
+            await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers)
+          }
+
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            cfpSeedsSheetId: sheetInfo.spreadsheetId
+            rosterEditSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create CFP seeds sheet:', error)
+          console.error('Failed to create roster sheet:', error)
+          if (error.message?.includes('authentication') || error.message?.includes('token')) {
+            setShowAuthError(true)
+          }
         } finally {
           setCreatingSheet(false)
         }
@@ -123,15 +133,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
     setSyncing(true)
     try {
-      const seeds = await readCFPSeedsFromSheet(sheetId)
-      await onSave(seeds)
+      const roster = await readRosterFromRosterSheet(sheetId)
+      await onSave(roster)
       onClose()
     } catch (error) {
       console.error(error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets. Make sure all 12 seeds are entered.')
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       }
     } finally {
       setSyncing(false)
@@ -143,15 +153,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
     setDeletingSheet(true)
     try {
-      const seeds = await readCFPSeedsFromSheet(sheetId)
-      await onSave(seeds)
+      const roster = await readRosterFromRosterSheet(sheetId)
+      await onSave(roster)
 
       // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
       await updateDynasty(currentDynasty.id, {
-        cfpSeedsSheetId: null
+        rosterEditSheetId: null
       })
 
       setSheetId(null)
@@ -160,11 +170,11 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
         onClose()
       }, 2500)
     } catch (error) {
-      console.error(error)
+      console.error('Error in handleSyncAndDelete:', error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets.')
+        alert(`Failed to sync/delete: ${error.message || 'Unknown error'}`)
       }
     } finally {
       setDeletingSheet(false)
@@ -177,7 +187,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'CFP Seeds') : null
+  const embedUrl = sheetId ? getSingleSheetEmbedUrl(sheetId) : null
   const isLoading = creatingSheet
 
   return (
@@ -193,7 +203,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            CFP Seeds (1-12)
+            {currentYear} Roster Edit
           </h2>
           <button
             onClick={handleClose}
@@ -217,10 +227,10 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating CFP Seeds Sheet...
+                Creating Roster Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up seed entries 1-12
+                Pre-filling current roster data
               </p>
             </div>
           </div>
@@ -234,7 +244,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                CFP Seeds saved to your dynasty.
+                Roster saved to your dynasty.
               </p>
             </div>
           </div>
@@ -253,7 +263,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -293,22 +303,21 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
               </div>
             )}
 
-            {/* Mobile View */}
             {isMobile || !useEmbedded ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
-                <div className="text-left mb-6 max-w-xs">
+                <div className="text-left mb-6 max-w-md">
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter CFP seeds 1-12</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Edit player info (Name, Position, Class, Dev Trait, etc.)</span></li>
                     <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync your seeds</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync your roster</span></li>
                   </ol>
                 </div>
                 <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
@@ -327,7 +336,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -347,7 +356,6 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
                   </span>
                 )}
-
               </div>
             ) : (
               <>
@@ -356,9 +364,13 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                     sheetId={sheetId}
                     embedUrl={embedUrl}
                     teamColors={teamColors}
-                    title="CFP Seeds Google Sheet"
+                    title="Roster Google Sheet"
                     onSessionError={() => setShowAuthError(true)}
                   />
+                </div>
+                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                  <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State</p>
+                  <p>Edit player information as needed. Add or remove players from the roster.</p>
                 </div>
               </>
             )}

@@ -10,6 +10,7 @@ import { getTeamLogo } from '../../data/teams'
 import { bowlLogos } from '../../data/bowlLogos'
 // GameDetailModal removed - now using game pages
 import GameEntryModal from '../../components/GameEntryModal'
+import RosterEditModal from '../../components/RosterEditModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -167,7 +168,7 @@ const getMascotName = (abbr) => {
 export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty, updateDynasty, addGame } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame, saveRoster } = useDynasty()
   const userTeamColors = useTeamColors(currentDynasty?.teamName)
   const selectedYear = parseInt(year)
 
@@ -182,6 +183,7 @@ export default function TeamYear() {
   // Roster sorting state
   const [rosterSort, setRosterSort] = useState('position') // 'position', 'overall', 'jerseyNumber', 'name'
   const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
+  const [showRosterModal, setShowRosterModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -249,7 +251,7 @@ export default function TeamYear() {
 
   // Get user's team record for this year (if viewing user's team page)
   const userYearGames = isUserTeam
-    ? (currentDynasty.games || []).filter(g => g.year === selectedYear).sort((a, b) => a.week - b.week)
+    ? (currentDynasty.games || []).filter(g => Number(g.year) === Number(selectedYear) && !g.isCPUGame).sort((a, b) => a.week - b.week)
     : []
   // Check for both 'win'/'loss' and 'W'/'L' formats
   const userWins = userYearGames.filter(g => g.result === 'win' || g.result === 'W').length
@@ -403,6 +405,11 @@ export default function TeamYear() {
       setRosterSort(sortKey)
       setRosterSortDir(sortKey === 'overall' ? 'desc' : 'asc')
     }
+  }
+
+  const handleRosterSave = async (players) => {
+    await saveRoster(currentDynasty.id, players)
+    setShowRosterModal(false)
   }
 
   const sortedTeamPlayers = [...teamPlayers].sort((a, b) => {
@@ -1070,6 +1077,13 @@ export default function TeamYear() {
                   color: '#ffffff'
                 }}
               >
+                {bowlLogos[teamBowlGame.bowlName] && (
+                  <img
+                    src={bowlLogos[teamBowlGame.bowlName]}
+                    alt=""
+                    className="w-4 h-4 object-contain"
+                  />
+                )}
                 {wonBowl ? 'Won' : 'Lost'} {teamBowlGame.bowlName}
               </div>
             )}
@@ -1082,6 +1096,13 @@ export default function TeamYear() {
                   color: wonCC ? '#78350f' : '#1f2937'
                 }}
               >
+                {getConferenceLogo(teamCCGame.conference) && (
+                  <img
+                    src={getConferenceLogo(teamCCGame.conference)}
+                    alt=""
+                    className="w-4 h-4 object-contain"
+                  />
+                )}
                 {wonCC ? '🏆' : '🥈'} <span className="hidden sm:inline">{teamCCGame.conference}</span> {wonCC ? 'Champions' : 'Runner-Up'}
               </div>
             )}
@@ -1153,6 +1174,18 @@ export default function TeamYear() {
               >
                 {sortedTeamPlayers.length} Players
               </span>
+              {selectedYear === currentDynasty.currentYear && (
+                <button
+                  onClick={() => setShowRosterModal(true)}
+                  className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                  style={{ color: teamPrimaryText }}
+                  title="Edit Roster"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
             </div>
             {/* Sort Controls */}
             <div className="flex items-center gap-1 flex-wrap">
@@ -2054,6 +2087,15 @@ export default function TeamYear() {
           existingLinks={editingGameData.existingLinks}
         />
       )}
+
+      {/* Roster Edit Modal */}
+      <RosterEditModal
+        isOpen={showRosterModal}
+        onClose={() => setShowRosterModal(false)}
+        onSave={handleRosterSave}
+        currentYear={currentDynasty.currentYear}
+        teamColors={userTeamColors}
+      />
     </div>
   )
 }
