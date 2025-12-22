@@ -28,6 +28,8 @@ export default function Layout({ children }) {
   const isDynastyPage = location.pathname.startsWith('/dynasty/')
   const useTeamTheme = isDynastyPage && currentDynasty
   const isCFPBracketPage = location.pathname.includes('/cfp-bracket')
+  const isGamePage = location.pathname.includes('/game/')
+  const isCoachCareerPage = location.pathname.includes('/coach-career')
 
   const headerBg = useTeamTheme ? teamColors.primary : '#1f2937'
   const headerText = useTeamTheme ? getContrastTextColor(teamColors.primary) : '#f9fafb'
@@ -138,8 +140,8 @@ export default function Layout({ children }) {
   }
 
 
-  // Page background - CFP Bracket gets dark gray, otherwise team primary
-  const pageBg = isCFPBracketPage ? '#374151' : (useTeamTheme ? teamColors.primary : '#f3f4f6')
+  // Page background - CFP Bracket, Game, and Coach Career pages get neutral gray, otherwise team primary
+  const pageBg = (isCFPBracketPage || isGamePage || isCoachCareerPage) ? '#374151' : (useTeamTheme ? teamColors.primary : '#f3f4f6')
 
   return (
     <div

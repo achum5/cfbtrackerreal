@@ -390,19 +390,48 @@ export default function Team() {
     return teamCC ? teamCC.conference : null
   }
 
-  // Check if team was in CFP this year
+  // Check if team was in CFP this year and where they were eliminated
   const getCFPResultForYear = (year) => {
     const cfpSeeds = currentDynasty.cfpSeedsByYear?.[year] || []
     const teamSeed = cfpSeeds.find(s => s.team === teamAbbr)
     if (!teamSeed) return null
 
-    // Check for national championship
     const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+
+    // Check for national championship win
     const championship = cfpResults.championship?.[0]
     if (championship && championship.winner === teamAbbr) {
       return { type: 'champion', seed: teamSeed.seed }
     }
-    return { type: 'appearance', seed: teamSeed.seed }
+
+    // Check if lost in championship game
+    if (championship && (championship.team1 === teamAbbr || championship.team2 === teamAbbr)) {
+      return { type: 'lost', round: 'Champ', seed: teamSeed.seed }
+    }
+
+    // Check if lost in semifinals
+    const semifinals = cfpResults.semifinals || []
+    const sfGame = semifinals.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    if (sfGame && sfGame.winner && sfGame.winner !== teamAbbr) {
+      return { type: 'lost', round: 'SF', seed: teamSeed.seed }
+    }
+
+    // Check if lost in quarterfinals
+    const quarterfinals = cfpResults.quarterfinals || []
+    const qfGame = quarterfinals.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    if (qfGame && qfGame.winner && qfGame.winner !== teamAbbr) {
+      return { type: 'lost', round: 'QF', seed: teamSeed.seed }
+    }
+
+    // Check if lost in first round (seeds 5-12 play first round)
+    const firstRound = cfpResults.firstRound || []
+    const r1Game = firstRound.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    if (r1Game && r1Game.winner && r1Game.winner !== teamAbbr) {
+      return { type: 'lost', round: 'R1', seed: teamSeed.seed }
+    }
+
+    // Team is in CFP but results not yet entered
+    return { type: 'pending', seed: teamSeed.seed }
   }
 
   // Get final ranking for a specific year
@@ -589,8 +618,9 @@ export default function Team() {
 
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {yearRecords.map((yr) => {
-            const hasAchievement = yr.bowlResult?.won || yr.ccWin || yr.cfpResult?.type === 'champion'
             const isNationalChamp = yr.cfpResult?.type === 'champion'
+            const madePlayoff = yr.cfpResult && yr.cfpResult.type !== 'pending'
+            const hasAchievement = yr.ccWin || isNationalChamp
 
             return (
               <Link
@@ -601,14 +631,14 @@ export default function Team() {
                   backgroundColor: isNationalChamp
                     ? '#fbbf2420'
                     : hasAchievement
-                      ? '#16a34a15'
+                      ? `${teamInfo.textColor}15`
                       : yr.hasRecord
                         ? `${teamBgText}15`
                         : `${teamBgText}05`,
                   border: isNationalChamp
                     ? '2px solid #fbbf24'
                     : hasAchievement
-                      ? '2px solid #16a34a'
+                      ? `2px solid ${teamInfo.textColor}`
                       : `2px solid ${yr.hasRecord ? `${teamBgText}40` : `${teamBgText}20`}`
                 }}
               >
@@ -623,11 +653,7 @@ export default function Team() {
                 {/* Record */}
                 <div
                   className="text-2xl font-bold mt-1"
-                  style={{
-                    color: yr.hasRecord
-                      ? yr.wins > yr.losses ? '#16a34a' : yr.losses > yr.wins ? '#dc2626' : teamBgText
-                      : `${teamBgText}50`
-                  }}
+                  style={{ color: yr.hasRecord ? teamBgText : `${teamBgText}50` }}
                 >
                   {yr.hasRecord ? `${yr.wins}-${yr.losses}` : '--'}
                 </div>
@@ -644,7 +670,7 @@ export default function Team() {
                     </div>
                   )}
 
-                  {/* Conference Champion */}
+                  {/* Conference Champion (not national champ) */}
                   {yr.ccWin && !isNationalChamp && (
                     <div
                       className="text-xs font-semibold px-2 py-1 rounded"
@@ -654,21 +680,24 @@ export default function Team() {
                     </div>
                   )}
 
-                  {/* CFP Appearance (not champion) */}
-                  {yr.cfpResult && yr.cfpResult.type === 'appearance' && (
+                  {/* CFP Result - show round eliminated (not champion) */}
+                  {yr.cfpResult && yr.cfpResult.type === 'lost' && (
                     <div
                       className="text-xs font-semibold px-2 py-1 rounded"
                       style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
                     >
-                      CFP #{yr.cfpResult.seed}
+                      CFP {yr.cfpResult.round}
                     </div>
                   )}
 
-                  {/* Bowl Win */}
-                  {yr.bowlResult?.won && !isNationalChamp && (
+                  {/* Bowl Game - only show if NOT in CFP and played a bowl */}
+                  {yr.bowlResult && !madePlayoff && !isNationalChamp && (
                     <div
                       className="text-xs font-semibold px-2 py-1 rounded"
-                      style={{ backgroundColor: '#16a34a', color: '#FFFFFF' }}
+                      style={{
+                        backgroundColor: yr.bowlResult.won ? '#16a34a' : '#6b728080',
+                        color: '#FFFFFF'
+                      }}
                     >
                       {yr.bowlResult.bowlName}
                     </div>

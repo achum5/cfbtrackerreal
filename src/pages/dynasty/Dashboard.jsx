@@ -1196,7 +1196,7 @@ export default function Dashboard() {
                 num: 2,
                 title: 'Enter Roster',
                 done: currentDynasty.preseasonSetup?.rosterEntered,
-                playerCount: currentDynasty.players?.length || 0,
+                playerCount: (currentDynasty.players || []).filter(p => !p.isHonorOnly).length,
                 action: () => setShowRosterModal(true),
                 actionText: currentDynasty.preseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
               },

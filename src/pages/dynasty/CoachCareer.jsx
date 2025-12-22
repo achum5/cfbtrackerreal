@@ -399,10 +399,6 @@ export default function CoachCareer() {
           </div>
         </div>
 
-        {/* Notes */}
-        <div className="text-xs opacity-60" style={{ color: primaryText }}>
-          <p>* Some statistics are not yet tracked and will be updated as features are implemented.</p>
-        </div>
       </div>
 
       {/* Games Modal */}

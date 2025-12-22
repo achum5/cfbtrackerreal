@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teams } from '../data/teams'
 
-export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool }) {
+export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool, dynasty }) {
   const [formData, setFormData] = useState({})
-  const [expandedSections, setExpandedSections] = useState(['basic'])
+  const [expandedSections, setExpandedSections] = useState([])
+  const [selectedStatsYear, setSelectedStatsYear] = useState(null)
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -18,8 +19,114 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     }
   }, [isOpen])
 
+  // Get available years for stats (years this player has data, plus current year)
+  const getAvailableYears = () => {
+    if (!dynasty) return []
+    const yearsSet = new Set()
+
+    // Add current dynasty year
+    if (dynasty.currentYear) yearsSet.add(dynasty.currentYear)
+
+    // Add years from playerStatsByYear where this player has data
+    const playerStats = dynasty.playerStatsByYear || {}
+    Object.keys(playerStats).forEach(year => {
+      const hasPlayer = playerStats[year]?.some(p => p.pid === player?.pid)
+      if (hasPlayer) yearsSet.add(parseInt(year))
+    })
+
+    // Add years from detailedStatsByYear where this player has data
+    const detailedStats = dynasty.detailedStatsByYear || {}
+    Object.keys(detailedStats).forEach(year => {
+      const yearData = detailedStats[year] || {}
+      const hasData = Object.values(yearData).some(category =>
+        Array.isArray(category) && category.some(p => p.pid === player?.pid)
+      )
+      if (hasData) yearsSet.add(parseInt(year))
+    })
+
+    return Array.from(yearsSet).sort((a, b) => b - a) // Most recent first
+  }
+
+  // Helper to get stats for a specific year
+  const getYearStats = (year) => {
+    const detailedStats = dynasty?.detailedStatsByYear || {}
+    const playerStats = dynasty?.playerStatsByYear || {}
+    const playerPid = player?.pid
+    const yearStr = year?.toString()
+
+    // Get basic stats (games, snaps)
+    const basicStats = playerStats[yearStr]?.find(p => p.pid === playerPid) || {}
+
+    // Helper to get category stats
+    const getCategoryStats = (tabName, fieldMap) => {
+      const result = {}
+      Object.keys(fieldMap).forEach(key => result[key] = 0)
+
+      const yearData = detailedStats[yearStr]?.[tabName] || []
+      const playerData = yearData.find(p => p.pid === playerPid)
+      if (playerData) {
+        Object.entries(fieldMap).forEach(([key, sheetField]) => {
+          result[key] = playerData[sheetField] || 0
+        })
+      }
+      return result
+    }
+
+    const passing = getCategoryStats('Passing', {
+      completions: 'Completions', attempts: 'Attempts', yards: 'Yards',
+      touchdowns: 'Touchdowns', interceptions: 'Interceptions',
+      passingLong: 'Passing Long', sacksTaken: 'Sacks Taken'
+    })
+    const rushing = getCategoryStats('Rushing', {
+      carries: 'Carries', yards: 'Yards', touchdowns: 'Touchdowns',
+      rushingLong: 'Rushing Long', fumbles: 'Fumbles', brokenTackles: 'Broken Tackles'
+    })
+    const receiving = getCategoryStats('Receiving', {
+      receptions: 'Receptions', yards: 'Yards', touchdowns: 'Touchdowns',
+      receivingLong: 'Receiving Long', drops: 'Drops'
+    })
+    const blocking = getCategoryStats('Blocking', { sacksAllowed: 'Sacks Allowed' })
+    const defensive = getCategoryStats('Defensive', {
+      soloTackles: 'Solo Tackles', assistedTackles: 'Assisted Tackles',
+      tacklesForLoss: 'Tackles for Loss', sacks: 'Sacks', interceptions: 'Interceptions',
+      intReturnYards: 'INT Return Yards', defensiveTDs: 'Defensive TDs',
+      deflections: 'Deflections', forcedFumbles: 'Forced Fumbles', fumbleRecoveries: 'Fumble Recoveries'
+    })
+    const kicking = getCategoryStats('Kicking', {
+      fgMade: 'FG Made', fgAttempted: 'FG Attempted', fgLong: 'FG Long',
+      xpMade: 'XP Made', xpAttempted: 'XP Attempted'
+    })
+    const punting = getCategoryStats('Punting', {
+      punts: 'Punts', puntingYards: 'Punting Yards',
+      puntsInside20: 'Punts Inside 20', puntLong: 'Punt Long'
+    })
+    const kickReturn = getCategoryStats('Kick Return', {
+      returns: 'Kickoff Returns', returnYardage: 'KR Yardage',
+      touchdowns: 'KR Touchdowns', returnLong: 'KR Long'
+    })
+    const puntReturn = getCategoryStats('Punt Return', {
+      returns: 'Punt Returns', returnYardage: 'PR Yardage',
+      touchdowns: 'PR Touchdowns', returnLong: 'PR Long'
+    })
+
+    return {
+      gamesPlayed: basicStats.gamesPlayed || 0,
+      snapsPlayed: basicStats.snapsPlayed || 0,
+      passing, rushing, receiving, blocking, defensive, kicking, punting, kickReturn, puntReturn
+    }
+  }
+
+  // Initialize form data when modal opens
   useEffect(() => {
     if (player && isOpen) {
+      // Set default selected year to current dynasty year
+      const years = getAvailableYears()
+      const defaultYear = dynasty?.currentYear || years[0]
+      setSelectedStatsYear(defaultYear)
+
+      // Get stats for the default year
+      const yearStats = getYearStats(defaultYear)
+
       setFormData({
         // Basic Info
         pictureUrl: player.pictureUrl || '',
@@ -51,9 +158,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         overallProgression: player.overallProgression || 0,
         overallRatingChange: player.overallRatingChange || 0,
 
-        // Game Logs
-        snapsPlayed: player.snapsPlayed || 0,
-        gamesPlayed: player.gamesPlayed || 0,
+        // Game Logs (for selected year)
+        snapsPlayed: yearStats.snapsPlayed,
+        gamesPlayed: yearStats.gamesPlayed,
 
         // Departure
         yearDeparted: player.yearDeparted || '',
@@ -70,79 +177,142 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         allAm2nd: player.allAm2nd || 0,
         allAmFr: player.allAmFr || 0,
 
-        // Stats (flattened)
-        passing_completions: player.passing?.completions || 0,
-        passing_attempts: player.passing?.attempts || 0,
-        passing_yards: player.passing?.yards || 0,
-        passing_touchdowns: player.passing?.touchdowns || 0,
-        passing_interceptions: player.passing?.interceptions || 0,
-        passing_passingLong: player.passing?.passingLong || 0,
-        passing_sacksTaken: player.passing?.sacksTaken || 0,
+        // Stats for selected year
+        passing_completions: yearStats.passing.completions,
+        passing_attempts: yearStats.passing.attempts,
+        passing_yards: yearStats.passing.yards,
+        passing_touchdowns: yearStats.passing.touchdowns,
+        passing_interceptions: yearStats.passing.interceptions,
+        passing_passingLong: yearStats.passing.passingLong,
+        passing_sacksTaken: yearStats.passing.sacksTaken,
 
-        rushing_carries: player.rushing?.carries || 0,
-        rushing_yards: player.rushing?.yards || 0,
-        rushing_touchdowns: player.rushing?.touchdowns || 0,
-        rushing_rushingLong: player.rushing?.rushingLong || 0,
-        rushing_fumbles: player.rushing?.fumbles || 0,
-        rushing_brokenTackles: player.rushing?.brokenTackles || 0,
+        rushing_carries: yearStats.rushing.carries,
+        rushing_yards: yearStats.rushing.yards,
+        rushing_touchdowns: yearStats.rushing.touchdowns,
+        rushing_rushingLong: yearStats.rushing.rushingLong,
+        rushing_fumbles: yearStats.rushing.fumbles,
+        rushing_brokenTackles: yearStats.rushing.brokenTackles,
 
-        receiving_receptions: player.receiving?.receptions || 0,
-        receiving_yards: player.receiving?.yards || 0,
-        receiving_touchdowns: player.receiving?.touchdowns || 0,
-        receiving_receivingLong: player.receiving?.receivingLong || 0,
-        receiving_drops: player.receiving?.drops || 0,
+        receiving_receptions: yearStats.receiving.receptions,
+        receiving_yards: yearStats.receiving.yards,
+        receiving_touchdowns: yearStats.receiving.touchdowns,
+        receiving_receivingLong: yearStats.receiving.receivingLong,
+        receiving_drops: yearStats.receiving.drops,
 
-        blocking_sacksAllowed: player.blocking?.sacksAllowed || 0,
+        blocking_sacksAllowed: yearStats.blocking.sacksAllowed,
 
-        defensive_soloTackles: player.defensive?.soloTackles || 0,
-        defensive_assistedTackles: player.defensive?.assistedTackles || 0,
-        defensive_tacklesForLoss: player.defensive?.tacklesForLoss || 0,
-        defensive_sacks: player.defensive?.sacks || 0,
-        defensive_interceptions: player.defensive?.interceptions || 0,
-        defensive_intReturnYards: player.defensive?.intReturnYards || 0,
-        defensive_defensiveTDs: player.defensive?.defensiveTDs || 0,
-        defensive_deflections: player.defensive?.deflections || 0,
-        defensive_forcedFumbles: player.defensive?.forcedFumbles || 0,
-        defensive_fumbleRecoveries: player.defensive?.fumbleRecoveries || 0,
+        defensive_soloTackles: yearStats.defensive.soloTackles,
+        defensive_assistedTackles: yearStats.defensive.assistedTackles,
+        defensive_tacklesForLoss: yearStats.defensive.tacklesForLoss,
+        defensive_sacks: yearStats.defensive.sacks,
+        defensive_interceptions: yearStats.defensive.interceptions,
+        defensive_intReturnYards: yearStats.defensive.intReturnYards,
+        defensive_defensiveTDs: yearStats.defensive.defensiveTDs,
+        defensive_deflections: yearStats.defensive.deflections,
+        defensive_forcedFumbles: yearStats.defensive.forcedFumbles,
+        defensive_fumbleRecoveries: yearStats.defensive.fumbleRecoveries,
 
-        kicking_fgMade: player.kicking?.fgMade || 0,
-        kicking_fgAttempted: player.kicking?.fgAttempted || 0,
-        kicking_fgLong: player.kicking?.fgLong || 0,
-        kicking_xpMade: player.kicking?.xpMade || 0,
-        kicking_xpAttempted: player.kicking?.xpAttempted || 0,
+        kicking_fgMade: yearStats.kicking.fgMade,
+        kicking_fgAttempted: yearStats.kicking.fgAttempted,
+        kicking_fgLong: yearStats.kicking.fgLong,
+        kicking_xpMade: yearStats.kicking.xpMade,
+        kicking_xpAttempted: yearStats.kicking.xpAttempted,
 
-        punting_punts: player.punting?.punts || 0,
-        punting_puntingYards: player.punting?.puntingYards || 0,
-        punting_puntsInside20: player.punting?.puntsInside20 || 0,
-        punting_puntLong: player.punting?.puntLong || 0,
+        punting_punts: yearStats.punting.punts,
+        punting_puntingYards: yearStats.punting.puntingYards,
+        punting_puntsInside20: yearStats.punting.puntsInside20,
+        punting_puntLong: yearStats.punting.puntLong,
 
-        kickReturn_returns: player.kickReturn?.returns || 0,
-        kickReturn_returnYardage: player.kickReturn?.returnYardage || 0,
-        kickReturn_touchdowns: player.kickReturn?.touchdowns || 0,
-        kickReturn_returnLong: player.kickReturn?.returnLong || 0,
+        kickReturn_returns: yearStats.kickReturn.returns,
+        kickReturn_returnYardage: yearStats.kickReturn.returnYardage,
+        kickReturn_touchdowns: yearStats.kickReturn.touchdowns,
+        kickReturn_returnLong: yearStats.kickReturn.returnLong,
 
-        puntReturn_returns: player.puntReturn?.returns || 0,
-        puntReturn_returnYardage: player.puntReturn?.returnYardage || 0,
-        puntReturn_touchdowns: player.puntReturn?.touchdowns || 0,
-        puntReturn_returnLong: player.puntReturn?.returnLong || 0,
+        puntReturn_returns: yearStats.puntReturn.returns,
+        puntReturn_returnYardage: yearStats.puntReturn.returnYardage,
+        puntReturn_touchdowns: yearStats.puntReturn.touchdowns,
+        puntReturn_returnLong: yearStats.puntReturn.returnLong,
 
         // Notes & Media
         notes: player.notes || '',
         links: player.links || []
       })
-      // Auto-expand relevant sections based on position
-      const pos = player.position || ''
-      const sections = ['basic']
-      if (['QB'].includes(pos)) sections.push('passing')
-      if (['QB', 'HB', 'FB'].includes(pos)) sections.push('rushing')
-      if (['WR', 'TE', 'HB', 'FB'].includes(pos)) sections.push('receiving')
-      if (['LT', 'LG', 'C', 'RG', 'RT'].includes(pos)) sections.push('blocking')
-      if (['LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS'].includes(pos)) sections.push('defensive')
-      if (['K'].includes(pos)) sections.push('kicking')
-      if (['P'].includes(pos)) sections.push('punting')
-      setExpandedSections(sections)
+
+      // Start with all sections collapsed
+      setExpandedSections([])
     }
-  }, [player, isOpen, defaultSchool])
+  }, [player, isOpen, defaultSchool, dynasty])
+
+  // Update stats when selected year changes
+  const handleYearChange = (newYear) => {
+    setSelectedStatsYear(newYear)
+    const yearStats = getYearStats(newYear)
+
+    setFormData(prev => ({
+      ...prev,
+      // Update game logs for selected year
+      snapsPlayed: yearStats.snapsPlayed,
+      gamesPlayed: yearStats.gamesPlayed,
+
+      // Update stats for selected year
+      passing_completions: yearStats.passing.completions,
+      passing_attempts: yearStats.passing.attempts,
+      passing_yards: yearStats.passing.yards,
+      passing_touchdowns: yearStats.passing.touchdowns,
+      passing_interceptions: yearStats.passing.interceptions,
+      passing_passingLong: yearStats.passing.passingLong,
+      passing_sacksTaken: yearStats.passing.sacksTaken,
+
+      rushing_carries: yearStats.rushing.carries,
+      rushing_yards: yearStats.rushing.yards,
+      rushing_touchdowns: yearStats.rushing.touchdowns,
+      rushing_rushingLong: yearStats.rushing.rushingLong,
+      rushing_fumbles: yearStats.rushing.fumbles,
+      rushing_brokenTackles: yearStats.rushing.brokenTackles,
+
+      receiving_receptions: yearStats.receiving.receptions,
+      receiving_yards: yearStats.receiving.yards,
+      receiving_touchdowns: yearStats.receiving.touchdowns,
+      receiving_receivingLong: yearStats.receiving.receivingLong,
+      receiving_drops: yearStats.receiving.drops,
+
+      blocking_sacksAllowed: yearStats.blocking.sacksAllowed,
+
+      defensive_soloTackles: yearStats.defensive.soloTackles,
+      defensive_assistedTackles: yearStats.defensive.assistedTackles,
+      defensive_tacklesForLoss: yearStats.defensive.tacklesForLoss,
+      defensive_sacks: yearStats.defensive.sacks,
+      defensive_interceptions: yearStats.defensive.interceptions,
+      defensive_intReturnYards: yearStats.defensive.intReturnYards,
+      defensive_defensiveTDs: yearStats.defensive.defensiveTDs,
+      defensive_deflections: yearStats.defensive.deflections,
+      defensive_forcedFumbles: yearStats.defensive.forcedFumbles,
+      defensive_fumbleRecoveries: yearStats.defensive.fumbleRecoveries,
+
+      kicking_fgMade: yearStats.kicking.fgMade,
+      kicking_fgAttempted: yearStats.kicking.fgAttempted,
+      kicking_fgLong: yearStats.kicking.fgLong,
+      kicking_xpMade: yearStats.kicking.xpMade,
+      kicking_xpAttempted: yearStats.kicking.xpAttempted,
+
+      punting_punts: yearStats.punting.punts,
+      punting_puntingYards: yearStats.punting.puntingYards,
+      punting_puntsInside20: yearStats.punting.puntsInside20,
+      punting_puntLong: yearStats.punting.puntLong,
+
+      kickReturn_returns: yearStats.kickReturn.returns,
+      kickReturn_returnYardage: yearStats.kickReturn.returnYardage,
+      kickReturn_touchdowns: yearStats.kickReturn.touchdowns,
+      kickReturn_returnLong: yearStats.kickReturn.returnLong,
+
+      puntReturn_returns: yearStats.puntReturn.returns,
+      puntReturn_returnYardage: yearStats.puntReturn.returnYardage,
+      puntReturn_touchdowns: yearStats.puntReturn.touchdowns,
+      puntReturn_returnLong: yearStats.puntReturn.returnLong
+    }))
+  }
+
+  const availableYears = getAvailableYears()
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -160,6 +330,77 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const handleSubmit = (e) => {
     e.preventDefault()
     const num = (val) => parseFloat(val) || 0
+
+    // Build stats for the selected year
+    const yearStats = {
+      year: selectedStatsYear,
+      gamesPlayed: num(formData.gamesPlayed),
+      snapsPlayed: num(formData.snapsPlayed),
+      passing: {
+        'Completions': num(formData.passing_completions),
+        'Attempts': num(formData.passing_attempts),
+        'Yards': num(formData.passing_yards),
+        'Touchdowns': num(formData.passing_touchdowns),
+        'Interceptions': num(formData.passing_interceptions),
+        'Passing Long': num(formData.passing_passingLong),
+        'Sacks Taken': num(formData.passing_sacksTaken)
+      },
+      rushing: {
+        'Carries': num(formData.rushing_carries),
+        'Yards': num(formData.rushing_yards),
+        'Touchdowns': num(formData.rushing_touchdowns),
+        'Rushing Long': num(formData.rushing_rushingLong),
+        'Fumbles': num(formData.rushing_fumbles),
+        'Broken Tackles': num(formData.rushing_brokenTackles)
+      },
+      receiving: {
+        'Receptions': num(formData.receiving_receptions),
+        'Yards': num(formData.receiving_yards),
+        'Touchdowns': num(formData.receiving_touchdowns),
+        'Receiving Long': num(formData.receiving_receivingLong),
+        'Drops': num(formData.receiving_drops)
+      },
+      blocking: {
+        'Sacks Allowed': num(formData.blocking_sacksAllowed)
+      },
+      defensive: {
+        'Solo Tackles': num(formData.defensive_soloTackles),
+        'Assisted Tackles': num(formData.defensive_assistedTackles),
+        'Tackles for Loss': num(formData.defensive_tacklesForLoss),
+        'Sacks': num(formData.defensive_sacks),
+        'Interceptions': num(formData.defensive_interceptions),
+        'INT Return Yards': num(formData.defensive_intReturnYards),
+        'Defensive TDs': num(formData.defensive_defensiveTDs),
+        'Deflections': num(formData.defensive_deflections),
+        'Forced Fumbles': num(formData.defensive_forcedFumbles),
+        'Fumble Recoveries': num(formData.defensive_fumbleRecoveries)
+      },
+      kicking: {
+        'FG Made': num(formData.kicking_fgMade),
+        'FG Attempted': num(formData.kicking_fgAttempted),
+        'FG Long': num(formData.kicking_fgLong),
+        'XP Made': num(formData.kicking_xpMade),
+        'XP Attempted': num(formData.kicking_xpAttempted)
+      },
+      punting: {
+        'Punts': num(formData.punting_punts),
+        'Punting Yards': num(formData.punting_puntingYards),
+        'Punts Inside 20': num(formData.punting_puntsInside20),
+        'Punt Long': num(formData.punting_puntLong)
+      },
+      kickReturn: {
+        'Kickoff Returns': num(formData.kickReturn_returns),
+        'KR Yardage': num(formData.kickReturn_returnYardage),
+        'KR Touchdowns': num(formData.kickReturn_touchdowns),
+        'KR Long': num(formData.kickReturn_returnLong)
+      },
+      puntReturn: {
+        'Punt Returns': num(formData.puntReturn_returns),
+        'PR Yardage': num(formData.puntReturn_returnYardage),
+        'PR Touchdowns': num(formData.puntReturn_touchdowns),
+        'PR Long': num(formData.puntReturn_returnLong)
+      }
+    }
 
     const updatedPlayer = {
       ...player,
@@ -185,8 +426,6 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       gemBust: formData.gemBust,
       overallProgression: formData.overallProgression,
       overallRatingChange: formData.overallRatingChange,
-      snapsPlayed: num(formData.snapsPlayed),
-      gamesPlayed: num(formData.gamesPlayed),
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
       draftRound: formData.draftRound,
@@ -198,75 +437,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       allAm1st: num(formData.allAm1st),
       allAm2nd: num(formData.allAm2nd),
       allAmFr: num(formData.allAmFr),
-      passing: {
-        completions: num(formData.passing_completions),
-        attempts: num(formData.passing_attempts),
-        yards: num(formData.passing_yards),
-        touchdowns: num(formData.passing_touchdowns),
-        interceptions: num(formData.passing_interceptions),
-        passingLong: num(formData.passing_passingLong),
-        sacksTaken: num(formData.passing_sacksTaken)
-      },
-      rushing: {
-        carries: num(formData.rushing_carries),
-        yards: num(formData.rushing_yards),
-        touchdowns: num(formData.rushing_touchdowns),
-        rushingLong: num(formData.rushing_rushingLong),
-        fumbles: num(formData.rushing_fumbles),
-        brokenTackles: num(formData.rushing_brokenTackles)
-      },
-      receiving: {
-        receptions: num(formData.receiving_receptions),
-        yards: num(formData.receiving_yards),
-        touchdowns: num(formData.receiving_touchdowns),
-        receivingLong: num(formData.receiving_receivingLong),
-        drops: num(formData.receiving_drops)
-      },
-      blocking: {
-        sacksAllowed: num(formData.blocking_sacksAllowed)
-      },
-      defensive: {
-        soloTackles: num(formData.defensive_soloTackles),
-        assistedTackles: num(formData.defensive_assistedTackles),
-        tacklesForLoss: num(formData.defensive_tacklesForLoss),
-        sacks: num(formData.defensive_sacks),
-        interceptions: num(formData.defensive_interceptions),
-        intReturnYards: num(formData.defensive_intReturnYards),
-        defensiveTDs: num(formData.defensive_defensiveTDs),
-        deflections: num(formData.defensive_deflections),
-        forcedFumbles: num(formData.defensive_forcedFumbles),
-        fumbleRecoveries: num(formData.defensive_fumbleRecoveries)
-      },
-      kicking: {
-        fgMade: num(formData.kicking_fgMade),
-        fgAttempted: num(formData.kicking_fgAttempted),
-        fgLong: num(formData.kicking_fgLong),
-        xpMade: num(formData.kicking_xpMade),
-        xpAttempted: num(formData.kicking_xpAttempted)
-      },
-      punting: {
-        punts: num(formData.punting_punts),
-        puntingYards: num(formData.punting_puntingYards),
-        puntsInside20: num(formData.punting_puntsInside20),
-        puntLong: num(formData.punting_puntLong)
-      },
-      kickReturn: {
-        returns: num(formData.kickReturn_returns),
-        returnYardage: num(formData.kickReturn_returnYardage),
-        touchdowns: num(formData.kickReturn_touchdowns),
-        returnLong: num(formData.kickReturn_returnLong)
-      },
-      puntReturn: {
-        returns: num(formData.puntReturn_returns),
-        returnYardage: num(formData.puntReturn_returnYardage),
-        touchdowns: num(formData.puntReturn_touchdowns),
-        returnLong: num(formData.puntReturn_returnLong)
-      },
       notes: formData.notes,
       links: formData.links
     }
 
-    onSave(updatedPlayer)
+    // Pass both player info and year-specific stats
+    onSave(updatedPlayer, yearStats)
   }
 
   if (!isOpen) return null
@@ -383,58 +559,84 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 overflow-y-auto"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] py-8 px-4 sm:p-4 overflow-y-auto"
+      style={{ margin: 0 }}
       onClick={onClose}
     >
       <div
         className="rounded-2xl shadow-2xl w-full max-w-3xl my-auto flex flex-col"
-        style={{ backgroundColor: teamColors.secondary, maxHeight: 'calc(100vh - 2rem)' }}
+        style={{ backgroundColor: teamColors.secondary, maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <form onSubmit={handleSubmit} className="flex flex-col max-h-full overflow-hidden">
           {/* Header */}
           <div
-            className="px-6 py-4 flex items-center justify-between flex-shrink-0"
+            className="px-4 sm:px-6 py-4 flex-shrink-0"
             style={{ backgroundColor: teamColors.primary }}
           >
-            <div className="flex items-center gap-3">
-              {formData.pictureUrl ? (
-                <img
-                  src={formData.pictureUrl}
-                  alt=""
-                  className="w-12 h-12 rounded-full object-cover border-2"
-                  style={{ borderColor: teamColors.secondary }}
-                  onError={(e) => e.target.style.display = 'none'}
-                />
-              ) : (
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: `${teamColors.secondary}30` }}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke={primaryText} viewBox="0 0 24 24" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                  </svg>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {formData.pictureUrl ? (
+                  <img
+                    src={formData.pictureUrl}
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover border-2"
+                    style={{ borderColor: teamColors.secondary }}
+                    onError={(e) => e.target.style.display = 'none'}
+                  />
+                ) : (
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: `${teamColors.secondary}30` }}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke={primaryText} viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: primaryText }}>
+                    {formData.name || 'Edit Player'}
+                  </h2>
+                  <p className="text-sm opacity-80" style={{ color: primaryText }}>
+                    {formData.position && `${formData.position} • `}{formData.overall ? `${formData.overall} OVR` : ''}
+                  </p>
                 </div>
-              )}
-              <div>
-                <h2 className="text-xl font-bold" style={{ color: primaryText }}>
-                  {formData.name || 'Edit Player'}
-                </h2>
-                <p className="text-sm opacity-80" style={{ color: primaryText }}>
-                  {formData.position && `${formData.position} • `}{formData.overall ? `${formData.overall} OVR` : ''}
-                </p>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                style={{ color: primaryText }}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-              style={{ color: primaryText }}
+
+            {/* Year Selector in Header */}
+            <div
+              className="mt-3 p-3 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+              style={{ backgroundColor: `${teamColors.secondary}20` }}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium" style={{ color: primaryText }}>Editing:</span>
+                <select
+                  value={selectedStatsYear || ''}
+                  onChange={(e) => handleYearChange(parseInt(e.target.value))}
+                  className="px-3 py-1.5 rounded-lg font-bold text-sm"
+                  style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year} Season</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs" style={{ color: primaryText, opacity: 0.8 }}>
+                Stats & awards apply to this season.
+              </p>
+            </div>
           </div>
 
           {/* Content */}
@@ -526,10 +728,22 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               </div>
             </Section>
 
+            {/* Game Log for Selected Year */}
+            <Section
+              id="gamelog"
+              title={`Game Log (${selectedStatsYear})`}
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Games Played" name="gamesPlayed" />
+                <Input label="Snaps Played" name="snapsPlayed" />
+              </div>
+            </Section>
+
             {/* Passing Stats */}
             <Section
               id="passing"
-              title="Passing"
+              title={`Passing (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -546,7 +760,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Rushing Stats */}
             <Section
               id="rushing"
-              title="Rushing"
+              title={`Rushing (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -562,7 +776,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Receiving Stats */}
             <Section
               id="receiving"
-              title="Receiving"
+              title={`Receiving (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -577,7 +791,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Blocking Stats */}
             <Section
               id="blocking"
-              title="Blocking"
+              title={`Blocking (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
             >
               <div className="grid grid-cols-2 gap-3">
@@ -588,7 +802,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Defensive Stats */}
             <Section
               id="defensive"
-              title="Defense"
+              title={`Defense (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -608,7 +822,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Kicking Stats */}
             <Section
               id="kicking"
-              title="Kicking"
+              title={`Kicking (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="2"/></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -623,7 +837,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Punting Stats */}
             <Section
               id="punting"
-              title="Punting"
+              title={`Punting (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>}
             >
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -637,7 +851,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
             {/* Return Stats */}
             <Section
               id="returns"
-              title="Returns"
+              title={`Returns (${selectedStatsYear})`}
               icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
             >
               <div className="space-y-3">

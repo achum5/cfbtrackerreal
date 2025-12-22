@@ -24,7 +24,7 @@ export default function AuthErrorModal({ isOpen, onClose, teamColors }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center py-8 px-4 sm:p-4" style={{ margin: 0 }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60"
@@ -33,7 +33,7 @@ export default function AuthErrorModal({ isOpen, onClose, teamColors }) {
 
       {/* Modal */}
       <div
-        className="relative rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6"
+        className="relative rounded-xl shadow-2xl max-w-md w-full max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6"
         style={{
           backgroundColor: teamColors?.secondary || '#ffffff',
           border: `3px solid ${teamColors?.primary || '#1f2937'}`

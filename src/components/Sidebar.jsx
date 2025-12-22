@@ -20,10 +20,10 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const navItems = [
     { name: 'Dashboard', path: `/dynasty/${dynastyId}` },
     { name: 'Coach Career', path: `/dynasty/${dynastyId}/coach-career` },
-    { name: 'Dynasty Records', path: `/dynasty/${dynastyId}/dynasty-records` },
+    { name: 'Leaderboard', path: `/dynasty/${dynastyId}/dynasty-records` },
     { name: 'Players', path: `/dynasty/${dynastyId}/players` },
     { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting` },
-    { name: 'Leaders', path: `/dynasty/${dynastyId}/leaders` },
+    { name: 'pWAR', path: `/dynasty/${dynastyId}/leaders` },
     { name: 'All-Time Lineup', path: `/dynasty/${dynastyId}/all-time-lineup` },
     { name: 'Awards', path: `/dynasty/${dynastyId}/awards` },
     { name: 'All-Americans', path: `/dynasty/${dynastyId}/all-americans` },

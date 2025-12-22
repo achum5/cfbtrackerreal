@@ -1161,7 +1161,7 @@ export function DynastyProvider({ children }) {
     await updateDynasty(dynastyId, coachingStaffUpdates)
   }
 
-  const updatePlayer = async (dynastyId, updatedPlayer) => {
+  const updatePlayer = async (dynastyId, updatedPlayer, yearStats = null) => {
 
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -1186,7 +1186,74 @@ export function DynastyProvider({ children }) {
       player.pid === updatedPlayer.pid ? updatedPlayer : player
     )
 
-    await updateDynasty(dynastyId, { players: updatedPlayers })
+    // Build the update object
+    const updateData = { players: updatedPlayers }
+
+    // If yearStats is provided, update playerStatsByYear and detailedStatsByYear
+    if (yearStats && yearStats.year) {
+      const year = yearStats.year.toString()
+      const pid = updatedPlayer.pid
+
+      // Update playerStatsByYear (games/snaps)
+      const playerStatsByYear = JSON.parse(JSON.stringify(dynasty.playerStatsByYear || {}))
+      if (!playerStatsByYear[year]) playerStatsByYear[year] = []
+
+      // Find or create entry for this player
+      const existingIdx = playerStatsByYear[year].findIndex(p => p.pid === pid)
+      const playerEntry = {
+        pid,
+        name: updatedPlayer.name,
+        position: updatedPlayer.position,
+        year: updatedPlayer.year,
+        gamesPlayed: yearStats.gamesPlayed || 0,
+        snapsPlayed: yearStats.snapsPlayed || 0
+      }
+
+      if (existingIdx >= 0) {
+        playerStatsByYear[year][existingIdx] = { ...playerStatsByYear[year][existingIdx], ...playerEntry }
+      } else {
+        playerStatsByYear[year].push(playerEntry)
+      }
+      updateData.playerStatsByYear = playerStatsByYear
+
+      // Update detailedStatsByYear
+      const detailedStatsByYear = JSON.parse(JSON.stringify(dynasty.detailedStatsByYear || {}))
+      if (!detailedStatsByYear[year]) detailedStatsByYear[year] = {}
+
+      // Helper to update a category
+      const updateCategory = (stats, sheetCategoryName) => {
+        if (!detailedStatsByYear[year][sheetCategoryName]) {
+          detailedStatsByYear[year][sheetCategoryName] = []
+        }
+
+        const catData = detailedStatsByYear[year][sheetCategoryName]
+        const existingCatIdx = catData.findIndex(p => p.pid === pid)
+
+        // Build entry with pid and name
+        const entry = { pid, name: updatedPlayer.name, ...stats }
+
+        if (existingCatIdx >= 0) {
+          catData[existingCatIdx] = { ...catData[existingCatIdx], ...entry }
+        } else {
+          catData.push(entry)
+        }
+      }
+
+      // Update each category if it has data
+      if (yearStats.passing) updateCategory(yearStats.passing, 'Passing')
+      if (yearStats.rushing) updateCategory(yearStats.rushing, 'Rushing')
+      if (yearStats.receiving) updateCategory(yearStats.receiving, 'Receiving')
+      if (yearStats.blocking) updateCategory(yearStats.blocking, 'Blocking')
+      if (yearStats.defensive) updateCategory(yearStats.defensive, 'Defensive')
+      if (yearStats.kicking) updateCategory(yearStats.kicking, 'Kicking')
+      if (yearStats.punting) updateCategory(yearStats.punting, 'Punting')
+      if (yearStats.kickReturn) updateCategory(yearStats.kickReturn, 'Kick Return')
+      if (yearStats.puntReturn) updateCategory(yearStats.puntReturn, 'Punt Return')
+
+      updateData.detailedStatsByYear = detailedStatsByYear
+    }
+
+    await updateDynasty(dynastyId, updateData)
   }
 
   const createGoogleSheetForDynasty = async (dynastyId) => {

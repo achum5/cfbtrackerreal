@@ -88,6 +88,76 @@ function getMascotName(abbr) {
   return mascotMap[abbr] || null
 }
 
+// Robust logo lookup that tries multiple methods
+function getTeamLogoRobust(teamInput) {
+  if (!teamInput) return null
+
+  // 1. Try direct lookup (if teamInput is already a full mascot name)
+  let logo = getTeamLogo(teamInput)
+  if (logo) return logo
+
+  // 2. Try as abbreviation via getMascotName
+  const mascotName = getMascotName(teamInput)
+  if (mascotName) {
+    logo = getTeamLogo(mascotName)
+    if (logo) return logo
+  }
+
+  // 3. Try uppercase abbreviation (handle case sensitivity)
+  const upperInput = teamInput.toUpperCase()
+  if (upperInput !== teamInput) {
+    const mascotNameUpper = getMascotName(upperInput)
+    if (mascotNameUpper) {
+      logo = getTeamLogo(mascotNameUpper)
+      if (logo) return logo
+    }
+  }
+
+  // 4. Try looking up in teamAbbreviations map directly
+  const teamData = teamAbbreviations[teamInput] || teamAbbreviations[upperInput]
+  if (teamData?.name) {
+    logo = getTeamLogo(teamData.name)
+    if (logo) return logo
+  }
+
+  return null
+}
+
+// Robust color lookup that tries multiple methods
+function getTeamColorsRobust(teamInput) {
+  if (!teamInput) return null
+
+  // 1. Try direct lookup (if teamInput is already a full mascot name)
+  let colors = getTeamColors(teamInput)
+  if (colors) return colors
+
+  // 2. Try as abbreviation via getMascotName
+  const mascotName = getMascotName(teamInput)
+  if (mascotName) {
+    colors = getTeamColors(mascotName)
+    if (colors) return colors
+  }
+
+  // 3. Try uppercase abbreviation (handle case sensitivity)
+  const upperInput = teamInput.toUpperCase()
+  if (upperInput !== teamInput) {
+    const mascotNameUpper = getMascotName(upperInput)
+    if (mascotNameUpper) {
+      colors = getTeamColors(mascotNameUpper)
+      if (colors) return colors
+    }
+  }
+
+  // 4. Try looking up in teamAbbreviations map directly
+  const teamData = teamAbbreviations[teamInput] || teamAbbreviations[upperInput]
+  if (teamData?.name) {
+    colors = getTeamColors(teamData.name)
+    if (colors) return colors
+  }
+
+  return null
+}
+
 // Default neutral colors for game recap pages
 const defaultColors = {
   primary: '#1f2937',    // Gray-800
@@ -413,16 +483,12 @@ export default function Game() {
     opponent = getMascotName(game.opponent) || game.opponent
   }
 
-  // Get team info for display
-  const displayTeamLogo = getTeamLogo(displayTeam)
-  const displayTeamColors = isCPUGame
-    ? (getMascotName(displayTeamAbbr) ? getTeamColors(getMascotName(displayTeamAbbr)) : teamColors)
-    : teamColors
+  // Get team info for display - use robust lookups to handle various team name formats
+  const displayTeamLogo = getTeamLogoRobust(displayTeam) || getTeamLogoRobust(displayTeamAbbr)
+  const displayTeamColors = getTeamColorsRobust(displayTeam) || getTeamColorsRobust(displayTeamAbbr) || { primary: '#666', secondary: '#fff' }
 
-  const opponentLogo = getTeamLogo(opponent) || getTeamLogo(getMascotName(opponentAbbr))
-  const opponentColors = getMascotName(opponentAbbr)
-    ? getTeamColors(getMascotName(opponentAbbr))
-    : { primary: '#666', secondary: '#fff' }
+  const opponentLogo = getTeamLogoRobust(opponent) || getTeamLogoRobust(opponentAbbr)
+  const opponentColors = getTeamColorsRobust(opponent) || getTeamColorsRobust(opponentAbbr) || { primary: '#666', secondary: '#fff' }
 
   // Determine scores
   let userScore, opponentScore, userWon
@@ -633,6 +699,12 @@ export default function Game() {
   const leftData = getTeamData(leftTeam)
   const rightData = getTeamData(rightTeam)
 
+  // Winner takes more of the gradient with smooth blend - winner gets 70%, blend zone in middle
+  const leftWon = leftData.isWinner
+  const headerGradient = leftWon
+    ? `linear-gradient(90deg, ${leftData.colors.primary} 0%, ${leftData.colors.primary} 55%, ${rightData.colors.primary} 85%, ${rightData.colors.primary} 100%)`
+    : `linear-gradient(90deg, ${leftData.colors.primary} 0%, ${leftData.colors.primary} 15%, ${rightData.colors.primary} 45%, ${rightData.colors.primary} 100%)`
+
   return (
     <div className="space-y-4">
       {/* Compact Header Bar */}
@@ -640,7 +712,7 @@ export default function Game() {
         {/* Top bar with game info and navigation */}
         <div
           className="px-3 py-2 sm:px-4 sm:py-2.5 flex items-center justify-between"
-          style={{ background: `linear-gradient(90deg, ${displayTeamColors.primary} 0%, ${opponentColors.primary} 100%)` }}
+          style={{ background: headerGradient }}
         >
           <button
             onClick={() => navigate(-1)}
@@ -819,8 +891,8 @@ export default function Game() {
 
           {/* Team Matchup Card */}
           {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
-            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg" style={{ background: `linear-gradient(135deg, ${displayTeamColors.primary}15 0%, ${opponentColors.primary}15 100%)` }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: `${displayTeamColors.primary}30` }}>
+            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg" style={{ background: `linear-gradient(135deg, ${leftData.colors.primary}15 0%, ${rightData.colors.primary}15 100%)` }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: `${leftData.colors.primary}30` }}>
                 <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
                   <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />

@@ -42,10 +42,11 @@ export default function Roster() {
     'P'
   ]
 
-  // Filter players by selected position
+  // Filter players by selected position (exclude honor-only players who aren't on user's roster)
+  const rosterPlayers = (currentDynasty.players || []).filter(p => !p.isHonorOnly)
   const filteredPlayers = selectedPosition === 'All'
-    ? currentDynasty.players || []
-    : (currentDynasty.players || []).filter(player => player.position === selectedPosition)
+    ? rosterPlayers
+    : rosterPlayers.filter(player => player.position === selectedPosition)
 
   const handleRosterSave = async (players) => {
     await saveRoster(currentDynasty.id, players)

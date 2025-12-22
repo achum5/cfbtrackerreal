@@ -1050,12 +1050,12 @@ export default function GameEntryModal({
 
   return (
     <div
-      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-2 sm:p-4"
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
       onClick={onClose}
     >
       <div
-        className="rounded-lg shadow-xl w-full max-w-4xl max-h-[95vh] overflow-y-auto"
+        className="rounded-lg shadow-xl w-full max-w-4xl max-h-[calc(100vh-4rem)] sm:max-h-[95vh] overflow-y-auto"
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >

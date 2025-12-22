@@ -125,8 +125,8 @@ export default function Player() {
 
   const getTeamNameFromAbbr = (abbr) => teamAbbreviations[abbr]?.name || abbr
 
-  const handlePlayerSave = async (updatedPlayer) => {
-    await updatePlayer(dynastyId, updatedPlayer)
+  const handlePlayerSave = async (updatedPlayer, yearStats) => {
+    await updatePlayer(dynastyId, updatedPlayer, yearStats)
     setShowEditModal(false)
   }
 
@@ -542,8 +542,15 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[700px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Cmp', 'Att', 'Pct', 'Yds', 'Y/A', 'TD', 'Int', 'Lng', 'Sck'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Cmp', full: 'Completions' }, { abbr: 'Att', full: 'Attempts' },
+                        { abbr: 'Pct', full: 'Completion %' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Y/A', full: 'Yards per Attempt' }, { abbr: 'TD', full: 'Touchdowns' },
+                        { abbr: 'Int', full: 'Interceptions' }, { abbr: 'Lng', full: 'Long' },
+                        { abbr: 'Sck', full: 'Sacks Taken' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -594,8 +601,14 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[550px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Car', 'Yds', 'Y/C', 'TD', 'Lng', 'Fum', 'BT'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Car', full: 'Carries' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Y/C', full: 'Yards per Carry' }, { abbr: 'TD', full: 'Touchdowns' },
+                        { abbr: 'Lng', full: 'Long' }, { abbr: 'Fum', full: 'Fumbles' },
+                        { abbr: 'BTkl', full: 'Broken Tackles' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -642,8 +655,13 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[500px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Rec', 'Yds', 'Y/R', 'TD', 'Lng', 'Drops'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Rec', full: 'Receptions' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Y/R', full: 'Yards per Reception' }, { abbr: 'TD', full: 'Touchdowns' },
+                        { abbr: 'Lng', full: 'Long' }, { abbr: 'Drops', full: 'Drops' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -688,8 +706,12 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[300px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Games', 'Snaps', 'Sacks Allowed'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Games', full: 'Games Played' }, { abbr: 'Snaps', full: 'Snaps Played' },
+                        { abbr: 'Sacks Allowed', full: 'Sacks Allowed' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -728,8 +750,16 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[800px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Solo', 'Ast', 'Tot', 'TFL', 'Sck', 'Int', 'IntYd', 'TD', 'PD', 'FF', 'FR'].map((h, i) => (
-                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Solo', full: 'Solo Tackles' }, { abbr: 'Ast', full: 'Assisted Tackles' },
+                        { abbr: 'Tot', full: 'Total Tackles' }, { abbr: 'TFL', full: 'Tackles for Loss' },
+                        { abbr: 'Sck', full: 'Sacks' }, { abbr: 'Int', full: 'Interceptions' },
+                        { abbr: 'IntYd', full: 'Interception Return Yards' }, { abbr: 'TD', full: 'Defensive Touchdowns' },
+                        { abbr: 'PD', full: 'Passes Defended' }, { abbr: 'FF', full: 'Forced Fumbles' },
+                        { abbr: 'FR', full: 'Fumble Recoveries' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-2 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -784,8 +814,14 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[500px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'FGM', 'FGA', 'FG%', 'Lng', 'XPM', 'XPA', 'XP%'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'FGM', full: 'Field Goals Made' }, { abbr: 'FGA', full: 'Field Goals Attempted' },
+                        { abbr: 'FG%', full: 'Field Goal %' }, { abbr: 'Lng', full: 'Long' },
+                        { abbr: 'XPM', full: 'Extra Points Made' }, { abbr: 'XPA', full: 'Extra Points Attempted' },
+                        { abbr: 'XP%', full: 'Extra Point %' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -832,8 +868,13 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[450px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Punts', 'Yds', 'Avg', 'Lng', 'In20', 'TB'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Punts', full: 'Punts' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Avg', full: 'Average' }, { abbr: 'Lng', full: 'Long' },
+                        { abbr: 'In20', full: 'Inside 20' }, { abbr: 'TB', full: 'Touchbacks' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -878,8 +919,13 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[400px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Ret', full: 'Returns' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Avg', full: 'Average' }, { abbr: 'TD', full: 'Touchdowns' },
+                        { abbr: 'Lng', full: 'Long' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -922,8 +968,13 @@ export default function Player() {
                 <table className="w-full text-sm min-w-[400px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {['Year', 'Class', 'Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
-                        <th key={i} className={`px-3 py-2 text-xs font-semibold text-gray-600 ${i < 2 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      {[
+                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
+                        { abbr: 'Ret', full: 'Returns' }, { abbr: 'Yds', full: 'Yards' },
+                        { abbr: 'Avg', full: 'Average' }, { abbr: 'TD', full: 'Touchdowns' },
+                        { abbr: 'Lng', full: 'Long' }
+                      ].map((h, i) => (
+                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1002,6 +1053,7 @@ export default function Player() {
         teamColors={teamColors}
         onSave={handlePlayerSave}
         defaultSchool={dynasty.teamName}
+        dynasty={dynasty}
       />
 
       {/* Accolade Games Modal */}

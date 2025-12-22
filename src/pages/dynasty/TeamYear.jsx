@@ -165,6 +165,41 @@ const getMascotName = (abbr) => {
   return mascotMap[abbr] || null
 }
 
+// Award display names
+const AWARD_DISPLAY = {
+  heisman: 'Heisman Trophy',
+  maxwell: 'Maxwell Award',
+  walterCamp: 'Walter Camp Award',
+  bearBryantCoachOfTheYear: 'Bear Bryant Coach of the Year',
+  daveyObrien: 'Davey O\'Brien Award',
+  chuckBednarik: 'Chuck Bednarik Award',
+  broncoNagurski: 'Bronco Nagurski Trophy',
+  jimThorpe: 'Jim Thorpe Award',
+  doakWalker: 'Doak Walker Award',
+  fredBiletnikoff: 'Fred Biletnikoff Award',
+  lombardi: 'Lombardi Award',
+  unitasGoldenArm: 'Unitas Golden Arm Award',
+  edgeRusherOfTheYear: 'Edge Rusher of the Year',
+  outland: 'Outland Trophy',
+  johnMackey: 'John Mackey Award',
+  broyles: 'Broyles Award',
+  dickButkus: 'Dick Butkus Award',
+  rimington: 'Rimington Trophy',
+  louGroza: 'Lou Groza Award',
+  rayGuy: 'Ray Guy Award',
+  returnerOfTheYear: 'Returner of the Year'
+}
+
+// Award order for display (same as Awards page)
+const AWARD_ORDER = [
+  'heisman', 'maxwell', 'walterCamp', 'daveyObrien', 'doakWalker',
+  'fredBiletnikoff', 'johnMackey', 'unitasGoldenArm',
+  'chuckBednarik', 'broncoNagurski', 'jimThorpe', 'dickButkus', 'edgeRusherOfTheYear',
+  'outland', 'lombardi', 'rimington',
+  'louGroza', 'rayGuy', 'returnerOfTheYear',
+  'bearBryantCoachOfTheYear', 'broyles'
+]
+
 export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
@@ -432,6 +467,8 @@ export default function TeamYear() {
   // 2. Players who transferred from this team
   // 3. Players with yearStarted matching this year from this team
   const teamPlayers = (currentDynasty.players || []).filter(p => {
+    // Exclude honor-only players (players only in system for awards, not on actual roster)
+    if (p.isHonorOnly) return false
     // If this is the user's team, show current roster for that year
     if (isUserTeam) {
       // Show players who were on roster during this year
@@ -1320,6 +1357,82 @@ export default function TeamYear() {
           )}
         </div>
       </div>
+
+      {/* Award Winners Section */}
+      {(() => {
+        const yearAwards = currentDynasty.awardsByYear?.[selectedYear] || {}
+        const teamAwardWinners = Object.entries(yearAwards)
+          .filter(([key, data]) => data.team === teamAbbr)
+          .map(([key, data]) => ({
+            awardKey: key,
+            awardName: AWARD_DISPLAY[key] || key,
+            ...data
+          }))
+          .sort((a, b) => {
+            const aIndex = AWARD_ORDER.indexOf(a.awardKey)
+            const bIndex = AWARD_ORDER.indexOf(b.awardKey)
+            return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex)
+          })
+
+        if (teamAwardWinners.length === 0) return null
+
+        return (
+          <div
+            className="rounded-lg shadow-lg overflow-hidden"
+            style={{
+              backgroundColor: teamInfo.backgroundColor,
+              border: `3px solid ${teamInfo.textColor}`
+            }}
+          >
+            <div
+              className="px-3 sm:px-4 py-2 sm:py-3"
+              style={{ backgroundColor: teamInfo.textColor }}
+            >
+              <h2 className="text-sm sm:text-lg font-bold" style={{ color: teamPrimaryText }}>
+                {selectedYear} Award Winners
+              </h2>
+            </div>
+            <div className="p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {teamAwardWinners.map((award) => {
+                const matchingPlayer = currentDynasty.players?.find(p =>
+                  p.name?.toLowerCase().trim() === award.player?.toLowerCase().trim()
+                )
+                const isCoachAward = award.awardKey === 'bearBryantCoachOfTheYear' || award.awardKey === 'broyles'
+
+                return (
+                  <div
+                    key={award.awardKey}
+                    className="p-3 rounded-lg"
+                    style={{ backgroundColor: `${teamInfo.textColor}15` }}
+                  >
+                    <div className="text-xs font-bold mb-1" style={{ color: teamBgText, opacity: 0.7 }}>
+                      {award.awardName}
+                    </div>
+                    {matchingPlayer && !isCoachAward ? (
+                      <Link
+                        to={`/dynasty/${id}/player/${matchingPlayer.pid}`}
+                        className="font-bold text-base hover:underline"
+                        style={{ color: teamInfo.textColor }}
+                      >
+                        {award.player}
+                      </Link>
+                    ) : (
+                      <div className="font-bold text-base" style={{ color: teamInfo.textColor }}>
+                        {award.player}
+                      </div>
+                    )}
+                    {!isCoachAward && award.position && (
+                      <div className="text-xs" style={{ color: teamBgText, opacity: 0.8 }}>
+                        {award.position} • {award.class}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Roster Section - User's Team */}
       {isUserTeam && sortedTeamPlayers.length > 0 && (

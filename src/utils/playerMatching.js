@@ -10,10 +10,33 @@
  * - Same name + ≥6 seasons apart = New player (impossible to be same due to eligibility rules)
  */
 
+import { getAbbreviationFromDisplayName, teamAbbreviations } from '../data/teamAbbreviations'
+
 // Normalize player name for comparison
 export const normalizePlayerName = (name) => {
   if (!name) return ''
   return name.trim().toLowerCase()
+}
+
+// Normalize team to uppercase abbreviation for comparison
+// Handles both full names ("Kentucky Wildcats") and abbreviations ("UK")
+const normalizeTeamForComparison = (team) => {
+  if (!team) return ''
+  const upperTeam = team.toUpperCase()
+
+  // First check if it's already an abbreviation
+  if (teamAbbreviations[upperTeam]) {
+    return upperTeam
+  }
+
+  // Try to get abbreviation from display name
+  const abbr = getAbbreviationFromDisplayName(team)
+  if (abbr) {
+    return abbr.toUpperCase()
+  }
+
+  // Fallback: return as-is
+  return upperTeam
 }
 
 // Get all years a player has records for (from all honor types)
@@ -43,37 +66,37 @@ const getPlayerYears = (player) => {
   return Array.from(years).sort((a, b) => a - b)
 }
 
-// Get all teams a player has been associated with
+// Get all teams a player has been associated with (normalized to abbreviations)
 const getPlayerTeams = (player) => {
   const teams = new Set()
 
-  // Primary team from roster
+  // Primary team from roster (could be full name like "Kentucky Wildcats")
   if (player.team) {
-    teams.add(player.team.toUpperCase())
+    teams.add(normalizeTeamForComparison(player.team))
   }
 
-  // Teams from honors
+  // Teams from honors (usually abbreviations like "UK")
   if (player.awards) {
     player.awards.forEach(a => {
-      if (a.team) teams.add(a.team.toUpperCase())
+      if (a.team) teams.add(normalizeTeamForComparison(a.team))
     })
   }
 
   if (player.allAmericans) {
     player.allAmericans.forEach(a => {
-      if (a.school) teams.add(a.school.toUpperCase())
+      if (a.school) teams.add(normalizeTeamForComparison(a.school))
     })
   }
 
   if (player.allConference) {
     player.allConference.forEach(a => {
-      if (a.school) teams.add(a.school.toUpperCase())
+      if (a.school) teams.add(normalizeTeamForComparison(a.school))
     })
   }
 
   // From teams array if it exists
   if (player.teams) {
-    player.teams.forEach(t => teams.add(t.toUpperCase()))
+    player.teams.forEach(t => teams.add(normalizeTeamForComparison(t)))
   }
 
   return Array.from(teams)
@@ -106,7 +129,7 @@ export const findMatchingPlayer = (name, team, year, players) => {
   }
 
   const normalizedName = normalizePlayerName(name)
-  const normalizedTeam = team?.toUpperCase() || ''
+  const normalizedTeam = normalizeTeamForComparison(team)
 
   // Find all players with matching name
   const nameMatches = players.filter(p =>

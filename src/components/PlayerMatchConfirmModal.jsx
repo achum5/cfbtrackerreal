@@ -94,11 +94,12 @@ export default function PlayerMatchConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] py-8 px-4 sm:p-4"
+      style={{ margin: 0 }}
       onClick={onCancel}
     >
       <div
-        className="rounded-lg shadow-xl max-w-lg w-full p-6"
+        className="rounded-lg shadow-xl max-w-lg w-full max-h-[calc(100vh-4rem)] sm:max-h-none overflow-y-auto p-4 sm:p-6"
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >

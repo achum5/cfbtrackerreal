@@ -268,19 +268,9 @@ export default function Awards() {
       >
         {/* Award Header */}
         <div
-          className="px-4 py-2 flex items-center gap-2"
+          className="px-4 py-2"
           style={{ backgroundColor: `${textColor}15` }}
         >
-          {display.icon === 'trophy' && (
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" style={{ color: '#EAB308' }}>
-              <path d="M5 3h14a1 1 0 011 1v3c0 2.21-1.79 4-4 4h-1v2h1a1 1 0 011 1v6a1 1 0 01-1 1H8a1 1 0 01-1-1v-6a1 1 0 011-1h1v-2H8c-2.21 0-4-1.79-4-4V4a1 1 0 011-1z"/>
-            </svg>
-          )}
-          {display.icon !== 'trophy' && (
-            <svg className="w-5 h-5" fill="none" stroke={textColor} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-          )}
           <span className="font-bold text-sm" style={{ color: textColor }}>{display.name}</span>
         </div>
 
@@ -289,7 +279,7 @@ export default function Awards() {
           {/* Team Logo */}
           {teamLogo && (
             <Link
-              to={`/dynasty/${id}/team/${awardData.team}`}
+              to={`/dynasty/${id}/team/${awardData.team}/${displayYear}`}
               className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform"
               style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
             >
@@ -322,7 +312,7 @@ export default function Awards() {
               </div>
             )}
             <Link
-              to={`/dynasty/${id}/team/${awardData.team}`}
+              to={`/dynasty/${id}/team/${awardData.team}/${displayYear}`}
               className="text-sm hover:underline"
               style={{ color: textColor, opacity: 0.7 }}
             >
