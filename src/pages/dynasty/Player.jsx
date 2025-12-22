@@ -480,17 +480,8 @@ export default function Player() {
         </div>
       )}
 
-      {/* Stats Section - Football Reference Style */}
-      {yearByYearStats.length === 0 ? (
-        <div
-          className="rounded-lg shadow-lg p-6 text-center"
-          style={{ backgroundColor: teamColors.secondary, border: `3px solid ${teamColors.primary}` }}
-        >
-          <div className="py-8" style={{ color: secondaryText, opacity: 0.6 }}>
-            No statistics recorded yet. Enter stats via the Season Stats or Detailed Stats entry on the Dashboard.
-          </div>
-        </div>
-      ) : (
+      {/* Stats Section - Football Reference Style (only shown if player has stats) */}
+      {yearByYearStats.length > 0 && (
         <div className="space-y-6">
           {/* Games & Snaps Table */}
           <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">

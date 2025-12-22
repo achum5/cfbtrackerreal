@@ -21,10 +21,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Dashboard', path: `/dynasty/${dynastyId}` },
     { name: 'Coach Career', path: `/dynasty/${dynastyId}/coach-career` },
     { name: 'Leaderboard', path: `/dynasty/${dynastyId}/dynasty-records` },
-    { name: 'Players', path: `/dynasty/${dynastyId}/players` },
     { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting` },
-    { name: 'pWAR', path: `/dynasty/${dynastyId}/leaders` },
-    { name: 'All-Time Lineup', path: `/dynasty/${dynastyId}/all-time-lineup` },
     { name: 'Awards', path: `/dynasty/${dynastyId}/awards` },
     { name: 'All-Americans', path: `/dynasty/${dynastyId}/all-americans` },
     { name: 'All-Conference', path: `/dynasty/${dynastyId}/all-conference` },
@@ -32,8 +29,9 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Bowl History', path: `/dynasty/${dynastyId}/bowl-history` },
     { name: 'CC History', path: `/dynasty/${dynastyId}/conference-championship-history` },
     { name: 'Conf. Standings', path: `/dynasty/${dynastyId}/conference-standings` },
-    { name: 'Final Top 25', path: `/dynasty/${dynastyId}/rankings` },
-    { name: 'All Teams', path: `/dynasty/${dynastyId}/teams` }
+    { name: 'Top 25', path: `/dynasty/${dynastyId}/rankings` },
+    { name: 'All Teams', path: `/dynasty/${dynastyId}/teams` },
+    { name: 'All Players', path: `/dynasty/${dynastyId}/players` }
   ]
 
   const isActive = (path) => {

@@ -1583,7 +1583,8 @@ export function DynastyProvider({ children }) {
       if (!entry.player && !entry.name) continue
 
       const playerName = entry.player || entry.name
-      const playerTeam = (entry.team || entry.school || '').toUpperCase()
+      // For allAmericans/allConference, school is the team; entry.team is the category label
+      const playerTeam = (entry.school || entry.team || '').toUpperCase()
       const playerPosition = entry.position || ''
 
       // Find matching player

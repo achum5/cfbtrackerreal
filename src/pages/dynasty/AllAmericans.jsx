@@ -219,13 +219,34 @@ export default function AllAmericans() {
     freshman: filteredPlayers.filter(p => p.designation === 'freshman')
   }
 
-  // Helper function to find player by name
-  const findPlayerByName = (playerName) => {
+  // Helper function to find player by name and optionally school
+  const findPlayerByNameAndSchool = (playerName, school) => {
     if (!playerName || !currentDynasty.players) return null
     const normalizedName = normalizePlayerName(playerName)
-    return currentDynasty.players.find(p =>
+    const normalizedSchool = school?.toUpperCase()
+
+    // First try exact match by name
+    let match = currentDynasty.players.find(p =>
       normalizePlayerName(p.name) === normalizedName
     )
+
+    // If multiple matches or no match, try to match by name + allAmericans school
+    if (!match) {
+      match = currentDynasty.players.find(p => {
+        if (normalizePlayerName(p.name) !== normalizedName) return false
+        // Check if player has allAmericans entry with matching school
+        if (p.allAmericans && normalizedSchool) {
+          return p.allAmericans.some(aa => aa.school?.toUpperCase() === normalizedSchool)
+        }
+        // Check player's team
+        if (p.team && normalizedSchool) {
+          return p.team.toUpperCase() === normalizedSchool
+        }
+        return false
+      })
+    }
+
+    return match
   }
 
   // Render player card
@@ -235,7 +256,7 @@ export default function AllAmericans() {
     const teamLogo = mascotName ? getTeamLogo(mascotName) : null
     const bgColor = teamInfo.backgroundColor || '#6B7280'
     const textColor = getContrastTextColor(bgColor)
-    const matchingPlayer = findPlayerByName(player.player)
+    const matchingPlayer = findPlayerByNameAndSchool(player.player, player.school)
     const hasPlayerPage = !!matchingPlayer
 
     return (

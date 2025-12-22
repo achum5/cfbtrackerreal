@@ -201,10 +201,10 @@ export default function AllConference() {
           style={{ backgroundColor: teamColors.secondary }}
         >
           <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
-            All-Conference Selections
+            All-{currentDynasty.conference}
           </h1>
           <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
-            No All-Conference selections recorded yet. Complete a season and enter All-Conference data to see them here.
+            No All-{currentDynasty.conference} selections recorded yet. Complete a season and enter data to see them here.
           </p>
         </div>
       </div>
@@ -223,13 +223,34 @@ export default function AllConference() {
     freshman: filteredPlayers.filter(p => p.designation === 'freshman')
   }
 
-  // Helper function to find player by name
-  const findPlayerByName = (playerName) => {
+  // Helper function to find player by name and optionally school
+  const findPlayerByNameAndSchool = (playerName, school) => {
     if (!playerName || !currentDynasty.players) return null
     const normalizedName = normalizePlayerName(playerName)
-    return currentDynasty.players.find(p =>
+    const normalizedSchool = school?.toUpperCase()
+
+    // First try exact match by name
+    let match = currentDynasty.players.find(p =>
       normalizePlayerName(p.name) === normalizedName
     )
+
+    // If multiple matches or no match, try to match by name + allConference school
+    if (!match) {
+      match = currentDynasty.players.find(p => {
+        if (normalizePlayerName(p.name) !== normalizedName) return false
+        // Check if player has allConference entry with matching school
+        if (p.allConference && normalizedSchool) {
+          return p.allConference.some(ac => ac.school?.toUpperCase() === normalizedSchool)
+        }
+        // Check player's team
+        if (p.team && normalizedSchool) {
+          return p.team.toUpperCase() === normalizedSchool
+        }
+        return false
+      })
+    }
+
+    return match
   }
 
   // Render player card
@@ -239,7 +260,7 @@ export default function AllConference() {
     const teamLogo = mascotName ? getTeamLogo(mascotName) : null
     const bgColor = teamInfo.backgroundColor || '#6B7280'
     const textColor = getContrastTextColor(bgColor)
-    const matchingPlayer = findPlayerByName(player.player)
+    const matchingPlayer = findPlayerByNameAndSchool(player.player, player.school)
     const hasPlayerPage = !!matchingPlayer
 
     return (
@@ -341,7 +362,7 @@ export default function AllConference() {
       >
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            All-Conference ({currentDynasty.conference})
+            All-{currentDynasty.conference}
           </h1>
 
           <div className="flex items-center gap-3">
@@ -392,17 +413,17 @@ export default function AllConference() {
       {filter === 'all' ? (
         <>
           <TeamSection
-            title="First-Team All-Conference"
+            title={`First-Team All-${currentDynasty.conference}`}
             players={groupedByDesignation.first}
             badgeColor={teamColors.primary}
           />
           <TeamSection
-            title="Second-Team All-Conference"
+            title={`Second-Team All-${currentDynasty.conference}`}
             players={groupedByDesignation.second}
             badgeColor="#6B7280"
           />
           <TeamSection
-            title="Freshman All-Conference"
+            title={`Freshman All-${currentDynasty.conference}`}
             players={groupedByDesignation.freshman}
             badgeColor="#3B82F6"
           />
@@ -410,9 +431,9 @@ export default function AllConference() {
       ) : (
         <TeamSection
           title={
-            filter === 'first' ? 'First-Team All-Conference' :
-            filter === 'second' ? 'Second-Team All-Conference' :
-            'Freshman All-Conference'
+            filter === 'first' ? `First-Team All-${currentDynasty.conference}` :
+            filter === 'second' ? `Second-Team All-${currentDynasty.conference}` :
+            `Freshman All-${currentDynasty.conference}`
           }
           players={filteredPlayers}
           badgeColor={
@@ -430,7 +451,7 @@ export default function AllConference() {
           style={{ backgroundColor: teamColors.secondary }}
         >
           <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
-            No {filter === 'first' ? 'First-Team' : filter === 'second' ? 'Second-Team' : 'Freshman'} All-Conference players for {displayYear}.
+            No {filter === 'first' ? 'First-Team' : filter === 'second' ? 'Second-Team' : 'Freshman'} All-{currentDynasty.conference} players for {displayYear}.
           </p>
         </div>
       )}

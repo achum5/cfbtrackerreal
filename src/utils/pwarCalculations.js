@@ -315,6 +315,7 @@ export function calculateLeagueAverages(players, position, qualThreshold) {
 /**
  * Calculate QB QualityGrade using absolute benchmarks
  * When there's insufficient comparison data, use absolute metrics
+ * Includes rushing contribution for dual-threat QBs
  */
 export function calculateQBGrade(player, leagueStats, allQBs) {
   const stats = player.stats || {}
@@ -324,11 +325,17 @@ export function calculateQBGrade(player, leagueStats, allQBs) {
     return { qualityGrade: 60, q: 0, qualified: false }
   }
 
-  // Raw metrics
+  // Raw passing metrics
   const anya = stats.anyA || 0
   const compPct = safeDivide(stats.completions || 0, stats.attempts || 0)
   const tdRate = safeDivide(stats.passingTd || 0, stats.attempts || 0)
   const intRate = safeDivide(stats.interceptions || 0, stats.attempts || 0)
+
+  // Rushing metrics for dual-threat bonus
+  const rushYards = stats.rushYards || 0
+  const rushTd = stats.rushTd || 0
+  const carries = stats.carries || 0
+  const rushYpc = safeDivide(rushYards, carries)
 
   // Get z-scores from qualified population
   const qualifiedQBs = allQBs.filter(qb => {
@@ -345,39 +352,75 @@ export function calculateQBGrade(player, leagueStats, allQBs) {
     // INT Rate benchmarks: Elite ~1.5%, Great ~2.5%, Average ~3.5%, Risky ~4.5%+
 
     let anyaScore = 0
-    if (anya >= 9) anyaScore = 2
-    else if (anya >= 7.5) anyaScore = 1
-    else if (anya >= 6) anyaScore = 0
-    else if (anya >= 5) anyaScore = -1
+    if (anya >= 9) anyaScore = 2.5
+    else if (anya >= 8) anyaScore = 2
+    else if (anya >= 7) anyaScore = 1.5
+    else if (anya >= 6) anyaScore = 1
+    else if (anya >= 5) anyaScore = 0
+    else if (anya >= 4) anyaScore = -1
     else anyaScore = -2
 
     let compScore = 0
-    if (compPct >= 0.70) compScore = 2
+    if (compPct >= 0.72) compScore = 2
+    else if (compPct >= 0.68) compScore = 1.5
     else if (compPct >= 0.65) compScore = 1
-    else if (compPct >= 0.58) compScore = 0
-    else if (compPct >= 0.52) compScore = -1
+    else if (compPct >= 0.60) compScore = 0.5
+    else if (compPct >= 0.55) compScore = 0
+    else if (compPct >= 0.50) compScore = -1
     else compScore = -2
 
     let tdScore = 0
-    if (tdRate >= 0.07) tdScore = 2
+    if (tdRate >= 0.08) tdScore = 2.5
+    else if (tdRate >= 0.07) tdScore = 2
+    else if (tdRate >= 0.06) tdScore = 1.5
     else if (tdRate >= 0.05) tdScore = 1
-    else if (tdRate >= 0.035) tdScore = 0
-    else if (tdRate >= 0.025) tdScore = -1
+    else if (tdRate >= 0.04) tdScore = 0.5
+    else if (tdRate >= 0.03) tdScore = 0
+    else if (tdRate >= 0.02) tdScore = -1
     else tdScore = -2
 
     let intScore = 0
     if (intRate <= 0.015) intScore = 2
+    else if (intRate <= 0.02) intScore = 1.5
     else if (intRate <= 0.025) intScore = 1
-    else if (intRate <= 0.04) intScore = 0
+    else if (intRate <= 0.03) intScore = 0.5
+    else if (intRate <= 0.035) intScore = 0
+    else if (intRate <= 0.045) intScore = -0.5
     else if (intRate <= 0.055) intScore = -1
     else intScore = -2
 
-    // Weighted composite (similar weights to z-score version)
-    const compositeScore = 0.50 * anyaScore + 0.15 * compScore + 0.20 * tdScore + 0.15 * intScore
+    // Rushing bonus for dual-threat QBs
+    // Rush yards: Elite 1000+, Great 600+, Good 300+, Some 100+
+    // Rush TDs: Each TD worth ~0.15 bonus
+    let rushScore = 0
+    if (rushYards >= 1200) rushScore = 2.5
+    else if (rushYards >= 800) rushScore = 2
+    else if (rushYards >= 500) rushScore = 1.5
+    else if (rushYards >= 300) rushScore = 1
+    else if (rushYards >= 150) rushScore = 0.5
+    else if (rushYards >= 50) rushScore = 0.25
+    else rushScore = 0
+
+    // TD bonus
+    rushScore += Math.min(rushTd * 0.12, 1.5) // Cap at 1.5 bonus from TDs
+
+    // YPC bonus/penalty for efficiency
+    if (carries >= 30) {
+      if (rushYpc >= 7) rushScore += 0.3
+      else if (rushYpc >= 5.5) rushScore += 0.15
+      else if (rushYpc < 3.5) rushScore -= 0.25
+    }
+
+    // Cap total rush score
+    rushScore = Math.min(rushScore, 3.0)
+
+    // Weighted composite - passing is primary, rushing is bonus
+    // Total weights: 0.45 + 0.10 + 0.20 + 0.15 + 0.10 = 1.0
+    const compositeScore = 0.45 * anyaScore + 0.10 * compScore + 0.20 * tdScore + 0.15 * intScore + 0.10 * rushScore
     const qualityGrade = clamp(60 + 12 * compositeScore, 0, 100)
     const q = gradeToQ(qualityGrade)
 
-    return { qualityGrade, q, qualified: true }
+    return { qualityGrade, q, qualified: true, components: { anyaScore, compScore, tdScore, intScore, rushScore } }
   }
 
   // League means for smoothing
@@ -810,144 +853,136 @@ export function calculateOLGrade(player, position, teamDropbacks, teamOLSnaps, a
 }
 
 /**
- * Calculate Defense QualityGrade
+ * Calculate Defense QualityGrade using absolute benchmarks when needed
  */
 export function calculateDefenseGrade(player, position, leagueStats, allDefenders) {
   const stats = player.stats || {}
-  const defSnaps = stats.defSnaps || 0
 
-  if (defSnaps < QUALIFICATION_THRESHOLDS[position]) {
+  // Derived stats (used regardless of snap data)
+  const tackles = (stats.soloTackles || 0) + (stats.assistedTackles || 0)
+  const tfl = stats.tacklesForLoss || 0
+  const sacks = stats.sacks || 0
+  const defInts = stats.defInterceptions || stats.interceptions || 0
+  const pdef = stats.deflections || 0
+  const ff = stats.forcedFumbles || 0
+  const fr = stats.fumbleRecoveries || 0
+
+  // Check if player has any meaningful defensive stats
+  const totalDefPlays = tackles + sacks + tfl + defInts + pdef + ff + fr
+  if (totalDefPlays < 5) {
     return { qualityGrade: 60, q: 0, qualified: false }
   }
 
-  // Derived stats
-  const tackles = (stats.soloTackles || 0) + (stats.assistedTackles || 0)
-  const defInts = stats.defInterceptions || stats.interceptions || 0
-  const targetsAgainst = (stats.catchesAllowed || 0) + (stats.deflections || 0) + defInts
+  // Estimate games from stats (rough approximation)
+  const gamesPlayed = stats.gamesPlayed || Math.ceil(tackles / 5) || 1
 
-  // Coverage metrics (if applicable)
-  let catchRateAllowed = 0.65 // Default league average
-  let pbuRate = 0
-  let intRateOnTargets = 0
-  let targetRate = 0
+  // Use absolute benchmarks based on total season stats
+  // Adjusted to be more generous - typical CFB season totals
 
-  if (targetsAgainst > 0) {
-    catchRateAllowed = safeDivide(stats.catchesAllowed || 0, targetsAgainst)
-    pbuRate = safeDivide((stats.deflections || 0) + defInts, targetsAgainst)
-    intRateOnTargets = safeDivide(defInts, targetsAgainst)
-    targetRate = safeDivide(targetsAgainst, defSnaps)
-  }
+  // Tackles benchmarks (per season) - more generous thresholds
+  let tackleScore = 0
+  if (tackles >= 100) tackleScore = 2.5
+  else if (tackles >= 80) tackleScore = 2
+  else if (tackles >= 60) tackleScore = 1.5
+  else if (tackles >= 45) tackleScore = 1
+  else if (tackles >= 30) tackleScore = 0.5
+  else if (tackles >= 20) tackleScore = 0
+  else if (tackles >= 10) tackleScore = -0.25
+  else tackleScore = -0.5
 
-  // Per-snap rates (will be smoothed)
-  const tackleRate = safeDivide(tackles, defSnaps)
-  const tflRate = safeDivide(stats.tacklesForLoss || 0, defSnaps)
-  const sackRate = safeDivide(stats.sacks || 0, defSnaps)
-  const ffRate = safeDivide(stats.forcedFumbles || 0, defSnaps)
-  const frBonus = safeDivide(stats.fumbleRecoveries || 0, defSnaps)
-  const blockRate = safeDivide(stats.blocks || 0, defSnaps)
-  const safetyRate = safeDivide(stats.safeties || 0, defSnaps)
+  // TFL benchmarks (per season) - more generous
+  let tflScore = 0
+  if (tfl >= 15) tflScore = 2.5
+  else if (tfl >= 12) tflScore = 2
+  else if (tfl >= 9) tflScore = 1.5
+  else if (tfl >= 6) tflScore = 1
+  else if (tfl >= 4) tflScore = 0.5
+  else if (tfl >= 2) tflScore = 0
+  else if (tfl >= 1) tflScore = -0.25
+  else tflScore = -0.5
 
-  // Get qualified defenders at this position
-  const qualifiedDef = allDefenders.filter(d => {
-    return d.position === position && (d.stats?.defSnaps || 0) >= QUALIFICATION_THRESHOLDS[position]
-  })
+  // Sacks benchmarks (per season) - more generous
+  let sackScore = 0
+  if (sacks >= 12) sackScore = 2.5
+  else if (sacks >= 9) sackScore = 2
+  else if (sacks >= 6) sackScore = 1.5
+  else if (sacks >= 4) sackScore = 1
+  else if (sacks >= 2) sackScore = 0.5
+  else if (sacks >= 1) sackScore = 0
+  else if (sacks >= 0.5) sackScore = -0.25
+  else sackScore = -0.5
 
-  if (qualifiedDef.length === 0) {
-    return { qualityGrade: 60, q: 0, qualified: true }
-  }
+  // Interceptions benchmarks (per season) - any INT is good
+  let intScore = 0
+  if (defInts >= 6) intScore = 2.5
+  else if (defInts >= 5) intScore = 2
+  else if (defInts >= 4) intScore = 1.5
+  else if (defInts >= 3) intScore = 1
+  else if (defInts >= 2) intScore = 0.75
+  else if (defInts >= 1) intScore = 0.5
+  else intScore = 0  // No penalty for 0 INTs
 
-  // Calculate population values for z-scores
-  const getDefVals = (fn) => qualifiedDef.map(d => fn(d))
+  // Pass deflections benchmarks (per season) - more generous
+  let pdefScore = 0
+  if (pdef >= 12) pdefScore = 2
+  else if (pdef >= 9) pdefScore = 1.5
+  else if (pdef >= 6) pdefScore = 1
+  else if (pdef >= 4) pdefScore = 0.5
+  else if (pdef >= 2) pdefScore = 0.25
+  else if (pdef >= 1) pdefScore = 0
+  else pdefScore = -0.25
 
-  const tackleRateVals = getDefVals(d => safeDivide((d.stats?.soloTackles || 0) + (d.stats?.assistedTackles || 0), d.stats?.defSnaps || 1))
-  const tflRateVals = getDefVals(d => safeDivide(d.stats?.tacklesForLoss || 0, d.stats?.defSnaps || 1))
-  const sackRateVals = getDefVals(d => safeDivide(d.stats?.sacks || 0, d.stats?.defSnaps || 1))
-  const ffRateVals = getDefVals(d => safeDivide(d.stats?.forcedFumbles || 0, d.stats?.defSnaps || 1))
-  const frBonusVals = getDefVals(d => safeDivide(d.stats?.fumbleRecoveries || 0, d.stats?.defSnaps || 1))
-  const blockRateVals = getDefVals(d => safeDivide(d.stats?.blocks || 0, d.stats?.defSnaps || 1))
-  const safetyRateVals = getDefVals(d => safeDivide(d.stats?.safeties || 0, d.stats?.defSnaps || 1))
+  // Forced fumbles benchmarks - any FF is good
+  let ffScore = 0
+  if (ff >= 4) ffScore = 2
+  else if (ff >= 3) ffScore = 1.5
+  else if (ff >= 2) ffScore = 1
+  else if (ff >= 1) ffScore = 0.5
+  else ffScore = 0  // No penalty for 0 FF
 
-  // Coverage values
-  const catchRateVals = getDefVals(d => {
-    const dInts = d.stats?.defInterceptions || d.stats?.interceptions || 0
-    const t = (d.stats?.catchesAllowed || 0) + (d.stats?.deflections || 0) + dInts
-    return t > 0 ? safeDivide(d.stats?.catchesAllowed || 0, t) : 0.65
-  })
-  const pbuRateVals = getDefVals(d => {
-    const dInts = d.stats?.defInterceptions || d.stats?.interceptions || 0
-    const t = (d.stats?.catchesAllowed || 0) + (d.stats?.deflections || 0) + dInts
-    return t > 0 ? safeDivide((d.stats?.deflections || 0) + dInts, t) : 0
-  })
-  const intRateVals = getDefVals(d => {
-    const dInts = d.stats?.defInterceptions || d.stats?.interceptions || 0
-    const t = (d.stats?.catchesAllowed || 0) + (d.stats?.deflections || 0) + dInts
-    return t > 0 ? safeDivide(dInts, t) : 0
-  })
-  const targetRateVals = getDefVals(d => {
-    const dInts = d.stats?.defInterceptions || d.stats?.interceptions || 0
-    const t = (d.stats?.catchesAllowed || 0) + (d.stats?.deflections || 0) + dInts
-    return safeDivide(t, d.stats?.defSnaps || 1)
-  })
-
-  // Z-scores
-  const zTackleRate = zScore(tackleRate, mean(tackleRateVals), stdDev(tackleRateVals))
-  const zTflRate = zScore(tflRate, mean(tflRateVals), stdDev(tflRateVals))
-  const zSackRate = zScore(sackRate, mean(sackRateVals), stdDev(sackRateVals))
-  const zFfRate = zScore(ffRate, mean(ffRateVals), stdDev(ffRateVals))
-  const zFrBonus = zScore(frBonus, mean(frBonusVals), stdDev(frBonusVals))
-  const zBlockRate = zScore(blockRate, mean(blockRateVals), stdDev(blockRateVals))
-  const zSafetyRate = zScore(safetyRate, mean(safetyRateVals), stdDev(safetyRateVals))
-  const zCatchRate = -zScore(catchRateAllowed, mean(catchRateVals), stdDev(catchRateVals)) // Negative is good
-  const zPbuRate = zScore(pbuRate, mean(pbuRateVals), stdDev(pbuRateVals))
-  const zIntRate = zScore(intRateOnTargets, mean(intRateVals), stdDev(intRateVals))
-  const zTargetRate = -zScore(targetRate, mean(targetRateVals), stdDev(targetRateVals)) // Lower is good
-
-  // Position-specific weights
-  let scoreRaw = 0
+  // Position-specific weighting
+  let compositeScore = 0
 
   switch (position) {
     case 'LEDG':
     case 'REDG':
-      scoreRaw = 0.45 * zSackRate + 0.25 * zTflRate + 0.10 * zFfRate + 0.10 * zTackleRate + 0.05 * zBlockRate + 0.05 * zSafetyRate
+      // Edge rushers: sacks and TFL most important
+      compositeScore = 0.40 * sackScore + 0.25 * tflScore + 0.15 * ffScore + 0.10 * tackleScore + 0.10 * pdefScore
       break
     case 'DT':
-      scoreRaw = 0.35 * zTflRate + 0.30 * zSackRate + 0.15 * zTackleRate + 0.10 * zFfRate + 0.05 * zBlockRate + 0.05 * zSafetyRate
+      // Interior DL: TFL and tackles, some sacks
+      compositeScore = 0.30 * tflScore + 0.25 * sackScore + 0.25 * tackleScore + 0.10 * ffScore + 0.10 * pdefScore
       break
     case 'SAM':
-      scoreRaw = 0.20 * zTackleRate + 0.15 * zTflRate + 0.10 * zSackRate + 0.15 * zCatchRate + 0.15 * zPbuRate + 0.10 * zIntRate + 0.10 * zFfRate + 0.05 * zFrBonus
+    case 'WILL':
+      // OLB: balanced between pass rush and coverage
+      compositeScore = 0.25 * tackleScore + 0.20 * tflScore + 0.15 * sackScore + 0.15 * intScore + 0.15 * pdefScore + 0.10 * ffScore
       break
     case 'MIKE':
-      scoreRaw = 0.25 * zTackleRate + 0.15 * zTflRate + 0.05 * zSackRate + 0.10 * zCatchRate + 0.10 * zPbuRate + 0.10 * zIntRate + 0.15 * zFfRate + 0.10 * zFrBonus
-      break
-    case 'WILL':
-      scoreRaw = 0.20 * zTackleRate + 0.10 * zTflRate + 0.05 * zSackRate + 0.15 * zCatchRate + 0.15 * zPbuRate + 0.15 * zIntRate + 0.10 * zFfRate + 0.10 * zFrBonus
+      // MLB: tackles most important
+      compositeScore = 0.35 * tackleScore + 0.20 * tflScore + 0.10 * sackScore + 0.10 * intScore + 0.10 * pdefScore + 0.15 * ffScore
       break
     case 'CB':
-      scoreRaw = 0.30 * zCatchRate + 0.25 * zPbuRate + 0.10 * zIntRate + 0.10 * zFfRate + 0.10 * zTackleRate + 0.05 * zTargetRate + 0.05 * zFrBonus + 0.05 * zBlockRate
+      // Corners: coverage stats most important
+      compositeScore = 0.30 * intScore + 0.30 * pdefScore + 0.15 * tackleScore + 0.15 * ffScore + 0.10 * tflScore
       break
     case 'FS':
-      scoreRaw = 0.20 * zCatchRate + 0.20 * zPbuRate + 0.15 * zIntRate + 0.10 * zFfRate + 0.15 * zTackleRate + 0.15 * zFrBonus + 0.05 * zBlockRate
+      // Free safety: ball skills and range
+      compositeScore = 0.30 * intScore + 0.25 * pdefScore + 0.20 * tackleScore + 0.15 * ffScore + 0.10 * tflScore
       break
     case 'SS':
-      scoreRaw = 0.15 * zCatchRate + 0.15 * zPbuRate + 0.10 * zIntRate + 0.20 * zTackleRate + 0.10 * zTflRate + 0.05 * zSackRate + 0.10 * zFfRate + 0.10 * zFrBonus + 0.05 * zBlockRate
+      // Strong safety: tackling and ball skills
+      compositeScore = 0.25 * tackleScore + 0.20 * intScore + 0.20 * pdefScore + 0.15 * tflScore + 0.10 * sackScore + 0.10 * ffScore
       break
     default:
-      scoreRaw = 0.25 * zTackleRate + 0.20 * zTflRate + 0.15 * zSackRate + 0.15 * zFfRate + 0.10 * zIntRate + 0.10 * zPbuRate + 0.05 * zFrBonus
+      // Generic defense
+      compositeScore = 0.25 * tackleScore + 0.20 * tflScore + 0.15 * sackScore + 0.15 * intScore + 0.15 * pdefScore + 0.10 * ffScore
   }
 
-  // Get k_pos for defense
-  let kPos = K_POS[position]
-  if (!kPos) {
-    if (['LEDG', 'REDG', 'DT'].includes(position)) kPos = 350
-    else if (['SAM', 'MIKE', 'WILL'].includes(position)) kPos = 275
-    else kPos = 350
-  }
-
-  const gradeRaw = scoreToGrade(scoreRaw)
-  const qualityGrade = shrinkGrade(gradeRaw, defSnaps, kPos)
+  const qualityGrade = clamp(60 + 12 * compositeScore, 0, 100)
   const q = gradeToQ(qualityGrade)
 
-  return { qualityGrade, q, qualified: true }
+  return { qualityGrade, q, qualified: true, components: { tackleScore, tflScore, sackScore, intScore, pdefScore, ffScore } }
 }
 
 /**
@@ -1198,25 +1233,43 @@ export function getUnitGroup(position) {
 
 // ========================================================
 // G) DEFAULT BETAS (Fallback if insufficient data)
+// These represent wins generated per unit of "normalized volume" at average+ quality
 // ========================================================
 
 export const DEFAULT_BETAS = {
-  QB: 2.0,
-  SKILL: 1.2,
-  OL: 1.0,
-  DL: 0.8,
-  LB: 0.5,
-  DB: 0.8,
-  K: 0.2,
-  P: 0.2,
-  RET: 0.4
+  QB: 1.8,      // QBs have highest impact - elite QB worth ~3-4 wins
+  SKILL: 1.0,   // Skill players (HB, WR, TE) - elite back/receiver worth ~1.5-2 wins
+  OL: 0.6,      // OL collectively important but individual less so
+  DL: 0.7,      // Pass rushers - elite edge worth ~1.5 wins
+  LB: 0.6,      // Linebackers - high tackle volume
+  DB: 0.7,      // Coverage players - ball hawks valuable
+  K: 0.2,       // Kickers can swing close games
+  P: 0.15,      // Field position
+  RET: 0.25     // Return game
+}
+
+// ========================================================
+// EXPECTED STARTER VOLUME (for normalizing share to ~1.0)
+// These represent typical full-season starter volume
+// ========================================================
+
+export const EXPECTED_VOLUME = {
+  QB_DROPBACKS: 450,      // ~32 dropbacks/game × 14 games
+  HB_TOUCHES: 180,        // ~13 touches/game × 14 games (primary back)
+  WR_TARGETS: 90,         // ~6.5 targets/game × 14 games (WR1)
+  TE_TARGETS: 50,         // ~3.5 targets/game × 14 games
+  OL_PASS_BLOCKS: 400,    // ~28/game × 14 games
+  DEF_SNAPS: 550,         // ~40 snaps/game × 14 games (lower for higher shares)
+  KICK_OPP: 50,           // ~3.5/game × 14 games (FG + XP attempts)
+  PUNTS: 45,              // ~3/game × 14 games
+  RETURNS: 25             // ~1.8/game × 14 games (KR + PR)
 }
 
 // ========================================================
 // H) REPLACEMENT BASELINES
 // ========================================================
 
-export const DEFAULT_Q_REP = -0.75
+export const DEFAULT_Q_REP = -0.75  // Replacement level - gives more players positive WAR
 
 /**
  * Calculate replacement baseline q for a unit group
@@ -1238,7 +1291,7 @@ export function calculateReplacementQ(players, group) {
   const qRep = weightedPercentile(items, 0.20)
 
   // Clamp to reasonable range
-  return clamp(qRep, -1.5, -0.3)
+  return clamp(qRep, -1.0, -0.25)
 }
 
 // ========================================================
@@ -1588,21 +1641,79 @@ export function calculateSeasonPWAR(dynasty, year) {
         (p.stats.kickReturns || 0) + (p.stats.puntReturns || 0) > 0))
     }
 
-    // Calculate shares
+    // Calculate volume-based share (normalized to expected starter volume)
+    // A full-time starter should have share ≈ 1.0
     const unitGroup = getUnitGroup(player.position)
     let share = 0
 
-    if (unitGroup === 'QB' || unitGroup === 'SKILL' || unitGroup === 'OL') {
-      share = totalOffSnaps > 0 ? (player.stats.offSnaps || 0) / totalOffSnaps : 0
+    if (player.position === 'QB') {
+      // QB share based on dropbacks normalized to expected volume
+      const dropbacks = (player.stats.attempts || 0) + (player.stats.sacksTaken || 0)
+      share = dropbacks / EXPECTED_VOLUME.QB_DROPBACKS
+    } else if (player.position === 'HB' || player.position === 'FB') {
+      // RB share based on touches
+      const touches = (player.stats.carries || 0) + (player.stats.receptions || 0)
+      share = touches / EXPECTED_VOLUME.HB_TOUCHES
+    } else if (player.position === 'WR') {
+      // WR share based on targets (receptions + drops)
+      const targets = (player.stats.receptions || 0) + (player.stats.drops || 0)
+      share = targets / EXPECTED_VOLUME.WR_TARGETS
+    } else if (player.position === 'TE') {
+      // TE share based on targets
+      const targets = (player.stats.receptions || 0) + (player.stats.drops || 0)
+      share = targets / EXPECTED_VOLUME.TE_TARGETS
+    } else if (unitGroup === 'OL') {
+      // OL share based on pass blocking opportunities
+      const pbOpp = teamDropbacks > 0 && teamOLSnaps[player.position] > 0
+        ? teamDropbacks * ((player.stats.offSnaps || 0) / teamOLSnaps[player.position])
+        : 0
+      share = pbOpp / EXPECTED_VOLUME.OL_PASS_BLOCKS
     } else if (['DL', 'LB', 'DB'].includes(unitGroup)) {
-      share = totalDefSnaps > 0 ? (player.stats.defSnaps || 0) / totalDefSnaps : 0
+      // Defense share based on defensive snaps
+      // If defSnaps is 0/missing, estimate from games played or defensive stats
+      let defVolume = player.stats.defSnaps || 0
+
+      if (defVolume === 0) {
+        // Fallback 1: Use games played × estimated snaps per game
+        const gamesPlayed = player.stats.gamesPlayed || 0
+        if (gamesPlayed > 0) {
+          defVolume = gamesPlayed * 50 // Estimate ~50 defensive snaps per game for starters
+        }
+      }
+
+      if (defVolume === 0) {
+        // Fallback 2: Use total defensive involvement as volume proxy
+        // Scale tackles/plays to approximate snap count
+        const totalTackles = (player.stats.soloTackles || 0) + (player.stats.assistedTackles || 0)
+        const sacks = player.stats.sacks || 0
+        const tfl = player.stats.tacklesForLoss || 0
+        const ints = player.stats.defInterceptions || 0
+        const pdef = player.stats.deflections || 0
+        const ff = player.stats.forcedFumbles || 0
+
+        // Rough estimation: scale defensive plays to approximate snap involvement
+        // Weight impactful plays more heavily
+        const defPlays = totalTackles + sacks * 3 + tfl * 1.5 + ints * 4 + pdef * 1.5 + ff * 3
+        if (defPlays > 0) {
+          defVolume = defPlays * 12 // Higher scale factor for better differentiation
+        }
+      }
+
+      share = defVolume / EXPECTED_VOLUME.DEF_SNAPS
     } else if (unitGroup === 'K') {
-      share = totalKickOpp > 0 ? ((player.stats.fgAttempts || 0) + (player.stats.xpAttempts || 0)) / totalKickOpp : 0
+      // Kicker share based on kick opportunities
+      const kickOpp = (player.stats.fgAttempts || 0) + (player.stats.xpAttempts || 0)
+      share = kickOpp / EXPECTED_VOLUME.KICK_OPP
     } else if (unitGroup === 'P') {
-      share = totalPunts > 0 ? (player.stats.punts || 0) / totalPunts : 0
+      // Punter share based on punts
+      share = (player.stats.punts || 0) / EXPECTED_VOLUME.PUNTS
     }
 
-    const returnShare = totalReturns > 0 ? returnOpp / totalReturns : 0
+    // Cap share at 2.0 (200% of expected starter volume) to allow high-volume players
+    share = Math.min(share, 2.0)
+
+    // Return share also normalized to expected volume, capped
+    const returnShare = Math.min(returnOpp / EXPECTED_VOLUME.RETURNS, 1.5)
 
     return {
       ...player,

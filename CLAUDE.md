@@ -6,26 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Sheet modal improvements, CFP display fixes, Bowl History updates:
+**Last Session (December 2024)**: Sidebar updates, All Players page, player profile fixes:
 
-1. **Sheet Embed View Persistence**:
-   - All sheet modals now persist embed/normal view preference across sessions
-   - Uses localStorage key: `sheetEmbedPreference`
-   - Applies to all 17+ sheet modals (Schedule, Roster, Bowl Weeks, CFP, Awards, etc.)
+1. **Sidebar Navigation Updates**:
+   - Renamed "Players" to "All Players" and moved to bottom (next to "All Teams")
+   - Renamed "Final Top 25" to "Top 25"
+   - Removed "All-Time Lineup" from sidebar
 
-2. **CFP Semifinal User Game Display**:
-   - When user's team is in CFP Semifinal, modal shows read-only score (not editable)
-   - Scores sync with `games[]` array (source of truth)
-   - CPU vs CPU games remain editable in the modal
-   - Detection uses `isCFPSemifinal` flag or `bowlName === 'Peach Bowl'/'Fiesta Bowl'`
+2. **All Players Page** (`/dynasty/:id/players`):
+   - Complete rewrite with search and filter functionality
+   - Search by name, position, hometown, state, jersey number, or archetype
+   - Position filter dropdown: All, Offense, Defense, QB, RB, WR, TE, OL, DL, LB, DB, K/P
+   - Sortable columns: Player, Position, Year, Overall, Dev Trait
+   - Dev trait badges color-coded (Elite=gold, Star=purple, Impact=blue, Normal=gray)
+   - All players link to their profile pages
 
-3. **Bowl History Page** (`/dynasty/:id/bowl-history`):
-   - Now includes ALL bowl games including CFP bowls
-   - Added to `bowlLogos.js`: Peach Bowl, Fiesta Bowl, National Championship
-   - `getBowlResults()` checks: `games[]` array, `bowlGamesByYear`, AND `cfpResultsByYear`
-   - CFP Quarterfinals (Rose, Sugar, Orange, Cotton) also pulled from `cfpResultsByYear.quarterfinals`
+3. **All-Conference Page Updates**:
+   - Now displays conference-specific titles (e.g., "All-SEC" instead of "All-Conference")
+   - Section titles also use conference name (e.g., "First-Team All-SEC")
 
-4. **KNOWN BUG - CFP Bracket Advancement**:
+4. **Player Page Stats Section**:
+   - Stats section only renders if player has stats
+   - No more empty "No statistics recorded yet" message for players without stats
+   - Cleaner player profiles for honor-only players
+
+5. **Player Profile Link Fixes**:
+   - Fixed `findPlayerByNameAndSchool` function in AllConference.jsx and AllAmericans.jsx
+   - Player links now correctly match by both name and school
+   - Fixed bug where All-Americans/All-Conference players were assigned wrong teams
+   - `DynastyContext.jsx`: Fixed to use `entry.school` before `entry.team` in `processHonorPlayers`
+
+6. **KNOWN BUG - CFP Bracket Advancement**:
    - The bracket does NOT correctly advance teams after phase/week changes
    - Winners from earlier rounds don't properly populate later rounds
    - This needs investigation and fixing
@@ -196,11 +207,9 @@ if (isDev || !user) {
     - `/dynasty/:id/rankings` - Final AP Top 25 (Media & Coaches polls)
     - `/dynasty/:id/stats` - Statistics
     - `/dynasty/:id/coach-career` - Coach career tracking
-    - `/dynasty/:id/players` - All players list
+    - `/dynasty/:id/players` - All players list (with search/filter)
     - `/dynasty/:id/player/:pid` - Individual player page
-    - `/dynasty/:id/all-time-lineup` - Best players by position
     - `/dynasty/:id/recruiting` - Recruiting class
-    - `/dynasty/:id/leaders` - Statistical leaders
     - `/dynasty/:id/awards` - Player awards
     - `/dynasty/:id/all-americans` - All-American selections
     - `/dynasty/:id/all-conference` - All-Conference selections
@@ -423,12 +432,24 @@ Each dynasty object contains:
 
 ### Player Pages
 
+**All Players List** (`src/pages/dynasty/Players.jsx`):
+- Route: `/dynasty/:id/players`
+- Search bar: filters by name, position, hometown, state, jersey number, archetype
+- Position filter dropdown: All, Offense, Defense, or specific position groups
+- Sortable columns: Player, Position, Year, Overall, Dev Trait
+- Dev trait badges are color-coded (Elite=gold, Star=purple, Impact=blue, Normal=gray)
+- Player count displayed in header
+- All player names link to individual player pages
+
 **Individual Player Pages** (`src/pages/dynasty/Player.jsx`):
 - Route: `/dynasty/:id/player/:pid`
 - Displays player header with team-colored styling:
   - Player name, position, year, dev trait
   - Large overall rating badge (text-6xl)
-- Career statistics section (placeholder: "Coming soon...")
+- Career Honors section: Awards, All-Americans, All-Conference badges
+- POW accolades: Conference/National Player of the Week counts with clickable details
+- Career statistics tables (Football Reference style) - only shown if player has stats
+- Notes & Media section for player notes and external links
 - Uses `useParams()` to extract `pid` from URL
 - Finds player by matching `pid` in dynasty's players array
 
