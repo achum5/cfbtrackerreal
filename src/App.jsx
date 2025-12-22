@@ -21,7 +21,6 @@ import Awards from './pages/dynasty/Awards'
 import AllAmericans from './pages/dynasty/AllAmericans'
 import AllConference from './pages/dynasty/AllConference'
 import DynastyRecords from './pages/dynasty/DynastyRecords'
-import TeamAchievements from './pages/dynasty/TeamAchievements'
 import Teams from './pages/dynasty/Teams'
 import Team from './pages/dynasty/Team'
 import TeamYear from './pages/dynasty/TeamYear'
@@ -85,7 +84,6 @@ function AppRoutes() {
             <Route path="all-americans" element={<AllAmericans />} />
             <Route path="all-conference" element={<AllConference />} />
             <Route path="dynasty-records" element={<DynastyRecords />} />
-            <Route path="team-achievements" element={<TeamAchievements />} />
             <Route path="teams" element={<Teams />} />
             <Route path="team/:teamAbbr" element={<Team />} />
             <Route path="team/:teamAbbr/:year" element={<TeamYear />} />

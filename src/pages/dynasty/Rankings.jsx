@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -160,7 +161,8 @@ const getMascotName = (abbr) => {
 
 export default function Rankings() {
   const { id } = useParams()
-  const { currentDynasty, teamColors } = useDynasty()
+  const { currentDynasty } = useDynasty()
+  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
@@ -189,7 +191,7 @@ export default function Rankings() {
           style={{ backgroundColor: teamColors.secondary }}
         >
           <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
-            Final AP Top 25
+            Final Top 25
           </h1>
           <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
             No final polls recorded yet. Complete a season and enter final polls to see rankings.
@@ -200,7 +202,7 @@ export default function Rankings() {
   }
 
   // Render a single ranking row
-  const RankingRow = ({ rank, teamAbbr }) => {
+  const RankingRow = ({ rank, teamAbbr, year }) => {
     const teamInfo = teamAbbreviations[teamAbbr] || {}
     const mascotName = getMascotName(teamAbbr)
     const teamLogo = mascotName ? getTeamLogo(mascotName) : null
@@ -209,7 +211,7 @@ export default function Rankings() {
 
     return (
       <Link
-        to={`/dynasty/${id}/team/${teamAbbr}`}
+        to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
         className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.02] transition-transform"
         style={{
           backgroundColor: bgColor,
@@ -259,7 +261,7 @@ export default function Rankings() {
         style={{ backgroundColor: teamColors.secondary }}
       >
         <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-          Final AP Top 25
+          Final Top 25
         </h1>
 
         <select
@@ -295,7 +297,7 @@ export default function Rankings() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
             </svg>
             <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
-              AP Media Poll
+              Media Poll
             </h2>
           </div>
 
@@ -308,6 +310,7 @@ export default function Rankings() {
                     key={`media-${entry.rank}`}
                     rank={entry.rank}
                     teamAbbr={entry.team}
+                    year={displayYear}
                   />
                 ))
             ) : (
@@ -344,6 +347,7 @@ export default function Rankings() {
                     key={`coaches-${entry.rank}`}
                     rank={entry.rank}
                     teamAbbr={entry.team}
+                    year={displayYear}
                   />
                 ))
             ) : (

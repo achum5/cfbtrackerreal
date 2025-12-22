@@ -27,7 +27,10 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
-  const [useEmbedded, setUseEmbedded] = useState(false) // Default to "Open in New Tab" mode
+  const [useEmbedded, setUseEmbedded] = useState(() => {
+    // Load preference from localStorage
+    return localStorage.getItem('sheetEmbedPreference') === 'true'
+  })
   const [highlightSave, setHighlightSave] = useState(false)
 
   useEffect(() => {
@@ -270,7 +273,11 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
             {!isMobile && (
               <div className="flex items-center justify-end mb-2">
                 <button
-                  onClick={() => setUseEmbedded(!useEmbedded)}
+                  onClick={() => {
+                    const newValue = !useEmbedded
+                    setUseEmbedded(newValue)
+                    localStorage.setItem('sheetEmbedPreference', newValue.toString())
+                  }}
                   className="text-xs px-3 py-1 rounded-full border transition-colors"
                   style={{
                     borderColor: teamColors.primary,

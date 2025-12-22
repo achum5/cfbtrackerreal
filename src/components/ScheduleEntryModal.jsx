@@ -20,9 +20,13 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
-  const [useEmbedded, setUseEmbedded] = useState(false) // Default to "Open in New Tab" mode
+  const [useEmbedded, setUseEmbedded] = useState(() => {
+    // Load preference from localStorage
+    return localStorage.getItem('sheetEmbedPreference') === 'true'
+  })
   const [showSessionError, setShowSessionError] = useState(false)
   const [highlightSave, setHighlightSave] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   // Highlight save button when user returns to the window (after editing in Google Sheets)
   useEffect(() => {
@@ -161,6 +165,33 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
     }
   }
 
+  const handleRegenerateSheet = async () => {
+    if (!sheetId) return
+
+    const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
+    if (!confirmed) return
+
+    setRegenerating(true)
+    try {
+      // Delete the current sheet
+      await deleteGoogleSheet(sheetId)
+
+      // Clear sheet ID from dynasty
+      await updateDynasty(currentDynasty.id, {
+        scheduleSheetId: null
+      })
+
+      // Reset local state to trigger new sheet creation
+      setSheetId(null)
+      setRetryCount(c => c + 1)
+    } catch (error) {
+      console.error('Failed to regenerate sheet:', error)
+      alert('Failed to regenerate sheet. Please try again.')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const handleClose = () => {
     onClose()
   }
@@ -258,6 +289,18 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
                   >
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
+                  <button
+                    onClick={handleRegenerateSheet}
+                    disabled={syncing || deletingSheet || regenerating}
+                    className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm border-2 ml-auto"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: '#EF4444',
+                      color: '#EF4444'
+                    }}
+                  >
+                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                  </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
 
@@ -270,7 +313,11 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
             {/* Toggle between embedded and new tab */}
             <div className="flex items-center justify-end mb-2">
               <button
-                onClick={() => setUseEmbedded(!useEmbedded)}
+                onClick={() => {
+                  const newValue = !useEmbedded
+                  setUseEmbedded(newValue)
+                  localStorage.setItem('sheetEmbedPreference', newValue.toString())
+                }}
                 className="text-xs px-3 py-1 rounded-full border transition-colors"
                 style={{
                   borderColor: teamColors.primary,
@@ -400,6 +447,19 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
+                {/* Start Over Button */}
+                <button
+                  onClick={handleRegenerateSheet}
+                  disabled={syncing || deletingSheet || regenerating}
+                  className="text-xs px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-colors border mb-4"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: '#EF4444',
+                    color: '#EF4444'
+                  }}
+                >
+                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                </button>
                 {highlightSave && (
                   <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
 

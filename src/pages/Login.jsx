@@ -41,17 +41,17 @@ export default function Login() {
             </h1>
           </div>
 
-          {/* Personal Message */}
-          <div className="bg-gray-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700 mb-8">
+          {/* Personal Message - Hidden for now (DRAFT - come back to this later) */}
+          <div className="hidden bg-gray-800 bg-opacity-50 backdrop-blur-sm rounded-2xl p-8 border border-gray-700 mb-8">
             <div className="prose prose-invert max-w-none">
               <p className="text-gray-300 text-lg leading-relaxed mb-4">
-                Hey! I'm a huge fan of CFB dynasty mode, but honestly it drives me crazy that there's no way to track your history inside the game. Like, I want to see how my players developed over the years, look back at championship seasons, track career stats... all that stuff.
+                I'm Alex. I built this because dynasty mode doesn't save history and it always bugged me. Who won the Heisman four years ago? What was that QB's final stat line? No idea - it's all gone.
               </p>
               <p className="text-gray-300 text-lg leading-relaxed mb-4">
-                So I built this. It's basically a way to keep a record of everything that matters in your dynasty - schedules, rosters, player progression, game results, all of it. No more forgetting who won the Heisman 3 years ago or what that legendary QB's stats were.
+                This is just a simple tracker to fix that. You log your schedules, rosters, and game results, and it saves everything to the cloud. Nothing fancy, but it works.
               </p>
-              <p className="text-gray-300 text-lg leading-relaxed mb-4">
-                Big shoutout to Reddit user{' '}
+              <p className="text-gray-300 text-lg leading-relaxed">
+                Shoutout to{' '}
                 <a
                   href="https://www.reddit.com/user/FireButchJones"
                   target="_blank"
@@ -60,16 +60,7 @@ export default function Login() {
                 >
                   u/FireButchJones
                 </a>
-                {' '}for the inspiration. Their spreadsheet tracking setup was genius and gave me the idea to make this tool.
-              </p>
-              <p className="text-gray-300 text-lg leading-relaxed mb-4">
-                Login to your google account below. This gives you the ability to easily add in data to your league using embedded google sheets which I found to be by far the most efficient way to use this.
-              </p>
-              <p className="text-gray-300 text-lg leading-relaxed mb-4">
-                Also it entirely runs in the cloud using Google Firebase! So once you are logged into your google account, your dynasty will be saved device to device.
-              </p>
-              <p className="text-gray-300 text-lg leading-relaxed">
-                I hope you enjoy!
+                {' '}on Reddit - their spreadsheet setup gave me the idea.
               </p>
             </div>
           </div>

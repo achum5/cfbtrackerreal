@@ -27,7 +27,10 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
-  const [useEmbedded, setUseEmbedded] = useState(false)
+  const [useEmbedded, setUseEmbedded] = useState(() => {
+    // Load preference from localStorage
+    return localStorage.getItem('sheetEmbedPreference') === 'true'
+  })
   const [highlightSave, setHighlightSave] = useState(false)
 
   useEffect(() => {
@@ -211,7 +214,7 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
 
             {!isMobile && (
               <div className="flex items-center justify-end mb-2">
-                <button onClick={() => setUseEmbedded(!useEmbedded)} className="text-xs px-3 py-1 rounded-full border transition-colors" style={{ borderColor: teamColors.primary, color: teamColors.primary, backgroundColor: 'transparent' }}>
+                <button onClick={() => { const newValue = !useEmbedded; setUseEmbedded(newValue); localStorage.setItem('sheetEmbedPreference', newValue.toString()); }} className="text-xs px-3 py-1 rounded-full border transition-colors" style={{ borderColor: teamColors.primary, color: teamColors.primary, backgroundColor: 'transparent' }}>
                   {useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}
                 </button>
               </div>

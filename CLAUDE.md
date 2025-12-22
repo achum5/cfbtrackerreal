@@ -6,34 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: End of Season Recap features, Google Sheets improvements, and Rankings page:
+**Last Session (December 2024)**: Sheet modal improvements, CFP display fixes, Bowl History updates:
 
-1. **Final Polls & Rankings**:
-   - Final Polls sheet: 2-column vertical layout (26 rows: ranks 1-25 + header)
-   - Rankings page (`/dynasty/:id/rankings`): Shows Media Poll and Coaches Poll side-by-side
-   - Year dropdown to view previous seasons' rankings
-   - Team pages show final ranking in header (e.g., "#5 Kentucky Wildcats")
-   - AP Top 25 finishes dynamically calculated from `finalPollsByYear`
-   - Data structure: `finalPollsByYear[year].media` and `finalPollsByYear[year].coaches` arrays of `{rank, team}`
+1. **Sheet Embed View Persistence**:
+   - All sheet modals now persist embed/normal view preference across sessions
+   - Uses localStorage key: `sheetEmbedPreference`
+   - Applies to all 17+ sheet modals (Schedule, Roster, Bowl Weeks, CFP, Awards, etc.)
 
-2. **Team Stats Sheet**:
-   - Two-column vertical layout: Column A = stat names (protected), Column B = values
-   - Stats tracked: First Downs, Rush Yards Allowed, Pass Yards Allowed, Red Zone Attempts, Red Zone TDs, Def. RZ Attempts, Def. RZ TDs, 3rd Down Conversions, 3rd Down Attempts, 4th Down Conversions, 4th Down Attempts, 2pt Conversions, 2pt Attempts, Penalties, Penalty Yardage
-   - `readTeamStatsFromSheet()` reads from column B
+2. **CFP Semifinal User Game Display**:
+   - When user's team is in CFP Semifinal, modal shows read-only score (not editable)
+   - Scores sync with `games[]` array (source of truth)
+   - CPU vs CPU games remain editable in the modal
+   - Detection uses `isCFPSemifinal` flag or `bowlName === 'Peach Bowl'/'Fiesta Bowl'`
 
-3. **Google Sheets Improvements**:
-   - Team dropdown validation with conditional formatting on all sheets with team columns
-   - Position dropdown validation (QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P)
-   - Class dropdown validation (Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr)
-   - Awards sheet: Coach awards (Bear Bryant, Broyles) have merged Position/Team/Class into just Team
-   - Helper functions: `generateTeamFormattingRulesForRange()`, `generateTeamValidation()`, `generatePositionValidation()`, `generateClassValidation()`
+3. **Bowl History Page** (`/dynasty/:id/bowl-history`):
+   - Now includes ALL bowl games including CFP bowls
+   - Added to `bowlLogos.js`: Peach Bowl, Fiesta Bowl, National Championship
+   - `getBowlResults()` checks: `games[]` array, `bowlGamesByYear`, AND `cfpResultsByYear`
+   - CFP Quarterfinals (Rose, Sugar, Orange, Cotton) also pulled from `cfpResultsByYear.quarterfinals`
 
-4. **Conference Standings Page**:
-   - Route: `/dynasty/:id/conference-standings`
-   - Year selector, search, expandable conference sections
-   - Links to team pages with team logos/colors
-
-5. **KNOWN BUG - CFP Bracket Advancement**:
+4. **KNOWN BUG - CFP Bracket Advancement**:
    - The bracket does NOT correctly advance teams after phase/week changes
    - Winners from earlier rounds don't properly populate later rounds
    - This needs investigation and fixing

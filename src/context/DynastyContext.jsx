@@ -10,6 +10,7 @@ import {
 } from '../services/dynastyService'
 import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet, createConferencesSheet, readConferencesFromSheet } from '../services/sheetsService'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 
 const DynastyContext = createContext()
 
@@ -1463,6 +1464,270 @@ export function DynastyProvider({ children }) {
     })
   }
 
+  /**
+   * Process honor entries (awards, all-americans, all-conference) and link to existing players or create new ones.
+   *
+   * @param {string} dynastyId
+   * @param {string} honorType - 'awards', 'allAmericans', or 'allConference'
+   * @param {Array} entries - Array of honor entries
+   * @param {number} year - Year of the honors
+   * @param {Array} transferDecisions - Array of { entryIndex, isSamePlayer } for resolved transfer confirmations
+   * @returns {Object} { success, needsConfirmation, confirmations, message }
+   */
+  const processHonorPlayers = async (dynastyId, honorType, entries, year, transferDecisions = []) => {
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      return { success: false, message: 'Dynasty not found' }
+    }
+
+    const existingPlayers = [...(dynasty.players || [])]
+    let nextPID = dynasty.nextPID || (existingPlayers.length + 1)
+
+    // Track which entries need confirmation
+    const confirmations = []
+
+    // Track updates to make
+    const playersToUpdate = [] // { pid, updates }
+    const playersToCreate = [] // New player objects
+
+    // Create a map of transfer decisions by entry index
+    const decisionMap = {}
+    transferDecisions.forEach(d => {
+      decisionMap[d.entryIndex] = d.isSamePlayer
+    })
+
+    // Process each entry
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+
+      // Skip entries without a name
+      if (!entry.player && !entry.name) continue
+
+      const playerName = entry.player || entry.name
+      const playerTeam = (entry.team || entry.school || '').toUpperCase()
+      const playerPosition = entry.position || ''
+
+      // Find matching player
+      const match = findMatchingPlayer(playerName, playerTeam, year, existingPlayers)
+
+      if (match.matchType === 'exact') {
+        // Auto-link to existing player
+        playersToUpdate.push({
+          pid: match.player.pid,
+          honorType,
+          entry: { ...entry, year },
+          addTeam: playerTeam
+        })
+      } else if (match.matchType === 'transfer') {
+        // Check if we have a decision for this entry
+        if (decisionMap[i] !== undefined) {
+          if (decisionMap[i]) {
+            // User confirmed same player - link to existing
+            playersToUpdate.push({
+              pid: match.player.pid,
+              honorType,
+              entry: { ...entry, year },
+              addTeam: playerTeam
+            })
+          } else {
+            // User said different player - create new
+            playersToCreate.push({
+              name: playerName,
+              position: playerPosition,
+              team: playerTeam,
+              honorType,
+              entry: { ...entry, year }
+            })
+          }
+        } else {
+          // Need confirmation from user
+          const lastHonor = getPlayerLastHonorDescription(match.player)
+          confirmations.push({
+            entryIndex: i,
+            entry: { ...entry, year, honorType: getHonorDescription(honorType, entry) },
+            player: match.player,
+            existingTeams: match.existingTeams,
+            existingYears: match.existingYears,
+            lastHonor
+          })
+        }
+      } else {
+        // No match - create new player
+        playersToCreate.push({
+          name: playerName,
+          position: playerPosition,
+          team: playerTeam,
+          honorType,
+          entry: { ...entry, year }
+        })
+      }
+    }
+
+    // If there are confirmations needed, return them
+    if (confirmations.length > 0) {
+      return {
+        success: false,
+        needsConfirmation: true,
+        confirmations,
+        message: `${confirmations.length} player(s) may be transfers and need confirmation`
+      }
+    }
+
+    // Apply updates to existing players
+    let updatedPlayers = existingPlayers.map(p => {
+      const update = playersToUpdate.find(u => u.pid === p.pid)
+      if (!update) return p
+
+      const updatedPlayer = { ...p }
+
+      // Initialize arrays if needed
+      if (!updatedPlayer.awards) updatedPlayer.awards = []
+      if (!updatedPlayer.allAmericans) updatedPlayer.allAmericans = []
+      if (!updatedPlayer.allConference) updatedPlayer.allConference = []
+      if (!updatedPlayer.teams) updatedPlayer.teams = []
+
+      // Add team if not already present
+      if (update.addTeam && !updatedPlayer.teams.includes(update.addTeam)) {
+        updatedPlayer.teams.push(update.addTeam)
+      }
+
+      // Add honor entry based on type
+      if (update.honorType === 'awards') {
+        // Check for duplicate
+        const isDupe = updatedPlayer.awards.some(a =>
+          a.year === update.entry.year && a.award === update.entry.award
+        )
+        if (!isDupe) {
+          updatedPlayer.awards.push({
+            year: update.entry.year,
+            award: update.entry.award || update.entry.awardKey,
+            team: update.entry.team,
+            position: update.entry.position,
+            class: update.entry.class
+          })
+        }
+      } else if (update.honorType === 'allAmericans') {
+        const isDupe = updatedPlayer.allAmericans.some(a =>
+          a.year === update.entry.year &&
+          a.designation === update.entry.designation &&
+          a.position === update.entry.position
+        )
+        if (!isDupe) {
+          updatedPlayer.allAmericans.push({
+            year: update.entry.year,
+            designation: update.entry.designation,
+            position: update.entry.position,
+            school: update.entry.school,
+            class: update.entry.class
+          })
+        }
+      } else if (update.honorType === 'allConference') {
+        const isDupe = updatedPlayer.allConference.some(a =>
+          a.year === update.entry.year &&
+          a.designation === update.entry.designation &&
+          a.position === update.entry.position
+        )
+        if (!isDupe) {
+          updatedPlayer.allConference.push({
+            year: update.entry.year,
+            designation: update.entry.designation,
+            position: update.entry.position,
+            school: update.entry.school,
+            class: update.entry.class
+          })
+        }
+      }
+
+      return updatedPlayer
+    })
+
+    // Create new players
+    for (const newPlayer of playersToCreate) {
+      const player = {
+        pid: nextPID,
+        id: `player-${nextPID}`,
+        name: newPlayer.name,
+        position: newPlayer.position,
+        team: newPlayer.team,
+        teams: [newPlayer.team],
+        isHonorOnly: true, // Not a user's roster player
+        awards: [],
+        allAmericans: [],
+        allConference: []
+      }
+
+      // Add the honor entry
+      if (newPlayer.honorType === 'awards') {
+        player.awards.push({
+          year: newPlayer.entry.year,
+          award: newPlayer.entry.award || newPlayer.entry.awardKey,
+          team: newPlayer.entry.team,
+          position: newPlayer.entry.position,
+          class: newPlayer.entry.class
+        })
+      } else if (newPlayer.honorType === 'allAmericans') {
+        player.allAmericans.push({
+          year: newPlayer.entry.year,
+          designation: newPlayer.entry.designation,
+          position: newPlayer.entry.position,
+          school: newPlayer.entry.school,
+          class: newPlayer.entry.class
+        })
+      } else if (newPlayer.honorType === 'allConference') {
+        player.allConference.push({
+          year: newPlayer.entry.year,
+          designation: newPlayer.entry.designation,
+          position: newPlayer.entry.position,
+          school: newPlayer.entry.school,
+          class: newPlayer.entry.class
+        })
+      }
+
+      updatedPlayers.push(player)
+      nextPID++
+    }
+
+    // Save updated players
+    await updateDynasty(dynastyId, {
+      players: updatedPlayers,
+      nextPID
+    })
+
+    return {
+      success: true,
+      needsConfirmation: false,
+      message: `Processed ${playersToUpdate.length} existing players and created ${playersToCreate.length} new players`
+    }
+  }
+
+  // Helper to get honor description for confirmation modal
+  const getHonorDescription = (honorType, entry) => {
+    if (honorType === 'awards') {
+      return entry.award || 'Award'
+    } else if (honorType === 'allAmericans') {
+      const designation = entry.designation === 'first' ? '1st Team' :
+                          entry.designation === 'second' ? '2nd Team' : 'Freshman'
+      return `${designation} All-American`
+    } else if (honorType === 'allConference') {
+      const designation = entry.designation === 'first' ? '1st Team' :
+                          entry.designation === 'second' ? '2nd Team' : 'Freshman'
+      return `${designation} All-Conference`
+    }
+    return 'Honor'
+  }
+
   const value = {
     dynasties,
     currentDynasty,
@@ -1487,7 +1752,8 @@ export function DynastyProvider({ children }) {
     createConferencesSheetForDynasty,
     saveConferences,
     exportDynasty,
-    importDynasty
+    importDynasty,
+    processHonorPlayers
   }
 
   return (

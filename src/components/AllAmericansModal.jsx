@@ -27,8 +27,12 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
-  const [useEmbedded, setUseEmbedded] = useState(false)
+  const [useEmbedded, setUseEmbedded] = useState(() => {
+    // Load preference from localStorage
+    return localStorage.getItem('sheetEmbedPreference') === 'true'
+  })
   const [highlightSave, setHighlightSave] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -135,6 +139,24 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
     }
   }
 
+  const handleRegenerateSheet = async () => {
+    if (!sheetId) return
+    const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
+    if (!confirmed) return
+    setRegenerating(true)
+    try {
+      await deleteGoogleSheet(sheetId)
+      await updateDynasty(currentDynasty.id, { allAmericansSheetId: null })
+      setSheetId(null)
+      setRetryCount(c => c + 1)
+    } catch (error) {
+      console.error('Failed to regenerate sheet:', error)
+      alert('Failed to regenerate sheet. Please try again.')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const handleClose = () => onClose()
 
   if (!isOpen) return null
@@ -174,12 +196,13 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
                 <div className="flex gap-3 flex-wrap items-center">
                   <button onClick={handleSyncAndDelete} disabled={syncing || deletingSheet} className={`px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`} style={{ backgroundColor: teamColors.primary, color: teamColors.secondary }}>{deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}</button>
                   <button onClick={handleSyncFromSheet} disabled={syncing || deletingSheet} className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2" style={{ backgroundColor: 'transparent', borderColor: teamColors.primary, color: teamColors.primary }}>{syncing ? 'Syncing...' : 'Save & Keep Sheet'}</button>
+                  <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2 ml-auto" style={{ backgroundColor: 'transparent', borderColor: '#EF4444', color: '#EF4444' }}>{regenerating ? 'Regenerating...' : 'Start Over'}</button>
                 </div>
               </div>
             )}
             {!isMobile && (
               <div className="flex items-center justify-end mb-2">
-                <button onClick={() => setUseEmbedded(!useEmbedded)} className="text-xs px-3 py-1 rounded-full border transition-colors" style={{ borderColor: teamColors.primary, color: teamColors.primary, backgroundColor: 'transparent' }}>{useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}</button>
+                <button onClick={() => { const newValue = !useEmbedded; setUseEmbedded(newValue); localStorage.setItem('sheetEmbedPreference', newValue.toString()); }} className="text-xs px-3 py-1 rounded-full border transition-colors" style={{ borderColor: teamColors.primary, color: teamColors.primary, backgroundColor: 'transparent' }}>{useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}</button>
               </div>
             )}
             {isMobile || !useEmbedded ? (
@@ -205,6 +228,7 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
                   <button onClick={handleSyncAndDelete} disabled={syncing || deletingSheet} className={`px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-all text-sm ${highlightSave ? 'animate-pulse ring-4 ring-offset-2 scale-105' : ''}`} style={{ backgroundColor: teamColors.primary, color: teamColors.secondary }}>{deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}</button>
                   <button onClick={handleSyncFromSheet} disabled={syncing || deletingSheet} className="px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2" style={{ backgroundColor: 'transparent', borderColor: teamColors.primary, color: teamColors.primary }}>{syncing ? 'Syncing...' : 'Save & Keep Sheet'}</button>
                 </div>
+                <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="text-xs px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-colors border mb-4" style={{ backgroundColor: 'transparent', borderColor: '#EF4444', color: '#EF4444' }}>{regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}</button>
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden min-h-0">

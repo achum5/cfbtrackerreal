@@ -37,7 +37,11 @@ export const bowlLogos = {
   "Sugar Bowl": "https://i.imgur.com/olBf0p9.png",
   "Sun Bowl": "https://i.imgur.com/VPQ1G7g.png",
   "Texas Bowl": "https://i.imgur.com/g30Jyaw.png",
-  "Xbox Bowl": "https://i.imgur.com/by2uPWl.png"
+  "Xbox Bowl": "https://i.imgur.com/by2uPWl.png",
+  // CFP Bowl Games
+  "Peach Bowl": "https://i.imgur.com/JdQVx3g.png",
+  "Fiesta Bowl": "https://i.imgur.com/Z3wYxRo.png",
+  "National Championship": "https://i.imgur.com/DjoLqsP.png"
 }
 
 // Get bowl logo by name

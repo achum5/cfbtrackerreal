@@ -89,22 +89,28 @@ export default function CoachCareer() {
 
   // Calculate career statistics
   const calculateCareerStats = () => {
-    const games = currentDynasty.games || []
-    const wins = games.filter(g => g.result === 'win').length
-    const losses = games.filter(g => g.result === 'loss').length
+    // Filter to only user's games (exclude CPU vs CPU games)
+    const games = (currentDynasty.games || []).filter(g => !g.isCPUGame)
+
+    // Helper to check for win (handles both 'win' and 'W' formats)
+    const isWin = (g) => g.result === 'win' || g.result === 'W'
+    const isLoss = (g) => g.result === 'loss' || g.result === 'L'
+
+    const wins = games.filter(isWin).length
+    const losses = games.filter(isLoss).length
 
     // Calculate overall record
     const overallRecord = `${wins}-${losses}`
 
     // Calculate favorite/underdog records
     const favoriteGames = games.filter(g => g.favoriteStatus === 'favorite')
-    const favoriteWins = favoriteGames.filter(g => g.result === 'win').length
-    const favoriteLosses = favoriteGames.filter(g => g.result === 'loss').length
+    const favoriteWins = favoriteGames.filter(isWin).length
+    const favoriteLosses = favoriteGames.filter(isLoss).length
     const favoriteRecord = `${favoriteWins}-${favoriteLosses}`
 
     const underdogGames = games.filter(g => g.favoriteStatus === 'underdog')
-    const underdogWins = underdogGames.filter(g => g.result === 'win').length
-    const underdogLosses = underdogGames.filter(g => g.result === 'loss').length
+    const underdogWins = underdogGames.filter(isWin).length
+    const underdogLosses = underdogGames.filter(isLoss).length
     const underdogRecord = `${underdogWins}-${underdogLosses}`
 
     // Placeholder stats (these would be tracked in dynasty data)
@@ -465,7 +471,7 @@ export default function CoachCareer() {
                           const mascotName = getMascotName(game.opponent)
                           const opponentName = mascotName || teamAbbreviations[game.opponent]?.name || game.opponent
                           const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
-                          const isWin = game.result === 'win'
+                          const isWin = game.result === 'win' || game.result === 'W'
 
                           return (
                             <Link

@@ -99,6 +99,31 @@ const CONFERENCE_ORDER = [
   'Sun Belt'
 ]
 
+// Map alternate conference names to canonical names (for data lookup)
+const CONFERENCE_ALIASES = {
+  'Mountain West': ['Mountain West', 'MWC'],
+  'ACC': ['ACC'],
+  'American': ['American', 'AAC'],
+  'Big 12': ['Big 12', 'Big XII'],
+  'Big Ten': ['Big Ten', 'B1G'],
+  'Conference USA': ['Conference USA', 'CUSA', 'C-USA'],
+  'MAC': ['MAC'],
+  'Pac-12': ['Pac-12', 'Pac 12'],
+  'SEC': ['SEC'],
+  'Sun Belt': ['Sun Belt']
+}
+
+// Get conference data checking all possible aliases
+const getConferenceData = (yearStandings, conferenceName) => {
+  const aliases = CONFERENCE_ALIASES[conferenceName] || [conferenceName]
+  for (const alias of aliases) {
+    if (yearStandings[alias] && yearStandings[alias].length > 0) {
+      return yearStandings[alias]
+    }
+  }
+  return []
+}
+
 export default function ConferenceStandings() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
@@ -155,11 +180,6 @@ export default function ConferenceStandings() {
             <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
               Conference Standings
             </h1>
-            <p className="mt-1" style={{ color: secondaryBgText, opacity: 0.8 }}>
-              {Object.keys(yearStandings).length > 0
-                ? `${getTotalTeams()} teams across ${Object.keys(yearStandings).length} conferences`
-                : 'No standings data available for this year'}
-            </p>
           </div>
 
           {/* Year Selector */}
@@ -243,7 +263,7 @@ export default function ConferenceStandings() {
         >
           <div className="divide-y" style={{ borderColor: `${teamColors.primary}30` }}>
             {filteredConferences.map(conferenceName => {
-              const teams = yearStandings[conferenceName] || []
+              const teams = getConferenceData(yearStandings, conferenceName)
               const isExpanded = expandedConference === conferenceName
               const hasData = teams.length > 0
 
@@ -350,20 +370,11 @@ export default function ConferenceStandings() {
                                     </td>
                                     <td className="py-2 px-2">
                                       <Link
-                                        to={`/dynasty/${id}/team/${teamAbbr}`}
+                                        to={`/dynasty/${id}/team/${teamAbbr}/${displayYear}`}
                                         className="flex items-center gap-2 hover:opacity-80"
                                       >
                                         {logo && (
-                                          <div
-                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                            style={{
-                                              backgroundColor: '#FFFFFF',
-                                              border: `2px solid ${colors.primary}`,
-                                              padding: '2px'
-                                            }}
-                                          >
-                                            <img src={logo} alt="" className="w-full h-full object-contain" />
-                                          </div>
+                                          <img src={logo} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
                                         )}
                                         <span
                                           className="font-semibold truncate"

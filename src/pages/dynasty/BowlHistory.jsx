@@ -106,14 +106,16 @@ export default function BowlHistory() {
   })
 
   // Get all bowl game results from the dynasty
-  // UNIFIED: Read from games[] first (unified storage), then fallback to bowlGamesByYear
+  // UNIFIED: Read from games[] first (unified storage), then fallback to bowlGamesByYear and cfpResultsByYear
   const getBowlResults = (bowlName) => {
     const results = []
     const games = currentDynasty.games || []
 
     // First, find bowl games from the unified games[] array
+    // Include both regular bowl games AND CFP games
     const bowlGamesFromArray = games.filter(g =>
-      g.isBowlGame && g.bowlName === bowlName &&
+      (g.isBowlGame || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship) &&
+      g.bowlName === bowlName &&
       g.team1Score !== null && g.team1Score !== undefined
     )
 
@@ -129,6 +131,7 @@ export default function BowlHistory() {
         week: game.bowlWeek || 'week1',
         gameNote: game.gameNote,
         links: game.links,
+        isCFP: game.isCFPQuarterfinal || game.isCFPSemifinal || game.isCFPChampionship,
         // Include the full game reference for editing
         gameRef: game
       })
@@ -138,7 +141,7 @@ export default function BowlHistory() {
     const bowlGamesByYear = currentDynasty.bowlGamesByYear || {}
     Object.entries(bowlGamesByYear).forEach(([year, yearData]) => {
       // Skip if we already have this bowl for this year from games[]
-      if (results.some(r => r.year === parseInt(year))) return
+      if (results.some(r => r.year === parseInt(year) && r.bowlName === bowlName)) return
 
       // Check week 1 bowls
       const week1Games = yearData?.week1 || []
@@ -163,19 +166,128 @@ export default function BowlHistory() {
       }
     })
 
+    // Check CFP results (quarterfinals, semifinals, championship)
+    const cfpResultsByYear = currentDynasty.cfpResultsByYear || {}
+    Object.entries(cfpResultsByYear).forEach(([year, yearData]) => {
+      // Skip if we already have this bowl for this year
+      if (results.some(r => r.year === parseInt(year) && r.bowlName === bowlName)) return
+
+      // CFP Quarterfinals (Rose, Sugar, Orange, Cotton bowls)
+      const quarterfinals = yearData?.quarterfinals || []
+      const qfMatch = quarterfinals.find(g => g.bowlName === bowlName)
+      if (qfMatch && qfMatch.team1 && qfMatch.team2 && qfMatch.team1Score != null) {
+        results.push({
+          year: parseInt(year),
+          bowlName: qfMatch.bowlName,
+          team1: qfMatch.team1,
+          team2: qfMatch.team2,
+          team1Score: qfMatch.team1Score,
+          team2Score: qfMatch.team2Score,
+          winner: qfMatch.winner,
+          isCFP: true
+        })
+      }
+
+      // CFP Semifinals (Peach Bowl, Fiesta Bowl)
+      const semifinals = yearData?.semifinals || []
+      const sfMatch = semifinals.find(g => g.bowlName === bowlName)
+      if (sfMatch && sfMatch.team1 && sfMatch.team2 && sfMatch.team1Score != null) {
+        results.push({
+          year: parseInt(year),
+          bowlName: sfMatch.bowlName,
+          team1: sfMatch.team1,
+          team2: sfMatch.team2,
+          team1Score: sfMatch.team1Score,
+          team2Score: sfMatch.team2Score,
+          winner: sfMatch.winner,
+          isCFP: true
+        })
+      }
+
+      // CFP Championship (National Championship)
+      const championship = yearData?.championship
+      if (championship && championship.team1 && championship.team2 && championship.team1Score != null) {
+        if (bowlName === 'National Championship') {
+          results.push({
+            year: parseInt(year),
+            bowlName: 'National Championship',
+            team1: championship.team1,
+            team2: championship.team2,
+            team1Score: championship.team1Score,
+            team2Score: championship.team2Score,
+            winner: championship.winner,
+            isCFP: true
+          })
+        }
+      }
+    })
+
     // Sort by year descending (most recent first)
     return results.sort((a, b) => b.year - a.year)
   }
 
-  // Count total bowl games played
+  // Count total bowl games played (including CFP bowls)
   const getTotalBowlGames = () => {
     let total = 0
+    const games = currentDynasty.games || []
+
+    // Count bowl games from games[] array
+    const bowlGamesInArray = games.filter(g =>
+      (g.isBowlGame || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship) &&
+      g.team1Score !== null && g.team1Score !== undefined
+    ).length
+    total += bowlGamesInArray
+
+    // Also count from bowlGamesByYear (for backward compatibility, avoid double-counting)
     const bowlGamesByYear = currentDynasty.bowlGamesByYear || {}
-    Object.values(bowlGamesByYear).forEach(yearData => {
-      const week1 = (yearData?.week1 || []).filter(g => g.team1 && g.team2).length
-      const week2 = (yearData?.week2 || []).filter(g => g.team1 && g.team2).length
+    Object.entries(bowlGamesByYear).forEach(([year, yearData]) => {
+      const week1 = (yearData?.week1 || []).filter(g => {
+        // Only count if not already in games[]
+        const inGamesArray = games.some(
+          ga => ga.bowlName === g.bowlName && ga.year === parseInt(year)
+        )
+        return g.team1 && g.team2 && g.team1Score != null && !inGamesArray
+      }).length
+      const week2 = (yearData?.week2 || []).filter(g => {
+        const inGamesArray = games.some(
+          ga => ga.bowlName === g.bowlName && ga.year === parseInt(year)
+        )
+        return g.team1 && g.team2 && g.team1Score != null && !inGamesArray
+      }).length
       total += week1 + week2
     })
+
+    // Also count CFP games from cfpResultsByYear (avoid double-counting)
+    const cfpResultsByYear = currentDynasty.cfpResultsByYear || {}
+    Object.entries(cfpResultsByYear).forEach(([year, yearData]) => {
+      // Count quarterfinals
+      const qf = (yearData?.quarterfinals || []).filter(g => {
+        const inGamesArray = games.some(
+          ga => ga.bowlName === g.bowlName && ga.year === parseInt(year)
+        )
+        return g.team1 && g.team2 && g.team1Score != null && !inGamesArray
+      }).length
+      total += qf
+
+      // Count semifinals
+      const sf = (yearData?.semifinals || []).filter(g => {
+        const inGamesArray = games.some(
+          ga => ga.bowlName === g.bowlName && ga.year === parseInt(year)
+        )
+        return g.team1 && g.team2 && g.team1Score != null && !inGamesArray
+      }).length
+      total += sf
+
+      // Count championship
+      const champ = yearData?.championship
+      if (champ && champ.team1 && champ.team2 && champ.team1Score != null) {
+        const inGamesArray = games.some(
+          ga => ga.bowlName === 'National Championship' && ga.year === parseInt(year)
+        )
+        if (!inGamesArray) total += 1
+      }
+    })
+
     return total
   }
 
@@ -199,9 +311,6 @@ export default function BowlHistory() {
         <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
           Bowl History
         </h1>
-        <p className="mt-1" style={{ color: secondaryBgText, opacity: 0.8 }}>
-          {getTotalBowlGames()} bowl games played across {Object.keys(currentDynasty.bowlGamesByYear || {}).length} seasons
-        </p>
       </div>
 
       {/* Search */}
@@ -335,7 +444,8 @@ export default function BowlHistory() {
                       // Generate game ID for navigation
                       const gameBowlName = game.bowlName || bowlName
                       const bowlSlug = gameBowlName.toLowerCase().replace(/\s+/g, '-')
-                      const gameId = game.gameRef?.id || `bowl-${game.year}-${bowlSlug}`
+                      // Use cfp- prefix for CFP games, bowl- prefix for regular bowl games
+                      const gameId = game.gameRef?.id || (game.isCFP ? `cfp-${game.year}-${bowlSlug}` : `bowl-${game.year}-${bowlSlug}`)
 
                       return (
                         <Link

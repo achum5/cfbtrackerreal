@@ -5,7 +5,7 @@ import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/te
 import { getTeamColors } from '../../data/teamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
+// useTeamColors not needed - using neutral colors for game recap
 import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -88,11 +88,18 @@ function getMascotName(abbr) {
   return mascotMap[abbr] || null
 }
 
+// Default neutral colors for game recap pages
+const defaultColors = {
+  primary: '#1f2937',    // Gray-800
+  secondary: '#f3f4f6'   // Gray-100
+}
+
 export default function Game() {
   const { id, gameId } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
+  // Use neutral colors for game recap pages instead of user's team colors
+  const teamColors = defaultColors
 
   const [showEditModal, setShowEditModal] = useState(false)
 

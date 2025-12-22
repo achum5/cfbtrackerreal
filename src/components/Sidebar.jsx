@@ -20,7 +20,6 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const navItems = [
     { name: 'Dashboard', path: `/dynasty/${dynastyId}` },
     { name: 'Coach Career', path: `/dynasty/${dynastyId}/coach-career` },
-    { name: 'Team Achievements', path: `/dynasty/${dynastyId}/team-achievements` },
     { name: 'Dynasty Records', path: `/dynasty/${dynastyId}/dynasty-records` },
     { name: 'Players', path: `/dynasty/${dynastyId}/players` },
     { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting` },
@@ -33,8 +32,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Bowl History', path: `/dynasty/${dynastyId}/bowl-history` },
     { name: 'CC History', path: `/dynasty/${dynastyId}/conference-championship-history` },
     { name: 'Conf. Standings', path: `/dynasty/${dynastyId}/conference-standings` },
-    { name: 'Rankings', path: `/dynasty/${dynastyId}/rankings` },
-    { name: 'Stats', path: `/dynasty/${dynastyId}/stats` },
+    { name: 'Final Top 25', path: `/dynasty/${dynastyId}/rankings` },
     { name: 'All Teams', path: `/dynasty/${dynastyId}/teams` }
   ]
 

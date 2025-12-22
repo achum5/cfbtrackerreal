@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -191,6 +192,11 @@ export default function Team() {
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
 
+  // Scroll to top when navigating to this page
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [teamAbbr])
+
   if (!currentDynasty) return null
 
   // Get all teams sorted alphabetically by mascot name
@@ -257,6 +263,10 @@ export default function Team() {
     .flat()
     .filter(cc => cc.winner === teamAbbr)
     .length
+
+  // Get all dynasty years (defined early for use in getFinalRanking)
+  const startYear = currentDynasty.startYear
+  const currentYear = currentDynasty.currentYear
 
   // Get final media poll ranking for this team (most recent completed year)
   const getFinalRanking = () => {
@@ -345,46 +355,111 @@ export default function Team() {
     }
   }
 
-  // Get all dynasty years
-  const startYear = currentDynasty.startYear
-  const currentYear = currentDynasty.currentYear
+  // Build years array
   const years = []
   for (let year = startYear; year <= currentYear; year++) {
     years.push(year)
   }
 
-  // Calculate record for each year
+  // Get team record from conference standings for a specific year
+  const getTeamRecordFromStandings = (year) => {
+    const standingsByYear = currentDynasty.conferenceStandingsByYear || {}
+    const yearStandings = standingsByYear[year] || {}
+
+    for (const confTeams of Object.values(yearStandings)) {
+      if (Array.isArray(confTeams)) {
+        const teamData = confTeams.find(t => t.team === teamAbbr)
+        if (teamData) {
+          return {
+            wins: teamData.wins || 0,
+            losses: teamData.losses || 0
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  // Check if team won conference championship in a year
+  const getConferenceChampionshipForYear = (year) => {
+    const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[year] || []
+    const teamCC = yearChampionships.find(cc =>
+      (cc.team1 === teamAbbr || cc.team2 === teamAbbr) &&
+      cc.winner === teamAbbr
+    )
+    return teamCC ? teamCC.conference : null
+  }
+
+  // Check if team was in CFP this year
+  const getCFPResultForYear = (year) => {
+    const cfpSeeds = currentDynasty.cfpSeedsByYear?.[year] || []
+    const teamSeed = cfpSeeds.find(s => s.team === teamAbbr)
+    if (!teamSeed) return null
+
+    // Check for national championship
+    const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+    const championship = cfpResults.championship?.[0]
+    if (championship && championship.winner === teamAbbr) {
+      return { type: 'champion', seed: teamSeed.seed }
+    }
+    return { type: 'appearance', seed: teamSeed.seed }
+  }
+
+  // Get final ranking for a specific year
+  const getFinalRankingForYear = (year) => {
+    const pollsData = currentDynasty.finalPollsByYear?.[year]
+    if (!pollsData?.media) return null
+    const teamRank = pollsData.media.find(p => p.team === teamAbbr)
+    return teamRank?.rank || null
+  }
+
+  // Calculate record for each year from conference standings
   const yearRecords = years.map(year => {
-    const yearGames = gamesAgainst.filter(g => g.year === year)
-    const wins = yearGames.filter(g => g.result === 'W').length
-    const losses = yearGames.filter(g => g.result === 'L').length
+    const standingsRecord = getTeamRecordFromStandings(year)
+    const bowlResult = getBowlResultForYear(year)
+    const ccWin = getConferenceChampionshipForYear(year)
+    const cfpResult = getCFPResultForYear(year)
+    const finalRank = getFinalRankingForYear(year)
+
     return {
       year,
-      wins,
-      losses,
-      games: yearGames.length,
-      hasGames: yearGames.length > 0
+      wins: standingsRecord?.wins || 0,
+      losses: standingsRecord?.losses || 0,
+      hasRecord: !!standingsRecord,
+      bowlResult,
+      ccWin,
+      cfpResult,
+      finalRank
     }
   })
 
-  // Find best and worst years (only years with games)
-  const yearsWithGames = yearRecords.filter(yr => yr.hasGames)
+  // Find best and worst years (only years with records)
+  const yearsWithRecords = yearRecords.filter(yr => yr.hasRecord)
   let bestYear = null
   let worstYear = null
 
-  if (yearsWithGames.length > 0) {
-    bestYear = yearsWithGames.reduce((best, curr) => {
+  if (yearsWithRecords.length > 0) {
+    bestYear = yearsWithRecords.reduce((best, curr) => {
       if (curr.wins > best.wins) return curr
       if (curr.wins === best.wins && curr.losses < best.losses) return curr
       return best
     })
 
-    worstYear = yearsWithGames.reduce((worst, curr) => {
+    worstYear = yearsWithRecords.reduce((worst, curr) => {
       if (curr.losses > worst.losses) return curr
       if (curr.losses === worst.losses && curr.wins < worst.wins) return curr
       return worst
     })
   }
+
+  // Calculate vs user record (for Your History section)
+  const vsUserYearRecords = years.map(year => {
+    const yearGames = gamesAgainst.filter(g => g.year === year)
+    const wins = yearGames.filter(g => g.result === 'W').length
+    const losses = yearGames.filter(g => g.result === 'L').length
+    return { year, wins, losses, hasGames: yearGames.length > 0 }
+  })
+  const vsUserYearsWithGames = vsUserYearRecords.filter(yr => yr.hasGames)
 
   // Stat cell component
   const StatCell = ({ label, value, subValue }) => (
@@ -492,6 +567,123 @@ export default function Team() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Season-by-Season History - Moved to top */}
+      <div
+        className="rounded-lg shadow-lg overflow-hidden"
+        style={{
+          backgroundColor: teamInfo.backgroundColor,
+          border: `3px solid ${teamInfo.textColor}`
+        }}
+      >
+        <div
+          className="px-4 py-3"
+          style={{ backgroundColor: teamInfo.textColor }}
+        >
+          <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
+            Season-by-Season History
+          </h2>
+        </div>
+
+        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {yearRecords.map((yr) => {
+            const hasAchievement = yr.bowlResult?.won || yr.ccWin || yr.cfpResult?.type === 'champion'
+            const isNationalChamp = yr.cfpResult?.type === 'champion'
+
+            return (
+              <Link
+                key={yr.year}
+                to={`/dynasty/${id}/team/${teamAbbr}/${yr.year}`}
+                className="p-4 rounded-lg text-center transition-transform hover:scale-[1.02]"
+                style={{
+                  backgroundColor: isNationalChamp
+                    ? '#fbbf2420'
+                    : hasAchievement
+                      ? '#16a34a15'
+                      : yr.hasRecord
+                        ? `${teamBgText}15`
+                        : `${teamBgText}05`,
+                  border: isNationalChamp
+                    ? '2px solid #fbbf24'
+                    : hasAchievement
+                      ? '2px solid #16a34a'
+                      : `2px solid ${yr.hasRecord ? `${teamBgText}40` : `${teamBgText}20`}`
+                }}
+              >
+                {/* Year with optional ranking */}
+                <div className="text-lg font-bold" style={{ color: teamBgText }}>
+                  {yr.finalRank && (
+                    <span className="text-yellow-500 mr-1">#{yr.finalRank}</span>
+                  )}
+                  {yr.year}
+                </div>
+
+                {/* Record */}
+                <div
+                  className="text-2xl font-bold mt-1"
+                  style={{
+                    color: yr.hasRecord
+                      ? yr.wins > yr.losses ? '#16a34a' : yr.losses > yr.wins ? '#dc2626' : teamBgText
+                      : `${teamBgText}50`
+                  }}
+                >
+                  {yr.hasRecord ? `${yr.wins}-${yr.losses}` : '--'}
+                </div>
+
+                {/* Achievements */}
+                <div className="mt-2 space-y-1">
+                  {/* National Champion */}
+                  {isNationalChamp && (
+                    <div
+                      className="text-xs font-bold px-2 py-1 rounded"
+                      style={{ backgroundColor: '#fbbf24', color: '#78350f' }}
+                    >
+                      National Champion
+                    </div>
+                  )}
+
+                  {/* Conference Champion */}
+                  {yr.ccWin && !isNationalChamp && (
+                    <div
+                      className="text-xs font-semibold px-2 py-1 rounded"
+                      style={{ backgroundColor: teamInfo.textColor, color: teamPrimaryText }}
+                    >
+                      {yr.ccWin} Champs
+                    </div>
+                  )}
+
+                  {/* CFP Appearance (not champion) */}
+                  {yr.cfpResult && yr.cfpResult.type === 'appearance' && (
+                    <div
+                      className="text-xs font-semibold px-2 py-1 rounded"
+                      style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+                    >
+                      CFP #{yr.cfpResult.seed}
+                    </div>
+                  )}
+
+                  {/* Bowl Win */}
+                  {yr.bowlResult?.won && !isNationalChamp && (
+                    <div
+                      className="text-xs font-semibold px-2 py-1 rounded"
+                      style={{ backgroundColor: '#16a34a', color: '#FFFFFF' }}
+                    >
+                      {yr.bowlResult.bowlName}
+                    </div>
+                  )}
+                </div>
+
+                {/* No data message */}
+                {!yr.hasRecord && !yr.bowlResult && !yr.ccWin && !yr.cfpResult && (
+                  <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                    No data
+                  </div>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
 
@@ -696,73 +888,6 @@ export default function Team() {
         </div>
       )}
 
-      {/* Year-by-Year Breakdown */}
-      <div
-        className="rounded-lg shadow-lg overflow-hidden"
-        style={{
-          backgroundColor: teamInfo.backgroundColor,
-          border: `3px solid ${teamInfo.textColor}`
-        }}
-      >
-        <div
-          className="px-4 py-3"
-          style={{ backgroundColor: teamInfo.textColor }}
-        >
-          <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
-            Season-by-Season vs {teamAbbr}
-          </h2>
-        </div>
-
-        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {yearRecords.map(({ year, wins, losses, hasGames }) => {
-            const bowlResult = getBowlResultForYear(year)
-
-            return (
-              <Link
-                key={year}
-                to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
-                className={`p-4 rounded-lg text-center transition-transform hover:scale-[1.02]`}
-                style={{
-                  backgroundColor: bowlResult?.won ? '#16a34a15' : hasGames ? `${teamBgText}15` : `${teamBgText}05`,
-                  border: bowlResult?.won
-                    ? '2px solid #16a34a'
-                    : `2px solid ${hasGames ? `${teamBgText}40` : `${teamBgText}20`}`
-                }}
-              >
-                <div className="text-lg font-bold" style={{ color: teamBgText }}>
-                  {year}
-                </div>
-                <div
-                  className="text-2xl font-bold mt-1"
-                  style={{
-                    color: hasGames
-                      ? wins > losses ? '#16a34a' : losses > wins ? '#dc2626' : teamBgText
-                      : `${teamBgText}50`
-                  }}
-                >
-                  {hasGames ? `${wins}-${losses}` : '--'}
-                </div>
-                {bowlResult && (
-                  <div
-                    className="text-xs mt-2 font-semibold px-2 py-1 rounded"
-                    style={{
-                      backgroundColor: bowlResult.won ? '#16a34a' : '#dc2626',
-                      color: '#FFFFFF'
-                    }}
-                  >
-                    {bowlResult.bowlName}{bowlResult.won ? ' Champion' : ''}
-                  </div>
-                )}
-                {!hasGames && !bowlResult && (
-                  <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                    No games
-                  </div>
-                )}
-              </Link>
-            )
-          })}
-        </div>
-      </div>
     </div>
   )
 }

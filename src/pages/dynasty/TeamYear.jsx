@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
+// Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -169,7 +169,7 @@ export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty, addGame, saveRoster } = useDynasty()
-  const userTeamColors = useTeamColors(currentDynasty?.teamName)
+  // Note: We use the viewed team's colors, not the user's team colors
   const selectedYear = parseInt(year)
 
   // Game state for editing
@@ -184,6 +184,7 @@ export default function TeamYear() {
   const [rosterSort, setRosterSort] = useState('position') // 'position', 'overall', 'jerseyNumber', 'name'
   const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
   const [showRosterModal, setShowRosterModal] = useState(false)
+  const [showRecordTooltip, setShowRecordTooltip] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -210,19 +211,19 @@ export default function TeamYear() {
         <div
           className="rounded-lg shadow-lg p-6"
           style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${userTeamColors.primary}`
+            backgroundColor: '#f3f4f6',
+            border: '3px solid #6b7280'
           }}
         >
-          <h1 className="text-2xl font-bold" style={{ color: userTeamColors.primary }}>
+          <h1 className="text-2xl font-bold" style={{ color: '#1f2937' }}>
             Team Not Found
           </h1>
           <Link
             to={`/dynasty/${id}/teams`}
             className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold"
             style={{
-              backgroundColor: userTeamColors.primary,
-              color: getContrastTextColor(userTeamColors.primary)
+              backgroundColor: '#1f2937',
+              color: '#ffffff'
             }}
           >
             Back to Teams
@@ -232,13 +233,19 @@ export default function TeamYear() {
     )
   }
 
+  // Use viewed team's colors for the page
+  const viewedTeamColors = {
+    primary: teamInfo.textColor || '#1f2937',
+    secondary: teamInfo.backgroundColor || '#f3f4f6'
+  }
+
   const conference = getTeamConference(teamAbbr)
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
   const mascotName = getMascotName(teamAbbr)
   const teamLogo = mascotName ? getTeamLogo(mascotName) : null
   const teamBgText = getContrastTextColor(teamInfo.backgroundColor)
   const teamPrimaryText = getContrastTextColor(teamInfo.textColor)
-  const secondaryBgText = getContrastTextColor(userTeamColors.secondary)
+  const secondaryBgText = getContrastTextColor(viewedTeamColors.secondary)
 
   // Check if this is the user's team
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
@@ -256,6 +263,53 @@ export default function TeamYear() {
   // Check for both 'win'/'loss' and 'W'/'L' formats
   const userWins = userYearGames.filter(g => g.result === 'win' || g.result === 'W').length
   const userLosses = userYearGames.filter(g => g.result === 'loss' || g.result === 'L').length
+
+  // Get team record from conference standings (for non-user teams)
+  const getTeamRecordFromStandings = () => {
+    const standingsByYear = currentDynasty.conferenceStandingsByYear || {}
+    const yearStandings = standingsByYear[selectedYear] || {}
+
+    // Search all conferences for this team
+    for (const confTeams of Object.values(yearStandings)) {
+      if (Array.isArray(confTeams)) {
+        const teamData = confTeams.find(t => t.team === teamAbbr)
+        if (teamData) {
+          return {
+            wins: teamData.wins || 0,
+            losses: teamData.losses || 0,
+            pointsFor: teamData.pointsFor || 0,
+            pointsAgainst: teamData.pointsAgainst || 0
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  const standingsRecord = getTeamRecordFromStandings()
+
+  // Determine which record to display
+  const displayRecord = isUserTeam && userYearGames.length > 0
+    ? { wins: userWins, losses: userLosses, pointsFor: null, pointsAgainst: null }
+    : standingsRecord
+
+  // Get final poll rankings for this team in this year
+  const getFinalPollRankings = () => {
+    const pollsData = currentDynasty.finalPollsByYear?.[selectedYear]
+    if (!pollsData) return null
+
+    const mediaRank = pollsData.media?.find(p => p.team === teamAbbr)?.rank
+    const coachesRank = pollsData.coaches?.find(p => p.team === teamAbbr)?.rank
+
+    if (!mediaRank && !coachesRank) return null
+
+    return {
+      media: mediaRank || null,
+      coaches: coachesRank || null
+    }
+  }
+
+  const finalPollRanking = getFinalPollRankings()
 
   // Get all games array for unified lookups
   const allGamesArray = currentDynasty.games || []
@@ -811,22 +865,45 @@ export default function TeamYear() {
     <div className="space-y-6">
       {/* Navigation Row */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
-        {/* Back Link */}
-        <Link
-          to={`/dynasty/${id}/team/${teamAbbr}`}
-          className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
-          style={{
-            backgroundColor: teamInfo.backgroundColor,
-            color: teamInfo.textColor
-          }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          <span className="hidden sm:inline">{mascotName || teamAbbr} History</span>
-          <span className="sm:hidden">Back</span>
-        </Link>
+        {/* Left side: History and Stats buttons */}
+        <div className="flex items-center gap-2">
+          {/* History Link */}
+          <Link
+            to={`/dynasty/${id}/team/${teamAbbr}`}
+            className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
+            style={{
+              backgroundColor: teamInfo.backgroundColor,
+              color: teamBgText,
+              border: `2px solid ${teamBgText}40`
+            }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            History
+          </Link>
 
+          {/* Stats Link - only show if this is user's team and stats exist for this year */}
+          {isUserTeam && currentDynasty.teamStatsByYear?.[selectedYear] &&
+            Object.keys(currentDynasty.teamStatsByYear[selectedYear]).length > 0 && (
+            <Link
+              to={`/dynasty/${id}/stats`}
+              className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
+              style={{
+                backgroundColor: teamInfo.backgroundColor,
+                color: teamBgText,
+                border: `2px solid ${teamBgText}40`
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Stats
+            </Link>
+          )}
+        </div>
+
+        {/* Right side: Team and Year dropdowns */}
         <div className="flex items-center gap-2 sm:ml-auto">
           {/* Team Dropdown */}
           <select
@@ -894,17 +971,59 @@ export default function TeamYear() {
               </div>
             )}
             {/* Season Record (mobile) */}
-            {isUserTeam && userYearGames.length > 0 && (
-              <div className="text-right">
+            {displayRecord && (
+              <div
+                className="text-right relative"
+                onMouseEnter={() => setShowRecordTooltip(true)}
+                onMouseLeave={() => setShowRecordTooltip(false)}
+                onClick={() => setShowRecordTooltip(!showRecordTooltip)}
+              >
                 <div
-                  className="text-2xl font-bold"
+                  className="text-2xl font-bold cursor-pointer"
                   style={{ color: teamBgText }}
                 >
-                  {userWins}-{userLosses}
+                  {displayRecord.wins}-{displayRecord.losses}
                 </div>
                 <div className="text-xs font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
                   Record
                 </div>
+                {/* Points Tooltip */}
+                {showRecordTooltip && displayRecord.pointsFor !== null && (
+                  <div
+                    className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-36 text-left"
+                    style={{
+                      backgroundColor: teamInfo.textColor,
+                      border: `2px solid ${teamBgText}40`
+                    }}
+                  >
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between gap-4">
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
+                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
+                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
+                      </div>
+                      <div className="flex justify-between gap-4 pt-1 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
+                        <span
+                          className="font-bold"
+                          style={{
+                            color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
+                              ? '#16a34a'
+                              : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
+                                ? '#dc2626'
+                                : teamPrimaryText
+                          }}
+                        >
+                          {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
+                          {displayRecord.pointsFor - displayRecord.pointsAgainst}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -931,6 +1050,19 @@ export default function TeamYear() {
               {selectedYear} Season
             </p>
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Final Poll Ranking Badge */}
+              {finalPollRanking && (
+                <div
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-sm font-bold"
+                  style={{
+                    backgroundColor: '#fbbf24',
+                    color: '#78350f'
+                  }}
+                  title={`Final Ranking: ${finalPollRanking.media ? `AP #${finalPollRanking.media}` : ''}${finalPollRanking.media && finalPollRanking.coaches ? ' / ' : ''}${finalPollRanking.coaches ? `Coaches #${finalPollRanking.coaches}` : ''}`}
+                >
+                  #{finalPollRanking.media || finalPollRanking.coaches}
+                </div>
+              )}
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ color: teamBgText }}>
                 {mascotName || teamInfo.name}
               </h1>
@@ -1087,13 +1219,13 @@ export default function TeamYear() {
                 {wonBowl ? 'Won' : 'Lost'} {teamBowlGame.bowlName}
               </div>
             )}
-            {/* Conference Championship Badge */}
-            {teamCCGame && (
+            {/* Conference Championship Badge - only show for winners */}
+            {teamCCGame && wonCC && (
               <div
                 className="inline-flex items-center gap-1 sm:gap-2 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
                 style={{
-                  backgroundColor: wonCC ? '#fbbf24' : '#9ca3af',
-                  color: wonCC ? '#78350f' : '#1f2937'
+                  backgroundColor: '#fbbf24',
+                  color: '#78350f'
                 }}
               >
                 {getConferenceLogo(teamCCGame.conference) && (
@@ -1103,7 +1235,7 @@ export default function TeamYear() {
                     className="w-4 h-4 object-contain"
                   />
                 )}
-                {wonCC ? '🏆' : '🥈'} <span className="hidden sm:inline">{teamCCGame.conference}</span> {wonCC ? 'Champions' : 'Runner-Up'}
+                {teamCCGame.conference} Champions
               </div>
             )}
             {/* Bowl Game Badge - only show clickable version if in CFP (otherwise shown above) */}
@@ -1132,17 +1264,58 @@ export default function TeamYear() {
           </div>
 
           {/* Season Record (desktop only - mobile shown above) */}
-          {isUserTeam && userYearGames.length > 0 && (
-            <div className="hidden sm:block text-right">
+          {displayRecord && (
+            <div
+              className="hidden sm:block text-right relative"
+              onMouseEnter={() => setShowRecordTooltip(true)}
+              onMouseLeave={() => setShowRecordTooltip(false)}
+            >
               <div
-                className="text-3xl md:text-4xl font-bold"
+                className="text-3xl md:text-4xl font-bold cursor-pointer"
                 style={{ color: teamBgText }}
               >
-                {userWins}-{userLosses}
+                {displayRecord.wins}-{displayRecord.losses}
               </div>
               <div className="text-sm font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
                 Record
               </div>
+              {/* Points Tooltip */}
+              {showRecordTooltip && displayRecord.pointsFor !== null && (
+                <div
+                  className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-44 text-left"
+                  style={{
+                    backgroundColor: teamInfo.textColor,
+                    border: `2px solid ${teamBgText}40`
+                  }}
+                >
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between gap-6">
+                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
+                      <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
+                    </div>
+                    <div className="flex justify-between gap-6">
+                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
+                      <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
+                    </div>
+                    <div className="flex justify-between gap-6 pt-1.5 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
+                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
+                      <span
+                        className="font-bold"
+                        style={{
+                          color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
+                            ? '#16a34a'
+                            : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
+                              ? '#dc2626'
+                              : teamPrimaryText
+                        }}
+                      >
+                        {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
+                        {displayRecord.pointsFor - displayRecord.pointsAgainst}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1707,20 +1880,20 @@ export default function TeamYear() {
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${userTeamColors.primary}`
+            backgroundColor: viewedTeamColors.secondary,
+            border: `3px solid ${viewedTeamColors.primary}`
           }}
         >
           <div
             className="px-3 sm:px-4 py-2 sm:py-3"
-            style={{ backgroundColor: userTeamColors.primary }}
+            style={{ backgroundColor: viewedTeamColors.primary }}
           >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(userTeamColors.primary) }}>
+            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
               College Football Playoff
             </h2>
           </div>
 
-          <div className="divide-y" style={{ borderColor: `${userTeamColors.primary}30` }}>
+          <div className="divide-y" style={{ borderColor: `${viewedTeamColors.primary}30` }}>
             {teamCFPGames.map((game, index) => {
               const teamWon = (game.team1 === teamAbbr && game.team1Score > game.team2Score) ||
                              (game.team2 === teamAbbr && game.team2Score > game.team1Score)
@@ -1749,7 +1922,7 @@ export default function TeamYear() {
                     </span>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 sm:py-1 rounded"
-                      style={{ backgroundColor: `${userTeamColors.primary}20`, color: userTeamColors.primary }}
+                      style={{ backgroundColor: `${viewedTeamColors.primary}20`, color: viewedTeamColors.primary }}
                     >
                       <span className="hidden sm:inline">{roundNames[game.round] || `Round ${game.round}`}</span>
                       <span className="sm:hidden">{roundNamesShort[game.round] || `R${game.round}`}</span>
@@ -1770,7 +1943,7 @@ export default function TeamYear() {
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
-            backgroundColor: userTeamColors.secondary,
+            backgroundColor: viewedTeamColors.secondary,
             border: `3px solid ${wonBowl ? '#16a34a' : '#dc2626'}`
           }}
         >
@@ -2009,21 +2182,21 @@ export default function TeamYear() {
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
-            backgroundColor: userTeamColors.secondary,
-            border: `3px solid ${userTeamColors.primary}`
+            backgroundColor: viewedTeamColors.secondary,
+            border: `3px solid ${viewedTeamColors.primary}`
           }}
         >
           <div
             className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between"
-            style={{ backgroundColor: userTeamColors.primary }}
+            style={{ backgroundColor: viewedTeamColors.primary }}
           >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(userTeamColors.primary) }}>
+            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
               Players from {mascotName || teamAbbr}
             </h2>
             <span
               className="text-xs sm:text-sm font-semibold px-2 py-0.5 sm:py-1 rounded"
               style={{
-                backgroundColor: userTeamColors.secondary,
+                backgroundColor: viewedTeamColors.secondary,
                 color: secondaryBgText
               }}
             >
@@ -2038,12 +2211,12 @@ export default function TeamYear() {
                   key={player.pid}
                   to={`/dynasty/${id}/player/${player.pid}`}
                   className="flex items-center gap-2 sm:gap-3 p-2 rounded hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: `${userTeamColors.primary}10` }}
+                  style={{ backgroundColor: `${viewedTeamColors.primary}10` }}
                 >
                   {player.jerseyNumber && (
                     <span
                       className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded text-xs sm:text-sm font-bold flex-shrink-0"
-                      style={{ backgroundColor: userTeamColors.primary, color: getContrastTextColor(userTeamColors.primary) }}
+                      style={{ backgroundColor: viewedTeamColors.primary, color: getContrastTextColor(viewedTeamColors.primary) }}
                     >
                       {player.jerseyNumber}
                     </span>
@@ -2075,7 +2248,7 @@ export default function TeamYear() {
           onSave={handleGameSave}
           weekNumber={selectedGame?.week || 'Bowl'}
           currentYear={selectedYear}
-          teamColors={userTeamColors}
+          teamColors={viewedTeamColors}
           opponent={editingGameData.isUserGame ? editingGameData.opponent : undefined}
           bowlName={editingGameData.bowlName}
           existingGame={editingGameData.isUserGame ? editingGameData.existingGame : null}
@@ -2094,7 +2267,7 @@ export default function TeamYear() {
         onClose={() => setShowRosterModal(false)}
         onSave={handleRosterSave}
         currentYear={currentDynasty.currentYear}
-        teamColors={userTeamColors}
+        teamColors={viewedTeamColors}
       />
     </div>
   )

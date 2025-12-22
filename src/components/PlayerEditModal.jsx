@@ -4,6 +4,7 @@ import { teams } from '../data/teams'
 
 export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool }) {
   const [formData, setFormData] = useState({})
+  const [expandedSections, setExpandedSections] = useState(['basic'])
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -29,16 +30,13 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         year: player.year || '',
         devTrait: player.devTrait || 'Normal',
         overall: player.overall || 0,
+        jerseyNumber: player.jerseyNumber || '',
 
         // Physical
         height: player.height || '',
         weight: player.weight || '',
-
-        // Hometown
         hometown: player.hometown || '',
         state: player.state || '',
-
-        // Transfer
         previousTeam: player.previousTeam || '',
 
         // Recruiting
@@ -72,136 +70,77 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         allAm2nd: player.allAm2nd || 0,
         allAmFr: player.allAmFr || 0,
 
-        // Passing Stats - all fields including calculated
+        // Stats (flattened)
         passing_completions: player.passing?.completions || 0,
         passing_attempts: player.passing?.attempts || 0,
-        passing_completionPct: player.passing?.completionPct || 0,
         passing_yards: player.passing?.yards || 0,
         passing_touchdowns: player.passing?.touchdowns || 0,
-        passing_tdPct: player.passing?.tdPct || 0,
         passing_interceptions: player.passing?.interceptions || 0,
-        passing_intPct: player.passing?.intPct || 0,
-        passing_tdIntRatio: player.passing?.tdIntRatio || 0,
-        passing_yardsPerAttempt: player.passing?.yardsPerAttempt || 0,
-        passing_netYardsPerAttempt: player.passing?.netYardsPerAttempt || 0,
-        passing_adjNetYardsPerAttempt: player.passing?.adjNetYardsPerAttempt || 0,
-        passing_yardsPerGame: player.passing?.yardsPerGame || 0,
-        passing_passerRating: player.passing?.passerRating || 0,
         passing_passingLong: player.passing?.passingLong || 0,
         passing_sacksTaken: player.passing?.sacksTaken || 0,
-        passing_sackPct: player.passing?.sackPct || 0,
 
-        // Rushing Stats - all fields including calculated
         rushing_carries: player.rushing?.carries || 0,
         rushing_yards: player.rushing?.yards || 0,
-        rushing_yardsPerCarry: player.rushing?.yardsPerCarry || 0,
         rushing_touchdowns: player.rushing?.touchdowns || 0,
-        rushing_yardsPerGame: player.rushing?.yardsPerGame || 0,
-        rushing_runs20Plus: player.rushing?.runs20Plus || 0,
-        rushing_brokenTackles: player.rushing?.brokenTackles || 0,
-        rushing_yardsAfterContact: player.rushing?.yardsAfterContact || 0,
         rushing_rushingLong: player.rushing?.rushingLong || 0,
         rushing_fumbles: player.rushing?.fumbles || 0,
-        rushing_fumblePct: player.rushing?.fumblePct || 0,
+        rushing_brokenTackles: player.rushing?.brokenTackles || 0,
 
-        // Receiving Stats - all fields including calculated
         receiving_receptions: player.receiving?.receptions || 0,
         receiving_yards: player.receiving?.yards || 0,
-        receiving_yardsPerCatch: player.receiving?.yardsPerCatch || 0,
         receiving_touchdowns: player.receiving?.touchdowns || 0,
-        receiving_yardsPerGame: player.receiving?.yardsPerGame || 0,
         receiving_receivingLong: player.receiving?.receivingLong || 0,
-        receiving_runAfterCatch: player.receiving?.runAfterCatch || 0,
-        receiving_racAverage: player.receiving?.racAverage || 0,
         receiving_drops: player.receiving?.drops || 0,
 
-        // Blocking
         blocking_sacksAllowed: player.blocking?.sacksAllowed || 0,
 
-        // Defensive Stats - all fields including calculated
         defensive_soloTackles: player.defensive?.soloTackles || 0,
         defensive_assistedTackles: player.defensive?.assistedTackles || 0,
-        defensive_totalTackles: player.defensive?.totalTackles || 0,
         defensive_tacklesForLoss: player.defensive?.tacklesForLoss || 0,
         defensive_sacks: player.defensive?.sacks || 0,
         defensive_interceptions: player.defensive?.interceptions || 0,
         defensive_intReturnYards: player.defensive?.intReturnYards || 0,
-        defensive_avgIntReturn: player.defensive?.avgIntReturn || 0,
-        defensive_intLong: player.defensive?.intLong || 0,
         defensive_defensiveTDs: player.defensive?.defensiveTDs || 0,
         defensive_deflections: player.defensive?.deflections || 0,
-        defensive_catchesAllowed: player.defensive?.catchesAllowed || 0,
         defensive_forcedFumbles: player.defensive?.forcedFumbles || 0,
         defensive_fumbleRecoveries: player.defensive?.fumbleRecoveries || 0,
-        defensive_fumbleReturnYards: player.defensive?.fumbleReturnYards || 0,
-        defensive_blocks: player.defensive?.blocks || 0,
-        defensive_safeties: player.defensive?.safeties || 0,
 
-        // Kicking Stats - all fields including calculated
         kicking_fgMade: player.kicking?.fgMade || 0,
         kicking_fgAttempted: player.kicking?.fgAttempted || 0,
-        kicking_fgPct: player.kicking?.fgPct || 0,
         kicking_fgLong: player.kicking?.fgLong || 0,
         kicking_xpMade: player.kicking?.xpMade || 0,
         kicking_xpAttempted: player.kicking?.xpAttempted || 0,
-        kicking_xpPct: player.kicking?.xpPct || 0,
-        kicking_fg0_29Made: player.kicking?.fg0_29Made || 0,
-        kicking_fg0_29Attempted: player.kicking?.fg0_29Attempted || 0,
-        kicking_fg30_39Made: player.kicking?.fg30_39Made || 0,
-        kicking_fg30_39Attempted: player.kicking?.fg30_39Attempted || 0,
-        kicking_fg40_49Made: player.kicking?.fg40_49Made || 0,
-        kicking_fg40_49Attempted: player.kicking?.fg40_49Attempted || 0,
-        kicking_fg50PlusMade: player.kicking?.fg50PlusMade || 0,
-        kicking_fg50PlusAttempted: player.kicking?.fg50PlusAttempted || 0,
-        kicking_kickoffs: player.kicking?.kickoffs || 0,
-        kicking_touchbacks: player.kicking?.touchbacks || 0,
-        kicking_touchbackPct: player.kicking?.touchbackPct || 0,
-        kicking_fgBlocked: player.kicking?.fgBlocked || 0,
-        kicking_xpBlocked: player.kicking?.xpBlocked || 0,
 
-        // Punting Stats - all fields including calculated
         punting_punts: player.punting?.punts || 0,
         punting_puntingYards: player.punting?.puntingYards || 0,
-        punting_yardsPerPunt: player.punting?.yardsPerPunt || 0,
-        punting_netPuntingYards: player.punting?.netPuntingYards || 0,
-        punting_netYardsPerPunt: player.punting?.netYardsPerPunt || 0,
         punting_puntsInside20: player.punting?.puntsInside20 || 0,
-        punting_touchbacks: player.punting?.touchbacks || 0,
         punting_puntLong: player.punting?.puntLong || 0,
-        punting_puntsBlocked: player.punting?.puntsBlocked || 0,
 
-        // Kick Return Stats - all fields including calculated
         kickReturn_returns: player.kickReturn?.returns || 0,
         kickReturn_returnYardage: player.kickReturn?.returnYardage || 0,
-        kickReturn_returnAverage: player.kickReturn?.returnAverage || 0,
         kickReturn_touchdowns: player.kickReturn?.touchdowns || 0,
         kickReturn_returnLong: player.kickReturn?.returnLong || 0,
 
-        // Punt Return Stats - all fields including calculated
         puntReturn_returns: player.puntReturn?.returns || 0,
         puntReturn_returnYardage: player.puntReturn?.returnYardage || 0,
-        puntReturn_returnAverage: player.puntReturn?.returnAverage || 0,
         puntReturn_touchdowns: player.puntReturn?.touchdowns || 0,
         puntReturn_returnLong: player.puntReturn?.returnLong || 0,
-
-        // Scrimmage Stats - all fields including calculated
-        scrimmage_plays: player.scrimmage?.plays || 0,
-        scrimmage_yards: player.scrimmage?.yards || 0,
-        scrimmage_yardsPerPlay: player.scrimmage?.yardsPerPlay || 0,
-        scrimmage_touchdowns: player.scrimmage?.touchdowns || 0,
-        scrimmage_yardsPerGame: player.scrimmage?.yardsPerGame || 0,
-
-        // Total Stats - all fields including calculated
-        total_plays: player.total?.plays || 0,
-        total_yardage: player.total?.yardage || 0,
-        total_yardsPerPlay: player.total?.yardsPerPlay || 0,
-        total_touchdowns: player.total?.touchdowns || 0,
-        total_yardsPerGame: player.total?.yardsPerGame || 0,
 
         // Notes & Media
         notes: player.notes || '',
         links: player.links || []
       })
+      // Auto-expand relevant sections based on position
+      const pos = player.position || ''
+      const sections = ['basic']
+      if (['QB'].includes(pos)) sections.push('passing')
+      if (['QB', 'HB', 'FB'].includes(pos)) sections.push('rushing')
+      if (['WR', 'TE', 'HB', 'FB'].includes(pos)) sections.push('receiving')
+      if (['LT', 'LG', 'C', 'RG', 'RT'].includes(pos)) sections.push('blocking')
+      if (['LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS'].includes(pos)) sections.push('defensive')
+      if (['K'].includes(pos)) sections.push('kicking')
+      if (['P'].includes(pos)) sections.push('punting')
+      setExpandedSections(sections)
     }
   }, [player, isOpen, defaultSchool])
 
@@ -210,13 +149,18 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  const toggleSection = (section) => {
+    setExpandedSections(prev =>
+      prev.includes(section)
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    )
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-
-    // Helper to parse number or 0
     const num = (val) => parseFloat(val) || 0
 
-    // Restructure the flat form data into nested structure
     const updatedPlayer = {
       ...player,
       pictureUrl: formData.pictureUrl,
@@ -227,35 +171,25 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       year: formData.year,
       devTrait: formData.devTrait,
       overall: num(formData.overall),
-
-      // Physical
+      jerseyNumber: formData.jerseyNumber,
       height: formData.height,
       weight: formData.weight ? num(formData.weight) : null,
-
-      // Hometown
       hometown: formData.hometown,
       state: formData.state,
-
-      // Transfer
       previousTeam: formData.previousTeam,
-
       yearStarted: formData.yearStarted,
       stars: num(formData.stars),
       positionRank: num(formData.positionRank),
       stateRank: num(formData.stateRank),
       nationalRank: num(formData.nationalRank),
-
       gemBust: formData.gemBust,
       overallProgression: formData.overallProgression,
       overallRatingChange: formData.overallRatingChange,
-
       snapsPlayed: num(formData.snapsPlayed),
       gamesPlayed: num(formData.gamesPlayed),
-
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
       draftRound: formData.draftRound,
-
       confPOW: num(formData.confPOW),
       nationalPOW: num(formData.nationalPOW),
       allConf1st: num(formData.allConf1st),
@@ -264,145 +198,70 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       allAm1st: num(formData.allAm1st),
       allAm2nd: num(formData.allAm2nd),
       allAmFr: num(formData.allAmFr),
-
       passing: {
         completions: num(formData.passing_completions),
         attempts: num(formData.passing_attempts),
-        completionPct: num(formData.passing_completionPct),
         yards: num(formData.passing_yards),
         touchdowns: num(formData.passing_touchdowns),
-        tdPct: num(formData.passing_tdPct),
         interceptions: num(formData.passing_interceptions),
-        intPct: num(formData.passing_intPct),
-        tdIntRatio: num(formData.passing_tdIntRatio),
-        yardsPerAttempt: num(formData.passing_yardsPerAttempt),
-        netYardsPerAttempt: num(formData.passing_netYardsPerAttempt),
-        adjNetYardsPerAttempt: num(formData.passing_adjNetYardsPerAttempt),
-        yardsPerGame: num(formData.passing_yardsPerGame),
-        passerRating: num(formData.passing_passerRating),
         passingLong: num(formData.passing_passingLong),
-        sacksTaken: num(formData.passing_sacksTaken),
-        sackPct: num(formData.passing_sackPct)
+        sacksTaken: num(formData.passing_sacksTaken)
       },
-
       rushing: {
         carries: num(formData.rushing_carries),
         yards: num(formData.rushing_yards),
-        yardsPerCarry: num(formData.rushing_yardsPerCarry),
         touchdowns: num(formData.rushing_touchdowns),
-        yardsPerGame: num(formData.rushing_yardsPerGame),
-        runs20Plus: num(formData.rushing_runs20Plus),
-        brokenTackles: num(formData.rushing_brokenTackles),
-        yardsAfterContact: num(formData.rushing_yardsAfterContact),
         rushingLong: num(formData.rushing_rushingLong),
         fumbles: num(formData.rushing_fumbles),
-        fumblePct: num(formData.rushing_fumblePct)
+        brokenTackles: num(formData.rushing_brokenTackles)
       },
-
       receiving: {
         receptions: num(formData.receiving_receptions),
         yards: num(formData.receiving_yards),
-        yardsPerCatch: num(formData.receiving_yardsPerCatch),
         touchdowns: num(formData.receiving_touchdowns),
-        yardsPerGame: num(formData.receiving_yardsPerGame),
         receivingLong: num(formData.receiving_receivingLong),
-        runAfterCatch: num(formData.receiving_runAfterCatch),
-        racAverage: num(formData.receiving_racAverage),
         drops: num(formData.receiving_drops)
       },
-
       blocking: {
         sacksAllowed: num(formData.blocking_sacksAllowed)
       },
-
       defensive: {
         soloTackles: num(formData.defensive_soloTackles),
         assistedTackles: num(formData.defensive_assistedTackles),
-        totalTackles: num(formData.defensive_totalTackles),
         tacklesForLoss: num(formData.defensive_tacklesForLoss),
         sacks: num(formData.defensive_sacks),
         interceptions: num(formData.defensive_interceptions),
         intReturnYards: num(formData.defensive_intReturnYards),
-        avgIntReturn: num(formData.defensive_avgIntReturn),
-        intLong: num(formData.defensive_intLong),
         defensiveTDs: num(formData.defensive_defensiveTDs),
         deflections: num(formData.defensive_deflections),
-        catchesAllowed: num(formData.defensive_catchesAllowed),
         forcedFumbles: num(formData.defensive_forcedFumbles),
-        fumbleRecoveries: num(formData.defensive_fumbleRecoveries),
-        fumbleReturnYards: num(formData.defensive_fumbleReturnYards),
-        blocks: num(formData.defensive_blocks),
-        safeties: num(formData.defensive_safeties)
+        fumbleRecoveries: num(formData.defensive_fumbleRecoveries)
       },
-
       kicking: {
         fgMade: num(formData.kicking_fgMade),
         fgAttempted: num(formData.kicking_fgAttempted),
-        fgPct: num(formData.kicking_fgPct),
         fgLong: num(formData.kicking_fgLong),
         xpMade: num(formData.kicking_xpMade),
-        xpAttempted: num(formData.kicking_xpAttempted),
-        xpPct: num(formData.kicking_xpPct),
-        fg0_29Made: num(formData.kicking_fg0_29Made),
-        fg0_29Attempted: num(formData.kicking_fg0_29Attempted),
-        fg30_39Made: num(formData.kicking_fg30_39Made),
-        fg30_39Attempted: num(formData.kicking_fg30_39Attempted),
-        fg40_49Made: num(formData.kicking_fg40_49Made),
-        fg40_49Attempted: num(formData.kicking_fg40_49Attempted),
-        fg50PlusMade: num(formData.kicking_fg50PlusMade),
-        fg50PlusAttempted: num(formData.kicking_fg50PlusAttempted),
-        kickoffs: num(formData.kicking_kickoffs),
-        touchbacks: num(formData.kicking_touchbacks),
-        touchbackPct: num(formData.kicking_touchbackPct),
-        fgBlocked: num(formData.kicking_fgBlocked),
-        xpBlocked: num(formData.kicking_xpBlocked)
+        xpAttempted: num(formData.kicking_xpAttempted)
       },
-
       punting: {
         punts: num(formData.punting_punts),
         puntingYards: num(formData.punting_puntingYards),
-        yardsPerPunt: num(formData.punting_yardsPerPunt),
-        netPuntingYards: num(formData.punting_netPuntingYards),
-        netYardsPerPunt: num(formData.punting_netYardsPerPunt),
         puntsInside20: num(formData.punting_puntsInside20),
-        touchbacks: num(formData.punting_touchbacks),
-        puntLong: num(formData.punting_puntLong),
-        puntsBlocked: num(formData.punting_puntsBlocked)
+        puntLong: num(formData.punting_puntLong)
       },
-
       kickReturn: {
         returns: num(formData.kickReturn_returns),
         returnYardage: num(formData.kickReturn_returnYardage),
-        returnAverage: num(formData.kickReturn_returnAverage),
         touchdowns: num(formData.kickReturn_touchdowns),
         returnLong: num(formData.kickReturn_returnLong)
       },
-
       puntReturn: {
         returns: num(formData.puntReturn_returns),
         returnYardage: num(formData.puntReturn_returnYardage),
-        returnAverage: num(formData.puntReturn_returnAverage),
         touchdowns: num(formData.puntReturn_touchdowns),
         returnLong: num(formData.puntReturn_returnLong)
       },
-
-      scrimmage: {
-        plays: num(formData.scrimmage_plays),
-        yards: num(formData.scrimmage_yards),
-        yardsPerPlay: num(formData.scrimmage_yardsPerPlay),
-        touchdowns: num(formData.scrimmage_touchdowns),
-        yardsPerGame: num(formData.scrimmage_yardsPerGame)
-      },
-
-      total: {
-        plays: num(formData.total_plays),
-        yardage: num(formData.total_yardage),
-        yardsPerPlay: num(formData.total_yardsPerPlay),
-        touchdowns: num(formData.total_touchdowns),
-        yardsPerGame: num(formData.total_yardsPerGame)
-      },
-
-      // Notes & Media
       notes: formData.notes,
       links: formData.links
     }
@@ -415,95 +274,183 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
 
-  const InputField = ({ label, name, type = "number", step = "any", className = "", disabled = false }) => (
-    <div className={className}>
-      <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: disabled ? 0.5 : 0.8 }}>
-        {label} {disabled && <span className="text-xs">(auto)</span>}
+  // Collapsible Section Component
+  const Section = ({ id, title, icon, children, defaultExpanded = false }) => {
+    const isExpanded = expandedSections.includes(id)
+    return (
+      <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+        <button
+          type="button"
+          onClick={() => toggleSection(id)}
+          className="w-full px-4 py-3 flex items-center justify-between transition-colors"
+          style={{ backgroundColor: isExpanded ? teamColors.primary : `${teamColors.primary}15` }}
+        >
+          <div className="flex items-center gap-3">
+            <span style={{ color: isExpanded ? primaryText : teamColors.primary }}>{icon}</span>
+            <span className="font-bold" style={{ color: isExpanded ? primaryText : teamColors.primary }}>{title}</span>
+          </div>
+          <svg
+            className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke={isExpanded ? primaryText : teamColors.primary}
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {isExpanded && (
+          <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+            {children}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Clean Input Component
+  const Input = ({ label, name, type = "number", placeholder = "", wide = false }) => (
+    <div className={wide ? "col-span-2" : ""}>
+      <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
+        {label}
       </label>
       <input
         type={type}
-        step={step}
         name={name}
         value={formData[name] ?? ''}
         onChange={handleChange}
-        disabled={disabled}
-        className="w-full px-3 py-2 border-2 rounded-lg"
+        placeholder={placeholder}
+        className="w-full px-3 py-2.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 transition-all"
         style={{
-          borderColor: teamColors.primary,
-          backgroundColor: disabled ? '#f3f4f6' : '#ffffff',
-          color: disabled ? '#9ca3af' : 'inherit',
-          cursor: disabled ? 'not-allowed' : 'text'
+          borderColor: `${teamColors.primary}40`,
+          backgroundColor: '#ffffff',
+          color: '#1f2937'
         }}
       />
     </div>
   )
 
+  // Clean Select Component
+  const Select = ({ label, name, options, placeholder = "Select...", wide = false }) => (
+    <div className={wide ? "col-span-2" : ""}>
+      <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
+        {label}
+      </label>
+      <select
+        name={name}
+        value={formData[name] ?? ''}
+        onChange={handleChange}
+        className="w-full px-3 py-2.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 transition-all appearance-none bg-white"
+        style={{
+          borderColor: `${teamColors.primary}40`,
+          color: '#1f2937',
+          backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+          backgroundPosition: 'right 0.5rem center',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: '1.5em 1.5em',
+          paddingRight: '2.5rem'
+        }}
+      >
+        <option value="">{placeholder}</option>
+        {Array.isArray(options) ? options.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        )) : Object.entries(options).map(([group, opts]) => (
+          <optgroup key={group} label={group}>
+            {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  )
+
+  const positions = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+  const classes = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
+  const devTraits = ['Elite', 'Star', 'Impact', 'Normal']
+  const states = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC']
+
+  const archetypes = {
+    'Quarterbacks': ['Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner'],
+    'Halfbacks': ['Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker'],
+    'Fullbacks': ['Blocking', 'Utility'],
+    'Wide Receivers': ['Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster'],
+    'Tight Ends': ['Gritty Possession', 'Physical Route Runner', 'Possession', 'Pure Blocker', 'Vertical Threat'],
+    'Offensive Line': ['Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded'],
+    'Defensive Line': ['Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher'],
+    'Linebackers': ['Lurker', 'Signal Caller', 'Thumper'],
+    'Cornerbacks': ['Boundary', 'Field', 'Zone'],
+    'Safeties': ['Box Specialist', 'Coverage Specialist', 'Hybrid'],
+    'Kickers & Punters': ['Accurate', 'Power']
+  }
+
   return (
     <div
-      className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      className="fixed top-0 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto"
-        style={{ backgroundColor: teamColors.primary }}
+        className="rounded-2xl shadow-2xl w-full max-w-3xl my-auto flex flex-col"
+        style={{ backgroundColor: teamColors.secondary, maxHeight: 'calc(100vh - 2rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col max-h-full overflow-hidden">
           {/* Header */}
-          <div className="sticky top-0 z-10 p-6 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary }}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold" style={{ color: primaryText }}>
-                Edit Player
-              </h2>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-                style={{ color: primaryText }}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          <div
+            className="px-6 py-4 flex items-center justify-between flex-shrink-0"
+            style={{ backgroundColor: teamColors.primary }}
+          >
+            <div className="flex items-center gap-3">
+              {formData.pictureUrl ? (
+                <img
+                  src={formData.pictureUrl}
+                  alt=""
+                  className="w-12 h-12 rounded-full object-cover border-2"
+                  style={{ borderColor: teamColors.secondary }}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: `${teamColors.secondary}30` }}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke={primaryText} viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                </div>
+              )}
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: primaryText }}>
+                  {formData.name || 'Edit Player'}
+                </h2>
+                <p className="text-sm opacity-80" style={{ color: primaryText }}>
+                  {formData.position && `${formData.position} • `}{formData.overall ? `${formData.overall} OVR` : ''}
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              style={{ color: primaryText }}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Basic Info */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+
+            {/* Basic Information */}
+            <Section
+              id="basic"
+              title="Basic Information"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Basic Information</h3>
-              <div className="flex gap-4 mb-4">
-                {/* Player Picture */}
-                <div className="flex-shrink-0">
-                  {formData.pictureUrl ? (
-                    <img
-                      src={formData.pictureUrl}
-                      alt={formData.name || 'Player'}
-                      className="w-24 h-24 object-cover rounded-lg border-2"
-                      style={{ borderColor: teamColors.primary }}
-                      onError={(e) => {
-                        e.target.style.display = 'none'
-                        e.target.nextSibling.style.display = 'flex'
-                      }}
-                    />
-                  ) : null}
-                  <div
-                    className={`w-24 h-24 rounded-lg border-2 border-dashed flex items-center justify-center ${formData.pictureUrl ? 'hidden' : ''}`}
-                    style={{ borderColor: teamColors.primary, opacity: 0.5 }}
-                  >
-                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: secondaryText }}>
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                </div>
-                {/* Picture URL Input */}
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Picture URL (imgur, etc.)
+              <div className="space-y-4">
+                {/* Picture URL */}
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
+                    Picture URL
                   </label>
                   <input
                     type="text"
@@ -511,651 +458,317 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                     value={formData.pictureUrl ?? ''}
                     onChange={handleChange}
                     placeholder="https://i.imgur.com/..."
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
+                    className="w-full px-3 py-2.5 rounded-lg border-2 text-sm"
+                    style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
                   />
-                  <p className="text-xs mt-1" style={{ color: secondaryText, opacity: 0.6 }}>
-                    Paste a direct link to an image (right-click image → Copy image address)
-                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Input label="Name" name="name" type="text" wide />
+                  <Input label="Jersey #" name="jerseyNumber" type="text" />
+                  <Input label="Overall" name="overall" />
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Select label="Position" name="position" options={positions} />
+                  <Select label="Archetype" name="archetype" options={archetypes} />
+                  <Select label="Class" name="year" options={classes} />
+                  <Select label="Dev Trait" name="devTrait" options={devTraits} />
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Input label="Height" name="height" type="text" placeholder="6'2&quot;" />
+                  <Input label="Weight" name="weight" placeholder="220" />
+                  <Input label="Hometown" name="hometown" type="text" />
+                  <Select label="State" name="state" options={states} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <InputField label="Name" name="name" type="text" />
+            </Section>
 
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Position
-                  </label>
-                  <select
-                    name="position"
-                    value={formData.position ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Select Position</option>
-                    {['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P'].map(pos => (
-                      <option key={pos} value={pos}>{pos}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Archetype
-                  </label>
-                  <select
-                    name="archetype"
-                    value={formData.archetype ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Select Archetype</option>
-                    <optgroup label="Quarterbacks">
-                      {['Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Halfbacks">
-                      {['Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Fullbacks">
-                      {['Blocking', 'Utility'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Wide Receivers">
-                      {['Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Tight Ends">
-                      {['Gritty Possession', 'Physical Route Runner', 'Possession', 'Pure Blocker', 'Vertical Threat'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Offensive Line">
-                      {['Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Defensive Line">
-                      {['Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Linebackers">
-                      {['Lurker', 'Signal Caller', 'Thumper'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Cornerbacks">
-                      {['Boundary', 'Field', 'Zone'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Safeties">
-                      {['Box Specialist', 'Coverage Specialist', 'Hybrid'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Kickers & Punters">
-                      {['Accurate', 'Power'].map(arch => (
-                        <option key={arch} value={arch}>{arch}</option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    School
-                  </label>
-                  <select
-                    name="school"
-                    value={formData.school ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Select School</option>
-                    {teams.map(team => (
-                      <option key={team} value={team}>{team}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Class
-                  </label>
-                  <select
-                    name="year"
-                    value={formData.year ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Select Class</option>
-                    {['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr'].map(yr => (
-                      <option key={yr} value={yr}>{yr}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Dev Trait
-                  </label>
-                  <select
-                    name="devTrait"
-                    value={formData.devTrait ?? 'Normal'}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    {['Elite', 'Star', 'Impact', 'Normal'].map(trait => (
-                      <option key={trait} value={trait}>{trait}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <InputField label="Overall Rating" name="overall" />
-              </div>
-            </div>
-
-            {/* Physical & Biographical */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            {/* Recruiting & Development */}
+            <Section
+              id="recruiting"
+              title="Recruiting & Development"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Physical & Biographical</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <InputField label="Height (e.g. 6-2)" name="height" type="text" />
-                <InputField label="Weight (lbs)" name="weight" />
-                <InputField label="Hometown" name="hometown" type="text" />
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    State
-                  </label>
-                  <select
-                    name="state"
-                    value={formData.state ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Select State</option>
-                    {['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'].map(st => (
-                      <option key={st} value={st}>{st}</option>
-                    ))}
-                  </select>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <Input label="Recruit Year" name="yearStarted" type="text" placeholder="2024" />
+                  <Input label="Stars" name="stars" />
+                  <Input label="Pos Rank" name="positionRank" />
+                  <Input label="State Rank" name="stateRank" />
+                  <Input label="Nat'l Rank" name="nationalRank" />
                 </div>
-                <InputField label="Previous Team (Transfer)" name="previousTeam" type="text" />
-              </div>
-            </div>
-
-            {/* Recruiting */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Recruiting Information</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Recruitment Year" name="yearStarted" type="text" />
-                <InputField label="Stars" name="stars" />
-                <InputField label="Position Rank" name="positionRank" />
-                <InputField label="State Rank" name="stateRank" />
-                <InputField label="National Rank" name="nationalRank" />
-              </div>
-            </div>
-
-            {/* Development */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Development</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                    Gem / Bust
-                  </label>
-                  <select
-                    name="gemBust"
-                    value={formData.gemBust ?? ''}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border-2 rounded-lg"
-                    style={{
-                      borderColor: teamColors.primary,
-                      backgroundColor: '#ffffff'
-                    }}
-                  >
-                    <option value="">Neither</option>
-                    <option value="Gem">Gem</option>
-                    <option value="Bust">Bust</option>
-                  </select>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Select label="Gem/Bust" name="gemBust" options={['', 'Gem', 'Bust']} placeholder="Neither" />
+                  <Input label="OVR Progression" name="overallProgression" type="text" />
+                  <Input label="OVR Change" name="overallRatingChange" type="text" />
+                  <Input label="Transfer From" name="previousTeam" type="text" />
                 </div>
-                <InputField label="Overall Progression" name="overallProgression" type="text" />
-                <InputField label="Overall Rating Change" name="overallRatingChange" type="text" />
               </div>
-            </div>
-
-            {/* Game Logs */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Game Logs</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InputField label="Snaps Played" name="snapsPlayed" />
-                <InputField label="Games Played" name="gamesPlayed" />
-              </div>
-            </div>
-
-            {/* Departure Information */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Departure Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <InputField label="Year Departed" name="yearDeparted" type="text" />
-                <InputField label="Years in School" name="yearsInSchool" />
-                <InputField label="Draft Round" name="draftRound" type="text" />
-              </div>
-            </div>
+            </Section>
 
             {/* Accolades */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="accolades"
+              title="Accolades"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Accolades</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <InputField label="Conf POW" name="confPOW" />
-                <InputField label="Nat'l POW" name="nationalPOW" />
-                <InputField label="All-Conf 1st" name="allConf1st" />
-                <InputField label="All-Conf 2nd" name="allConf2nd" />
-                <InputField label="All-Conf Fr" name="allConfFr" />
-                <InputField label="All-Am 1st" name="allAm1st" />
-                <InputField label="All-Am 2nd" name="allAm2nd" />
-                <InputField label="All-Am Fr" name="allAmFr" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input label="Conf POW" name="confPOW" />
+                <Input label="Nat'l POW" name="nationalPOW" />
+                <Input label="All-Conf 1st" name="allConf1st" />
+                <Input label="All-Conf 2nd" name="allConf2nd" />
+                <Input label="All-Am 1st" name="allAm1st" />
+                <Input label="All-Am 2nd" name="allAm2nd" />
+                <Input label="Fr All-Conf" name="allConfFr" />
+                <Input label="Fr All-Am" name="allAmFr" />
               </div>
-            </div>
+            </Section>
 
             {/* Passing Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="passing"
+              title="Passing"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Passing Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <InputField label="Completions" name="passing_completions" />
-                <InputField label="Attempts" name="passing_attempts" />
-                <InputField label="Completion %" name="passing_completionPct" disabled />
-                <InputField label="Yards" name="passing_yards" />
-                <InputField label="Touchdowns" name="passing_touchdowns" />
-                <InputField label="TD %" name="passing_tdPct" disabled />
-                <InputField label="Interceptions" name="passing_interceptions" />
-                <InputField label="INT %" name="passing_intPct" disabled />
-                <InputField label="TD/INT Ratio" name="passing_tdIntRatio" disabled />
-                <InputField label="Yards/Attempt" name="passing_yardsPerAttempt" disabled />
-                <InputField label="Net Yards/Att" name="passing_netYardsPerAttempt" disabled />
-                <InputField label="Adj Net Yards/Att" name="passing_adjNetYardsPerAttempt" disabled />
-                <InputField label="Yards/Game" name="passing_yardsPerGame" disabled />
-                <InputField label="Passer Rating" name="passing_passerRating" disabled />
-                <InputField label="Passing Long" name="passing_passingLong" />
-                <InputField label="Sacks Taken" name="passing_sacksTaken" />
-                <InputField label="Sack %" name="passing_sackPct" disabled />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input label="Completions" name="passing_completions" />
+                <Input label="Attempts" name="passing_attempts" />
+                <Input label="Yards" name="passing_yards" />
+                <Input label="TDs" name="passing_touchdowns" />
+                <Input label="INTs" name="passing_interceptions" />
+                <Input label="Long" name="passing_passingLong" />
+                <Input label="Sacks" name="passing_sacksTaken" />
               </div>
-            </div>
+            </Section>
 
             {/* Rushing Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="rushing"
+              title="Rushing"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Rushing Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <InputField label="Carries" name="rushing_carries" />
-                <InputField label="Yards" name="rushing_yards" />
-                <InputField label="Yards/Carry" name="rushing_yardsPerCarry" disabled />
-                <InputField label="Touchdowns" name="rushing_touchdowns" />
-                <InputField label="Yards/Game" name="rushing_yardsPerGame" disabled />
-                <InputField label="20+ Yard Runs" name="rushing_runs20Plus" />
-                <InputField label="Broken Tackles" name="rushing_brokenTackles" />
-                <InputField label="Yards After Contact" name="rushing_yardsAfterContact" />
-                <InputField label="Rushing Long" name="rushing_rushingLong" />
-                <InputField label="Fumbles" name="rushing_fumbles" />
-                <InputField label="Fumble %" name="rushing_fumblePct" disabled />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Input label="Carries" name="rushing_carries" />
+                <Input label="Yards" name="rushing_yards" />
+                <Input label="TDs" name="rushing_touchdowns" />
+                <Input label="Long" name="rushing_rushingLong" />
+                <Input label="Fumbles" name="rushing_fumbles" />
+                <Input label="Broken Tackles" name="rushing_brokenTackles" />
               </div>
-            </div>
+            </Section>
 
             {/* Receiving Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="receiving"
+              title="Receiving"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Receiving Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <InputField label="Receptions" name="receiving_receptions" />
-                <InputField label="Yards" name="receiving_yards" />
-                <InputField label="Yards/Catch" name="receiving_yardsPerCatch" disabled />
-                <InputField label="Touchdowns" name="receiving_touchdowns" />
-                <InputField label="Yards/Game" name="receiving_yardsPerGame" disabled />
-                <InputField label="Receiving Long" name="receiving_receivingLong" />
-                <InputField label="Run After Catch" name="receiving_runAfterCatch" />
-                <InputField label="RAC Average" name="receiving_racAverage" disabled />
-                <InputField label="Drops" name="receiving_drops" />
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Input label="Receptions" name="receiving_receptions" />
+                <Input label="Yards" name="receiving_yards" />
+                <Input label="TDs" name="receiving_touchdowns" />
+                <Input label="Long" name="receiving_receivingLong" />
+                <Input label="Drops" name="receiving_drops" />
               </div>
-            </div>
+            </Section>
 
-            {/* Blocking */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            {/* Blocking Stats */}
+            <Section
+              id="blocking"
+              title="Blocking"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Blocking</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <InputField label="Sacks Allowed" name="blocking_sacksAllowed" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Sacks Allowed" name="blocking_sacksAllowed" />
               </div>
-            </div>
+            </Section>
 
             {/* Defensive Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="defensive"
+              title="Defense"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Defensive Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <InputField label="Solo Tackles" name="defensive_soloTackles" />
-                <InputField label="Assisted Tackles" name="defensive_assistedTackles" />
-                <InputField label="Total Tackles" name="defensive_totalTackles" disabled />
-                <InputField label="Tackles for Loss" name="defensive_tacklesForLoss" />
-                <InputField label="Sacks" name="defensive_sacks" />
-                <InputField label="Interceptions" name="defensive_interceptions" />
-                <InputField label="INT Return Yards" name="defensive_intReturnYards" />
-                <InputField label="Avg INT Return" name="defensive_avgIntReturn" disabled />
-                <InputField label="INT Long" name="defensive_intLong" />
-                <InputField label="Defensive TDs" name="defensive_defensiveTDs" />
-                <InputField label="Deflections" name="defensive_deflections" />
-                <InputField label="Catches Allowed" name="defensive_catchesAllowed" />
-                <InputField label="Forced Fumbles" name="defensive_forcedFumbles" />
-                <InputField label="Fumble Recoveries" name="defensive_fumbleRecoveries" />
-                <InputField label="Fumble Return Yards" name="defensive_fumbleReturnYards" />
-                <InputField label="Blocks" name="defensive_blocks" />
-                <InputField label="Safeties" name="defensive_safeties" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input label="Solo Tackles" name="defensive_soloTackles" />
+                <Input label="Asst Tackles" name="defensive_assistedTackles" />
+                <Input label="TFL" name="defensive_tacklesForLoss" />
+                <Input label="Sacks" name="defensive_sacks" />
+                <Input label="INTs" name="defensive_interceptions" />
+                <Input label="INT Yards" name="defensive_intReturnYards" />
+                <Input label="Def TDs" name="defensive_defensiveTDs" />
+                <Input label="Pass Def" name="defensive_deflections" />
+                <Input label="Forced Fum" name="defensive_forcedFumbles" />
+                <Input label="Fum Rec" name="defensive_fumbleRecoveries" />
               </div>
-            </div>
+            </Section>
 
             {/* Kicking Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="kicking"
+              title="Kicking"
+              icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="2"/></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Kicking Statistics</h3>
-              <div className="space-y-4">
-                <h4 className="text-sm font-bold" style={{ color: secondaryText }}>Overall</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  <InputField label="FG Made" name="kicking_fgMade" />
-                  <InputField label="FG Attempted" name="kicking_fgAttempted" />
-                  <InputField label="FG %" name="kicking_fgPct" disabled />
-                  <InputField label="FG Long" name="kicking_fgLong" />
-                  <InputField label="XP Made" name="kicking_xpMade" />
-                  <InputField label="XP Attempted" name="kicking_xpAttempted" />
-                  <InputField label="XP %" name="kicking_xpPct" disabled />
-                </div>
-                <h4 className="text-sm font-bold" style={{ color: secondaryText }}>By Distance</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <InputField label="FG 0-29 Made" name="kicking_fg0_29Made" />
-                  <InputField label="FG 0-29 Att" name="kicking_fg0_29Attempted" />
-                  <InputField label="FG 30-39 Made" name="kicking_fg30_39Made" />
-                  <InputField label="FG 30-39 Att" name="kicking_fg30_39Attempted" />
-                  <InputField label="FG 40-49 Made" name="kicking_fg40_49Made" />
-                  <InputField label="FG 40-49 Att" name="kicking_fg40_49Attempted" />
-                  <InputField label="FG 50+ Made" name="kicking_fg50PlusMade" />
-                  <InputField label="FG 50+ Att" name="kicking_fg50PlusAttempted" />
-                </div>
-                <h4 className="text-sm font-bold" style={{ color: secondaryText }}>Kickoffs</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <InputField label="Kickoffs" name="kicking_kickoffs" />
-                  <InputField label="Touchbacks" name="kicking_touchbacks" />
-                  <InputField label="Touchback %" name="kicking_touchbackPct" disabled />
-                  <InputField label="FG Blocked" name="kicking_fgBlocked" />
-                  <InputField label="XP Blocked" name="kicking_xpBlocked" />
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Input label="FG Made" name="kicking_fgMade" />
+                <Input label="FG Att" name="kicking_fgAttempted" />
+                <Input label="FG Long" name="kicking_fgLong" />
+                <Input label="XP Made" name="kicking_xpMade" />
+                <Input label="XP Att" name="kicking_xpAttempted" />
               </div>
-            </div>
+            </Section>
 
             {/* Punting Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            <Section
+              id="punting"
+              title="Punting"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Punting Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <InputField label="Punts" name="punting_punts" />
-                <InputField label="Punting Yards" name="punting_puntingYards" />
-                <InputField label="Yards/Punt" name="punting_yardsPerPunt" disabled />
-                <InputField label="Net Punting Yards" name="punting_netPuntingYards" />
-                <InputField label="Net Yards/Punt" name="punting_netYardsPerPunt" disabled />
-                <InputField label="Punts Inside 20" name="punting_puntsInside20" />
-                <InputField label="Touchbacks" name="punting_touchbacks" />
-                <InputField label="Punt Long" name="punting_puntLong" />
-                <InputField label="Punts Blocked" name="punting_puntsBlocked" />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input label="Punts" name="punting_punts" />
+                <Input label="Yards" name="punting_puntingYards" />
+                <Input label="Inside 20" name="punting_puntsInside20" />
+                <Input label="Long" name="punting_puntLong" />
               </div>
-            </div>
+            </Section>
 
-            {/* Kick Return Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            {/* Return Stats */}
+            <Section
+              id="returns"
+              title="Returns"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Kick Return Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Returns" name="kickReturn_returns" />
-                <InputField label="Return Yardage" name="kickReturn_returnYardage" />
-                <InputField label="Return Average" name="kickReturn_returnAverage" disabled />
-                <InputField label="Touchdowns" name="kickReturn_touchdowns" />
-                <InputField label="Return Long" name="kickReturn_returnLong" />
+              <div className="space-y-3">
+                <p className="text-xs font-medium" style={{ color: secondaryText, opacity: 0.6 }}>Kick Returns</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Input label="Returns" name="kickReturn_returns" />
+                  <Input label="Yards" name="kickReturn_returnYardage" />
+                  <Input label="TDs" name="kickReturn_touchdowns" />
+                  <Input label="Long" name="kickReturn_returnLong" />
+                </div>
+                <p className="text-xs font-medium pt-2" style={{ color: secondaryText, opacity: 0.6 }}>Punt Returns</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Input label="Returns" name="puntReturn_returns" />
+                  <Input label="Yards" name="puntReturn_returnYardage" />
+                  <Input label="TDs" name="puntReturn_touchdowns" />
+                  <Input label="Long" name="puntReturn_returnLong" />
+                </div>
               </div>
-            </div>
+            </Section>
 
-            {/* Punt Return Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+            {/* Notes */}
+            <Section
+              id="notes"
+              title="Notes & Media"
+              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Punt Return Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Returns" name="puntReturn_returns" />
-                <InputField label="Return Yardage" name="puntReturn_returnYardage" />
-                <InputField label="Return Average" name="puntReturn_returnAverage" disabled />
-                <InputField label="Touchdowns" name="puntReturn_touchdowns" />
-                <InputField label="Return Long" name="puntReturn_returnLong" />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
+                    Notes
+                  </label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes ?? ''}
+                    onChange={handleChange}
+                    placeholder="Add notes about this player..."
+                    rows={3}
+                    className="w-full px-3 py-2.5 rounded-lg border-2 text-sm resize-y"
+                    style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
+                  />
+                </div>
+
+                {/* Links */}
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: secondaryText, opacity: 0.7 }}>
+                    Links
+                  </label>
+                  {formData.links?.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {formData.links.map((link, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={link.title || ''}
+                            onChange={(e) => {
+                              const newLinks = [...formData.links]
+                              newLinks[index] = { ...newLinks[index], title: e.target.value }
+                              setFormData(prev => ({ ...prev, links: newLinks }))
+                            }}
+                            placeholder="Title"
+                            className="flex-1 px-3 py-2 rounded-lg border-2 text-sm"
+                            style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
+                          />
+                          <input
+                            type="text"
+                            value={link.url || ''}
+                            onChange={(e) => {
+                              const newLinks = [...formData.links]
+                              newLinks[index] = { ...newLinks[index], url: e.target.value }
+                              setFormData(prev => ({ ...prev, links: newLinks }))
+                            }}
+                            placeholder="URL"
+                            className="flex-[2] px-3 py-2 rounded-lg border-2 text-sm"
+                            style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newLinks = formData.links.filter((_, i) => i !== index)
+                              setFormData(prev => ({ ...prev, links: newLinks }))
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newLinks = [...(formData.links || []), { title: '', url: '' }]
+                      setFormData(prev => ({ ...prev, links: newLinks }))
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Link
+                  </button>
+                </div>
               </div>
-            </div>
+            </Section>
 
-            {/* Scrimmage Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Scrimmage Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Plays" name="scrimmage_plays" />
-                <InputField label="Yards" name="scrimmage_yards" />
-                <InputField label="Yards/Play" name="scrimmage_yardsPerPlay" disabled />
-                <InputField label="Touchdowns" name="scrimmage_touchdowns" />
-                <InputField label="Yards/Game" name="scrimmage_yardsPerGame" disabled />
-              </div>
-            </div>
-
-            {/* Total Stats */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Total Statistics</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <InputField label="Plays" name="total_plays" />
-                <InputField label="Yardage" name="total_yardage" />
-                <InputField label="Yards/Play" name="total_yardsPerPlay" disabled />
-                <InputField label="Touchdowns" name="total_touchdowns" />
-                <InputField label="Yards/Game" name="total_yardsPerGame" disabled />
-              </div>
-            </div>
-
-            {/* Notes & Media */}
-            <div
-              className="rounded-lg p-4"
-              style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-            >
-              <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Notes & Media</h3>
-
-              {/* Notes */}
-              <div className="mb-4">
-                <label className="block text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.8 }}>
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes ?? ''}
-                  onChange={handleChange}
-                  placeholder="Add any notes about this player..."
-                  rows={4}
-                  className="w-full px-3 py-2 border-2 rounded-lg resize-y"
-                  style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
-                />
-              </div>
-
-              {/* Links */}
-              <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color: secondaryText, opacity: 0.8 }}>
-                  Links & Media
-                </label>
-
-                {/* Existing Links */}
-                {formData.links && formData.links.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {formData.links.map((link, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={link.title || ''}
-                          onChange={(e) => {
-                            const newLinks = [...formData.links]
-                            newLinks[index] = { ...newLinks[index], title: e.target.value }
-                            setFormData(prev => ({ ...prev, links: newLinks }))
-                          }}
-                          placeholder="Title"
-                          className="flex-1 px-3 py-2 border-2 rounded-lg text-sm"
-                          style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
-                        />
-                        <input
-                          type="text"
-                          value={link.url || ''}
-                          onChange={(e) => {
-                            const newLinks = [...formData.links]
-                            newLinks[index] = { ...newLinks[index], url: e.target.value }
-                            setFormData(prev => ({ ...prev, links: newLinks }))
-                          }}
-                          placeholder="URL"
-                          className="flex-[2] px-3 py-2 border-2 rounded-lg text-sm"
-                          style={{ borderColor: teamColors.primary, backgroundColor: '#ffffff' }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newLinks = formData.links.filter((_, i) => i !== index)
-                            setFormData(prev => ({ ...prev, links: newLinks }))
-                          }}
-                          className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-                          style={{ color: '#ef4444' }}
-                          title="Remove link"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Add New Link Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newLinks = [...(formData.links || []), { title: '', url: '' }]
-                    setFormData(prev => ({ ...prev, links: newLinks }))
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-opacity"
-                  style={{
-                    backgroundColor: teamColors.primary,
-                    color: primaryText
-                  }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Link
-                </button>
-                <p className="text-xs mt-2" style={{ color: secondaryText, opacity: 0.6 }}>
-                  Add links to highlights, articles, social media, or any other media
-                </p>
-              </div>
-            </div>
           </div>
 
           {/* Footer */}
-          <div className="sticky bottom-0 p-6 border-t-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary }}>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
-                style={{
-                  backgroundColor: 'transparent',
-                  border: `2px solid ${teamColors.secondary}`,
-                  color: primaryText
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
-                style={{
-                  backgroundColor: teamColors.secondary,
-                  color: secondaryText
-                }}
-              >
-                Save Changes
-              </button>
-            </div>
+          <div
+            className="px-6 py-4 flex justify-end gap-3 flex-shrink-0 border-t"
+            style={{ backgroundColor: teamColors.secondary, borderColor: `${teamColors.primary}20` }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg font-medium text-sm transition-colors"
+              style={{ color: secondaryText, backgroundColor: `${teamColors.primary}15` }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-lg font-medium text-sm transition-colors"
+              style={{ backgroundColor: teamColors.primary, color: primaryText }}
+            >
+              Save Changes
+            </button>
           </div>
         </form>
       </div>

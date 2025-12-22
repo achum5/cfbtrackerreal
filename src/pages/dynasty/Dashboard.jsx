@@ -34,10 +34,18 @@ import FinalPollsModal from '../../components/FinalPollsModal'
 import TeamStatsModal from '../../components/TeamStatsModal'
 import AwardsModal from '../../components/AwardsModal'
 import AllAmericansModal from '../../components/AllAmericansModal'
+import PlayerMatchConfirmModal from '../../components/PlayerMatchConfirmModal'
+import NewJobEditModal from '../../components/NewJobEditModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
+// Helper function to normalize player names for consistent lookup
+const normalizePlayerName = (name) => {
+  if (!name) return ''
+  return name.trim().toLowerCase()
+}
+
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers } = useDynasty()
   const { user } = useAuth()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -68,6 +76,14 @@ export default function Dashboard() {
   const [showAwardsModal, setShowAwardsModal] = useState(false)
   const [showAllAmericansModal, setShowAllAmericansModal] = useState(false)
   const [showCoachingStaffPopup, setShowCoachingStaffPopup] = useState(false)
+  const [suppressPopupHover, setSuppressPopupHover] = useState(false) // Prevents hover popup after layout shifts
+  const [showNewJobEditModal, setShowNewJobEditModal] = useState(false)
+
+  // Player match confirmation states
+  const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
+  const [playerMatchConfirmation, setPlayerMatchConfirmation] = useState(null)
+  const [pendingHonorData, setPendingHonorData] = useState(null) // { honorType, entries, year, confirmations, transferDecisions }
+  const [currentConfirmIndex, setCurrentConfirmIndex] = useState(0)
 
   // Bowl eligibility states
   const [bowlEligible, setBowlEligible] = useState(null) // null = not answered, true/false = answered
@@ -417,6 +433,33 @@ export default function Dashboard() {
     await saveCoachingStaff(currentDynasty.id, staff)
   }
 
+  const handleNewJobSave = async (jobData) => {
+    // Update local state
+    setTakingNewJob(jobData.takingNewJob)
+    setNewJobTeam(jobData.team || '')
+    setNewJobPosition(jobData.position || '')
+
+    // Save to dynasty
+    if (jobData.takingNewJob === false) {
+      await updateDynasty(currentDynasty.id, {
+        newJobData: {
+          takingNewJob: false,
+          team: null,
+          position: null,
+          declinedInWeek: currentDynasty.currentWeek
+        }
+      })
+    } else {
+      await updateDynasty(currentDynasty.id, {
+        newJobData: {
+          takingNewJob: true,
+          team: jobData.team,
+          position: jobData.position
+        }
+      })
+    }
+  }
+
   const handleGameSave = async (gameData) => {
     try {
       // Check if this is a CFP game (editingWeek is set to 'CFP First Round', 'CFP Quarterfinal', etc.)
@@ -569,6 +612,240 @@ export default function Dashboard() {
     })
   }
 
+  // Handle awards data save with player matching
+  const handleAwardsSave = async (awards) => {
+    const year = currentDynasty.currentYear
+
+    // Convert awards object to array format for processing
+    const entries = Object.entries(awards).map(([awardKey, data]) => ({
+      ...data,
+      award: awardKey,
+      name: data.player
+    })).filter(e => e.player) // Only entries with a player name
+
+    // Process honors - this will find/create players
+    const result = await processHonorPlayers(
+      currentDynasty.id,
+      'awards',
+      entries,
+      year,
+      [] // No transfer decisions yet
+    )
+
+    if (result.needsConfirmation) {
+      // Store pending data and show first confirmation
+      setPendingHonorData({
+        honorType: 'awards',
+        entries,
+        year,
+        rawData: awards, // Keep original for awardsByYear
+        confirmations: result.confirmations,
+        transferDecisions: []
+      })
+      setCurrentConfirmIndex(0)
+      setPlayerMatchConfirmation(result.confirmations[0])
+      setShowPlayerMatchConfirm(true)
+    } else {
+      // No confirmations needed - just save the awards data
+      const existingByYear = currentDynasty.awardsByYear || {}
+      await updateDynasty(currentDynasty.id, {
+        awardsByYear: {
+          ...existingByYear,
+          [year]: awards
+        }
+      })
+    }
+  }
+
+  // Handle all-americans/all-conference data save with player matching
+  const handleAllAmericansSave = async (data) => {
+    const year = currentDynasty.currentYear
+
+    // Combine all entries for processing
+    const allEntries = []
+
+    // All-Americans
+    if (data.allAmericans) {
+      data.allAmericans.forEach(entry => {
+        allEntries.push({
+          ...entry,
+          name: entry.player,
+          honorCategory: 'allAmericans'
+        })
+      })
+    }
+
+    // All-Conference
+    if (data.allConference) {
+      data.allConference.forEach(entry => {
+        allEntries.push({
+          ...entry,
+          name: entry.player,
+          honorCategory: 'allConference'
+        })
+      })
+    }
+
+    // Process All-Americans first
+    const aaEntries = allEntries.filter(e => e.honorCategory === 'allAmericans')
+    const acEntries = allEntries.filter(e => e.honorCategory === 'allConference')
+
+    // Start with All-Americans
+    if (aaEntries.length > 0) {
+      const result = await processHonorPlayers(
+        currentDynasty.id,
+        'allAmericans',
+        aaEntries,
+        year,
+        []
+      )
+
+      if (result.needsConfirmation) {
+        setPendingHonorData({
+          honorType: 'allAmericans',
+          entries: aaEntries,
+          year,
+          rawData: data,
+          confirmations: result.confirmations,
+          transferDecisions: [],
+          // Track remaining to process
+          remainingAC: acEntries
+        })
+        setCurrentConfirmIndex(0)
+        setPlayerMatchConfirmation(result.confirmations[0])
+        setShowPlayerMatchConfirm(true)
+        return
+      }
+    }
+
+    // Process All-Conference
+    if (acEntries.length > 0) {
+      const result = await processHonorPlayers(
+        currentDynasty.id,
+        'allConference',
+        acEntries,
+        year,
+        []
+      )
+
+      if (result.needsConfirmation) {
+        setPendingHonorData({
+          honorType: 'allConference',
+          entries: acEntries,
+          year,
+          rawData: data,
+          confirmations: result.confirmations,
+          transferDecisions: []
+        })
+        setCurrentConfirmIndex(0)
+        setPlayerMatchConfirmation(result.confirmations[0])
+        setShowPlayerMatchConfirm(true)
+        return
+      }
+    }
+
+    // No confirmations needed - save the data
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: data
+      }
+    })
+  }
+
+  // Handle player match confirmation response
+  const handlePlayerMatchConfirm = async (isSamePlayer) => {
+    const { honorType, entries, year, confirmations, transferDecisions, rawData, remainingAC } = pendingHonorData
+    const currentConfirm = confirmations[currentConfirmIndex]
+
+    // Add this decision
+    const newDecisions = [
+      ...transferDecisions,
+      { entryIndex: currentConfirm.entryIndex, isSamePlayer }
+    ]
+
+    // Check if there are more confirmations for this batch
+    if (currentConfirmIndex < confirmations.length - 1) {
+      // Show next confirmation
+      const nextIndex = currentConfirmIndex + 1
+      setCurrentConfirmIndex(nextIndex)
+      setPlayerMatchConfirmation(confirmations[nextIndex])
+      setPendingHonorData({ ...pendingHonorData, transferDecisions: newDecisions })
+    } else {
+      // All confirmations done for this batch - process with decisions
+      setShowPlayerMatchConfirm(false)
+
+      const result = await processHonorPlayers(
+        currentDynasty.id,
+        honorType,
+        entries,
+        year,
+        newDecisions
+      )
+
+      if (result.success) {
+        // If this was allAmericans and we have remaining allConference to process
+        if (honorType === 'allAmericans' && remainingAC && remainingAC.length > 0) {
+          const acResult = await processHonorPlayers(
+            currentDynasty.id,
+            'allConference',
+            remainingAC,
+            year,
+            []
+          )
+
+          if (acResult.needsConfirmation) {
+            setPendingHonorData({
+              honorType: 'allConference',
+              entries: remainingAC,
+              year,
+              rawData,
+              confirmations: acResult.confirmations,
+              transferDecisions: []
+            })
+            setCurrentConfirmIndex(0)
+            setPlayerMatchConfirmation(acResult.confirmations[0])
+            setShowPlayerMatchConfirm(true)
+            return
+          }
+        }
+
+        // All done - save the raw data to the appropriate year structure
+        if (honorType === 'awards') {
+          const existingByYear = currentDynasty.awardsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            awardsByYear: {
+              ...existingByYear,
+              [year]: rawData
+            }
+          })
+        } else {
+          const existingByYear = currentDynasty.allAmericansByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            allAmericansByYear: {
+              ...existingByYear,
+              [year]: rawData
+            }
+          })
+        }
+      }
+
+      // Reset state
+      setPendingHonorData(null)
+      setCurrentConfirmIndex(0)
+      setPlayerMatchConfirmation(null)
+    }
+  }
+
+  // Cancel player match confirmation - cancel the whole save operation
+  const handlePlayerMatchCancel = () => {
+    setShowPlayerMatchConfirm(false)
+    setPendingHonorData(null)
+    setCurrentConfirmIndex(0)
+    setPlayerMatchConfirmation(null)
+  }
+
   // Get CC game if played
   const getCCGame = () => {
     return currentDynasty.games?.find(
@@ -670,6 +947,16 @@ export default function Dashboard() {
                 {newJobPosition === 'HC' ? 'Head Coach' : newJobPosition === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'} - {teamAbbreviations[newJobTeam]?.name || newJobTeam}
               </div>
             </div>
+            <button
+              onClick={() => setShowNewJobEditModal(true)}
+              className="p-2 rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
+              style={{ backgroundColor: newTeamColors.secondary, color: getContrastTextColor(newTeamColors.secondary) }}
+              title="Edit new job selection"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
           </div>
         )
       })()}
@@ -751,7 +1038,7 @@ export default function Dashboard() {
                   <div className="relative">
                     <button
                       onClick={() => setShowCoachingStaffPopup(!showCoachingStaffPopup)}
-                      onMouseEnter={() => setShowCoachingStaffPopup(true)}
+                      onMouseEnter={() => !suppressPopupHover && setShowCoachingStaffPopup(true)}
                       className="p-2 rounded-lg hover:opacity-70 transition-opacity"
                       style={{ color: primaryBgText }}
                       title="Coaching Staff"
@@ -771,7 +1058,7 @@ export default function Dashboard() {
                         <div
                           className="absolute right-0 top-full mt-2 z-50 w-64 rounded-xl shadow-xl overflow-hidden"
                           style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
-                          onMouseEnter={() => setShowCoachingStaffPopup(true)}
+                          onMouseEnter={() => !suppressPopupHover && setShowCoachingStaffPopup(true)}
                           onMouseLeave={() => setShowCoachingStaffPopup(false)}
                         >
                           <div className="px-4 py-3 border-b" style={{ borderColor: `${secondaryBgText}20`, backgroundColor: teamColors.primary }}>
@@ -2752,7 +3039,7 @@ export default function Dashboard() {
                               </div>
                               {hasPollsData && (
                                 <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
-                                  ✓ Final AP Media and Coaches Poll rankings entered
+                                  ✓ Final Media and Coaches Poll rankings entered
                                 </div>
                               )}
                             </div>
@@ -4238,6 +4525,14 @@ export default function Dashboard() {
         currentStaff={currentDynasty.coachingStaff}
       />
 
+      <NewJobEditModal
+        isOpen={showNewJobEditModal}
+        onClose={() => setShowNewJobEditModal(false)}
+        onSave={handleNewJobSave}
+        teamColors={teamColors}
+        currentJobData={currentDynasty.newJobData}
+      />
+
       <GameEntryModal
         isOpen={showGameModal}
         onClose={() => {
@@ -4876,16 +5171,7 @@ export default function Dashboard() {
       <AwardsModal
         isOpen={showAwardsModal}
         onClose={() => setShowAwardsModal(false)}
-        onSave={async (awards) => {
-          const year = currentDynasty.currentYear
-          const existingByYear = currentDynasty.awardsByYear || {}
-          await updateDynasty(currentDynasty.id, {
-            awardsByYear: {
-              ...existingByYear,
-              [year]: awards
-            }
-          })
-        }}
+        onSave={handleAwardsSave}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
       />
@@ -4894,18 +5180,19 @@ export default function Dashboard() {
       <AllAmericansModal
         isOpen={showAllAmericansModal}
         onClose={() => setShowAllAmericansModal(false)}
-        onSave={async (data) => {
-          const year = currentDynasty.currentYear
-          const existingByYear = currentDynasty.allAmericansByYear || {}
-          await updateDynasty(currentDynasty.id, {
-            allAmericansByYear: {
-              ...existingByYear,
-              [year]: data
-            }
-          })
-        }}
+        onSave={handleAllAmericansSave}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
+      />
+
+      {/* Player Match Confirmation Modal (for potential transfers) */}
+      <PlayerMatchConfirmModal
+        isOpen={showPlayerMatchConfirm}
+        confirmation={playerMatchConfirmation}
+        dynastyId={currentDynasty?.id}
+        teamColors={teamColors}
+        onConfirm={handlePlayerMatchConfirm}
+        onCancel={handlePlayerMatchCancel}
       />
     </div>
   )

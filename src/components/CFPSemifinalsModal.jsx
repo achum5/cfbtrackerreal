@@ -132,49 +132,91 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
       const qfResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
       const existingSemis = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
 
-      // Find user's CFP Semifinal game from their games array
-      const userSFGame = currentDynasty?.games?.find(g => g.isCFPSemifinal && g.year === currentYear)
+      // Find user's CFP Semifinal game from their games[] array (source of truth)
+      const userSFGame = currentDynasty?.games?.find(g => {
+        if (Number(g.year) !== Number(currentYear)) return false
+        if (g.teamScore === undefined || g.teamScore === null || g.teamScore === '') return false
+        // Check if it's a CFP semifinal
+        if (g.isCFPSemifinal) return true
+        if (g.bowlName === 'Peach Bowl' || g.bowlName === 'Fiesta Bowl') return true
+        return false
+      })
 
       const initialGames = SEMIFINAL_GAMES.map((sf, index) => {
-        // Check if we have existing semifinal data
-        const existing = existingSemis.find(g => g.bowlName === sf.bowlName)
-        if (existing) {
-          return existing
-        }
-
         // Get winners from quarterfinals
         const qf1 = qfResults.find(g => g.bowlName === sf.qfBowl1)
         const qf2 = qfResults.find(g => g.bowlName === sf.qfBowl2)
 
-        const team1 = qf1?.winner || ''
-        const team2 = qf2?.winner || ''
+        // Check if we have existing semifinal data
+        const existing = existingSemis.find(g => g.bowlName === sf.bowlName)
 
-        // Check if user's team is in this game and they have entered their game
+        // Determine teams - from existing data or quarterfinal winners
+        const team1 = existing?.team1 || qf1?.winner || ''
+        const team2 = existing?.team2 || qf2?.winner || ''
+
+        // Check if user's team is in this game
         const userInThisGame = userTeamAbbr && (team1 === userTeamAbbr || team2 === userTeamAbbr)
-        if (userInThisGame && userSFGame) {
-          // Pre-fill from user's game entry
-          // User's score goes to their team's position
+
+        // If user is in this game
+        if (userInThisGame) {
           const userIsTeam1 = team1 === userTeamAbbr
+
+          // PRIORITY: Check user's games[] array first (source of truth)
+          if (userSFGame && userSFGame.teamScore !== undefined && userSFGame.teamScore !== '') {
+            // User's game from games[] array - this is the live/updated score
+            return {
+              id: sf.id,
+              bowlName: sf.bowlName,
+              team1,
+              team2,
+              team1Score: userIsTeam1 ? userSFGame.teamScore : userSFGame.opponentScore,
+              team2Score: userIsTeam1 ? userSFGame.opponentScore : userSFGame.teamScore,
+              qfBowl1: sf.qfBowl1,
+              qfBowl2: sf.qfBowl2,
+              userGame: true // Flag to indicate this is user's game - NOT EDITABLE
+            }
+          }
+
+          // Fallback: Check cfpResultsByYear.semifinals (might be stale but better than nothing)
+          const hasExistingScores = existing?.team1Score !== undefined && existing?.team1Score !== '' &&
+                                    existing?.team2Score !== undefined && existing?.team2Score !== ''
+          if (hasExistingScores) {
+            return {
+              id: sf.id,
+              bowlName: sf.bowlName,
+              team1,
+              team2,
+              team1Score: existing.team1Score,
+              team2Score: existing.team2Score,
+              qfBowl1: sf.qfBowl1,
+              qfBowl2: sf.qfBowl2,
+              userGame: true
+            }
+          }
+
+          // User's game exists but not yet entered
           return {
             id: sf.id,
             bowlName: sf.bowlName,
             team1,
             team2,
-            team1Score: userIsTeam1 ? userSFGame.teamScore : userSFGame.opponentScore,
-            team2Score: userIsTeam1 ? userSFGame.opponentScore : userSFGame.teamScore,
+            team1Score: '',
+            team2Score: '',
             qfBowl1: sf.qfBowl1,
             qfBowl2: sf.qfBowl2,
-            userGame: true // Flag to indicate this is user's game
+            userGame: true,
+            userGamePending: true
           }
         }
 
+        // CPU vs CPU game - use existing data or empty
         return {
           id: sf.id,
           bowlName: sf.bowlName,
           team1,
           team2,
-          team1Score: '',
-          team2Score: '',
+          team1Score: existing?.team1Score ?? '',
+          team2Score: existing?.team2Score ?? '',
           qfBowl1: sf.qfBowl1,
           qfBowl2: sf.qfBowl2
         }
@@ -211,6 +253,13 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
   }
 
   const handleSave = async () => {
+    // Check if user's game is pending (not yet played)
+    const userPendingGame = games.find(g => g.userGame && g.userGamePending)
+    if (userPendingGame) {
+      alert('Please play and enter your semifinal game first before saving results.')
+      return
+    }
+
     // Validate all games have scores
     const allComplete = games.every(g =>
       g.team1 && g.team2 && g.team1Score !== '' && g.team2Score !== ''
@@ -329,11 +378,19 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                     {game.bowlName}
                   </h3>
                   {game.userGame && (
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500 text-white flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      YOUR GAME
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                      game.userGamePending ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
+                    }`}>
+                      {game.userGamePending ? (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {game.userGamePending ? 'PENDING' : 'YOUR GAME'}
                     </span>
                   )}
                 </div>
@@ -379,39 +436,71 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
 
                     {/* Scores */}
                     <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={game.team1Score}
-                        onChange={(e) => handleScoreChange(index, 'team1Score', e.target.value)}
-                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
-                        style={{
-                          backgroundColor: team1Info?.backgroundColor || '#374151',
-                          color: team1Info?.textColor || '#fff',
-                          borderColor: game.userGame ? 'rgba(34,197,94,0.6)' : 'rgba(255,255,255,0.2)',
-                          opacity: game.userGame ? 0.9 : 1
-                        }}
-                        placeholder="0"
-                        disabled={!game.team1 || game.userGame}
-                        readOnly={game.userGame}
-                      />
-                      <div className="text-white/40 text-xl font-bold px-2">-</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={game.team2Score}
-                        onChange={(e) => handleScoreChange(index, 'team2Score', e.target.value)}
-                        className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
-                        style={{
-                          backgroundColor: team2Info?.backgroundColor || '#374151',
-                          color: team2Info?.textColor || '#fff',
-                          borderColor: game.userGame ? 'rgba(34,197,94,0.6)' : 'rgba(255,255,255,0.2)',
-                          opacity: game.userGame ? 0.9 : 1
-                        }}
-                        placeholder="0"
-                        disabled={!game.team2 || game.userGame}
-                        readOnly={game.userGame}
-                      />
+                      {game.userGame && game.userGamePending ? (
+                        /* User game not yet entered - show pending message */
+                        <div className="px-4 py-3 rounded-xl bg-amber-500/20 border-2 border-amber-500/50 text-center">
+                          <div className="text-amber-400 text-sm font-semibold">Enter via Game Entry</div>
+                          <div className="text-amber-400/70 text-xs mt-0.5">Play this game first</div>
+                        </div>
+                      ) : game.userGame ? (
+                        /* User game entered - display scores as text (read-only from games array) */
+                        <>
+                          <div
+                            className="w-16 h-16 flex items-center justify-center text-2xl font-bold rounded-xl border-2"
+                            style={{
+                              backgroundColor: team1Info?.backgroundColor || '#374151',
+                              color: team1Info?.textColor || '#fff',
+                              borderColor: 'rgba(34,197,94,0.6)'
+                            }}
+                          >
+                            {game.team1Score}
+                          </div>
+                          <div className="text-white/40 text-xl font-bold px-2">-</div>
+                          <div
+                            className="w-16 h-16 flex items-center justify-center text-2xl font-bold rounded-xl border-2"
+                            style={{
+                              backgroundColor: team2Info?.backgroundColor || '#374151',
+                              color: team2Info?.textColor || '#fff',
+                              borderColor: 'rgba(34,197,94,0.6)'
+                            }}
+                          >
+                            {game.team2Score}
+                          </div>
+                        </>
+                      ) : (
+                        /* CPU game - editable inputs */
+                        <>
+                          <input
+                            type="number"
+                            min="0"
+                            value={game.team1Score}
+                            onChange={(e) => handleScoreChange(index, 'team1Score', e.target.value)}
+                            className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                            style={{
+                              backgroundColor: team1Info?.backgroundColor || '#374151',
+                              color: team1Info?.textColor || '#fff',
+                              borderColor: 'rgba(255,255,255,0.2)'
+                            }}
+                            placeholder="0"
+                            disabled={!game.team1}
+                          />
+                          <div className="text-white/40 text-xl font-bold px-2">-</div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={game.team2Score}
+                            onChange={(e) => handleScoreChange(index, 'team2Score', e.target.value)}
+                            className="w-16 h-16 text-center text-2xl font-bold rounded-xl border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                            style={{
+                              backgroundColor: team2Info?.backgroundColor || '#374151',
+                              color: team2Info?.textColor || '#fff',
+                              borderColor: 'rgba(255,255,255,0.2)'
+                            }}
+                            placeholder="0"
+                            disabled={!game.team2}
+                          />
+                        </>
+                      )}
                     </div>
 
                     {/* Team 2 */}

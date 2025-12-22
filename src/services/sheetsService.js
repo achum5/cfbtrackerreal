@@ -6126,13 +6126,28 @@ export async function readTeamStatsFromSheet(spreadsheetId) {
 
     // Map rows to stat object
     const stats = {}
+
+    // Special key mappings for stats that start with numbers
+    const keyMappings = {
+      '3rd Down Conversions': 'thirdDownConversions',
+      '3rd Down Attempts': 'thirdDownAttempts',
+      '4th Down Conversions': 'fourthDownConversions',
+      '4th Down Attempts': 'fourthDownAttempts',
+      '2pt Conversions': 'twoptConversions',
+      '2pt Attempts': 'twoptAttempts'
+    }
+
     TEAM_STATS_COLUMNS.forEach((col, index) => {
       const value = rows[index]?.[0]
-      // Convert to camelCase key
-      const key = col
-        .toLowerCase()
-        .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
-        .replace(/^./, str => str.toLowerCase())
+
+      // Use special mapping if available, otherwise convert to camelCase
+      let key = keyMappings[col]
+      if (!key) {
+        key = col
+          .toLowerCase()
+          .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+          .replace(/^./, str => str.toLowerCase())
+      }
 
       stats[key] = value !== undefined && value !== '' ? parseInt(value) || 0 : 0
     })
