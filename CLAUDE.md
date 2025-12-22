@@ -6,43 +6,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: PID column added to all stats sheets for robust player linking:
+**Last Session (December 2024)**: End of Season Recap features, Google Sheets improvements, and Rankings page:
 
-1. **PID Column Implementation**:
-   - All stats entry sheets (Player Stats and Detailed Stats) now include PID as first column
-   - PID links players from Google Sheets to player pages (prevents name collision issues)
-   - `readStatsFromSheet` and `readDetailedStatsFromSheet` read PID from column A
-   - Player.jsx uses PID-based lookup: `tabData.find(p => p.pid === playerPid)`
-   - Stats entry sheets: PID + Player + Position + Class + Dev Trait + Overall + GP + GS + Snaps (9 columns)
-   - Detailed stats sheets: PID + Name + Pos + Snaps + stat columns
+1. **Final Polls & Rankings**:
+   - Final Polls sheet: 2-column vertical layout (26 rows: ranks 1-25 + header)
+   - Rankings page (`/dynasty/:id/rankings`): Shows Media Poll and Coaches Poll side-by-side
+   - Year dropdown to view previous seasons' rankings
+   - Team pages show final ranking in header (e.g., "#5 Kentucky Wildcats")
+   - AP Top 25 finishes dynamically calculated from `finalPollsByYear`
+   - Data structure: `finalPollsByYear[year].media` and `finalPollsByYear[year].coaches` arrays of `{rank, team}`
 
-2. **Game Pages Replace Modals**:
-   - All games now link to dedicated game pages at `/dynasty/:id/game/:gameId`
-   - `GameDetailModal` is NO LONGER USED anywhere in the app
-   - Sports broadcast-style UI with gradient headers, dark scoreboard, team logos
-   - Supports all game types: regular season, conference championships, bowl games, CFP games
-   - Edit button on game page opens `GameEntryModal` for modifications
+2. **Team Stats Sheet**:
+   - Two-column vertical layout: Column A = stat names (protected), Column B = values
+   - Stats tracked: First Downs, Rush Yards Allowed, Pass Yards Allowed, Red Zone Attempts, Red Zone TDs, Def. RZ Attempts, Def. RZ TDs, 3rd Down Conversions, 3rd Down Attempts, 4th Down Conversions, 4th Down Attempts, 2pt Conversions, 2pt Attempts, Penalties, Penalty Yardage
+   - `readTeamStatsFromSheet()` reads from column B
 
-2. **Game ID Patterns** (for fallback lookups in Game.jsx):
-   - Direct ID: Games in `games[]` array have unique IDs
-   - `cc-{year}` or `cc-{year}-{conference-slug}`: Conference championships
-   - `bowl-{year}-{bowl-slug}`: Bowl games (e.g., `bowl-2025-rose-bowl`)
-   - `cfp-{year}-{round}`: CFP games (e.g., `cfp-2025-sugar-bowl`, `cfp-2025-national-championship`)
+3. **Google Sheets Improvements**:
+   - Team dropdown validation with conditional formatting on all sheets with team columns
+   - Position dropdown validation (QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P)
+   - Class dropdown validation (Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr)
+   - Awards sheet: Coach awards (Bear Bryant, Broyles) have merged Position/Team/Class into just Team
+   - Helper functions: `generateTeamFormattingRulesForRange()`, `generateTeamValidation()`, `generatePositionValidation()`, `generateClassValidation()`
 
-3. **Pages Updated to Use Game Links**:
-   - Dashboard.jsx - Schedule games link to game pages
-   - TeamYear.jsx - All game cards link to game pages
-   - ConferenceChampionshipHistory.jsx - CC games link to game pages
-   - CFPBracket.jsx - All bracket matchups link to game pages
-   - BowlHistory.jsx - All bowl results link to game pages
-   - CoachCareer.jsx - Favorite/underdog games link to game pages
-   - Player.jsx - Player of the Week games link to game pages
-
-4. **Postseason Structure (4 Weeks)**:
-   - Bowl Week 1: Bowl games + CFP First Round (4 games)
-   - Bowl Week 2: Bowl games + CFP Quarterfinals (user's QF game only if in CFP)
-   - Bowl Week 3: Bowl games + CFP Semifinals (user's SF game only if in CFP)
-   - Bowl Week 4: National Championship (all remaining CFP results)
+4. **Conference Standings Page**:
+   - Route: `/dynasty/:id/conference-standings`
+   - Year selector, search, expandable conference sections
+   - Links to team pages with team logos/colors
 
 5. **KNOWN BUG - CFP Bracket Advancement**:
    - The bracket does NOT correctly advance teams after phase/week changes
@@ -52,7 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **TODO / Future Work**:
 - **FIX**: CFP Bracket team advancement after phase changes
 - Team stats still need implementation for:
-  - AP Top 25 Finishes, CFP Appearances, National Titles
+  - CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans
   - User's games as/against each team with win percentages
 
@@ -212,7 +201,7 @@ if (isDev || !user) {
   - `/dynasty/:id` - Dynasty detail view with nested routes:
     - `/dynasty/:id` - Dashboard (default)
     - `/dynasty/:id/roster` - Current roster
-    - `/dynasty/:id/rankings` - Team rankings
+    - `/dynasty/:id/rankings` - Final AP Top 25 (Media & Coaches polls)
     - `/dynasty/:id/stats` - Statistics
     - `/dynasty/:id/coach-career` - Coach career tracking
     - `/dynasty/:id/players` - All players list
@@ -230,6 +219,7 @@ if (isDev || !user) {
     - `/dynasty/:id/team/:teamAbbr/:year` - Team year details
     - `/dynasty/:id/cfp-bracket` - College Football Playoff bracket
     - `/dynasty/:id/bowl-history` - Bowl game history
+    - `/dynasty/:id/conference-standings` - Conference standings by year
     - `/dynasty/:id/game/:gameId` - Individual game detail page
 
 `ProtectedRoute` component in `App.jsx` checks dev mode first, then user authentication.
@@ -462,9 +452,10 @@ Each dynasty object contains:
 
 **Individual Team Page** (`src/pages/dynasty/Team.jsx`):
 - Route: `/dynasty/:id/team/:teamAbbr`
-- Header with team logo, name, and conference
+- Header with team logo, name, conference, and **final ranking** (e.g., "#5 Kentucky Wildcats")
+- Final ranking pulled from most recent year's media poll in `finalPollsByYear`
 - **Team Accomplishments Section**:
-  - AP Top 25 Finishes - reads from `teamHistories[teamAbbr]` (placeholder)
+  - AP Top 25 Finishes - **dynamically calculated** from `finalPollsByYear` (counts years team appears in media poll)
   - Conference Titles - **dynamically calculated** from `conferenceChampionshipsByYear`
   - CFP Appearances, National Titles - reads from `teamHistories` (placeholder)
   - Heisman Winners, First-Team All-Americans - reads from `teamHistories` (placeholder)

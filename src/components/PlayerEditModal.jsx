@@ -56,7 +56,6 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         // Game Logs
         snapsPlayed: player.snapsPlayed || 0,
         gamesPlayed: player.gamesPlayed || 0,
-        gamesStarted: player.gamesStarted || 0,
 
         // Departure
         yearDeparted: player.yearDeparted || '',
@@ -252,7 +251,6 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
       snapsPlayed: num(formData.snapsPlayed),
       gamesPlayed: num(formData.gamesPlayed),
-      gamesStarted: num(formData.gamesStarted),
 
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
@@ -770,10 +768,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
             >
               <h3 className="text-lg font-bold mb-4" style={{ color: secondaryText }}>Game Logs</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField label="Snaps Played" name="snapsPlayed" />
                 <InputField label="Games Played" name="gamesPlayed" />
-                <InputField label="Games Started" name="gamesStarted" />
               </div>
             </div>
 

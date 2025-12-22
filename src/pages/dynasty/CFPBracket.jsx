@@ -140,183 +140,99 @@ export default function CFPBracket() {
 
   const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
-  // Get CFP results - prefer games[] array (single source of truth), fall back to cfpResultsByYear
-  const allGames = currentDynasty.games || []
+  // Get CFP results from cfpResultsByYear - this is the source of truth
   const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+  const allGames = currentDynasty.games || []
 
-  // Helper to find a game in games[] array and convert to bracket format
-  const findGameInGamesArray = (cfpFlag, year) => {
-    const game = allGames.find(g => g[cfpFlag] && Number(g.year) === Number(year))
-    if (!game) return null
-
-    // Convert games[] format to bracket format
-    // User games have: opponent, teamScore, opponentScore, result
-    // CPU games have: team1, team2, team1Score, team2Score, winner
-    if (game.isCPUGame) {
-      return {
-        team1: game.team1,
-        team2: game.team2,
-        team1Score: game.team1Score,
-        team2Score: game.team2Score,
-        winner: game.winner,
-        seed1: game.seed1,
-        seed2: game.seed2,
-        bowlName: game.bowlName
-      }
-    } else {
-      // User game - user team is always team1
-      const userScore = parseInt(game.teamScore)
-      const oppScore = parseInt(game.opponentScore)
-      return {
-        team1: userTeamAbbr,
-        team2: game.opponent,
-        team1Score: userScore,
-        team2Score: oppScore,
-        winner: game.result === 'W' ? userTeamAbbr : game.opponent,
-        seed1: game.seed1,
-        seed2: game.seed2,
-        bowlName: game.bowlName
-      }
+  // Convert a user game from games[] to bracket format
+  const convertUserGame = (game) => {
+    const userScore = parseInt(game.teamScore)
+    const oppScore = parseInt(game.opponentScore)
+    // Handle both 'W' and 'win' result formats
+    const userWon = game.result === 'W' || game.result === 'win'
+    return {
+      team1: userTeamAbbr,
+      team2: game.opponent,
+      team1Score: userScore,
+      team2Score: oppScore,
+      winner: userWon ? userTeamAbbr : game.opponent,
+      seed1: game.seed1,
+      seed2: game.seed2,
+      bowlName: game.bowlName
     }
   }
 
-  // Helper to merge games[] data with cfpResultsByYear data, preferring games[]
-  const mergeResults = (cfpFlag, cfpResultsArray) => {
-    // First, get all games from the games[] array for this round
-    const gamesFromArray = allGames
-      .filter(g => g[cfpFlag] && Number(g.year) === Number(displayYear))
-      .map(game => {
-        if (game.isCPUGame) {
-          return {
-            team1: game.team1,
-            team2: game.team2,
-            team1Score: game.team1Score,
-            team2Score: game.team2Score,
-            winner: game.winner,
-            seed1: game.seed1,
-            seed2: game.seed2,
-            bowlName: game.bowlName
-          }
-        } else {
-          const userScore = parseInt(game.teamScore)
-          const oppScore = parseInt(game.opponentScore)
-          return {
-            team1: userTeamAbbr,
-            team2: game.opponent,
-            team1Score: userScore,
-            team2Score: oppScore,
-            winner: game.result === 'W' ? userTeamAbbr : game.opponent,
-            seed1: game.seed1,
-            seed2: game.seed2,
-            bowlName: game.bowlName
-          }
-        }
-      })
-
-    // For each result in cfpResultsByYear, check if we have an updated version in games[]
-    const mergedResults = (cfpResultsArray || []).map(cfpGame => {
-      // Find matching game in gamesFromArray by seeds (for first round) or bowl name
-      const matchingGame = gamesFromArray.find(g => {
-        if (cfpGame.seed1 !== undefined && g.seed1 !== undefined) {
-          return (g.seed1 === cfpGame.seed1 && g.seed2 === cfpGame.seed2) ||
-                 (g.seed1 === cfpGame.seed2 && g.seed2 === cfpGame.seed1)
-        }
-        if (cfpGame.bowlName && g.bowlName) {
-          return g.bowlName === cfpGame.bowlName
-        }
-        // Match by teams
-        return (g.team1 === cfpGame.team1 && g.team2 === cfpGame.team2) ||
-               (g.team1 === cfpGame.team2 && g.team2 === cfpGame.team1)
-      })
-      return matchingGame || cfpGame
-    })
-
-    // Also add any games from games[] that aren't in cfpResultsByYear
-    gamesFromArray.forEach(game => {
-      const exists = mergedResults.some(r => {
-        if (game.seed1 !== undefined && r.seed1 !== undefined) {
-          return (r.seed1 === game.seed1 && r.seed2 === game.seed2) ||
-                 (r.seed1 === game.seed2 && r.seed2 === game.seed1)
-        }
-        if (game.bowlName && r.bowlName) {
-          return r.bowlName === game.bowlName
-        }
-        return (r.team1 === game.team1 && r.team2 === game.team2) ||
-               (r.team1 === game.team2 && r.team2 === game.team1)
-      })
-      if (!exists) {
-        mergedResults.push(game)
-      }
-    })
-
-    return mergedResults
+  // Get user's CFP games from games[] array (if any)
+  const getUserGame = (cfpFlag) => {
+    const game = allGames.find(g => g[cfpFlag] && Number(g.year) === Number(displayYear) && !g.isCPUGame)
+    return game ? convertUserGame(game) : null
   }
 
-  // Get merged results for each round
-  const firstRoundResults = mergeResults('isCFPFirstRound', cfpResults.firstRound)
-  const quarterfinalsResults = mergeResults('isCFPQuarterfinal', cfpResults.quarterfinals)
-  const semifinalsResults = mergeResults('isCFPSemifinal', cfpResults.semifinals)
-  const championshipResults = mergeResults('isCFPChampionship', cfpResults.championship)
-
-  // Helper to get First Round winner by matchup seeds
-  const getFirstRoundWinner = (seed1, seed2) => {
-    const game = firstRoundResults.find(g =>
-      (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
+  // Merge stored results with user games from games[] array
+  // User games take priority (they're the user's actual results)
+  const mergeWithUserGame = (storedResults, userGame) => {
+    if (!userGame) return storedResults
+    // Replace any game involving the user's team, or add if not found
+    const filtered = storedResults.filter(g =>
+      g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr &&
+      g.team1 !== userGame.team2 && g.team2 !== userGame.team2
     )
-    return game?.winner || null
+    return [...filtered, userGame]
   }
 
-  // Helper to get the seed of the First Round winner
-  const getWinnerSeed = (seed1, seed2) => {
-    const game = firstRoundResults.find(g =>
-      (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
-    )
-    if (!game?.winner) return null
-    if (game.team1 === game.winner) return game.seed1
-    if (game.team2 === game.winner) return game.seed2
-    return null
-  }
+  // Get results arrays - merge cfpResultsByYear with user games from games[]
+  const firstRoundResults = mergeWithUserGame(cfpResults.firstRound || [], getUserGame('isCFPFirstRound'))
+  const quarterfinalsResults = mergeWithUserGame(cfpResults.quarterfinals || [], getUserGame('isCFPQuarterfinal'))
+  const semifinalsResults = mergeWithUserGame(cfpResults.semifinals || [], getUserGame('isCFPSemifinal'))
+  const championshipResults = mergeWithUserGame(cfpResults.championship || [], getUserGame('isCFPChampionship'))
 
-  // Helper to get First Round game data
+  // Simple lookup helpers - just find games by their stored properties
   const getFirstRoundGame = (seed1, seed2) => {
     return firstRoundResults.find(g =>
       (g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1)
     ) || null
   }
 
-  // Helper to get Quarterfinal winner by bowl name
-  const getQFWinner = (bowlName) => {
-    const game = quarterfinalsResults.find(g => g.bowlName === bowlName)
+  const getFirstRoundWinner = (seed1, seed2) => {
+    const game = getFirstRoundGame(seed1, seed2)
     return game?.winner || null
   }
 
-  // Helper to get the seed of a team
-  const getSeedByTeam = (team) => {
-    if (!team) return null
-    const seedEntry = cfpSeeds.find(s => s.team === team)
-    return seedEntry?.seed || null
+  const getWinnerSeed = (seed1, seed2) => {
+    const game = getFirstRoundGame(seed1, seed2)
+    if (!game?.winner) return null
+    if (game.team1 === game.winner) return game.seed1
+    if (game.team2 === game.winner) return game.seed2
+    return null
   }
 
-  // Helper to get Quarterfinal game data
   const getQFGame = (bowlName) => {
     return quarterfinalsResults.find(g => g.bowlName === bowlName) || null
   }
 
-  // Helper to get Semifinal winner by bowl name
-  const getSFWinner = (bowlName) => {
-    const game = semifinalsResults.find(g => g.bowlName === bowlName)
+  const getQFWinner = (bowlName) => {
+    const game = getQFGame(bowlName)
     return game?.winner || null
   }
 
-  // Helper to get Semifinal game data
   const getSFGame = (bowlName) => {
     return semifinalsResults.find(g => g.bowlName === bowlName) || null
   }
 
-  // Helper to get Championship game data
+  const getSFWinner = (bowlName) => {
+    const game = getSFGame(bowlName)
+    return game?.winner || null
+  }
+
   const getChampGame = () => {
     return championshipResults[0] || null
+  }
+
+  const getSeedByTeam = (team) => {
+    if (!team) return null
+    const seedEntry = cfpSeeds.find(s => s.team === team)
+    return seedEntry?.seed || null
   }
 
   // Sizing constants (scaled up for larger bracket)

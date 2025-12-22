@@ -33,7 +33,7 @@ export default function AuthErrorModal({ isOpen, onClose, teamColors }) {
 
       {/* Modal */}
       <div
-        className="relative rounded-xl shadow-2xl max-w-md w-full p-6"
+        className="relative rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6"
         style={{
           backgroundColor: teamColors?.secondary || '#ffffff',
           border: `3px solid ${teamColors?.primary || '#1f2937'}`

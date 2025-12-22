@@ -534,11 +534,8 @@ export default function Game() {
           team1Score: finalTeam1Score,
           team2Score: finalTeam2Score,
           winner: winner,
-          viewingTeamAbbr: winner,
-          opponent: winnerIsTeam1 ? originalGame.team2 : originalGame.team1,
-          teamScore: winnerIsTeam1 ? finalTeam1Score : finalTeam2Score,
-          opponentScore: winnerIsTeam1 ? finalTeam2Score : finalTeam1Score,
-          result: 'win',
+          // Preserve original viewingTeamAbbr or default to team1 to prevent display flip
+          viewingTeamAbbr: originalGame.viewingTeamAbbr || originalGame.team1,
           gameNote: gameData.gameNote || '',
           links: gameData.links || '',
           quarters: gameData.quarters,
@@ -747,61 +744,57 @@ export default function Game() {
         </div>
       </div>
 
-      {/* Box Score - Separate Card (only show if quarter data exists) */}
+      {/* Scoring Summary - Dark theme continuation */}
       {game.quarters && (() => {
         const t = game.quarters.team || {}
         const o = game.quarters.opponent || {}
-        // Check if any quarter has actual data (number or non-empty string)
         const hasData = [t.Q1, t.Q2, t.Q3, t.Q4, o.Q1, o.Q2, o.Q3, o.Q4].some(
           v => v !== undefined && v !== '' && v !== null
         )
         return hasData
       })() && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Box Score</h3>
-          </div>
+        <div className="bg-gray-800 rounded-xl overflow-hidden shadow-lg">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                  <th className="text-left py-2.5 px-4 font-semibold w-1/3">Team</th>
-                  <th className="text-center py-2.5 px-2 font-semibold w-12">1</th>
-                  <th className="text-center py-2.5 px-2 font-semibold w-12">2</th>
-                  <th className="text-center py-2.5 px-2 font-semibold w-12">3</th>
-                  <th className="text-center py-2.5 px-2 font-semibold w-12">4</th>
+                <tr className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
+                  <th className="text-left py-3 px-3 sm:px-4 font-semibold">Team</th>
+                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">1st</th>
+                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">2nd</th>
+                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">3rd</th>
+                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">4th</th>
                   {game.overtimes?.map((_, i) => (
-                    <th key={i} className="text-center py-2.5 px-2 font-semibold w-12">OT</th>
+                    <th key={i} className="text-center py-3 px-2 sm:px-3 font-semibold">OT{i > 0 ? i + 1 : ''}</th>
                   ))}
-                  <th className="text-center py-2.5 px-4 font-semibold w-16">T</th>
+                  <th className="text-center py-3 px-3 sm:px-4 font-semibold">Total</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
                 {[leftData, rightData].map((team, idx) => {
                   const quarterKey = (idx === 0 ? leftTeam : rightTeam) === 'user' ? 'team' : 'opponent'
                   return (
-                    <tr key={idx} className={idx === 0 ? 'border-b border-gray-100' : ''}>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
+                    <tr key={idx} className={idx === 0 ? 'border-b border-gray-700' : ''}>
+                      <td className="py-3 px-3 sm:px-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className="w-6 h-6 rounded flex items-center justify-center p-0.5 flex-shrink-0"
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0"
                             style={{ backgroundColor: team.colors.primary }}
                           >
                             {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                           </div>
-                          <span className="font-semibold text-gray-800">
+                          <span className={`font-bold ${team.isWinner ? 'text-white' : 'text-gray-400'}`}>
                             <span className="sm:hidden">{team.abbr}</span>
                             <span className="hidden sm:inline">{team.name}</span>
                           </span>
                         </div>
                       </td>
                       {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                        <td key={q} className="text-center py-3 px-2 text-gray-600 font-medium">{game.quarters[quarterKey]?.[q] ?? 0}</td>
+                        <td key={q} className="text-center py-3 px-2 sm:px-3 text-gray-300 font-medium">{game.quarters[quarterKey]?.[q] ?? '-'}</td>
                       ))}
                       {game.overtimes?.map((ot, i) => (
-                        <td key={i} className="text-center py-3 px-2 text-gray-600 font-medium">{ot[quarterKey] ?? 0}</td>
+                        <td key={i} className="text-center py-3 px-2 sm:px-3 text-yellow-400 font-medium">{ot[quarterKey] ?? '-'}</td>
                       ))}
-                      <td className={`text-center py-3 px-4 font-bold text-lg ${team.isWinner ? 'text-gray-900' : 'text-gray-500'}`}>
+                      <td className={`text-center py-3 px-3 sm:px-4 font-black text-lg sm:text-xl ${team.isWinner ? 'text-white' : 'text-gray-500'}`}>
                         {team.score}
                       </td>
                     </tr>
@@ -813,140 +806,175 @@ export default function Game() {
         </div>
       )}
 
-      {/* Details Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Team Ratings */}
-        {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Team Ratings</h3>
-            </div>
-            <div className="p-4 space-y-3">
-              {[leftData, rightData].map((team, idx) => {
-                const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
-                const ratings = isOpponent
-                  ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
-                  : { ovr: currentDynasty.teamRatings?.overall, off: currentDynasty.teamRatings?.offense, def: currentDynasty.teamRatings?.defense }
+      {/* Game Details Section */}
+      {(!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense || game.conferencePOW || game.nationalPOW)) || game.gameNote ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-                if (!ratings.ovr && !ratings.off && !ratings.def) return null
+          {/* Team Matchup Card */}
+          {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
+            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg" style={{ background: `linear-gradient(135deg, ${displayTeamColors.primary}15 0%, ${opponentColors.primary}15 100%)` }}>
+              <div className="px-4 py-3 border-b" style={{ borderColor: `${displayTeamColors.primary}30` }}>
+                <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Team Ratings
+                </h3>
+              </div>
+              <div className="p-4 space-y-4">
+                {[leftData, rightData].map((team, idx) => {
+                  const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
+                  const ratings = isOpponent
+                    ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
+                    : { ovr: currentDynasty.teamRatings?.overall, off: currentDynasty.teamRatings?.offense, def: currentDynasty.teamRatings?.defense }
 
-                return (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                    <div className="flex items-center gap-2">
+                  if (!ratings.ovr && !ratings.off && !ratings.def) return null
+
+                  return (
+                    <div key={idx} className="flex items-center gap-3">
                       <div
-                        className="w-6 h-6 rounded flex items-center justify-center p-0.5"
+                        className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0"
                         style={{ backgroundColor: team.colors.primary }}
                       >
                         {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                       </div>
-                      <span className="font-medium text-gray-800 text-sm">{team.name?.split(' ').pop()}</span>
-                    </div>
-                    <div className="flex gap-4 text-sm">
-                      {ratings.ovr && (
-                        <div className="text-center">
-                          <div className="text-[10px] text-gray-400 uppercase">OVR</div>
-                          <div className="font-bold text-gray-800">{ratings.ovr}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-800 text-sm truncate">{team.name}</div>
+                        <div className="flex gap-3 mt-1">
+                          {ratings.ovr && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400 font-medium">OVR</span>
+                              <span className="font-black text-gray-800">{ratings.ovr}</span>
+                            </div>
+                          )}
+                          {ratings.off && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400 font-medium">OFF</span>
+                              <span className="font-bold text-green-600">{ratings.off}</span>
+                            </div>
+                          )}
+                          {ratings.def && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400 font-medium">DEF</span>
+                              <span className="font-bold text-red-600">{ratings.def}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {ratings.off && (
-                        <div className="text-center">
-                          <div className="text-[10px] text-gray-400 uppercase">OFF</div>
-                          <div className="font-bold text-gray-800">{ratings.off}</div>
-                        </div>
-                      )}
-                      {ratings.def && (
-                        <div className="text-center">
-                          <div className="text-[10px] text-gray-400 uppercase">DEF</div>
-                          <div className="font-bold text-gray-800">{ratings.def}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Player of the Week */}
-        {!isCPUGame && (game.conferencePOW || game.nationalPOW) && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Player of the Week</h3>
-            </div>
-            <div className="p-4 space-y-3">
-              {game.conferencePOW && (
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: teamColors.primary }}
-                  >
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] text-gray-400 uppercase font-medium">Conference</div>
-                    {getPlayerPID(game.conferencePOW) ? (
-                      <Link
-                        to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
-                        className="font-bold text-sm hover:underline truncate block"
-                        style={{ color: teamColors.primary }}
-                      >
-                        {game.conferencePOW}
-                      </Link>
-                    ) : (
-                      <div className="font-bold text-sm truncate" style={{ color: teamColors.primary }}>
-                        {game.conferencePOW}
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              {game.nationalPOW && (
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400">
-                    <svg className="w-4 h-4 text-yellow-800" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] text-yellow-600 uppercase font-medium">National</div>
-                    {getPlayerPID(game.nationalPOW) ? (
-                      <Link
-                        to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
-                        className="font-bold text-sm text-yellow-800 hover:underline truncate block"
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Player of the Week */}
+          {!isCPUGame && (game.conferencePOW || game.nationalPOW) && (
+            <div className="lg:col-span-4 rounded-xl overflow-hidden shadow-lg bg-gradient-to-br from-gray-900 to-gray-800">
+              <div className="px-4 py-3 border-b border-gray-700">
+                <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                  <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  Player of the Week
+                </h3>
+              </div>
+              <div className="p-4 space-y-3">
+                {game.conferencePOW && (
+                  <div
+                    className="p-3 rounded-lg"
+                    style={{ background: `linear-gradient(135deg, ${teamColors.primary}40 0%, ${teamColors.primary}20 100%)` }}
+                  >
+                    <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Conference</div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: teamColors.primary }}
                       >
-                        {game.nationalPOW}
-                      </Link>
-                    ) : (
-                      <div className="font-bold text-sm text-yellow-800 truncate">{game.nationalPOW}</div>
-                    )}
+                        <svg className="w-4 h-4" fill={getContrastTextColor(teamColors.primary)} viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </div>
+                      {getPlayerPID(game.conferencePOW) ? (
+                        <Link
+                          to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
+                          className="font-bold text-white text-lg hover:underline truncate"
+                        >
+                          {game.conferencePOW}
+                        </Link>
+                      ) : (
+                        <div className="font-bold text-white text-lg truncate">{game.conferencePOW}</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {game.nationalPOW && (
+                  <div className="p-3 rounded-lg bg-gradient-to-r from-yellow-500/30 to-yellow-400/20 border border-yellow-500/30">
+                    <div className="text-[10px] text-yellow-300 uppercase font-bold tracking-wider mb-1">National</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400 shadow-lg shadow-yellow-400/30">
+                        <svg className="w-4 h-4 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </div>
+                      {getPlayerPID(game.nationalPOW) ? (
+                        <Link
+                          to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
+                          className="font-bold text-yellow-300 text-lg hover:underline truncate"
+                        >
+                          {game.nationalPOW}
+                        </Link>
+                      ) : (
+                        <div className="font-bold text-yellow-300 text-lg truncate">{game.nationalPOW}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Game Notes */}
-        {game.gameNote && (
-          <div className="bg-white rounded-xl shadow-md overflow-hidden md:col-span-2 lg:col-span-1">
-            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-              <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Game Notes</h3>
+          {/* Game Notes */}
+          {game.gameNote && (
+            <div
+              className={`rounded-xl overflow-hidden shadow-lg ${
+                (!isCPUGame && (game.opponentOverall || game.conferencePOW || game.nationalPOW))
+                  ? 'lg:col-span-3'
+                  : 'lg:col-span-12'
+              }`}
+              style={{ backgroundColor: displayTeamColors.primary }}
+            >
+              <div className="px-4 py-3 border-b" style={{ borderColor: `${getContrastTextColor(displayTeamColors.primary)}20` }}>
+                <h3 className="font-bold text-sm uppercase tracking-wide flex items-center gap-2" style={{ color: getContrastTextColor(displayTeamColors.primary) }}>
+                  <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Game Notes
+                </h3>
+              </div>
+              <div className="p-4">
+                <p
+                  className="text-sm whitespace-pre-wrap leading-relaxed"
+                  style={{ color: getContrastTextColor(displayTeamColors.primary), opacity: 0.9 }}
+                >
+                  {game.gameNote}
+                </p>
+              </div>
             </div>
-            <div className="p-4">
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{game.gameNote}</p>
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
 
-      {/* Media Links */}
+      {/* Media Section */}
       {links.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
-            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide">Media</h3>
+        <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
+          <div className="px-4 py-3 border-b border-gray-700">
+            <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Media
+            </h3>
           </div>
           <div className="p-4 space-y-4">
             {links.map((link, index) => {
@@ -954,7 +982,7 @@ export default function Game() {
 
               if (youtubeEmbedUrl) {
                 return (
-                  <div key={index} className="rounded-lg overflow-hidden shadow aspect-video">
+                  <div key={index} className="rounded-xl overflow-hidden shadow-lg aspect-video ring-1 ring-gray-700">
                     <iframe
                       width="100%"
                       height="100%"
@@ -968,7 +996,7 @@ export default function Game() {
                 )
               } else if (isImageLink(link)) {
                 return (
-                  <div key={index} className="rounded-lg overflow-hidden shadow">
+                  <div key={index} className="rounded-xl overflow-hidden shadow-lg ring-1 ring-gray-700">
                     <img src={link} alt={`Game media ${index + 1}`} className="w-full h-auto" />
                   </div>
                 )
@@ -979,14 +1007,20 @@ export default function Game() {
                     href={link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group"
+                    className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl hover:bg-gray-750 transition-colors group ring-1 ring-gray-700"
                   >
-                    <div className="w-8 h-8 rounded bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: teamColors.primary }}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke={getContrastTextColor(teamColors.primary)} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </div>
-                    <span className="text-sm text-blue-600 group-hover:underline break-all flex-1">{link}</span>
+                    <span className="text-sm text-gray-300 group-hover:text-white break-all flex-1 transition-colors">{link}</span>
+                    <svg className="w-5 h-5 text-gray-500 group-hover:text-white transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </a>
                 )
               }

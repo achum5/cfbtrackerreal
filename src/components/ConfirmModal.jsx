@@ -26,7 +26,7 @@ export default function ConfirmModal({
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-3">
           {title}
         </h2>

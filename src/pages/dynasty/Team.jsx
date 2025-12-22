@@ -258,6 +258,39 @@ export default function Team() {
     .filter(cc => cc.winner === teamAbbr)
     .length
 
+  // Get final media poll ranking for this team (most recent completed year)
+  const getFinalRanking = () => {
+    const finalPolls = currentDynasty.finalPollsByYear || {}
+    // Check each year from most recent to oldest
+    for (let year = currentYear; year >= startYear; year--) {
+      const yearPolls = finalPolls[year]
+      if (yearPolls?.media) {
+        const teamRanking = yearPolls.media.find(p => p.team === teamAbbr)
+        if (teamRanking) {
+          return { rank: teamRanking.rank, year }
+        }
+      }
+    }
+    return null
+  }
+
+  const finalRanking = getFinalRanking()
+
+  // Calculate AP Top 25 finishes dynamically from finalPollsByYear
+  const getApTop25Finishes = () => {
+    const finalPolls = currentDynasty.finalPollsByYear || {}
+    let count = 0
+    Object.values(finalPolls).forEach(yearPolls => {
+      if (yearPolls?.media) {
+        const isRanked = yearPolls.media.some(p => p.team === teamAbbr)
+        if (isRanked) count++
+      }
+    })
+    return count
+  }
+
+  const apTop25Finishes = getApTop25Finishes()
+
   // Calculate bowl wins dynamically from bowlGamesByYear
   const getBowlWinsForTeam = () => {
     const bowlWins = []
@@ -439,6 +472,9 @@ export default function Team() {
               Team History
             </p>
             <h1 className="text-2xl font-bold" style={{ color: teamBgText }}>
+              {finalRanking && (
+                <span className="text-yellow-400 mr-2">#{finalRanking.rank}</span>
+              )}
               {mascotName || teamInfo.name}
             </h1>
             {conference && (
@@ -480,7 +516,7 @@ export default function Team() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             <StatCell
               label="AP Top 25"
-              value={teamHistoryData.apTop25Finishes || 0}
+              value={apTop25Finishes}
               subValue="Finishes"
             />
             <StatCell

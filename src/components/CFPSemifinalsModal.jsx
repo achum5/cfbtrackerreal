@@ -91,10 +91,33 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
     const teamData = teamAbbreviations[abbr]
     const mascotName = mascotMap[abbr]
     const logo = mascotName ? getTeamLogo(mascotName) : null
+
+    // Extract just the school name (remove mascot suffix)
+    // e.g., "Kentucky Wildcats" -> "Kentucky", "Duke Blue Devils" -> "Duke"
+    const getSchoolName = (fullName) => {
+      if (!fullName) return abbr
+      // Common multi-word mascots to remove
+      const mascots = [
+        'Fightin\' Blue Hens', 'Blue Devils', 'Yellow Jackets', 'Golden Gophers',
+        'Horned Frogs', 'Red Raiders', 'Green Wave', 'Golden Hurricane', 'Mean Green',
+        'Demon Deacons', 'Fighting Irish', 'Fighting Illini', 'Golden Flashes',
+        'Ragin\' Cajuns', 'Black Knights', 'Blue Raiders', 'Golden Bears', 'Scarlet Knights',
+        'Nittany Lions', 'Crimson Tide', 'Sun Devils', 'Red Wolves', 'Thundering Herd',
+        'Rainbow Warriors', 'Wolf Pack', 'Tar Heels', 'Running Rebels'
+      ]
+      for (const mascot of mascots) {
+        if (fullName.endsWith(mascot)) {
+          return fullName.replace(mascot, '').trim()
+        }
+      }
+      // Default: remove last word (single-word mascot)
+      const words = fullName.split(' ')
+      return words.length > 1 ? words.slice(0, -1).join(' ') : fullName
+    }
+
     return {
       abbr,
-      name: teamData?.name || abbr,
-      shortName: mascotName?.split(' ').pop() || abbr, // Get last word (mascot)
+      name: getSchoolName(mascotName) || teamData?.name || abbr,
       fullMascot: mascotName,
       backgroundColor: teamData?.backgroundColor || '#4B5563',
       textColor: teamData?.textColor || '#FFFFFF',

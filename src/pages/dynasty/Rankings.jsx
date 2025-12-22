@@ -1,39 +1,357 @@
+import { useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { getTeamLogo } from '../../data/teams'
+
+// Map abbreviation to mascot name for logo lookup
+const getMascotName = (abbr) => {
+  const mascotMap = {
+    'BAMA': 'Alabama Crimson Tide',
+    'AFA': 'Air Force Falcons',
+    'AKR': 'Akron Zips',
+    'APP': 'Appalachian State Mountaineers',
+    'ARIZ': 'Arizona Wildcats',
+    'ARK': 'Arkansas Razorbacks',
+    'ARMY': 'Army Black Knights',
+    'ARST': 'Arkansas State Red Wolves',
+    'ASU': 'Arizona State Sun Devils',
+    'AUB': 'Auburn Tigers',
+    'BALL': 'Ball State Cardinals',
+    'BC': 'Boston College Eagles',
+    'BGSU': 'Bowling Green Falcons',
+    'BOIS': 'Boise State Broncos',
+    'BU': 'Baylor Bears',
+    'BUFF': 'Buffalo Bulls',
+    'BYU': 'Brigham Young Cougars',
+    'CAL': 'California Golden Bears',
+    'CCU': 'Coastal Carolina Chanticleers',
+    'CHAR': 'Charlotte 49ers',
+    'CINN': 'Cincinnati Bearcats',
+    'CLEM': 'Clemson Tigers',
+    'CMU': 'Central Michigan Chippewas',
+    'COLO': 'Colorado Buffaloes',
+    'CONN': 'Connecticut Huskies',
+    'CSU': 'Colorado State Rams',
+    'DEL': 'Delaware Fightin\' Blue Hens',
+    'DUKE': 'Duke Blue Devils',
+    'ECU': 'East Carolina Pirates',
+    'EMU': 'Eastern Michigan Eagles',
+    'FAU': 'Florida Atlantic Owls',
+    'FIU': 'Florida International Panthers',
+    'FLA': 'Florida Gators',
+    'FRES': 'Fresno State Bulldogs',
+    'FSU': 'Florida State Seminoles',
+    'GASO': 'Georgia Southern Eagles',
+    'GSU': 'Georgia State Panthers',
+    'GT': 'Georgia Tech Yellow Jackets',
+    'HAW': 'Hawaii Rainbow Warriors',
+    'HOU': 'Houston Cougars',
+    'ILL': 'Illinois Fighting Illini',
+    'IU': 'Indiana Hoosiers',
+    'IOWA': 'Iowa Hawkeyes',
+    'ISU': 'Iowa State Cyclones',
+    'JKST': 'Jacksonville State Gamecocks',
+    'JMU': 'James Madison Dukes',
+    'KENN': 'Kennesaw State Owls',
+    'KENT': 'Kent State Golden Flashes',
+    'KSU': 'Kansas State Wildcats',
+    'KU': 'Kansas Jayhawks',
+    'LIB': 'Liberty Flames',
+    'LOU': 'Louisville Cardinals',
+    'LSU': 'LSU Tigers',
+    'LT': 'Louisiana Tech Bulldogs',
+    'M-OH': 'Miami Redhawks',
+    'MASS': 'Massachusetts Minutemen',
+    'MEM': 'Memphis Tigers',
+    'MIA': 'Miami Hurricanes',
+    'MICH': 'Michigan Wolverines',
+    'MINN': 'Minnesota Golden Gophers',
+    'MISS': 'Ole Miss Rebels',
+    'MIZ': 'Missouri Tigers',
+    'MRSH': 'Marshall Thundering Herd',
+    'MRYD': 'Maryland Terrapins',
+    'MSST': 'Mississippi State Bulldogs',
+    'MSU': 'Michigan State Spartans',
+    'MTSU': 'Middle Tennessee State Blue Raiders',
+    'MZST': 'Missouri State Bears',
+    'NAVY': 'Navy Midshipmen',
+    'NCST': 'North Carolina State Wolfpack',
+    'ND': 'Notre Dame Fighting Irish',
+    'NEB': 'Nebraska Cornhuskers',
+    'NEV': 'Nevada Wolf Pack',
+    'NIU': 'Northern Illinois Huskies',
+    'NMSU': 'New Mexico State Aggies',
+    'NU': 'Northwestern Wildcats',
+    'ODU': 'Old Dominion Monarchs',
+    'OHIO': 'Ohio Bobcats',
+    'OHIO ST': 'Ohio State Buckeyes',
+    'OKST': 'Oklahoma State Cowboys',
+    'ORE': 'Oregon Ducks',
+    'ORST': 'Oregon State Beavers',
+    'OSU': 'Ohio State Buckeyes',
+    'OU': 'Oklahoma Sooners',
+    'PITT': 'Pittsburgh Panthers',
+    'PSU': 'Penn State Nittany Lions',
+    'PUR': 'Purdue Boilermakers',
+    'RICE': 'Rice Owls',
+    'RUTG': 'Rutgers Scarlet Knights',
+    'SCAR': 'South Carolina Gamecocks',
+    'SDSU': 'San Diego State Aztecs',
+    'SHSU': 'Sam Houston State Bearkats',
+    'SJSU': 'San Jose State Spartans',
+    'SMU': 'SMU Mustangs',
+    'STAN': 'Stanford Cardinal',
+    'SYR': 'Syracuse Orange',
+    'TAMU': 'Texas A&M Aggies',
+    'TCU': 'TCU Horned Frogs',
+    'TEM': 'Temple Owls',
+    'TENN': 'Tennessee Volunteers',
+    'TEX': 'Texas Longhorns',
+    'TLNE': 'Tulane Green Wave',
+    'TLSA': 'Tulsa Golden Hurricane',
+    'TOL': 'Toledo Rockets',
+    'TROY': 'Troy Trojans',
+    'TTU': 'Texas Tech Red Raiders',
+    'TULN': 'Tulane Green Wave',
+    'TXAM': 'Texas A&M Aggies',
+    'TXST': 'Texas State Bobcats',
+    'UAB': 'UAB Blazers',
+    'UC': 'Cincinnati Bearcats',
+    'UCF': 'UCF Knights',
+    'UCLA': 'UCLA Bruins',
+    'UGA': 'Georgia Bulldogs',
+    'UH': 'Houston Cougars',
+    'UK': 'Kentucky Wildcats',
+    'UL': 'Lafayette Ragin\' Cajuns',
+    'ULL': 'Lafayette Ragin\' Cajuns',
+    'ULM': 'Monroe Warhawks',
+    'UMD': 'Maryland Terrapins',
+    'UNC': 'North Carolina Tar Heels',
+    'UNLV': 'UNLV Rebels',
+    'UNM': 'New Mexico Lobos',
+    'UNT': 'North Texas Mean Green',
+    'USA': 'South Alabama Jaguars',
+    'USC': 'USC Trojans',
+    'USF': 'South Florida Bulls',
+    'USM': 'Southern Mississippi Golden Eagles',
+    'USU': 'Utah State Aggies',
+    'UT': 'Tennessee Volunteers',
+    'UTAH': 'Utah Utes',
+    'UTEP': 'UTEP Miners',
+    'UTSA': 'UTSA Roadrunners',
+    'UVA': 'Virginia Cavaliers',
+    'VAN': 'Vanderbilt Commodores',
+    'VAND': 'Vanderbilt Commodores',
+    'VT': 'Virginia Tech Hokies',
+    'WAKE': 'Wake Forest Demon Deacons',
+    'WASH': 'Washington Huskies',
+    'WIS': 'Wisconsin Badgers',
+    'WISC': 'Wisconsin Badgers',
+    'WKU': 'Western Kentucky Hilltoppers',
+    'WMU': 'Western Michigan Broncos',
+    'WSU': 'Washington State Cougars',
+    'WVU': 'West Virginia Mountaineers',
+    'WYO': 'Wyoming Cowboys'
+  }
+  return mascotMap[abbr] || null
+}
 
 export default function Rankings() {
-  const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
+  const { id } = useParams()
+  const { currentDynasty, teamColors } = useDynasty()
+  const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
 
-  return (
-    <div className="space-y-6">
-      <div
-        className="rounded-lg shadow-lg p-6"
+  const primaryBgText = getContrastTextColor(teamColors.primary)
+  const secondaryBgText = getContrastTextColor(teamColors.secondary)
+
+  // Get available years with final polls
+  const finalPolls = currentDynasty.finalPollsByYear || {}
+  const availableYears = Object.keys(finalPolls)
+    .map(y => parseInt(y))
+    .sort((a, b) => b - a)
+
+  // Set default year to most recent
+  const displayYear = selectedYear || (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
+  const yearPolls = finalPolls[displayYear] || {}
+  const mediaPoll = yearPolls.media || []
+  const coachesPoll = yearPolls.coaches || []
+
+  // No polls yet
+  if (availableYears.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div
+          className="rounded-lg shadow-lg p-8 text-center"
+          style={{ backgroundColor: teamColors.secondary }}
+        >
+          <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
+            Final AP Top 25
+          </h1>
+          <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
+            No final polls recorded yet. Complete a season and enter final polls to see rankings.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Render a single ranking row
+  const RankingRow = ({ rank, teamAbbr }) => {
+    const teamInfo = teamAbbreviations[teamAbbr] || {}
+    const mascotName = getMascotName(teamAbbr)
+    const teamLogo = mascotName ? getTeamLogo(mascotName) : null
+    const bgColor = teamInfo.backgroundColor || '#6B7280'
+    const textColor = getContrastTextColor(bgColor)
+
+    return (
+      <Link
+        to={`/dynasty/${id}/team/${teamAbbr}`}
+        className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.02] transition-transform"
         style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
+          backgroundColor: bgColor,
+          border: `2px solid ${teamInfo.textColor || '#374151'}`
         }}
       >
-        <h2 className="text-2xl font-bold mb-6" style={{ color: secondaryBgText }}>
-          Top 25 Rankings
-        </h2>
+        {/* Rank */}
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0"
+          style={{
+            backgroundColor: rank <= 4 ? '#EAB308' : rank <= 12 ? '#9CA3AF' : `${textColor}20`,
+            color: rank <= 4 ? '#000' : rank <= 12 ? '#000' : textColor
+          }}
+        >
+          {rank}
+        </div>
 
-        <div className="text-center py-12">
-          <div style={{ color: secondaryBgText, opacity: 0.5 }} className="mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
+        {/* Logo */}
+        {teamLogo && (
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
+          >
+            <img
+              src={teamLogo}
+              alt={`${teamAbbr} logo`}
+              className="w-full h-full object-contain"
+            />
           </div>
-          <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-            Rankings Coming Soon
-          </h3>
-          <p style={{ color: secondaryBgText, opacity: 0.8 }}>
-            Track the Top 25 rankings throughout the season.
-          </p>
+        )}
+
+        {/* Team Name */}
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-lg truncate" style={{ color: textColor }}>
+            {mascotName || teamInfo.name || teamAbbr}
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Year Selector */}
+      <div
+        className="rounded-lg shadow-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4"
+        style={{ backgroundColor: teamColors.secondary }}
+      >
+        <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+          Final AP Top 25
+        </h1>
+
+        <select
+          value={displayYear}
+          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2"
+          style={{
+            backgroundColor: teamColors.primary,
+            color: primaryBgText,
+            border: `2px solid ${primaryBgText}40`
+          }}
+        >
+          {availableYears.map((year) => (
+            <option key={year} value={year}>
+              {year} Season
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Polls Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Media Poll */}
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{ backgroundColor: teamColors.secondary }}
+        >
+          <div
+            className="px-4 py-3 flex items-center gap-3"
+            style={{ backgroundColor: teamColors.primary }}
+          >
+            <svg className="w-6 h-6" fill="none" stroke={primaryBgText} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
+            <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+              AP Media Poll
+            </h2>
+          </div>
+
+          <div className="p-4 space-y-2 max-h-[800px] overflow-y-auto">
+            {mediaPoll.length > 0 ? (
+              mediaPoll
+                .sort((a, b) => a.rank - b.rank)
+                .map((entry) => (
+                  <RankingRow
+                    key={`media-${entry.rank}`}
+                    rank={entry.rank}
+                    teamAbbr={entry.team}
+                  />
+                ))
+            ) : (
+              <p className="text-center py-8" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                No media poll data for {displayYear}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Coaches Poll */}
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{ backgroundColor: teamColors.secondary }}
+        >
+          <div
+            className="px-4 py-3 flex items-center gap-3"
+            style={{ backgroundColor: teamColors.primary }}
+          >
+            <svg className="w-6 h-6" fill="none" stroke={primaryBgText} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+              Coaches Poll
+            </h2>
+          </div>
+
+          <div className="p-4 space-y-2 max-h-[800px] overflow-y-auto">
+            {coachesPoll.length > 0 ? (
+              coachesPoll
+                .sort((a, b) => a.rank - b.rank)
+                .map((entry) => (
+                  <RankingRow
+                    key={`coaches-${entry.rank}`}
+                    rank={entry.rank}
+                    teamAbbr={entry.team}
+                  />
+                ))
+            ) : (
+              <p className="text-center py-8" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                No coaches poll data for {displayYear}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

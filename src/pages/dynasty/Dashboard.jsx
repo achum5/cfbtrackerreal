@@ -29,6 +29,11 @@ import CFPChampionshipModal from '../../components/CFPChampionshipModal'
 import ConferencesModal from '../../components/ConferencesModal'
 import StatsEntryModal from '../../components/StatsEntryModal'
 import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
+import ConferenceStandingsModal from '../../components/ConferenceStandingsModal'
+import FinalPollsModal from '../../components/FinalPollsModal'
+import TeamStatsModal from '../../components/TeamStatsModal'
+import AwardsModal from '../../components/AwardsModal'
+import AllAmericansModal from '../../components/AllAmericansModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 export default function Dashboard() {
@@ -57,6 +62,12 @@ export default function Dashboard() {
   const [showConferencesModal, setShowConferencesModal] = useState(false)
   const [showStatsEntryModal, setShowStatsEntryModal] = useState(false)
   const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
+  const [showConferenceStandingsModal, setShowConferenceStandingsModal] = useState(false)
+  const [showFinalPollsModal, setShowFinalPollsModal] = useState(false)
+  const [showTeamStatsModal, setShowTeamStatsModal] = useState(false)
+  const [showAwardsModal, setShowAwardsModal] = useState(false)
+  const [showAllAmericansModal, setShowAllAmericansModal] = useState(false)
+  const [showCoachingStaffPopup, setShowCoachingStaffPopup] = useState(false)
 
   // Bowl eligibility states
   const [bowlEligible, setBowlEligible] = useState(null) // null = not answered, true/false = answered
@@ -734,6 +745,138 @@ export default function Dashboard() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </button>
+
+                {/* Coaching Staff Popup (HC only) */}
+                {currentDynasty.coachPosition === 'HC' && currentDynasty.coachingStaff && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowCoachingStaffPopup(!showCoachingStaffPopup)}
+                      onMouseEnter={() => setShowCoachingStaffPopup(true)}
+                      className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                      style={{ color: primaryBgText }}
+                      title="Coaching Staff"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                    </button>
+
+                    {showCoachingStaffPopup && (
+                      <>
+                        {/* Backdrop for mobile click-away */}
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowCoachingStaffPopup(false)}
+                        />
+                        <div
+                          className="absolute right-0 top-full mt-2 z-50 w-64 rounded-xl shadow-xl overflow-hidden"
+                          style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+                          onMouseEnter={() => setShowCoachingStaffPopup(true)}
+                          onMouseLeave={() => setShowCoachingStaffPopup(false)}
+                        >
+                          <div className="px-4 py-3 border-b" style={{ borderColor: `${secondaryBgText}20`, backgroundColor: teamColors.primary }}>
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-sm uppercase tracking-wide" style={{ color: primaryBgText }}>
+                                Coaching Staff
+                              </h4>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setShowCoachingStaffPopup(false)
+                                  setShowCoachingStaffModal(true)
+                                }}
+                                className="p-1 rounded hover:opacity-70 transition-opacity"
+                                style={{ color: primaryBgText }}
+                                title="Edit Coaching Staff"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            {/* Offensive Coordinator */}
+                            {(() => {
+                              const ocName = currentDynasty.coachingStaff?.ocName
+                              const firedOCName = currentDynasty.conferenceChampionshipData?.firedOCName
+                              const displayName = ocName || firedOCName
+                              const isFired = !ocName && firedOCName
+
+                              return displayName ? (
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ backgroundColor: isFired ? '#ef444420' : `${secondaryBgText}15` }}
+                                  >
+                                    <span className="text-xs font-bold" style={{ color: isFired ? '#ef4444' : secondaryBgText }}>OC</span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[10px] uppercase font-medium" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                                      Offensive Coordinator
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-bold truncate ${isFired ? 'line-through opacity-60' : ''}`} style={{ color: secondaryBgText }}>
+                                        {displayName}
+                                      </span>
+                                      {isFired && (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">
+                                          FIRED
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null
+                            })()}
+
+                            {/* Defensive Coordinator */}
+                            {(() => {
+                              const dcName = currentDynasty.coachingStaff?.dcName
+                              const firedDCName = currentDynasty.conferenceChampionshipData?.firedDCName
+                              const displayName = dcName || firedDCName
+                              const isFired = !dcName && firedDCName
+
+                              return displayName ? (
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ backgroundColor: isFired ? '#ef444420' : `${secondaryBgText}15` }}
+                                  >
+                                    <span className="text-xs font-bold" style={{ color: isFired ? '#ef4444' : secondaryBgText }}>DC</span>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[10px] uppercase font-medium" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                                      Defensive Coordinator
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`font-bold truncate ${isFired ? 'line-through opacity-60' : ''}`} style={{ color: secondaryBgText }}>
+                                        {displayName}
+                                      </span>
+                                      {isFired && (
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">
+                                          FIRED
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null
+                            })()}
+
+                            {/* Show message if no coordinators at all */}
+                            {!currentDynasty.coachingStaff?.ocName && !currentDynasty.coachingStaff?.dcName &&
+                             !currentDynasty.conferenceChampionshipData?.firedOCName && !currentDynasty.conferenceChampionshipData?.firedDCName && (
+                              <div className="text-center py-2 text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                                No coordinators entered
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2453,11 +2596,11 @@ export default function Dashboard() {
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasStatsData ? '#16a34a' : secondaryBgText }}>
                                 Player Stats Entry
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasStatsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                                {hasStatsData
-                                  ? `✓ Stats entered for ${currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0} players`
-                                  : 'Enter games played, starts, and snaps for each player'}
-                              </div>
+                              {hasStatsData && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ Stats entered for {currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0} players
+                                </div>
+                              )}
                             </div>
                           </div>
                           <button
@@ -2507,13 +2650,13 @@ export default function Dashboard() {
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText }}>
                                 Detailed Stats Entry
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                                {hasDetailedStats
-                                  ? '✓ Detailed stats entered across all categories'
-                                  : isLocked
-                                    ? 'Complete Player Stats Entry first'
-                                    : 'Passing, rushing, receiving, defensive, kicking stats'}
-                              </div>
+                              {(hasDetailedStats || isLocked) && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                  {hasDetailedStats
+                                    ? '✓ Detailed stats entered across all categories'
+                                    : 'Complete Player Stats Entry first'}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <button
@@ -2523,6 +2666,248 @@ export default function Dashboard() {
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText, opacity: isLocked ? 0.5 : 1 }}
                           >
                             {hasDetailedStats ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Conference Standings Entry */}
+                    {(() => {
+                      const hasStandingsData = currentDynasty?.conferenceStandingsByYear?.[currentDynasty.currentYear] &&
+                        Object.keys(currentDynasty.conferenceStandingsByYear[currentDynasty.currentYear]).length > 0
+                      const taskNumber = !userInCFPChampionship ? 4 : 3
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasStandingsData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasStandingsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasStandingsData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasStandingsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasStandingsData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasStandingsData ? '#16a34a' : secondaryBgText }}>
+                                Conference Standings
+                              </div>
+                              {hasStandingsData && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ Standings entered for {Object.keys(currentDynasty.conferenceStandingsByYear[currentDynasty.currentYear]).length} conferences
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowConferenceStandingsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasStandingsData ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Final Top 25 Polls Entry */}
+                    {(() => {
+                      const hasPollsData = currentDynasty?.finalPollsByYear?.[currentDynasty.currentYear] &&
+                        (currentDynasty.finalPollsByYear[currentDynasty.currentYear].media?.length > 0 ||
+                         currentDynasty.finalPollsByYear[currentDynasty.currentYear].coaches?.length > 0)
+                      const taskNumber = !userInCFPChampionship ? 5 : 4
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasPollsData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasPollsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasPollsData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasPollsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasPollsData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasPollsData ? '#16a34a' : secondaryBgText }}>
+                                Final Top 25 Polls
+                              </div>
+                              {hasPollsData && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ Final AP Media and Coaches Poll rankings entered
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowFinalPollsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasPollsData ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Team Statistics Entry */}
+                    {(() => {
+                      const hasTeamStats = currentDynasty?.teamStatsByYear?.[currentDynasty.currentYear] &&
+                        Object.keys(currentDynasty.teamStatsByYear[currentDynasty.currentYear]).length > 0
+                      const taskNumber = !userInCFPChampionship ? 6 : 5
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasTeamStats ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasTeamStats ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasTeamStats ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasTeamStats ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasTeamStats ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasTeamStats ? '#16a34a' : secondaryBgText }}>
+                                Team Statistics
+                              </div>
+                              {hasTeamStats && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ Team statistics entered
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowTeamStatsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasTeamStats ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Season Awards Entry */}
+                    {(() => {
+                      const hasAwards = currentDynasty?.awardsByYear?.[currentDynasty.currentYear] &&
+                        Object.keys(currentDynasty.awardsByYear[currentDynasty.currentYear]).length > 0
+                      const taskNumber = !userInCFPChampionship ? 7 : 6
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasAwards ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasAwards ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasAwards ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasAwards ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasAwards ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasAwards ? '#16a34a' : secondaryBgText }}>
+                                Season Awards
+                              </div>
+                              {hasAwards && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ {Object.keys(currentDynasty.awardsByYear[currentDynasty.currentYear]).length} awards entered
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowAwardsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasAwards ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: All-Americans & All-Conference Entry */}
+                    {(() => {
+                      const hasAllAmericans = currentDynasty?.allAmericansByYear?.[currentDynasty.currentYear] &&
+                        ((currentDynasty.allAmericansByYear[currentDynasty.currentYear].allAmericans?.length > 0) ||
+                         (currentDynasty.allAmericansByYear[currentDynasty.currentYear].allConference?.length > 0))
+                      const taskNumber = !userInCFPChampionship ? 8 : 7
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasAllAmericans ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasAllAmericans ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasAllAmericans ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasAllAmericans ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasAllAmericans ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasAllAmericans ? '#16a34a' : secondaryBgText }}>
+                                All-Americans & All-Conference
+                              </div>
+                              {hasAllAmericans && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  ✓ All-Americans and All-Conference selections entered
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowAllAmericansModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasAllAmericans ? 'Edit' : 'Enter'}
                           </button>
                         </div>
                       )
@@ -4425,6 +4810,97 @@ export default function Dashboard() {
             detailedStatsByYear: {
               ...existingByYear,
               [year]: detailedStats
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Conference Standings Entry Modal (End of Season Recap) */}
+      <ConferenceStandingsModal
+        isOpen={showConferenceStandingsModal}
+        onClose={() => setShowConferenceStandingsModal(false)}
+        onSave={async (standings) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.conferenceStandingsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            conferenceStandingsByYear: {
+              ...existingByYear,
+              [year]: standings
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Final Polls Entry Modal (End of Season Recap) */}
+      <FinalPollsModal
+        isOpen={showFinalPollsModal}
+        onClose={() => setShowFinalPollsModal(false)}
+        onSave={async (polls) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.finalPollsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            finalPollsByYear: {
+              ...existingByYear,
+              [year]: polls
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Team Stats Entry Modal (End of Season Recap) */}
+      <TeamStatsModal
+        isOpen={showTeamStatsModal}
+        onClose={() => setShowTeamStatsModal(false)}
+        onSave={async (stats) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.teamStatsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            teamStatsByYear: {
+              ...existingByYear,
+              [year]: stats
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamName={currentDynasty.teamName}
+        teamColors={teamColors}
+      />
+
+      {/* Awards Entry Modal (End of Season Recap) */}
+      <AwardsModal
+        isOpen={showAwardsModal}
+        onClose={() => setShowAwardsModal(false)}
+        onSave={async (awards) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.awardsByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            awardsByYear: {
+              ...existingByYear,
+              [year]: awards
+            }
+          })
+        }}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* All-Americans & All-Conference Entry Modal (End of Season Recap) */}
+      <AllAmericansModal
+        isOpen={showAllAmericansModal}
+        onClose={() => setShowAllAmericansModal(false)}
+        onSave={async (data) => {
+          const year = currentDynasty.currentYear
+          const existingByYear = currentDynasty.allAmericansByYear || {}
+          await updateDynasty(currentDynasty.id, {
+            allAmericansByYear: {
+              ...existingByYear,
+              [year]: data
             }
           })
         }}

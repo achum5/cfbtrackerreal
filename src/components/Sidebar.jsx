@@ -32,6 +32,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'CFP Bracket', path: `/dynasty/${dynastyId}/cfp-bracket` },
     { name: 'Bowl History', path: `/dynasty/${dynastyId}/bowl-history` },
     { name: 'CC History', path: `/dynasty/${dynastyId}/conference-championship-history` },
+    { name: 'Conf. Standings', path: `/dynasty/${dynastyId}/conference-standings` },
     { name: 'Rankings', path: `/dynasty/${dynastyId}/rankings` },
     { name: 'Stats', path: `/dynasty/${dynastyId}/stats` },
     { name: 'All Teams', path: `/dynasty/${dynastyId}/teams` }

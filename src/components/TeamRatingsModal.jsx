@@ -72,7 +72,7 @@ export default function TeamRatingsModal({ isOpen, onClose, onSave, teamColors, 
       onClick={onClose}
     >
       <div
-        className="rounded-lg shadow-xl w-full max-w-md p-6"
+        className="rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6"
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
