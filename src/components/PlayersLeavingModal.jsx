@@ -340,7 +340,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Seniors with 5+ games are pre-filled as "Graduating"</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>RS Sr and Sr with 5+ games are pre-filled as "Graduating"</span></li>
                     <li className="flex gap-2"><span className="font-bold">3.</span><span>Add any other players leaving (transfers, etc.)</span></li>
                     <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to sync</span></li>
                   </ol>

@@ -7171,7 +7171,7 @@ const LEAVING_REASONS = [
 ]
 
 // Create Players Leaving sheet for offseason
-// Auto-fills seniors (Sr/RS Sr) who played 5+ games with "Graduating"
+// Auto-fills RS Sr (exhausted eligibility) and Sr with 5+ games as "Graduating"
 export async function createPlayersLeavingSheet(dynastyName, year, players, playerStatsByYear) {
   try {
     const accessToken = await getAccessToken()
@@ -7179,16 +7179,22 @@ export async function createPlayersLeavingSheet(dynastyName, year, players, play
     // Get player names for dropdown
     const playerNames = players.map(p => p.name).sort()
 
-    // Find seniors who played 5+ games (auto-graduate)
+    // Find seniors who are graduating:
+    // - RS Sr: Always graduating (exhausted eligibility, no games requirement)
+    // - Sr: Only if 5+ games played (the 5+ games rule applies)
     const currentYearStats = playerStatsByYear?.[year] || []
     const seniorsGraduating = players.filter(player => {
-      const isSenior = player.year === 'Sr' || player.year === 'RS Sr'
-      if (!isSenior) return false
+      // RS Sr always graduates - they've exhausted eligibility
+      if (player.year === 'RS Sr') return true
 
-      // Find their stats to check games played
-      const stats = currentYearStats.find(s => s.pid === player.pid)
-      const gamesPlayed = stats?.gamesPlayed || 0
-      return gamesPlayed >= 5
+      // Sr needs 5+ games to auto-graduate
+      if (player.year === 'Sr') {
+        const stats = currentYearStats.find(s => s.pid === player.pid)
+        const gamesPlayed = stats?.gamesPlayed || 0
+        return gamesPlayed >= 5
+      }
+
+      return false
     }).sort((a, b) => a.name.localeCompare(b.name))
 
     // We'll pre-fill graduating seniors, then leave room for more entries
@@ -7750,6 +7756,7 @@ function starsNumberToSymbol(num) {
 }
 
 // Create Recruiting Commitments sheet
+// Max scholarships per class is 35, so we use 35 rows
 export async function createRecruitingSheet(dynastyName, year, teamAbbreviationsData, existingCommitments = []) {
   try {
     const accessToken = await getAccessToken()
@@ -7759,7 +7766,7 @@ export async function createRecruitingSheet(dynastyName, year, teamAbbreviations
       typeof teamAbbreviationsData[key] === 'object' && teamAbbreviationsData[key].name
     ).sort()
 
-    const totalRows = Math.max(30, existingCommitments.length + 15) // Room for existing + new recruits
+    const totalRows = Math.max(35, existingCommitments.length + 10) // Max 35 scholarships per class
 
     // Create the spreadsheet
     const response = await fetch(SHEETS_API_BASE, {
@@ -7953,8 +7960,8 @@ export async function createRecruitingSheet(dynastyName, year, teamAbbreviations
             booleanRule: {
               condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: abbr }] },
               format: {
-                backgroundColor: { red: bgColor.r / 255, green: bgColor.g / 255, blue: bgColor.b / 255 },
-                textFormat: { foregroundColor: { red: textColor.r / 255, green: textColor.g / 255, blue: textColor.b / 255 }, bold: true }
+                backgroundColor: bgColor,
+                textFormat: { foregroundColor: textColor, bold: true }
               }
             }
           },

@@ -1,12 +1,16 @@
 import { Link, useLocation } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear }) {
   const location = useLocation()
-  const { exportDynasty } = useDynasty()
+  const { currentDynasty, exportDynasty } = useDynasty()
   const primaryBgText = getContrastTextColor(teamColors.primary)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
+
+  // Get current team abbreviation for recruiting link
+  const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
 
   const handleExport = () => {
     try {
@@ -21,7 +25,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Dashboard', path: `/dynasty/${dynastyId}` },
     { name: 'Coach Career', path: `/dynasty/${dynastyId}/coach-career` },
     { name: 'Leaderboard', path: `/dynasty/${dynastyId}/dynasty-records` },
-    { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting` },
+    { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting/${teamAbbr}/${currentYear}` },
     { name: 'Awards', path: `/dynasty/${dynastyId}/awards` },
     { name: 'All-Americans', path: `/dynasty/${dynastyId}/all-americans` },
     { name: 'All-Conference', path: `/dynasty/${dynastyId}/all-conference` },

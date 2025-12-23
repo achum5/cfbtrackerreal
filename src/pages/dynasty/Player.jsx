@@ -307,6 +307,29 @@ export default function Player() {
   const careerGames = yearByYearStats.reduce((sum, y) => sum + (y.gamesPlayed || 0), 0)
   const careerSnaps = yearByYearStats.reduce((sum, y) => sum + (y.snapsPlayed || 0), 0)
 
+  // Check if player has any meaningful stats (non-zero games or any stat category with data)
+  // Recruits never show stats - they haven't enrolled yet
+  const hasMeaningfulStats = !player.isRecruit && (
+    careerGames > 0 || careerSnaps > 0 || Object.values(hasStats).some(v => v)
+  )
+
+  // Get recruitment info for recruits from the recruiting commitments data
+  const getRecruitmentInfo = () => {
+    if (!player.isRecruit) return null
+    const recruitYear = player.recruitYear || dynasty.currentYear
+    const commitments = dynasty.recruitingCommitmentsByTeamYear?.[playerTeamAbbr]?.[recruitYear] || {}
+
+    // Search through all commitment weeks for this player
+    for (const [, weekCommits] of Object.entries(commitments)) {
+      if (Array.isArray(weekCommits)) {
+        const found = weekCommits.find(c => c.name?.toLowerCase().trim() === player.name?.toLowerCase().trim())
+        if (found) return found
+      }
+    }
+    return null
+  }
+  const recruitmentInfo = getRecruitmentInfo()
+
   return (
     <div className="space-y-6">
       {/* Player Header */}
@@ -343,18 +366,28 @@ export default function Player() {
                 </button>
               </div>
 
-              <Link
-                to={`/dynasty/${dynastyId}/team/${teamAbbr}`}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold hover:underline mb-2"
-                style={{ color: primaryText, opacity: 0.9 }}
-              >
-                {getTeamLogo(playerTeamName) && (
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '3px' }}>
-                    <img src={getTeamLogo(playerTeamName)} alt="" className="w-full h-full object-contain" />
-                  </div>
+              <div className="flex items-center gap-2 mb-2">
+                <Link
+                  to={`/dynasty/${dynastyId}/team/${teamAbbr}`}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold hover:underline"
+                  style={{ color: primaryText, opacity: 0.9 }}
+                >
+                  {getTeamLogo(playerTeamName) && (
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '3px' }}>
+                      <img src={getTeamLogo(playerTeamName)} alt="" className="w-full h-full object-contain" />
+                    </div>
+                  )}
+                  {playerTeamName}
+                </Link>
+                {player.isRecruit && (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                    style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
+                  >
+                    Commitment
+                  </span>
                 )}
-                {playerTeamName}
-              </Link>
+              </div>
 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: primaryText, opacity: 0.85 }}>
                 {player.jerseyNumber && <span className="font-bold">#{player.jerseyNumber}</span>}
@@ -525,8 +558,75 @@ export default function Player() {
         </div>
       )}
 
-      {/* Stats Section - Football Reference Style (only shown if player has stats) */}
-      {yearByYearStats.length > 0 && (
+      {/* Recruitment Information - Compact display for recruits without stats */}
+      {player.isRecruit && !hasMeaningfulStats && recruitmentInfo && (
+        <div
+          className="rounded-lg shadow px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+          style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+        >
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            {/* Recruit Year */}
+            <span
+              className="px-2 py-0.5 rounded text-xs font-bold"
+              style={{ backgroundColor: teamColors.primary, color: primaryText }}
+            >
+              {player.recruitYear || dynasty.currentYear} Recruit
+            </span>
+            {/* Stars */}
+            {recruitmentInfo.stars && (
+              <div className="flex gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-4 h-4" fill={i < Number(recruitmentInfo.stars) ? '#FFD700' : '#D1D5DB'} viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+            )}
+            {/* Rankings inline */}
+            {recruitmentInfo.nationalRank && (
+              <span className="font-semibold" style={{ color: secondaryText }}>
+                #{recruitmentInfo.nationalRank} <span style={{ opacity: 0.6 }}>Nat'l</span>
+              </span>
+            )}
+            {recruitmentInfo.positionRank && (
+              <span className="font-semibold" style={{ color: secondaryText }}>
+                #{recruitmentInfo.positionRank} <span style={{ opacity: 0.6 }}>{player.position}</span>
+              </span>
+            )}
+            {recruitmentInfo.stateRank && (
+              <span className="font-semibold" style={{ color: secondaryText }}>
+                #{recruitmentInfo.stateRank} <span style={{ opacity: 0.6 }}>{recruitmentInfo.state || player.state}</span>
+              </span>
+            )}
+            {recruitmentInfo.previousTeam && (
+              <span style={{ color: secondaryText }}>
+                <span style={{ opacity: 0.6 }}>from</span> <span className="font-semibold">{recruitmentInfo.previousTeam}</span>
+              </span>
+            )}
+            {recruitmentInfo.gemBust && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                style={{
+                  backgroundColor: recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '#10B981' : '#EF4444',
+                  color: 'white'
+                }}
+              >
+                {recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '💎 Gem' : '💥 Bust'}
+              </span>
+            )}
+          </div>
+          <Link
+            to={`/dynasty/${dynastyId}/recruiting/${playerTeamAbbr}/${player.recruitYear || dynasty.currentYear}`}
+            className="text-sm font-medium hover:underline"
+            style={{ color: teamColors.primary }}
+          >
+            View Class →
+          </Link>
+        </div>
+      )}
+
+      {/* Stats Section - Football Reference Style (only shown if player has meaningful stats) */}
+      {hasMeaningfulStats && (
         <div className="space-y-6">
           {/* Games & Snaps Table */}
           <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">

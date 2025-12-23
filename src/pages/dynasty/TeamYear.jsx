@@ -548,6 +548,9 @@ export default function TeamYear() {
     // Exclude honor-only players (players only in system for awards, not on actual roster)
     if (p.isHonorOnly) return false
 
+    // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
+    if (p.isRecruit) return false
+
     // Check if player belongs to this team (by team field or legacy logic)
     const playerTeam = p.team // If player has team field, use it
     const belongsToThisTeam = playerTeam === teamAbbr ||
@@ -1813,18 +1816,20 @@ export default function TeamYear() {
                         {player.overall}
                       </td>
                       <td className="py-2 px-2 text-center hidden md:table-cell">
-                        {player.devTrait && player.devTrait !== 'Normal' ? (
+                        {player.devTrait ? (
                           <span
                             className="px-2 py-0.5 rounded text-xs font-semibold"
                             style={{
-                              backgroundColor: player.devTrait === 'Elite' ? '#fbbf24' : player.devTrait === 'Star' ? '#8b5cf6' : '#3b82f6',
+                              backgroundColor: player.devTrait === 'Elite' ? '#fbbf24' :
+                                             player.devTrait === 'Star' ? '#8b5cf6' :
+                                             player.devTrait === 'Impact' ? '#3b82f6' : '#9ca3af',
                               color: player.devTrait === 'Elite' ? '#78350f' : '#ffffff'
                             }}
                           >
                             {player.devTrait}
                           </span>
                         ) : (
-                          <span style={{ color: teamBgText, opacity: 0.5 }}>-</span>
+                          <span style={{ color: teamBgText, opacity: 0.3 }}>-</span>
                         )}
                       </td>
                       <td className="py-2 px-2 hidden lg:table-cell" style={{ color: teamBgText, opacity: 0.8 }}>

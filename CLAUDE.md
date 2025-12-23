@@ -4,6 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT**: When you complete a new feature, fix a bug, or make significant changes to the codebase, update this file to reflect those changes. Remove outdated information and add new implementation details so this documentation stays current.
 
+## CRITICAL: Team-Centric Coding Requirement
+
+**ALWAYS store data at the TEAM level, NOT the user/dynasty level.**
+
+### Why This Matters
+
+In this dynasty tracker, users can switch teams during their coaching career (e.g., start at Central Michigan, then move to Ohio State). If data is stored at the dynasty level without team association:
+
+- **Problem**: When user switches from Team A to Team B, Team A's schedule/roster/recruits incorrectly appear under Team B
+- **Example**: User coaches at CMU for 3 years, then switches to OSU. If recruits were stored at `dynasty.recruits`, CMU's recruiting class would show up as OSU's recruiting class after the switch.
+
+### The Pattern
+
+**WRONG** (dynasty-level):
+```javascript
+dynasty.schedule = [...]
+dynasty.recruits = [...]
+dynasty.teamRatings = {...}
+```
+
+**CORRECT** (team-centric):
+```javascript
+dynasty.schedulesByTeamYear[teamAbbr][year] = [...]
+dynasty.recruitingCommitmentsByTeamYear[teamAbbr][year] = {...}
+dynasty.teamRatingsByTeamYear[teamAbbr][year] = {...}
+```
+
+### Checklist for New Features
+
+When adding any new data storage:
+1. Ask: "Does this data belong to a specific team?"
+2. If YES → Use `dynasty.{feature}ByTeamYear[teamAbbr][year]` pattern
+3. Tag individual records with `team: teamAbbr` field
+4. Create helper function like `getCurrent{Feature}(dynasty)` in DynastyContext
+5. Filter by team when displaying data
+
+This was a major architectural fix that took significant effort. **Do not regress to dynasty-level storage.**
+
 ## Current Work / Reminders
 
 **Last Session (December 2024)**: Team-Centric Data Architecture:
@@ -71,14 +109,35 @@ Previously, schedule/roster/preseasonSetup were stored at dynasty level without 
     - **TeamYear.jsx** filters games by `g.userTeam === teamAbbr`, not by current user's team
     - This ensures games stay with the team that played them after user switches teams
 
+12. **Recruiting Commitments**: Stored in `dynasty.recruitingCommitmentsByTeamYear[teamAbbr][year][commitmentKey]`
+    - Commitment keys by phase:
+      - `preseason`: Early commitments before season starts
+      - `regular_1` through `regular_12`: Weekly commitment tracking during regular season
+      - `conf_champ`: Conference Championship week (conference_championship phase)
+      - `bowl_1` through `bowl_4`: Bowl weeks (postseason phase weeks 1-4)
+      - `signing_1` through `signing_4`: Recruiting weeks (offseason weeks 2-5)
+    - Each recruit also creates a player entry with `team: teamAbbr` and `isRecruit: true`
+    - **Recruits are excluded from roster displays** - they show on Recruiting page only
+    - **Recruiting.jsx** filters by current team when displaying recruiting class
+
 **Components Updated**:
-- `Dashboard.jsx` - Uses all team-centric helpers
+- `Dashboard.jsx` - Uses all team-centric helpers, recruiting commitment prompts for all phases
 - `Roster.jsx` - Uses `getCurrentRoster()`
 - `TeamYear.jsx` - Uses `getLockedCoachingStaff()`, filters players by `team` field, filters games by `userTeam` field
 - `Game.jsx` - Uses `getCurrentTeamRatings()`
 - `GameEntryModal.jsx` - Uses `getCurrentTeamRatings()`
+- `RecruitingCommitmentsModal.jsx` - Uses team-centric commitment keys, pre-populates existing commitments
+- `Recruiting.jsx` - Displays recruiting class with season dropdown, filters by team
+
+13. **Players Leaving**: Stored in `dynasty.playersLeavingByYear[year]`
+    - Auto-fills graduating seniors in Google Sheet:
+      - **RS Sr**: Always auto-filled (exhausted eligibility, no games requirement)
+      - **Sr**: Only auto-filled if 5+ games played
+    - Reasons: Graduating, Transfer Portal, Pro Draft
+    - Draft declarees trigger Draft Results task in Recruiting Week 1
 
 **Previous Sessions**:
+- Recruiting Commitments Feature (December 2024) - Weekly tracking during all phases
 - Players Leaving Feature (Offseason Week 1)
 - CFP Slot ID System (see cfpConstants.js)
 - Bowl Logo Updates
@@ -88,6 +147,9 @@ Previously, schedule/roster/preseasonSetup were stored at dynasty level without 
   - CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans
   - User's games as/against each team with win percentages
+- Recruiting enhancements:
+  - Convert recruits to active roster players when they enroll (start of next season)
+  - Remove `isRecruit` flag and assign OVR when player enters roster via preseason sync
 
 ## Project Overview
 
@@ -660,15 +722,25 @@ Schedule and Roster entry use custom spreadsheet-like components:
 
 Dynasties progress through phases:
 1. **Preseason** - Week 0, setup mode (schedule/roster entry)
-2. **Regular Season** - Weeks 1-14, game entry
-3. **Postseason** - Weeks 1-4:
-   - Week 1: Conference Championship + Bowl Week 1 (including CFP First Round)
+2. **Regular Season** - Weeks 1-12, game entry
+3. **Conference Championship** - Separate phase (not postseason week 1)
+   - CC game entry, coordinator firing decisions, CFP seeds entry
+4. **Postseason** - Weeks 1-5 (Bowl Weeks):
+   - Week 1: Bowl Week 1 (30 bowl games + CFP First Round)
    - Week 2: Bowl Week 2 (user's CFP Quarterfinal if applicable)
    - Week 3: Bowl Week 3 (user's CFP Semifinal if applicable)
    - Week 4: National Championship (all remaining CFP results + Championship)
-4. **Offseason** - Weeks 1-4, then cycles to next year's preseason
+   - Week 5: End of Season Recap (stats, polls, standings entry)
+5. **Offseason** - Weeks 1-5:
+   - Week 1: Players Leaving
+   - Weeks 2-5: Recruiting Weeks 1-4 (formerly "Signing Day")
 
 `advanceWeek()` in DynastyContext handles phase transitions automatically.
+
+**Important Phase/Week Distinction**:
+- `conference_championship` is its own phase, NOT postseason week 1
+- Postseason week 1 = Bowl Week 1 (displayed as "Bowl Week 1" in UI)
+- `getCommitmentKey()` and `getRecruitingLabel()` in Dashboard.jsx handle this mapping
 
 ## Important Notes
 

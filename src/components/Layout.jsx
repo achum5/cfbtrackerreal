@@ -274,7 +274,7 @@ export default function Layout({ children }) {
                         {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
                       </span>
                     </span>
-                    {currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && (
+                    {currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && currentDynasty.currentPhase !== 'conference_championship' && (
                       <span className="text-xs md:text-sm hidden sm:inline" style={{ color: headerText, opacity: 0.8 }}>
                         Week {currentDynasty.currentWeek}
                       </span>

@@ -816,46 +816,194 @@ export default function Dashboard() {
     })
   }
 
-  // Handle recruiting commitments save
+  // Get the commitment key based on phase and week
+  const getCommitmentKey = () => {
+    const phase = currentDynasty.currentPhase
+    const week = currentDynasty.currentWeek
+
+    if (phase === 'preseason') {
+      return 'preseason'
+    } else if (phase === 'regular_season') {
+      return `regular_${week}`
+    } else if (phase === 'conference_championship') {
+      return 'conf_champ'
+    } else if (phase === 'postseason') {
+      // Postseason weeks 1-4 = Bowl weeks 1-4
+      return `bowl_${week}`
+    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
+      return `signing_${week - 1}` // Week 2 = Recruiting Week 1, etc.
+    }
+    return null
+  }
+
+  // Handle recruiting commitments save - TEAM-CENTRIC
   const handleRecruitingCommitmentsSave = async (recruits) => {
     const year = currentDynasty.currentYear
-    const week = currentDynasty.currentWeek
-    const recruitingWeek = week - 1 // Week 2 = Recruiting 1, etc.
+    const commitmentKey = getCommitmentKey()
+    if (!commitmentKey) return
 
-    const existingByYear = currentDynasty.recruitingCommitmentsByYear || {}
-    const existingForYear = existingByYear[year] || {}
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
 
-    // Store recruits for this recruiting week
+    // Use TEAM-CENTRIC structure: recruitingCommitmentsByTeamYear[teamAbbr][year][commitmentKey]
+    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
+    const existingForTeam = existingByTeamYear[teamAbbr] || {}
+    const existingForYear = existingForTeam[year] || {}
+
+    // Get existing players and recruits to find max PID
+    const existingPlayers = currentDynasty.players || []
+    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+
+    // Get existing recruits from OTHER weeks (not the current commitment key) to avoid duplicating
+    const commitmentsForTeamYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[year] || {}
+    const existingRecruitNames = new Set()
+
+    // Only collect names from OTHER commitment keys (not the current one being saved)
+    Object.entries(commitmentsForTeamYear).forEach(([key, weekCommitments]) => {
+      if (key !== commitmentKey && Array.isArray(weekCommitments)) {
+        weekCommitments.forEach(r => {
+          if (r.name) existingRecruitNames.add(r.name.toLowerCase().trim())
+        })
+      }
+    })
+
+    // Find NEW recruits (ones not already in OTHER weeks' commitments)
+    // This allows re-saving the current week while preventing cross-week duplicates
+    const newRecruits = recruits.filter(r => r.name && !existingRecruitNames.has(r.name.toLowerCase().trim()))
+
+    // Create player entries for new recruits
+    const newPlayers = newRecruits.map(recruit => {
+      const pid = nextPID++
+
+      // Convert recruit class to player year (they'll be this class when they enroll)
+      const classToYear = {
+        'HS': 'Fr',
+        'Fr': 'Fr',
+        'RS Fr': 'RS Fr',
+        'So': 'So',
+        'RS So': 'RS So',
+        'Jr': 'Jr',
+        'RS Jr': 'RS Jr',
+        'Sr': 'Sr',
+        'RS Sr': 'RS Sr'
+      }
+
+      return {
+        pid,
+        id: `player-${pid}`,
+        name: recruit.name,
+        position: recruit.position || '',
+        year: classToYear[recruit.class] || 'Fr',
+        jerseyNumber: '',
+        devTrait: recruit.devTrait || 'Normal',
+        archetype: recruit.archetype || '',
+        overall: null, // Recruits don't have OVR until they enroll
+        height: recruit.height || '',
+        weight: recruit.weight || 0,
+        hometown: recruit.hometown || '',
+        state: recruit.state || '',
+        team: teamAbbr, // CRITICAL: Tag player with team
+        isRecruit: true,
+        recruitYear: year,
+        stars: recruit.stars || 0,
+        nationalRank: recruit.nationalRank || null,
+        stateRank: recruit.stateRank || null,
+        positionRank: recruit.positionRank || null,
+        gemBust: recruit.gemBust || '',
+        previousTeam: recruit.previousTeam || ''
+      }
+    })
+
+    // Store recruits for this phase/week AND add new players
+    const updatedPlayers = [...existingPlayers, ...newPlayers]
+
+    // Only save if there are new recruits for this week
+    // (prevents duplicating pre-populated recruits across weeks)
+    if (newRecruits.length > 0) {
+      // Store in TEAM-CENTRIC structure - only store NEW recruits for this commitment key
+      await updateDynasty(currentDynasty.id, {
+        recruitingCommitmentsByTeamYear: {
+          ...existingByTeamYear,
+          [teamAbbr]: {
+            ...existingForTeam,
+            [year]: {
+              ...existingForYear,
+              [commitmentKey]: newRecruits
+            }
+          }
+        },
+        players: updatedPlayers,
+        nextPID: nextPID
+      })
+    }
+  }
+
+  // Handle marking no commitments for the week - TEAM-CENTRIC
+  const handleNoCommitments = async () => {
+    const year = currentDynasty.currentYear
+    const commitmentKey = getCommitmentKey()
+    if (!commitmentKey) return
+
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+
+    // Use TEAM-CENTRIC structure
+    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
+    const existingForTeam = existingByTeamYear[teamAbbr] || {}
+    const existingForYear = existingForTeam[year] || {}
+
+    // Store empty array to mark as completed
     await updateDynasty(currentDynasty.id, {
-      recruitingCommitmentsByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingForYear,
-          [`week${recruitingWeek}`]: recruits
+      recruitingCommitmentsByTeamYear: {
+        ...existingByTeamYear,
+        [teamAbbr]: {
+          ...existingForTeam,
+          [year]: {
+            ...existingForYear,
+            [commitmentKey]: []
+          }
         }
       }
     })
   }
 
-  // Handle marking no commitments for the week
-  const handleNoCommitments = async () => {
+  // Get all previous commitments for the current team/year (to pre-populate sheet) - TEAM-CENTRIC
+  const getAllPreviousCommitments = () => {
     const year = currentDynasty.currentYear
-    const week = currentDynasty.currentWeek
-    const recruitingWeek = week - 1
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
 
-    const existingByYear = currentDynasty.recruitingCommitmentsByYear || {}
-    const existingForYear = existingByYear[year] || {}
+    // Use TEAM-CENTRIC structure
+    const commitmentsForTeamYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[year] || {}
+    const allCommitments = []
 
-    // Store empty array to mark as completed
-    await updateDynasty(currentDynasty.id, {
-      recruitingCommitmentsByYear: {
-        ...existingByYear,
-        [year]: {
-          ...existingForYear,
-          [`week${recruitingWeek}`]: []
-        }
+    // Collect all commitments from all weeks/phases
+    Object.values(commitmentsForTeamYear).forEach(weekCommitments => {
+      if (Array.isArray(weekCommitments)) {
+        allCommitments.push(...weekCommitments)
       }
     })
+
+    return allCommitments
+  }
+
+  // Get the display label for recruiting modal
+  const getRecruitingLabel = () => {
+    const phase = currentDynasty.currentPhase
+    const week = currentDynasty.currentWeek
+
+    if (phase === 'preseason') {
+      return 'Preseason'
+    } else if (phase === 'regular_season') {
+      return `Week ${week}`
+    } else if (phase === 'conference_championship') {
+      return 'Conference Championship Week'
+    } else if (phase === 'postseason') {
+      if (week === 4) return 'National Championship Week'
+      if (week === 5) return 'End of Season'
+      return `Bowl Week ${week}`
+    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
+      return `Recruiting Week ${week - 1}`
+    }
+    return 'Recruiting'
   }
 
   // Handle player match confirmation response
@@ -1334,7 +1482,22 @@ export default function Dashboard() {
                 coachingStaff: teamCoachingStaff,
                 action: () => setShowCoachingStaffModal(true),
                 actionText: teamPreseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
-              }] : [])
+              }] : []),
+              // Optional: Recruiting Commitments - TEAM-CENTRIC
+              (() => {
+                const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+                const preseasonCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.['preseason']
+                return {
+                  num: currentDynasty.coachPosition === 'HC' ? 6 : 5,
+                  title: 'Any commitments this week?',
+                  isRecruiting: true,
+                  done: preseasonCommitments !== undefined,
+                  commitmentsCount: preseasonCommitments?.length || 0,
+                  action: () => setShowRecruitingModal(true),
+                  actionText: preseasonCommitments !== undefined ? 'Edit' : 'Yes',
+                  optional: true
+                }
+              })()
             ].map(item => {
               return (
               <div
@@ -1436,21 +1599,61 @@ export default function Dashboard() {
                         {item.done && <span className="ml-1 sm:ml-2">✓ Ready</span>}
                       </div>
                     )}
+                    {item.isRecruiting && (
+                      <div
+                        className="text-xs sm:text-sm mt-0.5 sm:mt-1 font-medium"
+                        style={{
+                          color: item.done ? '#16a34a' : secondaryBgText,
+                          opacity: item.done ? 1 : 0.7
+                        }}
+                      >
+                        {item.done
+                          ? item.commitmentsCount > 0
+                            ? `✓ ${item.commitmentsCount} commitment${item.commitmentsCount !== 1 ? 's' : ''} recorded`
+                            : '✓ No commitments this week'
+                          : 'Record any early recruiting commitments'}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={item.action}
-                  className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                  style={item.optional && !item.done ? {
-                    backgroundColor: `${secondaryBgText}20`,
-                    color: secondaryBgText
-                  } : {
-                    backgroundColor: teamColors.primary,
-                    color: primaryBgText
-                  }}
-                >
-                  {item.actionText}
-                </button>
+                {item.isRecruiting && !item.done ? (
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={handleNoCommitments}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: primaryBgText
+                      }}
+                    >
+                      No
+                    </button>
+                    <button
+                      onClick={item.action}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: primaryBgText
+                      }}
+                    >
+                      Yes
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={item.action}
+                    className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                    style={item.optional && !item.done ? {
+                      backgroundColor: `${secondaryBgText}20`,
+                      color: secondaryBgText
+                    } : {
+                      backgroundColor: teamColors.primary,
+                      color: primaryBgText
+                    }}
+                  >
+                    {item.actionText}
+                  </button>
+                )}
               </div>
             )
             })}
@@ -1479,7 +1682,7 @@ export default function Dashboard() {
           }}
         >
           <h3 className="text-lg font-semibold mb-4" style={{ color: secondaryBgText }}>
-            {currentDynasty.currentYear} Regular Season
+            {currentDynasty.currentYear} Regular Season - Week {currentDynasty.currentWeek}
           </h3>
           <div className="space-y-3">
             {(() => {
@@ -1490,63 +1693,135 @@ export default function Dashboard() {
               const mascotName = scheduledGame ? getMascotName(scheduledGame.opponent) : null
               const opponentName = mascotName || (scheduledGame ? getTeamNameFromAbbr(scheduledGame.opponent) : 'TBD')
 
+              // Check for recruiting commitments this week - TEAM-CENTRIC
+              const commitmentKey = `regular_${currentDynasty.currentWeek}`
+              const teamAbbrForCommitments = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+              const commitmentsForTeamYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbrForCommitments]?.[currentDynasty.currentYear] || {}
+              const commitmentsForWeek = commitmentsForTeamYear[commitmentKey]
+              const hasCommitmentsData = commitmentsForWeek !== undefined
+              const commitmentsCount = commitmentsForWeek?.length || 0
+
               return (
-                <div
-                  className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                    playedGame ? 'border-green-200 bg-green-50' : ''
-                  }`}
-                  style={!playedGame ? {
-                    borderColor: `${teamColors.primary}30`,
-                    backgroundColor: teamColors.secondary
-                  } : {}}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        playedGame ? 'bg-green-500 text-white' : ''
-                      }`}
-                      style={!playedGame ? {
-                        backgroundColor: `${teamColors.primary}20`,
-                        color: teamColors.primary
-                      } : {}}
-                    >
-                      {playedGame ? (
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="font-bold text-lg">{currentDynasty.currentWeek}</span>
-                      )}
-                    </div>
-                    <div>
-                      <div
-                        className="font-semibold"
-                        style={{ color: playedGame ? '#16a34a' : secondaryBgText }}
-                      >
-                        Week {currentDynasty.currentWeek} {scheduledGame ? (scheduledGame.location === 'away' ? '@' : 'vs') : ''} {opponentName}
-                      </div>
-                      {playedGame && (
-                        <div
-                          className="text-sm mt-1 font-medium"
-                          style={{ color: '#16a34a' }}
-                        >
-                          {playedGame.result === 'win' ? 'W' : 'L'} {playedGame.teamScore}-{playedGame.opponentScore}
-                          <span className="ml-2">✓ Complete</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowGameModal(true)}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                    style={{
-                      backgroundColor: teamColors.primary,
-                      color: primaryBgText
-                    }}
+                <>
+                  {/* Task 1: Game Entry */}
+                  <div
+                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                      playedGame ? 'border-green-200 bg-green-50' : ''
+                    }`}
+                    style={!playedGame ? {
+                      borderColor: `${teamColors.primary}30`,
+                      backgroundColor: teamColors.secondary
+                    } : {}}
                   >
-                    {playedGame ? 'Edit' : 'Enter Game'}
-                  </button>
-                </div>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          playedGame ? 'bg-green-500 text-white' : ''
+                        }`}
+                        style={!playedGame ? {
+                          backgroundColor: `${teamColors.primary}20`,
+                          color: teamColors.primary
+                        } : {}}
+                      >
+                        {playedGame ? (
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <span className="font-bold text-lg">1</span>
+                        )}
+                      </div>
+                      <div>
+                        <div
+                          className="font-semibold"
+                          style={{ color: playedGame ? '#16a34a' : secondaryBgText }}
+                        >
+                          Week {currentDynasty.currentWeek} {scheduledGame ? (scheduledGame.location === 'away' ? '@' : 'vs') : ''} {opponentName}
+                        </div>
+                        {playedGame && (
+                          <div
+                            className="text-sm mt-1 font-medium"
+                            style={{ color: '#16a34a' }}
+                          >
+                            {playedGame.result === 'win' ? 'W' : 'L'} {playedGame.teamScore}-{playedGame.opponentScore}
+                            <span className="ml-2">✓ Complete</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowGameModal(true)}
+                      className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      style={{
+                        backgroundColor: teamColors.primary,
+                        color: primaryBgText
+                      }}
+                    >
+                      {playedGame ? 'Edit' : 'Enter Game'}
+                    </button>
+                  </div>
+
+                  {/* Task 2: Recruiting Commitments */}
+                  <div
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                      hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                    }`}
+                    style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div
+                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                        }`}
+                        style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                      >
+                        {hasCommitmentsData ? (
+                          <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : <span className="font-bold text-sm sm:text-base">2</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                          {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                        </div>
+                        <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          {hasCommitmentsData
+                            ? commitmentsCount > 0
+                              ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                              : '✓ No commitments this week'
+                            : 'Record any recruiting commitments for this week'}
+                        </div>
+                      </div>
+                    </div>
+                    {!hasCommitmentsData ? (
+                      <div className="flex gap-2 self-end sm:self-auto">
+                        <button
+                          onClick={handleNoCommitments}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          No
+                        </button>
+                        <button
+                          onClick={() => setShowRecruitingModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowRecruitingModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </>
               )
             })()}
           </div>
@@ -1718,6 +1993,78 @@ export default function Dashboard() {
                     </select>
                   </div>
                 )}
+
+                {/* Task 3: Recruiting Commitments */}
+                {(() => {
+                  const commitmentKey = getCommitmentKey()
+                  const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+                  const ccCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.[commitmentKey]
+                  const hasCommitmentsData = ccCommitments !== undefined
+                  const commitmentsCount = ccCommitments?.length || 0
+                  const taskNum = hasCoordinators ? 3 : 2
+
+                  return (
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                            hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasCommitmentsData ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : taskNum}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                            {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasCommitmentsData
+                              ? commitmentsCount > 0
+                                ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                                : '✓ No commitments this week'
+                              : 'Record any recruiting commitments'}
+                          </div>
+                        </div>
+                      </div>
+                      {!hasCommitmentsData ? (
+                        <div className="flex gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={handleNoCommitments}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            No
+                          </button>
+                          <button
+                            onClick={() => setShowRecruitingModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            Yes
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowRecruitingModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           })()}
@@ -2388,6 +2735,79 @@ export default function Dashboard() {
                       )}
                     </div>
 
+                    {/* Task: Recruiting Commitments (Bowl Week 1) */}
+                    {(() => {
+                      const commitmentKey = getCommitmentKey()
+                      const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+                      const weekCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.[commitmentKey]
+                      const hasCommitmentsData = weekCommitments !== undefined
+                      const commitmentsCount = weekCommitments?.length || 0
+                      // Task number: after Taking a New Job (which is task 5)
+                      const taskNum = 6
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                                hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasCommitmentsData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : taskNum}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                                {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasCommitmentsData
+                                  ? commitmentsCount > 0
+                                    ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                                    : '✓ No commitments this week'
+                                  : 'Record any recruiting commitments'}
+                              </div>
+                            </div>
+                          </div>
+                          {!hasCommitmentsData ? (
+                            <div className="flex gap-2 self-end sm:self-auto">
+                              <button
+                                onClick={handleNoCommitments}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                No
+                              </button>
+                              <button
+                                onClick={() => setShowRecruitingModal(true)}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                Yes
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setShowRecruitingModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                   </div>
                 </>
               )
@@ -2901,6 +3321,83 @@ export default function Dashboard() {
                                 </button>
                               </div>
                             </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task: Recruiting Commitments (Bowl Week 2) */}
+                    {(() => {
+                      const commitmentKey = getCommitmentKey()
+                      const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+                      const weekCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.[commitmentKey]
+                      const hasCommitmentsData = weekCommitments !== undefined
+                      const commitmentsCount = weekCommitments?.length || 0
+                      // Task number: starts at base, increments based on visible tasks
+                      let taskNum = 2
+                      if (bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2) taskNum++
+                      if (userInCFPQuarterfinal && hasBowlWeek1Data) taskNum++
+                      taskNum++ // After "Taking a New Job" task
+                      if (currentDynasty.coachPosition === 'HC' && (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName)) taskNum++ // After coordinator hire task
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                                hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasCommitmentsData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : taskNum}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                                {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasCommitmentsData
+                                  ? commitmentsCount > 0
+                                    ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                                    : '✓ No commitments this week'
+                                  : 'Record any recruiting commitments'}
+                              </div>
+                            </div>
+                          </div>
+                          {!hasCommitmentsData ? (
+                            <div className="flex gap-2 self-end sm:self-auto">
+                              <button
+                                onClick={handleNoCommitments}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                No
+                              </button>
+                              <button
+                                onClick={() => setShowRecruitingModal(true)}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                Yes
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setShowRecruitingModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              Edit
+                            </button>
                           )}
                         </div>
                       )
@@ -3903,6 +4400,87 @@ export default function Dashboard() {
                       </div>
                     )
                   })()}
+
+                  {/* Task: Recruiting Commitments (Bowl Weeks 3-4) */}
+                  {(() => {
+                    const commitmentKey = getCommitmentKey()
+                    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+                    const weekCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.[commitmentKey]
+                    const hasCommitmentsData = weekCommitments !== undefined
+                    const commitmentsCount = weekCommitments?.length || 0
+                    // Task number depends on week and other visible tasks
+                    let taskNum = week === 3 ? 2 : 2
+                    if (week === 3 && userInCFPSemifinal && hasBowlWeek2Data) taskNum++ // After user SF game
+                    if (week === 4) {
+                      // After SF results task
+                      taskNum++
+                      if (userInCFPChampionship) taskNum++ // After user Championship game
+                    }
+                    taskNum++ // After "Taking a New Job" task
+                    if (currentDynasty.coachPosition === 'HC' && (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName)) taskNum++ // After coordinator hire task
+
+                    return (
+                      <div
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                          hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                              hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {hasCommitmentsData ? (
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : taskNum}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                              {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                            </div>
+                            <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {hasCommitmentsData
+                                ? commitmentsCount > 0
+                                  ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                                  : '✓ No commitments this week'
+                                : 'Record any recruiting commitments'}
+                            </div>
+                          </div>
+                        </div>
+                        {!hasCommitmentsData ? (
+                          <div className="flex gap-2 self-end sm:self-auto">
+                            <button
+                              onClick={handleNoCommitments}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              No
+                            </button>
+                            <button
+                              onClick={() => setShowRecruitingModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowRecruitingModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               </>
             )
@@ -4011,9 +4589,9 @@ export default function Dashboard() {
               )
             }
 
-            // Offseason Weeks 2-5: Recruiting
+            // Offseason Weeks 2-5: Recruiting Weeks
             if (week >= 2 && week <= 5) {
-              const recruitingWeek = week - 1 // Week 2 = Recruiting 1, Week 3 = Recruiting 2, etc.
+              const recruitingWeekNum = week - 1 // Week 2 = Recruiting Week 1, Week 3 = Recruiting Week 2, etc.
 
               // Check for draft declarees (only relevant in Recruiting Week 1)
               const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear] || []
@@ -4022,16 +4600,17 @@ export default function Dashboard() {
               const hasDraftResultsData = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length > 0
               const draftResultsCount = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length || 0
 
-              // Check recruiting commitments for this week
-              const recruitingCommitmentsForYear = currentDynasty?.recruitingCommitmentsByYear?.[currentDynasty.currentYear] || {}
-              const commitmentsForWeek = recruitingCommitmentsForYear[`week${recruitingWeek}`]
+              // Check recruiting commitments for this week - TEAM-CENTRIC with signing_ key
+              const teamAbbrForCommitments = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+              const recruitingCommitmentsForTeamYear = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbrForCommitments]?.[currentDynasty.currentYear] || {}
+              const commitmentsForWeek = recruitingCommitmentsForTeamYear[`signing_${recruitingWeekNum}`]
               const hasCommitmentsData = commitmentsForWeek !== undefined // undefined = not answered, [] = no commitments, array with items = has commitments
               const commitmentsCount = commitmentsForWeek?.length || 0
 
               return (
                 <>
                   <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
-                    Recruiting Week {recruitingWeek} of 4
+                    Recruiting Week {recruitingWeekNum} of 4
                   </h3>
                   <div className="space-y-3 sm:space-y-4">
                     {/* Task 1: Recruiting Commitments */}
@@ -4096,7 +4675,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* Task 2: Draft Results (only in Recruiting Week 1) */}
-                    {recruitingWeek === 1 && (
+                    {recruitingWeekNum === 1 && (
                       <div
                         className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
                           hasDraftResultsData || !hasDraftDeclarees ? 'border-green-200 bg-green-50' : ''
@@ -5589,13 +6168,17 @@ export default function Dashboard() {
         teamColors={teamColors}
       />
 
-      {/* Recruiting Commitments Modal (Recruiting Weeks 1-4) */}
+      {/* Recruiting Commitments Modal (All phases) */}
       <RecruitingCommitmentsModal
         isOpen={showRecruitingModal}
         onClose={() => setShowRecruitingModal(false)}
         onSave={handleRecruitingCommitmentsSave}
         currentYear={currentDynasty.currentYear}
-        recruitingWeek={currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 2 ? currentDynasty.currentWeek - 1 : 1}
+        currentPhase={currentDynasty.currentPhase}
+        currentWeek={currentDynasty.currentWeek}
+        commitmentKey={getCommitmentKey()}
+        recruitingLabel={getRecruitingLabel()}
+        existingCommitments={getAllPreviousCommitments()}
         teamColors={teamColors}
       />
     </div>

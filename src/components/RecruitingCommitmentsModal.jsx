@@ -15,7 +15,18 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, currentYear, recruitingWeek, teamColors }) {
+export default function RecruitingCommitmentsModal({
+  isOpen,
+  onClose,
+  onSave,
+  currentYear,
+  currentPhase,
+  currentWeek,
+  commitmentKey,
+  recruitingLabel,
+  existingCommitments = [],
+  teamColors
+}) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
@@ -80,9 +91,9 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
   // Create recruiting sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check for existing sheet for this week
-        const sheetKey = `recruitingSheet_${currentYear}_week${recruitingWeek}`
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote && commitmentKey) {
+        // Check for existing sheet for this phase/week
+        const sheetKey = `recruitingSheet_${currentYear}_${commitmentKey}`
         const existingSheetId = currentDynasty?.[sheetKey]
         if (existingSheetId) {
           setSheetId(existingSheetId)
@@ -94,8 +105,8 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
           const sheetInfo = await createRecruitingSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            recruitingWeek,
-            teamAbbreviations
+            teamAbbreviations,
+            existingCommitments // Pass all previous commitments to pre-populate
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -115,7 +126,7 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, currentYear, recruitingWeek])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, currentYear, commitmentKey, existingCommitments])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -156,7 +167,7 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
-      const sheetKey = `recruitingSheet_${currentYear}_week${recruitingWeek}`
+      const sheetKey = `recruitingSheet_${currentYear}_${commitmentKey}`
       await updateDynasty(currentDynasty.id, {
         [sheetKey]: null
       })
@@ -187,7 +198,7 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      const sheetKey = `recruitingSheet_${currentYear}_week${recruitingWeek}`
+      const sheetKey = `recruitingSheet_${currentYear}_${commitmentKey}`
       await updateDynasty(currentDynasty.id, { [sheetKey]: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
@@ -219,9 +230,9 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
         style={{ backgroundColor: teamColors.secondary }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Recruiting Commitments - Week {recruitingWeek}
+            Recruiting Commitments - {recruitingLabel}
           </h2>
           <button
             onClick={handleClose}
@@ -233,6 +244,17 @@ export default function RecruitingCommitmentsModal({ isOpen, onClose, onSave, cu
             </svg>
           </button>
         </div>
+        {/* Note about optional weekly entry */}
+        {currentPhase !== 'offseason' && (
+          <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
+            <strong>Note:</strong> Weekly commitment entry is optional. You can also enter all commitments during Signing Day in the offseason.
+            {existingCommitments.length > 0 && (
+              <span className="block mt-1">
+                Previous commitments ({existingCommitments.length}) are pre-filled in the sheet.
+              </span>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">

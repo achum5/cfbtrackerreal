@@ -61,10 +61,13 @@ export function getCurrentRoster(dynasty) {
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
   const allPlayers = dynasty.players || []
 
-  // Filter players by team (if they have team field) and exclude honor-only
+  // Filter players by team (if they have team field) and exclude honor-only and recruits
   return allPlayers.filter(p => {
     // Always exclude honor-only players from roster view
     if (p.isHonorOnly) return false
+
+    // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
+    if (p.isRecruit) return false
 
     // If player has team field, check it matches current team
     if (p.team) {
