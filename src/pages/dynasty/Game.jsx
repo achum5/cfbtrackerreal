@@ -10,6 +10,7 @@ import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
 import GameEntryModal from '../../components/GameEntryModal'
+import { parseCFPGameId, getCFPRoundInfo, getCFPSlotDisplayName } from '../../data/cfpConstants'
 
 // Map abbreviations to mascot names for logo lookup
 function getMascotName(abbr) {
@@ -174,16 +175,60 @@ export default function Game() {
   const [showEditModal, setShowEditModal] = useState(false)
 
   // Find the game by ID in the games[] array
-  // Also handle fallback IDs like cc-{year}, bowl-{year}-{name}, etc.
+  // Supports direct ID lookup and pattern-based fallbacks
   const findGame = () => {
     if (!currentDynasty?.games) return null
 
-    // Direct ID lookup
+    // 1. Direct ID lookup - this is the primary method
+    // Works for regular games and CFP games with new slot IDs (cfpfr1-2025, cfpqf1-2025, etc.)
     let found = currentDynasty.games.find(g => g.id === gameId)
     if (found) return found
 
-    // Handle fallback ID patterns
-    // cc-{year} pattern for conference championships (user's team)
+    // 2. NEW: CFP Slot ID pattern (cfpfr1-2025, cfpqf2-2025, cfpsf1-2025, cfpnc-2025)
+    const cfpParsed = parseCFPGameId(gameId)
+    if (cfpParsed) {
+      const { slotId, year } = cfpParsed
+      const roundInfo = getCFPRoundInfo(slotId)
+      const displayName = getCFPSlotDisplayName(slotId)
+
+      // Game should already be in games[] with this exact ID, but check cfpResultsByYear as fallback
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+
+      // Map slot to the correct array in cfpResultsByYear
+      let cfpGame = null
+      if (slotId.startsWith('cfpfr')) {
+        const slotNum = parseInt(slotId.replace('cfpfr', '')) - 1 // 0-indexed
+        cfpGame = (cfpResults.firstRound || [])[slotNum]
+      } else if (slotId.startsWith('cfpqf')) {
+        const slotNum = parseInt(slotId.replace('cfpqf', '')) - 1
+        cfpGame = (cfpResults.quarterfinals || [])[slotNum]
+      } else if (slotId.startsWith('cfpsf')) {
+        const slotNum = parseInt(slotId.replace('cfpsf', '')) - 1
+        cfpGame = (cfpResults.semifinals || [])[slotNum]
+      } else if (slotId === 'cfpnc') {
+        // Championship is stored as array with one element for compatibility
+        const champArray = cfpResults.championship || []
+        cfpGame = Array.isArray(champArray) ? champArray[0] : champArray
+      }
+
+      if (cfpGame) {
+        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+        const isUserGame = cfpGame.team1 === userTeamAbbr || cfpGame.team2 === userTeamAbbr
+        return {
+          ...cfpGame,
+          id: gameId,
+          year,
+          isPlayoff: true,
+          isCPUGame: !isUserGame,
+          gameTitle: displayName,
+          bowlName: displayName,
+          ...roundInfo
+        }
+      }
+    }
+
+    // 3. Conference championship patterns
+    // cc-{year} pattern for user's team conference championship
     const ccMatch = gameId.match(/^cc-(\d+)$/)
     if (ccMatch) {
       const year = parseInt(ccMatch[1])
@@ -208,7 +253,7 @@ export default function Game() {
       if (ccGame) {
         return {
           ...ccGame,
-          id: gameId,  // CRITICAL: Include ID for save functionality
+          id: gameId,
           year: year,
           isConferenceChampionship: true,
           isCPUGame: true,
@@ -217,12 +262,11 @@ export default function Game() {
       }
     }
 
-    // bowl-{year}-{name} pattern for bowl games
+    // 4. bowl-{year}-{name} pattern for non-CFP bowl games
     const bowlMatch = gameId.match(/^bowl-(\d+)-(.+)$/)
     if (bowlMatch) {
       const year = parseInt(bowlMatch[1])
       const bowlSlug = bowlMatch[2]
-      // First check games[] array
       found = currentDynasty.games.find(g =>
         g.isBowlGame && Number(g.year) === year &&
         g.bowlName?.replace(/\s+/g, '-').toLowerCase() === bowlSlug
@@ -242,7 +286,7 @@ export default function Game() {
           const winner = bowlGame.team1Score > bowlGame.team2Score ? bowlGame.team1 : bowlGame.team2
           return {
             ...bowlGame,
-            id: gameId,  // CRITICAL: Include ID for save functionality
+            id: gameId,
             year: year,
             isBowlGame: true,
             isCPUGame: true,
@@ -250,226 +294,6 @@ export default function Game() {
             gameTitle: bowlGame.bowlName
           }
         }
-      }
-    }
-
-    // cfp-{year}-firstround pattern
-    const cfpFRMatch = gameId.match(/^cfp-(\d+)-firstround$/)
-    if (cfpFRMatch) {
-      const year = parseInt(cfpFRMatch[1])
-      // First try to find user's game in games[]
-      found = currentDynasty.games.find(g => g.isCFPFirstRound && Number(g.year) === year)
-      if (found) return found
-      // Fallback: find user's game in cfpResultsByYear
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-      const frGames = cfpResults.firstRound || []
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userFRGame = frGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-      if (userFRGame) return { ...userFRGame, id: gameId, year, isCFPFirstRound: true, isPlayoff: true }
-    }
-
-    // cfp-{year}-quarterfinal pattern
-    const cfpQFMatch = gameId.match(/^cfp-(\d+)-quarterfinal$/)
-    if (cfpQFMatch) {
-      const year = parseInt(cfpQFMatch[1])
-      // First try to find user's game in games[]
-      found = currentDynasty.games.find(g => g.isCFPQuarterfinal && Number(g.year) === year)
-      if (found) return found
-      // Fallback: find user's game in cfpResultsByYear
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-      const qfGames = cfpResults.quarterfinals || []
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userQFGame = qfGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-      if (userQFGame) return { ...userQFGame, id: gameId, year, isCFPQuarterfinal: true, isPlayoff: true }
-    }
-
-    // cfp-{year}-semifinal pattern
-    const cfpSFMatch = gameId.match(/^cfp-(\d+)-semifinal$/)
-    if (cfpSFMatch) {
-      const year = parseInt(cfpSFMatch[1])
-      // First try to find user's game in games[]
-      found = currentDynasty.games.find(g => g.isCFPSemifinal && Number(g.year) === year)
-      if (found) return found
-      // Fallback: find user's game in cfpResultsByYear
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-      const sfGames = cfpResults.semifinals || []
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userSFGame = sfGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-      if (userSFGame) return { ...userSFGame, id: gameId, year, isCFPSemifinal: true, isPlayoff: true }
-    }
-
-    // cfp-{year}-championship pattern
-    const cfpChampMatch = gameId.match(/^cfp-(\d+)-championship$/)
-    if (cfpChampMatch) {
-      const year = parseInt(cfpChampMatch[1])
-      // First try to find user's game in games[]
-      found = currentDynasty.games.find(g => g.isCFPChampionship && Number(g.year) === year)
-      if (found) return found
-      // Fallback: find user's game in cfpResultsByYear
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-      const champGame = cfpResults.championship
-      if (champGame) {
-        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-        if (champGame.team1 === userTeamAbbr || champGame.team2 === userTeamAbbr) {
-          return { ...champGame, id: gameId, year, isCFPChampionship: true, isPlayoff: true }
-        }
-      }
-    }
-
-    // cfp-{year}-{bowl-slug} pattern for CFP games by bowl name
-    const cfpBowlMatch = gameId.match(/^cfp-(\d+)-(.+)$/)
-    if (cfpBowlMatch) {
-      const year = parseInt(cfpBowlMatch[1])
-      const bowlSlug = cfpBowlMatch[2]
-
-      const qfBowls = ['sugar-bowl', 'orange-bowl', 'rose-bowl', 'cotton-bowl']
-      const sfBowls = ['peach-bowl', 'fiesta-bowl']
-
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-
-      if (qfBowls.includes(bowlSlug)) {
-        const bowlName = bowlSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-        const qfGame = (cfpResults.quarterfinals || []).find(g => g.bowlName === bowlName)
-        if (qfGame) {
-          return {
-            ...qfGame,
-            id: gameId,  // CRITICAL: Include ID for save functionality
-            year: year,
-            isCFPQuarterfinal: true,
-            isBowlGame: true,
-            isPlayoff: true,
-            isCPUGame: true,
-            gameTitle: bowlName
-          }
-        }
-      } else if (sfBowls.includes(bowlSlug)) {
-        const bowlName = bowlSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-        const sfGame = (cfpResults.semifinals || []).find(g => g.bowlName === bowlName)
-        if (sfGame) {
-          return {
-            ...sfGame,
-            id: gameId,  // CRITICAL: Include ID for save functionality
-            year: year,
-            isCFPSemifinal: true,
-            isBowlGame: true,
-            isPlayoff: true,
-            isCPUGame: true,
-            gameTitle: bowlName
-          }
-        }
-      } else if (bowlSlug === 'national-championship') {
-        const champGame = cfpResults.championship
-        if (champGame) {
-          return {
-            ...champGame,
-            id: gameId,  // CRITICAL: Include ID for save functionality
-            year: year,
-            isCFPChampionship: true,
-            isBowlGame: true,
-            isPlayoff: true,
-            isCPUGame: true,
-            gameTitle: 'National Championship'
-          }
-        }
-      } else if (bowlSlug === 'first-round') {
-        const firstRoundGames = cfpResults.firstRound || []
-        // Prioritize finding the user's team's game
-        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-        const frGame = firstRoundGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr) || firstRoundGames[0]
-        if (frGame) {
-          return {
-            ...frGame,
-            id: gameId,  // CRITICAL: Include ID for save functionality
-            year: year,
-            isCFPFirstRound: true,
-            isBowlGame: true,
-            isPlayoff: true,
-            isCPUGame: true,
-            gameTitle: 'CFP First Round'
-          }
-        }
-      } else if (bowlSlug.startsWith('first-round-')) {
-        // Handle cfp-{year}-first-round-{seed1}-vs-{seed2} pattern
-        const seedMatch = bowlSlug.match(/^first-round-(\d+)-vs-(\d+)$/)
-        if (seedMatch) {
-          const seed1 = parseInt(seedMatch[1])
-          const seed2 = parseInt(seedMatch[2])
-          // Find the game matching these seeds
-          const frGame = (cfpResults.firstRound || []).find(g =>
-            (g.seed1 === seed1 && g.seed2 === seed2) ||
-            (g.seed1 === seed2 && g.seed2 === seed1)
-          )
-          if (frGame) {
-            return {
-              ...frGame,
-              id: gameId,
-              year: year,
-              isCFPFirstRound: true,
-              isBowlGame: true,
-              isPlayoff: true,
-              isCPUGame: true,
-              gameTitle: 'CFP First Round'
-            }
-          }
-        }
-      } else {
-        // Handle cfp-{year}-{team1}-vs-{team2} pattern
-        const teamsMatch = bowlSlug.match(/^(.+)-vs-(.+)$/)
-        if (teamsMatch) {
-          const team1Slug = teamsMatch[1].toUpperCase()
-          const team2Slug = teamsMatch[2].toUpperCase()
-          // Search all CFP rounds for this matchup
-          const allRounds = [
-            ...(cfpResults.firstRound || []).map(g => ({ ...g, roundFlag: 'isCFPFirstRound', title: 'CFP First Round' })),
-            ...(cfpResults.quarterfinals || []).map(g => ({ ...g, roundFlag: 'isCFPQuarterfinal', title: g.bowlName || 'CFP Quarterfinal' })),
-            ...(cfpResults.semifinals || []).map(g => ({ ...g, roundFlag: 'isCFPSemifinal', title: g.bowlName || 'CFP Semifinal' })),
-            ...(cfpResults.championship ? [{ ...cfpResults.championship, roundFlag: 'isCFPChampionship', title: 'National Championship' }] : [])
-          ]
-          const matchingGame = allRounds.find(g =>
-            (g.team1 === team1Slug && g.team2 === team2Slug) ||
-            (g.team1 === team2Slug && g.team2 === team1Slug)
-          )
-          if (matchingGame) {
-            return {
-              ...matchingGame,
-              id: gameId,
-              year: year,
-              [matchingGame.roundFlag]: true,
-              isBowlGame: true,
-              isPlayoff: true,
-              isCPUGame: true,
-              gameTitle: matchingGame.title
-            }
-          }
-        }
-      }
-    }
-
-    // cfp-{year}-round{round} pattern (generic CFP round pattern)
-    const cfpRoundMatch = gameId.match(/^cfp-(\d+)-round(\d+)$/)
-    if (cfpRoundMatch) {
-      const year = parseInt(cfpRoundMatch[1])
-      const round = parseInt(cfpRoundMatch[2])
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
-      const roundArrays = {
-        1: cfpResults.firstRound || [],
-        2: cfpResults.quarterfinals || [],
-        3: cfpResults.semifinals || [],
-        4: cfpResults.championship ? [cfpResults.championship] : []
-      }
-      const roundFlags = {
-        1: { isCFPFirstRound: true },
-        2: { isCFPQuarterfinal: true },
-        3: { isCFPSemifinal: true },
-        4: { isCFPChampionship: true }
-      }
-      const roundGames = roundArrays[round] || []
-      if (roundGames.length > 0) {
-        // Prioritize finding the user's team's game
-        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-        const userGame = roundGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-        const gameToReturn = userGame || roundGames[0]
-        return { ...gameToReturn, id: gameId, year, isPlayoff: true, ...roundFlags[round] }
       }
     }
 

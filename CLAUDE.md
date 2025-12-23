@@ -6,43 +6,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: Sidebar updates, All Players page, player profile fixes:
+**Last Session (December 2024)**: CFP Slot ID System Implementation:
 
-1. **Sidebar Navigation Updates**:
-   - Renamed "Players" to "All Players" and moved to bottom (next to "All Teams")
-   - Renamed "Final Top 25" to "Top 25"
-   - Removed "All-Time Lineup" from sidebar
+1. **CFP Slot ID System** (`src/data/cfpConstants.js`):
+   - New file defining fixed slot IDs for all CFP games
+   - Each CFP game has a unique, predictable ID format: `{slotId}-{year}`
+   - **First Round**: cfpfr1 (5v12), cfpfr2 (8v9), cfpfr3 (6v11), cfpfr4 (7v10)
+   - **Quarterfinals**: cfpqf1 (Sugar), cfpqf2 (Orange), cfpqf3 (Rose), cfpqf4 (Cotton)
+   - **Semifinals**: cfpsf1 (Peach), cfpsf2 (Fiesta)
+   - **Championship**: cfpnc
+   - Helper functions: `getCFPGameId()`, `parseCFPGameId()`, `getSlotIdFromBowlName()`, etc.
 
-2. **All Players Page** (`/dynasty/:id/players`):
-   - Complete rewrite with search and filter functionality
-   - Search by name, position, hometown, state, jersey number, or archetype
-   - Position filter dropdown: All, Offense, Defense, QB, RB, WR, TE, OL, DL, LB, DB, K/P
-   - Sortable columns: Player, Position, Year, Overall, Dev Trait
-   - Dev trait badges color-coded (Elite=gold, Star=purple, Impact=blue, Normal=gray)
-   - All players link to their profile pages
+2. **Game.jsx Updates**:
+   - Simplified CFP game lookup using slot IDs
+   - Removed complex pattern matching (cfp-{year}-round{N}, cfp-{year}-{bowl-slug})
+   - Direct lookup by slot ID with fallback to cfpResultsByYear
 
-3. **All-Conference Page Updates**:
-   - Now displays conference-specific titles (e.g., "All-SEC" instead of "All-Conference")
-   - Section titles also use conference name (e.g., "First-Team All-SEC")
+3. **TeamYear.jsx Updates**:
+   - CFP games now use slot IDs for game links
+   - `allCFPGames` includes slotId for each game
+   - Excludes CFP quarterfinal bowls from regular bowl section
 
-4. **Player Page Stats Section**:
-   - Stats section only renders if player has stats
-   - No more empty "No statistics recorded yet" message for players without stats
-   - Cleaner player profiles for honor-only players
+4. **CFPBracket.jsx Updates**:
+   - Each Matchup component now receives slotId prop
+   - Links use slot ID format (e.g., cfpfr1-2025, cfpqf1-2025)
 
-5. **Player Profile Link Fixes**:
-   - Fixed `findPlayerByNameAndSchool` function in AllConference.jsx and AllAmericans.jsx
-   - Player links now correctly match by both name and school
-   - Fixed bug where All-Americans/All-Conference players were assigned wrong teams
-   - `DynastyContext.jsx`: Fixed to use `entry.school` before `entry.team` in `processHonorPlayers`
+5. **BowlHistory.jsx Updates**:
+   - CFP bowls now link using slot IDs
+   - Uses `getSlotIdFromBowlName()` to get correct slot
 
-6. **KNOWN BUG - CFP Bracket Advancement**:
-   - The bracket does NOT correctly advance teams after phase/week changes
-   - Winners from earlier rounds don't properly populate later rounds
-   - This needs investigation and fixing
+6. **DynastyContext.jsx Updates**:
+   - CFP games stored at fixed array positions based on slot
+   - First round: array[0-3] based on seed matchups
+   - Quarterfinals: array[0-3] based on bowl name
+   - Semifinals: array[0-1] based on bowl name (Peach=0, Fiesta=1)
 
 **TODO / Future Work**:
-- **FIX**: CFP Bracket team advancement after phase changes
 - Team stats still need implementation for:
   - CFP Appearances, National Titles
   - Heisman Winners, First-Team All-Americans

@@ -6,6 +6,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getBowlLogo } from '../../data/bowlGames'
+import { getCFPGameId } from '../../data/cfpConstants'
 // GameDetailModal removed - now using game pages instead
 import GameEntryModal from '../../components/GameEntryModal'
 
@@ -292,7 +293,8 @@ export default function CFPBracket() {
 
   // Matchup component - two team slots stacked
   // Now uses Link to game page instead of onClick modal
-  const Matchup = ({ team1, team2, seed1, seed2, style, round, bowl, gameData }) => {
+  // slotId is the CFP slot ID (e.g., cfpfr1, cfpqf1, cfpsf1, cfpnc)
+  const Matchup = ({ team1, team2, seed1, seed2, style, round, bowl, gameData, slotId }) => {
     // Map scores correctly based on which team is which
     // gameData has team1/team2 which may be in different order than visual display
     let score1, score2
@@ -313,54 +315,9 @@ export default function CFPBracket() {
     const winner = gameData?.winner
     const hasResult = !!winner
 
-    // Generate game ID for linking
-    const getGameId = () => {
-      if (!hasResult) return null
-
-      const cfpFlag = round === 'First Round' ? 'isCFPFirstRound'
-        : round === 'Quarterfinal' || round === 'Quarterfinals' ? 'isCFPQuarterfinal'
-        : round === 'Semifinal' || round === 'Semifinals' ? 'isCFPSemifinal'
-        : 'isCFPChampionship'
-
-      // Try to find the specific game in games[] array by matching teams
-      const allGamesForRound = currentDynasty.games?.filter(g =>
-        g[cfpFlag] && Number(g.year) === Number(displayYear)
-      ) || []
-
-      // Find the game that matches these specific teams
-      const matchingGame = allGamesForRound.find(g => {
-        // For user games: check opponent
-        if (!g.isCPUGame) {
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-          return (team1 === userTeamAbbr && team2 === g.opponent) ||
-                 (team2 === userTeamAbbr && team1 === g.opponent)
-        }
-        // For CPU games: check team1/team2
-        return (g.team1 === team1 && g.team2 === team2) ||
-               (g.team1 === team2 && g.team2 === team1)
-      })
-
-      if (matchingGame?.id) return matchingGame.id
-
-      // Fallback ID - make it unique by including teams or seeds
-      if (bowl) {
-        const bowlSlug = bowl.toLowerCase().replace(/\s+/g, '-')
-        return `cfp-${displayYear}-${bowlSlug}`
-      }
-      // For First Round, use seeds to make unique ID
-      if (seed1 && seed2) {
-        const lowSeed = Math.min(seed1, seed2)
-        const highSeed = Math.max(seed1, seed2)
-        return `cfp-${displayYear}-first-round-${lowSeed}-vs-${highSeed}`
-      }
-      // Last resort: use teams
-      if (team1 && team2) {
-        return `cfp-${displayYear}-${team1.toLowerCase()}-vs-${team2.toLowerCase()}`
-      }
-      return `cfp-${displayYear}-${round.toLowerCase().replace(/\s+/g, '-')}`
-    }
-
-    const gameId = getGameId()
+    // Generate game ID using the slot ID system
+    // Each CFP game has a fixed slot ID: cfpfr1-4, cfpqf1-4, cfpsf1-2, cfpnc
+    const gameId = hasResult && slotId ? getCFPGameId(slotId, displayYear) : null
 
     const matchupContent = (
       <>
@@ -723,10 +680,10 @@ export default function CFPBracket() {
           <div className="relative" style={{ height: `${BRACKET_HEIGHT}px`, width: `${BRACKET_WIDTH}px` }}>
 
             {/* ===== FIRST ROUND ===== */}
-            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} round="First Round" gameData={getFirstRoundGame(5, 12)} />
-            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} round="First Round" gameData={getFirstRoundGame(8, 9)} />
-            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} round="First Round" gameData={getFirstRoundGame(6, 11)} />
-            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} round="First Round" gameData={getFirstRoundGame(7, 10)} />
+            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} round="First Round" gameData={getFirstRoundGame(5, 12)} slotId="cfpfr1" />
+            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} round="First Round" gameData={getFirstRoundGame(8, 9)} slotId="cfpfr2" />
+            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} round="First Round" gameData={getFirstRoundGame(6, 11)} slotId="cfpfr3" />
+            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} round="First Round" gameData={getFirstRoundGame(7, 10)} slotId="cfpfr4" />
 
             {/* First Round → QF connectors (bracket from 2 teams to 1 output) */}
             {/* R1_M1: 12 vs 5 → QF top slot */}
@@ -755,13 +712,13 @@ export default function CFPBracket() {
 
             {/* ===== QUARTERFINALS ===== */}
             {/* 5 vs 12 winner plays #4 seed */}
-            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} round="Quarterfinal" bowl="Sugar Bowl" gameData={getQFGame('Sugar Bowl')} />
+            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} round="Quarterfinal" bowl="Sugar Bowl" gameData={getQFGame('Sugar Bowl')} slotId="cfpqf1" />
             {/* 8 vs 9 winner plays #1 seed */}
-            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} round="Quarterfinal" bowl="Orange Bowl" gameData={getQFGame('Orange Bowl')} />
+            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} round="Quarterfinal" bowl="Orange Bowl" gameData={getQFGame('Orange Bowl')} slotId="cfpqf2" />
             {/* 6 vs 11 winner plays #3 seed */}
-            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} round="Quarterfinal" bowl="Rose Bowl" gameData={getQFGame('Rose Bowl')} />
+            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} round="Quarterfinal" bowl="Rose Bowl" gameData={getQFGame('Rose Bowl')} slotId="cfpqf3" />
             {/* 7 vs 10 winner plays #2 seed */}
-            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} round="Quarterfinal" bowl="Cotton Bowl" gameData={getQFGame('Cotton Bowl')} />
+            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} round="Quarterfinal" bowl="Cotton Bowl" gameData={getQFGame('Cotton Bowl')} slotId="cfpqf4" />
 
             {/* QF Bowl Logos - positioned on right side, centered between both team slots */}
             <img
@@ -813,6 +770,7 @@ export default function CFPBracket() {
               round="Semifinal"
               bowl="Peach Bowl"
               gameData={getSFGame('Peach Bowl')}
+              slotId="cfpsf1"
             />
             {/* Fiesta Bowl: Rose Bowl winner vs Cotton Bowl winner */}
             <Matchup
@@ -824,6 +782,7 @@ export default function CFPBracket() {
               round="Semifinal"
               bowl="Fiesta Bowl"
               gameData={getSFGame('Fiesta Bowl')}
+              slotId="cfpsf2"
             />
 
             {/* SF Bowl Logos */}
@@ -856,6 +815,7 @@ export default function CFPBracket() {
               round="Championship"
               bowl="National Championship"
               gameData={getChampGame()}
+              slotId="cfpnc"
             />
 
             {/* Trophy */}

@@ -11,6 +11,7 @@ import {
 import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet, createConferencesSheet, readConferencesFromSheet } from '../services/sheetsService'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
+import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId } from '../data/cfpConstants'
 
 const DynastyContext = createContext()
 
@@ -406,47 +407,72 @@ export function DynastyProvider({ children }) {
         resultEntry.seed1 = userSeed
         resultEntry.seed2 = oppSeed
 
-        const existingFirstRound = yearResults.firstRound || []
-        // Remove any existing entry for this matchup
-        const filteredFirstRound = existingFirstRound.filter(g =>
-          !(g.seed1 === userSeed || g.seed2 === userSeed)
-        )
+        // Determine slot index based on seed matchup
+        // cfpfr1: 5v12 (index 0), cfpfr2: 8v9 (index 1), cfpfr3: 6v11 (index 2), cfpfr4: 7v10 (index 3)
+        const slotId = getFirstRoundSlotId(userSeed, oppSeed)
+        const slotIndex = slotId ? parseInt(slotId.replace('cfpfr', '')) - 1 : -1
+
+        // Initialize array with 4 slots if needed
+        const existingFirstRound = yearResults.firstRound || [null, null, null, null]
+        const newFirstRound = [...existingFirstRound]
+        // Ensure array has 4 slots
+        while (newFirstRound.length < 4) newFirstRound.push(null)
+        // Place at correct slot
+        if (slotIndex >= 0 && slotIndex < 4) {
+          newFirstRound[slotIndex] = resultEntry
+        }
         updates.cfpResultsByYear = {
           ...existingCFPResults,
-          [year]: { ...yearResults, firstRound: [...filteredFirstRound, resultEntry] }
+          [year]: { ...yearResults, firstRound: newFirstRound }
         }
       } else if (cleanGameData.isCFPQuarterfinal) {
         // Add bowl name for quarterfinal games (e.g., "Orange Bowl", "Rose Bowl")
         if (cleanGameData.bowlName) {
           resultEntry.bowlName = cleanGameData.bowlName
         }
-        const existingQF = yearResults.quarterfinals || []
-        // Remove any existing entry with user's team
-        const filteredQF = existingQF.filter(g =>
-          g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr
-        )
+        // Determine slot index based on bowl name
+        // cfpqf1: Sugar (index 0), cfpqf2: Orange (index 1), cfpqf3: Rose (index 2), cfpqf4: Cotton (index 3)
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
+        const slotIndex = slotId ? parseInt(slotId.replace('cfpqf', '')) - 1 : -1
+
+        // Initialize array with 4 slots if needed
+        const existingQF = yearResults.quarterfinals || [null, null, null, null]
+        const newQF = [...existingQF]
+        while (newQF.length < 4) newQF.push(null)
+        if (slotIndex >= 0 && slotIndex < 4) {
+          newQF[slotIndex] = resultEntry
+        }
         updates.cfpResultsByYear = {
           ...existingCFPResults,
-          [year]: { ...yearResults, quarterfinals: [...filteredQF, resultEntry] }
+          [year]: { ...yearResults, quarterfinals: newQF }
         }
       } else if (cleanGameData.isCFPSemifinal) {
         // Add bowl name for semifinal games (Peach Bowl or Fiesta Bowl)
         if (cleanGameData.bowlName) {
           resultEntry.bowlName = cleanGameData.bowlName
         }
-        const existingSF = yearResults.semifinals || []
-        const filteredSF = existingSF.filter(g =>
-          g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr
-        )
+        // Determine slot index based on bowl name
+        // cfpsf1: Peach (index 0), cfpsf2: Fiesta (index 1)
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
+        const slotIndex = slotId ? parseInt(slotId.replace('cfpsf', '')) - 1 : -1
+
+        // Initialize array with 2 slots if needed
+        const existingSF = yearResults.semifinals || [null, null]
+        const newSF = [...existingSF]
+        while (newSF.length < 2) newSF.push(null)
+        if (slotIndex >= 0 && slotIndex < 2) {
+          newSF[slotIndex] = resultEntry
+        }
         updates.cfpResultsByYear = {
           ...existingCFPResults,
-          [year]: { ...yearResults, semifinals: [...filteredSF, resultEntry] }
+          [year]: { ...yearResults, semifinals: newSF }
         }
       } else if (cleanGameData.isCFPChampionship) {
         // Add game name for championship
         if (cleanGameData.bowlName) {
           resultEntry.bowlName = cleanGameData.bowlName
         }
+        // Championship is a single game (cfpnc), stored as array with one element for compatibility
         updates.cfpResultsByYear = {
           ...existingCFPResults,
           [year]: { ...yearResults, championship: [resultEntry] }

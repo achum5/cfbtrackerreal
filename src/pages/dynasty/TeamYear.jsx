@@ -8,6 +8,7 @@ import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamLogo } from '../../data/teams'
 import { bowlLogos } from '../../data/bowlLogos'
+import { getCFPGameId, getSlotIdFromBowlName, getCFPSlotDisplayName } from '../../data/cfpConstants'
 // GameDetailModal removed - now using game pages
 import GameEntryModal from '../../components/GameEntryModal'
 import RosterEditModal from '../../components/RosterEditModal'
@@ -418,12 +419,12 @@ export default function TeamYear() {
 
   // Get CFP results for this team in this year from cfpResultsByYear
   const cfpResults = currentDynasty.cfpResultsByYear?.[selectedYear] || {}
-  // Add round information to each game as we combine them
+  // Add round information AND slot ID to each game as we combine them
   const allCFPGames = [
-    ...(cfpResults.firstRound || []).map(g => ({ ...g, round: 1 })),
-    ...(cfpResults.quarterfinals || []).map(g => ({ ...g, round: 2 })),
-    ...(cfpResults.semifinals || []).map(g => ({ ...g, round: 3 })),
-    ...(cfpResults.championship || []).map(g => ({ ...g, round: 4 }))
+    ...(cfpResults.firstRound || []).map((g, idx) => ({ ...g, round: 1, slotId: `cfpfr${idx + 1}` })),
+    ...(cfpResults.quarterfinals || []).map((g, idx) => ({ ...g, round: 2, slotId: `cfpqf${idx + 1}` })),
+    ...(cfpResults.semifinals || []).map((g, idx) => ({ ...g, round: 3, slotId: `cfpsf${idx + 1}` })),
+    ...(cfpResults.championship ? [{ ...cfpResults.championship, round: 4, slotId: 'cfpnc' }] : [])
   ]
 
   // Find all CFP games involving this team
@@ -630,10 +631,15 @@ export default function TeamYear() {
       const roundFullNames = { 1: 'First Round', 2: 'Quarterfinal', 3: 'Semifinal', 4: 'National Championship' }
       const thisTeamScore = isTeam1 ? game.team1Score : game.team2Score
       const oppScore = isTeam1 ? game.team2Score : game.team1Score
+
+      // Use the slot ID to generate the game ID (e.g., cfpfr1-2025, cfpqf2-2025)
+      const cfpGameId = game.id || getCFPGameId(game.slotId, selectedYear)
+
       allGames.push({
         type: 'cfp',
         week: roundNames[game.round] || `CFP ${game.round}`,
         round: game.round,
+        slotId: game.slotId,
         opponent: opponent,
         opponentRank: null,
         thisTeamWon: thisTeamWon,
@@ -641,7 +647,7 @@ export default function TeamYear() {
         opponentScore: oppScore,
         location: 'neutral',
         sortOrder: 100 + (game.round || idx),
-        gameId: game.id || `cfp-${selectedYear}-round${game.round}`, // Include game ID for linking
+        gameId: cfpGameId,
         gameForModal: {
           opponent: opponent,
           teamScore: thisTeamScore,
@@ -658,11 +664,11 @@ export default function TeamYear() {
       })
     })
 
-    // Add bowl game (but NOT if it's a CFP Semifinal bowl - those are already in CFP games)
-    // CFP Semifinal bowls are Peach Bowl and Fiesta Bowl
-    const cfpSemifinalBowls = ['Peach Bowl', 'Fiesta Bowl']
-    const isCFPSemifinal = teamBowlGame && cfpSemifinalBowls.includes(teamBowlGame.bowlName)
-    if (teamBowlGame && !isCFPSemifinal) {
+    // Add bowl game (but NOT if it's a CFP bowl - those are already in CFP games)
+    // CFP bowls: Quarterfinals (Sugar, Orange, Rose, Cotton) and Semifinals (Peach, Fiesta)
+    const cfpBowls = ['Sugar Bowl', 'Orange Bowl', 'Rose Bowl', 'Cotton Bowl', 'Peach Bowl', 'Fiesta Bowl']
+    const isCFPBowl = teamBowlGame && cfpBowls.includes(teamBowlGame.bowlName)
+    if (teamBowlGame && !isCFPBowl) {
       const isTeam1 = teamBowlGame.team1 === teamAbbr
       const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
       const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score

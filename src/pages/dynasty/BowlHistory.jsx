@@ -5,6 +5,7 @@ import { bowlLogos, getAllBowlNames } from '../../data/bowlLogos'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import { getSlotIdFromBowlName, getCFPGameId } from '../../data/cfpConstants'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -416,8 +417,17 @@ export default function BowlHistory() {
                       // Generate game ID for navigation
                       const gameBowlName = game.bowlName || bowlName
                       const bowlSlug = gameBowlName.toLowerCase().replace(/\s+/g, '-')
-                      // Use cfp- prefix for CFP games, bowl- prefix for regular bowl games
-                      const gameId = game.gameRef?.id || (game.isCFP ? `cfp-${game.year}-${bowlSlug}` : `bowl-${game.year}-${bowlSlug}`)
+                      // Use slot ID system for CFP bowls, bowl- prefix for regular bowl games
+                      let gameId = game.gameRef?.id
+                      if (!gameId) {
+                        if (game.isCFP) {
+                          // CFP games use slot IDs (cfpqf1, cfpsf1, cfpnc)
+                          const slotId = getSlotIdFromBowlName(gameBowlName)
+                          gameId = slotId ? getCFPGameId(slotId, game.year) : `bowl-${game.year}-${bowlSlug}`
+                        } else {
+                          gameId = `bowl-${game.year}-${bowlSlug}`
+                        }
+                      }
 
                       return (
                         <Link
