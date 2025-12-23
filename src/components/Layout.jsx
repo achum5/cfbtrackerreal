@@ -76,7 +76,8 @@ export default function Layout({ children }) {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
+      if (week === 5) return 'National Signing Day'
+      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
     const phases = {

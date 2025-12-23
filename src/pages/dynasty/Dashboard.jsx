@@ -1001,6 +1001,7 @@ export default function Dashboard() {
       if (week === 5) return 'End of Season'
       return `Bowl Week ${week}`
     } else if (phase === 'offseason' && week >= 2 && week <= 5) {
+      if (week === 5) return 'National Signing Day'
       return `Recruiting Week ${week - 1}`
     }
     return 'Recruiting'
@@ -1147,7 +1148,8 @@ export default function Dashboard() {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
+      if (week === 5) return 'National Signing Day'
+      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
     const phases = {
@@ -4610,7 +4612,7 @@ export default function Dashboard() {
               return (
                 <>
                   <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
-                    Recruiting Week {recruitingWeekNum} of 4
+                    {recruitingWeekNum === 4 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
                   </h3>
                   <div className="space-y-3 sm:space-y-4">
                     {/* Task 1: Recruiting Commitments */}
@@ -4635,14 +4637,16 @@ export default function Dashboard() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
-                            {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                            {hasCommitmentsData
+                              ? (recruitingWeekNum === 4 ? 'Signing Day' : 'Recruiting Commitments')
+                              : (recruitingWeekNum === 4 ? 'Signing Day' : 'Any commitments this week?')}
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasCommitmentsData
                               ? commitmentsCount > 0
                                 ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
                                 : '✓ No commitments this week'
-                              : 'Record any recruiting commitments for this week'}
+                              : (recruitingWeekNum === 4 ? 'Enter your final recruiting class' : 'Record any recruiting commitments for this week')}
                           </div>
                         </div>
                       </div>
