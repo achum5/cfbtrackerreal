@@ -257,32 +257,63 @@ export default function Game() {
     const cfpFRMatch = gameId.match(/^cfp-(\d+)-firstround$/)
     if (cfpFRMatch) {
       const year = parseInt(cfpFRMatch[1])
+      // First try to find user's game in games[]
       found = currentDynasty.games.find(g => g.isCFPFirstRound && Number(g.year) === year)
       if (found) return found
+      // Fallback: find user's game in cfpResultsByYear
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+      const frGames = cfpResults.firstRound || []
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userFRGame = frGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+      if (userFRGame) return { ...userFRGame, id: gameId, year, isCFPFirstRound: true, isPlayoff: true }
     }
 
     // cfp-{year}-quarterfinal pattern
     const cfpQFMatch = gameId.match(/^cfp-(\d+)-quarterfinal$/)
     if (cfpQFMatch) {
       const year = parseInt(cfpQFMatch[1])
+      // First try to find user's game in games[]
       found = currentDynasty.games.find(g => g.isCFPQuarterfinal && Number(g.year) === year)
       if (found) return found
+      // Fallback: find user's game in cfpResultsByYear
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+      const qfGames = cfpResults.quarterfinals || []
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userQFGame = qfGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+      if (userQFGame) return { ...userQFGame, id: gameId, year, isCFPQuarterfinal: true, isPlayoff: true }
     }
 
     // cfp-{year}-semifinal pattern
     const cfpSFMatch = gameId.match(/^cfp-(\d+)-semifinal$/)
     if (cfpSFMatch) {
       const year = parseInt(cfpSFMatch[1])
+      // First try to find user's game in games[]
       found = currentDynasty.games.find(g => g.isCFPSemifinal && Number(g.year) === year)
       if (found) return found
+      // Fallback: find user's game in cfpResultsByYear
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+      const sfGames = cfpResults.semifinals || []
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+      const userSFGame = sfGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+      if (userSFGame) return { ...userSFGame, id: gameId, year, isCFPSemifinal: true, isPlayoff: true }
     }
 
     // cfp-{year}-championship pattern
     const cfpChampMatch = gameId.match(/^cfp-(\d+)-championship$/)
     if (cfpChampMatch) {
       const year = parseInt(cfpChampMatch[1])
+      // First try to find user's game in games[]
       found = currentDynasty.games.find(g => g.isCFPChampionship && Number(g.year) === year)
       if (found) return found
+      // Fallback: find user's game in cfpResultsByYear
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+      const champGame = cfpResults.championship
+      if (champGame) {
+        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+        if (champGame.team1 === userTeamAbbr || champGame.team2 === userTeamAbbr) {
+          return { ...champGame, id: gameId, year, isCFPChampionship: true, isPlayoff: true }
+        }
+      }
     }
 
     // cfp-{year}-{bowl-slug} pattern for CFP games by bowl name
@@ -426,15 +457,19 @@ export default function Game() {
         3: cfpResults.semifinals || [],
         4: cfpResults.championship ? [cfpResults.championship] : []
       }
+      const roundFlags = {
+        1: { isCFPFirstRound: true },
+        2: { isCFPQuarterfinal: true },
+        3: { isCFPSemifinal: true },
+        4: { isCFPChampionship: true }
+      }
       const roundGames = roundArrays[round] || []
       if (roundGames.length > 0) {
         // Prioritize finding the user's team's game
         const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
         const userGame = roundGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-        if (userGame) {
-          return userGame
-        }
-        return roundGames[0]
+        const gameToReturn = userGame || roundGames[0]
+        return { ...gameToReturn, id: gameId, year, isPlayoff: true, ...roundFlags[round] }
       }
     }
 
