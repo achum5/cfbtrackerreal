@@ -194,17 +194,44 @@ export default function Game() {
       // Game should already be in games[] with this exact ID, but check cfpResultsByYear as fallback
       const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
 
-      // Map slot to the correct array in cfpResultsByYear
+      // Map slot to the correct game in cfpResultsByYear
+      // Must find by identifying info (seeds for FR, bowl name for QF/SF) since data may not be in slot order
       let cfpGame = null
+
       if (slotId.startsWith('cfpfr')) {
-        const slotNum = parseInt(slotId.replace('cfpfr', '')) - 1 // 0-indexed
-        cfpGame = (cfpResults.firstRound || [])[slotNum]
+        // First Round: find by seed matchup
+        const seedMatchups = {
+          cfpfr1: [5, 12],
+          cfpfr2: [8, 9],
+          cfpfr3: [6, 11],
+          cfpfr4: [7, 10]
+        }
+        const [seed1, seed2] = seedMatchups[slotId] || []
+        const frGames = cfpResults.firstRound || []
+        cfpGame = frGames.find(g => g && (
+          (g.seed1 === seed1 && g.seed2 === seed2) ||
+          (g.seed1 === seed2 && g.seed2 === seed1)
+        ))
       } else if (slotId.startsWith('cfpqf')) {
-        const slotNum = parseInt(slotId.replace('cfpqf', '')) - 1
-        cfpGame = (cfpResults.quarterfinals || [])[slotNum]
+        // Quarterfinals: find by bowl name
+        const bowlNames = {
+          cfpqf1: 'Sugar Bowl',
+          cfpqf2: 'Orange Bowl',
+          cfpqf3: 'Rose Bowl',
+          cfpqf4: 'Cotton Bowl'
+        }
+        const targetBowl = bowlNames[slotId]
+        const qfGames = cfpResults.quarterfinals || []
+        cfpGame = qfGames.find(g => g && g.bowlName === targetBowl)
       } else if (slotId.startsWith('cfpsf')) {
-        const slotNum = parseInt(slotId.replace('cfpsf', '')) - 1
-        cfpGame = (cfpResults.semifinals || [])[slotNum]
+        // Semifinals: find by bowl name
+        const bowlNames = {
+          cfpsf1: 'Peach Bowl',
+          cfpsf2: 'Fiesta Bowl'
+        }
+        const targetBowl = bowlNames[slotId]
+        const sfGames = cfpResults.semifinals || []
+        cfpGame = sfGames.find(g => g && g.bowlName === targetBowl)
       } else if (slotId === 'cfpnc') {
         // Championship is stored as array with one element for compatibility
         const champArray = cfpResults.championship || []

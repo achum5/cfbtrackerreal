@@ -20,7 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **Game.jsx Updates**:
    - Simplified CFP game lookup using slot IDs
    - Removed complex pattern matching (cfp-{year}-round{N}, cfp-{year}-{bowl-slug})
-   - Direct lookup by slot ID with fallback to cfpResultsByYear
+   - Finds games by identifying info (bowl name for QF/SF, seed matchup for FR) not array index
+   - Supports data stored in any order - doesn't assume slot order in arrays
 
 3. **TeamYear.jsx Updates**:
    - CFP games now use slot IDs for game links
