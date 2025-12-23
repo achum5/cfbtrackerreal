@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getCurrentRoster } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import RosterEditModal from '../../components/RosterEditModal'
@@ -42,8 +42,8 @@ export default function Roster() {
     'P'
   ]
 
-  // Filter players by selected position (exclude honor-only players who aren't on user's roster)
-  const rosterPlayers = (currentDynasty.players || []).filter(p => !p.isHonorOnly)
+  // Use team-centric roster (filtered to current team)
+  const rosterPlayers = getCurrentRoster(currentDynasty)
   const filteredPlayers = selectedPosition === 'All'
     ? rosterPlayers
     : rosterPlayers.filter(player => player.position === selectedPosition)

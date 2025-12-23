@@ -9,11 +9,295 @@ import {
   migrateLocalStorageData
 } from '../services/dynastyService'
 import { createDynastySheet, deleteGoogleSheet, writeExistingDataToSheet, createConferencesSheet, readConferencesFromSheet } from '../services/sheetsService'
-import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { getAbbreviationFromDisplayName, getTeamName } from '../data/teamAbbreviations'
+import { getTeamConference } from '../data/conferenceTeams'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId } from '../data/cfpConstants'
 
 const DynastyContext = createContext()
+
+// ============================================================================
+// TEAM-CENTRIC HELPER FUNCTIONS
+// These functions get/set data specific to the current team and year
+// ============================================================================
+
+/**
+ * Get the current team's schedule for the current year
+ * Falls back to legacy dynasty.schedule for backwards compatibility
+ */
+export function getCurrentSchedule(dynasty) {
+  if (!dynasty) return []
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const year = dynasty.currentYear
+
+  // Try new team-centric structure first
+  const teamYearSchedule = dynasty.schedulesByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearSchedule) {
+    return teamYearSchedule
+  }
+
+  // Fall back to legacy schedule (for backwards compatibility)
+  // But only if it belongs to the current team (check first entry)
+  const legacySchedule = dynasty.schedule || []
+  if (legacySchedule.length > 0) {
+    const firstEntry = legacySchedule[0]
+    // If legacy schedule has userTeam that matches current team, use it
+    if (firstEntry.userTeam === teamAbbr || !firstEntry.userTeam) {
+      return legacySchedule
+    }
+  }
+
+  return []
+}
+
+/**
+ * Get the current team's roster (non-honor-only players for current team)
+ * Falls back to legacy filtering for backwards compatibility
+ */
+export function getCurrentRoster(dynasty) {
+  if (!dynasty) return []
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const allPlayers = dynasty.players || []
+
+  // Filter players by team (if they have team field) and exclude honor-only
+  return allPlayers.filter(p => {
+    // Always exclude honor-only players from roster view
+    if (p.isHonorOnly) return false
+
+    // If player has team field, check it matches current team
+    if (p.team) {
+      return p.team === teamAbbr
+    }
+
+    // Legacy: players without team field belong to current team
+    // (This is the backwards-compatible behavior)
+    return true
+  })
+}
+
+/**
+ * Get all players including honor-only (for awards, all-americans, etc.)
+ */
+export function getAllPlayers(dynasty) {
+  if (!dynasty) return []
+  return dynasty.players || []
+}
+
+/**
+ * Get preseason setup flags for current team and year
+ */
+export function getCurrentPreseasonSetup(dynasty) {
+  if (!dynasty) return {
+    scheduleEntered: false,
+    rosterEntered: false,
+    teamRatingsEntered: false,
+    coachingStaffEntered: false,
+    conferencesEntered: false
+  }
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const year = dynasty.currentYear
+
+  // Try new team-centric structure first
+  const teamYearSetup = dynasty.preseasonSetupByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearSetup) {
+    return teamYearSetup
+  }
+
+  // Fall back to legacy preseasonSetup
+  return dynasty.preseasonSetup || {
+    scheduleEntered: false,
+    rosterEntered: false,
+    teamRatingsEntered: false,
+    coachingStaffEntered: false,
+    conferencesEntered: false
+  }
+}
+
+/**
+ * Get team ratings for current team and year
+ */
+export function getCurrentTeamRatings(dynasty) {
+  if (!dynasty) return { overall: null, offense: null, defense: null }
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const year = dynasty.currentYear
+
+  // Try new team-centric structure first
+  const teamYearRatings = dynasty.teamRatingsByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearRatings) {
+    return teamYearRatings
+  }
+
+  // Fall back to legacy teamRatings
+  return dynasty.teamRatings || { overall: null, offense: null, defense: null }
+}
+
+/**
+ * Get coaching staff for current team and year
+ */
+export function getCurrentCoachingStaff(dynasty) {
+  if (!dynasty) return { hcName: null, ocName: null, dcName: null }
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const year = dynasty.currentYear
+
+  // Try new team-centric structure first
+  const teamYearStaff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearStaff) {
+    return teamYearStaff
+  }
+
+  // Fall back to legacy coachingStaff
+  return dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+}
+
+/**
+ * Get Google Sheet info for current team
+ */
+export function getCurrentGoogleSheet(dynasty) {
+  if (!dynasty) return { googleSheetId: null, googleSheetUrl: null }
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+
+  // Try new team-centric structure first
+  const teamSheet = dynasty.googleSheetsByTeam?.[teamAbbr]
+  if (teamSheet) {
+    return teamSheet
+  }
+
+  // Fall back to legacy googleSheet fields
+  return {
+    googleSheetId: dynasty.googleSheetId || null,
+    googleSheetUrl: dynasty.googleSheetUrl || null
+  }
+}
+
+/**
+ * Get recruits for current team and year
+ */
+export function getCurrentRecruits(dynasty) {
+  if (!dynasty) return []
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const year = dynasty.currentYear
+
+  // Try new team-centric structure first
+  const teamYearRecruits = dynasty.recruitsByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearRecruits) {
+    return teamYearRecruits
+  }
+
+  // Fall back to legacy recruits (filter by team if they have team field)
+  const legacyRecruits = dynasty.recruits || []
+  return legacyRecruits.filter(r => !r.team || r.team === teamAbbr)
+}
+
+/**
+ * Get which team the coach was coaching for a specific year.
+ * This is locked in at the start of the season (Week 1) and does NOT change
+ * even if the user switches teams during the offseason.
+ *
+ * Use this for coach career records, player leaderboards, and any stats
+ * that need to know "who was the coach coaching this year".
+ */
+export function getCoachTeamForYear(dynasty, year) {
+  if (!dynasty) return null
+
+  // Check the coachTeamByYear structure first
+  const coachTeamRecord = dynasty.coachTeamByYear?.[year]
+  if (coachTeamRecord) {
+    return coachTeamRecord
+  }
+
+  // Fallback for years before this feature was implemented:
+  // - If it's the current year and we haven't started the season yet, use current team
+  // - Otherwise return null (data not available)
+  if (year === dynasty.currentYear && dynasty.currentPhase === 'preseason') {
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    return {
+      team: teamAbbr,
+      teamName: dynasty.teamName,
+      position: dynasty.coachPosition || 'HC'
+    }
+  }
+
+  // For the start year, assume the current team if no record exists
+  if (year === dynasty.startYear) {
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    return {
+      team: teamAbbr,
+      teamName: dynasty.teamName,
+      position: dynasty.coachPosition || 'HC'
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get all years the coach has coached with their team info
+ */
+export function getCoachHistory(dynasty) {
+  if (!dynasty) return []
+
+  const history = []
+  const coachTeamByYear = dynasty.coachTeamByYear || {}
+
+  // Get all years from coachTeamByYear
+  for (const [year, record] of Object.entries(coachTeamByYear)) {
+    history.push({
+      year: parseInt(year),
+      ...record
+    })
+  }
+
+  // Sort by year
+  history.sort((a, b) => a.year - b.year)
+  return history
+}
+
+/**
+ * Get the locked coaching staff for a specific year.
+ * This is locked in at Week 12 (end of regular season) BEFORE any conference
+ * championship firings. Use this for historical views to show who the
+ * coordinators were during that season, even if they were fired later.
+ *
+ * @param dynasty - The dynasty object
+ * @param year - The year to get staff for
+ * @param teamAbbr - Optional team abbreviation (defaults to coach's team for that year)
+ */
+export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
+  if (!dynasty) return { hcName: null, ocName: null, dcName: null }
+
+  // If no team specified, get the coach's team for that year
+  if (!teamAbbr) {
+    const coachTeam = getCoachTeamForYear(dynasty, year)
+    teamAbbr = coachTeam?.team
+  }
+
+  if (!teamAbbr) {
+    // Fallback to current team
+    teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  }
+
+  // Check locked coaching staff first (set at end of Week 12)
+  const lockedStaff = dynasty.lockedCoachingStaffByYear?.[teamAbbr]?.[year]
+  if (lockedStaff) {
+    return lockedStaff
+  }
+
+  // Fall back to team-centric coaching staff (may have been updated after firings)
+  const teamYearStaff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year]
+  if (teamYearStaff) {
+    return teamYearStaff
+  }
+
+  // Fall back to legacy coaching staff
+  return dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+}
 
 export function useDynasty() {
   const context = useContext(DynastyContext)
@@ -314,6 +598,13 @@ export function DynastyProvider({ children }) {
       return
     }
 
+    // CRITICAL: Always store the actual team abbreviation for user games
+    // This ensures games are correctly attributed when user switches teams
+    const currentUserTeam = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    if (!cleanGameData.isCPUGame) {
+      cleanGameData.userTeam = currentUserTeam
+    }
+
     // Check if game already exists for this week/year
     // Special handling for CC games, bowl games, and CFP games
     let existingGameIndex
@@ -351,20 +642,74 @@ export function DynastyProvider({ children }) {
     let game
 
     if (existingGameIndex !== -1 && existingGameIndex !== undefined) {
-      // Update existing game - ensure it has an ID (for legacy games that might not have one)
+      // Update existing game - ensure it has proper ID (especially for CFP games)
       const existingGame = dynasty.games[existingGameIndex]
+
+      // For CFP games, ensure proper slot ID format
+      let gameId = existingGame.id || Date.now().toString()
+
+      // Check if this is a CFP game that needs ID correction
+      if (cleanGameData.isCFPFirstRound || existingGame.isCFPFirstRound) {
+        const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year || existingGame.year] || []
+        const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+        const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
+        const oppSeed = userSeed ? 17 - userSeed : null
+        const slotId = getFirstRoundSlotId(userSeed, oppSeed)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year || existingGame.year)
+        }
+      } else if ((cleanGameData.isCFPQuarterfinal || existingGame.isCFPQuarterfinal) && (cleanGameData.bowlName || existingGame.bowlName)) {
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName || existingGame.bowlName)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year || existingGame.year)
+        }
+      } else if ((cleanGameData.isCFPSemifinal || existingGame.isCFPSemifinal) && (cleanGameData.bowlName || existingGame.bowlName)) {
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName || existingGame.bowlName)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year || existingGame.year)
+        }
+      } else if (cleanGameData.isCFPChampionship || existingGame.isCFPChampionship) {
+        gameId = getCFPGameId('cfpnc', cleanGameData.year || existingGame.year)
+      }
+
       game = {
         ...existingGame,
         ...cleanGameData,
-        id: existingGame.id || Date.now().toString(), // Ensure ID exists
+        id: gameId,
         updatedAt: new Date().toISOString()
       }
       updatedGames = [...dynasty.games]
       updatedGames[existingGameIndex] = game
     } else {
       // Add new game
+      // For CFP games, generate proper slot ID based on game type
+      let gameId = Date.now().toString()
+
+      if (cleanGameData.isCFPFirstRound) {
+        const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year] || []
+        const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+        const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
+        const oppSeed = userSeed ? 17 - userSeed : null
+        const slotId = getFirstRoundSlotId(userSeed, oppSeed)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year)
+        }
+      } else if (cleanGameData.isCFPQuarterfinal && cleanGameData.bowlName) {
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year)
+        }
+      } else if (cleanGameData.isCFPSemifinal && cleanGameData.bowlName) {
+        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
+        if (slotId) {
+          gameId = getCFPGameId(slotId, cleanGameData.year)
+        }
+      } else if (cleanGameData.isCFPChampionship) {
+        gameId = getCFPGameId('cfpnc', cleanGameData.year)
+      }
+
       game = {
-        id: Date.now().toString(),
+        id: gameId,
         ...cleanGameData,
         createdAt: new Date().toISOString()
       }
@@ -678,6 +1023,20 @@ export function DynastyProvider({ children }) {
       nextPhase = 'regular_season'
       nextWeek = 1
 
+      // COACH HISTORY: Record which team the coach is coaching this year
+      // This is locked in at season start and does NOT change even if user switches teams later
+      const coachTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+      const existingCoachTeamByYear = dynasty.coachTeamByYear || {}
+      additionalUpdates.coachTeamByYear = {
+        ...existingCoachTeamByYear,
+        [dynasty.currentYear]: {
+          team: coachTeamAbbr,
+          teamName: dynasty.teamName,
+          position: dynasty.coachPosition || 'HC',
+          conference: dynasty.conference
+        }
+      }
+
       // Delete Google Sheet when advancing from preseason
       if (dynasty.googleSheetId) {
         try {
@@ -695,6 +1054,22 @@ export function DynastyProvider({ children }) {
       // After week 12, move to conference championship week
       nextPhase = 'conference_championship'
       nextWeek = 1
+
+      // LOCK IN COACHING STAFF: Save the coordinators at end of regular season
+      // This preserves them for historical display even if they're fired in CC week
+      const currentTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+      const currentStaff = dynasty.coachingStaff || getCurrentCoachingStaff(dynasty)
+      if (currentStaff && (currentStaff.hcName || currentStaff.ocName || currentStaff.dcName)) {
+        const existingLockedStaff = dynasty.lockedCoachingStaffByYear || {}
+        const teamLockedStaff = existingLockedStaff[currentTeamAbbr] || {}
+        additionalUpdates.lockedCoachingStaffByYear = {
+          ...existingLockedStaff,
+          [currentTeamAbbr]: {
+            ...teamLockedStaff,
+            [dynasty.currentYear]: { ...currentStaff }
+          }
+        }
+      }
     } else if (dynasty.currentPhase === 'conference_championship' && nextWeek > 1) {
       // After conference championship, move to postseason (playoffs)
       nextPhase = 'postseason'
@@ -729,7 +1104,178 @@ export function DynastyProvider({ children }) {
       // After Week 5 (End of Season Recap), move to offseason
       nextPhase = 'offseason'
       nextWeek = 1
-    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 4) {
+
+      // Apply new job if user accepted one during postseason
+      const newJobData = dynasty.newJobData
+      if (newJobData?.takingNewJob && newJobData.team && newJobData.position) {
+        // Get the full team name from abbreviation
+        const newTeamName = getTeamName(newJobData.team)
+        const newConference = getTeamConference(newJobData.team)
+
+        // REVERT SUPPORT: Save previous job data so we can restore on revert
+        additionalUpdates.previousJobData = {
+          teamName: dynasty.teamName,
+          coachPosition: dynasty.coachPosition || 'HC',
+          conference: dynasty.conference,
+          schedule: dynasty.schedule,
+          teamRatings: dynasty.teamRatings,
+          coachingStaff: dynasty.coachingStaff,
+          googleSheetId: dynasty.googleSheetId,
+          googleSheetUrl: dynasty.googleSheetUrl,
+          preseasonSetup: dynasty.preseasonSetup,
+          newJobData: newJobData // Save the accepted job offer to restore on revert
+        }
+
+        // Calculate record at current team for this stint
+        const currentTeamGames = (dynasty.games || []).filter(g =>
+          g.userTeam === dynasty.teamName ||
+          g.userTeam === getAbbreviationFromDisplayName(dynasty.teamName) ||
+          (!g.userTeam && !g.isCPUGame) // Legacy games without userTeam field
+        )
+        const currentStintGames = currentTeamGames.filter(g => {
+          // Get the start year of the current stint
+          const existingHistory = dynasty.coachingHistory || []
+          const stintStartYear = existingHistory.length > 0
+            ? existingHistory[existingHistory.length - 1].endYear + 1
+            : dynasty.startYear
+          return Number(g.year) >= stintStartYear
+        })
+        const stintWins = currentStintGames.filter(g => g.result === 'win').length
+        const stintLosses = currentStintGames.filter(g => g.result === 'loss').length
+
+        // Determine start year of current stint
+        const existingHistory = dynasty.coachingHistory || []
+        const stintStartYear = existingHistory.length > 0
+          ? existingHistory[existingHistory.length - 1].endYear + 1
+          : dynasty.startYear
+
+        // Add current team to coaching history
+        const updatedCoachingHistory = [
+          ...existingHistory,
+          {
+            teamName: dynasty.teamName,
+            conference: dynasty.conference,
+            position: dynasty.coachPosition || 'HC',
+            startYear: stintStartYear,
+            endYear: dynasty.currentYear,
+            wins: stintWins,
+            losses: stintLosses
+          }
+        ]
+        additionalUpdates.coachingHistory = updatedCoachingHistory
+
+        // Update to new team
+        additionalUpdates.teamName = newTeamName
+        additionalUpdates.coachPosition = newJobData.position
+        additionalUpdates.conference = newConference || ''
+
+        // TEAM-CENTRIC FIX: Tag all legacy players (without team field) with their current team
+        // before switching. This ensures they stay associated with their original team.
+        const currentTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+        const existingPlayers = dynasty.players || []
+        const taggedPlayers = existingPlayers.map(p => {
+          // If player already has team field, keep it
+          if (p.team) return p
+          // If honor-only player, don't tag with team (they're tracked separately)
+          if (p.isHonorOnly) return p
+          // Tag legacy roster player with their current team
+          return { ...p, team: currentTeamAbbr }
+        })
+        additionalUpdates.players = taggedPlayers
+
+        // TEAM-CENTRIC FIX: Tag all legacy games (without userTeam field) with their team
+        // before switching. This ensures games stay with the team that played them.
+        const existingGames = dynasty.games || []
+        const taggedGames = existingGames.map(g => {
+          // If game already has userTeam field, keep it
+          if (g.userTeam) return g
+          // CPU games don't need userTeam (they have team1/team2)
+          if (g.isCPUGame) return g
+          // Tag legacy user game with the current team
+          return { ...g, userTeam: currentTeamAbbr }
+        })
+        additionalUpdates.games = taggedGames
+
+        // TEAM-CENTRIC FIX: Store current schedule in team-centric structure before clearing
+        const currentSchedule = dynasty.schedule || []
+        if (currentSchedule.length > 0) {
+          const existingSchedulesByTeamYear = dynasty.schedulesByTeamYear || {}
+          const teamSchedules = existingSchedulesByTeamYear[currentTeamAbbr] || {}
+          additionalUpdates.schedulesByTeamYear = {
+            ...existingSchedulesByTeamYear,
+            [currentTeamAbbr]: {
+              ...teamSchedules,
+              [dynasty.currentYear]: currentSchedule
+            }
+          }
+        }
+
+        // TEAM-CENTRIC FIX: Store current teamRatings in team-centric structure before clearing
+        const currentRatings = dynasty.teamRatings
+        if (currentRatings && (currentRatings.overall || currentRatings.offense || currentRatings.defense)) {
+          const existingTeamRatingsByTeamYear = dynasty.teamRatingsByTeamYear || {}
+          const teamRatingsForTeam = existingTeamRatingsByTeamYear[currentTeamAbbr] || {}
+          additionalUpdates.teamRatingsByTeamYear = {
+            ...existingTeamRatingsByTeamYear,
+            [currentTeamAbbr]: {
+              ...teamRatingsForTeam,
+              [dynasty.currentYear]: currentRatings
+            }
+          }
+        }
+
+        // TEAM-CENTRIC FIX: Store current coachingStaff in team-centric structure before clearing
+        const currentStaff = dynasty.coachingStaff
+        if (currentStaff && (currentStaff.hcName || currentStaff.ocName || currentStaff.dcName)) {
+          const existingCoachingStaffByTeamYear = dynasty.coachingStaffByTeamYear || {}
+          const coachingStaffForTeam = existingCoachingStaffByTeamYear[currentTeamAbbr] || {}
+          additionalUpdates.coachingStaffByTeamYear = {
+            ...existingCoachingStaffByTeamYear,
+            [currentTeamAbbr]: {
+              ...coachingStaffForTeam,
+              [dynasty.currentYear]: currentStaff
+            }
+          }
+        }
+
+        // TEAM-CENTRIC FIX: Store current Google Sheet in team-centric structure before clearing
+        if (dynasty.googleSheetId) {
+          const existingGoogleSheetsByTeam = dynasty.googleSheetsByTeam || {}
+          additionalUpdates.googleSheetsByTeam = {
+            ...existingGoogleSheetsByTeam,
+            [currentTeamAbbr]: {
+              googleSheetId: dynasty.googleSheetId,
+              googleSheetUrl: dynasty.googleSheetUrl
+            }
+          }
+        }
+
+        // Clear legacy structures for backwards compatibility
+        additionalUpdates.schedule = []
+        additionalUpdates.teamRatings = null
+        additionalUpdates.coachingStaff = null
+        additionalUpdates.googleSheetId = null
+        additionalUpdates.googleSheetUrl = null
+        additionalUpdates.playersLeavingSheetId = null
+
+        // Reset preseason setup flags for the new team (legacy structure)
+        additionalUpdates.preseasonSetup = {
+          scheduleEntered: false,
+          rosterEntered: false,
+          teamRatingsEntered: false,
+          coachingStaffEntered: false
+        }
+
+        // Clear newJobData
+        additionalUpdates.newJobData = null
+      }
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 1 && nextWeek === 2) {
+      // Advancing FROM offseason week 1 TO week 2
+      // Clear previousJobData - user has committed to the new team
+      if (dynasty.previousJobData) {
+        additionalUpdates.previousJobData = null
+      }
+    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 5) {
       nextPhase = 'preseason'
       nextWeek = 0
       nextYear = dynasty.currentYear + 1
@@ -964,8 +1510,33 @@ export function DynastyProvider({ children }) {
         }
       }
     } else if (dynasty.currentPhase === 'offseason') {
-      // Reverting within offseason - generally no game data to clear
-      // But if reverting to postseason week 5, no additional clearing needed
+      // Reverting within offseason
+      if (dynasty.currentWeek === 1 && prevPhase === 'postseason') {
+        // Reverting FROM offseason week 1 TO postseason week 5
+        // If user switched teams, restore the previous team
+        const previousJobData = dynasty.previousJobData
+        if (previousJobData) {
+          // Restore the old team
+          additionalUpdates.teamName = previousJobData.teamName
+          additionalUpdates.coachPosition = previousJobData.coachPosition
+          additionalUpdates.conference = previousJobData.conference
+          additionalUpdates.schedule = previousJobData.schedule
+          additionalUpdates.teamRatings = previousJobData.teamRatings
+          additionalUpdates.coachingStaff = previousJobData.coachingStaff
+          additionalUpdates.googleSheetId = previousJobData.googleSheetId
+          additionalUpdates.googleSheetUrl = previousJobData.googleSheetUrl
+          additionalUpdates.preseasonSetup = previousJobData.preseasonSetup
+          // Restore the accepted job offer so it shows again
+          additionalUpdates.newJobData = previousJobData.newJobData
+          // Remove the last entry from coaching history (the stint we just added)
+          const existingHistory = dynasty.coachingHistory || []
+          if (existingHistory.length > 0) {
+            additionalUpdates.coachingHistory = existingHistory.slice(0, -1)
+          }
+          // Clear previousJobData since we've restored it
+          additionalUpdates.previousJobData = null
+        }
+      }
     }
 
     await updateDynasty(dynastyId, {
@@ -978,7 +1549,6 @@ export function DynastyProvider({ children }) {
   }
 
   const saveSchedule = async (dynastyId, schedule) => {
-
     // CRITICAL: Read from localStorage to get the latest data
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -995,54 +1565,63 @@ export function DynastyProvider({ children }) {
 
     if (!dynasty) {
       console.error('Dynasty not found:', dynastyId)
-      console.error('Dynasties array:', dynasties)
-      console.error('ID comparison failed - checking types:')
-      dynasties.forEach(d => {
-        console.error(`  Dynasty ${d.teamName}: id="${d.id}" (${typeof d.id}) vs looking for "${dynastyId}" (${typeof dynastyId}) - Match: ${String(d.id) === String(dynastyId)}`)
-      })
       return
     }
 
+    // Get current team abbreviation and year for team-centric storage
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    const year = dynasty.currentYear
+
+    // Build team-centric schedule storage
+    const existingSchedulesByTeamYear = dynasty.schedulesByTeamYear || {}
+    const teamSchedules = existingSchedulesByTeamYear[teamAbbr] || {}
+
+    // Build team-centric preseason setup storage
+    const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
+    const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
+    const currentSetup = teamSetups[year] || dynasty.preseasonSetup || {}
 
     const scheduleUpdates = isDev || !user
       ? {
+          // Store in team-centric structure
+          schedulesByTeamYear: {
+            ...existingSchedulesByTeamYear,
+            [teamAbbr]: {
+              ...teamSchedules,
+              [year]: schedule
+            }
+          },
+          // Also update legacy schedule for backwards compatibility
           schedule,
+          // Update team-centric preseason setup
+          preseasonSetupByTeamYear: {
+            ...existingPreseasonSetupByTeamYear,
+            [teamAbbr]: {
+              ...teamSetups,
+              [year]: {
+                ...currentSetup,
+                scheduleEntered: true
+              }
+            }
+          },
+          // Also update legacy preseason setup
           preseasonSetup: {
             ...(dynasty.preseasonSetup || {}),
             scheduleEntered: true
           }
         }
       : {
+          // Firestore: use dot notation for nested updates
+          [`schedulesByTeamYear.${teamAbbr}.${year}`]: schedule,
           schedule,
-          'preseasonSetup.scheduleEntered': true  // Firestore dot notation for nested field merge
+          [`preseasonSetupByTeamYear.${teamAbbr}.${year}.scheduleEntered`]: true,
+          'preseasonSetup.scheduleEntered': true
         }
 
     await updateDynasty(dynastyId, scheduleUpdates)
-
-
-    // Verify it was saved
-    const verification = localStorage.getItem('cfb-dynasties')
-    if (verification) {
-      const parsed = JSON.parse(verification)
-      const saved = parsed.find(d => String(d.id) === String(dynastyId))
-    }
-
-    // VERIFICATION: Check localStorage to confirm schedule was saved
-    if (isDev) {
-      const saved = localStorage.getItem('cfb-dynasties')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        const savedDynasty = parsed.find(d => String(d.id) === String(dynastyId))
-        if (!savedDynasty?.schedule || savedDynasty.schedule.length === 0) {
-          console.error('❌ ERROR: Schedule NOT in localStorage!')
-        } else {
-        }
-      }
-    }
   }
 
   const saveRoster = async (dynastyId, players) => {
-
     // CRITICAL: Read from localStorage to get the latest data (including any recent schedule save)
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -1059,48 +1638,69 @@ export function DynastyProvider({ children }) {
 
     if (!dynasty) {
       console.error('Dynasty not found:', dynastyId)
-      console.error('Dynasties array:', dynasties)
-      console.error('ID comparison failed - checking types:')
-      dynasties.forEach(d => {
-        console.error(`  Dynasty ${d.teamName}: id="${d.id}" (${typeof d.id}) vs looking for "${dynastyId}" (${typeof dynastyId}) - Match: ${String(d.id) === String(dynastyId)}`)
-      })
       return
     }
 
+    // Get current team abbreviation for team-centric storage
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    const year = dynasty.currentYear
 
-    // During preseason, replace roster completely (to avoid duplicates on re-sync)
+    // During preseason, replace current team's roster (but preserve honor-only players AND players from other teams)
     // After preseason, merge with existing (for recruiting additions)
     const isPreseason = dynasty.currentPhase === 'preseason'
+    const existingPlayers = dynasty.players || []
+
+    // Preserve honor-only players AND players from other teams
+    const playersToKeep = existingPlayers.filter(p => {
+      // Always keep honor-only players
+      if (p.isHonorOnly) return true
+      // Keep players from OTHER teams (they have a team field that doesn't match current team)
+      if (p.team && p.team !== teamAbbr) return true
+      // During preseason, remove current team's roster (will be replaced)
+      // After preseason, keep everything
+      return !isPreseason
+    })
 
     let finalPlayers
     let newNextPID
 
-    if (isPreseason) {
-      // Preseason: Replace roster entirely, start PIDs from 1
-      const playersWithPIDs = players.map((player, index) => ({
-        ...player,
-        pid: index + 1,
-        id: `player-${index + 1}`
-      }))
-      finalPlayers = playersWithPIDs
-      newNextPID = players.length + 1
-    } else {
-      // Post-preseason: Merge with existing roster
-      const nextPID = dynasty.nextPID || 1
-      const playersWithPIDs = players.map((player, index) => ({
-        ...player,
-        pid: nextPID + index,
-        id: `player-${nextPID + index}`
-      }))
-      const existingPlayers = dynasty.players || []
-      finalPlayers = [...existingPlayers, ...playersWithPIDs]
-      newNextPID = nextPID + players.length
-    }
+    // Find the highest existing PID to continue from
+    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+    const startPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
+
+    // Add team field to each new player
+    const playersWithPIDs = players.map((player, index) => ({
+      ...player,
+      pid: startPID + index,
+      id: `player-${startPID + index}`,
+      team: teamAbbr  // CRITICAL: Tag each player with their team
+    }))
+
+    // Combine preserved players with new roster
+    finalPlayers = [...playersToKeep, ...playersWithPIDs]
+    newNextPID = startPID + players.length
+
+    // Build team-centric preseason setup storage
+    const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
+    const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
+    const currentSetup = teamSetups[year] || dynasty.preseasonSetup || {}
 
     const rosterUpdates = isDev || !user
       ? {
           players: finalPlayers,
           nextPID: newNextPID,
+          // Update team-centric preseason setup
+          preseasonSetupByTeamYear: {
+            ...existingPreseasonSetupByTeamYear,
+            [teamAbbr]: {
+              ...teamSetups,
+              [year]: {
+                ...currentSetup,
+                rosterEntered: true
+              }
+            }
+          },
+          // Also update legacy preseason setup
           preseasonSetup: {
             ...dynasty.preseasonSetup,
             rosterEntered: true
@@ -1109,14 +1709,14 @@ export function DynastyProvider({ children }) {
       : {
           players: finalPlayers,
           nextPID: newNextPID,
-          'preseasonSetup.rosterEntered': true  // Firestore dot notation for nested field merge
+          [`preseasonSetupByTeamYear.${teamAbbr}.${year}.rosterEntered`]: true,
+          'preseasonSetup.rosterEntered': true
         }
 
     await updateDynasty(dynastyId, rosterUpdates)
   }
 
   const saveTeamRatings = async (dynastyId, ratings) => {
-
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
 
@@ -1135,16 +1735,50 @@ export function DynastyProvider({ children }) {
       return
     }
 
+    // Get current team abbreviation and year for team-centric storage
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    const year = dynasty.currentYear
+
+    // Build team-centric preseason setup storage
+    const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
+    const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
+    const currentSetup = teamSetups[year] || dynasty.preseasonSetup || {}
+
+    // Build team-centric ratings storage
+    const existingTeamRatingsByTeamYear = dynasty.teamRatingsByTeamYear || {}
+    const teamRatingsForTeam = existingTeamRatingsByTeamYear[teamAbbr] || {}
+
     const teamRatingsUpdates = isDev || !user
       ? {
+          // Store in team-centric structure
+          teamRatingsByTeamYear: {
+            ...existingTeamRatingsByTeamYear,
+            [teamAbbr]: {
+              ...teamRatingsForTeam,
+              [year]: ratings
+            }
+          },
+          // Also update legacy for backwards compatibility
           teamRatings: ratings,
+          preseasonSetupByTeamYear: {
+            ...existingPreseasonSetupByTeamYear,
+            [teamAbbr]: {
+              ...teamSetups,
+              [year]: {
+                ...currentSetup,
+                teamRatingsEntered: true
+              }
+            }
+          },
           preseasonSetup: {
             ...dynasty.preseasonSetup,
             teamRatingsEntered: true
           }
         }
       : {
+          [`teamRatingsByTeamYear.${teamAbbr}.${year}`]: ratings,
           teamRatings: ratings,
+          [`preseasonSetupByTeamYear.${teamAbbr}.${year}.teamRatingsEntered`]: true,
           'preseasonSetup.teamRatingsEntered': true
         }
 
@@ -1152,7 +1786,6 @@ export function DynastyProvider({ children }) {
   }
 
   const saveCoachingStaff = async (dynastyId, staff) => {
-
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
 
@@ -1171,16 +1804,50 @@ export function DynastyProvider({ children }) {
       return
     }
 
+    // Get current team abbreviation and year for team-centric storage
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    const year = dynasty.currentYear
+
+    // Build team-centric preseason setup storage
+    const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
+    const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
+    const currentSetup = teamSetups[year] || dynasty.preseasonSetup || {}
+
+    // Build team-centric coaching staff storage
+    const existingCoachingStaffByTeamYear = dynasty.coachingStaffByTeamYear || {}
+    const coachingStaffForTeam = existingCoachingStaffByTeamYear[teamAbbr] || {}
+
     const coachingStaffUpdates = isDev || !user
       ? {
+          // Store in team-centric structure
+          coachingStaffByTeamYear: {
+            ...existingCoachingStaffByTeamYear,
+            [teamAbbr]: {
+              ...coachingStaffForTeam,
+              [year]: staff
+            }
+          },
+          // Also update legacy for backwards compatibility
           coachingStaff: staff,
+          preseasonSetupByTeamYear: {
+            ...existingPreseasonSetupByTeamYear,
+            [teamAbbr]: {
+              ...teamSetups,
+              [year]: {
+                ...currentSetup,
+                coachingStaffEntered: true
+              }
+            }
+          },
           preseasonSetup: {
             ...dynasty.preseasonSetup,
             coachingStaffEntered: true
           }
         }
       : {
+          [`coachingStaffByTeamYear.${teamAbbr}.${year}`]: staff,
           coachingStaff: staff,
+          [`preseasonSetupByTeamYear.${teamAbbr}.${year}.coachingStaffEntered`]: true,
           'preseasonSetup.coachingStaffEntered': true
         }
 
@@ -1518,8 +2185,11 @@ export function DynastyProvider({ children }) {
           // Parse the JSON file
           const dynastyData = JSON.parse(e.target.result)
 
-          // Remove the old ID - Firestore will generate a new one
-          const { id: oldId, userId: oldUserId, ...cleanDynastyData } = dynastyData
+          // Remove the old ID and lastModified - will be replaced with fresh values
+          const { id: oldId, userId: oldUserId, lastModified: oldLastModified, ...cleanDynastyData } = dynastyData
+
+          // Set lastModified to now (import time, not old export time)
+          cleanDynastyData.lastModified = Date.now()
 
           // Save the dynasty using createDynasty logic
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'

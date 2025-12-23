@@ -74,11 +74,15 @@ export default function Layout({ children }) {
       if (week === 5) return 'End of Season Recap'
       return week === 4 ? 'National Championship' : `Bowl Week ${week}`
     }
+    if (phase === 'offseason') {
+      if (week === 1) return 'Players Leaving'
+      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
+      return 'Off-Season'
+    }
     const phases = {
       preseason: 'Pre-Season',
       regular_season: 'Regular Season',
-      conference_championship: 'Conference Championships',
-      offseason: 'Off-Season'
+      conference_championship: 'Conference Championships'
     }
     return phases[phase] || phase
   }
@@ -200,7 +204,7 @@ export default function Layout({ children }) {
               {useTeamTheme && (
                 <button
                   onClick={() => window.toggleDynastySidebar?.()}
-                  className="md:hidden p-2 rounded-lg hover:opacity-70 transition-opacity"
+                  className="lg:hidden p-2 rounded-lg hover:opacity-70 transition-opacity"
                   style={{ color: headerText }}
                   aria-label="Toggle sidebar"
                 >
@@ -236,13 +240,13 @@ export default function Layout({ children }) {
                         />
                       </div>
                     )}
-                    <span className="font-bold text-lg hidden md:inline" style={{ color: headerText }}>
+                    <span className="font-bold text-lg hidden xl:inline" style={{ color: headerText }}>
                       {currentDynasty.teamName}
                     </span>
                   </div>
 
-                  {/* Separator - hidden on mobile */}
-                  <span className="hidden md:inline" style={{ color: headerText, opacity: 0.5 }}>•</span>
+                  {/* Separator - only show when team name is visible */}
+                  <span className="hidden xl:inline" style={{ color: headerText, opacity: 0.5 }}>•</span>
 
                   {/* Year */}
                   <div className="flex items-center">
@@ -262,15 +266,15 @@ export default function Layout({ children }) {
                          currentDynasty.currentPhase === 'regular_season' ? 'Wk' :
                          currentDynasty.currentPhase === 'postseason' ? (currentDynasty.currentWeek === 5 ? 'Recap' : (currentDynasty.currentWeek === 4 ? 'Champ' : 'Bowl')) :
                          currentDynasty.currentPhase === 'preseason' ? 'Pre' :
-                         currentDynasty.currentPhase === 'offseason' ? 'Off' : ''}
-                        {currentDynasty.currentPhase !== 'conference_championship' && currentDynasty.currentPhase !== 'postseason' && ` ${currentDynasty.currentWeek}`}
+                         currentDynasty.currentPhase === 'offseason' ? (currentDynasty.currentWeek === 1 ? 'Leaving' : `Rec ${currentDynasty.currentWeek - 1}`) : ''}
+                        {currentDynasty.currentPhase !== 'conference_championship' && currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && ` ${currentDynasty.currentWeek}`}
                         {currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek < 4 && ` ${currentDynasty.currentWeek}`}
                       </span>
                       <span className="hidden sm:inline">
                         {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
                       </span>
                     </span>
-                    {currentDynasty.currentPhase !== 'postseason' && (
+                    {currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && (
                       <span className="text-xs md:text-sm hidden sm:inline" style={{ color: headerText, opacity: 0.8 }}>
                         Week {currentDynasty.currentWeek}
                       </span>

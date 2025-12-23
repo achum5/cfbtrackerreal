@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -36,6 +36,9 @@ import AwardsModal from '../../components/AwardsModal'
 import AllAmericansModal from '../../components/AllAmericansModal'
 import PlayerMatchConfirmModal from '../../components/PlayerMatchConfirmModal'
 import NewJobEditModal from '../../components/NewJobEditModal'
+import PlayersLeavingModal from '../../components/PlayersLeavingModal'
+import DraftResultsModal from '../../components/DraftResultsModal'
+import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -50,6 +53,14 @@ export default function Dashboard() {
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
+
+  // Use team-centric helper functions for all team-specific data
+  const teamSchedule = getCurrentSchedule(currentDynasty)
+  const teamRoster = getCurrentRoster(currentDynasty)
+  const teamPreseasonSetup = getCurrentPreseasonSetup(currentDynasty)
+  const teamRatings = getCurrentTeamRatings(currentDynasty)
+  const teamCoachingStaff = getCurrentCoachingStaff(currentDynasty)
+  const teamGoogleSheet = getCurrentGoogleSheet(currentDynasty)
 
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showRosterModal, setShowRosterModal] = useState(false)
@@ -78,6 +89,9 @@ export default function Dashboard() {
   const [showCoachingStaffPopup, setShowCoachingStaffPopup] = useState(false)
   const [suppressPopupHover, setSuppressPopupHover] = useState(false) // Prevents hover popup after layout shifts
   const [showNewJobEditModal, setShowNewJobEditModal] = useState(false)
+  const [showPlayersLeavingModal, setShowPlayersLeavingModal] = useState(false)
+  const [showDraftResultsModal, setShowDraftResultsModal] = useState(false)
+  const [showRecruitingModal, setShowRecruitingModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -587,7 +601,7 @@ export default function Dashboard() {
 
     // If HC with at least one coordinator, must make firing selection
     const hasCoordinators = currentDynasty.coachPosition === 'HC' &&
-      (currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName)
+      (teamCoachingStaff?.ocName || teamCoachingStaff?.dcName)
     if (hasCoordinators) {
       // Must have made a selection (including 'none')
       return coordinatorToFire !== ''
@@ -754,6 +768,96 @@ export default function Dashboard() {
     })
   }
 
+  // Handle players leaving data save (Offseason)
+  const handlePlayersLeavingSave = async (playersLeaving) => {
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.playersLeavingByYear || {}
+
+    // Map player names to PIDs for tracking
+    const playersWithPids = playersLeaving.map(entry => {
+      const player = currentDynasty.players?.find(p => p.name === entry.playerName)
+      return {
+        playerName: entry.playerName,
+        pid: player?.pid || null,
+        reason: entry.reason
+      }
+    })
+
+    await updateDynasty(currentDynasty.id, {
+      playersLeavingByYear: {
+        ...existingByYear,
+        [year]: playersWithPids
+      }
+    })
+  }
+
+  // Handle draft results save (Offseason - Recruiting Week 1)
+  const handleDraftResultsSave = async (draftResults) => {
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.draftResultsByYear || {}
+
+    // Map player names to PIDs and store draft info
+    const resultsWithPids = draftResults.map(entry => {
+      const player = currentDynasty.players?.find(p => p.name === entry.playerName)
+      return {
+        playerName: entry.playerName,
+        pid: player?.pid || null,
+        position: entry.position,
+        overall: entry.overall,
+        draftRound: entry.draftRound
+      }
+    })
+
+    await updateDynasty(currentDynasty.id, {
+      draftResultsByYear: {
+        ...existingByYear,
+        [year]: resultsWithPids
+      }
+    })
+  }
+
+  // Handle recruiting commitments save
+  const handleRecruitingCommitmentsSave = async (recruits) => {
+    const year = currentDynasty.currentYear
+    const week = currentDynasty.currentWeek
+    const recruitingWeek = week - 1 // Week 2 = Recruiting 1, etc.
+
+    const existingByYear = currentDynasty.recruitingCommitmentsByYear || {}
+    const existingForYear = existingByYear[year] || {}
+
+    // Store recruits for this recruiting week
+    await updateDynasty(currentDynasty.id, {
+      recruitingCommitmentsByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingForYear,
+          [`week${recruitingWeek}`]: recruits
+        }
+      }
+    })
+  }
+
+  // Handle marking no commitments for the week
+  const handleNoCommitments = async () => {
+    const year = currentDynasty.currentYear
+    const week = currentDynasty.currentWeek
+    const recruitingWeek = week - 1
+
+    const existingByYear = currentDynasty.recruitingCommitmentsByYear || {}
+    const existingForYear = existingByYear[year] || {}
+
+    // Store empty array to mark as completed
+    await updateDynasty(currentDynasty.id, {
+      recruitingCommitmentsByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingForYear,
+          [`week${recruitingWeek}`]: []
+        }
+      }
+    })
+  }
+
   // Handle player match confirmation response
   const handlePlayerMatchConfirm = async (isSamePlayer) => {
     const { honorType, entries, year, confirmations, transferDecisions, rawData, remainingAC } = pendingHonorData
@@ -874,14 +978,15 @@ export default function Dashboard() {
   const canAdvanceFromPreseason = () => {
     // Note: conferencesEntered is NOT required - default conferences are always valid
     // The task shows as optional/incomplete until user customizes, but doesn't block advancement
+    // Use team-centric preseason setup
     const baseRequirements =
-      currentDynasty.preseasonSetup?.scheduleEntered &&
-      currentDynasty.preseasonSetup?.rosterEntered &&
-      currentDynasty.preseasonSetup?.teamRatingsEntered
+      teamPreseasonSetup?.scheduleEntered &&
+      teamPreseasonSetup?.rosterEntered &&
+      teamPreseasonSetup?.teamRatingsEntered
 
     // If user is Head Coach, they must also enter coaching staff (coordinators)
     if (currentDynasty.coachPosition === 'HC') {
-      return baseRequirements && currentDynasty.preseasonSetup?.coachingStaffEntered
+      return baseRequirements && teamPreseasonSetup?.coachingStaffEntered
     }
 
     return baseRequirements
@@ -891,6 +996,11 @@ export default function Dashboard() {
     if (phase === 'postseason') {
       if (week === 5) return 'End of Season Recap'
       return week === 4 ? 'National Championship' : `Bowl Week ${week}`
+    }
+    if (phase === 'offseason') {
+      if (week === 1) return 'Players Leaving'
+      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
+      return 'Off-Season'
     }
     const phases = {
       preseason: 'Pre-Season',
@@ -1008,19 +1118,19 @@ export default function Dashboard() {
                 </p>
               </div>
             </Link>
-            {currentDynasty.teamRatings && (
+            {teamRatings && (
               <div className="flex items-center gap-2 sm:gap-3 justify-end sm:justify-start">
                 <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OVR</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.overall}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.overall}</div>
                 </div>
                 <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OFF</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.offense}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.offense}</div>
                 </div>
                 <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>DEF</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{currentDynasty.teamRatings.defense}</div>
+                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.defense}</div>
                 </div>
                 <button
                   onClick={() => setShowTeamRatingsModal(true)}
@@ -1034,7 +1144,7 @@ export default function Dashboard() {
                 </button>
 
                 {/* Coaching Staff Popup (HC only) */}
-                {currentDynasty.coachPosition === 'HC' && currentDynasty.coachingStaff && (
+                {currentDynasty.coachPosition === 'HC' && teamCoachingStaff && (
                   <div className="relative">
                     <button
                       onClick={() => setShowCoachingStaffPopup(!showCoachingStaffPopup)}
@@ -1085,7 +1195,7 @@ export default function Dashboard() {
                           <div className="p-4 space-y-3">
                             {/* Offensive Coordinator */}
                             {(() => {
-                              const ocName = currentDynasty.coachingStaff?.ocName
+                              const ocName = teamCoachingStaff?.ocName
                               const firedOCName = currentDynasty.conferenceChampionshipData?.firedOCName
                               const displayName = ocName || firedOCName
                               const isFired = !ocName && firedOCName
@@ -1119,7 +1229,7 @@ export default function Dashboard() {
 
                             {/* Defensive Coordinator */}
                             {(() => {
-                              const dcName = currentDynasty.coachingStaff?.dcName
+                              const dcName = teamCoachingStaff?.dcName
                               const firedDCName = currentDynasty.conferenceChampionshipData?.firedDCName
                               const displayName = dcName || firedDCName
                               const isFired = !dcName && firedDCName
@@ -1152,7 +1262,7 @@ export default function Dashboard() {
                             })()}
 
                             {/* Show message if no coordinators at all */}
-                            {!currentDynasty.coachingStaff?.ocName && !currentDynasty.coachingStaff?.dcName &&
+                            {!teamCoachingStaff?.ocName && !teamCoachingStaff?.dcName &&
                              !currentDynasty.conferenceChampionshipData?.firedOCName && !currentDynasty.conferenceChampionshipData?.firedDCName && (
                               <div className="text-center py-2 text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>
                                 No coordinators entered
@@ -1187,43 +1297,43 @@ export default function Dashboard() {
               {
                 num: 1,
                 title: 'Enter Schedule',
-                done: currentDynasty.preseasonSetup?.scheduleEntered,
-                scheduleCount: currentDynasty.schedule?.length || 0,
+                done: teamPreseasonSetup?.scheduleEntered,
+                scheduleCount: teamSchedule?.length || 0,
                 action: () => setShowScheduleModal(true),
-                actionText: currentDynasty.preseasonSetup?.scheduleEntered ? 'Edit' : 'Enter'
+                actionText: teamPreseasonSetup?.scheduleEntered ? 'Edit' : 'Enter'
               },
               {
                 num: 2,
                 title: 'Enter Roster',
-                done: currentDynasty.preseasonSetup?.rosterEntered,
-                playerCount: (currentDynasty.players || []).filter(p => !p.isHonorOnly).length,
+                done: teamPreseasonSetup?.rosterEntered,
+                playerCount: teamRoster.length,
                 action: () => setShowRosterModal(true),
-                actionText: currentDynasty.preseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
+                actionText: teamPreseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
               },
               {
                 num: 3,
                 title: 'Enter Team Ratings',
-                done: currentDynasty.preseasonSetup?.teamRatingsEntered,
-                teamRatings: currentDynasty.teamRatings,
+                done: teamPreseasonSetup?.teamRatingsEntered,
+                teamRatings: teamRatings,
                 action: () => setShowTeamRatingsModal(true),
-                actionText: currentDynasty.preseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
+                actionText: teamPreseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
               {
                 num: 4,
                 title: 'Custom Conferences',
-                done: currentDynasty.preseasonSetup?.conferencesEntered,
+                done: teamPreseasonSetup?.conferencesEntered,
                 conferences: currentDynasty.customConferences,
                 action: () => setShowConferencesModal(true),
-                actionText: currentDynasty.preseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
+                actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
               },
               // Only show coaching staff task for Head Coaches
               ...(currentDynasty.coachPosition === 'HC' ? [{
                 num: 5,
                 title: 'Enter Coordinators',
-                done: currentDynasty.preseasonSetup?.coachingStaffEntered,
-                coachingStaff: currentDynasty.coachingStaff,
+                done: teamPreseasonSetup?.coachingStaffEntered,
+                coachingStaff: teamCoachingStaff,
                 action: () => setShowCoachingStaffModal(true),
-                actionText: currentDynasty.preseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
+                actionText: teamPreseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
               }] : [])
             ].map(item => {
               return (
@@ -1373,7 +1483,7 @@ export default function Dashboard() {
           </h3>
           <div className="space-y-3">
             {(() => {
-              const scheduledGame = currentDynasty.schedule?.find(g => Number(g.week) === Number(currentDynasty.currentWeek))
+              const scheduledGame = teamSchedule?.find(g => Number(g.week) === Number(currentDynasty.currentWeek))
               const playedGame = currentDynasty.games?.find(
                 g => Number(g.week) === Number(currentDynasty.currentWeek) && Number(g.year) === Number(currentDynasty.currentYear)
               )
@@ -1456,7 +1566,7 @@ export default function Dashboard() {
           {(() => {
             const ccGame = getCCGame()
             const hasCoordinators = currentDynasty.coachPosition === 'HC' &&
-              (currentDynasty.coachingStaff?.ocName || currentDynasty.coachingStaff?.dcName)
+              (teamCoachingStaff?.ocName || teamCoachingStaff?.dcName)
             const coordinatorTaskComplete = coordinatorToFire !== ''
 
             // Determine CC task status
@@ -1581,8 +1691,8 @@ export default function Dashboard() {
                         <div className="text-xs sm:text-sm mt-0.5" style={{ color: coordinatorTaskComplete ? '#16a34a' : secondaryBgText, opacity: coordinatorTaskComplete ? 1 : 0.7 }}>
                           {coordinatorTaskComplete ? (
                             coordinatorToFire === 'none' ? 'Keeping both coordinators' :
-                            coordinatorToFire === 'oc' ? `Firing ${currentDynasty.coachingStaff?.ocName} (OC)` :
-                            coordinatorToFire === 'dc' ? `Firing ${currentDynasty.coachingStaff?.dcName} (DC)` :
+                            coordinatorToFire === 'oc' ? `Firing ${teamCoachingStaff?.ocName} (OC)` :
+                            coordinatorToFire === 'dc' ? `Firing ${teamCoachingStaff?.dcName} (DC)` :
                             coordinatorToFire === 'both' ? 'Firing both coordinators' : ''
                           ) : 'Fire any coordinators?'}
                         </div>
@@ -1596,13 +1706,13 @@ export default function Dashboard() {
                     >
                       <option value="">Select...</option>
                       <option value="none">Keep both</option>
-                      {currentDynasty.coachingStaff?.ocName && (
-                        <option value="oc">Fire {currentDynasty.coachingStaff.ocName} (OC)</option>
+                      {teamCoachingStaff?.ocName && (
+                        <option value="oc">Fire {teamCoachingStaff.ocName} (OC)</option>
                       )}
-                      {currentDynasty.coachingStaff?.dcName && (
-                        <option value="dc">Fire {currentDynasty.coachingStaff.dcName} (DC)</option>
+                      {teamCoachingStaff?.dcName && (
+                        <option value="dc">Fire {teamCoachingStaff.dcName} (DC)</option>
                       )}
-                      {currentDynasty.coachingStaff?.ocName && currentDynasty.coachingStaff?.dcName && (
+                      {teamCoachingStaff?.ocName && teamCoachingStaff?.dcName && (
                         <option value="both">Fire Both</option>
                       )}
                     </select>
@@ -3798,6 +3908,256 @@ export default function Dashboard() {
             )
           })()}
         </div>
+      ) : currentDynasty.currentPhase === 'offseason' ? (
+        <div
+          className="rounded-lg shadow-lg p-4 sm:p-6"
+          style={{
+            backgroundColor: teamColors.secondary,
+            border: `3px solid ${teamColors.primary}`
+          }}
+        >
+          {(() => {
+            const week = currentDynasty.currentWeek
+
+            // Offseason Week 1: Players Leaving
+            if (week === 1) {
+              // Check if user switched teams - if so, skip Players Leaving
+              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
+              const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+              const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+
+              const hasPlayersLeavingData = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length > 0
+              const playersLeavingCount = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length || 0
+
+              // If user switched teams, show a different UI
+              if (switchedTeams) {
+                return (
+                  <>
+                    <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                      New Team - No Players Leaving
+                    </h3>
+                    <div className="space-y-3 sm:space-y-4">
+                      <div
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
+                              Skipped - New Team
+                            </div>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                              You switched teams, so there are no departing players to track
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )
+              }
+
+              return (
+                <>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                    Players Leaving
+                  </h3>
+                  <div className="space-y-3 sm:space-y-4">
+                    {/* Task: Enter Players Leaving */}
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasPlayersLeavingData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasPlayersLeavingData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasPlayersLeavingData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasPlayersLeavingData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasPlayersLeavingData ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasPlayersLeavingData ? '#16a34a' : secondaryBgText }}>
+                            Players Leaving
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasPlayersLeavingData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasPlayersLeavingData
+                              ? `✓ ${playersLeavingCount} player${playersLeavingCount !== 1 ? 's' : ''} leaving`
+                              : 'Graduating seniors, transfers, early declarations'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowPlayersLeavingModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasPlayersLeavingData ? 'Edit' : 'Enter'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )
+            }
+
+            // Offseason Weeks 2-5: Recruiting
+            if (week >= 2 && week <= 5) {
+              const recruitingWeek = week - 1 // Week 2 = Recruiting 1, Week 3 = Recruiting 2, etc.
+
+              // Check for draft declarees (only relevant in Recruiting Week 1)
+              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear] || []
+              const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
+              const hasDraftDeclarees = draftDeclarees.length > 0
+              const hasDraftResultsData = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length > 0
+              const draftResultsCount = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length || 0
+
+              // Check recruiting commitments for this week
+              const recruitingCommitmentsForYear = currentDynasty?.recruitingCommitmentsByYear?.[currentDynasty.currentYear] || {}
+              const commitmentsForWeek = recruitingCommitmentsForYear[`week${recruitingWeek}`]
+              const hasCommitmentsData = commitmentsForWeek !== undefined // undefined = not answered, [] = no commitments, array with items = has commitments
+              const commitmentsCount = commitmentsForWeek?.length || 0
+
+              return (
+                <>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                    Recruiting Week {recruitingWeek} of 4
+                  </h3>
+                  <div className="space-y-3 sm:space-y-4">
+                    {/* Task 1: Recruiting Commitments */}
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasCommitmentsData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasCommitmentsData ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
+                            {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasCommitmentsData
+                              ? commitmentsCount > 0
+                                ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
+                                : '✓ No commitments this week'
+                              : 'Record any recruiting commitments for this week'}
+                          </div>
+                        </div>
+                      </div>
+                      {!hasCommitmentsData ? (
+                        <div className="flex gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={handleNoCommitments}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            No
+                          </button>
+                          <button
+                            onClick={() => setShowRecruitingModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            Yes
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowRecruitingModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Task 2: Draft Results (only in Recruiting Week 1) */}
+                    {recruitingWeek === 1 && (
+                      <div
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                          hasDraftResultsData || !hasDraftDeclarees ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!(hasDraftResultsData || !hasDraftDeclarees) ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              hasDraftResultsData || !hasDraftDeclarees ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!(hasDraftResultsData || !hasDraftDeclarees) ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {hasDraftResultsData || !hasDraftDeclarees ? (
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold text-sm sm:text-base">2</span>}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: hasDraftResultsData || !hasDraftDeclarees ? '#16a34a' : secondaryBgText }}>
+                              Draft Results
+                            </div>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDraftResultsData || !hasDraftDeclarees ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {!hasDraftDeclarees
+                                ? '✓ No players declared for the draft'
+                                : hasDraftResultsData
+                                  ? `✓ ${draftResultsCount} player${draftResultsCount !== 1 ? 's' : ''} drafted`
+                                  : `${draftDeclarees.length} player${draftDeclarees.length !== 1 ? 's' : ''} declared for the draft`}
+                            </div>
+                          </div>
+                        </div>
+                        {hasDraftDeclarees && (
+                          <button
+                            onClick={() => setShowDraftResultsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasDraftResultsData ? 'Edit' : 'Enter'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            }
+
+            // Fallback for any other weeks
+            return (
+              <>
+                <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                  Off-Season Week {week}
+                </h3>
+                <p className="text-sm" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                  Click "Advance Week" to continue to the next season.
+                </p>
+              </>
+            )
+          })()}
+        </div>
       ) : (
         <div
           className="rounded-lg shadow-lg p-6"
@@ -3839,9 +4199,9 @@ export default function Dashboard() {
           </button>
         </div>
 
-{currentDynasty.schedule && currentDynasty.schedule.length > 0 ? (
+{teamSchedule && teamSchedule.length > 0 ? (
           <div className="space-y-2">
-            {currentDynasty.schedule.map((game, index) => {
+            {teamSchedule.map((game, index) => {
               const playedGame = currentYearGames.find(g => Number(g.week) === Number(game.week))
               const opponentColors = getOpponentColors(game.opponent)
               const mascotName = getMascotName(game.opponent)
@@ -4514,7 +4874,7 @@ export default function Dashboard() {
         onClose={() => setShowTeamRatingsModal(false)}
         onSave={handleTeamRatingsSave}
         teamColors={teamColors}
-        currentRatings={currentDynasty.teamRatings}
+        currentRatings={teamRatings}
       />
 
       <CoachingStaffModal
@@ -4522,7 +4882,7 @@ export default function Dashboard() {
         onClose={() => setShowCoachingStaffModal(false)}
         onSave={handleCoachingStaffSave}
         teamColors={teamColors}
-        currentStaff={currentDynasty.coachingStaff}
+        currentStaff={teamCoachingStaff}
       />
 
       <NewJobEditModal
@@ -5056,10 +5416,25 @@ export default function Dashboard() {
         onClose={() => setShowConferencesModal(false)}
         onSave={async (conferences) => {
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+          const year = currentDynasty.currentYear
           if (isDev || !user) {
-            // Dev mode
+            // Dev mode - update both legacy and team-centric structures
+            const existingPreseasonSetupByTeamYear = currentDynasty.preseasonSetupByTeamYear || {}
+            const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
+            const currentSetup = teamSetups[year] || currentDynasty.preseasonSetup || {}
             await updateDynasty(currentDynasty.id, {
               customConferences: conferences,
+              preseasonSetupByTeamYear: {
+                ...existingPreseasonSetupByTeamYear,
+                [teamAbbr]: {
+                  ...teamSetups,
+                  [year]: {
+                    ...currentSetup,
+                    conferencesEntered: true
+                  }
+                }
+              },
               preseasonSetup: {
                 ...currentDynasty.preseasonSetup,
                 conferencesEntered: true
@@ -5069,6 +5444,7 @@ export default function Dashboard() {
             // Production mode - use dot notation
             await updateDynasty(currentDynasty.id, {
               customConferences: conferences,
+              [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
               'preseasonSetup.conferencesEntered': true
             })
           }
@@ -5193,6 +5569,34 @@ export default function Dashboard() {
         teamColors={teamColors}
         onConfirm={handlePlayerMatchConfirm}
         onCancel={handlePlayerMatchCancel}
+      />
+
+      {/* Players Leaving Modal (Offseason Week 1) */}
+      <PlayersLeavingModal
+        isOpen={showPlayersLeavingModal}
+        onClose={() => setShowPlayersLeavingModal(false)}
+        onSave={handlePlayersLeavingSave}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Draft Results Modal (Recruiting Week 1) */}
+      <DraftResultsModal
+        isOpen={showDraftResultsModal}
+        onClose={() => setShowDraftResultsModal(false)}
+        onSave={handleDraftResultsSave}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
+      {/* Recruiting Commitments Modal (Recruiting Weeks 1-4) */}
+      <RecruitingCommitmentsModal
+        isOpen={showRecruitingModal}
+        onClose={() => setShowRecruitingModal(false)}
+        onSave={handleRecruitingCommitmentsSave}
+        currentYear={currentDynasty.currentYear}
+        recruitingWeek={currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 2 ? currentDynasty.currentWeek - 1 : 1}
+        teamColors={teamColors}
       />
     </div>
   )

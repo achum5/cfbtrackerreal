@@ -6,41 +6,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Work / Reminders
 
-**Last Session (December 2024)**: CFP Slot ID System Implementation:
+**Last Session (December 2024)**: Team-Centric Data Architecture:
 
-1. **CFP Slot ID System** (`src/data/cfpConstants.js`):
-   - New file defining fixed slot IDs for all CFP games
-   - Each CFP game has a unique, predictable ID format: `{slotId}-{year}`
-   - **First Round**: cfpfr1 (5v12), cfpfr2 (8v9), cfpfr3 (6v11), cfpfr4 (7v10)
-   - **Quarterfinals**: cfpqf1 (Sugar), cfpqf2 (Orange), cfpqf3 (Rose), cfpqf4 (Cotton)
-   - **Semifinals**: cfpsf1 (Peach), cfpsf2 (Fiesta)
-   - **Championship**: cfpnc
-   - Helper functions: `getCFPGameId()`, `parseCFPGameId()`, `getSlotIdFromBowlName()`, etc.
+### MAJOR FIX: Team-Centric Data Model
 
-2. **Game.jsx Updates**:
-   - Simplified CFP game lookup using slot IDs
-   - Removed complex pattern matching (cfp-{year}-round{N}, cfp-{year}-{bowl-slug})
-   - Finds games by identifying info (bowl name for QF/SF, seed matchup for FR) not array index
-   - Supports data stored in any order - doesn't assume slot order in arrays
+Previously, schedule/roster/preseasonSetup were stored at dynasty level without team association. When user switched teams, old team's data incorrectly appeared under new team.
 
-3. **TeamYear.jsx Updates**:
-   - CFP games now use slot IDs for game links
-   - `allCFPGames` includes slotId for each game
-   - Excludes CFP quarterfinal bowls from regular bowl section
+**New Architecture** (implemented in `DynastyContext.jsx`):
 
-4. **CFPBracket.jsx Updates**:
-   - Each Matchup component now receives slotId prop
-   - Links use slot ID format (e.g., cfpfr1-2025, cfpqf1-2025)
+1. **Schedule**: Stored in `dynasty.schedulesByTeamYear[teamAbbr][year]`
+   - Helper: `getCurrentSchedule(dynasty)` - gets schedule for current team/year
+   - Fallback to legacy `dynasty.schedule` for backwards compatibility
 
-5. **BowlHistory.jsx Updates**:
-   - CFP bowls now link using slot IDs
-   - Uses `getSlotIdFromBowlName()` to get correct slot
+2. **Roster/Players**: Each player has a `team` field
+   - When saving roster, `team: teamAbbr` added to each player
+   - Helper: `getCurrentRoster(dynasty)` - filters players by current team
+   - Legacy players without `team` field treated as belonging to current team
 
-6. **DynastyContext.jsx Updates**:
-   - CFP games stored at fixed array positions based on slot
-   - First round: array[0-3] based on seed matchups
-   - Quarterfinals: array[0-3] based on bowl name
-   - Semifinals: array[0-1] based on bowl name (Peach=0, Fiesta=1)
+3. **PreseasonSetup**: Stored in `dynasty.preseasonSetupByTeamYear[teamAbbr][year]`
+   - Helper: `getCurrentPreseasonSetup(dynasty)` - gets setup for current team/year
+   - All save functions update both team-centric structure and preseasonSetup flags
+
+4. **TeamRatings**: Stored in `dynasty.teamRatingsByTeamYear[teamAbbr][year]`
+   - Helper: `getCurrentTeamRatings(dynasty)` - gets OVR/OFF/DEF for current team/year
+   - Fallback to legacy `dynasty.teamRatings` for backwards compatibility
+
+5. **CoachingStaff**: Stored in `dynasty.coachingStaffByTeamYear[teamAbbr][year]`
+   - Helper: `getCurrentCoachingStaff(dynasty)` - gets OC/DC for current team/year
+   - Fallback to legacy `dynasty.coachingStaff` for backwards compatibility
+
+6. **GoogleSheet**: Stored in `dynasty.googleSheetsByTeam[teamAbbr]`
+   - Helper: `getCurrentGoogleSheet(dynasty)` - gets Sheet ID/URL for current team
+   - Fallback to legacy `dynasty.googleSheetId`/`googleSheetUrl`
+
+7. **Recruits**: Stored in `dynasty.recruitsByTeamYear[teamAbbr][year]`
+   - Helper: `getCurrentRecruits(dynasty)` - gets recruits for current team/year
+   - Fallback to legacy `dynasty.recruits`
+
+8. **Team Switch Logic** (in `advanceWeek`):
+   - Tags legacy players with their team before switch
+   - Stores current schedule, teamRatings, coachingStaff, googleSheet in team-centric structures
+   - New team starts fresh with empty schedule/roster/ratings/staff
+
+9. **Coach Team By Year**: Stored in `dynasty.coachTeamByYear[year]`
+   - Helper: `getCoachTeamForYear(dynasty, year)` - gets which team coach was coaching that year
+   - Helper: `getCoachHistory(dynasty)` - gets all years with team info sorted by year
+   - **LOCKED IN** at start of season (Week 1 of regular_season)
+   - Does NOT change when user switches teams during offseason/players leaving phase
+   - Use for: coach career records, player leaderboards, any stats tied to "coach's team"
+   - Structure: `{ team: 'CMU', teamName: 'Central Michigan Chippewas', position: 'HC', conference: 'MAC' }`
+
+10. **Locked Coaching Staff**: Stored in `dynasty.lockedCoachingStaffByYear[teamAbbr][year]`
+    - Helper: `getLockedCoachingStaff(dynasty, year, teamAbbr?)` - gets staff as of Week 12
+    - **LOCKED IN** at end of regular season (Week 12 → Conference Championship transition)
+    - Preserves OC/DC names even if they're fired during conference championship week
+    - Use for: historical season views to show "who were the coordinators that season"
+    - Structure: `{ hcName: 'Coach Smith', ocName: 'John Doe', dcName: 'Jane Doe' }`
+
+11. **Games**: Each game has a `userTeam` field
+    - Set automatically when game is saved via `addGame()` in DynastyContext
+    - `userTeam` = the team abbreviation that played this game
+    - CPU games don't have `userTeam` (they use `team1`/`team2` instead)
+    - Legacy games tagged with team before user switches teams
+    - **TeamYear.jsx** filters games by `g.userTeam === teamAbbr`, not by current user's team
+    - This ensures games stay with the team that played them after user switches teams
+
+**Components Updated**:
+- `Dashboard.jsx` - Uses all team-centric helpers
+- `Roster.jsx` - Uses `getCurrentRoster()`
+- `TeamYear.jsx` - Uses `getLockedCoachingStaff()`, filters players by `team` field, filters games by `userTeam` field
+- `Game.jsx` - Uses `getCurrentTeamRatings()`
+- `GameEntryModal.jsx` - Uses `getCurrentTeamRatings()`
+
+**Previous Sessions**:
+- Players Leaving Feature (Offseason Week 1)
+- CFP Slot ID System (see cfpConstants.js)
+- Bowl Logo Updates
 
 **TODO / Future Work**:
 - Team stats still need implementation for:

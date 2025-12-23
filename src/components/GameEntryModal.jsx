@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getCurrentTeamRatings } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
@@ -25,6 +25,8 @@ export default function GameEntryModal({
   existingLinks
 }) {
   const { currentDynasty } = useDynasty()
+  // Get team-centric team ratings
+  const teamRatings = getCurrentTeamRatings(currentDynasty)
 
   // Detect if this is a CPU vs CPU game from existingGame or passed props
   const isCPUGame = existingGame?.isCPUGame || (existingGame?.team1 && existingGame?.team2) || (passedTeam1 && passedTeam2)
@@ -817,7 +819,7 @@ export default function GameEntryModal({
     const calculateFavoriteStatus = () => {
       const userRank = gameData.userRank ? parseInt(gameData.userRank) : null
       const opponentRank = gameData.opponentRank ? parseInt(gameData.opponentRank) : null
-      const userOverall = currentDynasty?.teamRatings?.overall ? parseInt(currentDynasty.teamRatings.overall) : null
+      const userOverall = teamRatings?.overall ? parseInt(teamRatings.overall) : null
       const opponentOverall = gameData.opponentOverall ? parseInt(gameData.opponentOverall) : null
       const isHomeTeam = gameData.location === 'home'
       const isNeutral = gameData.location === 'neutral'

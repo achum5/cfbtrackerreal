@@ -4760,7 +4760,7 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
           startRowIndex: 1,
           endRowIndex: sortedPlayers.length + 1,
           startColumnIndex: 0,
-          endColumnIndex: 6
+          endColumnIndex: 8
         },
         rows: sortedPlayers.map(player => ({
           values: [
@@ -4769,7 +4769,10 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
             { userEnteredValue: { stringValue: player.position || '' } },
             { userEnteredValue: { stringValue: player.year || '' } },
             { userEnteredValue: { stringValue: player.devTrait || '' } },
-            { userEnteredValue: { numberValue: player.overall || 0 } }
+            { userEnteredValue: { numberValue: player.overall || 0 } },
+            // Pre-fill existing gamesPlayed/snapsPlayed (overrides previous data when resubmitted)
+            { userEnteredValue: { numberValue: player.gamesPlayed || 0 } },
+            { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
           ]
         })),
         fields: 'userEnteredValue'
@@ -7143,6 +7146,937 @@ export async function readAllAmericansFromSheet(spreadsheetId) {
     }
   } catch (error) {
     console.error('Error reading all-americans data:', error)
+    throw error
+  }
+}
+
+// Transfer/Leaving reasons for Players Leaving sheet
+const LEAVING_REASONS = [
+  'Graduating',
+  'Pro Draft',
+  'Playing Style',
+  'Proximity to Home',
+  'Championship Contender',
+  'Program Tradition',
+  'Campus Lifestyle',
+  'Stadium Atmosphere',
+  'Pro Potential',
+  'Brand Exposure',
+  'Academic Prestige',
+  'Conference Prestige',
+  'Coach Stability',
+  'Coach Prestige',
+  'Athletic Facilities',
+  'Playing Time'
+]
+
+// Create Players Leaving sheet for offseason
+// Auto-fills seniors (Sr/RS Sr) who played 5+ games with "Graduating"
+export async function createPlayersLeavingSheet(dynastyName, year, players, playerStatsByYear) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Get player names for dropdown
+    const playerNames = players.map(p => p.name).sort()
+
+    // Find seniors who played 5+ games (auto-graduate)
+    const currentYearStats = playerStatsByYear?.[year] || []
+    const seniorsGraduating = players.filter(player => {
+      const isSenior = player.year === 'Sr' || player.year === 'RS Sr'
+      if (!isSenior) return false
+
+      // Find their stats to check games played
+      const stats = currentYearStats.find(s => s.pid === player.pid)
+      const gamesPlayed = stats?.gamesPlayed || 0
+      return gamesPlayed >= 5
+    }).sort((a, b) => a.name.localeCompare(b.name))
+
+    // We'll pre-fill graduating seniors, then leave room for more entries
+    const prefilledRows = seniorsGraduating.length
+    const totalRows = Math.max(prefilledRows + 20, 60) // At least 60 rows for additional entries
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Players Leaving ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Players Leaving',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 2,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create players leaving sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize the sheet with headers and pre-filled data
+    await initializePlayersLeavingSheet(
+      sheet.spreadsheetId,
+      accessToken,
+      sheetId,
+      playerNames,
+      seniorsGraduating,
+      totalRows
+    )
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating players leaving sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Players Leaving sheet with headers, validation, and pre-filled data
+async function initializePlayersLeavingSheet(spreadsheetId, accessToken, sheetId, playerNames, seniorsGraduating, totalRows) {
+  // Build pre-filled rows for graduating seniors
+  const prefilledRows = seniorsGraduating.map(player => ({
+    values: [
+      { userEnteredValue: { stringValue: player.name } },
+      { userEnteredValue: { stringValue: 'Graduating' } }
+    ]
+  }))
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 2
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' } },
+            { userEnteredValue: { stringValue: 'Transfer Reason' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Format all cells: Bold, Italic, Center, Barlow font, size 10
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Add player name dropdown validation for Player column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: totalRows + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: playerNames.map(name => ({ userEnteredValue: name }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Add leaving reason dropdown validation for Transfer Reason column
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: totalRows + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: LEAVING_REASONS.map(reason => ({ userEnteredValue: reason }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 150 },
+        fields: 'pixelSize'
+      }
+    }
+  ]
+
+  // Add pre-filled graduating seniors if any
+  if (prefilledRows.length > 0) {
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: 1 + prefilledRows.length,
+          startColumnIndex: 0,
+          endColumnIndex: 2
+        },
+        rows: prefilledRows,
+        fields: 'userEnteredValue'
+      }
+    })
+  }
+
+  // Execute all requests
+  await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+// Read players leaving data from Google Sheet
+export async function readPlayersLeavingFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Players Leaving!A2:B100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read players leaving data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse rows into player leaving objects
+    const playersLeaving = rows
+      .filter(row => row[0] && row[0].trim()) // Must have player name
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        reason: row[1]?.trim() || ''
+      }))
+      .filter(entry => entry.playerName && entry.reason) // Must have both values
+
+    return playersLeaving
+  } catch (error) {
+    console.error('Error reading players leaving data:', error)
+    throw error
+  }
+}
+
+// Draft round options
+const DRAFT_ROUNDS = [
+  '1st Round',
+  '2nd Round',
+  '3rd Round',
+  '4th Round',
+  '5th Round',
+  '6th Round',
+  '7th Round',
+  'Undrafted'
+]
+
+// Create Draft Results sheet for recruiting week 1
+// Pre-fills players who declared for the draft (reason = 'Pro Draft')
+export async function createDraftResultsSheet(dynastyName, year, playersLeavingThisYear, allPlayers) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Filter players who declared for the draft
+    const draftDeclarees = playersLeavingThisYear
+      .filter(p => p.reason === 'Pro Draft')
+      .map(leaving => {
+        // Find the full player info
+        const player = allPlayers.find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+        return {
+          name: leaving.playerName,
+          pid: leaving.pid || player?.pid,
+          position: player?.position || '',
+          overall: player?.overall || ''
+        }
+      })
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0)) // Sort by overall desc
+
+    const totalRows = Math.max(draftDeclarees.length + 5, 20)
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - ${year} Draft Results`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Draft Results',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 4,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to create draft results sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const spreadsheet = await response.json()
+    const spreadsheetId = spreadsheet.spreadsheetId
+    const sheetId = spreadsheet.sheets[0].properties.sheetId
+
+    // Get player names for validation (only draft declarees)
+    const playerNames = draftDeclarees.map(p => p.name)
+
+    // Build batch update requests
+    const requests = []
+
+    // Set header row
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 4
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: 'Draft Round' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    })
+
+    // Set column widths
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    })
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    })
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    })
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    })
+
+    // Add data validation for Draft Round column (dropdown)
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: totalRows + 1,
+          startColumnIndex: 3,
+          endColumnIndex: 4
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: DRAFT_ROUNDS.map(round => ({ userEnteredValue: round }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    })
+
+    // Pre-fill draft declarees
+    if (draftDeclarees.length > 0) {
+      const prefilledRows = draftDeclarees.map(player => ({
+        values: [
+          { userEnteredValue: { stringValue: player.name } },
+          { userEnteredValue: { stringValue: player.position } },
+          { userEnteredValue: { numberValue: player.overall || 0 } },
+          { userEnteredValue: { stringValue: '' } } // Draft round to be filled in
+        ]
+      }))
+
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: 1 + draftDeclarees.length,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          rows: prefilledRows,
+          fields: 'userEnteredValue'
+        }
+      })
+    }
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Execute all requests
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    return {
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+    }
+  } catch (error) {
+    console.error('Error creating draft results sheet:', error)
+    throw error
+  }
+}
+
+// Read draft results from Google Sheet
+export async function readDraftResultsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Draft Results!A2:D100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read draft results: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse rows into draft result objects
+    const draftResults = rows
+      .filter(row => row[0] && row[0].trim() && row[3] && row[3].trim()) // Must have player name and draft round
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        overall: parseInt(row[2]) || 0,
+        draftRound: row[3]?.trim() || ''
+      }))
+
+    return draftResults
+  } catch (error) {
+    console.error('Error reading draft results:', error)
+    throw error
+  }
+}
+
+// Recruiting class options
+const RECRUIT_CLASSES = ['HS', 'Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']
+
+const RECRUIT_POSITIONS = [
+  'QB', 'HB', 'FB', 'WR', 'TE', 'OT', 'OG', 'C',
+  'EDGE', 'DT', 'OLB', 'MIKE', 'CB', 'FS', 'SS', 'K', 'P', 'ATH'
+]
+
+const RECRUIT_ARCHETYPES = [
+  'Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner',
+  'Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker',
+  'Blocking', 'Utility',
+  'Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster',
+  'Possession', 'Pure Blocker', 'Vertical Threat',
+  'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
+  'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
+  'Lurker', 'Signal Caller', 'Thumper',
+  'Boundary', 'Field', 'Zone',
+  'Box Specialist', 'Coverage Specialist', 'Hybrid',
+  'Accurate', 'Power'
+]
+
+const STAR_RATINGS = ['☆', '☆☆', '☆☆☆', '☆☆☆☆', '☆☆☆☆☆']
+
+const HEIGHTS = [
+  '5\'5"', '5\'6"', '5\'7"', '5\'8"', '5\'9"', '5\'10"', '5\'11"',
+  '6\'0"', '6\'1"', '6\'2"', '6\'3"', '6\'4"', '6\'5"', '6\'6"', '6\'7"', '6\'8"', '6\'9"', '6\'10"', '6\'11"',
+  '7\'0"'
+]
+
+const US_STATES = [
+  'AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL',
+  'GA', 'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA',
+  'MD', 'ME', 'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE',
+  'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'RI',
+  'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV', 'WY'
+]
+
+const GEM_BUST_OPTIONS = ['Gem', 'Bust']
+const DEV_TRAITS = ['Elite', 'Star', 'Impact', 'Normal']
+
+// Convert stars number to symbols
+function starsNumberToSymbol(num) {
+  if (!num || num <= 0) return ''
+  return '☆'.repeat(Math.min(num, 5))
+}
+
+// Create Recruiting Commitments sheet
+export async function createRecruitingSheet(dynastyName, year, teamAbbreviationsData, existingCommitments = []) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Get all team abbreviations for Previous Team dropdown
+    const teamAbbrs = Object.keys(teamAbbreviationsData).filter(key =>
+      typeof teamAbbreviationsData[key] === 'object' && teamAbbreviationsData[key].name
+    ).sort()
+
+    const totalRows = Math.max(30, existingCommitments.length + 15) // Room for existing + new recruits
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - ${year} Recruiting Class`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Commitments',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 15,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to create recruiting sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const spreadsheet = await response.json()
+    const spreadsheetId = spreadsheet.spreadsheetId
+    const sheetId = spreadsheet.sheets[0].properties.sheetId
+
+    // Build batch update requests
+    const requests = []
+
+    // Set header row with dark background
+    const headerStyle = { textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' }
+    requests.push({
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 15 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Archetype' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Stars' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Nat. Rank' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'State Rank' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Pos. Rank' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Height' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Weight' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Hometown' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'State' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Gem/Bust' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Dev Trait' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Prev Team' }, userEnteredFormat: headerStyle }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    })
+
+    // Set column widths
+    const columnWidths = [150, 70, 70, 140, 80, 70, 70, 70, 60, 60, 120, 50, 70, 70, 80]
+    columnWidths.forEach((width, idx) => {
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'COLUMNS', startIndex: idx, endIndex: idx + 1 },
+          properties: { pixelSize: width },
+          fields: 'pixelSize'
+        }
+      })
+    })
+
+    // Column B: Class dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: RECRUIT_CLASSES.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column C: Position dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 2, endColumnIndex: 3 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: RECRUIT_POSITIONS.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column D: Archetype dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: RECRUIT_ARCHETYPES.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column E: Stars dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: STAR_RATINGS.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column I: Height dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 8, endColumnIndex: 9 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: HEIGHTS.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column L: State dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 11, endColumnIndex: 12 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: US_STATES.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column M: Gem/Bust dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 12, endColumnIndex: 13 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: GEM_BUST_OPTIONS.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column N: Dev Trait dropdown
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 13, endColumnIndex: 14 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: DEV_TRAITS.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: true
+        }
+      }
+    })
+
+    // Column O: Previous Team dropdown with team abbreviations
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 14, endColumnIndex: 15 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: ['', ...teamAbbrs].map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: false // Allow empty for non-transfers
+        }
+      }
+    })
+
+    // Add conditional formatting for Previous Team column (team colors)
+    for (const abbr of teamAbbrs) {
+      const teamData = teamAbbreviationsData[abbr]
+      if (!teamData?.backgroundColor || !teamData?.textColor) continue
+
+      const bgColor = hexToRgb(teamData.backgroundColor)
+      const textColor = hexToRgb(teamData.textColor)
+
+      requests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 14, endColumnIndex: 15 }],
+            booleanRule: {
+              condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: abbr }] },
+              format: {
+                backgroundColor: { red: bgColor.r / 255, green: bgColor.g / 255, blue: bgColor.b / 255 },
+                textFormat: { foregroundColor: { red: textColor.r / 255, green: textColor.g / 255, blue: textColor.b / 255 }, bold: true }
+              }
+            }
+          },
+          index: 0
+        }
+      })
+    }
+
+    // Pre-fill existing commitments if any
+    if (existingCommitments && existingCommitments.length > 0) {
+      const dataRows = existingCommitments.map(recruit => ({
+        values: [
+          { userEnteredValue: { stringValue: recruit.name || '' } },
+          { userEnteredValue: { stringValue: recruit.class || 'HS' } },
+          { userEnteredValue: { stringValue: recruit.position || '' } },
+          { userEnteredValue: { stringValue: recruit.archetype || '' } },
+          { userEnteredValue: { stringValue: starsNumberToSymbol(recruit.stars) } },
+          { userEnteredValue: recruit.nationalRank ? { numberValue: recruit.nationalRank } : { stringValue: '' } },
+          { userEnteredValue: recruit.stateRank ? { numberValue: recruit.stateRank } : { stringValue: '' } },
+          { userEnteredValue: recruit.positionRank ? { numberValue: recruit.positionRank } : { stringValue: '' } },
+          { userEnteredValue: { stringValue: recruit.height || '' } },
+          { userEnteredValue: recruit.weight ? { numberValue: recruit.weight } : { stringValue: '' } },
+          { userEnteredValue: { stringValue: recruit.hometown || '' } },
+          { userEnteredValue: { stringValue: recruit.state || '' } },
+          { userEnteredValue: { stringValue: recruit.gemBust || '' } },
+          { userEnteredValue: { stringValue: recruit.devTrait || 'Normal' } },
+          { userEnteredValue: { stringValue: recruit.previousTeam || '' } }
+        ]
+      }))
+
+      requests.push({
+        updateCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 1 + existingCommitments.length, startColumnIndex: 0, endColumnIndex: 15 },
+          rows: dataRows,
+          fields: 'userEnteredValue'
+        }
+      })
+    }
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 15 },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Execute all requests
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    return {
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+    }
+  } catch (error) {
+    console.error('Error creating recruiting sheet:', error)
+    throw error
+  }
+}
+
+// Convert star symbols to number
+function starsSymbolToNumber(starsStr) {
+  if (!starsStr) return 0
+  return (starsStr.match(/☆/g) || []).length
+}
+
+// Read recruiting commitments from Google Sheet
+export async function readRecruitingFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Commitments!A2:O100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read recruiting data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse rows into recruit objects
+    const recruits = rows
+      .filter(row => row[0] && row[0].trim()) // Must have player name
+      .map(row => ({
+        name: row[0]?.trim() || '',
+        class: row[1]?.trim() || 'HS',
+        position: row[2]?.trim() || '',
+        archetype: row[3]?.trim() || '',
+        stars: starsSymbolToNumber(row[4]),
+        nationalRank: row[5] ? parseInt(row[5]) : null,
+        stateRank: row[6] ? parseInt(row[6]) : null,
+        positionRank: row[7] ? parseInt(row[7]) : null,
+        height: row[8]?.trim() || '',
+        weight: row[9] ? parseInt(row[9]) : null,
+        hometown: row[10]?.trim() || '',
+        state: row[11]?.trim() || '',
+        gemBust: row[12]?.trim() || '',
+        devTrait: row[13]?.trim() || 'Normal',
+        previousTeam: row[14]?.trim() || ''
+      }))
+
+    return recruits
+  } catch (error) {
+    console.error('Error reading recruiting data:', error)
     throw error
   }
 }

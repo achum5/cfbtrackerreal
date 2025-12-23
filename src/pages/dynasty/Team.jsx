@@ -245,9 +245,25 @@ export default function Team() {
   const teamBgText = getContrastTextColor(teamInfo.backgroundColor)
   const teamPrimaryText = getContrastTextColor(teamInfo.textColor)
 
-  // Get all games against this team
+  // Get user's team abbreviation
+  const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+
+  // Get all games against this team (only user's games, not CPU vs CPU bowl games)
   const gamesAgainst = (currentDynasty.games || [])
-    .filter(g => g.opponent === teamAbbr)
+    .filter(g => {
+      // Must be against the team we're viewing
+      if (g.opponent !== teamAbbr) return false
+
+      // If userTeam field exists, verify it matches the dynasty's team
+      if (g.userTeam && g.userTeam !== userTeamAbbr && g.userTeam !== currentDynasty.teamName) {
+        return false
+      }
+
+      // Exclude CPU vs CPU games (games that have isCPUGame flag or don't have user team involvement)
+      if (g.isCPUGame) return false
+
+      return true
+    })
 
   // Calculate all-time record vs this team
   const allTimeWins = gamesAgainst.filter(g => g.result === 'W').length
@@ -255,9 +271,6 @@ export default function Team() {
   const winPctVs = gamesAgainst.length > 0
     ? ((allTimeWins / gamesAgainst.length) * 100).toFixed(1)
     : null
-
-  // Get team history data for this opponent (stored in dynasty)
-  const teamHistoryData = currentDynasty.teamHistories?.[teamAbbr] || {}
 
   // Calculate conference titles dynamically from conferenceChampionshipsByYear
   const conferenceTitles = Object.values(currentDynasty.conferenceChampionshipsByYear || {})
@@ -332,6 +345,77 @@ export default function Team() {
   }
 
   const bowlWins = getBowlWinsForTeam()
+
+  // Calculate "Games As" - games where user played AS this team
+  const getGamesAsTeam = () => {
+    const games = currentDynasty.games || []
+    return games.filter(g => {
+      if (g.isCPUGame) return false
+      // Check if this game was played by the team we're viewing
+      if (g.userTeam === teamAbbr) return true
+      // Legacy fallback: if no userTeam and this is the current user's team
+      if (!g.userTeam && teamAbbr === userTeamAbbr) return true
+      return false
+    })
+  }
+
+  const gamesAsTeam = getGamesAsTeam()
+  const gamesAsWins = gamesAsTeam.filter(g => g.result === 'W' || g.result === 'win').length
+  const gamesAsLosses = gamesAsTeam.filter(g => g.result === 'L' || g.result === 'loss').length
+  const winPctAs = gamesAsTeam.length > 0
+    ? ((gamesAsWins / gamesAsTeam.length) * 100).toFixed(1)
+    : null
+
+  // Calculate CFP Appearances - years where this team was seeded in CFP
+  const getCFPAppearances = () => {
+    const cfpSeeds = currentDynasty.cfpSeedsByYear || {}
+    let count = 0
+    Object.values(cfpSeeds).forEach(yearSeeds => {
+      if (Array.isArray(yearSeeds)) {
+        const isSeeded = yearSeeds.some(s => s.team === teamAbbr)
+        if (isSeeded) count++
+      }
+    })
+    return count
+  }
+
+  const cfpAppearances = getCFPAppearances()
+
+  // Calculate National Titles - years where this team won the CFP Championship
+  const getNationalTitles = () => {
+    const cfpResults = currentDynasty.cfpResultsByYear || {}
+    let count = 0
+    Object.values(cfpResults).forEach(yearResults => {
+      // Check championship array for winner
+      const championship = yearResults?.championship
+      if (Array.isArray(championship) && championship.length > 0) {
+        if (championship[0]?.winner === teamAbbr) count++
+      }
+    })
+    return count
+  }
+
+  const nationalTitles = getNationalTitles()
+
+  // Calculate All-Americans count - first-team All-Americans for this team
+  const getAllAmericansCount = () => {
+    const players = currentDynasty.players || []
+    let count = 0
+    players.forEach(player => {
+      // Check if player belongs to this team
+      const playerTeam = player.team || (player.isHonorOnly ? null : userTeamAbbr)
+      if (playerTeam !== teamAbbr && !player.teams?.includes(teamAbbr)) return
+
+      // Count first-team All-American awards
+      const allAmericans = player.allAmericans || []
+      allAmericans.forEach(aa => {
+        if (aa.team === '1st Team' || aa.team === 'First Team') count++
+      })
+    })
+    return count
+  }
+
+  const allAmericansCount = getAllAmericansCount()
 
   // Get bowl result for a specific year (returns { bowlName, won } or null)
   const getBowlResultForYear = (year) => {
@@ -735,15 +819,15 @@ export default function Team() {
             />
             <StatCell
               label="CFP Apps"
-              value={teamHistoryData.cfpAppearances || 0}
+              value={cfpAppearances}
             />
             <StatCell
               label="Natl Titles"
-              value={teamHistoryData.nationalTitles || 0}
+              value={nationalTitles}
             />
             <StatCell
               label="All-Americans"
-              value={teamHistoryData.allAmericans || 0}
+              value={allAmericansCount}
               subValue="1st Team"
             />
           </div>
@@ -777,11 +861,11 @@ export default function Team() {
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Games As
               </div>
-              <div className="text-3xl font-bold" style={{ color: teamBgText }}>
-                {teamHistoryData.gamesAs || '--'}
+              <div className="text-3xl font-bold" style={{ color: gamesAsTeam.length > 0 ? teamBgText : `${teamBgText}50` }}>
+                {gamesAsTeam.length || '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                as {teamAbbr}
+                {gamesAsWins}-{gamesAsLosses} record
               </div>
             </div>
 
@@ -793,11 +877,18 @@ export default function Team() {
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Win % As
               </div>
-              <div className="text-3xl font-bold" style={{ color: teamBgText }}>
-                {teamHistoryData.winPctAs ? `${teamHistoryData.winPctAs}%` : '--'}
+              <div
+                className="text-3xl font-bold"
+                style={{
+                  color: winPctAs
+                    ? parseFloat(winPctAs) >= 50 ? '#16a34a' : '#dc2626'
+                    : `${teamBgText}50`
+                }}
+              >
+                {winPctAs ? `${winPctAs}%` : '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                as {teamAbbr}
+                {gamesAsWins}-{gamesAsLosses} record
               </div>
             </div>
 

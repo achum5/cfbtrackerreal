@@ -22,6 +22,7 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
@@ -151,6 +152,24 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
     }
   }
 
+  const handleRegenerateSheet = async () => {
+    if (!sheetId) return
+    const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
+    if (!confirmed) return
+    setRegenerating(true)
+    try {
+      await deleteGoogleSheet(sheetId)
+      await updateDynasty(currentDynasty.id, { conferenceStandingsSheetId: null })
+      setSheetId(null)
+      setRetryCount(c => c + 1)
+    } catch (error) {
+      console.error('Failed to regenerate sheet:', error)
+      alert('Failed to regenerate sheet. Please try again.')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const handleClose = () => onClose()
 
   if (!isOpen) return null
@@ -208,6 +227,9 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
                   <button onClick={handleSyncFromSheet} disabled={syncing || deletingSheet} className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2" style={{ backgroundColor: 'transparent', borderColor: teamColors.primary, color: teamColors.primary }}>
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
+                  <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2" style={{ backgroundColor: 'transparent', borderColor: teamColors.primary, color: teamColors.primary, opacity: 0.7 }}>
+                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                  </button>
                 </div>
               </div>
             )}
@@ -249,6 +271,9 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
+                <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="text-sm underline opacity-70 hover:opacity-100 transition-opacity" style={{ color: teamColors.primary }}>
+                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                </button>
               </div>
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden min-h-0">

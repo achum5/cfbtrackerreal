@@ -47,7 +47,7 @@ const getMascotName = (abbr) => {
     'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TLNE': 'Tulane Green Wave',
     'TLSA': 'Tulsa Golden Hurricane', 'TOL': 'Toledo Rockets', 'TROY': 'Troy Trojans',
     'TTU': 'Texas Tech Red Raiders', 'TXST': 'Texas State Bobcats', 'UAB': 'UAB Blazers',
-    'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UGA': 'Georgia Bulldogs',
+    'UC': 'Cincinnati Bearcats', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UGA': 'Georgia Bulldogs',
     'UK': 'Kentucky Wildcats', 'ULL': 'Lafayette Ragin\' Cajuns', 'ULM': 'Monroe Warhawks',
     'UNC': 'North Carolina Tar Heels', 'UNLV': 'UNLV Rebels', 'UNM': 'New Mexico Lobos',
     'UNT': 'North Texas Mean Green', 'USA': 'South Alabama Jaguars', 'USC': 'USC Trojans',
@@ -86,21 +86,35 @@ export default function Player() {
     return <div className="text-center py-12"><p className="text-gray-600">Player not found</p></div>
   }
 
-  // Determine the player's team - for honor-only players, use their team from the awards data
-  // For roster players, use the dynasty team
-  const playerTeamAbbr = player.isHonorOnly
-    ? (player.team || player.teams?.[0] || getAbbreviationFromDisplayName(dynasty.teamName))
-    : getAbbreviationFromDisplayName(dynasty.teamName)
+  // Determine the player's team from their team field
+  // Falls back to dynasty.teamName only for legacy players without a team field
+  const playerTeamAbbr = player.team
+    || player.teams?.[0]
+    || getAbbreviationFromDisplayName(dynasty.teamName)
 
-  // Get the full team name from abbreviation for honor players
-  const playerTeamName = player.isHonorOnly
-    ? (getMascotName(playerTeamAbbr) || teamAbbreviations[playerTeamAbbr]?.name || dynasty.teamName)
-    : dynasty.teamName
+  // Get the full team name from the abbreviation
+  const playerTeamName = getMascotName(playerTeamAbbr)
+    || teamAbbreviations[playerTeamAbbr]?.name
+    || dynasty.teamName
 
   const teamColors = useTeamColors(playerTeamName)
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
   const teamAbbr = playerTeamAbbr
+
+  // Check if player was drafted
+  const getDraftInfo = () => {
+    const draftResultsByYear = dynasty.draftResultsByYear || {}
+    for (const [year, results] of Object.entries(draftResultsByYear)) {
+      if (!results) continue
+      const draftResult = results.find(r => r.pid === player.pid || r.playerName === player.name)
+      if (draftResult) {
+        return { year: parseInt(year), ...draftResult }
+      }
+    }
+    return null
+  }
+  const draftInfo = getDraftInfo()
 
   // Calculate POW honors
   const calculatePOWHonors = () => {
@@ -335,7 +349,9 @@ export default function Player() {
                 style={{ color: primaryText, opacity: 0.9 }}
               >
                 {getTeamLogo(playerTeamName) && (
-                  <img src={getTeamLogo(playerTeamName)} alt="" className="w-4 h-4 object-contain" />
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '3px' }}>
+                    <img src={getTeamLogo(playerTeamName)} alt="" className="w-full h-full object-contain" />
+                  </div>
                 )}
                 {playerTeamName}
               </Link>
@@ -478,6 +494,34 @@ export default function Player() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Draft Status */}
+      {draftInfo && (
+        <div
+          className="rounded-lg shadow-lg p-4 sm:p-6"
+          style={{ backgroundColor: teamColors.secondary, border: `3px solid ${teamColors.primary}` }}
+        >
+          <h2 className="text-xl font-bold mb-4" style={{ color: secondaryText }}>Pro Career</h2>
+          <div className="flex items-center gap-4">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: teamColors.primary }}
+            >
+              <svg className="w-8 h-8" fill="none" stroke={primaryText} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-lg font-bold" style={{ color: secondaryText }}>
+                {draftInfo.draftRound === 'Undrafted' ? 'Undrafted' : `${draftInfo.draftRound} Pick`}
+              </div>
+              <div className="text-sm" style={{ color: secondaryText, opacity: 0.8 }}>
+                {draftInfo.year} NFL Draft
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1016,22 +1060,215 @@ export default function Player() {
             </div>
           )}
           {player.links && player.links.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {player.links.map((link, index) => link.url && (
-                <a
-                  key={index}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-80 transition-opacity flex items-center gap-2"
-                  style={{ backgroundColor: teamColors.primary, color: primaryText }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  {link.title || link.url}
-                </a>
-              ))}
+            <div className="space-y-4">
+              {/* Embeddable Media */}
+              {player.links.filter(link => link.url).map((link, index) => {
+                const url = link.url
+
+                // YouTube embed
+                if (url.includes('youtube.com/watch') || url.includes('youtu.be/') || url.includes('youtube.com/embed')) {
+                  let videoId = null
+                  if (url.includes('youtube.com/watch')) {
+                    const urlParams = new URLSearchParams(url.split('?')[1])
+                    videoId = urlParams.get('v')
+                  } else if (url.includes('youtu.be/')) {
+                    videoId = url.split('youtu.be/')[1]?.split('?')[0]
+                  } else if (url.includes('youtube.com/embed/')) {
+                    videoId = url.split('youtube.com/embed/')[1]?.split('?')[0]
+                  }
+
+                  if (!videoId) return null
+
+                  return (
+                    <div key={index} className="rounded-lg overflow-hidden">
+                      {link.title && (
+                        <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                          {link.title}
+                        </div>
+                      )}
+                      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                        <iframe
+                          className="absolute top-0 left-0 w-full h-full"
+                          src={`https://www.youtube.com/embed/${videoId}`}
+                          title={link.title || 'YouTube video'}
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Streamable embed
+                if (url.includes('streamable.com/')) {
+                  const videoId = url.split('streamable.com/')[1]?.split('?')[0]
+                  if (!videoId) return null
+
+                  return (
+                    <div key={index} className="rounded-lg overflow-hidden">
+                      {link.title && (
+                        <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                          {link.title}
+                        </div>
+                      )}
+                      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                        <iframe
+                          className="absolute top-0 left-0 w-full h-full"
+                          src={`https://streamable.com/e/${videoId}`}
+                          title={link.title || 'Streamable video'}
+                          frameBorder="0"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Imgur image/video embed (supports .mp4, .gifv, .gif, direct images)
+                if (url.includes('imgur.com') || url.includes('i.imgur.com')) {
+                  // Direct image links
+                  if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i) || url.includes('i.imgur.com')) {
+                    // Convert gifv to mp4
+                    const displayUrl = url.replace('.gifv', '.mp4')
+                    const isVideo = displayUrl.endsWith('.mp4') || displayUrl.endsWith('.gifv')
+
+                    return (
+                      <div key={index} className="rounded-lg overflow-hidden">
+                        {link.title && (
+                          <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                            {link.title}
+                          </div>
+                        )}
+                        {isVideo ? (
+                          <video
+                            className="w-full max-h-[500px] object-contain bg-black"
+                            src={displayUrl}
+                            controls
+                            loop
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            src={displayUrl}
+                            alt={link.title || 'Imgur image'}
+                            className="w-full max-h-[500px] object-contain"
+                          />
+                        )}
+                      </div>
+                    )
+                  }
+
+                  // Imgur album or post page - extract ID and use embed
+                  const imgurMatch = url.match(/imgur\.com\/(?:a\/|gallery\/)?([a-zA-Z0-9]+)/)
+                  if (imgurMatch) {
+                    const imgurId = imgurMatch[1]
+                    return (
+                      <div key={index} className="rounded-lg overflow-hidden">
+                        {link.title && (
+                          <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                            {link.title}
+                          </div>
+                        )}
+                        <blockquote className="imgur-embed-pub" lang="en" data-id={imgurId}>
+                          <a href={url} target="_blank" rel="noopener noreferrer">View on Imgur</a>
+                        </blockquote>
+                        <img
+                          src={`https://i.imgur.com/${imgurId}.jpg`}
+                          alt={link.title || 'Imgur image'}
+                          className="w-full max-h-[500px] object-contain"
+                          onError={(e) => {
+                            // Try .png if .jpg fails
+                            if (e.target.src.endsWith('.jpg')) {
+                              e.target.src = `https://i.imgur.com/${imgurId}.png`
+                            }
+                          }}
+                        />
+                      </div>
+                    )
+                  }
+                }
+
+                // Twitter/X embed (video clips)
+                if (url.includes('twitter.com') || url.includes('x.com')) {
+                  return (
+                    <div key={index} className="rounded-lg overflow-hidden">
+                      {link.title && (
+                        <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                          {link.title}
+                        </div>
+                      )}
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block px-4 py-3 hover:opacity-80 transition-opacity flex items-center gap-2"
+                        style={{ backgroundColor: `${teamColors.primary}15`, color: secondaryText }}
+                      >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                        <span className="font-medium">{link.title || 'View on X/Twitter'}</span>
+                      </a>
+                    </div>
+                  )
+                }
+
+                // Direct image URLs (jpg, png, gif, webp)
+                if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                  return (
+                    <div key={index} className="rounded-lg overflow-hidden">
+                      {link.title && (
+                        <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                          {link.title}
+                        </div>
+                      )}
+                      <img
+                        src={url}
+                        alt={link.title || 'Image'}
+                        className="w-full max-h-[500px] object-contain"
+                      />
+                    </div>
+                  )
+                }
+
+                // Direct video URLs (mp4, webm)
+                if (url.match(/\.(mp4|webm)$/i)) {
+                  return (
+                    <div key={index} className="rounded-lg overflow-hidden">
+                      {link.title && (
+                        <div className="px-3 py-2 text-sm font-semibold" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                          {link.title}
+                        </div>
+                      )}
+                      <video
+                        className="w-full max-h-[500px] object-contain bg-black"
+                        src={url}
+                        controls
+                        playsInline
+                      />
+                    </div>
+                  )
+                }
+
+                // Default: Regular link button
+                return (
+                  <a
+                    key={index}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-80 transition-opacity items-center gap-2"
+                    style={{ backgroundColor: teamColors.primary, color: primaryText }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    {link.title || url}
+                  </a>
+                )
+              })}
             </div>
           )}
         </div>

@@ -32,6 +32,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -94,10 +95,23 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
           // Get current roster for pre-filling
           const players = currentDynasty?.players || []
 
+          // Get existing stats data to pre-fill gamesPlayed/snapsPlayed
+          const existingStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
+
+          // Merge roster with existing stats data
+          const playersWithStats = players.map(player => {
+            const existingStat = existingStats.find(s => s.pid === player.pid)
+            return {
+              ...player,
+              gamesPlayed: existingStat?.gamesPlayed || 0,
+              snapsPlayed: existingStat?.snapsPlayed || 0
+            }
+          })
+
           const sheetInfo = await createStatsEntrySheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            players
+            playersWithStats
           )
 
           setSheetId(sheetInfo.spreadsheetId)
@@ -174,6 +188,24 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
       }
     } finally {
       setDeletingSheet(false)
+    }
+  }
+
+  const handleRegenerateSheet = async () => {
+    if (!sheetId) return
+    const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
+    if (!confirmed) return
+    setRegenerating(true)
+    try {
+      await deleteGoogleSheet(sheetId)
+      await updateDynasty(currentDynasty.id, { statsEntrySheetId: null })
+      setSheetId(null)
+      setRetryCount(c => c + 1)
+    } catch (error) {
+      console.error('Failed to regenerate sheet:', error)
+      alert('Failed to regenerate sheet. Please try again.')
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -273,6 +305,18 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
                   >
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
+                  <button
+                    onClick={handleRegenerateSheet}
+                    disabled={syncing || deletingSheet || regenerating}
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2 ml-auto"
+                    style={{
+                      backgroundColor: 'transparent',
+                      borderColor: '#EF4444',
+                      color: '#EF4444'
+                    }}
+                  >
+                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                  </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
 
@@ -355,6 +399,18 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
+                <button
+                  onClick={handleRegenerateSheet}
+                  disabled={syncing || deletingSheet || regenerating}
+                  className="text-xs px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-colors border mb-4"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: '#EF4444',
+                    color: '#EF4444'
+                  }}
+                >
+                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                </button>
                 {highlightSave && (
                   <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
 

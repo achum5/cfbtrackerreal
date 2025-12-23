@@ -377,12 +377,12 @@ export default function Home() {
                           )}
                         </button>
 
-                        {/* Export button */}
+                        {/* Download Backup button */}
                         <button
                           onClick={(e) => handleExportClick(e, dynasty)}
                           className="p-1.5 sm:p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
                           style={{ color: textColor }}
-                          title="Export Dynasty"
+                          title="Download Backup"
                         >
                           <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

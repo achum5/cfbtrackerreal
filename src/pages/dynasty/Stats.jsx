@@ -96,29 +96,6 @@ export default function Stats() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Overall Record', value: allTimeRecord.total, sub: 'All-Time' },
-          { label: 'Season Record', value: seasonRecord.total, sub: `${displayYear}` },
-          { label: 'National Titles', value: '0', sub: 'Championships' },
-          { label: 'Conference Titles', value: '0', sub: currentDynasty.conference }
-        ].map((stat, i) => (
-          <div
-            key={i}
-            className="rounded-lg shadow-md p-4 md:p-6"
-            style={{
-              backgroundColor: teamColors.secondary,
-              border: `2px solid ${teamColors.primary}`
-            }}
-          >
-            <div className="text-xs md:text-sm mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>{stat.label}</div>
-            <div className="text-xl md:text-2xl font-bold" style={{ color: secondaryBgText }}>{stat.value}</div>
-            <div className="text-xs mt-1" style={{ color: secondaryBgText, opacity: 0.6 }}>{stat.sub}</div>
-          </div>
-        ))}
-      </div>
-
       {/* Year Selector Header */}
       {availableYears.length > 0 && (
         <div
@@ -247,7 +224,7 @@ export default function Stats() {
             </div>
           </div>
 
-          {/* Discipline */}
+          {/* Penalties */}
           <div
             className="rounded-lg shadow-lg overflow-hidden"
             style={{ backgroundColor: teamColors.secondary }}
@@ -260,7 +237,7 @@ export default function Stats() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <h3 className="text-lg font-bold text-white">
-                Discipline
+                Penalties
               </h3>
             </div>
 
@@ -310,7 +287,7 @@ function StatRow({ label, value, subValue, textColor }) {
         </span>
         {subValue && (
           <span className="ml-2 text-sm" style={{ color: textColor, opacity: 0.7 }}>
-            ({subValue})
+            {subValue}
           </span>
         )}
       </div>

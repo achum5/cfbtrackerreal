@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
-import SheetToolbar from './SheetToolbar'
 import {
-  createCFPFirstRoundSheet,
-  readCFPFirstRoundFromSheet,
+  createPlayersLeavingSheet,
+  readPlayersLeavingFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
@@ -15,24 +14,22 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
-  const { user, signOut, refreshSession } = useAuth()
-  const [refreshing, setRefreshing] = useState(false)
+  const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
-  const [regenerating, setRegenerating] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
   const [useEmbedded, setUseEmbedded] = useState(() => {
-    // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -40,19 +37,6 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen])
 
   // Highlight save button when user returns to the window
   useEffect(() => {
@@ -79,12 +63,25 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Create CFP First Round sheet when modal opens
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  // Create players leaving sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP First Round sheet for this year
-        const existingSheetId = currentDynasty?.cfpFirstRoundSheetId
+        // Check if we have an existing sheet for this year
+        const existingSheetId = currentDynasty?.playersLeavingSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -92,18 +89,23 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createCFPFirstRoundSheet(
+          const sheetInfo = await createPlayersLeavingSheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            currentDynasty?.players || [],
+            currentDynasty?.playerStatsByYear || {}
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            cfpFirstRoundSheetId: sheetInfo.spreadsheetId
+            playersLeavingSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create CFP First Round sheet:', error)
+          console.error('Failed to create players leaving sheet:', error)
+          if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+            setShowAuthError(true)
+          }
         } finally {
           setCreatingSheet(false)
         }
@@ -125,12 +127,16 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
     setSyncing(true)
     try {
-      const games = await readCFPFirstRoundFromSheet(sheetId)
-      await onSave(games)
+      const playersLeaving = await readPlayersLeavingFromSheet(sheetId)
+      await onSave(playersLeaving)
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure all 4 games are entered with scores.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -141,15 +147,15 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
     setDeletingSheet(true)
     try {
-      const games = await readCFPFirstRoundFromSheet(sheetId)
-      await onSave(games)
+      const playersLeaving = await readPlayersLeavingFromSheet(sheetId)
+      await onSave(playersLeaving)
 
       // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
       await updateDynasty(currentDynasty.id, {
-        cfpFirstRoundSheetId: null
+        playersLeavingSheetId: null
       })
 
       setSheetId(null)
@@ -158,8 +164,12 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
         onClose()
       }, 2500)
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
-      console.error(error)
+      console.error('Error in handleSyncAndDelete:', error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert(`Failed to sync/delete: ${error.message || 'Unknown error'}`)
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -167,12 +177,14 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
   const handleRegenerateSheet = async () => {
     if (!sheetId) return
+
     const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
     if (!confirmed) return
+
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { cfpFirstRoundSheetId: null })
+      await updateDynasty(currentDynasty.id, { playersLeavingSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -189,7 +201,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'CFP First Round') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Players Leaving') : null
   const isLoading = creatingSheet
 
   return (
@@ -205,7 +217,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            CFP First Round Results
+            Players Leaving
           </h2>
           <button
             onClick={handleClose}
@@ -229,10 +241,10 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating CFP First Round Sheet...
+                Creating Players Leaving Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up 4 First Round games (seeds 5-12)
+                Auto-filling graduating seniors
               </p>
             </div>
           </div>
@@ -246,7 +258,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                CFP First Round results saved to your dynasty.
+                Players leaving data saved to your dynasty.
               </p>
             </div>
           </div>
@@ -265,7 +277,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -282,21 +294,15 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                   <button
                     onClick={handleRegenerateSheet}
                     disabled={syncing || deletingSheet || regenerating}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2 ml-auto"
                     style={{
                       backgroundColor: 'transparent',
-                      borderColor: teamColors.primary,
-                      color: teamColors.primary,
-                      opacity: 0.7
+                      borderColor: '#EF4444',
+                      color: '#EF4444'
                     }}
                   >
                     {regenerating ? 'Regenerating...' : 'Start Over'}
                   </button>
-                  {highlightSave && (
-                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
-
-                    </span>
-                  )}
                 </div>
               </div>
             )}
@@ -326,21 +332,30 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
-                <div className="text-left mb-6 max-w-xs">
+                <div className="text-left mb-6 max-w-sm">
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter CFP First Round results</span></li>
-                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync results</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Seniors with 5+ games are pre-filled as "Graduating"</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Add any other players leaving (transfers, etc.)</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to sync</span></li>
                   </ol>
                 </div>
-                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
+                <a
+                  href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6"
+                  style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                    <path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/>
+                  </svg>
                   Open Google Sheets
                 </a>
 
@@ -355,7 +370,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -370,83 +385,33 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
-                {highlightSave && (
-                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
-
-                  </span>
-                )}
-
                 <button
                   onClick={handleRegenerateSheet}
                   disabled={syncing || deletingSheet || regenerating}
-                  className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
-                  style={{ color: teamColors.primary }}
+                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs border-2"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: '#EF4444',
+                    color: '#EF4444'
+                  }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Start Over'}
                 </button>
               </div>
             ) : (
-              <>
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <SheetToolbar
-                    sheetId={sheetId}
-                    embedUrl={embedUrl}
-                    teamColors={teamColors}
-                    title="CFP First Round Google Sheet"
-                    onSessionError={() => setShowAuthError(true)}
-                  />
-                </div>
-                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-                  <p><strong>Columns:</strong> Game | Higher Seed | Lower Seed | Higher Score | Lower Score</p>
-                  <p>Enter the teams and scores for each First Round game. Winners advance to Quarterfinals.</p>
-                </div>
-              </>
+              /* Embedded iframe view */
+              <div className="flex-1 rounded-lg overflow-hidden border-2" style={{ borderColor: teamColors.primary }}>
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  title="Players Leaving Sheet"
+                />
+              </div>
             )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
-                Your session has expired. Click below to refresh.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={async () => {
-                    setRefreshing(true)
-                    try {
-                      const success = await refreshSession()
-                      if (success) {
-                        // Trigger sheet creation retry
-                        setRetryCount(c => c + 1)
-                      }
-                    } catch (e) {
-                      console.error('Refresh failed:', e)
-                    }
-                    setRefreshing(false)
-                  }}
-                  disabled={refreshing}
-                  className="px-4 py-2 rounded font-semibold transition-colors"
-                  style={{
-                    backgroundColor: teamColors.primary,
-                    color: teamColors.primaryText || '#fff',
-                    opacity: refreshing ? 0.7 : 1
-                  }}
-                >
-                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
-                </button>
-                <button
-                  onClick={signOut}
-                  className="px-4 py-2 rounded font-semibold transition-colors border"
-                  style={{
-                    borderColor: teamColors.primary,
-                    color: teamColors.primary,
-                    backgroundColor: 'transparent'
-                  }}
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
+            <p style={{ color: teamColors.primary }}>Failed to create sheet. Please try again.</p>
           </div>
         )}
       </div>

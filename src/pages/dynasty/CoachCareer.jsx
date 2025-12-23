@@ -3,8 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
+import { getTeamColors } from '../../data/teamColors'
 
 // Map abbreviations to mascot names for logo lookup
 const mascotMap = {
@@ -42,7 +43,7 @@ const mascotMap = {
   'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
   'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
   'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
-  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies',
+  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies', 'TAMU': 'Texas A&M Aggies',
   'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
   'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
   'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
@@ -66,12 +67,28 @@ const getOpponentColors = (abbr) => {
   }
 }
 
+// Get team colors from team name
+const getTeamColorsFromName = (teamName) => {
+  const colors = getTeamColors(teamName)
+  if (colors) return colors
+  // Try to find via abbreviation
+  const abbr = getAbbreviationFromDisplayName(teamName)
+  if (abbr && teamAbbreviations[abbr]) {
+    return {
+      primary: teamAbbreviations[abbr].backgroundColor || '#4B5563',
+      secondary: teamAbbreviations[abbr].textColor || '#FFFFFF'
+    }
+  }
+  return { primary: '#4B5563', secondary: '#FFFFFF' }
+}
+
 export default function CoachCareer() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
   const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
   const [showGamesModal, setShowGamesModal] = useState(false)
   const [gamesModalType, setGamesModalType] = useState(null) // 'favorite' or 'underdog'
+  const [selectedTeamForModal, setSelectedTeamForModal] = useState(null)
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -87,19 +104,38 @@ export default function CoachCareer() {
 
   if (!currentDynasty) return null
 
-  // Calculate career statistics
-  const calculateCareerStats = () => {
-    // Filter to only user's games (exclude CPU vs CPU games)
-    const games = (currentDynasty.games || []).filter(g => !g.isCPUGame)
+  // Get current team abbreviation
+  const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
 
-    // Helper to check for win (handles both 'win' and 'W' formats)
-    const isWin = (g) => g.result === 'win' || g.result === 'W'
-    const isLoss = (g) => g.result === 'loss' || g.result === 'L'
+  // Helper to check for win (handles both 'win' and 'W' formats)
+  const isWin = (g) => g.result === 'win' || g.result === 'W'
+  const isLoss = (g) => g.result === 'loss' || g.result === 'L'
+
+  // Calculate stats for a specific team stint (either from history or current team)
+  const calculateStintStats = (teamName, startYear, endYear, isCurrentTeam = false) => {
+    const teamAbbr = getAbbreviationFromDisplayName(teamName)
+
+    // Filter games for this team during this period
+    const games = (currentDynasty.games || []).filter(g => {
+      if (g.isCPUGame) return false
+      const gameYear = Number(g.year)
+
+      // Determine which team this game belongs to
+      let gameTeam = g.userTeam
+      if (!gameTeam) {
+        // Look up which team the coach was coaching in that year
+        const coachTeamEntry = currentDynasty.coachTeamByYear?.[gameYear]
+        gameTeam = coachTeamEntry?.team
+      }
+
+      const matchesTeam = gameTeam === teamAbbr || gameTeam === teamName
+      if (!matchesTeam) return false
+      // Check year range
+      return gameYear >= startYear && gameYear <= endYear
+    })
 
     const wins = games.filter(isWin).length
     const losses = games.filter(isLoss).length
-
-    // Calculate overall record
     const overallRecord = `${wins}-${losses}`
 
     // Calculate favorite/underdog records
@@ -113,45 +149,166 @@ export default function CoachCareer() {
     const underdogLosses = underdogGames.filter(isLoss).length
     const underdogRecord = `${underdogWins}-${underdogLosses}`
 
-    // Placeholder stats (these would be tracked in dynasty data)
-    const confChampionships = 0
-    const playoffAppearances = 0
-    const nationalChampionships = 0
-    const firstTeamAllAmericans = 0
-    const heismanWinners = 0
-    const firstRoundPicks = 0
-
     return {
+      wins,
+      losses,
       overallRecord,
       favoriteRecord,
       underdogRecord,
       favoriteGames,
       underdogGames,
-      confChampionships,
-      playoffAppearances,
-      nationalChampionships,
-      firstTeamAllAmericans,
-      heismanWinners,
-      firstRoundPicks
+      confChampionships: 0, // TODO: Calculate from conferenceChampionshipsByYear
+      playoffAppearances: 0, // TODO: Calculate from cfpSeedsByYear
+      nationalChampionships: 0 // TODO: Calculate from cfpResultsByYear
     }
   }
 
-  const stats = calculateCareerStats()
-  const yearRange = currentDynasty.currentYear === currentDynasty.startYear
-    ? `${currentDynasty.startYear}`
-    : `${currentDynasty.startYear}-${currentDynasty.currentYear}`
+  // Build the complete coaching history from game data
+  // This is more reliable than coachingHistory array since games have userTeam field
+  const buildCoachingHistory = () => {
+    const history = []
+    const userGames = (currentDynasty.games || []).filter(g => !g.isCPUGame)
 
-  // Get team colors for this specific school
+    // Group games by team to identify all teams coached
+    const gamesByTeam = {}
+    userGames.forEach(game => {
+      // Determine team: first check userTeam field, then fall back to coachTeamByYear for that year
+      let teamKey = game.userTeam
+      if (!teamKey) {
+        const gameYear = Number(game.year)
+        // Look up which team the coach was coaching in that year
+        const coachTeamEntry = currentDynasty.coachTeamByYear?.[gameYear]
+        teamKey = coachTeamEntry?.team || currentTeamAbbr
+      }
+      if (!gamesByTeam[teamKey]) {
+        gamesByTeam[teamKey] = []
+      }
+      gamesByTeam[teamKey].push(game)
+    })
+
+    // Get team full names from abbreviations
+    const getTeamFullName = (abbr) => {
+      const mascot = getMascotName(abbr)
+      if (mascot) return mascot
+      // Check teamAbbreviations for the name
+      if (teamAbbreviations[abbr]?.name) return teamAbbreviations[abbr].name
+      return abbr
+    }
+
+    // Build stints from game data, sorted by earliest year
+    const teamStints = Object.entries(gamesByTeam).map(([teamAbbr, games]) => {
+      const years = games.map(g => Number(g.year)).filter(y => !isNaN(y))
+      const startYear = years.length > 0 ? Math.min(...years) : currentDynasty.startYear
+      const endYear = years.length > 0 ? Math.max(...years) : currentDynasty.currentYear
+      const wins = games.filter(isWin).length
+      const losses = games.filter(isLoss).length
+
+      // Get favorite/underdog games
+      const favoriteGames = games.filter(g => g.favoriteStatus === 'favorite')
+      const favoriteWins = favoriteGames.filter(isWin).length
+      const favoriteLosses = favoriteGames.filter(isLoss).length
+      const underdogGames = games.filter(g => g.favoriteStatus === 'underdog')
+      const underdogWins = underdogGames.filter(isWin).length
+      const underdogLosses = underdogGames.filter(isLoss).length
+
+      return {
+        teamAbbr,
+        teamName: getTeamFullName(teamAbbr),
+        startYear,
+        endYear,
+        wins,
+        losses,
+        overallRecord: `${wins}-${losses}`,
+        favoriteRecord: `${favoriteWins}-${favoriteLosses}`,
+        underdogRecord: `${underdogWins}-${underdogLosses}`,
+        favoriteGames,
+        underdogGames,
+        games
+      }
+    }).sort((a, b) => a.startYear - b.startYear)
+
+    // Mark which stint is current (matches current team)
+    const currentTeamFullName = currentDynasty.teamName
+    teamStints.forEach(stint => {
+      const isCurrentTeam = stint.teamAbbr === currentTeamAbbr ||
+                           stint.teamName === currentTeamFullName
+      stint.isCurrent = isCurrentTeam
+      stint.isPast = !isCurrentTeam
+      stint.position = currentDynasty.coachPosition || 'HC'
+      stint.conference = isCurrentTeam ? currentDynasty.conference : ''
+      stint.confChampionships = 0 // TODO: Calculate
+      stint.playoffAppearances = 0 // TODO: Calculate
+      stint.nationalChampionships = 0 // TODO: Calculate
+    })
+
+    // If current team has no games yet (just switched), add it
+    const hasCurrentTeam = teamStints.some(s => s.isCurrent)
+    if (!hasCurrentTeam) {
+      // Get the end year of the last stint to determine when current stint starts
+      const lastStint = teamStints[teamStints.length - 1]
+      // If we switched teams during offseason, the new team starts NEXT year
+      // Check if we're in offseason - if so, new team starts in currentYear + 1
+      const isInOffseason = currentDynasty.currentPhase === 'offseason'
+      const currentStartYear = lastStint
+        ? lastStint.endYear + 1
+        : (isInOffseason ? currentDynasty.currentYear + 1 : currentDynasty.startYear)
+      // End year should be at least the start year (for display purposes)
+      // If in preseason or later of that year, use currentYear; if in offseason before season starts, use startYear
+      const currentEndYear = Math.max(currentStartYear, currentDynasty.currentYear)
+
+      history.push(...teamStints.map(s => ({ ...s, isPast: true, isCurrent: false })))
+      history.push({
+        teamAbbr: currentTeamAbbr,
+        teamName: currentTeamFullName,
+        conference: currentDynasty.conference,
+        position: currentDynasty.coachPosition || 'HC',
+        startYear: currentStartYear,
+        endYear: currentEndYear,
+        wins: 0,
+        losses: 0,
+        overallRecord: '0-0',
+        favoriteRecord: '0-0',
+        underdogRecord: '0-0',
+        favoriteGames: [],
+        underdogGames: [],
+        confChampionships: 0,
+        playoffAppearances: 0,
+        nationalChampionships: 0,
+        isCurrent: true,
+        isPast: false
+      })
+    } else {
+      history.push(...teamStints)
+    }
+
+    return history
+  }
+
+  const coachingHistory = buildCoachingHistory()
+
+  // Calculate overall career totals
+  const careerTotals = coachingHistory.reduce((totals, stint) => {
+    return {
+      wins: totals.wins + stint.wins,
+      losses: totals.losses + stint.losses,
+      teams: totals.teams + 1
+    }
+  }, { wins: 0, losses: 0, teams: 0 })
+
+  // Get team colors for current team (used for header)
   const teamColors = useTeamColors(currentDynasty.teamName)
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
 
   // Get games for the modal
   const getGamesForModal = () => {
+    if (!selectedTeamForModal) return []
+    const stint = coachingHistory.find(s => s.teamName === selectedTeamForModal)
+    if (!stint) return []
     if (gamesModalType === 'favorite') {
-      return stats.favoriteGames
+      return stint.favoriteGames || []
     } else if (gamesModalType === 'underdog') {
-      return stats.underdogGames
+      return stint.underdogGames || []
     }
     return []
   }
@@ -170,14 +327,22 @@ export default function CoachCareer() {
     return acc
   }, {})
 
-  const openGamesModal = (type) => {
+  const openGamesModal = (type, teamName) => {
     setGamesModalType(type)
+    setSelectedTeamForModal(teamName)
     setShowGamesModal(true)
+  }
+
+  const getPositionLabel = (position) => {
+    if (position === 'HC') return 'Head Coach'
+    if (position === 'OC') return 'Offensive Coordinator'
+    if (position === 'DC') return 'Defensive Coordinator'
+    return 'Head Coach'
   }
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Page Header with Career Summary */}
       <div
         className="rounded-lg shadow-lg p-6"
         style={{
@@ -186,220 +351,207 @@ export default function CoachCareer() {
         }}
       >
         <h2 className="text-2xl font-bold" style={{ color: primaryText }}>
-          {currentDynasty.coachPosition || 'HC'} {currentDynasty.coachName} - Career Overview
+          {currentDynasty.coachName} - Career Overview
         </h2>
+        <div className="mt-2 flex flex-wrap items-center gap-4 text-sm" style={{ color: primaryText, opacity: 0.9 }}>
+          <span className="font-semibold">Career Record: {careerTotals.wins}-{careerTotals.losses}</span>
+          <span>|</span>
+          <span>{coachingHistory.length} Team{coachingHistory.length !== 1 ? 's' : ''}</span>
+          <span>|</span>
+          <span>{currentDynasty.startYear} - Present</span>
+        </div>
       </div>
 
-      {/* Team Career Card */}
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          backgroundColor: teamColors.primary,
-          border: `3px solid ${teamColors.secondary}`
-        }}
-      >
-        {/* Team Header */}
-        <div className="mb-6">
-          <h3 className="text-2xl font-bold mb-1" style={{ color: primaryText }}>
-            {currentDynasty.teamName}
-          </h3>
-          <div className="flex items-center gap-4 text-sm" style={{ color: primaryText, opacity: 0.8 }}>
-            <span className="font-semibold">
-              {currentDynasty.coachPosition === 'HC' && 'Head Coach'}
-              {currentDynasty.coachPosition === 'OC' && 'Offensive Coordinator'}
-              {currentDynasty.coachPosition === 'DC' && 'Defensive Coordinator'}
-              {!currentDynasty.coachPosition && 'Head Coach'}
-            </span>
-            <span>•</span>
-            <span>{yearRange}</span>
-          </div>
-        </div>
+      {/* Coaching Stints - reverse order so current team is first */}
+      {[...coachingHistory].reverse().map((stint, index) => {
+        const stintColors = getTeamColorsFromName(stint.teamName)
+        const stintPrimaryText = getContrastTextColor(stintColors.primary)
+        const stintSecondaryText = getContrastTextColor(stintColors.secondary)
+        const stintLogo = getTeamLogo(stint.teamName)
+        // For current team, show "Present" instead of end year
+        const yearRange = stint.isCurrent
+          ? (stint.startYear === stint.endYear ? `${stint.startYear}` : `${stint.startYear} - Present`)
+          : (stint.startYear === stint.endYear ? `${stint.startYear}` : `${stint.startYear}-${stint.endYear}`)
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          {/* Overall Record */}
+        return (
           <div
-            className="text-center p-4 rounded-lg border-2"
+            key={`${stint.teamName}-${stint.startYear}`}
+            className="rounded-lg shadow-lg p-6"
             style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
+              backgroundColor: stintColors.primary,
+              border: `3px solid ${stintColors.secondary}`
             }}
           >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              Overall Record
+            {/* Team Header */}
+            <div className="flex items-center gap-4 mb-6">
+              {stintLogo && (
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: `3px solid ${stintColors.secondary}`,
+                    padding: '4px'
+                  }}
+                >
+                  <img
+                    src={stintLogo}
+                    alt={stint.teamName}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-2xl font-bold" style={{ color: stintPrimaryText }}>
+                    {stint.teamName}
+                  </h3>
+                  {stint.isCurrent && (
+                    <span
+                      className="text-xs font-bold px-2 py-0.5 rounded"
+                      style={{ backgroundColor: stintColors.secondary, color: stintSecondaryText }}
+                    >
+                      CURRENT
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm mt-1" style={{ color: stintPrimaryText, opacity: 0.8 }}>
+                  <span className="font-semibold">{getPositionLabel(stint.position)}</span>
+                  <span>|</span>
+                  <span>{yearRange}</span>
+                  {stint.conference && (
+                    <>
+                      <span>|</span>
+                      <span>{stint.conference}</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.overallRecord}
-            </div>
-          </div>
 
-          {/* As Favorite - Clickable */}
-          <div
-            className="text-center p-4 rounded-lg border-2 relative cursor-pointer hover:scale-105 transition-transform"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-            onClick={() => openGamesModal('favorite')}
-          >
-            <div className="text-xs font-semibold mb-1 flex items-center justify-center gap-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              As Favorite
-              <button
-                className="w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-80 cursor-help"
-                style={{ backgroundColor: primaryText, color: teamColors.primary }}
-                onMouseEnter={(e) => { e.stopPropagation(); setShowFavoriteTooltip(true) }}
-                onMouseLeave={(e) => { e.stopPropagation(); setShowFavoriteTooltip(false) }}
-                onClick={(e) => { e.stopPropagation(); setShowFavoriteTooltip(!showFavoriteTooltip) }}
-              >
-                ?
-              </button>
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.favoriteRecord}
-            </div>
-            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
-              Click to view games
-            </div>
-            {/* Tooltip */}
-            {showFavoriteTooltip && (
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* Overall Record */}
               <div
-                className="absolute z-50 p-3 rounded-lg shadow-lg text-left text-xs w-64 -translate-x-1/2 left-1/2"
+                className="text-center p-4 rounded-lg border-2"
                 style={{
-                  backgroundColor: teamColors.primary,
-                  color: primaryText,
-                  top: '100%',
-                  marginTop: '8px'
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
                 }}
               >
-                <div className="font-bold mb-1">How is this calculated?</div>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li>Ranked vs unranked: ranked team is favorite</li>
-                  <li>Both ranked: lower rank is favorite</li>
-                  <li>Both unranked: higher overall rating is favorite</li>
-                  <li>Home team gets +5 ranking or +3 overall boost</li>
-                </ul>
+                <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  Overall Record
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.overallRecord}
+                </div>
               </div>
-            )}
-          </div>
 
-          {/* As Underdog - Clickable */}
-          <div
-            className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-            onClick={() => openGamesModal('underdog')}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              As Underdog
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.underdogRecord}
-            </div>
-            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
-              Click to view games
-            </div>
-          </div>
+              {/* As Favorite - Clickable for all teams */}
+              <div
+                className="text-center p-4 rounded-lg border-2 relative cursor-pointer hover:scale-105 transition-transform"
+                style={{
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
+                }}
+                onClick={() => openGamesModal('favorite', stint.teamName)}
+              >
+                <div className="text-xs font-semibold mb-1 flex items-center justify-center gap-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  As Favorite
+                  {stint.isCurrent && (
+                    <button
+                      className="w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-80 cursor-help"
+                      style={{ backgroundColor: stintPrimaryText, color: stintColors.primary }}
+                      onMouseEnter={(e) => { e.stopPropagation(); setShowFavoriteTooltip(true) }}
+                      onMouseLeave={(e) => { e.stopPropagation(); setShowFavoriteTooltip(false) }}
+                      onClick={(e) => { e.stopPropagation(); setShowFavoriteTooltip(!showFavoriteTooltip) }}
+                    >
+                      ?
+                    </button>
+                  )}
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.favoriteRecord}
+                </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
+                </div>
+                {/* Tooltip - only show for current team */}
+                {stint.isCurrent && showFavoriteTooltip && (
+                  <div
+                    className="absolute z-50 p-3 rounded-lg shadow-lg text-left text-xs w-64 -translate-x-1/2 left-1/2"
+                    style={{
+                      backgroundColor: stintColors.primary,
+                      color: stintPrimaryText,
+                      top: '100%',
+                      marginTop: '8px'
+                    }}
+                  >
+                    <div className="font-bold mb-1">How is this calculated?</div>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>Ranked vs unranked: ranked team is favorite</li>
+                      <li>Both ranked: lower rank is favorite</li>
+                      <li>Both unranked: higher overall rating is favorite</li>
+                      <li>Home team gets +5 ranking or +3 overall boost</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
 
-          {/* Conference Championships */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              Conference Championships
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.confChampionships}
-            </div>
-          </div>
+              {/* As Underdog - Clickable for all teams */}
+              <div
+                className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
+                style={{
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
+                }}
+                onClick={() => openGamesModal('underdog', stint.teamName)}
+              >
+                <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  As Underdog
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.underdogRecord}
+                </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
+                </div>
+              </div>
 
-          {/* Playoff Appearances */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              Playoff Appearances
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.playoffAppearances}
-            </div>
-          </div>
+              {/* Conference Championships */}
+              <div
+                className="text-center p-4 rounded-lg border-2"
+                style={{
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
+                }}
+              >
+                <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  Conf. Championships
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.confChampionships || 0}
+                </div>
+              </div>
 
-          {/* National Championships */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              National Championships
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.nationalChampionships}
-            </div>
-          </div>
-
-          {/* First-Team All-Americans */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              First-Team All-Americans
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.firstTeamAllAmericans}
-            </div>
-          </div>
-
-          {/* Heisman Winners */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              Heisman Winners
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.heismanWinners}
-            </div>
-          </div>
-
-          {/* First-Round NFL Draft Picks */}
-          <div
-            className="text-center p-4 rounded-lg border-2"
-            style={{
-              backgroundColor: teamColors.secondary,
-              borderColor: primaryText
-            }}
-          >
-            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
-              1st-Round NFL Picks
-            </div>
-            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
-              {stats.firstRoundPicks}
+              {/* Playoff Appearances */}
+              <div
+                className="text-center p-4 rounded-lg border-2"
+                style={{
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
+                }}
+              >
+                <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  CFP Appearances
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.playoffAppearances || 0}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-      </div>
+        )
+      })}
 
       {/* Games Modal */}
       {showGamesModal && (
@@ -423,8 +575,7 @@ export default function CoachCareer() {
                   Games as {gamesModalType === 'favorite' ? 'Favorite' : 'Underdog'}
                 </h3>
                 <p className="text-sm mt-0.5 opacity-80" style={{ color: primaryText }}>
-                  {sortedGames.length} game{sortedGames.length !== 1 ? 's' : ''} •
-                  {gamesModalType === 'favorite' ? ` ${stats.favoriteRecord}` : ` ${stats.underdogRecord}`}
+                  {sortedGames.length} game{sortedGames.length !== 1 ? 's' : ''}
                 </p>
               </div>
               <button
@@ -467,7 +618,7 @@ export default function CoachCareer() {
                           const mascotName = getMascotName(game.opponent)
                           const opponentName = mascotName || teamAbbreviations[game.opponent]?.name || game.opponent
                           const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
-                          const isWin = game.result === 'win' || game.result === 'W'
+                          const gameIsWin = isWin(game)
 
                           return (
                             <Link
@@ -476,7 +627,7 @@ export default function CoachCareer() {
                               className="flex items-center justify-between p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
                               style={{
                                 backgroundColor: opponentColors.backgroundColor,
-                                borderColor: isWin ? '#86efac' : '#fca5a5'
+                                borderColor: gameIsWin ? '#86efac' : '#fca5a5'
                               }}
                             >
                               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -544,11 +695,11 @@ export default function CoachCareer() {
                                 <span
                                   className="text-xs font-bold px-2 py-1 rounded"
                                   style={{
-                                    backgroundColor: isWin ? '#16a34a' : '#dc2626',
+                                    backgroundColor: gameIsWin ? '#16a34a' : '#dc2626',
                                     color: '#FFFFFF'
                                   }}
                                 >
-                                  {isWin ? 'W' : 'L'}
+                                  {gameIsWin ? 'W' : 'L'}
                                 </span>
                                 <span
                                   className="font-bold text-sm"

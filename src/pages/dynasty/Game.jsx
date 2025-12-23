@@ -4,7 +4,7 @@ import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamColors } from '../../data/teamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getCurrentTeamRatings } from '../../context/DynastyContext'
 // useTeamColors not needed - using neutral colors for game recap
 import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -169,6 +169,8 @@ export default function Game() {
   const { id, gameId } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty } = useDynasty()
+  // Get team-centric team ratings
+  const teamRatings = getCurrentTeamRatings(currentDynasty)
   // Use neutral colors for game recap pages instead of user's team colors
   const teamColors = defaultColors
 
@@ -191,49 +193,72 @@ export default function Game() {
       const roundInfo = getCFPRoundInfo(slotId)
       const displayName = getCFPSlotDisplayName(slotId)
 
-      // Game should already be in games[] with this exact ID, but check cfpResultsByYear as fallback
-      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
+      // Define bowl name mappings
+      const qfBowlNames = {
+        cfpqf1: 'Sugar Bowl',
+        cfpqf2: 'Orange Bowl',
+        cfpqf3: 'Rose Bowl',
+        cfpqf4: 'Cotton Bowl'
+      }
+      const sfBowlNames = {
+        cfpsf1: 'Peach Bowl',
+        cfpsf2: 'Fiesta Bowl'
+      }
+      const frSeedMatchups = {
+        cfpfr1: [5, 12],
+        cfpfr2: [8, 9],
+        cfpfr3: [6, 11],
+        cfpfr4: [7, 10]
+      }
 
-      // Map slot to the correct game in cfpResultsByYear
-      // Must find by identifying info (seeds for FR, bowl name for QF/SF) since data may not be in slot order
+      // FIRST: Check games[] array for user's game with matching CFP properties
+      // User's CFP games are stored with unique IDs but have isCFPQuarterfinal, bowlName, etc.
+      if (slotId.startsWith('cfpfr')) {
+        const [seed1, seed2] = frSeedMatchups[slotId] || []
+        found = currentDynasty.games.find(g =>
+          g.isCFPFirstRound && Number(g.year) === year &&
+          ((g.seed1 === seed1 && g.seed2 === seed2) || (g.seed1 === seed2 && g.seed2 === seed1))
+        )
+        if (found) return found
+      } else if (slotId.startsWith('cfpqf')) {
+        const targetBowl = qfBowlNames[slotId]
+        found = currentDynasty.games.find(g =>
+          g.isCFPQuarterfinal && Number(g.year) === year && g.bowlName === targetBowl
+        )
+        if (found) return found
+      } else if (slotId.startsWith('cfpsf')) {
+        const targetBowl = sfBowlNames[slotId]
+        found = currentDynasty.games.find(g =>
+          g.isCFPSemifinal && Number(g.year) === year && g.bowlName === targetBowl
+        )
+        if (found) return found
+      } else if (slotId === 'cfpnc') {
+        found = currentDynasty.games.find(g =>
+          g.isCFPChampionship && Number(g.year) === year
+        )
+        if (found) return found
+      }
+
+      // FALLBACK: Check cfpResultsByYear for CPU vs CPU games
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
       let cfpGame = null
 
       if (slotId.startsWith('cfpfr')) {
-        // First Round: find by seed matchup
-        const seedMatchups = {
-          cfpfr1: [5, 12],
-          cfpfr2: [8, 9],
-          cfpfr3: [6, 11],
-          cfpfr4: [7, 10]
-        }
-        const [seed1, seed2] = seedMatchups[slotId] || []
+        const [seed1, seed2] = frSeedMatchups[slotId] || []
         const frGames = cfpResults.firstRound || []
         cfpGame = frGames.find(g => g && (
           (g.seed1 === seed1 && g.seed2 === seed2) ||
           (g.seed1 === seed2 && g.seed2 === seed1)
         ))
       } else if (slotId.startsWith('cfpqf')) {
-        // Quarterfinals: find by bowl name
-        const bowlNames = {
-          cfpqf1: 'Sugar Bowl',
-          cfpqf2: 'Orange Bowl',
-          cfpqf3: 'Rose Bowl',
-          cfpqf4: 'Cotton Bowl'
-        }
-        const targetBowl = bowlNames[slotId]
+        const targetBowl = qfBowlNames[slotId]
         const qfGames = cfpResults.quarterfinals || []
         cfpGame = qfGames.find(g => g && g.bowlName === targetBowl)
       } else if (slotId.startsWith('cfpsf')) {
-        // Semifinals: find by bowl name
-        const bowlNames = {
-          cfpsf1: 'Peach Bowl',
-          cfpsf2: 'Fiesta Bowl'
-        }
-        const targetBowl = bowlNames[slotId]
+        const targetBowl = sfBowlNames[slotId]
         const sfGames = cfpResults.semifinals || []
         cfpGame = sfGames.find(g => g && g.bowlName === targetBowl)
       } else if (slotId === 'cfpnc') {
-        // Championship is stored as array with one element for compatibility
         const champArray = cfpResults.championship || []
         cfpGame = Array.isArray(champArray) ? champArray[0] : champArray
       }
@@ -649,8 +674,7 @@ export default function Game() {
             <Link to={`/dynasty/${id}/team/${leftData.abbr}/${game.year}`} className="group flex-1">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div
-                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0"
-                  style={{ backgroundColor: leftData.colors.primary }}
+                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0 bg-white"
                 >
                   {leftData.logo && (
                     <img src={leftData.logo} alt={leftData.name} className="w-full h-full object-contain" />
@@ -705,8 +729,7 @@ export default function Game() {
                   )}
                 </div>
                 <div
-                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0"
-                  style={{ backgroundColor: rightData.colors.primary }}
+                  className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0 bg-white"
                 >
                   {rightData.logo && (
                     <img src={rightData.logo} alt={rightData.name} className="w-full h-full object-contain" />
@@ -751,8 +774,7 @@ export default function Game() {
                       <td className="py-3 px-3 sm:px-4">
                         <div className="flex items-center gap-2 sm:gap-3">
                           <div
-                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0"
-                            style={{ backgroundColor: team.colors.primary }}
+                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0 bg-white"
                           >
                             {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                           </div>
@@ -800,15 +822,14 @@ export default function Game() {
                   const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
                   const ratings = isOpponent
                     ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
-                    : { ovr: currentDynasty.teamRatings?.overall, off: currentDynasty.teamRatings?.offense, def: currentDynasty.teamRatings?.defense }
+                    : { ovr: teamRatings?.overall, off: teamRatings?.offense, def: teamRatings?.defense }
 
                   if (!ratings.ovr && !ratings.off && !ratings.def) return null
 
                   return (
                     <div key={idx} className="flex items-center gap-3">
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0"
-                        style={{ backgroundColor: team.colors.primary }}
+                        className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white"
                       >
                         {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                       </div>

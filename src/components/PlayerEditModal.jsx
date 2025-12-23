@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
-import { teams } from '../data/teams'
 
 export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool, dynasty }) {
   const [formData, setFormData] = useState({})
@@ -450,112 +449,55 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
 
-  // Collapsible Section Component
-  const Section = ({ id, title, icon, children, defaultExpanded = false }) => {
-    const isExpanded = expandedSections.includes(id)
-    return (
-      <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
-        <button
-          type="button"
-          onClick={() => toggleSection(id)}
-          className="w-full px-4 py-3 flex items-center justify-between transition-colors"
-          style={{ backgroundColor: isExpanded ? teamColors.primary : `${teamColors.primary}15` }}
-        >
-          <div className="flex items-center gap-3">
-            <span style={{ color: isExpanded ? primaryText : teamColors.primary }}>{icon}</span>
-            <span className="font-bold" style={{ color: isExpanded ? primaryText : teamColors.primary }}>{title}</span>
-          </div>
-          <svg
-            className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke={isExpanded ? primaryText : teamColors.primary}
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {isExpanded && (
-          <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
-            {children}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Clean Input Component
-  const Input = ({ label, name, type = "number", placeholder = "", wide = false }) => (
-    <div className={wide ? "col-span-2" : ""}>
-      <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        name={name}
-        value={formData[name] ?? ''}
-        onChange={handleChange}
-        placeholder={placeholder}
-        className="w-full px-3 py-2.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 transition-all"
-        style={{
-          borderColor: `${teamColors.primary}40`,
-          backgroundColor: '#ffffff',
-          color: '#1f2937'
-        }}
-      />
-    </div>
-  )
-
-  // Clean Select Component
-  const Select = ({ label, name, options, placeholder = "Select...", wide = false }) => (
-    <div className={wide ? "col-span-2" : ""}>
-      <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
-        {label}
-      </label>
-      <select
-        name={name}
-        value={formData[name] ?? ''}
-        onChange={handleChange}
-        className="w-full px-3 py-2.5 rounded-lg border-2 text-sm focus:outline-none focus:ring-2 transition-all appearance-none bg-white"
-        style={{
-          borderColor: `${teamColors.primary}40`,
-          color: '#1f2937',
-          backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-          backgroundPosition: 'right 0.5rem center',
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '1.5em 1.5em',
-          paddingRight: '2.5rem'
-        }}
-      >
-        <option value="">{placeholder}</option>
-        {Array.isArray(options) ? options.map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
-        )) : Object.entries(options).map(([group, opts]) => (
-          <optgroup key={group} label={group}>
-            {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-          </optgroup>
-        ))}
-      </select>
-    </div>
-  )
-
   const positions = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
   const classes = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
   const devTraits = ['Elite', 'Star', 'Impact', 'Normal']
   const states = ['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC']
 
-  const archetypes = {
-    'Quarterbacks': ['Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner'],
-    'Halfbacks': ['Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker'],
-    'Fullbacks': ['Blocking', 'Utility'],
-    'Wide Receivers': ['Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster'],
-    'Tight Ends': ['Gritty Possession', 'Physical Route Runner', 'Possession', 'Pure Blocker', 'Vertical Threat'],
-    'Offensive Line': ['Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded'],
-    'Defensive Line': ['Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher'],
-    'Linebackers': ['Lurker', 'Signal Caller', 'Thumper'],
-    'Cornerbacks': ['Boundary', 'Field', 'Zone'],
-    'Safeties': ['Box Specialist', 'Coverage Specialist', 'Hybrid'],
-    'Kickers & Punters': ['Accurate', 'Power']
+  const archetypeOptions = [
+    'Backfield Creator', 'Dual Threat', 'Pocket Passer', 'Pure Runner',
+    'Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker',
+    'Blocking', 'Utility',
+    'Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster',
+    'Possession', 'Pure Blocker', 'Vertical Threat',
+    'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
+    'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
+    'Lurker', 'Signal Caller', 'Thumper',
+    'Boundary', 'Field', 'Zone',
+    'Box Specialist', 'Coverage Specialist', 'Hybrid',
+    'Accurate', 'Power'
+  ]
+
+  const inputStyle = {
+    borderColor: `${teamColors.primary}40`,
+    backgroundColor: '#ffffff',
+    color: '#1f2937'
   }
+
+  const labelStyle = { color: secondaryText, opacity: 0.7 }
+
+  // Check if section is expanded
+  const isExpanded = (id) => expandedSections.includes(id)
+
+  // Render a collapsible section header
+  const renderSectionHeader = (id, title) => (
+    <button
+      type="button"
+      onClick={() => toggleSection(id)}
+      className="w-full px-4 py-3 flex items-center justify-between transition-colors rounded-lg"
+      style={{ backgroundColor: isExpanded(id) ? teamColors.primary : `${teamColors.primary}15` }}
+    >
+      <span className="font-bold" style={{ color: isExpanded(id) ? primaryText : teamColors.primary }}>{title}</span>
+      <svg
+        className={`w-5 h-5 transition-transform ${isExpanded(id) ? 'rotate-180' : ''}`}
+        fill="none"
+        stroke={isExpanded(id) ? primaryText : teamColors.primary}
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  )
 
   return (
     <div
@@ -621,7 +563,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               style={{ backgroundColor: `${teamColors.secondary}20` }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium" style={{ color: primaryText }}>Editing:</span>
+                <span className="text-sm font-medium" style={{ color: primaryText }}>Stats Year:</span>
                 <select
                   value={selectedStatsYear || ''}
                   onChange={(e) => handleYearChange(parseInt(e.target.value))}
@@ -629,12 +571,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                   style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
                 >
                   {availableYears.map(year => (
-                    <option key={year} value={year}>{year} Season</option>
+                    <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
               </div>
               <p className="text-xs" style={{ color: primaryText, opacity: 0.8 }}>
-                Stats & awards apply to this season.
+                Stats apply to selected season
               </p>
             </div>
           </div>
@@ -643,323 +585,573 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
 
             {/* Basic Information */}
-            <Section
-              id="basic"
-              title="Basic Information"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-            >
-              <div className="space-y-4">
-                {/* Picture URL */}
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
-                    Picture URL
-                  </label>
-                  <input
-                    type="text"
-                    name="pictureUrl"
-                    value={formData.pictureUrl ?? ''}
-                    onChange={handleChange}
-                    placeholder="https://i.imgur.com/..."
-                    className="w-full px-3 py-2.5 rounded-lg border-2 text-sm"
-                    style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
-                  />
-                </div>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('basic', 'Basic Information')}
+              {isExpanded('basic') && (
+                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+                  {/* Picture URL */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Picture URL</label>
+                    <input
+                      type="text"
+                      name="pictureUrl"
+                      value={formData.pictureUrl ?? ''}
+                      onChange={handleChange}
+                      placeholder="https://i.imgur.com/..."
+                      className="w-full px-3 py-2.5 rounded-lg border-2 text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Input label="Name" name="name" type="text" wide />
-                  <Input label="Jersey #" name="jerseyNumber" type="text" />
-                  <Input label="Overall" name="overall" />
-                </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Name</label>
+                      <input type="text" name="name" value={formData.name ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Jersey #</label>
+                      <input type="text" name="jerseyNumber" value={formData.jerseyNumber ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Overall</label>
+                      <input type="text" name="overall" value={formData.overall ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Select label="Position" name="position" options={positions} />
-                  <Select label="Archetype" name="archetype" options={archetypes} />
-                  <Select label="Class" name="year" options={classes} />
-                  <Select label="Dev Trait" name="devTrait" options={devTraits} />
-                </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Position</label>
+                      <select name="position" value={formData.position ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        {positions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Archetype</label>
+                      <select name="archetype" value={formData.archetype ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        {archetypeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Class</label>
+                      <select name="year" value={formData.year ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        {classes.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Dev Trait</label>
+                      <select name="devTrait" value={formData.devTrait ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        {devTraits.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Input label="Height" name="height" type="text" placeholder="6'2&quot;" />
-                  <Input label="Weight" name="weight" placeholder="220" />
-                  <Input label="Hometown" name="hometown" type="text" />
-                  <Select label="State" name="state" options={states} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Height</label>
+                      <input type="text" name="height" value={formData.height ?? ''} onChange={handleChange} placeholder="6'2&quot;" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Weight</label>
+                      <input type="text" name="weight" value={formData.weight ?? ''} onChange={handleChange} placeholder="220" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Hometown</label>
+                      <input type="text" name="hometown" value={formData.hometown ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>State</label>
+                      <select name="state" value={formData.state ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        {states.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Section>
+              )}
+            </div>
 
             {/* Recruiting & Development */}
-            <Section
-              id="recruiting"
-              title="Recruiting & Development"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>}
-            >
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <Input label="Recruit Year" name="yearStarted" type="text" placeholder="2024" />
-                  <Input label="Stars" name="stars" />
-                  <Input label="Pos Rank" name="positionRank" />
-                  <Input label="State Rank" name="stateRank" />
-                  <Input label="Nat'l Rank" name="nationalRank" />
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('recruiting', 'Recruiting & Development')}
+              {isExpanded('recruiting') && (
+                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Recruit Year</label>
+                      <input type="text" name="yearStarted" value={formData.yearStarted ?? ''} onChange={handleChange} placeholder="2024" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Stars</label>
+                      <input type="text" name="stars" value={formData.stars ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Pos Rank</label>
+                      <input type="text" name="positionRank" value={formData.positionRank ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>State Rank</label>
+                      <input type="text" name="stateRank" value={formData.stateRank ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Nat'l Rank</label>
+                      <input type="text" name="nationalRank" value={formData.nationalRank ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Gem/Bust</label>
+                      <select name="gemBust" value={formData.gemBust ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Neither</option>
+                        <option value="Gem">Gem</option>
+                        <option value="Bust">Bust</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>OVR Progression</label>
+                      <input type="text" name="overallProgression" value={formData.overallProgression ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>OVR Change</label>
+                      <input type="text" name="overallRatingChange" value={formData.overallRatingChange ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Transfer From</label>
+                      <input type="text" name="previousTeam" value={formData.previousTeam ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Select label="Gem/Bust" name="gemBust" options={['', 'Gem', 'Bust']} placeholder="Neither" />
-                  <Input label="OVR Progression" name="overallProgression" type="text" />
-                  <Input label="OVR Change" name="overallRatingChange" type="text" />
-                  <Input label="Transfer From" name="previousTeam" type="text" />
-                </div>
-              </div>
-            </Section>
+              )}
+            </div>
 
             {/* Accolades */}
-            <Section
-              id="accolades"
-              title="Accolades"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Input label="Conf POW" name="confPOW" />
-                <Input label="Nat'l POW" name="nationalPOW" />
-                <Input label="All-Conf 1st" name="allConf1st" />
-                <Input label="All-Conf 2nd" name="allConf2nd" />
-                <Input label="All-Am 1st" name="allAm1st" />
-                <Input label="All-Am 2nd" name="allAm2nd" />
-                <Input label="Fr All-Conf" name="allConfFr" />
-                <Input label="Fr All-Am" name="allAmFr" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('accolades', 'Accolades')}
+              {isExpanded('accolades') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Conf POW</label>
+                      <input type="text" name="confPOW" value={formData.confPOW ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Nat'l POW</label>
+                      <input type="text" name="nationalPOW" value={formData.nationalPOW ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>All-Conf 1st</label>
+                      <input type="text" name="allConf1st" value={formData.allConf1st ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>All-Conf 2nd</label>
+                      <input type="text" name="allConf2nd" value={formData.allConf2nd ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>All-Am 1st</label>
+                      <input type="text" name="allAm1st" value={formData.allAm1st ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>All-Am 2nd</label>
+                      <input type="text" name="allAm2nd" value={formData.allAm2nd ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Fr All-Conf</label>
+                      <input type="text" name="allConfFr" value={formData.allConfFr ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Fr All-Am</label>
+                      <input type="text" name="allAmFr" value={formData.allAmFr ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
-            {/* Game Log for Selected Year */}
-            <Section
-              id="gamelog"
-              title={`Game Log (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Games Played" name="gamesPlayed" />
-                <Input label="Snaps Played" name="snapsPlayed" />
-              </div>
-            </Section>
+            {/* Game Log */}
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('gamelog', `Game Log (${selectedStatsYear})`)}
+              {isExpanded('gamelog') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Games Played</label>
+                      <input type="text" name="gamesPlayed" value={formData.gamesPlayed ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Snaps Played</label>
+                      <input type="text" name="snapsPlayed" value={formData.snapsPlayed ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Passing Stats */}
-            <Section
-              id="passing"
-              title={`Passing (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Input label="Completions" name="passing_completions" />
-                <Input label="Attempts" name="passing_attempts" />
-                <Input label="Yards" name="passing_yards" />
-                <Input label="TDs" name="passing_touchdowns" />
-                <Input label="INTs" name="passing_interceptions" />
-                <Input label="Long" name="passing_passingLong" />
-                <Input label="Sacks" name="passing_sacksTaken" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('passing', `Passing (${selectedStatsYear})`)}
+              {isExpanded('passing') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Completions</label>
+                      <input type="text" name="passing_completions" value={formData.passing_completions ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Attempts</label>
+                      <input type="text" name="passing_attempts" value={formData.passing_attempts ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                      <input type="text" name="passing_yards" value={formData.passing_yards ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TDs</label>
+                      <input type="text" name="passing_touchdowns" value={formData.passing_touchdowns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>INTs</label>
+                      <input type="text" name="passing_interceptions" value={formData.passing_interceptions ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                      <input type="text" name="passing_passingLong" value={formData.passing_passingLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Sacks</label>
+                      <input type="text" name="passing_sacksTaken" value={formData.passing_sacksTaken ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Rushing Stats */}
-            <Section
-              id="rushing"
-              title={`Rushing (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Input label="Carries" name="rushing_carries" />
-                <Input label="Yards" name="rushing_yards" />
-                <Input label="TDs" name="rushing_touchdowns" />
-                <Input label="Long" name="rushing_rushingLong" />
-                <Input label="Fumbles" name="rushing_fumbles" />
-                <Input label="Broken Tackles" name="rushing_brokenTackles" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('rushing', `Rushing (${selectedStatsYear})`)}
+              {isExpanded('rushing') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Carries</label>
+                      <input type="text" name="rushing_carries" value={formData.rushing_carries ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                      <input type="text" name="rushing_yards" value={formData.rushing_yards ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TDs</label>
+                      <input type="text" name="rushing_touchdowns" value={formData.rushing_touchdowns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                      <input type="text" name="rushing_rushingLong" value={formData.rushing_rushingLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Fumbles</label>
+                      <input type="text" name="rushing_fumbles" value={formData.rushing_fumbles ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Broken Tackles</label>
+                      <input type="text" name="rushing_brokenTackles" value={formData.rushing_brokenTackles ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Receiving Stats */}
-            <Section
-              id="receiving"
-              title={`Receiving (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Input label="Receptions" name="receiving_receptions" />
-                <Input label="Yards" name="receiving_yards" />
-                <Input label="TDs" name="receiving_touchdowns" />
-                <Input label="Long" name="receiving_receivingLong" />
-                <Input label="Drops" name="receiving_drops" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('receiving', `Receiving (${selectedStatsYear})`)}
+              {isExpanded('receiving') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Receptions</label>
+                      <input type="text" name="receiving_receptions" value={formData.receiving_receptions ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                      <input type="text" name="receiving_yards" value={formData.receiving_yards ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TDs</label>
+                      <input type="text" name="receiving_touchdowns" value={formData.receiving_touchdowns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                      <input type="text" name="receiving_receivingLong" value={formData.receiving_receivingLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Drops</label>
+                      <input type="text" name="receiving_drops" value={formData.receiving_drops ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Blocking Stats */}
-            <Section
-              id="blocking"
-              title={`Blocking (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Sacks Allowed" name="blocking_sacksAllowed" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('blocking', `Blocking (${selectedStatsYear})`)}
+              {isExpanded('blocking') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Sacks Allowed</label>
+                      <input type="text" name="blocking_sacksAllowed" value={formData.blocking_sacksAllowed ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Defensive Stats */}
-            <Section
-              id="defensive"
-              title={`Defense (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Input label="Solo Tackles" name="defensive_soloTackles" />
-                <Input label="Asst Tackles" name="defensive_assistedTackles" />
-                <Input label="TFL" name="defensive_tacklesForLoss" />
-                <Input label="Sacks" name="defensive_sacks" />
-                <Input label="INTs" name="defensive_interceptions" />
-                <Input label="INT Yards" name="defensive_intReturnYards" />
-                <Input label="Def TDs" name="defensive_defensiveTDs" />
-                <Input label="Pass Def" name="defensive_deflections" />
-                <Input label="Forced Fum" name="defensive_forcedFumbles" />
-                <Input label="Fum Rec" name="defensive_fumbleRecoveries" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('defensive', `Defense (${selectedStatsYear})`)}
+              {isExpanded('defensive') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Solo Tackles</label>
+                      <input type="text" name="defensive_soloTackles" value={formData.defensive_soloTackles ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Asst Tackles</label>
+                      <input type="text" name="defensive_assistedTackles" value={formData.defensive_assistedTackles ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TFL</label>
+                      <input type="text" name="defensive_tacklesForLoss" value={formData.defensive_tacklesForLoss ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Sacks</label>
+                      <input type="text" name="defensive_sacks" value={formData.defensive_sacks ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>INTs</label>
+                      <input type="text" name="defensive_interceptions" value={formData.defensive_interceptions ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>INT Yards</label>
+                      <input type="text" name="defensive_intReturnYards" value={formData.defensive_intReturnYards ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Def TDs</label>
+                      <input type="text" name="defensive_defensiveTDs" value={formData.defensive_defensiveTDs ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Pass Def</label>
+                      <input type="text" name="defensive_deflections" value={formData.defensive_deflections ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Forced Fum</label>
+                      <input type="text" name="defensive_forcedFumbles" value={formData.defensive_forcedFumbles ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Fum Rec</label>
+                      <input type="text" name="defensive_fumbleRecoveries" value={formData.defensive_fumbleRecoveries ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Kicking Stats */}
-            <Section
-              id="kicking"
-              title={`Kicking (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="2"/></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Input label="FG Made" name="kicking_fgMade" />
-                <Input label="FG Att" name="kicking_fgAttempted" />
-                <Input label="FG Long" name="kicking_fgLong" />
-                <Input label="XP Made" name="kicking_xpMade" />
-                <Input label="XP Att" name="kicking_xpAttempted" />
-              </div>
-            </Section>
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('kicking', `Kicking (${selectedStatsYear})`)}
+              {isExpanded('kicking') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>FG Made</label>
+                      <input type="text" name="kicking_fgMade" value={formData.kicking_fgMade ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>FG Att</label>
+                      <input type="text" name="kicking_fgAttempted" value={formData.kicking_fgAttempted ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>FG Long</label>
+                      <input type="text" name="kicking_fgLong" value={formData.kicking_fgLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>XP Made</label>
+                      <input type="text" name="kicking_xpMade" value={formData.kicking_xpMade ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>XP Att</label>
+                      <input type="text" name="kicking_xpAttempted" value={formData.kicking_xpAttempted ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Punting Stats */}
-            <Section
-              id="punting"
-              title={`Punting (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>}
-            >
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Input label="Punts" name="punting_punts" />
-                <Input label="Yards" name="punting_puntingYards" />
-                <Input label="Inside 20" name="punting_puntsInside20" />
-                <Input label="Long" name="punting_puntLong" />
-              </div>
-            </Section>
-
-            {/* Return Stats */}
-            <Section
-              id="returns"
-              title={`Returns (${selectedStatsYear})`}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>}
-            >
-              <div className="space-y-3">
-                <p className="text-xs font-medium" style={{ color: secondaryText, opacity: 0.6 }}>Kick Returns</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Input label="Returns" name="kickReturn_returns" />
-                  <Input label="Yards" name="kickReturn_returnYardage" />
-                  <Input label="TDs" name="kickReturn_touchdowns" />
-                  <Input label="Long" name="kickReturn_returnLong" />
-                </div>
-                <p className="text-xs font-medium pt-2" style={{ color: secondaryText, opacity: 0.6 }}>Punt Returns</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Input label="Returns" name="puntReturn_returns" />
-                  <Input label="Yards" name="puntReturn_returnYardage" />
-                  <Input label="TDs" name="puntReturn_touchdowns" />
-                  <Input label="Long" name="puntReturn_returnLong" />
-                </div>
-              </div>
-            </Section>
-
-            {/* Notes */}
-            <Section
-              id="notes"
-              title="Notes & Media"
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: secondaryText, opacity: 0.7 }}>
-                    Notes
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes ?? ''}
-                    onChange={handleChange}
-                    placeholder="Add notes about this player..."
-                    rows={3}
-                    className="w-full px-3 py-2.5 rounded-lg border-2 text-sm resize-y"
-                    style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
-                  />
-                </div>
-
-                {/* Links */}
-                <div>
-                  <label className="block text-xs font-medium mb-2" style={{ color: secondaryText, opacity: 0.7 }}>
-                    Links
-                  </label>
-                  {formData.links?.length > 0 && (
-                    <div className="space-y-2 mb-3">
-                      {formData.links.map((link, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={link.title || ''}
-                            onChange={(e) => {
-                              const newLinks = [...formData.links]
-                              newLinks[index] = { ...newLinks[index], title: e.target.value }
-                              setFormData(prev => ({ ...prev, links: newLinks }))
-                            }}
-                            placeholder="Title"
-                            className="flex-1 px-3 py-2 rounded-lg border-2 text-sm"
-                            style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
-                          />
-                          <input
-                            type="text"
-                            value={link.url || ''}
-                            onChange={(e) => {
-                              const newLinks = [...formData.links]
-                              newLinks[index] = { ...newLinks[index], url: e.target.value }
-                              setFormData(prev => ({ ...prev, links: newLinks }))
-                            }}
-                            placeholder="URL"
-                            className="flex-[2] px-3 py-2 rounded-lg border-2 text-sm"
-                            style={{ borderColor: `${teamColors.primary}40`, backgroundColor: '#ffffff' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newLinks = formData.links.filter((_, i) => i !== index)
-                              setFormData(prev => ({ ...prev, links: newLinks }))
-                            }}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('punting', `Punting (${selectedStatsYear})`)}
+              {isExpanded('punting') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Punts</label>
+                      <input type="text" name="punting_punts" value={formData.punting_punts ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
                     </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newLinks = [...(formData.links || []), { title: '', url: '' }]
-                      setFormData(prev => ({ ...prev, links: newLinks }))
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Link
-                  </button>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                      <input type="text" name="punting_puntingYards" value={formData.punting_puntingYards ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Inside 20</label>
+                      <input type="text" name="punting_puntsInside20" value={formData.punting_puntsInside20 ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                      <input type="text" name="punting_puntLong" value={formData.punting_puntLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Section>
+              )}
+            </div>
+
+            {/* Returns Stats */}
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('returns', `Returns (${selectedStatsYear})`)}
+              {isExpanded('returns') && (
+                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div>
+                    <p className="text-xs font-medium mb-2" style={labelStyle}>Kick Returns</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Returns</label>
+                        <input type="text" name="kickReturn_returns" value={formData.kickReturn_returns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                        <input type="text" name="kickReturn_returnYardage" value={formData.kickReturn_returnYardage ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TDs</label>
+                        <input type="text" name="kickReturn_touchdowns" value={formData.kickReturn_touchdowns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                        <input type="text" name="kickReturn_returnLong" value={formData.kickReturn_returnLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium mb-2" style={labelStyle}>Punt Returns</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Returns</label>
+                        <input type="text" name="puntReturn_returns" value={formData.puntReturn_returns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Yards</label>
+                        <input type="text" name="puntReturn_returnYardage" value={formData.puntReturn_returnYardage ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>TDs</label>
+                        <input type="text" name="puntReturn_touchdowns" value={formData.puntReturn_touchdowns ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Long</label>
+                        <input type="text" name="puntReturn_returnLong" value={formData.puntReturn_returnLong ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes & Media */}
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('notes', 'Notes & Media')}
+              {isExpanded('notes') && (
+                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Notes</label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes ?? ''}
+                      onChange={handleChange}
+                      placeholder="Add notes about this player..."
+                      rows={3}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 text-sm resize-y"
+                      style={inputStyle}
+                    />
+                  </div>
+
+                  {/* Links */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2" style={labelStyle}>Links</label>
+                    {formData.links?.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {formData.links.map((link, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={link.title || ''}
+                              onChange={(e) => {
+                                const newLinks = [...formData.links]
+                                newLinks[index] = { ...newLinks[index], title: e.target.value }
+                                setFormData(prev => ({ ...prev, links: newLinks }))
+                              }}
+                              placeholder="Title"
+                              className="flex-1 px-3 py-2 rounded-lg border-2 text-sm"
+                              style={inputStyle}
+                            />
+                            <input
+                              type="text"
+                              value={link.url || ''}
+                              onChange={(e) => {
+                                const newLinks = [...formData.links]
+                                newLinks[index] = { ...newLinks[index], url: e.target.value }
+                                setFormData(prev => ({ ...prev, links: newLinks }))
+                              }}
+                              placeholder="URL"
+                              className="flex-[2] px-3 py-2 rounded-lg border-2 text-sm"
+                              style={inputStyle}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newLinks = formData.links.filter((_, i) => i !== index)
+                                setFormData(prev => ({ ...prev, links: newLinks }))
+                              }}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLinks = [...(formData.links || []), { title: '', url: '' }]
+                        setFormData(prev => ({ ...prev, links: newLinks }))
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add Link
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
           </div>
 

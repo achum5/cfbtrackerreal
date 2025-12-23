@@ -39,8 +39,8 @@ export const bowlLogos = {
   "Texas Bowl": "https://i.imgur.com/g30Jyaw.png",
   "Xbox Bowl": "https://i.imgur.com/by2uPWl.png",
   // CFP Bowl Games
-  "Peach Bowl": "https://i.imgur.com/JdQVx3g.png",
-  "Fiesta Bowl": "https://i.imgur.com/Z3wYxRo.png",
+  "Peach Bowl": "https://i.imgur.com/LqUMqQ4.png",
+  "Fiesta Bowl": "https://i.imgur.com/Fwx8H4K.png",
   "National Championship": "https://i.imgur.com/DjoLqsP.png"
 }
 
