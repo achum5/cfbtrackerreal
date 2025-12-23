@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
-import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getTeamLogo } from '../../data/teams'
@@ -163,13 +161,9 @@ const getMascotName = (abbr) => {
 export default function Teams() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [searchQuery, setSearchQuery] = useState('')
 
   if (!currentDynasty) return null
-
-  const primaryBgText = getContrastTextColor(teamColors.primary)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   // Get all teams with their info, sorted alphabetically by mascot name
   const allTeams = Object.entries(teamAbbreviations).map(([abbr, team]) => ({
@@ -200,34 +194,22 @@ export default function Teams() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
-        <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+      <div className="rounded-lg shadow-lg p-6 bg-gray-800 border-2 border-gray-600">
+        <h1 className="text-2xl font-bold text-white">
           All Teams
         </h1>
-        <p className="mt-1" style={{ color: secondaryBgText, opacity: 0.8 }}>
+        <p className="mt-1 text-gray-300">
           Browse all {allTeams.length} FBS teams
         </p>
       </div>
 
       {/* Search */}
-      <div
-        className="rounded-lg shadow-lg p-4"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
+      <div className="rounded-lg shadow-lg p-4 bg-gray-800 border-2 border-gray-600">
         <div className="relative">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
             fill="none"
-            stroke={teamColors.primary}
+            stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -237,17 +219,12 @@ export default function Teams() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search teams by name or abbreviation..."
-            className="w-full pl-10 pr-4 py-3 rounded-lg border-2 font-semibold text-lg"
-            style={{
-              borderColor: teamColors.primary,
-              backgroundColor: 'white'
-            }}
+            className="w-full pl-10 pr-4 py-3 rounded-lg border-2 border-gray-500 bg-white font-semibold text-lg"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:opacity-70"
-              style={{ color: teamColors.primary }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:opacity-70 text-gray-600"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -256,20 +233,14 @@ export default function Teams() {
           )}
         </div>
         {searchQuery && (
-          <p className="mt-2 text-sm font-semibold" style={{ color: secondaryBgText, opacity: 0.7 }}>
+          <p className="mt-2 text-sm font-semibold text-gray-400">
             {filteredTeams.length} team{filteredTeams.length !== 1 ? 's' : ''} found
           </p>
         )}
       </div>
 
       {/* Teams Grid */}
-      <div
-        className="rounded-lg shadow-lg overflow-hidden"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
+      <div className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600">
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {filteredTeams.map(team => {
             const logo = team.mascotName ? getTeamLogo(team.mascotName) : null
@@ -310,14 +281,8 @@ export default function Teams() {
       </div>
 
       {filteredTeams.length === 0 && (
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{
-            backgroundColor: teamColors.secondary,
-            border: `3px solid ${teamColors.primary}`
-          }}
-        >
-          <p style={{ color: secondaryBgText, opacity: 0.7 }}>
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <p className="text-gray-400">
             No teams found matching "{searchQuery}"
           </p>
         </div>

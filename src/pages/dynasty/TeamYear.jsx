@@ -292,8 +292,28 @@ export default function TeamYear() {
     .sort((a, b) => a.week - b.week)
 
   // Get user's team record for this year (if viewing user's team page)
+  // Sort by game phase order: regular season (1-14), CC (15), CFP R1 (16), CFP QF (17), CFP SF (18), CFP Champ (19), other bowls (20)
+  const getGameSortOrder = (game) => {
+    // Regular season games
+    if (!game.isConferenceChampionship && !game.isBowlGame && !game.isPlayoff &&
+        !game.isCFPFirstRound && !game.isCFPQuarterfinal && !game.isCFPSemifinal && !game.isCFPChampionship) {
+      return game.week || 0
+    }
+    // Conference Championship
+    if (game.isConferenceChampionship) return 15
+    // CFP games in order
+    if (game.isCFPFirstRound) return 16
+    if (game.isCFPQuarterfinal) return 17
+    if (game.isCFPSemifinal) return 18
+    if (game.isCFPChampionship) return 19
+    // Other bowl games (non-CFP)
+    if (game.isBowlGame) return 20
+    // Fallback for other playoff games
+    if (game.isPlayoff) return 20 + (game.week || 0)
+    return 99
+  }
   const userYearGames = isUserTeam
-    ? (currentDynasty.games || []).filter(g => Number(g.year) === Number(selectedYear) && !g.isCPUGame).sort((a, b) => a.week - b.week)
+    ? (currentDynasty.games || []).filter(g => Number(g.year) === Number(selectedYear) && !g.isCPUGame).sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
     : []
   // Check for both 'win'/'loss' and 'W'/'L' formats
   const userWins = userYearGames.filter(g => g.result === 'win' || g.result === 'W').length
@@ -398,18 +418,19 @@ export default function TeamYear() {
 
   // Get CFP results for this team in this year from cfpResultsByYear
   const cfpResults = currentDynasty.cfpResultsByYear?.[selectedYear] || {}
+  // Add round information to each game as we combine them
   const allCFPGames = [
-    ...(cfpResults.firstRound || []),
-    ...(cfpResults.quarterfinals || []),
-    ...(cfpResults.semifinals || []),
-    ...(cfpResults.championship || [])
+    ...(cfpResults.firstRound || []).map(g => ({ ...g, round: 1 })),
+    ...(cfpResults.quarterfinals || []).map(g => ({ ...g, round: 2 })),
+    ...(cfpResults.semifinals || []).map(g => ({ ...g, round: 3 })),
+    ...(cfpResults.championship || []).map(g => ({ ...g, round: 4 }))
   ]
 
   // Find all CFP games involving this team
   const teamCFPGamesFromResults = allCFPGames.filter(game =>
     (game.team1 === teamAbbr || game.team2 === teamAbbr) &&
     game.team1Score !== null && game.team2Score !== null
-  )
+  ).sort((a, b) => a.round - b.round)
 
   // Determine CFP result for this team
   const getCFPResult = () => {
@@ -599,8 +620,8 @@ export default function TeamYear() {
       })
     }
 
-    // Add CFP games
-    teamCFPGames.forEach((game, idx) => {
+    // Add CFP games (use teamCFPGamesFromResults from cfpResultsByYear, not legacy teamCFPGames)
+    teamCFPGamesFromResults.forEach((game, idx) => {
       const isTeam1 = game.team1 === teamAbbr
       const opponent = isTeam1 ? game.team2 : game.team1
       const thisTeamWon = (isTeam1 && game.team1Score > game.team2Score) ||
@@ -637,8 +658,11 @@ export default function TeamYear() {
       })
     })
 
-    // Add bowl game
-    if (teamBowlGame) {
+    // Add bowl game (but NOT if it's a CFP Semifinal bowl - those are already in CFP games)
+    // CFP Semifinal bowls are Peach Bowl and Fiesta Bowl
+    const cfpSemifinalBowls = ['Peach Bowl', 'Fiesta Bowl']
+    const isCFPSemifinal = teamBowlGame && cfpSemifinalBowls.includes(teamBowlGame.bowlName)
+    if (teamBowlGame && !isCFPSemifinal) {
       const isTeam1 = teamBowlGame.team1 === teamAbbr
       const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
       const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score
@@ -1667,7 +1691,14 @@ export default function TeamYear() {
                 <>
                   <div className="flex items-center gap-2 sm:gap-4">
                     <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
-                      {game.isBowlGame ? 'Bowl' : game.isPlayoff ? 'CFP' : game.isConferenceChampionship ? 'CCG' : `Wk ${game.week}`}
+                      {game.isCFPChampionship ? 'Natty' :
+                       game.isCFPSemifinal ? 'CFP SF' :
+                       game.isCFPQuarterfinal ? 'CFP QF' :
+                       game.isCFPFirstRound ? 'CFP R1' :
+                       game.isBowlGame ? 'Bowl' :
+                       game.isPlayoff ? 'CFP' :
+                       game.isConferenceChampionship ? 'CCG' :
+                       `Wk ${game.week}`}
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       <span

@@ -287,7 +287,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
       'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
       'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
       'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels',
-      'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri Tigers',
+      'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri State Bears',
       'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
       'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack',
       'UNM': 'New Mexico Lobos', 'NMSU': 'New Mexico State Aggies',

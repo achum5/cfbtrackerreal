@@ -42,7 +42,7 @@ function getMascotName(abbr) {
     'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
     'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
     'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels',
-    'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri Tigers',
+    'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri State Bears',
     'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
     'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack',
     'UNM': 'New Mexico Lobos', 'NMSU': 'New Mexico State Aggies',
@@ -341,7 +341,10 @@ export default function Game() {
           }
         }
       } else if (bowlSlug === 'first-round') {
-        const frGame = (cfpResults.firstRound || [])[0]
+        const firstRoundGames = cfpResults.firstRound || []
+        // Prioritize finding the user's team's game
+        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+        const frGame = firstRoundGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr) || firstRoundGames[0]
         if (frGame) {
           return {
             ...frGame,
@@ -425,6 +428,12 @@ export default function Game() {
       }
       const roundGames = roundArrays[round] || []
       if (roundGames.length > 0) {
+        // Prioritize finding the user's team's game
+        const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+        const userGame = roundGames.find(g => g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+        if (userGame) {
+          return userGame
+        }
         return roundGames[0]
       }
     }

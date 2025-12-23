@@ -1,8 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
-import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 
@@ -127,7 +125,6 @@ const STAT_CATEGORIES = {
 export default function DynastyRecords() {
   const { id: dynastyId } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [mode, setMode] = useState(() => {
     // Restore mode from localStorage
     return localStorage.getItem('leaderboard-mode') || 'career'
@@ -137,8 +134,6 @@ export default function DynastyRecords() {
     const saved = localStorage.getItem('leaderboard-expanded')
     return saved ? JSON.parse(saved) : ['passing']
   })
-
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   // Get user's roster players (not honor-only)
   const getRosterPlayers = () => {
@@ -608,38 +603,28 @@ export default function DynastyRecords() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
+      <div className="rounded-lg shadow-lg p-6 bg-gray-800 border-2 border-gray-600">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+          <h1 className="text-2xl font-bold text-white">
             Dynasty Leaderboard
           </h1>
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Mode Toggle */}
-            <div className="flex rounded-lg overflow-hidden border-2" style={{ borderColor: teamColors.primary }}>
+            <div className="flex rounded-lg overflow-hidden border-2 border-gray-500">
               <button
                 onClick={() => { setMode('career'); localStorage.setItem('leaderboard-mode', 'career') }}
-                className="px-4 py-2 font-semibold text-sm transition-colors"
-                style={{
-                  backgroundColor: mode === 'career' ? teamColors.primary : 'transparent',
-                  color: mode === 'career' ? getContrastTextColor(teamColors.primary) : teamColors.primary
-                }}
+                className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                  mode === 'career' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-300 hover:bg-gray-700'
+                }`}
               >
                 Career
               </button>
               <button
                 onClick={() => { setMode('season'); localStorage.setItem('leaderboard-mode', 'season') }}
-                className="px-4 py-2 font-semibold text-sm transition-colors"
-                style={{
-                  backgroundColor: mode === 'season' ? teamColors.primary : 'transparent',
-                  color: mode === 'season' ? getContrastTextColor(teamColors.primary) : teamColors.primary
-                }}
+                className={`px-4 py-2 font-semibold text-sm transition-colors ${
+                  mode === 'season' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-300 hover:bg-gray-700'
+                }`}
               >
                 Season
               </button>
@@ -659,25 +644,20 @@ export default function DynastyRecords() {
         return (
           <div
             key={catKey}
-            className="rounded-lg shadow-lg overflow-hidden"
-            style={{
-              backgroundColor: teamColors.secondary,
-              border: `3px solid ${teamColors.primary}`
-            }}
+            className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600"
           >
             {/* Category Header */}
             <button
               onClick={() => toggleCategory(catKey)}
-              className="w-full flex items-center justify-between p-4 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: teamColors.primary }}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-600 transition-colors bg-gray-700"
             >
-              <h2 className="text-lg font-bold" style={{ color: getContrastTextColor(teamColors.primary) }}>
+              <h2 className="text-lg font-bold text-white">
                 {category.name}
               </h2>
               <svg
                 className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                 fill="none"
-                stroke={getContrastTextColor(teamColors.primary)}
+                stroke="white"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -688,13 +668,13 @@ export default function DynastyRecords() {
             {isExpanded && (
               <div className="p-4">
                 {category.minNote && (
-                  <p className="text-xs mb-4 italic" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                  <p className="text-xs mb-4 italic text-gray-400">
                     {category.minNote}
                   </p>
                 )}
 
                 {!hasData ? (
-                  <p className="text-center py-8" style={{ color: secondaryBgText, opacity: 0.5 }}>
+                  <p className="text-center py-8 text-gray-500">
                     No {category.name.toLowerCase()} stats recorded yet
                   </p>
                 ) : (
@@ -705,14 +685,10 @@ export default function DynastyRecords() {
                       return (
                         <div
                           key={stat.key}
-                          className="bg-white rounded-lg shadow border overflow-hidden"
-                          style={{ borderColor: `${teamColors.primary}30` }}
+                          className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden"
                         >
-                          <div
-                            className="px-3 py-2 border-b"
-                            style={{ backgroundColor: `${teamColors.primary}15`, borderColor: `${teamColors.primary}30` }}
-                          >
-                            <h3 className="text-sm font-bold" style={{ color: teamColors.primary }}>
+                          <div className="px-3 py-2 border-b bg-gray-100 border-gray-200">
+                            <h3 className="text-sm font-bold text-gray-800">
                               {stat.label}
                             </h3>
                           </div>
@@ -752,8 +728,7 @@ export default function DynastyRecords() {
                                         )}
                                         <Link
                                           to={`/dynasty/${dynastyId}/player/${entry.pid}`}
-                                          className="font-medium hover:underline truncate max-w-[100px]"
-                                          style={{ color: teamColors.primary }}
+                                          className="font-medium hover:underline truncate max-w-[100px] text-blue-600"
                                           title={entry.name}
                                         >
                                           {entry.name}

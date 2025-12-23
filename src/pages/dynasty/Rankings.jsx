@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -162,13 +161,9 @@ const getMascotName = (abbr) => {
 export default function Rankings() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
-
-  const primaryBgText = getContrastTextColor(teamColors.primary)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   // Get available years with final polls
   const finalPolls = currentDynasty.finalPollsByYear || {}
@@ -186,14 +181,11 @@ export default function Rankings() {
   if (availableYears.length === 0) {
     return (
       <div className="space-y-6">
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <h1 className="text-2xl font-bold mb-4 text-white">
             Final Top 25
           </h1>
-          <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
+          <p className="text-lg text-gray-400">
             No final polls recorded yet. Complete a season and enter final polls to see rankings.
           </p>
         </div>
@@ -256,23 +248,15 @@ export default function Rankings() {
   return (
     <div className="space-y-6">
       {/* Header with Year Selector */}
-      <div
-        className="rounded-lg shadow-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4"
-        style={{ backgroundColor: teamColors.secondary }}
-      >
-        <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+      <div className="rounded-lg shadow-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-800 border-2 border-gray-600">
+        <h1 className="text-2xl font-bold text-white">
           Final Top 25
         </h1>
 
         <select
           value={displayYear}
           onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2"
-          style={{
-            backgroundColor: teamColors.primary,
-            color: primaryBgText,
-            border: `2px solid ${primaryBgText}40`
-          }}
+          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
         >
           {availableYears.map((year) => (
             <option key={year} value={year}>
@@ -285,18 +269,12 @@ export default function Rankings() {
       {/* Polls Container */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Media Poll */}
-        <div
-          className="rounded-lg shadow-lg overflow-hidden"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <div
-            className="px-4 py-3 flex items-center gap-3"
-            style={{ backgroundColor: teamColors.primary }}
-          >
-            <svg className="w-6 h-6" fill="none" stroke={primaryBgText} viewBox="0 0 24 24">
+        <div className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600">
+          <div className="px-4 py-3 flex items-center gap-3 bg-gray-700">
+            <svg className="w-6 h-6" fill="none" stroke="white" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
             </svg>
-            <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+            <h2 className="text-lg font-bold text-white">
               Media Poll
             </h2>
           </div>
@@ -314,7 +292,7 @@ export default function Rankings() {
                   />
                 ))
             ) : (
-              <p className="text-center py-8" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <p className="text-center py-8 text-gray-400">
                 No media poll data for {displayYear}
               </p>
             )}
@@ -322,18 +300,12 @@ export default function Rankings() {
         </div>
 
         {/* Coaches Poll */}
-        <div
-          className="rounded-lg shadow-lg overflow-hidden"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <div
-            className="px-4 py-3 flex items-center gap-3"
-            style={{ backgroundColor: teamColors.primary }}
-          >
-            <svg className="w-6 h-6" fill="none" stroke={primaryBgText} viewBox="0 0 24 24">
+        <div className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600">
+          <div className="px-4 py-3 flex items-center gap-3 bg-gray-700">
+            <svg className="w-6 h-6" fill="none" stroke="white" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            <h2 className="text-lg font-bold" style={{ color: primaryBgText }}>
+            <h2 className="text-lg font-bold text-white">
               Coaches Poll
             </h2>
           </div>
@@ -351,7 +323,7 @@ export default function Rankings() {
                   />
                 ))
             ) : (
-              <p className="text-center py-8" style={{ color: secondaryBgText, opacity: 0.6 }}>
+              <p className="text-center py-8 text-gray-400">
                 No coaches poll data for {displayYear}
               </p>
             )}

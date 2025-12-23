@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
+import { getTeamConference } from '../../data/conferenceTeams'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -165,17 +165,24 @@ const normalizePlayerName = (name) => {
   return name.trim().toLowerCase()
 }
 
+// Helper function to clean player names by removing prefix symbols (stars, bullets, etc.)
+const cleanPlayerName = (name) => {
+  if (!name) return ''
+  // Remove common prefix symbols: ★ ⭐ ✦ • * · ● ◆ ♦ ▪ ■ etc.
+  return name.replace(/^[\s★⭐✦•*·●◆♦▪■\-–—]+/, '').trim()
+}
+
 export default function AllConference() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedYear, setSelectedYear] = useState(null)
   const [filter, setFilter] = useState('all') // 'all', 'first', 'second', 'freshman'
 
   if (!currentDynasty) return null
 
-  const primaryBgText = getContrastTextColor(teamColors.primary)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
+  // Get the user's conference from their team
+  const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+  const userConference = getTeamConference(userTeamAbbr) || 'Conference'
 
   // Get available years with all-conference
   const allAmericansByYear = currentDynasty.allAmericansByYear || {}
@@ -196,15 +203,12 @@ export default function AllConference() {
   if (availableYears.length === 0) {
     return (
       <div className="space-y-6">
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
-            All-{currentDynasty.conference}
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <h1 className="text-2xl font-bold mb-4 text-white">
+            All-{userConference}
           </h1>
-          <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
-            No All-{currentDynasty.conference} selections recorded yet. Complete a season and enter data to see them here.
+          <p className="text-lg text-gray-300 opacity-70">
+            No All-{userConference} selections recorded yet. Complete a season and enter data to see them here.
           </p>
         </div>
       </div>
@@ -294,11 +298,11 @@ export default function AllConference() {
               className="font-bold truncate block hover:underline"
               style={{ color: textColor }}
             >
-              {player.player}
+              {cleanPlayerName(player.player)}
             </Link>
           ) : (
             <div className="font-bold truncate" style={{ color: textColor }}>
-              {player.player}
+              {cleanPlayerName(player.player)}
             </div>
           )}
           <div className="text-sm" style={{ color: textColor, opacity: 0.8 }}>
@@ -325,10 +329,7 @@ export default function AllConference() {
     if (players.length === 0) return null
 
     return (
-      <div
-        className="rounded-lg shadow-lg overflow-hidden"
-        style={{ backgroundColor: teamColors.secondary }}
-      >
+      <div className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600">
         <div
           className="px-4 py-3 flex items-center gap-3"
           style={{ backgroundColor: badgeColor }}
@@ -356,18 +357,15 @@ export default function AllConference() {
   return (
     <div className="space-y-6">
       {/* Header with Year Selector and Filter */}
-      <div
-        className="rounded-lg shadow-lg p-4"
-        style={{ backgroundColor: teamColors.secondary }}
-      >
+      <div className="rounded-lg shadow-lg p-4 bg-gray-800 border-2 border-gray-600">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            All-{currentDynasty.conference}
+          <h1 className="text-2xl font-bold text-white">
+            All-{userConference}
           </h1>
 
           <div className="flex items-center gap-3">
             {/* Filter Buttons */}
-            <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: teamColors.primary }}>
+            <div className="flex rounded-lg overflow-hidden border border-blue-600">
               {[
                 { key: 'all', label: 'All' },
                 { key: 'first', label: '1st' },
@@ -377,11 +375,9 @@ export default function AllConference() {
                 <button
                   key={key}
                   onClick={() => setFilter(key)}
-                  className="px-3 py-1 text-sm font-semibold transition-colors"
-                  style={{
-                    backgroundColor: filter === key ? teamColors.primary : 'transparent',
-                    color: filter === key ? primaryBgText : secondaryBgText
-                  }}
+                  className={`px-3 py-1 text-sm font-semibold transition-colors ${
+                    filter === key ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-300 hover:bg-gray-700'
+                  }`}
                 >
                   {label}
                 </button>
@@ -392,12 +388,7 @@ export default function AllConference() {
             <select
               value={displayYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2"
-              style={{
-                backgroundColor: teamColors.primary,
-                color: primaryBgText,
-                border: `2px solid ${primaryBgText}40`
-              }}
+              className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
             >
               {availableYears.map((year) => (
                 <option key={year} value={year}>
@@ -413,17 +404,17 @@ export default function AllConference() {
       {filter === 'all' ? (
         <>
           <TeamSection
-            title={`First-Team All-${currentDynasty.conference}`}
+            title={`First-Team All-${userConference}`}
             players={groupedByDesignation.first}
-            badgeColor={teamColors.primary}
+            badgeColor="#3B82F6"
           />
           <TeamSection
-            title={`Second-Team All-${currentDynasty.conference}`}
+            title={`Second-Team All-${userConference}`}
             players={groupedByDesignation.second}
             badgeColor="#6B7280"
           />
           <TeamSection
-            title={`Freshman All-${currentDynasty.conference}`}
+            title={`Freshman All-${userConference}`}
             players={groupedByDesignation.freshman}
             badgeColor="#3B82F6"
           />
@@ -431,13 +422,13 @@ export default function AllConference() {
       ) : (
         <TeamSection
           title={
-            filter === 'first' ? `First-Team All-${currentDynasty.conference}` :
-            filter === 'second' ? `Second-Team All-${currentDynasty.conference}` :
-            `Freshman All-${currentDynasty.conference}`
+            filter === 'first' ? `First-Team All-${userConference}` :
+            filter === 'second' ? `Second-Team All-${userConference}` :
+            `Freshman All-${userConference}`
           }
           players={filteredPlayers}
           badgeColor={
-            filter === 'first' ? teamColors.primary :
+            filter === 'first' ? '#3B82F6' :
             filter === 'second' ? '#6B7280' :
             '#3B82F6'
           }
@@ -446,12 +437,9 @@ export default function AllConference() {
 
       {/* Empty State for Filter */}
       {filteredPlayers.length === 0 && (
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
-            No {filter === 'first' ? 'First-Team' : filter === 'second' ? 'Second-Team' : 'Freshman'} All-{currentDynasty.conference} players for {displayYear}.
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <p className="text-lg text-gray-300 opacity-70">
+            No {filter === 'first' ? 'First-Team' : filter === 'second' ? 'Second-Team' : 'Freshman'} All-{userConference} players for {displayYear}.
           </p>
         </div>
       )}

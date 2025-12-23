@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -191,6 +191,7 @@ export default function Team() {
   const { id, teamAbbr } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const [showGamesModal, setShowGamesModal] = useState(false)
 
   // Scroll to top when navigating to this page
   useEffect(() => {
@@ -511,22 +512,6 @@ export default function Team() {
     <div className="space-y-6">
       {/* Navigation Row */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Back Link */}
-        <Link
-          to={`/dynasty/${id}/teams`}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
-          style={{
-            backgroundColor: teamInfo.backgroundColor,
-            color: teamBgText,
-            border: `2px solid ${teamBgText}40`
-          }}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          History
-        </Link>
-
         {/* Team Dropdown */}
         <select
           value={teamAbbr}
@@ -816,21 +801,23 @@ export default function Team() {
               </div>
             </div>
 
-            {/* Games Vs */}
-            <div
-              className="p-4 rounded-lg text-center"
+            {/* User vs Team */}
+            <button
+              onClick={() => gamesAgainst.length > 0 && setShowGamesModal(true)}
+              className={`p-4 rounded-lg text-center transition-all ${gamesAgainst.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
               style={{ backgroundColor: `${teamBgText}10` }}
+              disabled={gamesAgainst.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                Games Vs
+                User vs {teamAbbr}
               </div>
               <div className="text-3xl font-bold" style={{ color: gamesAgainst.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {gamesAgainst.length || '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                vs {teamAbbr}
+                {allTimeWins}-{allTimeLosses} record
               </div>
-            </div>
+            </button>
 
             {/* Win % Vs */}
             <div
@@ -858,61 +845,119 @@ export default function Team() {
         </div>
       </div>
 
-      {/* Head-to-Head Summary */}
-      {gamesAgainst.length > 0 && (
+      {/* Games Against Modal */}
+      {showGamesModal && (
         <div
-          className="rounded-lg shadow-lg p-6"
-          style={{
-            backgroundColor: teamInfo.backgroundColor,
-            border: `3px solid ${teamInfo.textColor}`
-          }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowGamesModal(false)}
         >
-          <h2 className="text-lg font-bold mb-4" style={{ color: teamBgText }}>
-            Head-to-Head Record
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* All-Time Record */}
-            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
-              <div className="text-4xl font-bold" style={{ color: teamBgText }}>
-                {allTimeWins}-{allTimeLosses}
+          <div
+            className="rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] overflow-hidden"
+            style={{
+              backgroundColor: teamInfo.backgroundColor,
+              border: `3px solid ${teamInfo.textColor}`
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-4 py-3 flex items-center justify-between"
+              style={{ backgroundColor: teamInfo.textColor }}
+            >
+              <div className="flex items-center gap-3">
+                {teamLogo && (
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
+                  >
+                    <img
+                      src={teamLogo}
+                      alt={`${teamAbbr} logo`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+                <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
+                  User vs {teamAbbr}
+                </h2>
               </div>
-              <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
-                All-Time Record
-              </div>
+              <button
+                onClick={() => setShowGamesModal(false)}
+                className="p-1 rounded hover:bg-black/10 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
-            {/* Best Year */}
-            {bestYear && (
-              <Link
-                to={`/dynasty/${id}/team/${teamAbbr}/${bestYear.year}`}
-                className="text-center p-4 rounded-lg hover:scale-[1.02] transition-transform"
-                style={{ backgroundColor: '#16a34a20' }}
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {/* Record Summary */}
+              <div
+                className="text-center p-4 rounded-lg mb-4"
+                style={{ backgroundColor: `${teamBgText}15` }}
               >
-                <div className="text-4xl font-bold" style={{ color: '#16a34a' }}>
-                  {bestYear.wins}-{bestYear.losses}
+                <div className="text-3xl font-bold" style={{ color: teamBgText }}>
+                  {allTimeWins}-{allTimeLosses}
                 </div>
-                <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
-                  Best Year ({bestYear.year})
+                <div className="text-sm" style={{ color: teamBgText, opacity: 0.7 }}>
+                  All-Time Record ({winPctVs}%)
                 </div>
-              </Link>
-            )}
+              </div>
 
-            {/* Worst Year */}
-            {worstYear && worstYear.year !== bestYear?.year && (
-              <Link
-                to={`/dynasty/${id}/team/${teamAbbr}/${worstYear.year}`}
-                className="text-center p-4 rounded-lg hover:scale-[1.02] transition-transform"
-                style={{ backgroundColor: '#dc262620' }}
-              >
-                <div className="text-4xl font-bold" style={{ color: '#dc2626' }}>
-                  {worstYear.wins}-{worstYear.losses}
-                </div>
-                <div className="text-sm font-semibold mt-1" style={{ color: teamBgText, opacity: 0.7 }}>
-                  Worst Year ({worstYear.year})
-                </div>
-              </Link>
-            )}
+              {/* Games List */}
+              <div className="space-y-2">
+                {gamesAgainst
+                  .sort((a, b) => {
+                    // Sort by year desc, then week desc
+                    if (b.year !== a.year) return b.year - a.year
+                    return (b.week || 0) - (a.week || 0)
+                  })
+                  .map((game, idx) => {
+                    const isWin = game.result === 'W'
+
+                    return (
+                      <Link
+                        key={game.id || idx}
+                        to={`/dynasty/${id}/game/${game.id}`}
+                        className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
+                        style={{
+                          backgroundColor: isWin ? '#16a34a15' : '#dc262615',
+                          border: `2px solid ${isWin ? '#16a34a40' : '#dc262640'}`
+                        }}
+                        onClick={() => setShowGamesModal(false)}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* W/L Badge */}
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                            style={{
+                              backgroundColor: isWin ? '#16a34a' : '#dc2626',
+                              color: '#FFFFFF'
+                            }}
+                          >
+                            {game.result}
+                          </div>
+                          <div>
+                            <div className="font-semibold" style={{ color: teamBgText }}>
+                              {game.year} {game.week ? `Week ${game.week}` : game.bowlName || ''}
+                            </div>
+                            <div className="text-sm" style={{ color: teamBgText, opacity: 0.7 }}>
+                              {game.location === 'home' ? 'vs' : game.location === 'away' ? '@' : 'vs'} {teamAbbr}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-lg" style={{ color: teamBgText }}>
+                            {game.teamScore}-{game.opponentScore}
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -411,11 +411,12 @@ export default function Player() {
                   const awardName = award.award
                     ? award.award.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()
                     : 'Award'
+                  const badgeText = getContrastTextColor(teamColors.primary)
                   return (
                     <div
                       key={idx}
                       className="px-3 py-2 rounded-lg text-sm font-semibold"
-                      style={{ backgroundColor: '#fbbf24', color: '#78350f' }}
+                      style={{ backgroundColor: teamColors.primary, color: badgeText }}
                     >
                       <div className="font-bold">{awardName}</div>
                       <div className="text-xs opacity-80">{award.year} • {award.team}</div>

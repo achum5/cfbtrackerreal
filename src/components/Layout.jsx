@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogo } from '../data/teams'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { teamAbbreviations } from '../data/teamAbbreviations'
 import logo from '../assets/logo.png'
 
 export default function Layout({ children }) {
@@ -30,6 +31,38 @@ export default function Layout({ children }) {
   const isCFPBracketPage = location.pathname.includes('/cfp-bracket')
   const isGamePage = location.pathname.includes('/game/')
   const isCoachCareerPage = location.pathname.includes('/coach-career')
+
+  // Check if we're on a team history page and get the viewed team's colors
+  const teamPageMatch = location.pathname.match(/\/dynasty\/[^/]+\/team\/([^/]+)/)
+  const viewedTeamAbbr = teamPageMatch ? teamPageMatch[1] : null
+  const viewedTeamInfo = viewedTeamAbbr ? teamAbbreviations[viewedTeamAbbr] : null
+  const isTeamPage = !!viewedTeamInfo
+
+  // Check if we're on a player profile page and get the player's team colors
+  const playerPageMatch = location.pathname.match(/\/dynasty\/[^/]+\/player\/(\d+)/)
+  const viewedPlayerPid = playerPageMatch ? parseInt(playerPageMatch[1]) : null
+  const viewedPlayer = viewedPlayerPid && currentDynasty?.players
+    ? currentDynasty.players.find(p => p.pid === viewedPlayerPid)
+    : null
+  // For honor-only players or players with a different team, use their team
+  const playerTeamAbbr = viewedPlayer?.isHonorOnly
+    ? (viewedPlayer.team || viewedPlayer.teams?.[0])
+    : null
+  const playerTeamInfo = playerTeamAbbr ? teamAbbreviations[playerTeamAbbr] : null
+  const isPlayerPageWithDifferentTeam = !!playerTeamInfo
+
+  // Pages that should use neutral gray styling instead of team colors
+  const isNeutralPage =
+    location.pathname.includes('/dynasty-records') ||
+    location.pathname.includes('/awards') ||
+    location.pathname.includes('/all-americans') ||
+    location.pathname.includes('/all-conference') ||
+    location.pathname.includes('/bowl-history') ||
+    location.pathname.includes('/conference-championship-history') ||
+    location.pathname.includes('/conference-standings') ||
+    location.pathname.includes('/rankings') ||
+    location.pathname.includes('/teams') ||
+    location.pathname.includes('/players')
 
   const headerBg = useTeamTheme ? teamColors.primary : '#1f2937'
   const headerText = useTeamTheme ? getContrastTextColor(teamColors.primary) : '#f9fafb'
@@ -140,8 +173,14 @@ export default function Layout({ children }) {
   }
 
 
-  // Page background - CFP Bracket, Game, and Coach Career pages get neutral gray, otherwise team primary
-  const pageBg = (isCFPBracketPage || isGamePage || isCoachCareerPage) ? '#374151' : (useTeamTheme ? teamColors.primary : '#f3f4f6')
+  // Page background - neutral pages get gray, team/player pages use viewed team's colors
+  const getPageBg = () => {
+    if (isCFPBracketPage || isGamePage || isCoachCareerPage || isNeutralPage) return '#374151'
+    if (isPlayerPageWithDifferentTeam && playerTeamInfo) return playerTeamInfo.backgroundColor
+    if (isTeamPage && viewedTeamInfo) return viewedTeamInfo.backgroundColor
+    return useTeamTheme ? teamColors.primary : '#f3f4f6'
+  }
+  const pageBg = getPageBg()
 
   return (
     <div

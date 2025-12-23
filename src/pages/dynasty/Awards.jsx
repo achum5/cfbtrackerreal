@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -203,13 +202,9 @@ const AWARD_ORDER = [
 export default function Awards() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
-
-  const primaryBgText = getContrastTextColor(teamColors.primary)
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   // Get available years with awards
   const awardsByYear = currentDynasty.awardsByYear || {}
@@ -225,14 +220,11 @@ export default function Awards() {
   if (availableYears.length === 0) {
     return (
       <div className="space-y-6">
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{ backgroundColor: teamColors.secondary }}
-        >
-          <h1 className="text-2xl font-bold mb-4" style={{ color: teamColors.primary }}>
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <h1 className="text-2xl font-bold mb-4 text-white">
             Season Awards
           </h1>
-          <p className="text-lg" style={{ color: secondaryBgText, opacity: 0.7 }}>
+          <p className="text-lg text-gray-400">
             No awards recorded yet. Complete a season and enter awards to see them here.
           </p>
         </div>
@@ -346,23 +338,15 @@ export default function Awards() {
   return (
     <div className="space-y-6">
       {/* Header with Year Selector */}
-      <div
-        className="rounded-lg shadow-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4"
-        style={{ backgroundColor: teamColors.secondary }}
-      >
-        <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+      <div className="rounded-lg shadow-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-800 border-2 border-gray-600">
+        <h1 className="text-2xl font-bold text-white">
           Season Awards
         </h1>
 
         <select
           value={displayYear}
           onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2"
-          style={{
-            backgroundColor: teamColors.primary,
-            color: primaryBgText,
-            border: `2px solid ${primaryBgText}40`
-          }}
+          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
         >
           {availableYears.map((year) => (
             <option key={year} value={year}>
@@ -378,10 +362,7 @@ export default function Awards() {
 
         return (
           <div key={categoryKey}>
-            <h2
-              className="text-xl font-bold mb-4 px-2"
-              style={{ color: secondaryBgText }}
-            >
+            <h2 className="text-xl font-bold mb-4 px-2 text-white">
               {category.title}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

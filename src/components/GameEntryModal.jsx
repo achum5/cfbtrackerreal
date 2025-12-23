@@ -115,7 +115,7 @@ export default function GameEntryModal({
       'MINN': 'Minnesota Golden Gophers',
       'MISS': 'Ole Miss Rebels',
       'MSST': 'Mississippi State Bulldogs',
-      'MZST': 'Missouri Tigers',
+      'MZST': 'Missouri State Bears',
       'MRSH': 'Marshall Thundering Herd',
       'NAVY': 'Navy Midshipmen',
       'NEB': 'Nebraska Cornhuskers',

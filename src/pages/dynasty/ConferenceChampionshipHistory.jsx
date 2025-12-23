@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { useTeamColors } from '../../hooks/useTeamColors'
-import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
@@ -40,7 +38,7 @@ const getMascotName = (abbr) => {
     'MEM': 'Memphis Tigers', 'MICH': 'Michigan Wolverines',
     'MSU': 'Michigan State Spartans', 'MTSU': 'Middle Tennessee State Blue Raiders',
     'MINN': 'Minnesota Golden Gophers', 'MISS': 'Ole Miss Rebels',
-    'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri Tigers',
+    'MSST': 'Mississippi State Bulldogs', 'MZST': 'Missouri State Bears',
     'MRSH': 'Marshall Thundering Herd', 'NAVY': 'Navy Midshipmen',
     'NEB': 'Nebraska Cornhuskers', 'NEV': 'Nevada Wolf Pack',
     'UNM': 'New Mexico Lobos', 'NMSU': 'New Mexico State Aggies',
@@ -103,14 +101,11 @@ const CONFERENCES = [
 export default function ConferenceChampionshipHistory() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
-  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedConference, setExpandedConference] = useState(null)
   // Modal state removed - now using game pages instead
 
   if (!currentDynasty) return null
-
-  const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
   // Filter conferences by search
   const filteredConferences = CONFERENCES.filter(conf => {
@@ -163,34 +158,22 @@ export default function ConferenceChampionshipHistory() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div
-        className="rounded-lg shadow-lg p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
-        <h1 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+      <div className="rounded-lg shadow-lg p-6 bg-gray-800 border-2 border-gray-600">
+        <h1 className="text-2xl font-bold text-white">
           Conference Championship History
         </h1>
-        <p className="mt-1" style={{ color: secondaryBgText, opacity: 0.8 }}>
+        <p className="mt-1 text-gray-300">
           {getTotalCCGames()} championship games played across {Object.keys(currentDynasty.conferenceChampionshipsByYear || {}).length} seasons
         </p>
       </div>
 
       {/* Search */}
-      <div
-        className="rounded-lg shadow-lg p-4"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
+      <div className="rounded-lg shadow-lg p-4 bg-gray-800 border-2 border-gray-600">
         <div className="relative">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
             fill="none"
-            stroke={teamColors.primary}
+            stroke="currentColor"
             viewBox="0 0 24 24"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -200,17 +183,12 @@ export default function ConferenceChampionshipHistory() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search conferences..."
-            className="w-full pl-10 pr-4 py-3 rounded-lg border-2 font-semibold text-lg"
-            style={{
-              borderColor: teamColors.primary,
-              backgroundColor: 'white'
-            }}
+            className="w-full pl-10 pr-4 py-3 rounded-lg border-2 border-gray-500 bg-gray-700 text-white font-semibold text-lg placeholder-gray-400"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:opacity-70"
-              style={{ color: teamColors.primary }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:opacity-70 text-gray-400"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -219,21 +197,15 @@ export default function ConferenceChampionshipHistory() {
           )}
         </div>
         {searchQuery && (
-          <p className="mt-2 text-sm font-semibold" style={{ color: secondaryBgText, opacity: 0.7 }}>
+          <p className="mt-2 text-sm font-semibold text-gray-400">
             {filteredConferences.length} conference{filteredConferences.length !== 1 ? 's' : ''} found
           </p>
         )}
       </div>
 
       {/* Conference Championships List */}
-      <div
-        className="rounded-lg shadow-lg overflow-hidden"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
-        <div className="divide-y" style={{ borderColor: `${teamColors.primary}30` }}>
+      <div className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600">
+        <div className="divide-y divide-gray-700">
           {filteredConferences.map(conferenceName => {
             const results = getConferenceResults(conferenceName)
             const isExpanded = expandedConference === conferenceName
@@ -243,15 +215,10 @@ export default function ConferenceChampionshipHistory() {
                 {/* Conference Header */}
                 <button
                   onClick={() => setExpandedConference(isExpanded ? null : conferenceName)}
-                  className="w-full flex items-center gap-4 p-4 hover:bg-white hover:bg-opacity-50 transition-colors"
+                  className="w-full flex items-center gap-4 p-4 hover:bg-gray-700 transition-colors"
                 >
                   {/* Conference Logo */}
-                  <div
-                    className="w-14 h-14 rounded-lg flex-shrink-0 flex items-center justify-center bg-white p-1"
-                    style={{
-                      border: `2px solid ${teamColors.primary}`
-                    }}
-                  >
+                  <div className="w-14 h-14 rounded-lg flex-shrink-0 flex items-center justify-center bg-white p-1 border-2 border-gray-600">
                     {getConferenceLogo(conferenceName) ? (
                       <img
                         src={getConferenceLogo(conferenceName)}
@@ -259,10 +226,7 @@ export default function ConferenceChampionshipHistory() {
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <span
-                        className="text-2xl font-bold"
-                        style={{ color: teamColors.primary }}
-                      >
+                      <span className="text-2xl font-bold text-gray-600">
                         {conferenceName.charAt(0)}
                       </span>
                     )}
@@ -270,16 +234,16 @@ export default function ConferenceChampionshipHistory() {
 
                   {/* Conference Name and Stats */}
                   <div className="flex-1 text-left">
-                    <div className="font-bold text-lg" style={{ color: teamColors.primary }}>
+                    <div className="font-bold text-lg text-white">
                       {conferenceName} Championship
                     </div>
-                    <div className="text-sm" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                    <div className="text-sm text-gray-400">
                       {results.length === 0 ? 'No games played' : `${results.length} game${results.length !== 1 ? 's' : ''} played`}
                     </div>
                   </div>
 
                   {/* Expand Icon */}
-                  <div style={{ color: teamColors.primary }}>
+                  <div className="text-gray-400">
                     <svg
                       className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                       fill="none"
@@ -293,10 +257,7 @@ export default function ConferenceChampionshipHistory() {
 
                 {/* Expanded Results */}
                 {isExpanded && results.length > 0 && (
-                  <div
-                    className="px-4 pb-4 space-y-2"
-                    style={{ backgroundColor: `${teamColors.primary}10` }}
-                  >
+                  <div className="px-4 pb-4 space-y-2 bg-gray-900">
                     {results.map((game, idx) => {
                       const winner = getWinner(game)
                       const team1Info = teamAbbreviations[game.team1]
@@ -320,14 +281,10 @@ export default function ConferenceChampionshipHistory() {
                         <Link
                           key={`${game.year}-${idx}`}
                           to={`/dynasty/${id}/game/${gameId}`}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform cursor-pointer block"
-                          style={{ border: `2px solid ${teamColors.primary}30` }}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform cursor-pointer block border-2 border-gray-300"
                         >
                           {/* Year */}
-                          <div
-                            className="w-16 text-center font-bold text-lg"
-                            style={{ color: teamColors.primary }}
-                          >
+                          <div className="w-16 text-center font-bold text-lg text-gray-700">
                             {game.year}
                           </div>
 
@@ -403,11 +360,8 @@ export default function ConferenceChampionshipHistory() {
 
                 {/* No results message */}
                 {isExpanded && results.length === 0 && (
-                  <div
-                    className="px-4 pb-4 text-center py-6"
-                    style={{ backgroundColor: `${teamColors.primary}10` }}
-                  >
-                    <p style={{ color: secondaryBgText, opacity: 0.6 }}>
+                  <div className="px-4 pb-4 text-center py-6 bg-gray-900">
+                    <p className="text-gray-400">
                       No championship games have been played in this conference yet.
                     </p>
                   </div>
@@ -419,14 +373,8 @@ export default function ConferenceChampionshipHistory() {
       </div>
 
       {filteredConferences.length === 0 && (
-        <div
-          className="rounded-lg shadow-lg p-8 text-center"
-          style={{
-            backgroundColor: teamColors.secondary,
-            border: `3px solid ${teamColors.primary}`
-          }}
-        >
-          <p style={{ color: secondaryBgText, opacity: 0.7 }}>
+        <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
+          <p className="text-gray-400">
             No conferences found matching "{searchQuery}"
           </p>
         </div>
