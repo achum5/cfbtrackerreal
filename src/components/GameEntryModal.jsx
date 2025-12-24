@@ -1054,12 +1054,12 @@ export default function GameEntryModal({
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
         className="rounded-lg shadow-xl w-full max-w-4xl max-h-[calc(100vh-4rem)] sm:max-h-[95vh] overflow-y-auto"
         style={{ backgroundColor: teamColors.secondary }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b-2 z-10 gap-2"
           style={{

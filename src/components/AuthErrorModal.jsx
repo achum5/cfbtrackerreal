@@ -28,7 +28,7 @@ export default function AuthErrorModal({ isOpen, onClose, teamColors }) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60"
-        onClick={onClose}
+        onMouseDown={onClose}
       />
 
       {/* Modal */}
@@ -38,7 +38,7 @@ export default function AuthErrorModal({ isOpen, onClose, teamColors }) {
           backgroundColor: teamColors?.secondary || '#ffffff',
           border: `3px solid ${teamColors?.primary || '#1f2937'}`
         }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Icon */}
         <div className="flex justify-center mb-4">

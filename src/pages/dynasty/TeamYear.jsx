@@ -371,7 +371,7 @@ export default function TeamYear() {
     // Search all conferences for this team
     for (const confTeams of Object.values(yearStandings)) {
       if (Array.isArray(confTeams)) {
-        const teamData = confTeams.find(t => t.team === teamAbbr)
+        const teamData = confTeams.find(t => t && t.team === teamAbbr)
         if (teamData) {
           return {
             wins: teamData.wins || 0,
@@ -398,8 +398,8 @@ export default function TeamYear() {
     const pollsData = currentDynasty.finalPollsByYear?.[selectedYear]
     if (!pollsData) return null
 
-    const mediaRank = pollsData.media?.find(p => p.team === teamAbbr)?.rank
-    const coachesRank = pollsData.coaches?.find(p => p.team === teamAbbr)?.rank
+    const mediaRank = pollsData.media?.find(p => p && p.team === teamAbbr)?.rank
+    const coachesRank = pollsData.coaches?.find(p => p && p.team === teamAbbr)?.rank
 
     if (!mediaRank && !coachesRank) return null
 
@@ -1883,7 +1883,7 @@ export default function TeamYear() {
                 // For first round, use seeds to determine slot
                 const cfpSeeds = currentDynasty.cfpSeedsByYear?.[selectedYear] || []
                 const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-                const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
+                const userSeed = cfpSeeds.find(s => s && s.team === userTeamAbbr)?.seed
                 const oppSeed = userSeed ? 17 - userSeed : null
                 const slotId = getFirstRoundSlotId(userSeed, oppSeed)
                 if (slotId) properGameId = getCFPGameId(slotId, selectedYear)

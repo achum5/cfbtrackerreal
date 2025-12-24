@@ -39,6 +39,9 @@ import NewJobEditModal from '../../components/NewJobEditModal'
 import PlayersLeavingModal from '../../components/PlayersLeavingModal'
 import DraftResultsModal from '../../components/DraftResultsModal'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
+import PositionChangesModal from '../../components/PositionChangesModal'
+import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
+import TrainingResultsModal from '../../components/TrainingResultsModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -92,6 +95,9 @@ export default function Dashboard() {
   const [showPlayersLeavingModal, setShowPlayersLeavingModal] = useState(false)
   const [showDraftResultsModal, setShowDraftResultsModal] = useState(false)
   const [showRecruitingModal, setShowRecruitingModal] = useState(false)
+  const [showPositionChangesModal, setShowPositionChangesModal] = useState(false)
+  const [showRecruitingClassRankModal, setShowRecruitingClassRankModal] = useState(false)
+  const [showTrainingResultsModal, setShowTrainingResultsModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -816,6 +822,99 @@ export default function Dashboard() {
     })
   }
 
+  // Handle recruiting class rank save (National Signing Day)
+  const handleRecruitingClassRankSave = async (rank) => {
+    const year = currentDynasty.currentYear
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+    const existingRanks = currentDynasty.recruitingClassRankByTeamYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      recruitingClassRankByTeamYear: {
+        ...existingRanks,
+        [teamAbbr]: {
+          ...(existingRanks[teamAbbr] || {}),
+          [year]: rank
+        }
+      }
+    })
+  }
+
+  // Handle position changes save (National Signing Day)
+  const handlePositionChangesSave = async (changes) => {
+    const year = currentDynasty.currentYear
+    const existingChangesAll = currentDynasty.positionChangesByYear || {}
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+
+    // Update player positions in the players array for any NEW changes
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    changes.forEach(change => {
+      const playerIndex = updatedPlayers.findIndex(p => p.pid === change.playerId)
+      if (playerIndex !== -1) {
+        // Only update if the position is different from current
+        if (updatedPlayers[playerIndex].position !== change.newPosition) {
+          updatedPlayers[playerIndex] = {
+            ...updatedPlayers[playerIndex],
+            position: change.newPosition,
+            archetype: '' // Clear archetype since it's position-specific
+          }
+        }
+      }
+    })
+
+    // Store the changes for history (replace entire year's changes)
+    const changesRecord = changes.map(c => ({
+      pid: c.playerId,
+      playerName: c.playerName,
+      oldPosition: c.oldPosition,
+      newPosition: c.newPosition,
+      team: teamAbbr
+    }))
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      positionChangesByYear: {
+        ...existingChangesAll,
+        [year]: changesRecord // Replace, don't append
+      }
+    })
+  }
+
+  // Handle training results save (Offseason Week 6)
+  const handleTrainingResultsSave = async (results) => {
+    const year = currentDynasty.currentYear
+
+    // Update player overalls in the players array
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    let updatedCount = 0
+
+    results.forEach(result => {
+      // Find player by name (case-insensitive match)
+      const playerIndex = updatedPlayers.findIndex(p =>
+        normalizePlayerName(p.name) === normalizePlayerName(result.playerName)
+      )
+      if (playerIndex !== -1 && result.newOverall) {
+        updatedPlayers[playerIndex] = {
+          ...updatedPlayers[playerIndex],
+          overall: result.newOverall
+        }
+        updatedCount++
+      }
+    })
+
+    // Store training results for history
+    const existingResults = currentDynasty.trainingResultsByYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      trainingResultsByYear: {
+        ...existingResults,
+        [year]: results
+      }
+    })
+
+    console.log(`Updated ${updatedCount} player overalls from training results`)
+  }
+
   // Get the commitment key based on phase and week
   const getCommitmentKey = () => {
     const phase = currentDynasty.currentPhase
@@ -1149,6 +1248,7 @@ export default function Dashboard() {
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
       if (week === 5) return 'National Signing Day'
+      if (week === 6) return 'Training Camp'
       if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
@@ -4651,22 +4751,32 @@ export default function Dashboard() {
                         </div>
                       </div>
                       {!hasCommitmentsData ? (
-                        <div className="flex gap-2 self-end sm:self-auto">
-                          <button
-                            onClick={handleNoCommitments}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            No
-                          </button>
+                        recruitingWeekNum === 4 ? (
                           <button
                             onClick={() => setShowRecruitingModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                           >
-                            Yes
+                            Open
                           </button>
-                        </div>
+                        ) : (
+                          <div className="flex gap-2 self-end sm:self-auto">
+                            <button
+                              onClick={handleNoCommitments}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              No
+                            </button>
+                            <button
+                              onClick={() => setShowRecruitingModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        )
                       ) : (
                         <button
                           onClick={() => setShowRecruitingModal(true)}
@@ -4723,6 +4833,254 @@ export default function Dashboard() {
                         )}
                       </div>
                     )}
+
+                    {/* Task 2: Recruiting Class Rank (only on National Signing Day) */}
+                    {recruitingWeekNum === 4 && (() => {
+                      const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+                      const classRank = currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]
+                      const hasClassRank = !!classRank
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasClassRank ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasClassRank ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasClassRank ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasClassRank ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasClassRank ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">2</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasClassRank ? '#16a34a' : secondaryBgText }}>
+                                Recruiting Class Rank
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasClassRank ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasClassRank
+                                  ? `✓ Ranked #${classRank} nationally`
+                                  : 'Enter national recruiting class ranking'}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowRecruitingClassRankModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasClassRank ? 'Edit' : 'Enter'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task 3: Position Changes (only on National Signing Day) */}
+                    {recruitingWeekNum === 4 && (() => {
+                      // Check if user switched teams this offseason
+                      const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
+                      const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+                      const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+
+                      // If user switched teams, show skipped state
+                      if (switchedTeams) {
+                        return (
+                          <div
+                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
+                          >
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
+                                  Position Changes - Skipped
+                                </div>
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  Will enter new roster during preseason
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      const positionChangesThisYear = currentDynasty.positionChangesByYear?.[currentDynasty.currentYear] || []
+                      const hasPositionChanges = positionChangesThisYear.length > 0
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasPositionChanges ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasPositionChanges ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasPositionChanges ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasPositionChanges ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasPositionChanges ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">3</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasPositionChanges ? '#16a34a' : secondaryBgText }}>
+                                Position Changes
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasPositionChanges ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasPositionChanges
+                                  ? `✓ ${positionChangesThisYear.length} position change${positionChangesThisYear.length !== 1 ? 's' : ''} recorded`
+                                  : 'Update player positions (optional)'}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowPositionChangesModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasPositionChanges ? 'Edit' : 'Open'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </>
+              )
+            }
+
+            // Offseason Week 6: Training Camp
+            if (week === 6) {
+              // Check if user switched teams this offseason
+              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
+              const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+              const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+
+              // If user switched teams, show skipped state
+              if (switchedTeams) {
+                return (
+                  <>
+                    <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                      Training Camp
+                    </h3>
+                    <div className="space-y-3 sm:space-y-4">
+                      <div
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
+                              Training Results - Skipped
+                            </div>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                              Will enter new roster during preseason
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )
+              }
+
+              // Calculate which players should be in training results:
+              // - Current roster players who are NOT in playersLeavingByYear
+              // - PLUS any portal transfers from recruiting commitments
+              const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear] || []
+              const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
+
+              // Get returning players (not leaving) - use teamRoster which filters by team and excludes recruits
+              const returningPlayers = teamRoster.filter(p => !leavingPids.has(p.pid))
+
+              // Get portal transfers from recruiting commitments
+              const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear] || {}
+              const portalTransfers = []
+              Object.values(recruitingCommitments).forEach(weekCommitments => {
+                if (Array.isArray(weekCommitments)) {
+                  weekCommitments.forEach(c => {
+                    if (c.isPortal) {
+                      portalTransfers.push({
+                        name: c.name,
+                        position: c.position,
+                        overall: c.overall || 0,
+                        pid: c.pid || `portal-${c.name}` // Use pid if available
+                      })
+                    }
+                  })
+                }
+              })
+
+              // Combine returning players and portal transfers
+              const trainingPlayers = [...returningPlayers, ...portalTransfers]
+
+              const hasTrainingResultsData = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length > 0
+              const trainingResultsCount = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length || 0
+
+              return (
+                <>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                    Training Camp
+                  </h3>
+                  <div className="space-y-3 sm:space-y-4">
+                    {/* Task 1: Training Results */}
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasTrainingResultsData ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasTrainingResultsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasTrainingResultsData ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasTrainingResultsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasTrainingResultsData ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasTrainingResultsData ? '#16a34a' : secondaryBgText }}>
+                            Training Results
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasTrainingResultsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasTrainingResultsData
+                              ? `✓ ${trainingResultsCount} player overall${trainingResultsCount !== 1 ? 's' : ''} updated`
+                              : `Enter new overalls for ${trainingPlayers.length} players`}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowTrainingResultsModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasTrainingResultsData ? 'Edit' : 'Enter'}
+                      </button>
+                    </div>
                   </div>
                 </>
               )
@@ -5601,11 +5959,11 @@ export default function Dashboard() {
             // Find user's existing Week 1 bowl game (if any)
             const existingWeek1Games = existingBowlYearData.week1 || []
             const userExistingBowlGame = existingWeek1Games.find(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Check if user's game is already in the new data from the sheet
             const userGameInSheet = sanitizedBowlGames.some(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Merge: keep user's game if it exists and wasn't in the sheet
             const mergedBowlGames = userExistingBowlGame && !userGameInSheet
@@ -5615,11 +5973,11 @@ export default function Dashboard() {
             // Find user's existing CFP First Round game (if any)
             const existingFirstRound = existingCFPYearData.firstRound || []
             const userExistingCFPGame = existingFirstRound.find(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Check if user's CFP game is already in the new data from the sheet
             const userCFPGameInSheet = cfpFirstRound.some(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Merge: keep user's CFP game if it exists and wasn't in the sheet
             const mergedCFPFirstRound = userExistingCFPGame && !userCFPGameInSheet
@@ -5730,11 +6088,11 @@ export default function Dashboard() {
             // Find user's existing Week 2 bowl game (if any)
             const existingWeek2Games = existingBowlYearData.week2 || []
             const userExistingBowlGame = existingWeek2Games.find(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Check if user's game is already in the new data from the sheet
             const userGameInSheet = sanitizedBowlGames.some(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Merge: keep user's game if it exists and wasn't in the sheet
             const mergedBowlGames = userExistingBowlGame && !userGameInSheet
@@ -5744,11 +6102,11 @@ export default function Dashboard() {
             // Find user's existing CFP Quarterfinal game (if any)
             const existingQuarterfinals = existingCFPYearData.quarterfinals || []
             const userExistingCFPGame = existingQuarterfinals.find(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Check if user's CFP game is already in the new data from the sheet
             const userCFPGameInSheet = cfpQuarterfinals.some(g =>
-              g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
             )
             // Merge: keep user's CFP game if it exists and wasn't in the sheet
             const mergedCFPQuarterfinals = userExistingCFPGame && !userCFPGameInSheet
@@ -5823,10 +6181,10 @@ export default function Dashboard() {
           // CRITICAL FIX: Preserve user's game that was entered separately
           const existingFirstRound = existingYearData.firstRound || []
           const userExistingGame = existingFirstRound.find(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const userGameInSheet = games.some(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedGames = userExistingGame && !userGameInSheet
             ? [...games, userExistingGame]
@@ -5860,10 +6218,10 @@ export default function Dashboard() {
           const weekKey = `week${week}`
           const existingWeekGames = existingYearData[weekKey] || []
           const userExistingGame = existingWeekGames.find(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const userGameInSheet = cfpGames.some(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedCFPGames = userExistingGame && !userGameInSheet
             ? [...cfpGames, userExistingGame]
@@ -5897,10 +6255,10 @@ export default function Dashboard() {
           // CRITICAL FIX: Preserve user's game that was entered separately
           const existingQuarterfinals = existingYearData.quarterfinals || []
           const userExistingGame = existingQuarterfinals.find(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const userGameInSheet = cfpGames.some(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedCFPGames = userExistingGame && !userGameInSheet
             ? [...cfpGames, userExistingGame]
@@ -5934,10 +6292,10 @@ export default function Dashboard() {
           // CRITICAL FIX: Preserve user's game that was entered separately
           const existingSemifinals = existingYearData.semifinals || []
           const userExistingGame = existingSemifinals.find(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const userGameInSheet = cfpGames.some(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedCFPGames = userExistingGame && !userGameInSheet
             ? [...cfpGames, userExistingGame]
@@ -5970,10 +6328,10 @@ export default function Dashboard() {
           // CRITICAL FIX: Preserve user's game that was entered separately
           const existingChampionship = existingYearData.championship || []
           const userExistingGame = existingChampionship.find(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const userGameInSheet = cfpGames.some(g =>
-            g.team1 === userTeamAbbr || g.team2 === userTeamAbbr
+            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedCFPGames = userExistingGame && !userGameInSheet
             ? [...cfpGames, userExistingGame]
@@ -6184,6 +6542,63 @@ export default function Dashboard() {
         recruitingLabel={getRecruitingLabel()}
         existingCommitments={getAllPreviousCommitments()}
         teamColors={teamColors}
+      />
+
+      {/* Position Changes Modal (National Signing Day) */}
+      <PositionChangesModal
+        isOpen={showPositionChangesModal}
+        onClose={() => setShowPositionChangesModal(false)}
+        onSave={handlePositionChangesSave}
+        players={currentDynasty?.players || []}
+        existingChanges={currentDynasty?.positionChangesByYear?.[currentDynasty?.currentYear] || []}
+        teamColors={teamColors}
+      />
+
+      {/* Recruiting Class Rank Modal (National Signing Day) */}
+      <RecruitingClassRankModal
+        isOpen={showRecruitingClassRankModal}
+        onClose={() => setShowRecruitingClassRankModal(false)}
+        onSave={handleRecruitingClassRankSave}
+        currentRank={currentDynasty?.recruitingClassRankByTeamYear?.[getAbbreviationFromDisplayName(currentDynasty?.teamName)]?.[currentDynasty?.currentYear]}
+        teamColors={teamColors}
+      />
+
+      {/* Training Results Modal (Training Camp - Offseason Week 6) */}
+      <TrainingResultsModal
+        isOpen={showTrainingResultsModal}
+        onClose={() => setShowTrainingResultsModal(false)}
+        onSave={handleTrainingResultsSave}
+        currentYear={currentDynasty?.currentYear}
+        teamColors={teamColors}
+        players={(() => {
+          // Calculate training players: returning players + portal transfers
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty?.currentYear] || []
+          const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
+
+          // Get returning players (not leaving) - use teamRoster which filters by team and excludes recruits
+          const returningPlayers = teamRoster.filter(p => !leavingPids.has(p.pid))
+
+          // Get portal transfers from recruiting commitments
+          const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty?.currentYear] || {}
+          const portalTransfers = []
+          Object.values(recruitingCommitments).forEach(weekCommitments => {
+            if (Array.isArray(weekCommitments)) {
+              weekCommitments.forEach(c => {
+                if (c.isPortal) {
+                  portalTransfers.push({
+                    name: c.name,
+                    position: c.position,
+                    overall: c.overall || 0,
+                    pid: c.pid || `portal-${c.name}`
+                  })
+                }
+              })
+            }
+          })
+
+          return [...returningPlayers, ...portalTransfers]
+        })()}
       />
     </div>
   )

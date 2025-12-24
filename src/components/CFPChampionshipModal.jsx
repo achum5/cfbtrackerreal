@@ -101,8 +101,8 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
         setGame(existingChamp)
       } else {
         // Get winners from semifinals
-        const peachWinner = sfResults.find(g => g.bowlName === 'Peach Bowl')?.winner || ''
-        const fiestaWinner = sfResults.find(g => g.bowlName === 'Fiesta Bowl')?.winner || ''
+        const peachWinner = sfResults.find(g => g && g.bowlName === 'Peach Bowl')?.winner || ''
+        const fiestaWinner = sfResults.find(g => g && g.bowlName === 'Fiesta Bowl')?.winner || ''
 
         setGame({
           id: 'championship',
@@ -172,14 +172,14 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
         className="rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-auto"
         style={{
           background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)'
         }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header with Trophy */}
         <div

@@ -64,6 +64,22 @@ const getMascotName = (abbr) => {
 // Class progression order
 const CLASS_ORDER = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
 
+// Determine primary stat category for a position (where G/Snaps should appear)
+const getPrimaryStatCategory = (position) => {
+  const positionMap = {
+    'QB': 'passing',
+    'HB': 'rushing', 'FB': 'rushing',
+    'WR': 'receiving', 'TE': 'receiving',
+    'LT': 'blocking', 'LG': 'blocking', 'C': 'blocking', 'RG': 'blocking', 'RT': 'blocking',
+    'LEDG': 'defense', 'REDG': 'defense', 'DT': 'defense',
+    'SAM': 'defense', 'MIKE': 'defense', 'WILL': 'defense',
+    'CB': 'defense', 'FS': 'defense', 'SS': 'defense',
+    'K': 'kicking',
+    'P': 'punting'
+  }
+  return positionMap[position] || 'passing'
+}
+
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
   const { dynasties, currentDynasty, updatePlayer } = useDynasty()
@@ -625,101 +641,66 @@ export default function Player() {
         </div>
       )}
 
-      {/* Stats Section - Football Reference Style (only shown if player has meaningful stats) */}
-      {hasMeaningfulStats && (
+      {/* Career Statistics - Football Reference Style */}
+      {hasMeaningfulStats && (() => {
+        const primaryStat = getPrimaryStatCategory(player.position)
+        return (
         <div className="space-y-6">
-          {/* Games & Snaps Table */}
-          <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-            <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-              <h3 className="text-sm font-bold text-gray-900">Games & Snaps</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Year</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Class</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Team</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">GP</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Snaps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {yearByYearStats.map((y, idx) => (
-                    <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                      <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                      <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                      <td className="px-3 py-2 text-left text-gray-700">{teamAbbr}</td>
-                      <td className="px-3 py-2 text-right text-gray-900">{y.gamesPlayed}</td>
-                      <td className="px-3 py-2 text-right text-gray-900">{y.snapsPlayed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gray-100 border-t-2 border-gray-300">
-                    <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                    <td className="px-3 py-2 text-left text-gray-700"></td>
-                    <td className="px-3 py-2 text-left text-gray-700">{teamAbbr}</td>
-                    <td className="px-3 py-2 text-right font-bold text-gray-900">{careerGames}</td>
-                    <td className="px-3 py-2 text-right font-bold text-gray-900">{careerSnaps}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
           {/* Passing Table */}
           {hasStats.passing && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Passing</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Passing</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[700px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Cmp', full: 'Completions' }, { abbr: 'Att', full: 'Attempts' },
-                        { abbr: 'Pct', full: 'Completion %' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Y/A', full: 'Yards per Attempt' }, { abbr: 'TD', full: 'Touchdowns' },
-                        { abbr: 'Int', full: 'Interceptions' }, { abbr: 'Lng', full: 'Long' },
-                        { abbr: 'Sck', full: 'Sacks Taken' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'passing' ? ['G', 'Snaps'] : []), 'Cmp', 'Att', 'Pct', 'Yds', 'Y/A', 'TD', 'Int', 'Lng', 'Sck'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.passing).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.passing.cmp}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.passing.att}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcPct(y.passing.cmp, y.passing.att)}%</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.passing.yds.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcAvg(y.passing.yds, y.passing.att)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.passing.td}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.passing.int}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.passing.lng}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.passing.sacks}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.passing).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'passing' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right">{y.passing.cmp}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.passing.att}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcPct(y.passing.cmp, y.passing.att)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.passing.yds.toLocaleString()}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.passing.yds, y.passing.att)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.passing.td}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.passing.int}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.passing.lng}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.passing.sacks}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPassing.cmp}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPassing.att}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{calcPct(careerPassing.cmp, careerPassing.att)}%</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPassing.yds.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{calcAvg(careerPassing.yds, careerPassing.att)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPassing.td}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPassing.int}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPassing.lng}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPassing.sacks}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerPassing.cmp}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.att}</td>
+                      <td className="px-2 py-2 text-right">{calcPct(careerPassing.cmp, careerPassing.att)}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.yds.toLocaleString()}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerPassing.yds, careerPassing.att)}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.td}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.int}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.lng}</td>
+                      <td className="px-2 py-2 text-right">{careerPassing.sacks}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -729,51 +710,55 @@ export default function Player() {
 
           {/* Rushing Table */}
           {hasStats.rushing && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Rushing</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Rushing</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[550px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Car', full: 'Carries' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Y/C', full: 'Yards per Carry' }, { abbr: 'TD', full: 'Touchdowns' },
-                        { abbr: 'Lng', full: 'Long' }, { abbr: 'Fum', full: 'Fumbles' },
-                        { abbr: 'BTkl', full: 'Broken Tackles' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'rushing' ? ['G', 'Snaps'] : []), 'Car', 'Yds', 'Y/C', 'TD', 'Lng', 'Fum', 'BTkl'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.rushing).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.rushing.car}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.rushing.yds.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcAvg(y.rushing.yds, y.rushing.car)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.rushing.td}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.rushing.lng}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.rushing.fum}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.rushing.bt}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.rushing).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'rushing' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right">{y.rushing.car}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.rushing.yds.toLocaleString()}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.rushing.yds, y.rushing.car)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.rushing.td}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.rushing.lng}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.rushing.fum}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.rushing.bt}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerRushing.car}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerRushing.yds.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{calcAvg(careerRushing.yds, careerRushing.car)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerRushing.td}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerRushing.lng}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerRushing.fum}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerRushing.bt}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerRushing.car}</td>
+                      <td className="px-2 py-2 text-right">{careerRushing.yds.toLocaleString()}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerRushing.yds, careerRushing.car)}</td>
+                      <td className="px-2 py-2 text-right">{careerRushing.td}</td>
+                      <td className="px-2 py-2 text-right">{careerRushing.lng}</td>
+                      <td className="px-2 py-2 text-right">{careerRushing.fum}</td>
+                      <td className="px-2 py-2 text-right">{careerRushing.bt}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -783,48 +768,53 @@ export default function Player() {
 
           {/* Receiving Table */}
           {hasStats.receiving && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Receiving</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Receiving</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[500px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Rec', full: 'Receptions' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Y/R', full: 'Yards per Reception' }, { abbr: 'TD', full: 'Touchdowns' },
-                        { abbr: 'Lng', full: 'Long' }, { abbr: 'Drops', full: 'Drops' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'receiving' ? ['G', 'Snaps'] : []), 'Rec', 'Yds', 'Y/R', 'TD', 'Lng', 'Drops'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.receiving).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.receiving.rec}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.receiving.yds.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcAvg(y.receiving.yds, y.receiving.rec)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.receiving.td}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.receiving.lng}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.receiving.drops}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.receiving).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'receiving' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right">{y.receiving.rec}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.receiving.yds.toLocaleString()}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.receiving.yds, y.receiving.rec)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.receiving.td}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.receiving.lng}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.receiving.drops}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerReceiving.rec}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerReceiving.yds.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{calcAvg(careerReceiving.yds, careerReceiving.rec)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerReceiving.td}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerReceiving.lng}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerReceiving.drops}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerReceiving.rec}</td>
+                      <td className="px-2 py-2 text-right">{careerReceiving.yds.toLocaleString()}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerReceiving.yds, careerReceiving.rec)}</td>
+                      <td className="px-2 py-2 text-right">{careerReceiving.td}</td>
+                      <td className="px-2 py-2 text-right">{careerReceiving.lng}</td>
+                      <td className="px-2 py-2 text-right">{careerReceiving.drops}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -834,41 +824,43 @@ export default function Player() {
 
           {/* Blocking Table */}
           {hasStats.blocking && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Blocking</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Blocking</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[300px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Games', full: 'Games Played' }, { abbr: 'Snaps', full: 'Snaps Played' },
-                        { abbr: 'Sacks Allowed', full: 'Sacks Allowed' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'blocking' ? ['G', 'Snaps'] : []), 'Sacks Allowed'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.blocking).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.gamesPlayed || 0}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.snapsPlayed || 0}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.blocking.sacksAllowed}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.blocking).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'blocking' && <td className="px-2 py-2 text-right">{y.gamesPlayed || 0}</td>}
+                          {primaryStat === 'blocking' && <td className="px-2 py-2 text-right text-gray-500">{(y.snapsPlayed || 0).toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right font-medium">{y.blocking.sacksAllowed}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerGames}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerSnaps}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerBlocking.sacksAllowed}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'blocking' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'blocking' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerBlocking.sacksAllowed}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -878,61 +870,63 @@ export default function Player() {
 
           {/* Defense Table */}
           {hasStats.defensive && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Defense</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Defense</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[800px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Solo', full: 'Solo Tackles' }, { abbr: 'Ast', full: 'Assisted Tackles' },
-                        { abbr: 'Tot', full: 'Total Tackles' }, { abbr: 'TFL', full: 'Tackles for Loss' },
-                        { abbr: 'Sck', full: 'Sacks' }, { abbr: 'Int', full: 'Interceptions' },
-                        { abbr: 'IntYd', full: 'Interception Return Yards' }, { abbr: 'TD', full: 'Defensive Touchdowns' },
-                        { abbr: 'PD', full: 'Passes Defended' }, { abbr: 'FF', full: 'Forced Fumbles' },
-                        { abbr: 'FR', full: 'Fumble Recoveries' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-2 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'defense' ? ['G', 'Snaps'] : []), 'Solo', 'Ast', 'Tot', 'TFL', 'Sck', 'Int', 'IntYd', 'TD', 'PD', 'FF', 'FR'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.defensive).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-2 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-2 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.solo}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.ast}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-gray-900">{y.defensive.solo + y.defensive.ast}</td>
-                        <td className="px-2 py-2 text-right text-gray-900">{y.defensive.tfl}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-gray-900">{y.defensive.sacks}</td>
-                        <td className="px-2 py-2 text-right text-gray-900">{y.defensive.int}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.intYds}</td>
-                        <td className="px-2 py-2 text-right text-gray-900">{y.defensive.intTd}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.pdef}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.ff}</td>
-                        <td className="px-2 py-2 text-right text-gray-700">{y.defensive.fr}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.defensive).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'defense' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'defense' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.solo}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.ast}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.defensive.solo + y.defensive.ast}</td>
+                          <td className="px-2 py-2 text-right">{y.defensive.tfl}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.defensive.sacks}</td>
+                          <td className="px-2 py-2 text-right">{y.defensive.int}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.intYds}</td>
+                          <td className="px-2 py-2 text-right">{y.defensive.intTd}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.pdef}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.ff}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.defensive.fr}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-2 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-2 py-2 text-left text-gray-700"></td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.solo}</td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.ast}</td>
-                      <td className="px-2 py-2 text-right font-bold text-gray-900">{careerDefensive.solo + careerDefensive.ast}</td>
-                      <td className="px-2 py-2 text-right font-bold text-gray-900">{careerDefensive.tfl}</td>
-                      <td className="px-2 py-2 text-right font-bold text-gray-900">{careerDefensive.sacks}</td>
-                      <td className="px-2 py-2 text-right font-bold text-gray-900">{careerDefensive.int}</td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.intYds}</td>
-                      <td className="px-2 py-2 text-right font-bold text-gray-900">{careerDefensive.intTd}</td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.pdef}</td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.ff}</td>
-                      <td className="px-2 py-2 text-right text-gray-700">{careerDefensive.fr}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'defense' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'defense' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerDefensive.solo}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.ast}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.solo + careerDefensive.ast}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.tfl}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.sacks}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.int}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.intYds}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.intTd}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.pdef}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.ff}</td>
+                      <td className="px-2 py-2 text-right">{careerDefensive.fr}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -942,51 +936,55 @@ export default function Player() {
 
           {/* Kicking Table */}
           {hasStats.kicking && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Kicking</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Kicking</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[500px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'FGM', full: 'Field Goals Made' }, { abbr: 'FGA', full: 'Field Goals Attempted' },
-                        { abbr: 'FG%', full: 'Field Goal %' }, { abbr: 'Lng', full: 'Long' },
-                        { abbr: 'XPM', full: 'Extra Points Made' }, { abbr: 'XPA', full: 'Extra Points Attempted' },
-                        { abbr: 'XP%', full: 'Extra Point %' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'kicking' ? ['G', 'Snaps'] : []), 'FGM', 'FGA', 'FG%', 'Lng', 'XPM', 'XPA', 'XP%'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.kicking).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.kicking.fgm}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.kicking.fga}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcPct(y.kicking.fgm, y.kicking.fga)}%</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.kicking.lng}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.kicking.xpm}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.kicking.xpa}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{calcPct(y.kicking.xpm, y.kicking.xpa)}%</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.kicking).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'kicking' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'kicking' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right font-medium">{y.kicking.fgm}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.kicking.fga}</td>
+                          <td className="px-2 py-2 text-right">{calcPct(y.kicking.fgm, y.kicking.fga)}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.kicking.lng}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.kicking.xpm}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.kicking.xpa}</td>
+                          <td className="px-2 py-2 text-right">{calcPct(y.kicking.xpm, y.kicking.xpa)}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerKicking.fgm}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerKicking.fga}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{calcPct(careerKicking.fgm, careerKicking.fga)}%</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerKicking.lng}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerKicking.xpm}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerKicking.xpa}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{calcPct(careerKicking.xpm, careerKicking.xpa)}%</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'kicking' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'kicking' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerKicking.fgm}</td>
+                      <td className="px-2 py-2 text-right">{careerKicking.fga}</td>
+                      <td className="px-2 py-2 text-right">{calcPct(careerKicking.fgm, careerKicking.fga)}</td>
+                      <td className="px-2 py-2 text-right">{careerKicking.lng}</td>
+                      <td className="px-2 py-2 text-right">{careerKicking.xpm}</td>
+                      <td className="px-2 py-2 text-right">{careerKicking.xpa}</td>
+                      <td className="px-2 py-2 text-right">{calcPct(careerKicking.xpm, careerKicking.xpa)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -996,48 +994,53 @@ export default function Player() {
 
           {/* Punting Table */}
           {hasStats.punting && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Punting</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Punting</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[450px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Punts', full: 'Punts' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Avg', full: 'Average' }, { abbr: 'Lng', full: 'Long' },
-                        { abbr: 'In20', full: 'Inside 20' }, { abbr: 'TB', full: 'Touchbacks' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', ...(primaryStat === 'punting' ? ['G', 'Snaps'] : []), 'Punts', 'Yds', 'Avg', 'Lng', 'In20', 'TB'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.punting).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.punting.punts}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.punting.yds.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{calcAvg(y.punting.yds, y.punting.punts)}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.punting.lng}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.punting.in20}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.punting.tb}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.punting).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          {primaryStat === 'punting' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
+                          {primaryStat === 'punting' && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
+                          <td className="px-2 py-2 text-right">{y.punting.punts}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.punting.yds.toLocaleString()}</td>
+                          <td className="px-2 py-2 text-right font-medium">{calcAvg(y.punting.yds, y.punting.punts)}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.punting.lng}</td>
+                          <td className="px-2 py-2 text-right">{y.punting.in20}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.punting.tb}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPunting.punts}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPunting.yds.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{calcAvg(careerPunting.yds, careerPunting.punts)}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPunting.lng}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPunting.in20}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPunting.tb}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      {primaryStat === 'punting' && <td className="px-2 py-2 text-right">{careerGames}</td>}
+                      {primaryStat === 'punting' && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
+                      <td className="px-2 py-2 text-right">{careerPunting.punts}</td>
+                      <td className="px-2 py-2 text-right">{careerPunting.yds.toLocaleString()}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerPunting.yds, careerPunting.punts)}</td>
+                      <td className="px-2 py-2 text-right">{careerPunting.lng}</td>
+                      <td className="px-2 py-2 text-right">{careerPunting.in20}</td>
+                      <td className="px-2 py-2 text-right">{careerPunting.tb}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1047,46 +1050,47 @@ export default function Player() {
 
           {/* Kick Returns Table */}
           {hasStats.kickReturn && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Kick Returns</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Kick Returns</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[400px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Ret', full: 'Returns' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Avg', full: 'Average' }, { abbr: 'TD', full: 'Touchdowns' },
-                        { abbr: 'Lng', full: 'Long' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', 'Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.kickReturn).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.kickReturn.ret}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.kickReturn.yds}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{calcAvg(y.kickReturn.yds, y.kickReturn.ret)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.kickReturn.td}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.kickReturn.lng}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.kickReturn).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          <td className="px-2 py-2 text-right">{y.kickReturn.ret}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.kickReturn.yds}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.kickReturn.yds, y.kickReturn.ret)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.kickReturn.td}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.kickReturn.lng}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerKickReturn.ret}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerKickReturn.yds}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{calcAvg(careerKickReturn.yds, careerKickReturn.ret)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerKickReturn.td}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerKickReturn.lng}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2 text-right">{careerKickReturn.ret}</td>
+                      <td className="px-2 py-2 text-right">{careerKickReturn.yds}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerKickReturn.yds, careerKickReturn.ret)}</td>
+                      <td className="px-2 py-2 text-right">{careerKickReturn.td}</td>
+                      <td className="px-2 py-2 text-right">{careerKickReturn.lng}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1096,46 +1100,47 @@ export default function Player() {
 
           {/* Punt Returns Table */}
           {hasStats.puntReturn && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-              <div className="px-4 py-2.5 border-b-2" style={{ borderColor: teamColors.primary, backgroundColor: '#fafafa' }}>
-                <h3 className="text-sm font-bold text-gray-900">Punt Returns</h3>
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+              <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
+                <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Punt Returns</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[400px]">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      {[
-                        { abbr: 'Year', full: 'Year' }, { abbr: 'Class', full: 'Class' },
-                        { abbr: 'Ret', full: 'Returns' }, { abbr: 'Yds', full: 'Yards' },
-                        { abbr: 'Avg', full: 'Average' }, { abbr: 'TD', full: 'Touchdowns' },
-                        { abbr: 'Lng', full: 'Long' }
-                      ].map((h, i) => (
-                        <th key={i} title={h.full} className={`px-3 py-2 text-xs font-semibold text-gray-600 cursor-help ${i < 2 ? 'text-left' : 'text-right'}`}>{h.abbr}</th>
+                      {['Year', 'Class', 'Team', 'Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
+                        <th key={i} className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase ${i < 2 ? 'text-left' : i === 2 ? 'text-center' : 'text-right'}`}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
-                    {yearByYearStats.filter(y => y.puntReturn).map((y, idx) => (
-                      <tr key={y.year} className={`border-b border-gray-100 ${idx % 2 === 1 ? 'bg-gray-50/50' : 'bg-white'}`}>
-                        <td className="px-3 py-2 text-left font-semibold text-gray-900">{y.year}</td>
-                        <td className="px-3 py-2 text-left text-gray-700">{y.class}</td>
-                        <td className="px-3 py-2 text-right text-gray-900">{y.puntReturn.ret}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.puntReturn.yds}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{calcAvg(y.puntReturn.yds, y.puntReturn.ret)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-gray-900">{y.puntReturn.td}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{y.puntReturn.lng}</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-100">
+                    {yearByYearStats.filter(y => y.puntReturn).map((y, idx) => {
+                      const mascot = getMascotName(teamAbbr)
+                      const logo = mascot ? getTeamLogo(mascot) : null
+                      return (
+                        <tr key={y.year} className={idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'}>
+                          <td className="px-2 py-2 font-medium text-gray-900">{y.year}</td>
+                          <td className="px-2 py-2 text-gray-600">{y.class}</td>
+                          <td className="px-2 py-2 text-center">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                          <td className="px-2 py-2 text-right">{y.puntReturn.ret}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.puntReturn.yds}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.puntReturn.yds, y.puntReturn.ret)}</td>
+                          <td className="px-2 py-2 text-right font-medium">{y.puntReturn.td}</td>
+                          <td className="px-2 py-2 text-right text-gray-500">{y.puntReturn.lng}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-100 border-t-2 border-gray-300">
-                      <td className="px-3 py-2 text-left font-bold text-gray-900">Career</td>
-                      <td className="px-3 py-2 text-left text-gray-700"></td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPuntReturn.ret}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPuntReturn.yds}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{calcAvg(careerPuntReturn.yds, careerPuntReturn.ret)}</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900">{careerPuntReturn.td}</td>
-                      <td className="px-3 py-2 text-right text-gray-700">{careerPuntReturn.lng}</td>
+                    <tr className="bg-gray-100 font-semibold border-t-2" style={{ borderColor: teamColors.primary }}>
+                      <td className="px-2 py-2 text-gray-900">Career</td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2"></td>
+                      <td className="px-2 py-2 text-right">{careerPuntReturn.ret}</td>
+                      <td className="px-2 py-2 text-right">{careerPuntReturn.yds}</td>
+                      <td className="px-2 py-2 text-right">{calcAvg(careerPuntReturn.yds, careerPuntReturn.ret)}</td>
+                      <td className="px-2 py-2 text-right">{careerPuntReturn.td}</td>
+                      <td className="px-2 py-2 text-right">{careerPuntReturn.lng}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1143,7 +1148,8 @@ export default function Player() {
             </div>
           )}
         </div>
-      )}
+        )
+      })()}
 
       {/* Notes & Media */}
       {(player.notes || (player.links && player.links.length > 0)) && (

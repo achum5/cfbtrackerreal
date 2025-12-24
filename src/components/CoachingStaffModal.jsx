@@ -79,12 +79,12 @@ export default function CoachingStaffModal({ isOpen, onClose, onSave, teamColors
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
         className="rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6"
         style={{ backgroundColor: teamColors.secondary }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>

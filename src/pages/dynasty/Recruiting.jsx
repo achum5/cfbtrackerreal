@@ -1,5 +1,5 @@
-import { useMemo, useEffect } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -66,6 +66,22 @@ export default function Recruiting() {
   const { currentDynasty } = useDynasty()
   const { teamAbbr: urlTeamAbbr, year: urlYear } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Detect if we're on the portal view based on URL path
+  const isPortalView = location.pathname.includes('/recruiting/portal/')
+
+  // Star filter state - which star ratings to show (empty = show all)
+  const [selectedStars, setSelectedStars] = useState([])
+
+  // Toggle star filter
+  const toggleStarFilter = (starCount) => {
+    setSelectedStars(prev =>
+      prev.includes(starCount)
+        ? prev.filter(s => s !== starCount)
+        : [...prev, starCount]
+    )
+  }
 
   // Get current team abbreviation (for redirect if no URL params)
   const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName
@@ -100,16 +116,29 @@ export default function Recruiting() {
       .sort((a, b) => b - a) // Most recent first
   }, [currentDynasty?.recruitingCommitmentsByTeamYear, teamAbbr])
 
-  // Handle year change - navigate to new URL
+  // Handle year change - navigate to new URL (preserve view mode)
   const handleYearChange = (newYear) => {
-    navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${newYear}`)
+    if (isPortalView) {
+      navigate(`/dynasty/${currentDynasty.id}/recruiting/portal/${teamAbbr}/${newYear}`)
+    } else {
+      navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${newYear}`)
+    }
+  }
+
+  // Toggle between HS and Portal views
+  const handleToggleView = (viewPortal) => {
+    if (viewPortal) {
+      navigate(`/dynasty/${currentDynasty.id}/recruiting/portal/${teamAbbr}/${selectedYear}`)
+    } else {
+      navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${selectedYear}`)
+    }
   }
 
   if (!currentDynasty) return null
 
   // Get all commitments for selected year - TEAM-CENTRIC
   const commitmentsForYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[selectedYear] || {}
-  const allCommitments = useMemo(() => {
+  const allCommitmentsUnfiltered = useMemo(() => {
     const commitments = []
     Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
       if (Array.isArray(weekCommitments)) {
@@ -130,19 +159,35 @@ export default function Recruiting() {
     })
   }, [commitmentsForYear])
 
-  // Calculate class stats
-  const classStats = useMemo(() => {
-    const fiveStars = allCommitments.filter(c => Number(c.stars) === 5).length
-    const fourStars = allCommitments.filter(c => Number(c.stars) === 4).length
-    const threeStars = allCommitments.filter(c => Number(c.stars) === 3).length
-    const avgStars = allCommitments.length > 0
-      ? (allCommitments.reduce((sum, c) => sum + (Number(c.stars) || 0), 0) / allCommitments.length).toFixed(2)
-      : 0
-    const transfers = allCommitments.filter(c => c.previousTeam).length
-    const highSchool = allCommitments.filter(c => c.class === 'HS' || !c.previousTeam).length
+  // Filter commitments based on view mode (HS vs Portal) AND star filter
+  const allCommitments = useMemo(() => {
+    let filtered
+    if (isPortalView) {
+      // Portal view: only show players with a previousTeam
+      filtered = allCommitmentsUnfiltered.filter(c => c.previousTeam)
+    } else {
+      // HS view: only show players WITHOUT a previousTeam
+      filtered = allCommitmentsUnfiltered.filter(c => !c.previousTeam)
+    }
 
-    return { fiveStars, fourStars, threeStars, avgStars, transfers, highSchool, total: allCommitments.length }
-  }, [allCommitments])
+    // Apply star filter if any stars are selected
+    if (selectedStars.length > 0) {
+      filtered = filtered.filter(c => selectedStars.includes(Number(c.stars)))
+    }
+
+    return filtered
+  }, [allCommitmentsUnfiltered, isPortalView, selectedStars])
+
+  // Calculate class stats - always use ALL commits (HS + Portal combined)
+  const classStats = useMemo(() => {
+    const fiveStars = allCommitmentsUnfiltered.filter(c => Number(c.stars) === 5).length
+    const fourStars = allCommitmentsUnfiltered.filter(c => Number(c.stars) === 4).length
+    const threeStars = allCommitmentsUnfiltered.filter(c => Number(c.stars) === 3).length
+    const twoStars = allCommitmentsUnfiltered.filter(c => Number(c.stars) === 2).length
+    const oneStars = allCommitmentsUnfiltered.filter(c => Number(c.stars) === 1).length
+
+    return { fiveStars, fourStars, threeStars, twoStars, oneStars, total: allCommitmentsUnfiltered.length }
+  }, [allCommitmentsUnfiltered])
 
   // Get player by name to link to player page - filter by team
   const findPlayerByName = (name) => {
@@ -179,7 +224,7 @@ export default function Recruiting() {
                 {teamFullName}
               </h2>
               <p className="text-sm font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                {selectedYear} Recruiting Class
+                {selectedYear} {isPortalView ? 'Transfer Portal' : 'Recruiting Class'}
               </p>
             </div>
           </div>
@@ -210,39 +255,137 @@ export default function Recruiting() {
           </div>
         </div>
 
-        {/* Class Stats Summary */}
-        {allCommitments.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: `${teamColors.primary}15` }}>
-              <div className="text-2xl font-bold" style={{ color: teamColors.primary }}>{classStats.total}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>Total</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#FEF3C720' }}>
-              <div className="text-2xl font-bold" style={{ color: '#B45309' }}>{classStats.fiveStars}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>5-Star</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#E0E7FF20' }}>
-              <div className="text-2xl font-bold" style={{ color: '#4338CA' }}>{classStats.fourStars}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>4-Star</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#DBEAFE20' }}>
-              <div className="text-2xl font-bold" style={{ color: '#1D4ED8' }}>{classStats.threeStars}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>3-Star</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#FCD34D20' }}>
-              <div className="text-2xl font-bold" style={{ color: '#B45309' }}>{classStats.avgStars}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>Avg Stars</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#10B98120' }}>
-              <div className="text-2xl font-bold" style={{ color: '#047857' }}>{classStats.highSchool}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>HS Recruits</div>
-            </div>
-            <div className="p-3 rounded-lg text-center" style={{ backgroundColor: '#8B5CF620' }}>
-              <div className="text-2xl font-bold" style={{ color: '#6D28D9' }}>{classStats.transfers}</div>
-              <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>Transfers</div>
-            </div>
+        {/* HS / Portal Toggle */}
+        <div className="flex justify-center mb-6">
+          <div
+            className="inline-flex rounded-lg border-2 overflow-hidden"
+            style={{ borderColor: teamColors.primary }}
+          >
+            <button
+              onClick={() => handleToggleView(false)}
+              className="px-4 py-2 font-semibold transition-colors"
+              style={{
+                backgroundColor: !isPortalView ? teamColors.primary : 'transparent',
+                color: !isPortalView ? primaryBgText : secondaryBgText
+              }}
+            >
+              High School ({allCommitmentsUnfiltered.filter(c => !c.previousTeam).length})
+            </button>
+            <button
+              onClick={() => handleToggleView(true)}
+              className="px-4 py-2 font-semibold transition-colors"
+              style={{
+                backgroundColor: isPortalView ? teamColors.primary : 'transparent',
+                color: isPortalView ? primaryBgText : secondaryBgText
+              }}
+            >
+              Transfer Portal ({allCommitmentsUnfiltered.filter(c => c.previousTeam).length})
+            </button>
           </div>
-        )}
+        </div>
+
+        {/* Class Stats Summary */}
+        {(() => {
+          const nationalRank = currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[selectedYear]
+
+          // Mini star component for stats
+          const MiniStars = ({ count, filled }) => (
+            <div className="flex justify-center gap-0.5">
+              {[...Array(count)].map((_, i) => (
+                <svg key={i} className="w-3 h-3" fill="#FFD700" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </div>
+          )
+
+          return (
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6">
+              {/* National Rank */}
+              <div className="px-4 py-2 rounded-lg text-center" style={{ backgroundColor: `${teamColors.primary}15`, minWidth: '80px' }}>
+                <div className="text-xl font-bold" style={{ color: teamColors.primary }}>
+                  {nationalRank ? `#${nationalRank}` : '—'}
+                </div>
+                <div className="text-xs font-medium mt-0.5" style={{ color: secondaryBgText, opacity: 0.7 }}>Rank</div>
+              </div>
+
+              {/* 5-Star */}
+              <button
+                onClick={() => toggleStarFilter(5)}
+                className={`px-3 py-2 rounded-lg text-center transition-all cursor-pointer ${
+                  selectedStars.includes(5) ? 'ring-2 ring-offset-1 ring-yellow-500 scale-105' : 'hover:scale-105'
+                }`}
+                style={{
+                  backgroundColor: selectedStars.includes(5) ? '#FEF3C7' : '#FEF3C720',
+                  minWidth: '60px'
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: '#B45309' }}>{classStats.fiveStars}</div>
+                <MiniStars count={5} />
+              </button>
+
+              {/* 4-Star */}
+              <button
+                onClick={() => toggleStarFilter(4)}
+                className={`px-3 py-2 rounded-lg text-center transition-all cursor-pointer ${
+                  selectedStars.includes(4) ? 'ring-2 ring-offset-1 ring-indigo-500 scale-105' : 'hover:scale-105'
+                }`}
+                style={{
+                  backgroundColor: selectedStars.includes(4) ? '#E0E7FF' : '#E0E7FF20',
+                  minWidth: '60px'
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: '#4338CA' }}>{classStats.fourStars}</div>
+                <MiniStars count={4} />
+              </button>
+
+              {/* 3-Star */}
+              <button
+                onClick={() => toggleStarFilter(3)}
+                className={`px-3 py-2 rounded-lg text-center transition-all cursor-pointer ${
+                  selectedStars.includes(3) ? 'ring-2 ring-offset-1 ring-blue-500 scale-105' : 'hover:scale-105'
+                }`}
+                style={{
+                  backgroundColor: selectedStars.includes(3) ? '#DBEAFE' : '#DBEAFE20',
+                  minWidth: '60px'
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{classStats.threeStars}</div>
+                <MiniStars count={3} />
+              </button>
+
+              {/* 2-Star */}
+              <button
+                onClick={() => toggleStarFilter(2)}
+                className={`px-3 py-2 rounded-lg text-center transition-all cursor-pointer ${
+                  selectedStars.includes(2) ? 'ring-2 ring-offset-1 ring-gray-400 scale-105' : 'hover:scale-105'
+                }`}
+                style={{
+                  backgroundColor: selectedStars.includes(2) ? '#E5E7EB' : '#F3F4F620',
+                  minWidth: '60px'
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: '#6B7280' }}>{classStats.twoStars}</div>
+                <MiniStars count={2} />
+              </button>
+
+              {/* 1-Star */}
+              <button
+                onClick={() => toggleStarFilter(1)}
+                className={`px-3 py-2 rounded-lg text-center transition-all cursor-pointer ${
+                  selectedStars.includes(1) ? 'ring-2 ring-offset-1 ring-gray-300 scale-105' : 'hover:scale-105'
+                }`}
+                style={{
+                  backgroundColor: selectedStars.includes(1) ? '#F3F4F6' : '#F3F4F610',
+                  minWidth: '60px'
+                }}
+              >
+                <div className="text-xl font-bold" style={{ color: '#9CA3AF' }}>{classStats.oneStars}</div>
+                <MiniStars count={1} />
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Recruit Cards */}
         {allCommitments.length > 0 ? (
@@ -309,7 +452,7 @@ export default function Recruiting() {
                   <div className="grid grid-cols-2 gap-2 text-sm mb-3">
                     {recruit.archetype && (
                       <div>
-                        <span style={{ color: secondaryBgText, opacity: 0.6 }}>Type: </span>
+                        <span style={{ color: secondaryBgText, opacity: 0.6 }}>Archetype: </span>
                         <span className="font-medium" style={{ color: secondaryBgText }}>{recruit.archetype}</span>
                       </div>
                     )}
@@ -392,12 +535,16 @@ export default function Recruiting() {
               </svg>
             </div>
             <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-              No Commitments Yet
+              {isPortalView ? 'No Transfer Portal Commits' : 'No HS Commitments Yet'}
             </h3>
             <p style={{ color: secondaryBgText, opacity: 0.8 }} className="max-w-md mx-auto">
               {selectedYear === currentDynasty.currentYear
-                ? 'Record recruiting commitments during preseason, regular season, or signing day.'
-                : `No recruiting data recorded for the ${selectedYear} class.`}
+                ? isPortalView
+                  ? 'Transfer portal commits will appear here when players with a previous team are recorded.'
+                  : 'Record high school recruiting commitments during preseason, regular season, or signing day.'
+                : isPortalView
+                  ? `No transfer portal commits recorded for the ${selectedYear} class.`
+                  : `No high school recruiting data recorded for the ${selectedYear} class.`}
             </p>
           </div>
         )}

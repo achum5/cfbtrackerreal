@@ -3,8 +3,8 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import {
-  createPlayersLeavingSheet,
-  readPlayersLeavingFromSheet,
+  createTrainingResultsSheet,
+  readTrainingResultsFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
@@ -14,7 +14,7 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function TrainingResultsModal({ isOpen, onClose, onSave, currentYear, teamColors, players }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
@@ -76,12 +76,12 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
     }
   }, [isOpen])
 
-  // Create players leaving sheet when modal opens
+  // Create training results sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         // Check if we have an existing sheet for this year
-        const existingSheetId = currentDynasty?.playersLeavingSheetId
+        const existingSheetId = currentDynasty?.trainingResultsSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -89,20 +89,19 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
 
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createPlayersLeavingSheet(
+          const sheetInfo = await createTrainingResultsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            currentDynasty?.players || [],
-            currentDynasty?.playerStatsByYear || {}
+            players || []
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            playersLeavingSheetId: sheetInfo.spreadsheetId
+            trainingResultsSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create players leaving sheet:', error)
+          console.error('Failed to create training results sheet:', error)
           if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
             setShowAuthError(true)
           }
@@ -113,7 +112,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -127,8 +126,8 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
 
     setSyncing(true)
     try {
-      const playersLeaving = await readPlayersLeavingFromSheet(sheetId)
-      await onSave(playersLeaving)
+      const trainingResults = await readTrainingResultsFromSheet(sheetId)
+      await onSave(trainingResults)
       onClose()
     } catch (error) {
       console.error(error)
@@ -147,15 +146,15 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
 
     setDeletingSheet(true)
     try {
-      const playersLeaving = await readPlayersLeavingFromSheet(sheetId)
-      await onSave(playersLeaving)
+      const trainingResults = await readTrainingResultsFromSheet(sheetId)
+      await onSave(trainingResults)
 
       // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       // Clear sheet ID from dynasty
       await updateDynasty(currentDynasty.id, {
-        playersLeavingSheetId: null
+        trainingResultsSheetId: null
       })
 
       setSheetId(null)
@@ -184,7 +183,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { playersLeavingSheetId: null })
+      await updateDynasty(currentDynasty.id, { trainingResultsSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -201,7 +200,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Players Leaving') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Training Results') : null
   const isLoading = creatingSheet
 
   return (
@@ -217,7 +216,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Players Leaving
+            Training Results
           </h2>
           <button
             onClick={handleClose}
@@ -241,10 +240,10 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Players Leaving Sheet...
+                Creating Training Results Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Auto-filling graduating seniors
+                Pre-filling returning players with current overalls
               </p>
             </div>
           </div>
@@ -258,7 +257,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Players leaving data saved to your dynasty.
+                Player overalls have been updated.
               </p>
             </div>
           </div>
@@ -332,7 +331,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
@@ -340,9 +339,9 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>RS Sr and Sr with 5+ games are pre-filled as "Graduating"</span></li>
-                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Add any other players leaving (transfers, etc.)</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to sync</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Players are pre-filled with their current overall</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Enter each player's new overall in the yellow column</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to update overalls</span></li>
                   </ol>
                 </div>
                 <a
@@ -404,7 +403,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
                 <iframe
                   src={embedUrl}
                   className="w-full h-full"
-                  title="Players Leaving Sheet"
+                  title="Training Results Sheet"
                 />
               </div>
             )}

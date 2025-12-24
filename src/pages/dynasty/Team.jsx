@@ -289,7 +289,7 @@ export default function Team() {
     for (let year = currentYear; year >= startYear; year--) {
       const yearPolls = finalPolls[year]
       if (yearPolls?.media) {
-        const teamRanking = yearPolls.media.find(p => p.team === teamAbbr)
+        const teamRanking = yearPolls.media.find(p => p && p.team === teamAbbr)
         if (teamRanking) {
           return { rank: teamRanking.rank, year }
         }
@@ -453,7 +453,7 @@ export default function Team() {
 
     for (const confTeams of Object.values(yearStandings)) {
       if (Array.isArray(confTeams)) {
-        const teamData = confTeams.find(t => t.team === teamAbbr)
+        const teamData = confTeams.find(t => t && t.team === teamAbbr)
         if (teamData) {
           return {
             wins: teamData.wins || 0,
@@ -469,7 +469,7 @@ export default function Team() {
   const getConferenceChampionshipForYear = (year) => {
     const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[year] || []
     const teamCC = yearChampionships.find(cc =>
-      (cc.team1 === teamAbbr || cc.team2 === teamAbbr) &&
+      cc && (cc.team1 === teamAbbr || cc.team2 === teamAbbr) &&
       cc.winner === teamAbbr
     )
     return teamCC ? teamCC.conference : null
@@ -478,7 +478,7 @@ export default function Team() {
   // Check if team was in CFP this year and where they were eliminated
   const getCFPResultForYear = (year) => {
     const cfpSeeds = currentDynasty.cfpSeedsByYear?.[year] || []
-    const teamSeed = cfpSeeds.find(s => s.team === teamAbbr)
+    const teamSeed = cfpSeeds.find(s => s && s.team === teamAbbr)
     if (!teamSeed) return null
 
     const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
@@ -496,21 +496,21 @@ export default function Team() {
 
     // Check if lost in semifinals
     const semifinals = cfpResults.semifinals || []
-    const sfGame = semifinals.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    const sfGame = semifinals.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (sfGame && sfGame.winner && sfGame.winner !== teamAbbr) {
       return { type: 'lost', round: 'SF', seed: teamSeed.seed }
     }
 
     // Check if lost in quarterfinals
     const quarterfinals = cfpResults.quarterfinals || []
-    const qfGame = quarterfinals.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    const qfGame = quarterfinals.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (qfGame && qfGame.winner && qfGame.winner !== teamAbbr) {
       return { type: 'lost', round: 'QF', seed: teamSeed.seed }
     }
 
     // Check if lost in first round (seeds 5-12 play first round)
     const firstRound = cfpResults.firstRound || []
-    const r1Game = firstRound.find(g => g.team1 === teamAbbr || g.team2 === teamAbbr)
+    const r1Game = firstRound.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (r1Game && r1Game.winner && r1Game.winner !== teamAbbr) {
       return { type: 'lost', round: 'R1', seed: teamSeed.seed }
     }
@@ -523,7 +523,7 @@ export default function Team() {
   const getFinalRankingForYear = (year) => {
     const pollsData = currentDynasty.finalPollsByYear?.[year]
     if (!pollsData?.media) return null
-    const teamRank = pollsData.media.find(p => p.team === teamAbbr)
+    const teamRank = pollsData.media.find(p => p && p.team === teamAbbr)
     return teamRank?.rank || null
   }
 

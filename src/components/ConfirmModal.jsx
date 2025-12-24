@@ -22,11 +22,11 @@ export default function ConfirmModal({
       {/* Backdrop */}
       <div
         className="absolute inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50"
-        onClick={onClose}
+        onMouseDown={onClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-y-auto p-4 sm:p-6" onMouseDown={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold text-gray-900 mb-3">
           {title}
         </h2>

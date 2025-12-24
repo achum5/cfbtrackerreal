@@ -117,7 +117,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
             // Seeds 5-12 who won First Round also play in QF
             else if (userCFPSeed >= 5 && userCFPSeed <= 12) {
               // Check if user won their First Round game
-              const userFirstRoundGame = firstRoundResults.find(g => g.winner === userTeamAbbr)
+              const userFirstRoundGame = firstRoundResults.find(g => g && g.winner === userTeamAbbr)
               if (userFirstRoundGame) {
                 const qfGameName = getCFPQuarterfinalGameName(userCFPSeed, firstRoundResults)
                 if (qfGameName) {
@@ -250,12 +250,12 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={handleClose}
+      onMouseDown={handleClose}
     >
       <div
         className="rounded-lg shadow-xl w-full sm:w-[95vw] max-h-[calc(100vh-4rem)] sm:h-[95vh] flex flex-col p-4 sm:p-6"
         style={{ backgroundColor: teamColors.secondary }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>

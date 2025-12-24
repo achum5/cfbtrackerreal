@@ -73,6 +73,12 @@ function getWeekPhaseDisplay(dynasty) {
     if (dynasty.currentWeek === 5) return 'End of Season Recap'
     return dynasty.currentWeek === 4 ? 'National Championship' : `Bowl Week ${dynasty.currentWeek}`
   }
+  if (dynasty.currentPhase === 'offseason') {
+    if (dynasty.currentWeek === 1) return 'Players Leaving'
+    if (dynasty.currentWeek === 5) return 'National Signing Day'
+    if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1} of 3`
+    return 'Off-Season'
+  }
   return `Week ${dynasty.currentWeek} • ${phase}`
 }
 

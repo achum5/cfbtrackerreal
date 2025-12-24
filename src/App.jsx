@@ -80,6 +80,7 @@ function AppRoutes() {
             <Route path="all-time-lineup" element={<AllTimeLineup />} />
             <Route path="recruiting" element={<Recruiting />} />
             <Route path="recruiting/:teamAbbr/:year" element={<Recruiting />} />
+            <Route path="recruiting/portal/:teamAbbr/:year" element={<Recruiting />} />
             <Route path="leaders" element={<Leaders />} />
             <Route path="awards" element={<Awards />} />
             <Route path="all-americans" element={<AllAmericans />} />

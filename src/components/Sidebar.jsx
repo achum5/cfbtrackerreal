@@ -51,7 +51,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
       {isOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={onClose}
+          onMouseDown={onClose}
         />
       )}
 

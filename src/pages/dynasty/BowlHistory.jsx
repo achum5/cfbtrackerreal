@@ -141,7 +141,7 @@ export default function BowlHistory() {
 
       // Check week 1 bowls
       const week1Games = yearData?.week1 || []
-      const week1Match = week1Games.find(g => g.bowlName === bowlName)
+      const week1Match = week1Games.find(g => g && g.bowlName === bowlName)
       if (week1Match && week1Match.team1 && week1Match.team2 && week1Match.team1Score != null) {
         results.push({
           year: parseInt(year),
@@ -152,7 +152,7 @@ export default function BowlHistory() {
 
       // Check week 2 bowls
       const week2Games = yearData?.week2 || []
-      const week2Match = week2Games.find(g => g.bowlName === bowlName)
+      const week2Match = week2Games.find(g => g && g.bowlName === bowlName)
       if (week2Match && week2Match.team1 && week2Match.team2 && week2Match.team1Score != null) {
         results.push({
           year: parseInt(year),
@@ -170,7 +170,7 @@ export default function BowlHistory() {
 
       // CFP Quarterfinals (Rose, Sugar, Orange, Cotton bowls)
       const quarterfinals = yearData?.quarterfinals || []
-      const qfMatch = quarterfinals.find(g => g.bowlName === bowlName)
+      const qfMatch = quarterfinals.find(g => g && g.bowlName === bowlName)
       if (qfMatch && qfMatch.team1 && qfMatch.team2 && qfMatch.team1Score != null) {
         results.push({
           year: parseInt(year),
@@ -186,7 +186,7 @@ export default function BowlHistory() {
 
       // CFP Semifinals (Peach Bowl, Fiesta Bowl)
       const semifinals = yearData?.semifinals || []
-      const sfMatch = semifinals.find(g => g.bowlName === bowlName)
+      const sfMatch = semifinals.find(g => g && g.bowlName === bowlName)
       if (sfMatch && sfMatch.team1 && sfMatch.team2 && sfMatch.team1Score != null) {
         results.push({
           year: parseInt(year),

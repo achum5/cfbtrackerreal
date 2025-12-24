@@ -209,7 +209,7 @@ export default function CFPBracket() {
   }
 
   const getQFGame = (bowlName) => {
-    return quarterfinalsResults.find(g => g.bowlName === bowlName) || null
+    return quarterfinalsResults.find(g => g && g.bowlName === bowlName) || null
   }
 
   const getQFWinner = (bowlName) => {
@@ -218,7 +218,7 @@ export default function CFPBracket() {
   }
 
   const getSFGame = (bowlName) => {
-    return semifinalsResults.find(g => g.bowlName === bowlName) || null
+    return semifinalsResults.find(g => g && g.bowlName === bowlName) || null
   }
 
   const getSFWinner = (bowlName) => {
@@ -227,12 +227,12 @@ export default function CFPBracket() {
   }
 
   const getChampGame = () => {
-    return championshipResults[0] || null
+    return championshipResults.find(g => g) || null
   }
 
   const getSeedByTeam = (team) => {
     if (!team) return null
-    const seedEntry = cfpSeeds.find(s => s.team === team)
+    const seedEntry = cfpSeeds.find(s => s && s.team === team)
     return seedEntry?.seed || null
   }
 

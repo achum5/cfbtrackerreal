@@ -7945,6 +7945,20 @@ export async function createRecruitingSheet(dynastyName, year, teamAbbreviations
       }
     })
 
+    // Column O: Base formatting - centered, bold, italic
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 14, endColumnIndex: 15 },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true, italic: true }
+          }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    })
+
     // Add conditional formatting for Previous Team column (team colors)
     for (const abbr of teamAbbrs) {
       const teamData = teamAbbreviationsData[abbr]
@@ -7961,7 +7975,7 @@ export async function createRecruitingSheet(dynastyName, year, teamAbbreviations
               condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: abbr }] },
               format: {
                 backgroundColor: bgColor,
-                textFormat: { foregroundColor: textColor, bold: true }
+                textFormat: { foregroundColor: textColor, bold: true, italic: true }
               }
             }
           },
@@ -8084,6 +8098,306 @@ export async function readRecruitingFromSheet(spreadsheetId) {
     return recruits
   } catch (error) {
     console.error('Error reading recruiting data:', error)
+    throw error
+  }
+}
+
+// ==================== TRAINING RESULTS SHEET ====================
+
+/**
+ * Create a Training Results sheet for entering new player overalls
+ * @param {string} dynastyName - Name of the dynasty
+ * @param {number} year - Current year
+ * @param {Array} players - Players to include (returning players + portal transfers)
+ * @returns {Object} { spreadsheetId, spreadsheetUrl }
+ */
+export async function createTrainingResultsSheet(dynastyName, year, players) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Sort players by last name
+    const sortedPlayers = [...players].sort((a, b) => {
+      const getLastName = (name) => {
+        if (!name) return ''
+        const parts = name.trim().split(' ')
+        return parts[parts.length - 1].toLowerCase()
+      }
+      return getLastName(a.name).localeCompare(getLastName(b.name))
+    })
+
+    const totalRows = Math.max(sortedPlayers.length, 20)
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Training Results ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Training Results',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 4,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create training results sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize the sheet with headers and data
+    await initializeTrainingResultsSheet(
+      sheet.spreadsheetId,
+      accessToken,
+      sheetId,
+      sortedPlayers,
+      totalRows
+    )
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating training results sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Training Results sheet with headers, validation, and pre-filled data
+async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetId, players, totalRows) {
+  // Build pre-filled rows for players
+  const dataRows = players.map(player => ({
+    values: [
+      { userEnteredValue: { stringValue: player.name || '' } },
+      { userEnteredValue: { stringValue: player.position || '' } },
+      { userEnteredValue: { numberValue: player.overall || 0 } },
+      { userEnteredValue: { stringValue: '' } } // New Overall - user enters this
+    ]
+  }))
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' } },
+            { userEnteredValue: { stringValue: 'Position' } },
+            { userEnteredValue: { stringValue: 'Current OVR' } },
+            { userEnteredValue: { stringValue: 'New OVR' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill player data
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: dataRows,
+        fields: 'userEnteredValue'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Player column (column A)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Player names',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Position column (column B)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 },
+          description: 'Positions',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Current OVR column (column C)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 2, endColumnIndex: 3 },
+          description: 'Current OVR',
+          warningOnly: false
+        }
+      }
+    },
+    // Format header row - bold, background color
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+      }
+    },
+    // Format all data cells - center aligned
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
+        properties: { pixelSize: 100 },
+        fields: 'pixelSize'
+      }
+    },
+    // Add data validation for New OVR column (40-99)
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        rule: {
+          condition: {
+            type: 'NUMBER_BETWEEN',
+            values: [
+              { userEnteredValue: '40' },
+              { userEnteredValue: '99' }
+            ]
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
+    // Highlight New OVR column with light background
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 1, blue: 0.8 },
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
+      }
+    }
+  ]
+
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+/**
+ * Read training results from sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @returns {Array} Array of { playerName, position, currentOverall, newOverall }
+ */
+export async function readTrainingResultsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Training Results!A2:D200`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read training results: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    const results = rows
+      .filter(row => row[0] && row[3]) // Must have player name and new overall
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        currentOverall: parseInt(row[2], 10) || 0,
+        newOverall: parseInt(row[3], 10) || 0
+      }))
+      .filter(r => r.newOverall >= 40 && r.newOverall <= 99) // Valid overall range
+
+    return results
+  } catch (error) {
+    console.error('Error reading training results:', error)
     throw error
   }
 }

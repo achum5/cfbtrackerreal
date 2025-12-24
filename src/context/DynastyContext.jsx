@@ -1278,7 +1278,7 @@ export function DynastyProvider({ children }) {
       if (dynasty.previousJobData) {
         additionalUpdates.previousJobData = null
       }
-    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 5) {
+    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 6) {
       nextPhase = 'preseason'
       nextWeek = 0
       nextYear = dynasty.currentYear + 1
@@ -1335,9 +1335,9 @@ export function DynastyProvider({ children }) {
       prevPhase = 'postseason'
       prevWeek = 5
     } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
-      // Go back to previous year's offseason
+      // Go back to previous year's offseason (Training Camp)
       prevPhase = 'offseason'
-      prevWeek = 4
+      prevWeek = 6
       prevYear = dynasty.currentYear - 1
     }
 

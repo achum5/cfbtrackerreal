@@ -144,11 +144,11 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
 
       const initialGames = SEMIFINAL_GAMES.map((sf, index) => {
         // Get winners from quarterfinals
-        const qf1 = qfResults.find(g => g.bowlName === sf.qfBowl1)
-        const qf2 = qfResults.find(g => g.bowlName === sf.qfBowl2)
+        const qf1 = qfResults.find(g => g && g.bowlName === sf.qfBowl1)
+        const qf2 = qfResults.find(g => g && g.bowlName === sf.qfBowl2)
 
         // Check if we have existing semifinal data
-        const existing = existingSemis.find(g => g.bowlName === sf.bowlName)
+        const existing = existingSemis.find(g => g && g.bowlName === sf.bowlName)
 
         // Determine teams - from existing data or quarterfinal winners
         const team1 = existing?.team1 || qf1?.winner || ''
@@ -298,12 +298,12 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] py-8 px-4 sm:p-4"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
         className="rounded-xl shadow-2xl w-full max-w-3xl max-h-[calc(100vh-4rem)] sm:max-h-[90vh] overflow-auto"
         style={{ backgroundColor: '#1a1a2e' }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div

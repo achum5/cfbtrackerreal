@@ -503,12 +503,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] py-8 px-4 sm:p-4 overflow-y-auto"
       style={{ margin: 0 }}
-      onClick={onClose}
+      onMouseDown={onClose}
     >
       <div
         className="rounded-2xl shadow-2xl w-full max-w-3xl my-auto flex flex-col"
         style={{ backgroundColor: teamColors.secondary, maxHeight: 'calc(100vh - 4rem)' }}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <form onSubmit={handleSubmit} className="flex flex-col max-h-full overflow-hidden">
           {/* Header */}
