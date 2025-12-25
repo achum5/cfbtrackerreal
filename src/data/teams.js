@@ -1,4 +1,5 @@
 import { espnTeamIds } from './espnTeamIds'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from './teamAbbreviations'
 
 // Generate teams array with logos
 // ESPN logo URL pattern: https://a.espncdn.com/i/teamlogos/ncaa/500/{teamId}.png
@@ -143,6 +144,23 @@ export const teams = [
 
 // Helper function to get team logo URL
 export function getTeamLogo(teamName) {
+  // Check if this is an FCS team with a custom logo
+  // First try to get abbreviation from display name
+  const abbr = getAbbreviationFromDisplayName(teamName)
+  if (abbr) {
+    const teamData = teamAbbreviations[abbr]
+    if (teamData?.isFCS && teamData?.logo) {
+      return teamData.logo
+    }
+  }
+
+  // Also check if teamName is actually an abbreviation (e.g., "FCSN")
+  const directTeamData = teamAbbreviations[teamName]
+  if (directTeamData?.isFCS && directTeamData?.logo) {
+    return directTeamData.logo
+  }
+
+  // Fall back to ESPN logo for FBS teams
   const teamId = espnTeamIds[teamName]
   if (!teamId) return null
   return `https://a.espncdn.com/i/teamlogos/ncaa/500/${teamId}.png`

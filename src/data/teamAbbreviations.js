@@ -32,6 +32,10 @@ export const teamAbbreviations = {
   "EMU": { name: "Eastern Michigan Eagles", backgroundColor: "#006633", textColor: "#FFFFFF" },
   "FAU": { name: "Florida Atlantic Owls", backgroundColor: "#003366", textColor: "#FFFFFF" },
   "FIU": { name: "Florida International Panthers", backgroundColor: "#081E3F", textColor: "#B6862C" },
+  "FCSE": { name: "FCS East Judicials", backgroundColor: "#2F1936", textColor: "#8E85A1", logo: "https://i.imgur.com/eFyXxwT.png", isFCS: true },
+  "FCSM": { name: "FCS Midwest Rebels", backgroundColor: "#91ABC7", textColor: "#1a1a1a", logo: "https://i.imgur.com/NOJOPG8.png", isFCS: true },
+  "FCSN": { name: "FCS Northwest Stallions", backgroundColor: "#BFA544", textColor: "#477F62", logo: "https://i.imgur.com/uBvbn1s.png", isFCS: true },
+  "FCSW": { name: "FCS West Titans", backgroundColor: "#462E6A", textColor: "#AF9458", logo: "https://i.imgur.com/Y8A8u0g.png", isFCS: true },
   "FLA": { name: "Florida Gators", backgroundColor: "#0021a5", textColor: "#FA4616" },
   "FRES": { name: "Fresno State Bulldogs", backgroundColor: "#C41230", textColor: "#FFFFFF" },
   "FSU": { name: "Florida State Seminoles", backgroundColor: "#782F40", textColor: "#CEB888" },
@@ -154,6 +158,32 @@ export function getTeamName(abbr) {
   return teamAbbreviations[abbr]?.name || abbr
 }
 
+// Get sorted array of FBS team abbreviations only (for team selection - excludes FCS teams)
+export function getSelectableTeamsList() {
+  return Object.keys(teamAbbreviations)
+    .filter(abbr => !teamAbbreviations[abbr].isFCS)
+    .sort()
+}
+
+// Get sorted array of all team abbreviations including FCS (for scheduling opponents)
+export function getSchedulableTeamsList() {
+  return Object.keys(teamAbbreviations).sort()
+}
+
+// Check if a team is an FCS team
+export function isFCSTeam(abbr) {
+  return teamAbbreviations[abbr]?.isFCS === true
+}
+
+// Get FCS team logo URL (custom logos stored in teamAbbreviations)
+export function getFCSTeamLogo(abbr) {
+  const team = teamAbbreviations[abbr]
+  if (team?.isFCS && team?.logo) {
+    return team.logo
+  }
+  return null
+}
+
 // Mapping from display names (used in app) to abbreviations
 export const teamDisplayNameToAbbr = {
   "Air Force Falcons": "AFA",
@@ -187,6 +217,10 @@ export const teamDisplayNameToAbbr = {
   "Eastern Michigan Eagles": "EMU",
   "Florida Atlantic Owls": "FAU",
   "Florida International Panthers": "FIU",
+  "FCS East Judicials": "FCSE",
+  "FCS Midwest Rebels": "FCSM",
+  "FCS Northwest Stallions": "FCSN",
+  "FCS West Titans": "FCSW",
   "Florida Gators": "FLA",
   "Fresno State Bulldogs": "FRES",
   "Florida State Seminoles": "FSU",
