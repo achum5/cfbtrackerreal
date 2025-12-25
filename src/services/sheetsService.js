@@ -1,5 +1,5 @@
 import { auth } from '../config/firebase'
-import { teamAbbreviations, getTeamAbbreviationsList, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { teamAbbreviations, getTeamAbbreviationsList, getAbbreviationFromDisplayName, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
@@ -572,7 +572,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
         }
       },
-      // Add data validation dropdown for User Team column (B2:B13)
+      // Add data validation dropdown for User Team column (B2:B13) - FBS only
       {
         setDataValidation: {
           range: {
@@ -585,14 +585,14 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+              values: getSelectableTeamsList().map(abbr => ({ userEnteredValue: abbr }))
             },
             showCustomUi: true,
             strict: true
           }
         }
       },
-      // Add data validation dropdown for CPU Team column (C2:C13)
+      // Add data validation dropdown for CPU Team column (C2:C13) - All teams including FCS
       {
         setDataValidation: {
           range: {
@@ -605,7 +605,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+              values: getSchedulableTeamsList().map(abbr => ({ userEnteredValue: abbr }))
             },
             showCustomUi: true,
             strict: true
@@ -1164,7 +1164,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
         }
       },
-      // Add data validation dropdown for User Team column (B2:B13)
+      // Add data validation dropdown for User Team column (B2:B13) - FBS only
       {
         setDataValidation: {
           range: {
@@ -1177,14 +1177,14 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+              values: getSelectableTeamsList().map(abbr => ({ userEnteredValue: abbr }))
             },
             showCustomUi: true,
             strict: true
           }
         }
       },
-      // Add data validation dropdown for CPU Team column (C2:C13)
+      // Add data validation dropdown for CPU Team column (C2:C13) - All teams including FCS
       {
         setDataValidation: {
           range: {
@@ -1197,7 +1197,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getTeamAbbreviationsList().map(abbr => ({ userEnteredValue: abbr }))
+              values: getSchedulableTeamsList().map(abbr => ({ userEnteredValue: abbr }))
             },
             showCustomUi: true,
             strict: true

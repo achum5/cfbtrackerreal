@@ -1,9 +1,27 @@
+import { useState, useEffect } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import { getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import { Link } from 'react-router-dom'
 
 export default function TeamHistory() {
   const { currentDynasty } = useDynasty()
+  const [showGamesModal, setShowGamesModal] = useState(false)
+  const [gamesModalType, setGamesModalType] = useState(null) // 'favorite' or 'underdog'
+  const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (showGamesModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [showGamesModal])
 
   if (!currentDynasty) return null
 
@@ -11,6 +29,66 @@ export default function TeamHistory() {
   const teamColors = useTeamColors(currentDynasty.teamName)
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
+
+  // Get current team abbreviation
+  const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+
+  // Helper functions for win/loss detection
+  const isWin = (game) => game.result === 'win' || game.result === 'W'
+  const isLoss = (game) => game.result === 'loss' || game.result === 'L'
+
+  // Get all games for the current team
+  const allTeamGames = (currentDynasty.games || []).filter(game => {
+    if (game.isCPUGame) return false
+    const gameTeam = game.userTeam || currentTeamAbbr
+    return gameTeam === currentTeamAbbr || gameTeam === currentDynasty.teamName
+  })
+
+  // Calculate overall record
+  const totalWins = allTeamGames.filter(isWin).length
+  const totalLosses = allTeamGames.filter(isLoss).length
+  const overallRecord = `${totalWins}-${totalLosses}`
+
+  // Calculate favorite/underdog records
+  const favoriteGames = allTeamGames.filter(g => g.favoriteStatus === 'favorite')
+  const favoriteWins = favoriteGames.filter(isWin).length
+  const favoriteLosses = favoriteGames.filter(isLoss).length
+  const favoriteRecord = `${favoriteWins}-${favoriteLosses}`
+
+  const underdogGames = allTeamGames.filter(g => g.favoriteStatus === 'underdog')
+  const underdogWins = underdogGames.filter(isWin).length
+  const underdogLosses = underdogGames.filter(isLoss).length
+  const underdogRecord = `${underdogWins}-${underdogLosses}`
+
+  // Open games modal
+  const openGamesModal = (type) => {
+    setGamesModalType(type)
+    setShowGamesModal(true)
+  }
+
+  // Get games for the modal
+  const getGamesForModal = () => {
+    if (gamesModalType === 'favorite') {
+      return favoriteGames
+    } else if (gamesModalType === 'underdog') {
+      return underdogGames
+    }
+    return []
+  }
+
+  // Sort games by year (descending) then week (ascending)
+  const sortedModalGames = getGamesForModal().sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year
+    return (a.week || 0) - (b.week || 0)
+  })
+
+  // Group games by year for display
+  const gamesByYear = sortedModalGames.reduce((acc, game) => {
+    const year = game.year || 'Unknown'
+    if (!acc[year]) acc[year] = []
+    acc[year].push(game)
+    return acc
+  }, {})
 
   // Generate seasons from start year to current year
   const seasons = []
@@ -73,9 +151,97 @@ export default function TeamHistory() {
           border: `3px solid ${teamColors.secondary}`
         }}
       >
-        <h2 className="text-2xl font-bold" style={{ color: primaryText }}>
+        <h2 className="text-2xl font-bold mb-4" style={{ color: primaryText }}>
           {currentDynasty.teamName} - Team History
         </h2>
+
+        {/* Overall Record Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Overall Record */}
+          <div
+            className="text-center p-4 rounded-lg border-2"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              Overall Record
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {overallRecord}
+            </div>
+          </div>
+
+          {/* As Favorite - Clickable */}
+          <div
+            className="text-center p-4 rounded-lg border-2 relative cursor-pointer hover:scale-105 transition-transform"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+            onClick={() => openGamesModal('favorite')}
+          >
+            <div className="text-xs font-semibold mb-1 flex items-center justify-center gap-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              As Favorite
+              <button
+                className="w-4 h-4 rounded-full text-xs font-bold flex items-center justify-center hover:opacity-80 cursor-help"
+                style={{ backgroundColor: secondaryText, color: teamColors.secondary }}
+                onMouseEnter={(e) => { e.stopPropagation(); setShowFavoriteTooltip(true) }}
+                onMouseLeave={(e) => { e.stopPropagation(); setShowFavoriteTooltip(false) }}
+                onClick={(e) => { e.stopPropagation(); setShowFavoriteTooltip(!showFavoriteTooltip) }}
+              >
+                ?
+              </button>
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {favoriteRecord}
+            </div>
+            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
+              Click to view games
+            </div>
+            {/* Tooltip */}
+            {showFavoriteTooltip && (
+              <div
+                className="absolute z-50 p-3 rounded-lg shadow-lg text-left text-xs w-64 -translate-x-1/2 left-1/2"
+                style={{
+                  backgroundColor: teamColors.primary,
+                  color: primaryText,
+                  top: '100%',
+                  marginTop: '8px'
+                }}
+              >
+                <div className="font-bold mb-1">How is this calculated?</div>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li>Ranked vs unranked: ranked team is favorite</li>
+                  <li>Both ranked: lower rank is favorite</li>
+                  <li>Both unranked: higher overall rating is favorite</li>
+                  <li>Home team gets +5 ranking or +3 overall boost</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* As Underdog - Clickable */}
+          <div
+            className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
+            style={{
+              backgroundColor: teamColors.secondary,
+              borderColor: primaryText
+            }}
+            onClick={() => openGamesModal('underdog')}
+          >
+            <div className="text-xs font-semibold mb-1" style={{ color: secondaryText, opacity: 0.7 }}>
+              As Underdog
+            </div>
+            <div className="text-2xl font-bold" style={{ color: secondaryText }}>
+              {underdogRecord}
+            </div>
+            <div className="text-xs mt-1 opacity-60" style={{ color: secondaryText }}>
+              Click to view games
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Season Cards */}
@@ -515,6 +681,110 @@ export default function TeamHistory() {
           <p style={{ color: primaryText, opacity: 0.7 }}>
             No seasons to display yet. Start playing to build your team history!
           </p>
+        </div>
+      )}
+
+      {/* Games Modal */}
+      {showGamesModal && (
+        <div
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowGamesModal(false)}
+        >
+          <div
+            className="rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-6 py-4 flex items-center justify-between flex-shrink-0"
+              style={{ backgroundColor: teamColors.primary }}
+            >
+              <div>
+                <h3 className="text-xl font-bold" style={{ color: primaryText }}>
+                  Games as {gamesModalType === 'favorite' ? 'Favorite' : 'Underdog'}
+                </h3>
+                <p className="text-sm mt-0.5 opacity-80" style={{ color: primaryText }}>
+                  {sortedModalGames.length} game{sortedModalGames.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGamesModal(false)}
+                className="p-2 rounded-full hover:bg-white/20 transition-colors"
+                style={{ color: primaryText }}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {sortedModalGames.length === 0 ? (
+                <p className="text-center py-8" style={{ color: secondaryText, opacity: 0.7 }}>
+                  No games found as {gamesModalType === 'favorite' ? 'favorite' : 'underdog'}.
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(gamesByYear).sort((a, b) => Number(b[0]) - Number(a[0])).map(([year, games]) => (
+                    <div key={year}>
+                      <h4 className="text-lg font-bold mb-3" style={{ color: secondaryText }}>
+                        {year} Season
+                      </h4>
+                      <div className="space-y-2">
+                        {games.map((game, idx) => {
+                          const won = isWin(game)
+                          const weekLabel = game.phase === 'postseason' ? `Bowl` :
+                                           game.phase === 'conf_championship' ? 'CCG' :
+                                           `Week ${game.week || '?'}`
+                          return (
+                            <Link
+                              key={idx}
+                              to={`/dynasty/${currentDynasty.id}/game/${game.id || idx}`}
+                              className="block p-3 rounded-lg border-2 hover:scale-[1.02] transition-transform"
+                              style={{
+                                backgroundColor: won ? '#dcfce7' : '#fee2e2',
+                                borderColor: won ? '#16a34a' : '#dc2626'
+                              }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className="text-xs font-semibold px-2 py-1 rounded"
+                                    style={{
+                                      backgroundColor: won ? '#16a34a' : '#dc2626',
+                                      color: 'white'
+                                    }}
+                                  >
+                                    {won ? 'W' : 'L'}
+                                  </span>
+                                  <div>
+                                    <div className="font-semibold" style={{ color: '#1f2937' }}>
+                                      vs {game.opponent || 'Unknown'}
+                                    </div>
+                                    <div className="text-xs" style={{ color: '#6b7280' }}>
+                                      {weekLabel} • {game.site === 'Home' ? 'Home' : game.site === 'Road' ? 'Away' : 'Neutral'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-bold" style={{ color: '#1f2937' }}>
+                                    {game.userScore ?? '-'} - {game.opponentScore ?? '-'}
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
