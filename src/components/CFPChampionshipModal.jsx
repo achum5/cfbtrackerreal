@@ -50,7 +50,13 @@ const mascotMap = {
   'WMU': 'Western Michigan Broncos', 'WKU': 'Western Kentucky Hilltoppers', 'WIS': 'Wisconsin Badgers',
   'WYO': 'Wyoming Cowboys', 'DEL': 'Delaware Fightin\' Blue Hens', 'FLA': 'Florida Gators',
   'KENN': 'Kennesaw State Owls', 'ULM': 'Monroe Warhawks', 'UC': 'Cincinnati Bearcats',
-  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers'
+  'MIA': 'Miami Hurricanes', 'MIZ': 'Missouri Tigers', 'OU': 'Oklahoma Sooners', 'GSU': 'Georgia State Panthers',
+  'USM': 'Southern Mississippi Golden Eagles', 'RUTG': 'Rutgers Scarlet Knights', 'SHSU': 'Sam Houston State Bearkats',
+  'TTU': 'Texas Tech Red Raiders', 'TULN': 'Tulane Green Wave', 'UH': 'Houston Cougars',
+  'UL': 'Lafayette Ragin\' Cajuns', 'UT': 'Tennessee Volunteers',
+  // FCS teams
+  'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
+  'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
 }
 
 const TROPHY_URL = 'https://i.imgur.com/3goz1NK.png'
