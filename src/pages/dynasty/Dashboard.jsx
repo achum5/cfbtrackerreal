@@ -4950,7 +4950,7 @@ export default function Dashboard() {
                               <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasPositionChanges ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                                 {hasPositionChanges
                                   ? `✓ ${positionChangesThisYear.length} position change${positionChangesThisYear.length !== 1 ? 's' : ''} recorded`
-                                  : 'Update player positions (optional)'}
+                                  : 'Update player positions'}
                               </div>
                             </div>
                           </div>

@@ -213,11 +213,20 @@ export default function Recruiting() {
           {/* Team Logo and Title */}
           <div className="flex items-center gap-4">
             {teamLogo && (
-              <img
-                src={teamLogo}
-                alt={teamFullName}
-                className="w-16 h-16 object-contain"
-              />
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: `3px solid ${teamColors.secondary}`,
+                  padding: '3px'
+                }}
+              >
+                <img
+                  src={teamLogo}
+                  alt={teamFullName}
+                  className="w-full h-full object-contain"
+                />
+              </div>
             )}
             <div>
               <h2 className="text-2xl font-bold" style={{ color: secondaryBgText }}>
