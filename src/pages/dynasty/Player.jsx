@@ -56,7 +56,10 @@ const getMascotName = (abbr) => {
     'UTSA': 'UTSA Roadrunners', 'UVA': 'Virginia Cavaliers', 'VAND': 'Vanderbilt Commodores',
     'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons', 'WASH': 'Washington Huskies',
     'WIS': 'Wisconsin Badgers', 'WKU': 'Western Kentucky Hilltoppers', 'WMU': 'Western Michigan Broncos',
-    'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers', 'WYO': 'Wyoming Cowboys'
+    'WSU': 'Washington State Cougars', 'WVU': 'West Virginia Mountaineers', 'WYO': 'Wyoming Cowboys',
+    // FCS teams
+    'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
+    'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
   }
   return mascotMap[abbr] || null
 }

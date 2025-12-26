@@ -397,7 +397,12 @@ export default function Dashboard() {
       'MIA': 'Miami Hurricanes',
       'MIZ': 'Missouri Tigers',
       'OU': 'Oklahoma Sooners',
-      'GSU': 'Georgia State Panthers'
+      'GSU': 'Georgia State Panthers',
+      // FCS teams
+      'FCSE': 'FCS East Judicials',
+      'FCSM': 'FCS Midwest Rebels',
+      'FCSN': 'FCS Northwest Stallions',
+      'FCSW': 'FCS West Titans'
     }
     return mascotMap[abbr] || null
   }
