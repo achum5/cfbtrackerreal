@@ -161,7 +161,10 @@ const getMascotName = (abbr) => {
     'WMU': 'Western Michigan Broncos',
     'WSU': 'Washington State Cougars',
     'WVU': 'West Virginia Mountaineers',
-    'WYO': 'Wyoming Cowboys'
+    'WYO': 'Wyoming Cowboys',
+    // FCS teams
+    'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
+    'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
   }
   return mascotMap[abbr] || null
 }
