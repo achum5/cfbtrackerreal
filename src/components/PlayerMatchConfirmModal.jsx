@@ -58,7 +58,6 @@ const getMascotName = (abbr) => {
     'TXTECH': 'Texas Tech Red Raiders', 'UC': 'Cincinnati Bearcats', 'UF': 'Florida Gators',
     'UH': 'Houston Cougars', 'UL': 'Lafayette Ragin\' Cajuns', 'UM': 'Miami Hurricanes',
     'UMD': 'Maryland Terrapins', 'UT': 'Tennessee Volunteers', 'VAN': 'Vanderbilt Commodores',
-    'USM': 'Southern Mississippi Golden Eagles',
     // FCS teams
     'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
     'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
