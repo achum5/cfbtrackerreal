@@ -398,6 +398,7 @@ export default function Dashboard() {
       'MIZ': 'Missouri Tigers',
       'OU': 'Oklahoma Sooners',
       'GSU': 'Georgia State Panthers',
+      'USM': 'Southern Mississippi Golden Eagles',
       // FCS teams
       'FCSE': 'FCS East Judicials',
       'FCSM': 'FCS Midwest Rebels',

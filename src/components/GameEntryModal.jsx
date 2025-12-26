@@ -199,6 +199,7 @@ export default function GameEntryModal({
       'MIZ': 'Missouri Tigers',
       'OU': 'Oklahoma Sooners',
       'GSU': 'Georgia State Panthers',
+      'USM': 'Southern Mississippi Golden Eagles',
       // FCS teams
       'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
       'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
