@@ -42,6 +42,7 @@ import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsMo
 import PositionChangesModal from '../../components/PositionChangesModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
+import EncourageTransfersModal from '../../components/EncourageTransfersModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -98,6 +99,8 @@ export default function Dashboard() {
   const [showPositionChangesModal, setShowPositionChangesModal] = useState(false)
   const [showRecruitingClassRankModal, setShowRecruitingClassRankModal] = useState(false)
   const [showTrainingResultsModal, setShowTrainingResultsModal] = useState(false)
+  const [showEncourageTransfersModal, setShowEncourageTransfersModal] = useState(false)
+  const [showOffseasonConferencesModal, setShowOffseasonConferencesModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -1255,6 +1258,7 @@ export default function Dashboard() {
       if (week === 1) return 'Players Leaving'
       if (week === 5) return 'National Signing Day'
       if (week === 6) return 'Training Camp'
+      if (week === 7) return 'Offseason'
       if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
@@ -5092,6 +5096,108 @@ export default function Dashboard() {
               )
             }
 
+            // Offseason Week 7: Offseason (Custom Conferences & Encourage Transfers)
+            if (week === 7) {
+              const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+              const nextYear = currentDynasty.currentYear + 1
+
+              // Check if conferences have been set for next year
+              const hasNextYearConferences = currentDynasty?.customConferencesByYear?.[nextYear] != null
+
+              // Check if encourage transfers has been completed
+              const hasEncourageTransfers = currentDynasty?.encourageTransfersByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear] != null
+              const encourageTransfersCount = currentDynasty?.encourageTransfersByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.length || 0
+
+              return (
+                <>
+                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                    Offseason
+                  </h3>
+                  <div className="space-y-3 sm:space-y-4">
+                    {/* Task 1: Custom Conferences */}
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasNextYearConferences ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasNextYearConferences ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasNextYearConferences ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasNextYearConferences ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasNextYearConferences ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">1</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasNextYearConferences ? '#16a34a' : secondaryBgText }}>
+                            Custom Conferences
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasNextYearConferences ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasNextYearConferences
+                              ? `✓ Conference alignment set for ${nextYear}`
+                              : `Set conference alignment for ${nextYear} season`}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowOffseasonConferencesModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasNextYearConferences ? 'Edit' : 'Set'}
+                      </button>
+                    </div>
+
+                    {/* Task 2: Encourage Transfers */}
+                    <div
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                        hasEncourageTransfers ? 'border-green-200 bg-green-50' : ''
+                      }`}
+                      style={!hasEncourageTransfers ? { borderColor: `${teamColors.primary}30` } : {}}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div
+                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            hasEncourageTransfers ? 'bg-green-500 text-white' : ''
+                          }`}
+                          style={!hasEncourageTransfers ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                        >
+                          {hasEncourageTransfers ? (
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : <span className="font-bold text-sm sm:text-base">2</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm sm:text-base font-semibold" style={{ color: hasEncourageTransfers ? '#16a34a' : secondaryBgText }}>
+                            Encourage Transfers
+                          </div>
+                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasEncourageTransfers ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            {hasEncourageTransfers
+                              ? `✓ ${encourageTransfersCount} player${encourageTransfersCount !== 1 ? 's' : ''} encouraged to transfer`
+                              : 'Mark players to encourage to transfer'}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowEncourageTransfersModal(true)}
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                      >
+                        {hasEncourageTransfers ? 'Edit' : 'Enter'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )
+            }
+
             // Fallback for any other weeks
             return (
               <>
@@ -6605,6 +6711,94 @@ export default function Dashboard() {
 
           return [...returningPlayers, ...portalTransfers]
         })()}
+      />
+
+      {/* Encourage Transfers Modal (Offseason Week 7) */}
+      <EncourageTransfersModal
+        isOpen={showEncourageTransfersModal}
+        onClose={() => setShowEncourageTransfersModal(false)}
+        onSave={async (transferPlayers) => {
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const year = currentDynasty?.currentYear
+          const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+
+          if (isDev || !user) {
+            // Dev mode - store encouraged transfers using team-centric pattern
+            const existingByTeamYear = currentDynasty?.encourageTransfersByTeamYear || {}
+            const teamTransfers = existingByTeamYear[teamAbbr] || {}
+            await updateDynasty(currentDynasty.id, {
+              encourageTransfersByTeamYear: {
+                ...existingByTeamYear,
+                [teamAbbr]: {
+                  ...teamTransfers,
+                  [year]: transferPlayers
+                }
+              }
+            })
+          } else {
+            // Production mode - use dot notation for Firestore
+            await updateDynasty(currentDynasty.id, {
+              [`encourageTransfersByTeamYear.${teamAbbr}.${year}`]: transferPlayers
+            })
+          }
+        }}
+        currentYear={currentDynasty?.currentYear}
+        teamColors={teamColors}
+        players={(() => {
+          // Players for encourage transfers: current roster after training results
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty?.currentYear] || []
+          const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
+
+          // Get returning players (not leaving)
+          const returningPlayers = teamRoster.filter(p => !leavingPids.has(p.pid))
+
+          // Get portal transfers from recruiting commitments
+          const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty?.currentYear] || {}
+          const portalTransfers = []
+          Object.values(recruitingCommitments).forEach(weekCommitments => {
+            if (Array.isArray(weekCommitments)) {
+              weekCommitments.forEach(c => {
+                if (c.isPortal) {
+                  portalTransfers.push({
+                    name: c.name,
+                    position: c.position,
+                    overall: c.overall || 0,
+                    pid: c.pid || `portal-${c.name}`
+                  })
+                }
+              })
+            }
+          })
+
+          return [...returningPlayers, ...portalTransfers]
+        })()}
+      />
+
+      {/* Offseason Conferences Modal (Offseason Week 7) - applies to NEXT season */}
+      <ConferencesModal
+        isOpen={showOffseasonConferencesModal}
+        onClose={() => setShowOffseasonConferencesModal(false)}
+        onSave={async (conferences) => {
+          const nextYear = currentDynasty.currentYear + 1
+          const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+          if (isDev || !user) {
+            // Dev mode - save conferences for next year
+            const existingByYear = currentDynasty?.customConferencesByYear || {}
+            await updateDynasty(currentDynasty.id, {
+              customConferencesByYear: {
+                ...existingByYear,
+                [nextYear]: conferences
+              }
+            })
+          } else {
+            // Production mode - use dot notation for Firestore
+            await updateDynasty(currentDynasty.id, {
+              [`customConferencesByYear.${nextYear}`]: conferences
+            })
+          }
+        }}
+        teamColors={teamColors}
       />
     </div>
   )

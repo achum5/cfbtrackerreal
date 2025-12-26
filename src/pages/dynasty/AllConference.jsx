@@ -157,7 +157,7 @@ const getMascotName = (abbr) => {
     'WYO': 'Wyoming Cowboys',
     'GAST': 'Georgia State Panthers', 'OKLA': 'Oklahoma Sooners', 'RUT': 'Rutgers Scarlet Knights',
     'SAM': 'Sam Houston State Bearkats', 'TUL': 'Tulane Green Wave', 'TXTECH': 'Texas Tech Red Raiders',
-    'UF': 'Florida Gators', 'UM': 'Miami Hurricanes', 'USM': 'Southern Mississippi Golden Eagles',
+    'UF': 'Florida Gators', 'UM': 'Miami Hurricanes',
     // FCS teams
     'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
     'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'

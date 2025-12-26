@@ -1278,7 +1278,7 @@ export function DynastyProvider({ children }) {
       if (dynasty.previousJobData) {
         additionalUpdates.previousJobData = null
       }
-    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 6) {
+    } else if (dynasty.currentPhase === 'offseason' && nextWeek > 7) {
       nextPhase = 'preseason'
       nextWeek = 0
       nextYear = dynasty.currentYear + 1

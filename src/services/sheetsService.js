@@ -8401,3 +8401,251 @@ export async function readTrainingResultsFromSheet(spreadsheetId) {
     throw error
   }
 }
+
+// ============================================
+// Encourage Transfers Sheet Functions
+// ============================================
+
+// Create Encourage Transfers sheet for offseason week 7
+export async function createEncourageTransfersSheet(dynastyName, year, players) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const rowCount = players.length + 1 // +1 for header
+    const columnCount = 4 // Name, Position, Overall, Encourage Transfer
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Encourage Transfers ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Encourage Transfers',
+              gridProperties: {
+                rowCount: rowCount,
+                columnCount: columnCount,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create encourage transfers sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeEncourageTransfersSheet(sheet.spreadsheetId, accessToken, sheetId, players)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating encourage transfers sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Encourage Transfers sheet with headers and player data
+async function initializeEncourageTransfersSheet(spreadsheetId, accessToken, sheetId, players) {
+  const rowCount = players.length + 1
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 4
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Name' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Encourage Transfer' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    },
+    // Set player data rows
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: rowCount,
+          startColumnIndex: 0,
+          endColumnIndex: 4
+        },
+        rows: players.map(player => ({
+          values: [
+            { userEnteredValue: { stringValue: player.name || '' }, userEnteredFormat: { horizontalAlignment: 'LEFT' } },
+            { userEnteredValue: { stringValue: player.position || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { numberValue: player.overall || 0 }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { boolValue: false }, dataValidation: { condition: { type: 'BOOLEAN' }, strict: true } }
+          ]
+        })),
+        fields: 'userEnteredValue,userEnteredFormat,dataValidation'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect Name, Position, Overall columns (only checkbox column is editable)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount,
+            startColumnIndex: 0,
+            endColumnIndex: 3
+          },
+          description: 'Player info - do not edit. Only use the Encourage Transfer checkbox.',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 180 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 2,
+          endIndex: 3
+        },
+        properties: { pixelSize: 70 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 4
+        },
+        properties: { pixelSize: 140 },
+        fields: 'pixelSize'
+      }
+    }
+  ]
+
+  const batchUpdateResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchUpdateResponse.ok) {
+    const error = await batchUpdateResponse.json()
+    console.error('Batch update error:', error)
+    throw new Error(`Failed to initialize encourage transfers sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read encourage transfers data from sheet
+export async function readEncourageTransfersFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const range = 'Encourage Transfers!A2:D'
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read encourage transfers: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Return only players marked for transfer (checkbox is TRUE)
+    const transferPlayers = rows
+      .filter(row => row[0] && (row[3] === 'TRUE' || row[3] === true))
+      .map(row => ({
+        name: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        overall: parseInt(row[2], 10) || 0
+      }))
+
+    return transferPlayers
+  } catch (error) {
+    console.error('Error reading encourage transfers:', error)
+    throw error
+  }
+}
