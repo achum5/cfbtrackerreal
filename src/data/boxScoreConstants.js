@@ -97,3 +97,413 @@ export const QUARTERS = ['1', '2', '3', '4', 'OT', '2OT', '3OT', '4OT']
 
 // Helper to get all stat tabs as array
 export const getStatTabsArray = () => STAT_TAB_ORDER.map(key => STAT_TABS[key])
+
+// Position groupings for stat generation
+const POSITION_GROUPS = {
+  qb: ['QB'],
+  rb: ['RB', 'FB'],
+  wr: ['WR'],
+  te: ['TE'],
+  ol: ['LT', 'LG', 'C', 'RG', 'RT', 'OL'],
+  dl: ['LE', 'RE', 'DT', 'DE', 'DL'],
+  lb: ['LOLB', 'MLB', 'ROLB', 'LB'],
+  db: ['CB', 'FS', 'SS', 'DB', 'S'],
+  k: ['K'],
+  p: ['P']
+}
+
+// Helper to check if player matches position group
+const matchesPosition = (playerPos, group) => {
+  if (!playerPos) return false
+  const pos = playerPos.toUpperCase()
+  return POSITION_GROUPS[group]?.some(p => pos === p || pos.includes(p))
+}
+
+// Get players by position group
+const getPlayersByPosition = (players, group) => {
+  return players.filter(p => matchesPosition(p.position, group))
+}
+
+// Random number helper
+const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+
+// Generate random player stats based on position and game context
+export const generateRandomBoxScore = (players, teamScore, opponentScore, userTeamAbbr, opponentAbbr) => {
+  if (!players || players.length === 0) {
+    return { home: {}, away: {}, scoringSummary: [] }
+  }
+
+  // Filter active players
+  const activePlayers = players.filter(p => p.team === userTeamAbbr && !p.leftTeam)
+
+  // Get players by position
+  const qbs = getPlayersByPosition(activePlayers, 'qb')
+  const rbs = getPlayersByPosition(activePlayers, 'rb')
+  const wrs = getPlayersByPosition(activePlayers, 'wr')
+  const tes = getPlayersByPosition(activePlayers, 'te')
+  const ols = getPlayersByPosition(activePlayers, 'ol')
+  const dls = getPlayersByPosition(activePlayers, 'dl')
+  const lbs = getPlayersByPosition(activePlayers, 'lb')
+  const dbs = getPlayersByPosition(activePlayers, 'db')
+  const ks = getPlayersByPosition(activePlayers, 'k')
+  const ps = getPlayersByPosition(activePlayers, 'p')
+
+  // Calculate game context (higher scoring = more yards)
+  const totalPoints = teamScore + opponentScore
+  const yardMultiplier = Math.max(0.7, Math.min(1.5, totalPoints / 50))
+
+  // Generate passing stats
+  const passing = []
+  if (qbs.length > 0) {
+    const mainQB = qbs[0]
+    const passingYards = Math.round(rand(180, 350) * yardMultiplier)
+    const completions = rand(15, 30)
+    const attempts = completions + rand(5, 15)
+    const passingTDs = Math.floor(teamScore / 10) + rand(0, 2)
+    const ints = rand(0, 2)
+    const longPass = rand(25, 65)
+    const sacks = rand(0, 4)
+    const qbRating = Math.round((completions / attempts * 100 + passingTDs * 20 - ints * 25 + passingYards / 10) / 2)
+
+    passing.push({
+      playerName: mainQB.name,
+      qBRating: Math.min(158.3, Math.max(0, qbRating)).toFixed(1),
+      yards: passingYards,
+      tD: passingTDs,
+      iNT: ints,
+      long: longPass,
+      sacks: sacks,
+      comp: completions,
+      attempts: attempts
+    })
+  }
+
+  // Generate rushing stats
+  const rushing = []
+  const rushingCandidates = [...rbs, ...qbs.slice(0, 1), ...wrs.slice(0, 1)].filter(Boolean)
+  let remainingRushYards = Math.round(rand(100, 200) * yardMultiplier)
+  const rushingTDs = Math.max(0, Math.floor(teamScore / 14) - (passing[0]?.tD || 0) + rand(-1, 1))
+
+  rushingCandidates.slice(0, 4).forEach((player, idx) => {
+    const isMainBack = idx === 0
+    const carries = isMainBack ? rand(15, 25) : rand(3, 10)
+    const yards = isMainBack ? Math.round(remainingRushYards * 0.6) : Math.round(remainingRushYards * rand(10, 25) / 100)
+    remainingRushYards -= yards
+    const tds = isMainBack && rushingTDs > 0 ? rand(0, Math.min(2, rushingTDs)) : 0
+
+    rushing.push({
+      playerName: player.name,
+      carries: carries,
+      yards: Math.max(yards, -5),
+      tD: tds,
+      fumbles: rand(0, 1) === 1 && Math.random() > 0.8 ? 1 : 0,
+      brokenTackles: rand(0, 5),
+      yAC: rand(10, 40),
+      long: rand(5, Math.max(10, yards / 2)),
+      '20+': yards > 60 ? rand(1, 2) : 0
+    })
+  })
+
+  // Generate receiving stats
+  const receiving = []
+  const receivers = [...wrs, ...tes, ...rbs.slice(0, 1)].filter(Boolean)
+  let remainingRecYards = passing[0]?.yards || rand(150, 280)
+  const passAttempts = passing[0]?.comp || rand(18, 28)
+  let remainingReceptions = passAttempts
+
+  receivers.slice(0, 6).forEach((player, idx) => {
+    const isPrimary = idx < 2
+    const receptions = isPrimary ? rand(4, 8) : rand(1, 4)
+    if (remainingReceptions <= 0) return
+    const actualReceptions = Math.min(receptions, remainingReceptions)
+    remainingReceptions -= actualReceptions
+
+    const yards = isPrimary ? Math.round(remainingRecYards * rand(25, 40) / 100) : Math.round(remainingRecYards * rand(8, 20) / 100)
+    remainingRecYards = Math.max(0, remainingRecYards - yards)
+
+    receiving.push({
+      playerName: player.name,
+      receptions: actualReceptions,
+      yards: yards,
+      tD: isPrimary && Math.random() > 0.5 ? rand(0, 2) : 0,
+      rAC: rand(10, 50),
+      long: rand(10, Math.max(15, yards / 2)),
+      drops: rand(0, 1)
+    })
+  })
+
+  // Generate blocking stats
+  const blocking = []
+  ols.slice(0, 5).forEach(player => {
+    blocking.push({
+      playerName: player.name,
+      sacksAllowed: rand(0, 2),
+      pancakes: rand(0, 4)
+    })
+  })
+
+  // Generate defense stats
+  const defense = []
+  const defenders = [...lbs, ...dls, ...dbs].filter(Boolean)
+  defenders.slice(0, 11).forEach((player, idx) => {
+    const isLB = matchesPosition(player.position, 'lb')
+    const isDL = matchesPosition(player.position, 'dl')
+    const isDB = matchesPosition(player.position, 'db')
+
+    defense.push({
+      playerName: player.name,
+      solo: isLB ? rand(4, 10) : isDL ? rand(2, 6) : rand(2, 5),
+      assists: rand(1, 5),
+      tFL: isDL || isLB ? rand(0, 3) : 0,
+      sack: isDL ? rand(0, 2) : isLB ? rand(0, 1) : 0,
+      iNT: isDB && Math.random() > 0.8 ? 1 : 0,
+      iNTYards: 0,
+      iNTLong: 0,
+      deflections: isDB ? rand(0, 3) : rand(0, 1),
+      fF: rand(0, 1) === 1 && Math.random() > 0.85 ? 1 : 0,
+      fR: rand(0, 1) === 1 && Math.random() > 0.9 ? 1 : 0,
+      fumbleYards: 0,
+      blocks: 0,
+      safeties: 0,
+      tD: 0
+    })
+  })
+
+  // Generate kicking stats
+  const kicking = []
+  if (ks.length > 0) {
+    const fgAttempts = rand(1, 4)
+    const fgMade = rand(0, fgAttempts)
+    const xpAttempts = Math.floor(teamScore / 7)
+    const xpMade = Math.max(0, xpAttempts - rand(0, 1))
+
+    kicking.push({
+      playerName: ks[0].name,
+      fGM: fgMade,
+      fGA: fgAttempts,
+      fGLong: fgMade > 0 ? rand(25, 52) : 0,
+      fGBlock: 0,
+      xPM: xpMade,
+      xPA: xpAttempts,
+      xPB: 0,
+      fGM29: 0, fGA29: 0, fGM39: 0, fGA39: 0, fGM49: 0, fGA49: 0, 'fGM50+': 0, 'fGA50+': 0,
+      kickoffs: Math.ceil(teamScore / 7) + 1,
+      touchbacks: rand(2, 6)
+    })
+  }
+
+  // Generate punting stats
+  const punting = []
+  if (ps.length > 0) {
+    const puntCount = rand(2, 6)
+    const totalYards = puntCount * rand(38, 48)
+
+    punting.push({
+      playerName: ps[0].name,
+      punts: puntCount,
+      yards: totalYards,
+      netYards: totalYards - rand(20, 60),
+      block: 0,
+      in20: rand(0, 3),
+      tB: rand(0, 1),
+      long: rand(45, 62)
+    })
+  }
+
+  // Generate kick return stats
+  const kickReturn = []
+  const returners = [...wrs.slice(0, 1), ...dbs.slice(0, 1), ...rbs.slice(0, 1)].filter(Boolean)
+  returners.slice(0, 2).forEach(player => {
+    const returns = rand(1, 3)
+    kickReturn.push({
+      playerName: player.name,
+      kR: returns,
+      yards: returns * rand(18, 28),
+      tD: 0,
+      long: rand(20, 45)
+    })
+  })
+
+  // Generate punt return stats
+  const puntReturn = []
+  const puntReturners = [...wrs.slice(0, 1), ...dbs.slice(0, 1)].filter(Boolean)
+  puntReturners.slice(0, 2).forEach(player => {
+    const returns = rand(1, 4)
+    puntReturn.push({
+      playerName: player.name,
+      pR: returns,
+      yards: returns * rand(5, 15),
+      tD: 0,
+      long: rand(8, 25)
+    })
+  })
+
+  // Generate scoring summary that matches the actual score
+  const scoringSummary = generateScoringSummary(
+    teamScore,
+    opponentScore,
+    userTeamAbbr,
+    opponentAbbr,
+    { passing, rushing, receiving, kicking }
+  )
+
+  return {
+    home: {
+      passing,
+      rushing,
+      receiving,
+      blocking,
+      defense,
+      kicking,
+      punting,
+      kickReturn,
+      puntReturn
+    },
+    away: {}, // Opponent stats left empty (user can fill in if desired)
+    scoringSummary
+  }
+}
+
+// Generate scoring plays that add up to the actual score
+const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponentAbbr, stats) => {
+  const plays = []
+  let remainingTeamScore = teamScore
+  let remainingOppScore = opponentScore
+
+  const quarters = ['1', '2', '3', '4']
+  const generateTime = () => `${rand(0, 14)}:${rand(10, 59).toString().padStart(2, '0')}`
+
+  // Get player names from stats for realistic scorers
+  const passers = stats.passing?.map(p => p.playerName) || ['QB']
+  const rushers = stats.rushing?.map(p => p.playerName) || ['RB']
+  const receivers = stats.receiving?.map(p => p.playerName) || ['WR']
+  const kickers = stats.kicking?.map(p => p.playerName) || ['K']
+
+  // Generate team scoring plays
+  while (remainingTeamScore > 0) {
+    const quarter = quarters[rand(0, 3)]
+
+    if (remainingTeamScore >= 7 && Math.random() > 0.3) {
+      // Touchdown + XP
+      const isTDPass = Math.random() > 0.4
+      plays.push({
+        team: userTeamAbbr,
+        scorer: isTDPass ? receivers[rand(0, Math.min(2, receivers.length - 1))] : rushers[rand(0, Math.min(1, rushers.length - 1))],
+        passer: isTDPass ? passers[0] : '',
+        scoreType: isTDPass ? 'Passing TD' : 'Rushing TD',
+        quarter,
+        timeLeft: generateTime()
+      })
+      plays.push({
+        team: userTeamAbbr,
+        scorer: kickers[0] || 'K',
+        passer: '',
+        scoreType: 'Extra Point',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingTeamScore -= 7
+    } else if (remainingTeamScore >= 6) {
+      // TD no XP
+      plays.push({
+        team: userTeamAbbr,
+        scorer: rushers[rand(0, Math.min(1, rushers.length - 1))],
+        passer: '',
+        scoreType: 'Rushing TD',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingTeamScore -= 6
+    } else if (remainingTeamScore >= 3) {
+      // Field goal
+      plays.push({
+        team: userTeamAbbr,
+        scorer: kickers[0] || 'K',
+        passer: '',
+        scoreType: 'Field Goal',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingTeamScore -= 3
+    } else if (remainingTeamScore === 2) {
+      // Safety
+      plays.push({
+        team: userTeamAbbr,
+        scorer: 'Defense',
+        passer: '',
+        scoreType: 'Safety',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingTeamScore -= 2
+    } else {
+      break
+    }
+  }
+
+  // Generate opponent scoring plays (generic names)
+  while (remainingOppScore > 0) {
+    const quarter = quarters[rand(0, 3)]
+
+    if (remainingOppScore >= 7 && Math.random() > 0.3) {
+      plays.push({
+        team: opponentAbbr,
+        scorer: 'Opponent WR',
+        passer: 'Opponent QB',
+        scoreType: 'Passing TD',
+        quarter,
+        timeLeft: generateTime()
+      })
+      plays.push({
+        team: opponentAbbr,
+        scorer: 'Opponent K',
+        passer: '',
+        scoreType: 'Extra Point',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingOppScore -= 7
+    } else if (remainingOppScore >= 6) {
+      plays.push({
+        team: opponentAbbr,
+        scorer: 'Opponent RB',
+        passer: '',
+        scoreType: 'Rushing TD',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingOppScore -= 6
+    } else if (remainingOppScore >= 3) {
+      plays.push({
+        team: opponentAbbr,
+        scorer: 'Opponent K',
+        passer: '',
+        scoreType: 'Field Goal',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingOppScore -= 3
+    } else if (remainingOppScore === 2) {
+      plays.push({
+        team: opponentAbbr,
+        scorer: 'Defense',
+        passer: '',
+        scoreType: 'Safety',
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingOppScore -= 2
+    } else {
+      break
+    }
+  }
+
+  // Sort by quarter and time (roughly)
+  plays.sort((a, b) => {
+    const qA = parseInt(a.quarter) || 5
+    const qB = parseInt(b.quarter) || 5
+    return qA - qB
+  })
+
+  return plays
+}

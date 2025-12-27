@@ -3,6 +3,7 @@ import { useDynasty, getCurrentTeamRatings } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
+import { generateRandomBoxScore } from '../data/boxScoreConstants'
 import BoxScoreSheetModal from './BoxScoreSheetModal'
 
 export default function GameEntryModal({
@@ -1083,6 +1084,33 @@ export default function GameEntryModal({
         setNationalPOW(randomPlayer())
       }
     }
+
+    // Generate random box score stats based on player positions
+    const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
+    const opponentAbbr = gameData.opponent || scheduledGame?.opponent || 'OPP'
+
+    // Determine home/away based on location
+    const isUserHome = gameData.location === 'home' || gameData.location === 'neutral'
+
+    // Generate position-based box score
+    const boxScore = generateRandomBoxScore(
+      currentDynasty?.players || [],
+      finalTeamScore,
+      oppTotal,
+      userTeamAbbr,
+      opponentAbbr
+    )
+
+    // Adjust home/away based on actual game location
+    if (isUserHome) {
+      setPendingHomeStats(boxScore.home)
+      setPendingAwayStats(boxScore.away)
+    } else {
+      // User is away team, so swap
+      setPendingHomeStats(boxScore.away)
+      setPendingAwayStats(boxScore.home)
+    }
+    setPendingScoringSummary(boxScore.scoringSummary)
 
     // Auto-submit after state updates
     setTimeout(() => {
