@@ -1349,27 +1349,17 @@ export function DynastyProvider({ children }) {
       // SEASON ADVANCEMENT - This is called when user has already confirmed class progressions
       // (or there were no players needing confirmation)
       // The actual advancement logic is in advanceToNewSeason() which should be called
-      // with classConfirmations before this point
+      // with classConfirmations before this point. That function handles:
+      // - Applying pending coordinator hires
+      // - Setting up coaching staff for new year
+      // - Initializing preseason setup flags
 
       nextPhase = 'preseason'
       nextWeek = 0
       nextYear = dynasty.currentYear + 1
 
-      // Apply pending coordinator hires for the new season
-      const pendingHires = dynasty.pendingCoordinatorHires
-      if (pendingHires) {
-        let updatedStaff = { ...dynasty.coachingStaff }
-        if (pendingHires.filledOC && pendingHires.newOCName) {
-          updatedStaff.ocName = pendingHires.newOCName
-        }
-        if (pendingHires.filledDC && pendingHires.newDCName) {
-          updatedStaff.dcName = pendingHires.newDCName
-        }
-        additionalUpdates.coachingStaff = updatedStaff
-        // Clear the pending hires and CC firing data for the new season
-        additionalUpdates.pendingCoordinatorHires = null
-        additionalUpdates.conferenceChampionshipData = null
-      }
+      // Clear CC firing data for the new season
+      additionalUpdates.conferenceChampionshipData = null
 
       // Clear temporary sheet IDs
       additionalUpdates.trainingResultsSheetId = null
@@ -1510,19 +1500,71 @@ export function DynastyProvider({ children }) {
       }
     })
 
+    // Detect if first year on new team (for preseason roster entry)
+    const previousYearTeam = dynasty.coachTeamByYear?.[currentYear]?.team
+    const isFirstYearOnTeam = previousYearTeam !== teamAbbr
+
+    // Get current coaching staff and apply any pending hires from offseason
+    let currentCoachingStaff = { ...dynasty.coachingStaff } || { hcName: null, ocName: null, dcName: null }
+    const pendingHires = dynasty.pendingCoordinatorHires
+    if (pendingHires) {
+      if (pendingHires.filledOC && pendingHires.newOCName) {
+        currentCoachingStaff.ocName = pendingHires.newOCName
+      }
+      if (pendingHires.filledDC && pendingHires.newDCName) {
+        currentCoachingStaff.dcName = pendingHires.newDCName
+      }
+    }
+
+    // Initialize empty preseason setup for the new year
+    // In subsequent years (not first year on team), we don't need roster entry
+    // Schedule and team ratings always need to be re-entered each year
+    // Coaching staff carries over from previous year (auto-filled)
+    const existingPreseasonSetup = dynasty.preseasonSetupByTeamYear || {}
+    const teamPreseasonSetup = existingPreseasonSetup[teamAbbr] || {}
+
+    const newYearPreseasonSetup = {
+      scheduleEntered: false,
+      rosterEntered: !isFirstYearOnTeam, // Skip roster entry if continuing with same team
+      teamRatingsEntered: false,
+      coachingStaffEntered: !isFirstYearOnTeam, // Auto-filled if continuing with same team
+      conferencesEntered: true // Conferences were set in offseason week 7
+    }
+
+    // Store coaching staff for new year (carries over from previous year)
+    const existingCoachingStaffByTeamYear = dynasty.coachingStaffByTeamYear || {}
+    const teamCoachingStaff = existingCoachingStaffByTeamYear[teamAbbr] || {}
+
     // Prepare updates
     const updates = {
-      players: updatedPlayers
+      players: updatedPlayers,
+      isFirstYearOnCurrentTeam: isFirstYearOnTeam,
+      // Update main coaching staff with any pending hires
+      coachingStaff: currentCoachingStaff,
+      // Clear pending hires since we've applied them
+      pendingCoordinatorHires: null,
+      // Store coaching staff for new year using team-centric pattern
+      coachingStaffByTeamYear: {
+        ...existingCoachingStaffByTeamYear,
+        [teamAbbr]: {
+          ...teamCoachingStaff,
+          [nextYear]: currentCoachingStaff
+        }
+      },
+      // Initialize preseason setup for new year using team-centric pattern
+      preseasonSetupByTeamYear: {
+        ...existingPreseasonSetup,
+        [teamAbbr]: {
+          ...teamPreseasonSetup,
+          [nextYear]: newYearPreseasonSetup
+        }
+      }
     }
 
     // Apply custom conferences for next year if set
     if (dynasty.customConferencesByYear?.[nextYear]) {
       updates.customConferences = dynasty.customConferencesByYear[nextYear]
     }
-
-    // Detect if first year on new team (for preseason roster entry)
-    const previousYearTeam = dynasty.coachTeamByYear?.[currentYear]?.team
-    updates.isFirstYearOnCurrentTeam = previousYearTeam !== teamAbbr
 
     await updateDynasty(dynastyId, updates)
   }

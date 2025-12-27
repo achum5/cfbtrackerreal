@@ -1602,45 +1602,70 @@ export default function Dashboard() {
                 action: () => setShowScheduleModal(true),
                 actionText: teamPreseasonSetup?.scheduleEntered ? 'Edit' : 'Enter'
               },
-              {
+              // Only show roster entry in first year of dynasty OR if user switched teams
+              ...((currentDynasty.currentYear === currentDynasty.startYear || currentDynasty.isFirstYearOnCurrentTeam) ? [{
                 num: 2,
                 title: 'Enter Roster',
                 done: teamPreseasonSetup?.rosterEntered,
                 playerCount: teamRoster.length,
                 action: () => setShowRosterModal(true),
                 actionText: teamPreseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
-              },
+              }] : []),
               {
-                num: 3,
+                num: (currentDynasty.currentYear === currentDynasty.startYear || currentDynasty.isFirstYearOnCurrentTeam) ? 3 : 2,
                 title: 'Enter Team Ratings',
                 done: teamPreseasonSetup?.teamRatingsEntered,
                 teamRatings: teamRatings,
                 action: () => setShowTeamRatingsModal(true),
                 actionText: teamPreseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
-              {
-                num: 4,
-                title: 'Custom Conferences',
-                done: teamPreseasonSetup?.conferencesEntered,
-                conferences: currentDynasty.customConferences,
-                action: () => setShowConferencesModal(true),
-                actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
-              },
+              // Only show Custom Conferences in first year of dynasty (not in subsequent years)
+              ...(() => {
+                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
+                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
+                if (!isFirstYear) return []
+                return [{
+                  num: hasRoster ? 4 : 3,
+                  title: 'Custom Conferences',
+                  done: teamPreseasonSetup?.conferencesEntered,
+                  conferences: currentDynasty.customConferences,
+                  action: () => setShowConferencesModal(true),
+                  actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
+                }]
+              })(),
               // Only show coaching staff task for Head Coaches
-              ...(currentDynasty.coachPosition === 'HC' ? [{
-                num: 5,
-                title: 'Enter Coordinators',
-                done: teamPreseasonSetup?.coachingStaffEntered,
-                coachingStaff: teamCoachingStaff,
-                action: () => setShowCoachingStaffModal(true),
-                actionText: teamPreseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
-              }] : []),
+              ...(() => {
+                if (currentDynasty.coachPosition !== 'HC') return []
+                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
+                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
+                // Calculate task number based on what's shown before it
+                let num = 2 // After schedule
+                if (hasRoster) num++ // After roster
+                num++ // After team ratings
+                if (isFirstYear) num++ // After custom conferences
+                return [{
+                  num,
+                  title: 'Enter Coordinators',
+                  done: teamPreseasonSetup?.coachingStaffEntered,
+                  coachingStaff: teamCoachingStaff,
+                  action: () => setShowCoachingStaffModal(true),
+                  actionText: teamPreseasonSetup?.coachingStaffEntered ? 'Edit' : 'Add Staff'
+                }]
+              })(),
               // Optional: Recruiting Commitments - TEAM-CENTRIC
               (() => {
                 const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
                 const preseasonCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.['preseason']
+                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
+                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
+                // Calculate task number
+                let num = 2 // After schedule
+                if (hasRoster) num++ // After roster
+                num++ // After team ratings
+                if (isFirstYear) num++ // After custom conferences
+                if (currentDynasty.coachPosition === 'HC') num++ // After coordinators
                 return {
-                  num: currentDynasty.coachPosition === 'HC' ? 6 : 5,
+                  num,
                   title: 'Any commitments this week?',
                   isRecruiting: true,
                   done: preseasonCommitments !== undefined,
