@@ -99,9 +99,9 @@ function ViewDynastyContent() {
       />
 
       {/* Main content - offset by sidebar width on desktop */}
-      <div className="lg:ml-56 min-w-0">
+      <main className="lg:ml-56 min-w-0 flex-1 px-4 py-6">
         <Outlet />
-      </div>
+      </main>
     </div>
   )
 }
