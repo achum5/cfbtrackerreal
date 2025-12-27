@@ -399,6 +399,9 @@ export default function TeamYear() {
     ? { wins: teamWins, losses: teamLosses, pointsFor: null, pointsAgainst: null }
     : standingsRecord
 
+  // Get team ratings for this year
+  const teamRatings = currentDynasty.teamRatingsByTeamYear?.[teamAbbr]?.[selectedYear] || null
+
   // Get final poll rankings for this team in this year
   const getFinalPollRankings = () => {
     const pollsData = currentDynasty.finalPollsByYear?.[selectedYear]
@@ -566,7 +569,13 @@ export default function TeamYear() {
     if (belongsToThisTeam) {
       // Show players who were on roster during this year
       const playerStartYear = p.yearStarted || currentDynasty.startYear
-      const playerEndYear = p.yearDeparted || currentDynasty.currentYear
+      // Use leftYear if player left, otherwise use yearDeparted or current year
+      const playerEndYear = p.leftTeam ? (p.leftYear || currentDynasty.currentYear) : (p.yearDeparted || currentDynasty.currentYear)
+
+      // For the year they left, they should NOT appear on the roster (they left before that season started)
+      // So if leftYear is 2025, they should not appear on 2026 roster
+      if (p.leftTeam && selectedYear > p.leftYear) return false
+
       return selectedYear >= playerStartYear && selectedYear <= playerEndYear
     }
 
@@ -579,7 +588,13 @@ export default function TeamYear() {
   const vsUserLosses = vsUserGames.filter(g => g.result === 'L').length
 
   // Sort roster based on current sort settings
-  const posOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+  const posOrder = [
+    'QB', 'HB', 'FB', 'WR', 'TE',
+    'LT', 'LG', 'C', 'RG', 'RT', 'OT', 'OG',
+    'LE', 'RE', 'LEDG', 'REDG', 'EDGE', 'DT',
+    'LOLB', 'MLB', 'ROLB', 'SAM', 'MIKE', 'WILL', 'OLB', 'LB',
+    'CB', 'FS', 'SS', 'S', 'K', 'P'
+  ]
 
   // Class order for sorting (RS Sr is highest/most senior)
   const classOrder = {
@@ -605,7 +620,7 @@ export default function TeamYear() {
   }
 
   const handleRosterSave = async (players) => {
-    await saveRoster(currentDynasty.id, players)
+    await saveRoster(currentDynasty.id, players, { teamAbbr, year: selectedYear })
     setShowRosterModal(false)
   }
 
@@ -646,169 +661,6 @@ export default function TeamYear() {
     }
     return rosterSortDir === 'desc' ? -result : result
   })
-
-  // Build unified game list for non-user teams
-  // Includes: games vs user, CC game, bowl game, CFP games
-  const buildTeamGameLog = () => {
-    const allGames = []
-
-    // Add games vs user (regular season games)
-    vsUserGames.forEach(game => {
-      const userAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-      const userWon = game.result === 'win' || game.result === 'W'
-      allGames.push({
-        type: 'regular',
-        week: game.week,
-        opponent: userAbbr,
-        opponentRank: game.userRank,
-        thisTeamWon: !userWon,
-        thisTeamScore: game.opponentScore,
-        opponentScore: game.teamScore,
-        location: game.location === 'home' ? 'away' : game.location === 'away' ? 'home' : 'neutral',
-        overtimes: game.overtimes,
-        originalGame: game,
-        sortOrder: game.week,
-        gameId: game.id // Include game ID for linking
-      })
-    })
-
-    // Add conference championship game
-    if (teamCCGame) {
-      const isTeam1 = teamCCGame.team1 === teamAbbr
-      const opponent = isTeam1 ? teamCCGame.team2 : teamCCGame.team1
-      const thisTeamScore = isTeam1 ? teamCCGame.team1Score : teamCCGame.team2Score
-      const oppScore = isTeam1 ? teamCCGame.team2Score : teamCCGame.team1Score
-      allGames.push({
-        type: 'cc',
-        week: 'CCG',
-        conference: teamCCGame.conference,
-        opponent: opponent,
-        opponentRank: null,
-        thisTeamWon: wonCC,
-        thisTeamScore: thisTeamScore,
-        opponentScore: oppScore,
-        location: 'neutral',
-        sortOrder: 100,
-        gameId: teamCCGame.id || `cc-${selectedYear}`, // Include game ID for linking
-        // Create game object for modal (from this team's perspective)
-        gameForModal: {
-          opponent: opponent,
-          teamScore: thisTeamScore,
-          opponentScore: oppScore,
-          result: wonCC ? 'win' : 'loss',
-          year: selectedYear,
-          week: 'CCG',
-          location: 'neutral',
-          isConferenceChampionship: true,
-          conference: teamCCGame.conference,
-          gameTitle: `${teamCCGame.conference} Championship Game`,
-          // For CPU vs CPU games, specify the viewing team
-          viewingTeam: mascotName || teamInfo.name,
-          viewingTeamAbbr: teamAbbr,
-          // Include data for editing
-          team1: teamCCGame.team1,
-          team2: teamCCGame.team2,
-          gameNote: teamCCGame.gameNote || '',
-          links: teamCCGame.links || '',
-          gameRef: teamCCGame // Reference to the full game object for updating
-        }
-      })
-    }
-
-    // Add CFP games (use teamCFPGamesFromResults from cfpResultsByYear, not legacy teamCFPGames)
-    teamCFPGamesFromResults.forEach((game, idx) => {
-      const isTeam1 = game.team1 === teamAbbr
-      const opponent = isTeam1 ? game.team2 : game.team1
-      const thisTeamWon = (isTeam1 && game.team1Score > game.team2Score) ||
-                          (!isTeam1 && game.team2Score > game.team1Score)
-      const roundNames = { 1: 'CFP R1', 2: 'CFP QF', 3: 'CFP SF', 4: 'Natty' }
-      const roundFullNames = { 1: 'First Round', 2: 'Quarterfinal', 3: 'Semifinal', 4: 'National Championship' }
-      const thisTeamScore = isTeam1 ? game.team1Score : game.team2Score
-      const oppScore = isTeam1 ? game.team2Score : game.team1Score
-
-      // ALWAYS use slot ID to generate proper CFP game ID (e.g., cfpfr1-2025, cfpsf2-2025)
-      // Don't trust game.id as it may be legacy values like "peach" or "fiesta"
-      const cfpGameId = game.slotId ? getCFPGameId(game.slotId, selectedYear) : (game.id || `cfp-${selectedYear}-${game.round}`)
-
-      allGames.push({
-        type: 'cfp',
-        week: roundNames[game.round] || `CFP ${game.round}`,
-        round: game.round,
-        slotId: game.slotId,
-        opponent: opponent,
-        opponentRank: null,
-        thisTeamWon: thisTeamWon,
-        thisTeamScore: thisTeamScore,
-        opponentScore: oppScore,
-        location: 'neutral',
-        sortOrder: 100 + (game.round || idx),
-        gameId: cfpGameId,
-        gameForModal: {
-          opponent: opponent,
-          teamScore: thisTeamScore,
-          opponentScore: oppScore,
-          result: thisTeamWon ? 'win' : 'loss',
-          year: selectedYear,
-          week: roundNames[game.round] || `CFP ${game.round}`,
-          location: 'neutral',
-          isPlayoff: true,
-          gameTitle: `College Football Playoff - ${roundFullNames[game.round] || `Round ${game.round}`}`,
-          viewingTeam: mascotName || teamInfo.name,
-          viewingTeamAbbr: teamAbbr
-        }
-      })
-    })
-
-    // Add bowl game (but NOT if it's a CFP bowl - those are already in CFP games)
-    // CFP bowls: Quarterfinals (Sugar, Orange, Rose, Cotton) and Semifinals (Peach, Fiesta)
-    const cfpBowls = ['Sugar Bowl', 'Orange Bowl', 'Rose Bowl', 'Cotton Bowl', 'Peach Bowl', 'Fiesta Bowl']
-    const isCFPBowl = teamBowlGame && cfpBowls.includes(teamBowlGame.bowlName)
-    if (teamBowlGame && !isCFPBowl) {
-      const isTeam1 = teamBowlGame.team1 === teamAbbr
-      const opponent = isTeam1 ? teamBowlGame.team2 : teamBowlGame.team1
-      const thisTeamScore = isTeam1 ? teamBowlGame.team1Score : teamBowlGame.team2Score
-      const oppScore = isTeam1 ? teamBowlGame.team2Score : teamBowlGame.team1Score
-      const bowlSlug = (teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')
-      allGames.push({
-        type: 'bowl',
-        week: 'Bowl',
-        bowlName: teamBowlGame.bowlName,
-        opponent: opponent,
-        opponentRank: null,
-        thisTeamWon: wonBowl,
-        thisTeamScore: thisTeamScore,
-        opponentScore: oppScore,
-        location: 'neutral',
-        sortOrder: 200,
-        gameId: teamBowlGame.id || `bowl-${selectedYear}-${bowlSlug}`, // Include game ID for linking
-        gameForModal: {
-          opponent: opponent,
-          teamScore: thisTeamScore,
-          opponentScore: oppScore,
-          result: wonBowl ? 'win' : 'loss',
-          year: selectedYear,
-          week: 'Bowl',
-          location: 'neutral',
-          isBowlGame: true,
-          bowlName: teamBowlGame.bowlName,
-          gameTitle: teamBowlGame.bowlName || 'Bowl Game',
-          viewingTeam: mascotName || teamInfo.name,
-          viewingTeamAbbr: teamAbbr,
-          // Include data for editing
-          team1: teamBowlGame.team1,
-          team2: teamBowlGame.team2,
-          gameNote: teamBowlGame.gameNote || '',
-          links: teamBowlGame.links || '',
-          gameRef: teamBowlGame // Reference to the full game object for updating
-        }
-      })
-    }
-
-    // Sort by sortOrder
-    return allGames.sort((a, b) => a.sortOrder - b.sortOrder)
-  }
-
-  const teamGameLog = !isUserTeam ? buildTeamGameLog() : []
 
   // Handle edit game click - opens GameEntryModal
   const handleEditGame = (game) => {
@@ -1114,7 +966,7 @@ export default function TeamYear() {
         }}
       >
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          {/* Mobile: Logo + Record Row */}
+          {/* Mobile: Logo + Ratings + Record Row */}
           <div className="flex items-center justify-between sm:hidden">
             {teamLogo && (
               <div
@@ -1132,62 +984,93 @@ export default function TeamYear() {
                 />
               </div>
             )}
-            {/* Season Record (mobile) */}
-            {displayRecord && (
-              <div
-                className="text-right relative"
-                onMouseEnter={() => setShowRecordTooltip(true)}
-                onMouseLeave={() => setShowRecordTooltip(false)}
-                onClick={() => setShowRecordTooltip(!showRecordTooltip)}
-              >
-                <div
-                  className="text-2xl font-bold cursor-pointer"
-                  style={{ color: teamBgText }}
-                >
-                  {displayRecord.wins}-{displayRecord.losses}
-                </div>
-                <div className="text-xs font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
-                  Record
-                </div>
-                {/* Points Tooltip */}
-                {showRecordTooltip && displayRecord.pointsFor !== null && (
-                  <div
-                    className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-36 text-left"
-                    style={{
-                      backgroundColor: teamInfo.textColor,
-                      border: `2px solid ${teamBgText}40`
-                    }}
-                  >
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between gap-4">
-                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
-                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
-                      </div>
-                      <div className="flex justify-between gap-4">
-                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
-                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
-                      </div>
-                      <div className="flex justify-between gap-4 pt-1 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
-                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
-                        <span
-                          className="font-bold"
-                          style={{
-                            color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
-                              ? '#16a34a'
-                              : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
-                                ? '#dc2626'
-                                : teamPrimaryText
-                          }}
-                        >
-                          {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
-                          {displayRecord.pointsFor - displayRecord.pointsAgainst}
-                        </span>
-                      </div>
+            <div className="flex items-center gap-4">
+              {/* Team Ratings (mobile) */}
+              {teamRatings && (
+                <div className="flex gap-2">
+                  <div className="text-center">
+                    <div className="text-lg font-bold" style={{ color: teamBgText }}>
+                      {teamRatings.overall}
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                      OVR
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                  <div className="text-center">
+                    <div className="text-lg font-bold" style={{ color: teamBgText }}>
+                      {teamRatings.offense}
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                      OFF
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold" style={{ color: teamBgText }}>
+                      {teamRatings.defense}
+                    </div>
+                    <div className="text-[10px] font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                      DEF
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Season Record (mobile) */}
+              {displayRecord && (
+                <div
+                  className="text-right relative"
+                  onMouseEnter={() => setShowRecordTooltip(true)}
+                  onMouseLeave={() => setShowRecordTooltip(false)}
+                  onClick={() => setShowRecordTooltip(!showRecordTooltip)}
+                >
+                  <div
+                    className="text-2xl font-bold cursor-pointer"
+                    style={{ color: teamBgText }}
+                  >
+                    {displayRecord.wins}-{displayRecord.losses}
+                  </div>
+                  <div className="text-xs font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
+                    Record
+                  </div>
+                  {/* Points Tooltip */}
+                  {showRecordTooltip && displayRecord.pointsFor !== null && (
+                    <div
+                      className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-36 text-left"
+                      style={{
+                        backgroundColor: teamInfo.textColor,
+                        border: `2px solid ${teamBgText}40`
+                      }}
+                    >
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
+                          <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
+                          <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 pt-1 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
+                          <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
+                          <span
+                            className="font-bold"
+                            style={{
+                              color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
+                                ? '#16a34a'
+                                : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
+                                  ? '#dc2626'
+                                  : teamPrimaryText
+                            }}
+                          >
+                            {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
+                            {displayRecord.pointsFor - displayRecord.pointsAgainst}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Desktop: Logo */}
@@ -1425,61 +1308,93 @@ export default function TeamYear() {
             })()}
           </div>
 
-          {/* Season Record (desktop only - mobile shown above) */}
-          {displayRecord && (
-            <div
-              className="hidden sm:block text-right relative"
-              onMouseEnter={() => setShowRecordTooltip(true)}
-              onMouseLeave={() => setShowRecordTooltip(false)}
-            >
-              <div
-                className="text-3xl md:text-4xl font-bold cursor-pointer"
-                style={{ color: teamBgText }}
-              >
-                {displayRecord.wins}-{displayRecord.losses}
-              </div>
-              <div className="text-sm font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
-                Record
-              </div>
-              {/* Points Tooltip */}
-              {showRecordTooltip && displayRecord.pointsFor !== null && (
-                <div
-                  className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-44 text-left"
-                  style={{
-                    backgroundColor: teamInfo.textColor,
-                    border: `2px solid ${teamBgText}40`
-                  }}
-                >
-                  <div className="space-y-1.5 text-sm">
-                    <div className="flex justify-between gap-6">
-                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
-                      <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
-                    </div>
-                    <div className="flex justify-between gap-6">
-                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
-                      <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
-                    </div>
-                    <div className="flex justify-between gap-6 pt-1.5 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
-                      <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
-                      <span
-                        className="font-bold"
-                        style={{
-                          color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
-                            ? '#16a34a'
-                            : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
-                              ? '#dc2626'
-                              : teamPrimaryText
-                        }}
-                      >
-                        {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
-                        {displayRecord.pointsFor - displayRecord.pointsAgainst}
-                      </span>
-                    </div>
+          {/* Ratings and Record Section (desktop only - mobile shown above) */}
+          <div className="hidden sm:flex items-center gap-6">
+            {/* Team Ratings (desktop) */}
+            {teamRatings && (
+              <div className="flex gap-4">
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
+                    {teamRatings.overall}
+                  </div>
+                  <div className="text-xs font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                    OVR
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
+                    {teamRatings.offense}
+                  </div>
+                  <div className="text-xs font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                    OFF
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
+                    {teamRatings.defense}
+                  </div>
+                  <div className="text-xs font-semibold uppercase" style={{ color: teamBgText, opacity: 0.7 }}>
+                    DEF
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Season Record (desktop) */}
+            {displayRecord && (
+              <div
+                className="text-right relative"
+                onMouseEnter={() => setShowRecordTooltip(true)}
+                onMouseLeave={() => setShowRecordTooltip(false)}
+              >
+                <div
+                  className="text-3xl md:text-4xl font-bold cursor-pointer"
+                  style={{ color: teamBgText }}
+                >
+                  {displayRecord.wins}-{displayRecord.losses}
+                </div>
+                <div className="text-sm font-semibold" style={{ color: teamBgText, opacity: 0.7 }}>
+                  Record
+                </div>
+                {/* Points Tooltip */}
+                {showRecordTooltip && displayRecord.pointsFor !== null && (
+                  <div
+                    className="absolute right-0 top-full mt-2 p-3 rounded-lg shadow-lg z-50 min-w-44 text-left"
+                    style={{
+                      backgroundColor: teamInfo.textColor,
+                      border: `2px solid ${teamBgText}40`
+                    }}
+                  >
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between gap-6">
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points For:</span>
+                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsFor}</span>
+                      </div>
+                      <div className="flex justify-between gap-6">
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Points Against:</span>
+                        <span className="font-bold" style={{ color: teamPrimaryText }}>{displayRecord.pointsAgainst}</span>
+                      </div>
+                      <div className="flex justify-between gap-6 pt-1.5 border-t" style={{ borderColor: `${teamPrimaryText}30` }}>
+                        <span style={{ color: teamPrimaryText, opacity: 0.7 }}>Diff:</span>
+                        <span
+                          className="font-bold"
+                          style={{
+                            color: displayRecord.pointsFor - displayRecord.pointsAgainst > 0
+                              ? '#16a34a'
+                              : displayRecord.pointsFor - displayRecord.pointsAgainst < 0
+                                ? '#dc2626'
+                                : teamPrimaryText
+                          }}
+                        >
+                          {displayRecord.pointsFor - displayRecord.pointsAgainst > 0 ? '+' : ''}
+                          {displayRecord.pointsFor - displayRecord.pointsAgainst}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1607,18 +1522,16 @@ export default function TeamYear() {
               >
                 {sortedTeamPlayers.length} Players
               </span>
-              {selectedYear === currentDynasty.currentYear && (
-                <button
-                  onClick={() => setShowRosterModal(true)}
-                  className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-                  style={{ color: teamPrimaryText }}
-                  title="Edit Roster"
-                >
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-              )}
+              <button
+                onClick={() => setShowRosterModal(true)}
+                className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                style={{ color: teamPrimaryText }}
+                title="Edit Roster"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
             </div>
             {/* Sort Controls */}
             <div className="flex items-center gap-1 flex-wrap">
@@ -1772,7 +1685,7 @@ export default function TeamYear() {
                       key={player.pid}
                       className="hover:opacity-80 cursor-pointer transition-opacity"
                       style={{ borderBottom: `1px solid ${teamInfo.textColor}15` }}
-                      onClick={() => window.location.href = `/dynasty/${id}/player/${player.pid}`}
+                      onClick={() => navigate(`/dynasty/${id}/player/${player.pid}`)}
                     >
                       <td className="py-2 px-2 text-center font-bold" style={{ color: teamBgText }}>
                         {player.jerseyNumber || '-'}
@@ -1850,7 +1763,42 @@ export default function TeamYear() {
         </div>
       )}
 
-      {/* Game Log - shows games played by this team this year */}
+      {/* Add Roster Section for User's Team with No Players for this year */}
+      {isUserTeam && sortedTeamPlayers.length === 0 && (
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{
+            backgroundColor: teamInfo.backgroundColor,
+            border: `3px solid ${teamInfo.textColor}`
+          }}
+        >
+          <div
+            className="px-3 sm:px-4 py-2 sm:py-3"
+            style={{ backgroundColor: teamInfo.textColor }}
+          >
+            <h2 className="text-sm sm:text-lg font-bold" style={{ color: teamPrimaryText }}>
+              {selectedYear} Roster
+            </h2>
+          </div>
+          <div className="p-4 sm:p-6 text-center">
+            <p className="text-sm mb-4" style={{ color: teamBgText, opacity: 0.7 }}>
+              No roster data for {selectedYear}
+            </p>
+            <button
+              onClick={() => setShowRosterModal(true)}
+              className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+              style={{
+                backgroundColor: teamInfo.textColor,
+                color: teamPrimaryText
+              }}
+            >
+              Add Roster
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule - shows games played by this team this year */}
       {teamYearGames.length > 0 && (
         <div
           className="rounded-lg shadow-lg overflow-hidden"
@@ -2293,204 +2241,6 @@ export default function TeamYear() {
         </div>
       )}
 
-
-      {/* Game Log for non-user teams - unified view of all games */}
-      {!isUserTeam && (
-        <div
-          className="rounded-lg shadow-lg overflow-hidden"
-          style={{
-            backgroundColor: teamInfo.backgroundColor,
-            border: `3px solid ${teamInfo.textColor}`
-          }}
-        >
-          <div
-            className="px-3 sm:px-4 py-2 sm:py-3"
-            style={{ backgroundColor: teamInfo.textColor }}
-          >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: teamInfo.backgroundColor }}>
-              {selectedYear} Game Log
-            </h2>
-          </div>
-
-          <div className="p-2 sm:p-4">
-            {teamGameLog.length > 0 ? (
-              <div className="space-y-2">
-                {teamGameLog.map((game, index) => {
-                  const oppMascot = getMascotName(game.opponent)
-                  const oppLogo = oppMascot ? getTeamLogo(oppMascot) : null
-                  const oppColors = teamAbbreviations[game.opponent] || { backgroundColor: '#6b7280', textColor: '#ffffff' }
-
-                  // Use Link to game page if gameId available
-                  if (game.gameId) {
-                    return (
-                      <Link
-                        key={index}
-                        to={`/dynasty/${id}/game/${game.gameId}`}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 cursor-pointer hover:opacity-90 transition-opacity gap-2 sm:gap-0 block"
-                        style={{
-                          backgroundColor: oppColors.backgroundColor,
-                          borderColor: game.thisTeamWon ? '#86efac' : '#fca5a5'
-                        }}
-                      >
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
-                            {typeof game.week === 'number' ? `Wk ${game.week}` : game.week}
-                          </div>
-                          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                            <span
-                              className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
-                              style={{
-                                backgroundColor: oppColors.textColor,
-                                color: oppColors.backgroundColor
-                              }}
-                            >
-                              {game.location === 'away' ? '@' : 'vs'}
-                            </span>
-                            {oppLogo && (
-                              <div
-                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                  backgroundColor: '#FFFFFF',
-                                  border: `2px solid ${oppColors.textColor}`,
-                                  padding: '2px'
-                                }}
-                              >
-                                <img
-                                  src={oppLogo}
-                                  alt={`${oppMascot} logo`}
-                                  className="w-full h-full object-contain"
-                                />
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                              {game.opponentRank && (
-                                <span className="text-xs font-bold flex-shrink-0" style={{ color: oppColors.textColor, opacity: 0.7 }}>
-                                  #{game.opponentRank}
-                                </span>
-                              )}
-                              <span
-                                className="font-semibold text-sm sm:text-base truncate"
-                                style={{ color: oppColors.textColor }}
-                              >
-                                {oppMascot || game.opponent}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
-                          <div
-                            className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                            style={{
-                              backgroundColor: game.thisTeamWon ? '#22c55e' : '#ef4444',
-                              color: '#ffffff'
-                            }}
-                          >
-                            {game.thisTeamWon ? 'W' : 'L'}
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
-                              {game.thisTeamScore} - {game.opponentScore}
-                              {game.overtimes && game.overtimes.length > 0 && (
-                                <span className="ml-1 text-xs opacity-80">
-                                  {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    )
-                  }
-
-                  // Fallback for games without ID (shouldn't happen)
-                  return (
-                    <div
-                      key={index}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                      style={{
-                        backgroundColor: oppColors.backgroundColor,
-                        borderColor: game.thisTeamWon ? '#86efac' : '#fca5a5'
-                      }}
-                    >
-                      <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
-                          {typeof game.week === 'number' ? `Wk ${game.week}` : game.week}
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                          <span
-                            className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
-                            style={{
-                              backgroundColor: oppColors.textColor,
-                              color: oppColors.backgroundColor
-                            }}
-                          >
-                            {game.location === 'away' ? '@' : 'vs'}
-                          </span>
-                          {oppLogo && (
-                            <div
-                              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                              style={{
-                                backgroundColor: '#FFFFFF',
-                                border: `2px solid ${oppColors.textColor}`,
-                                padding: '2px'
-                              }}
-                            >
-                              <img
-                                src={oppLogo}
-                                alt={`${oppMascot} logo`}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                            {game.opponentRank && (
-                              <span className="text-xs font-bold flex-shrink-0" style={{ color: oppColors.textColor, opacity: 0.7 }}>
-                                #{game.opponentRank}
-                              </span>
-                            )}
-                            <span
-                              className="font-semibold text-sm sm:text-base truncate"
-                              style={{ color: oppColors.textColor }}
-                            >
-                              {oppMascot || game.opponent}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
-                        <div
-                          className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                          style={{
-                            backgroundColor: game.thisTeamWon ? '#22c55e' : '#ef4444',
-                            color: '#ffffff'
-                          }}
-                        >
-                          {game.thisTeamWon ? 'W' : 'L'}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
-                            {game.thisTeamScore} - {game.opponentScore}
-                            {game.overtimes && game.overtimes.length > 0 && (
-                              <span className="ml-1 text-xs opacity-80">
-                                {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-center py-4 text-sm sm:text-base" style={{ color: teamBgText, opacity: 0.7 }}>
-                No games recorded for {selectedYear}.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Players from Other Teams (Transfers) */}
       {!isUserTeam && teamPlayers.length > 0 && (
         <div
@@ -2504,18 +2254,30 @@ export default function TeamYear() {
             className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between"
             style={{ backgroundColor: viewedTeamColors.primary }}
           >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
-              Players from {mascotName || teamAbbr}
-            </h2>
-            <span
-              className="text-xs sm:text-sm font-semibold px-2 py-0.5 sm:py-1 rounded"
-              style={{
-                backgroundColor: viewedTeamColors.secondary,
-                color: secondaryBgText
-              }}
-            >
-              {teamPlayers.length} Players
-            </span>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
+                {selectedYear} {teamAbbr} Roster
+              </h2>
+              <span
+                className="text-xs sm:text-sm font-semibold px-2 py-0.5 sm:py-1 rounded"
+                style={{
+                  backgroundColor: viewedTeamColors.secondary,
+                  color: secondaryBgText
+                }}
+              >
+                {teamPlayers.length} Players
+              </span>
+              <button
+                onClick={() => setShowRosterModal(true)}
+                className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                style={{ color: getContrastTextColor(viewedTeamColors.primary) }}
+                title="Edit Roster"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div className="p-2 sm:p-4">
@@ -2550,6 +2312,40 @@ export default function TeamYear() {
         </div>
       )}
 
+      {/* Add Roster Section for Non-User Teams with No Players */}
+      {!isUserTeam && teamPlayers.length === 0 && (
+        <div
+          className="rounded-lg shadow-lg overflow-hidden"
+          style={{
+            backgroundColor: viewedTeamColors.secondary,
+            border: `3px solid ${viewedTeamColors.primary}`
+          }}
+        >
+          <div
+            className="px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between"
+            style={{ backgroundColor: viewedTeamColors.primary }}
+          >
+            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
+              {selectedYear} {teamAbbr} Roster
+            </h2>
+          </div>
+          <div className="p-4 sm:p-6 text-center">
+            <p className="text-sm mb-4" style={{ color: secondaryBgText, opacity: 0.7 }}>
+              No roster data for {teamAbbr} in {selectedYear}
+            </p>
+            <button
+              onClick={() => setShowRosterModal(true)}
+              className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+              style={{
+                backgroundColor: viewedTeamColors.primary,
+                color: getContrastTextColor(viewedTeamColors.primary)
+              }}
+            >
+              Add Roster
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Game Entry Modal (for editing games) */}
       {showEditModal && editingGameData && (
@@ -2580,8 +2376,10 @@ export default function TeamYear() {
         isOpen={showRosterModal}
         onClose={() => setShowRosterModal(false)}
         onSave={handleRosterSave}
-        currentYear={currentDynasty.currentYear}
+        currentYear={selectedYear}
         teamColors={viewedTeamColors}
+        teamAbbr={teamAbbr}
+        teamName={mascotName || teamAbbr}
       />
     </div>
   )

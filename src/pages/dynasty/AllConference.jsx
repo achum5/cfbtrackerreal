@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
-import { getTeamConference } from '../../data/conferenceTeams'
+import { getTeamConference, conferenceTeams, getAllConferences } from '../../data/conferenceTeams'
+import AllAmericansModal from '../../components/AllAmericansModal'
+import { useTeamColors } from '../../hooks/useTeamColors'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -179,31 +181,144 @@ const cleanPlayerName = (name) => {
 }
 
 export default function AllConference() {
-  const { id } = useParams()
-  const { currentDynasty } = useDynasty()
-  const [selectedYear, setSelectedYear] = useState(null)
+  const { id, year: urlYear, conference: urlConference } = useParams()
+  const navigate = useNavigate()
+  const { currentDynasty, updateDynasty } = useDynasty()
   const [filter, setFilter] = useState('all') // 'all', 'first', 'second', 'freshman'
+  const [showEditModal, setShowEditModal] = useState(false)
+  const teamColors = useTeamColors(currentDynasty?.teamName)
 
   if (!currentDynasty) return null
 
   // Get the user's conference from their team
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-  const userConference = getTeamConference(userTeamAbbr) || 'Conference'
+  const userConference = getTeamConference(userTeamAbbr) || 'SEC'
 
-  // Get available years with all-conference
+  // Get list of available conferences - use custom conferences if available, otherwise defaults
+  const availableConferences = useMemo(() => {
+    if (currentDynasty.customConferences && Object.keys(currentDynasty.customConferences).length > 0) {
+      return Object.keys(currentDynasty.customConferences).sort()
+    }
+    return getAllConferences().sort()
+  }, [currentDynasty.customConferences])
+
+  // Get the current conference alignment for team lookup
+  const getConferenceTeams = (conf) => {
+    if (currentDynasty.customConferences && currentDynasty.customConferences[conf]) {
+      return currentDynasty.customConferences[conf]
+    }
+    return conferenceTeams[conf] || []
+  }
+
+  // Decode URL conference - try direct match first, then try with hyphens as spaces
+  const decodeConference = (urlConf) => {
+    if (!urlConf) return null
+    const decoded = decodeURIComponent(urlConf)
+    // First try direct match (handles "Pac-12" which has hyphen in name)
+    let match = availableConferences.find(c => c.toLowerCase() === decoded.toLowerCase())
+    if (match) return match
+    // Try replacing hyphens with spaces (handles "Big-Ten" -> "Big Ten")
+    const withSpaces = decoded.replace(/-/g, ' ')
+    match = availableConferences.find(c => c.toLowerCase() === withSpaces.toLowerCase())
+    return match
+  }
+
+  // Encode conference for URL (replace spaces with hyphens)
+  const encodeConference = (conf) => {
+    return encodeURIComponent(conf.replace(/\s+/g, '-'))
+  }
+
+  // Use URL conference if provided and valid, otherwise user's conference
+  const displayConference = decodeConference(urlConference) || userConference
+
+  // Get available years with all-conference (most recent first)
   const allAmericansByYear = currentDynasty.allAmericansByYear || {}
-  const availableYears = Object.keys(allAmericansByYear)
+  const yearsWithData = Object.keys(allAmericansByYear)
     .filter(year => {
       const yearData = allAmericansByYear[year]
       return yearData?.allConference && yearData.allConference.length > 0
     })
     .map(y => parseInt(y))
-    .sort((a, b) => b - a)
 
-  // Set default year to most recent
-  const displayYear = selectedYear || (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
+  // Always include current year so user can view/enter current season's data
+  if (!yearsWithData.includes(currentDynasty.currentYear)) {
+    yearsWithData.push(currentDynasty.currentYear)
+  }
+
+  const availableYears = yearsWithData.sort((a, b) => b - a)
+
+  // Use URL year if provided, otherwise most recent, otherwise current year
+  const displayYear = urlYear ? parseInt(urlYear) : (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
   const yearData = allAmericansByYear[displayYear] || {}
-  const allConference = yearData.allConference || []
+
+  // Get all-conference data for the selected conference
+  // First try the new structure (allConferenceByConference), then fall back to filtering the old structure
+  const allConference = useMemo(() => {
+    // Try new structure first
+    if (yearData.allConferenceByConference && yearData.allConferenceByConference[displayConference]) {
+      return yearData.allConferenceByConference[displayConference]
+    }
+
+    // Fall back to old structure - filter by schools in the selected conference
+    const allConferenceRaw = yearData.allConference || []
+    if (allConferenceRaw.length === 0) return []
+
+    const conferenceTeamsList = getConferenceTeams(displayConference)
+    return allConferenceRaw.filter(player => {
+      if (!player.school) return false
+      return conferenceTeamsList.includes(player.school.toUpperCase()) || conferenceTeamsList.includes(player.school)
+    })
+  }, [yearData, displayConference])
+
+  // Navigate when dropdowns change
+  const handleYearChange = (year) => {
+    navigate(`/dynasty/${id}/all-conference/${year}/${encodeConference(displayConference)}`)
+  }
+
+  const handleConferenceChange = (conf) => {
+    navigate(`/dynasty/${id}/all-conference/${displayYear}/${encodeConference(conf)}`)
+  }
+
+  // Handle save from modal - transforms and saves all-conference data grouped by conference
+  const handleAllAmericansSave = async (data) => {
+    const year = displayYear
+
+    // Transform allConference to be grouped by conference
+    const transformedData = { ...data }
+    if (data.allConference && data.allConference.length > 0) {
+      const existingByConf = currentDynasty.allAmericansByYear?.[year]?.allConferenceByConference || {}
+      const newByConf = { ...existingByConf }
+
+      data.allConference.forEach(entry => {
+        const conference = getTeamConference(entry.school) || 'Unknown'
+        if (!newByConf[conference]) {
+          newByConf[conference] = []
+        }
+        // Check for duplicates before adding
+        const isDupe = newByConf[conference].some(existing =>
+          existing.player === entry.player &&
+          existing.school === entry.school &&
+          existing.designation === entry.designation
+        )
+        if (!isDupe) {
+          newByConf[conference].push(entry)
+        }
+      })
+      transformedData.allConferenceByConference = newByConf
+    }
+
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    const existingYearData = existingByYear[year] || {}
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingYearData,
+          ...transformedData
+        }
+      }
+    })
+  }
 
   // No data yet
   if (availableYears.length === 0) {
@@ -211,10 +326,10 @@ export default function AllConference() {
       <div className="space-y-6">
         <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
           <h1 className="text-2xl font-bold mb-4 text-white">
-            All-{userConference}
+            All-{displayConference}
           </h1>
           <p className="text-lg text-gray-300 opacity-70">
-            No All-{userConference} selections recorded yet. Complete a season and enter data to see them here.
+            No All-{displayConference} selections recorded yet. Complete a season and enter data to see them here.
           </p>
         </div>
       </div>
@@ -362,14 +477,14 @@ export default function AllConference() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Year Selector and Filter */}
+      {/* Header with Year Selector, Conference Selector, and Filter */}
       <div className="rounded-lg shadow-lg p-4 bg-gray-800 border-2 border-gray-600">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <h1 className="text-2xl font-bold text-white">
-            All-{userConference}
+            All-{displayConference}
           </h1>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             {/* Filter Buttons */}
             <div className="flex rounded-lg overflow-hidden border border-blue-600">
               {[
@@ -390,10 +505,23 @@ export default function AllConference() {
               ))}
             </div>
 
+            {/* Conference Selector */}
+            <select
+              value={displayConference}
+              onChange={(e) => handleConferenceChange(e.target.value)}
+              className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
+            >
+              {availableConferences.map((conf) => (
+                <option key={conf} value={conf}>
+                  {conf}
+                </option>
+              ))}
+            </select>
+
             {/* Year Selector */}
             <select
               value={displayYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              onChange={(e) => handleYearChange(parseInt(e.target.value))}
               className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
             >
               {availableYears.map((year) => (
@@ -402,6 +530,18 @@ export default function AllConference() {
                 </option>
               ))}
             </select>
+
+            {/* Edit Button */}
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors flex items-center gap-2"
+              style={{ backgroundColor: teamColors.primary, color: getContrastTextColor(teamColors.primary) }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
           </div>
         </div>
       </div>
@@ -410,17 +550,17 @@ export default function AllConference() {
       {filter === 'all' ? (
         <>
           <TeamSection
-            title={`First-Team All-${userConference}`}
+            title={`First-Team All-${displayConference}`}
             players={groupedByDesignation.first}
             badgeColor="#3B82F6"
           />
           <TeamSection
-            title={`Second-Team All-${userConference}`}
+            title={`Second-Team All-${displayConference}`}
             players={groupedByDesignation.second}
             badgeColor="#6B7280"
           />
           <TeamSection
-            title={`Freshman All-${userConference}`}
+            title={`Freshman All-${displayConference}`}
             players={groupedByDesignation.freshman}
             badgeColor="#3B82F6"
           />
@@ -428,9 +568,9 @@ export default function AllConference() {
       ) : (
         <TeamSection
           title={
-            filter === 'first' ? `First-Team All-${userConference}` :
-            filter === 'second' ? `Second-Team All-${userConference}` :
-            `Freshman All-${userConference}`
+            filter === 'first' ? `First-Team All-${displayConference}` :
+            filter === 'second' ? `Second-Team All-${displayConference}` :
+            `Freshman All-${displayConference}`
           }
           players={filteredPlayers}
           badgeColor={
@@ -445,10 +585,19 @@ export default function AllConference() {
       {filteredPlayers.length === 0 && (
         <div className="rounded-lg shadow-lg p-8 text-center bg-gray-800 border-2 border-gray-600">
           <p className="text-lg text-gray-300 opacity-70">
-            No {filter === 'first' ? 'First-Team' : filter === 'second' ? 'Second-Team' : 'Freshman'} All-{userConference} players for {displayYear}.
+            No {filter === 'all' ? '' : filter === 'first' ? 'First-Team ' : filter === 'second' ? 'Second-Team ' : 'Freshman '}All-{displayConference} players for {displayYear}.
           </p>
         </div>
       )}
+
+      {/* All-Americans/All-Conference Modal */}
+      <AllAmericansModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleAllAmericansSave}
+        currentYear={displayYear}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

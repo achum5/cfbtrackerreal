@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
@@ -112,36 +112,37 @@ const getShortName = (abbr) => {
 }
 
 export default function CFPBracket() {
-  const { id } = useParams()
+  const { id, year: urlYear } = useParams()
+  const navigate = useNavigate()
   const { currentDynasty, updateDynasty, addGame } = useDynasty()
   const teamColors = useTeamColors(currentDynasty?.teamName)
-  // selectedGame removed - now using game pages instead
-  const [selectedYear, setSelectedYear] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingGameData, setEditingGameData] = useState(null)
-
-  // Set initial selected year when dynasty loads
-  useEffect(() => {
-    if (currentDynasty && selectedYear === null) {
-      setSelectedYear(currentDynasty.currentYear)
-    }
-  }, [currentDynasty, selectedYear])
 
   if (!currentDynasty) {
     return <div className="p-6">Loading...</div>
   }
 
-  // Get available years that have CFP seeds data
-  const availableYears = Object.keys(currentDynasty.cfpSeedsByYear || {})
+  // Get available years that have CFP seeds data (most recent first)
+  // Always include current year so user can view/enter current season's bracket
+  const yearsWithData = Object.keys(currentDynasty.cfpSeedsByYear || {})
     .map(y => parseInt(y))
-    .sort((a, b) => b - a) // Most recent first
 
-  // If no CFP data exists yet, show current year
-  if (availableYears.length === 0) {
-    availableYears.push(currentDynasty.currentYear)
+  // Add current year if not already in the list
+  if (!yearsWithData.includes(currentDynasty.currentYear)) {
+    yearsWithData.push(currentDynasty.currentYear)
   }
 
-  const displayYear = selectedYear || currentDynasty.currentYear
+  // Sort descending (most recent first)
+  const availableYears = yearsWithData.sort((a, b) => b - a)
+
+  // Use URL year if provided, otherwise most recent available, otherwise current year
+  const displayYear = urlYear ? parseInt(urlYear) : (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
+
+  // Navigate to year when dropdown changes
+  const handleYearChange = (year) => {
+    navigate(`/dynasty/${id}/cfp-bracket/${year}`)
+  }
   const cfpSeeds = currentDynasty.cfpSeedsByYear?.[displayYear] || []
   const textColor = getContrastTextColor(teamColors.primary)
 
@@ -269,7 +270,7 @@ export default function CFPBracket() {
         }}
       >
         <span className="text-lg font-bold w-8 opacity-70" style={{ color: txtColor }}>
-          {team ? seed : ''}
+          {seed || ''}
         </span>
         {logo && <img src={logo} alt="" className="w-10 h-10 object-contain" />}
         <div className="flex-1 truncate">
@@ -384,30 +385,7 @@ export default function CFPBracket() {
     />
   )
 
-  // No seeds entered
-  if (cfpSeeds.length === 0) {
-    return (
-      <div className="p-6">
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <img src="https://i.imgur.com/ZKD9dQJ.png" alt="CFP Logo" className="h-10" />
-          <h1 className="text-2xl font-bold" style={{ color: textColor }}>
-            {displayYear} CFP Bracket
-          </h1>
-        </div>
-        <div
-          className="p-8 rounded-lg text-center border-2 border-dashed"
-          style={{ borderColor: `${teamColors.secondary}50`, backgroundColor: `${teamColors.primary}20` }}
-        >
-          <p className="text-lg mb-2" style={{ color: textColor }}>CFP Seeds Not Yet Entered</p>
-          <p className="opacity-70" style={{ color: textColor }}>
-            Enter CFP seeds in Bowl Week 1 to see the bracket
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Get all seeds
+  // Get all seeds (will be null/TBD if not entered yet)
   const s1 = getTeamBySeed(1), s2 = getTeamBySeed(2), s3 = getTeamBySeed(3), s4 = getTeamBySeed(4)
   const s5 = getTeamBySeed(5), s6 = getTeamBySeed(6), s7 = getTeamBySeed(7), s8 = getTeamBySeed(8)
   const s9 = getTeamBySeed(9), s10 = getTeamBySeed(10), s11 = getTeamBySeed(11), s12 = getTeamBySeed(12)
@@ -652,7 +630,7 @@ export default function CFPBracket() {
         <h1 className="text-xl md:text-4xl font-bold" style={{ color: textColor }}>
           <select
             value={displayYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            onChange={(e) => handleYearChange(parseInt(e.target.value))}
             className="bg-transparent font-bold cursor-pointer hover:opacity-80 transition-opacity appearance-none pr-1"
             style={{
               color: textColor,

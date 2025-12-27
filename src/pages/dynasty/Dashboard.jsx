@@ -776,11 +776,27 @@ export default function Dashboard() {
     }
 
     // No confirmations needed - save the data
+    // Transform allConference to be grouped by conference
+    const transformedData = { ...data }
+    if (data.allConference && data.allConference.length > 0) {
+      const allConferenceByConference = {}
+      data.allConference.forEach(entry => {
+        // Determine conference from the player's school
+        const conference = getTeamConference(entry.school) || 'Unknown'
+        if (!allConferenceByConference[conference]) {
+          allConferenceByConference[conference] = []
+        }
+        allConferenceByConference[conference].push(entry)
+      })
+      transformedData.allConferenceByConference = allConferenceByConference
+      // Keep original allConference for backwards compatibility
+    }
+
     const existingByYear = currentDynasty.allAmericansByYear || {}
     await updateDynasty(currentDynasty.id, {
       allAmericansByYear: {
         ...existingByYear,
-        [year]: data
+        [year]: transformedData
       }
     })
   }
@@ -930,7 +946,7 @@ export default function Dashboard() {
   const handleRecruitOverallsSave = async (results) => {
     const year = currentDynasty.currentYear
 
-    // Update recruit overalls in the players array
+    // Update recruit overalls and jersey numbers in the players array
     const updatedPlayers = [...(currentDynasty.players || [])]
     let updatedCount = 0
 
@@ -939,12 +955,13 @@ export default function Dashboard() {
       const playerIndex = updatedPlayers.findIndex(p =>
         p.isRecruit &&
         p.recruitYear === year &&
-        normalizePlayerName(p.name) === normalizePlayerName(result.playerName)
+        normalizePlayerName(p.name) === normalizePlayerName(result.name)
       )
       if (playerIndex !== -1 && result.overall) {
         updatedPlayers[playerIndex] = {
           ...updatedPlayers[playerIndex],
-          overall: result.overall
+          overall: result.overall,
+          ...(result.jerseyNumber && { jerseyNumber: result.jerseyNumber })
         }
         updatedCount++
       }
@@ -1222,11 +1239,25 @@ export default function Dashboard() {
             }
           })
         } else {
+          // Transform allConference to be grouped by conference
+          const transformedData = { ...rawData }
+          if (rawData.allConference && rawData.allConference.length > 0) {
+            const allConferenceByConference = {}
+            rawData.allConference.forEach(entry => {
+              const conference = getTeamConference(entry.school) || 'Unknown'
+              if (!allConferenceByConference[conference]) {
+                allConferenceByConference[conference] = []
+              }
+              allConferenceByConference[conference].push(entry)
+            })
+            transformedData.allConferenceByConference = allConferenceByConference
+          }
+
           const existingByYear = currentDynasty.allAmericansByYear || {}
           await updateDynasty(currentDynasty.id, {
             allAmericansByYear: {
               ...existingByYear,
-              [year]: rawData
+              [year]: transformedData
             }
           })
         }
@@ -1281,8 +1312,11 @@ export default function Dashboard() {
       teamPreseasonSetup?.rosterEntered &&
       teamPreseasonSetup?.teamRatingsEntered
 
-    // If user is Head Coach, they must also enter coaching staff (coordinators)
-    if (currentDynasty.coachPosition === 'HC') {
+    // Coaching staff only required in first year of dynasty or first year on new team
+    // After that, coordinators are managed through offseason firing/hiring flow
+    const isFirstYear = Number(currentDynasty.currentYear) === Number(currentDynasty.startYear)
+    const isFirstYearOnTeam = currentDynasty.isFirstYearOnCurrentTeam
+    if (currentDynasty.coachPosition === 'HC' && (isFirstYear || isFirstYearOnTeam)) {
       return baseRequirements && teamPreseasonSetup?.coachingStaffEntered
     }
 
@@ -1603,7 +1637,7 @@ export default function Dashboard() {
                 actionText: teamPreseasonSetup?.scheduleEntered ? 'Edit' : 'Enter'
               },
               // Only show roster entry in first year of dynasty OR if user switched teams
-              ...((currentDynasty.currentYear === currentDynasty.startYear || currentDynasty.isFirstYearOnCurrentTeam) ? [{
+              ...((Number(currentDynasty.currentYear) === Number(currentDynasty.startYear) || currentDynasty.isFirstYearOnCurrentTeam) ? [{
                 num: 2,
                 title: 'Enter Roster',
                 done: teamPreseasonSetup?.rosterEntered,
@@ -1612,7 +1646,7 @@ export default function Dashboard() {
                 actionText: teamPreseasonSetup?.rosterEntered ? 'Edit' : 'Enter'
               }] : []),
               {
-                num: (currentDynasty.currentYear === currentDynasty.startYear || currentDynasty.isFirstYearOnCurrentTeam) ? 3 : 2,
+                num: (Number(currentDynasty.currentYear) === Number(currentDynasty.startYear) || currentDynasty.isFirstYearOnCurrentTeam) ? 3 : 2,
                 title: 'Enter Team Ratings',
                 done: teamPreseasonSetup?.teamRatingsEntered,
                 teamRatings: teamRatings,
@@ -1621,7 +1655,7 @@ export default function Dashboard() {
               },
               // Only show Custom Conferences in first year of dynasty (not in subsequent years)
               ...(() => {
-                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
+                const isFirstYear = Number(currentDynasty.currentYear) === Number(currentDynasty.startYear)
                 const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
                 if (!isFirstYear) return []
                 return [{
@@ -1633,11 +1667,16 @@ export default function Dashboard() {
                   actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
                 }]
               })(),
-              // Only show coaching staff task for Head Coaches
+              // Only show coaching staff task for Head Coaches in first year of dynasty
+              // (or first year on a new team). After that, coordinators are managed
+              // through offseason firing/hiring flow and carry over automatically.
               ...(() => {
                 if (currentDynasty.coachPosition !== 'HC') return []
-                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
-                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
+                const isFirstYear = Number(currentDynasty.currentYear) === Number(currentDynasty.startYear)
+                const isFirstYearOnTeam = currentDynasty.isFirstYearOnCurrentTeam
+                // Only show in first year of dynasty or first year on a new team
+                if (!isFirstYear && !isFirstYearOnTeam) return []
+                const hasRoster = isFirstYear || isFirstYearOnTeam
                 // Calculate task number based on what's shown before it
                 let num = 2 // After schedule
                 if (hasRoster) num++ // After roster
@@ -1656,14 +1695,16 @@ export default function Dashboard() {
               (() => {
                 const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
                 const preseasonCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.['preseason']
-                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
-                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
+                const isFirstYear = Number(currentDynasty.currentYear) === Number(currentDynasty.startYear)
+                const isFirstYearOnTeam = currentDynasty.isFirstYearOnCurrentTeam
+                const hasRoster = isFirstYear || isFirstYearOnTeam
                 // Calculate task number
                 let num = 2 // After schedule
                 if (hasRoster) num++ // After roster
                 num++ // After team ratings
                 if (isFirstYear) num++ // After custom conferences
-                if (currentDynasty.coachPosition === 'HC') num++ // After coordinators
+                // Only add coordinator increment if coordinators task is shown (HC + first year or first year on team)
+                if (currentDynasty.coachPosition === 'HC' && (isFirstYear || isFirstYearOnTeam)) num++ // After coordinators
                 return {
                   num,
                   title: 'Any commitments this week?',

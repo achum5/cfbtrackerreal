@@ -87,14 +87,26 @@ export default function Players() {
           break
         case 'position':
           // Sort by depth chart order, not alphabetical
+          // Secondary sort by overall (highest first) within each position
           const positionOrder = [
-            'QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT',
-            'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P'
+            'QB', 'HB', 'FB', 'WR', 'TE',
+            'LT', 'LG', 'C', 'RG', 'RT', 'OT', 'OG',
+            'LE', 'RE', 'LEDG', 'REDG', 'EDGE', 'DT',
+            'LOLB', 'MLB', 'ROLB', 'SAM', 'MIKE', 'WILL', 'OLB', 'LB',
+            'CB', 'FS', 'SS', 'S', 'K', 'P'
           ]
-          aVal = positionOrder.indexOf(a.position)
-          bVal = positionOrder.indexOf(b.position)
-          aMissing = aVal === -1 || !a.position
-          bMissing = bVal === -1 || !b.position
+          const aPosIdx = positionOrder.indexOf(a.position)
+          const bPosIdx = positionOrder.indexOf(b.position)
+          aMissing = aPosIdx === -1 || !a.position
+          bMissing = bPosIdx === -1 || !b.position
+          // If same position, sort by overall descending
+          if (aPosIdx === bPosIdx) {
+            aVal = -(a.overall || 0) // Negative so higher overall comes first
+            bVal = -(b.overall || 0)
+          } else {
+            aVal = aPosIdx
+            bVal = bPosIdx
+          }
           break
         case 'year':
           const yearOrder = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']

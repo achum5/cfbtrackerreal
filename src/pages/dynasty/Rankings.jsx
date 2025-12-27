@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
@@ -165,23 +165,33 @@ const getMascotName = (abbr) => {
 }
 
 export default function Rankings() {
-  const { id } = useParams()
+  const { id, year: urlYear } = useParams()
+  const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
-  const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
 
-  // Get available years with final polls
+  // Get available years with final polls (most recent first)
   const finalPolls = currentDynasty.finalPollsByYear || {}
-  const availableYears = Object.keys(finalPolls)
-    .map(y => parseInt(y))
-    .sort((a, b) => b - a)
+  const yearsWithData = Object.keys(finalPolls).map(y => parseInt(y))
 
-  // Set default year to most recent
-  const displayYear = selectedYear || (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
+  // Always include current year so user can view/enter current season's data
+  if (!yearsWithData.includes(currentDynasty.currentYear)) {
+    yearsWithData.push(currentDynasty.currentYear)
+  }
+
+  const availableYears = yearsWithData.sort((a, b) => b - a)
+
+  // Use URL year if provided, otherwise most recent, otherwise current year
+  const displayYear = urlYear ? parseInt(urlYear) : (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
   const yearPolls = finalPolls[displayYear] || {}
   const mediaPoll = yearPolls.media || []
   const coachesPoll = yearPolls.coaches || []
+
+  // Navigate to year when dropdown changes
+  const handleYearChange = (year) => {
+    navigate(`/dynasty/${id}/rankings/${year}`)
+  }
 
   // No polls yet
   if (availableYears.length === 0) {
@@ -261,7 +271,7 @@ export default function Rankings() {
 
         <select
           value={displayYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          onChange={(e) => handleYearChange(parseInt(e.target.value))}
           className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
         >
           {availableYears.map((year) => (

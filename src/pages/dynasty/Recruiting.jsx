@@ -68,8 +68,12 @@ export default function Recruiting() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Detect if we're on the portal view based on URL path
-  const isPortalView = location.pathname.includes('/recruiting/portal/')
+  // View mode: 'both' (default), 'hs', 'portal'
+  // Initialize from URL if portal path, otherwise default to 'both'
+  const [viewMode, setViewMode] = useState(() => {
+    if (location.pathname.includes('/recruiting/portal/')) return 'portal'
+    return 'both'
+  })
 
   // Star filter state - which star ratings to show (empty = show all)
   const [selectedStars, setSelectedStars] = useState([])
@@ -109,29 +113,28 @@ export default function Recruiting() {
   }, [urlTeamAbbr, currentTeamAbbr, currentDynasty?.id, currentDynasty?.currentYear, navigate])
 
   // Get all years with recruiting commitments for this team - TEAM-CENTRIC
+  // Always include current year so user can view/enter current season's recruits
   const availableYears = useMemo(() => {
-    if (!currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]) return []
-    return Object.keys(currentDynasty.recruitingCommitmentsByTeamYear[teamAbbr])
-      .map(Number)
-      .sort((a, b) => b - a) // Most recent first
-  }, [currentDynasty?.recruitingCommitmentsByTeamYear, teamAbbr])
+    const years = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]
+      ? Object.keys(currentDynasty.recruitingCommitmentsByTeamYear[teamAbbr]).map(Number)
+      : []
 
-  // Handle year change - navigate to new URL (preserve view mode)
-  const handleYearChange = (newYear) => {
-    if (isPortalView) {
-      navigate(`/dynasty/${currentDynasty.id}/recruiting/portal/${teamAbbr}/${newYear}`)
-    } else {
-      navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${newYear}`)
+    // Always include current year if not already present
+    if (currentDynasty?.currentYear && !years.includes(currentDynasty.currentYear)) {
+      years.push(currentDynasty.currentYear)
     }
+
+    return years.sort((a, b) => b - a) // Most recent first
+  }, [currentDynasty?.recruitingCommitmentsByTeamYear, teamAbbr, currentDynasty?.currentYear])
+
+  // Handle year change - navigate to new URL
+  const handleYearChange = (newYear) => {
+    navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${newYear}`)
   }
 
-  // Toggle between HS and Portal views
-  const handleToggleView = (viewPortal) => {
-    if (viewPortal) {
-      navigate(`/dynasty/${currentDynasty.id}/recruiting/portal/${teamAbbr}/${selectedYear}`)
-    } else {
-      navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${selectedYear}`)
-    }
+  // Change view mode (both/hs/portal)
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode)
   }
 
   if (!currentDynasty) return null
@@ -159,15 +162,18 @@ export default function Recruiting() {
     })
   }, [commitmentsForYear])
 
-  // Filter commitments based on view mode (HS vs Portal) AND star filter
+  // Filter commitments based on view mode (Both/HS/Portal) AND star filter
   const allCommitments = useMemo(() => {
     let filtered
-    if (isPortalView) {
+    if (viewMode === 'portal') {
       // Portal view: only show players with a previousTeam
       filtered = allCommitmentsUnfiltered.filter(c => c.previousTeam)
-    } else {
+    } else if (viewMode === 'hs') {
       // HS view: only show players WITHOUT a previousTeam
       filtered = allCommitmentsUnfiltered.filter(c => !c.previousTeam)
+    } else {
+      // Both view: show all
+      filtered = allCommitmentsUnfiltered
     }
 
     // Apply star filter if any stars are selected
@@ -176,7 +182,7 @@ export default function Recruiting() {
     }
 
     return filtered
-  }, [allCommitmentsUnfiltered, isPortalView, selectedStars])
+  }, [allCommitmentsUnfiltered, viewMode, selectedStars])
 
   // Calculate class stats - always use ALL commits (HS + Portal combined)
   const classStats = useMemo(() => {
@@ -192,9 +198,10 @@ export default function Recruiting() {
   // Get player by name to link to player page - filter by team
   const findPlayerByName = (name) => {
     if (!name) return null
+    // Find player by name and team - don't require isRecruit since recruits
+    // become active players when the season advances
     return currentDynasty.players?.find(p =>
       p.name?.toLowerCase().trim() === name.toLowerCase().trim() &&
-      p.isRecruit &&
       p.team === teamAbbr
     )
   }
@@ -233,7 +240,7 @@ export default function Recruiting() {
                 {teamFullName}
               </h2>
               <p className="text-sm font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                {selectedYear} {isPortalView ? 'Transfer Portal' : 'Recruiting Class'}
+                {selectedYear} Recruiting Class
               </p>
             </div>
           </div>
@@ -264,31 +271,41 @@ export default function Recruiting() {
           </div>
         </div>
 
-        {/* HS / Portal Toggle */}
+        {/* Both / HS / Portal Toggle */}
         <div className="flex justify-center mb-6">
           <div
             className="inline-flex rounded-lg border-2 overflow-hidden"
             style={{ borderColor: teamColors.primary }}
           >
             <button
-              onClick={() => handleToggleView(false)}
+              onClick={() => handleViewModeChange('both')}
               className="px-4 py-2 font-semibold transition-colors"
               style={{
-                backgroundColor: !isPortalView ? teamColors.primary : 'transparent',
-                color: !isPortalView ? primaryBgText : secondaryBgText
+                backgroundColor: viewMode === 'both' ? teamColors.primary : 'transparent',
+                color: viewMode === 'both' ? primaryBgText : secondaryBgText
+              }}
+            >
+              Both ({allCommitmentsUnfiltered.length})
+            </button>
+            <button
+              onClick={() => handleViewModeChange('hs')}
+              className="px-4 py-2 font-semibold transition-colors"
+              style={{
+                backgroundColor: viewMode === 'hs' ? teamColors.primary : 'transparent',
+                color: viewMode === 'hs' ? primaryBgText : secondaryBgText
               }}
             >
               High School ({allCommitmentsUnfiltered.filter(c => !c.previousTeam).length})
             </button>
             <button
-              onClick={() => handleToggleView(true)}
+              onClick={() => handleViewModeChange('portal')}
               className="px-4 py-2 font-semibold transition-colors"
               style={{
-                backgroundColor: isPortalView ? teamColors.primary : 'transparent',
-                color: isPortalView ? primaryBgText : secondaryBgText
+                backgroundColor: viewMode === 'portal' ? teamColors.primary : 'transparent',
+                color: viewMode === 'portal' ? primaryBgText : secondaryBgText
               }}
             >
-              Transfer Portal ({allCommitmentsUnfiltered.filter(c => c.previousTeam).length})
+              Portal ({allCommitmentsUnfiltered.filter(c => c.previousTeam).length})
             </button>
           </div>
         </div>
@@ -544,16 +561,12 @@ export default function Recruiting() {
               </svg>
             </div>
             <h3 className="text-lg font-medium mb-2" style={{ color: secondaryBgText }}>
-              {isPortalView ? 'No Transfer Portal Commits' : 'No HS Commitments Yet'}
+              {viewMode === 'portal' ? 'No Transfer Portal Commits' : viewMode === 'hs' ? 'No HS Commitments Yet' : 'No Commitments Yet'}
             </h3>
             <p style={{ color: secondaryBgText, opacity: 0.8 }} className="max-w-md mx-auto">
               {selectedYear === currentDynasty.currentYear
-                ? isPortalView
-                  ? 'Transfer portal commits will appear here when players with a previous team are recorded.'
-                  : 'Record high school recruiting commitments during preseason, regular season, or signing day.'
-                : isPortalView
-                  ? `No transfer portal commits recorded for the ${selectedYear} class.`
-                  : `No high school recruiting data recorded for the ${selectedYear} class.`}
+                ? 'Record recruiting commitments during preseason, regular season, or signing day.'
+                : `No recruiting data recorded for the ${selectedYear} class.`}
             </p>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { auth } from '../config/firebase'
 import { teamAbbreviations, getTeamAbbreviationsList, getAbbreviationFromDisplayName, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
+import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, QUARTERS } from '../data/boxScoreConstants'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
@@ -4141,8 +4142,8 @@ export async function createConferencesSheet(dynastyName, year) {
     const sortedConferences = Object.keys(DEFAULT_CONFERENCES).sort()
     const columnCount = sortedConferences.length
 
-    // Find max teams in any conference (for row count)
-    const maxTeams = Math.max(...Object.values(DEFAULT_CONFERENCES).map(teams => teams.length))
+    // Fixed 20 slots per conference (21 rows total with header)
+    const maxTeams = 20
     const rowCount = maxTeams + 1 // +1 for header
 
     // Create the spreadsheet
@@ -4745,7 +4746,13 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
   // Pre-fill player data if available
   if (players.length > 0) {
     // Sort players by position order and then by overall rating
-    const positionOrder = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT', 'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P']
+    const positionOrder = [
+      'QB', 'HB', 'FB', 'WR', 'TE',
+      'LT', 'LG', 'C', 'RG', 'RT', 'OT', 'OG',
+      'LE', 'RE', 'LEDG', 'REDG', 'EDGE', 'DT',
+      'LOLB', 'MLB', 'ROLB', 'SAM', 'MIKE', 'WILL', 'OLB', 'LB',
+      'CB', 'FS', 'SS', 'S', 'K', 'P'
+    ]
     const sortedPlayers = [...players].sort((a, b) => {
       const posA = positionOrder.indexOf(a.position) !== -1 ? positionOrder.indexOf(a.position) : 999
       const posB = positionOrder.indexOf(b.position) !== -1 ? positionOrder.indexOf(b.position) : 999
@@ -8467,7 +8474,9 @@ export async function createEncourageTransfersSheet(dynastyName, year, players) 
 
 // Initialize the Encourage Transfers sheet with headers and player data
 async function initializeEncourageTransfersSheet(spreadsheetId, accessToken, sheetId, players) {
-  const rowCount = players.length + 1
+  // Sort players by overall rating (highest first)
+  const sortedPlayers = [...players].sort((a, b) => (b.overall || 0) - (a.overall || 0))
+  const rowCount = sortedPlayers.length + 1
 
   const requests = [
     // Set headers
@@ -8501,7 +8510,7 @@ async function initializeEncourageTransfersSheet(spreadsheetId, accessToken, she
           startColumnIndex: 0,
           endColumnIndex: 4
         },
-        rows: players.map(player => ({
+        rows: sortedPlayers.map(player => ({
           values: [
             { userEnteredValue: { stringValue: player.name || '' }, userEnteredFormat: { horizontalAlignment: 'LEFT' } },
             { userEnteredValue: { stringValue: player.position || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
@@ -8661,7 +8670,7 @@ export async function createRecruitOverallsSheet(dynastyName, year, recruits) {
     const accessToken = await getAccessToken()
 
     const rowCount = Math.max(recruits.length + 1, 30) // At least 30 rows
-    const columnCount = 5 // Name, Position, Class, Stars, Overall
+    const columnCount = 6 // Name, Position, Class, Stars, Overall, Jersey #
 
     // Create the spreadsheet
     const response = await fetch(SHEETS_API_BASE, {
@@ -8727,7 +8736,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
           startRowIndex: 0,
           endRowIndex: 1,
           startColumnIndex: 0,
-          endColumnIndex: 5
+          endColumnIndex: 6
         },
         rows: [{
           values: [
@@ -8735,7 +8744,8 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
             { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
             { userEnteredValue: { stringValue: 'Stars' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
-            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
+            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Jersey #' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
           ]
         }],
         fields: 'userEnteredValue,userEnteredFormat'
@@ -8749,7 +8759,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
           startRowIndex: 1,
           endRowIndex: recruits.length + 1,
           startColumnIndex: 0,
-          endColumnIndex: 5
+          endColumnIndex: 6
         },
         rows: recruits.map(recruit => ({
           values: [
@@ -8757,7 +8767,8 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: recruit.position || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: { stringValue: recruit.year || recruit.class || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: { numberValue: recruit.stars || 0 }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: recruit.overall ? { numberValue: recruit.overall } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
+            { userEnteredValue: recruit.overall ? { numberValue: recruit.overall } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
           ]
         })),
         fields: 'userEnteredValue,userEnteredFormat'
@@ -8772,14 +8783,14 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 5
+            endColumnIndex: 6
           },
           description: 'Header row - do not edit',
           warningOnly: true
         }
       }
     },
-    // Protect Name, Position, Class, Stars columns (only Overall is editable)
+    // Protect Name, Position, Class, Stars columns (Overall and Jersey # are editable)
     {
       addProtectedRange: {
         protectedRange: {
@@ -8790,7 +8801,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             startColumnIndex: 0,
             endColumnIndex: 4
           },
-          description: 'Recruit info - do not edit. Only enter Overall rating.',
+          description: 'Recruit info - do not edit. Only enter Overall and Jersey #.',
           warningOnly: true
         }
       }
@@ -8855,6 +8866,18 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
         properties: { pixelSize: 70 },
         fields: 'pixelSize'
       }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 5,
+          endIndex: 6
+        },
+        properties: { pixelSize: 70 },
+        fields: 'pixelSize'
+      }
     }
   ]
 
@@ -8879,7 +8902,7 @@ export async function readRecruitOverallsFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    const range = 'Recruit Overalls!A2:E'
+    const range = 'Recruit Overalls!A2:F'
     const response = await fetch(
       `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
@@ -8897,7 +8920,7 @@ export async function readRecruitOverallsFromSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    // Return all recruits with their overalls
+    // Return all recruits with their overalls and jersey numbers
     const recruitOveralls = rows
       .filter(row => row[0] && row[4]) // Must have name and overall
       .map(row => ({
@@ -8905,13 +8928,552 @@ export async function readRecruitOverallsFromSheet(spreadsheetId) {
         position: row[1]?.trim() || '',
         class: row[2]?.trim() || '',
         stars: parseInt(row[3], 10) || 0,
-        overall: parseInt(row[4], 10) || 0
+        overall: parseInt(row[4], 10) || 0,
+        jerseyNumber: row[5]?.trim() || ''
       }))
       .filter(r => r.overall >= 40 && r.overall <= 99) // Valid overall range
 
     return recruitOveralls
   } catch (error) {
     console.error('Error reading recruit overalls:', error)
+    throw error
+  }
+}
+
+// ============================================
+// GAME BOX SCORE SHEET FUNCTIONS
+// ============================================
+
+// Generate conditional formatting rules for team colors in scoring summary
+function generateScoringTeamFormattingRules(sheetId, teamAbbr1, teamAbbr2, rowCount) {
+  const rules = []
+  const teams = [teamAbbr1, teamAbbr2]
+
+  for (const abbr of teams) {
+    const teamData = teamAbbreviations[abbr] || teamAbbreviations[abbr.toUpperCase()]
+    if (!teamData) continue
+
+    // Add rule for uppercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr.toUpperCase() }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+
+    // Add rule for lowercase version
+    rules.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          }],
+          booleanRule: {
+            condition: {
+              type: 'TEXT_EQ',
+              values: [{ userEnteredValue: abbr.toLowerCase() }]
+            },
+            format: {
+              backgroundColor: hexToRgb(teamData.backgroundColor),
+              textFormat: {
+                foregroundColor: hexToRgb(teamData.textColor),
+                bold: true,
+                italic: true
+              }
+            }
+          }
+        },
+        index: 0
+      }
+    })
+  }
+
+  return rules
+}
+
+// Create a game box score sheet with 9 tabs for a single team's stats
+export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, year, week, isUserTeam, rosterPlayers = []) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with 9 tabs
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${teamAbbr} Stats - Week ${week} vs ${opponentAbbr} (${year})`
+        },
+        sheets: STAT_TAB_ORDER.map(key => {
+          const tab = STAT_TABS[key]
+          return {
+            properties: {
+              title: tab.title,
+              gridProperties: {
+                rowCount: tab.rowCount + 1, // +1 for header
+                columnCount: tab.headers.length,
+                frozenRowCount: 1
+              }
+            }
+          }
+        })
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create box score sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+
+    // Extract sheet IDs for each tab
+    const sheetIds = {}
+    sheet.sheets.forEach((s, idx) => {
+      sheetIds[STAT_TAB_ORDER[idx]] = s.properties.sheetId
+    })
+
+    // Initialize all tabs with headers and formatting
+    await initializeBoxScoreSheet(sheet.spreadsheetId, accessToken, sheetIds, isUserTeam, rosterPlayers)
+
+    // Share sheet publicly for embedding
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating box score sheet:', error)
+    throw error
+  }
+}
+
+// Initialize box score sheet tabs with headers, formatting, and validation
+async function initializeBoxScoreSheet(spreadsheetId, accessToken, sheetIds, isUserTeam, rosterPlayers) {
+  const requests = []
+
+  // For each tab, add headers and formatting
+  STAT_TAB_ORDER.forEach(key => {
+    const tab = STAT_TABS[key]
+    const sheetId = sheetIds[key]
+
+    // Set headers
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: tab.headers.length
+        },
+        rows: [{
+          values: tab.headers.map(header => ({
+            userEnteredValue: { stringValue: header }
+          }))
+        }],
+        fields: 'userEnteredValue'
+      }
+    })
+
+    // Format all cells
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    })
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    })
+
+    // Add player name dropdown for user's team (column A)
+    if (isUserTeam && rosterPlayers.length > 0) {
+      requests.push({
+        setDataValidation: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: tab.rowCount + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: rosterPlayers.map(name => ({ userEnteredValue: name }))
+            },
+            showCustomUi: true,
+            strict: false // Allow typing to filter, but also allow free text
+          }
+        }
+      })
+    }
+  })
+
+  // Send batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Batch update error:', error)
+    throw new Error(`Failed to initialize box score sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Create a scoring summary sheet
+export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year, week) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with single tab
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `Scoring Summary - ${awayTeamAbbr} @ ${homeTeamAbbr} Week ${week} (${year})`
+        },
+        sheets: [{
+          properties: {
+            title: SCORING_SUMMARY.title,
+            gridProperties: {
+              rowCount: SCORING_SUMMARY.rowCount + 1,
+              columnCount: SCORING_SUMMARY.headers.length,
+              frozenRowCount: 1
+            }
+          }
+        }]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create scoring summary sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize with headers, formatting, and dropdowns
+    await initializeScoringSummarySheet(sheet.spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr)
+
+    // Share sheet publicly for embedding
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating scoring summary sheet:', error)
+    throw error
+  }
+}
+
+// Initialize scoring summary sheet with headers, formatting, and dropdowns
+async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr) {
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: SCORING_SUMMARY.headers.length
+        },
+        rows: [{
+          values: SCORING_SUMMARY.headers.map(header => ({
+            userEnteredValue: { stringValue: header }
+          }))
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Format all cells
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              italic: true,
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Team dropdown (column A)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: [
+              { userEnteredValue: homeTeamAbbr.toUpperCase() },
+              { userEnteredValue: awayTeamAbbr.toUpperCase() }
+            ]
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Score Type dropdown (column D)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 3,
+          endColumnIndex: 4
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: SCORE_TYPES.map(type => ({ userEnteredValue: type }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // Quarter dropdown (column E)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 4,
+          endColumnIndex: 5
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: QUARTERS.map(q => ({ userEnteredValue: q }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    }
+  ]
+
+  // Add conditional formatting for team colors
+  const teamFormattingRules = generateScoringTeamFormattingRules(sheetId, homeTeamAbbr, awayTeamAbbr, SCORING_SUMMARY.rowCount)
+  requests.push(...teamFormattingRules)
+
+  // Send batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Batch update error:', error)
+    throw new Error(`Failed to initialize scoring summary sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read all stats from a game box score sheet (9 tabs)
+export async function readGameBoxScoreFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+    const boxScore = {}
+
+    // Read each tab
+    for (const key of STAT_TAB_ORDER) {
+      const tab = STAT_TABS[key]
+      const range = `'${tab.title}'!A2:${String.fromCharCode(65 + tab.headers.length - 1)}${tab.rowCount + 1}`
+
+      const response = await fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error(`Failed to read ${tab.title}:`, error)
+        boxScore[key] = []
+        continue
+      }
+
+      const data = await response.json()
+      const rows = data.values || []
+
+      // Parse rows into objects using headers
+      boxScore[key] = rows
+        .filter(row => row[0]) // Must have player name
+        .map(row => {
+          const entry = {}
+          tab.headers.forEach((header, idx) => {
+            const value = row[idx] || ''
+            // Convert to number for numeric columns (all except Player Name)
+            if (idx === 0) {
+              entry.playerName = value.trim()
+            } else {
+              // Convert header to camelCase key
+              const camelKey = header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+              entry[camelKey] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
+            }
+          })
+          return entry
+        })
+    }
+
+    return boxScore
+  } catch (error) {
+    console.error('Error reading box score:', error)
+    throw error
+  }
+}
+
+// Read scoring summary from sheet
+export async function readScoringSummaryFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const range = `'${SCORING_SUMMARY.title}'!A2:F${SCORING_SUMMARY.rowCount + 1}`
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read scoring summary: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Parse rows into objects
+    return rows
+      .filter(row => row[0] && row[3]) // Must have team and score type
+      .map(row => ({
+        team: (row[0] || '').trim().toUpperCase(),
+        scorer: (row[1] || '').trim(),
+        passer: (row[2] || '').trim(),
+        scoreType: (row[3] || '').trim(),
+        quarter: (row[4] || '').trim(),
+        timeLeft: (row[5] || '').trim()
+      }))
+  } catch (error) {
+    console.error('Error reading scoring summary:', error)
     throw error
   }
 }

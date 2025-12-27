@@ -37,14 +37,16 @@ export function getCurrentSchedule(dynasty) {
     return teamYearSchedule
   }
 
-  // Fall back to legacy schedule (for backwards compatibility)
-  // But only if it belongs to the current team (check first entry)
-  const legacySchedule = dynasty.schedule || []
-  if (legacySchedule.length > 0) {
-    const firstEntry = legacySchedule[0]
-    // If legacy schedule has userTeam that matches current team, use it
-    if (firstEntry.userTeam === teamAbbr || !firstEntry.userTeam) {
-      return legacySchedule
+  // Only fall back to legacy schedule for the dynasty's first year
+  // For subsequent years, return empty (new year = new schedule needed)
+  if (year === dynasty.startYear) {
+    const legacySchedule = dynasty.schedule || []
+    if (legacySchedule.length > 0) {
+      const firstEntry = legacySchedule[0]
+      // If legacy schedule has userTeam that matches current team, use it
+      if (firstEntry.userTeam === teamAbbr || !firstEntry.userTeam) {
+        return legacySchedule
+      }
     }
   }
 
@@ -95,13 +97,15 @@ export function getAllPlayers(dynasty) {
  * Get preseason setup flags for current team and year
  */
 export function getCurrentPreseasonSetup(dynasty) {
-  if (!dynasty) return {
+  const defaultSetup = {
     scheduleEntered: false,
     rosterEntered: false,
     teamRatingsEntered: false,
     coachingStaffEntered: false,
     conferencesEntered: false
   }
+
+  if (!dynasty) return defaultSetup
 
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
   const year = dynasty.currentYear
@@ -112,21 +116,23 @@ export function getCurrentPreseasonSetup(dynasty) {
     return teamYearSetup
   }
 
-  // Fall back to legacy preseasonSetup
-  return dynasty.preseasonSetup || {
-    scheduleEntered: false,
-    rosterEntered: false,
-    teamRatingsEntered: false,
-    coachingStaffEntered: false,
-    conferencesEntered: false
+  // Only fall back to legacy preseasonSetup for the dynasty's first year
+  // For subsequent years, return fresh defaults (new year = new preseason setup)
+  if (year === dynasty.startYear) {
+    return dynasty.preseasonSetup || defaultSetup
   }
+
+  // New year without preseason setup initialized yet - return defaults
+  return defaultSetup
 }
 
 /**
  * Get team ratings for current team and year
  */
 export function getCurrentTeamRatings(dynasty) {
-  if (!dynasty) return { overall: null, offense: null, defense: null }
+  const defaultRatings = { overall: null, offense: null, defense: null }
+
+  if (!dynasty) return defaultRatings
 
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
   const year = dynasty.currentYear
@@ -137,15 +143,23 @@ export function getCurrentTeamRatings(dynasty) {
     return teamYearRatings
   }
 
-  // Fall back to legacy teamRatings
-  return dynasty.teamRatings || { overall: null, offense: null, defense: null }
+  // Only fall back to legacy teamRatings for the dynasty's first year
+  // For subsequent years, return defaults (new year = new ratings needed)
+  if (year === dynasty.startYear) {
+    return dynasty.teamRatings || defaultRatings
+  }
+
+  return defaultRatings
 }
 
 /**
  * Get coaching staff for current team and year
+ * Note: Coaching staff carries over from year to year (unlike schedule/ratings)
  */
 export function getCurrentCoachingStaff(dynasty) {
-  if (!dynasty) return { hcName: null, ocName: null, dcName: null }
+  const defaultStaff = { hcName: null, ocName: null, dcName: null }
+
+  if (!dynasty) return defaultStaff
 
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
   const year = dynasty.currentYear
@@ -156,8 +170,18 @@ export function getCurrentCoachingStaff(dynasty) {
     return teamYearStaff
   }
 
-  // Fall back to legacy coachingStaff
-  return dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+  // For coaching staff, try previous year's staff (staff carries over)
+  const previousYearStaff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year - 1]
+  if (previousYearStaff) {
+    return previousYearStaff
+  }
+
+  // Only fall back to legacy coachingStaff for the dynasty's first year
+  if (year === dynasty.startYear) {
+    return dynasty.coachingStaff || defaultStaff
+  }
+
+  return defaultStaff
 }
 
 /**
@@ -231,6 +255,8 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
   const activePlayers = players.filter(p => {
     if (p.isHonorOnly) return false
     if (p.isRecruit) return false
+    // Also exclude players recruited this year (even if isRecruit flag is missing)
+    if (p.recruitYear === year) return false
     if (p.leftTeam) return false
     if (p.team && p.team !== teamAbbr) return false
     // Already RS players don't need confirmation (they'll progress normally)
@@ -1573,33 +1599,64 @@ export function DynastyProvider({ children }) {
     const dynasty = dynasties.find(d => d.id === dynastyId)
     if (!dynasty) return
 
-    let prevWeek = dynasty.currentWeek - 1
-    let prevPhase = dynasty.currentPhase
-    let prevYear = dynasty.currentYear
+    const { currentPhase, currentWeek, currentYear, startYear } = dynasty
+    let prevWeek = currentWeek
+    let prevPhase = currentPhase
+    let prevYear = currentYear
     let additionalUpdates = {}
 
-    // Handle phase transitions backwards
-    if (dynasty.currentPhase === 'regular_season' && prevWeek < 1) {
-      // Go back to preseason
-      prevPhase = 'preseason'
-      prevWeek = 0
-    } else if (dynasty.currentPhase === 'conference_championship' && prevWeek < 1) {
-      // Go back to regular season week 12
+    // Phase structure:
+    // - Preseason: Week 0
+    // - Regular Season: Weeks 1-12
+    // - Conference Championship: Week 1
+    // - Postseason: Weeks 1-5
+    // - Offseason: Weeks 1-7
+
+    // Determine the previous phase/week based on current state
+    if (currentPhase === 'preseason') {
+      // Preseason Week 0 → Previous Year's Offseason Week 7
+      if (currentYear <= startYear) {
+        // Can't go back before the dynasty started
+        console.log('Cannot revert: at start of dynasty')
+        return
+      }
+      prevPhase = 'offseason'
+      prevWeek = 7
+      prevYear = currentYear - 1
+    } else if (currentPhase === 'regular_season') {
+      if (currentWeek <= 1) {
+        // Regular Season Week 1 → Preseason Week 0
+        prevPhase = 'preseason'
+        prevWeek = 0
+      } else {
+        // Regular Season Week N → Regular Season Week N-1
+        prevWeek = currentWeek - 1
+      }
+    } else if (currentPhase === 'conference_championship') {
+      // Conference Championship Week 1 → Regular Season Week 12
       prevPhase = 'regular_season'
       prevWeek = 12
-    } else if (dynasty.currentPhase === 'postseason' && prevWeek < 1) {
-      // Go back to conference championship
-      prevPhase = 'conference_championship'
-      prevWeek = 1
-    } else if (dynasty.currentPhase === 'offseason' && prevWeek < 1) {
-      // Go back to postseason week 5 (End of Season Recap)
-      prevPhase = 'postseason'
-      prevWeek = 5
-    } else if (dynasty.currentPhase === 'preseason' && prevWeek < 0) {
-      // Go back to previous year's offseason (Training Camp)
-      prevPhase = 'offseason'
-      prevWeek = 6
-      prevYear = dynasty.currentYear - 1
+    } else if (currentPhase === 'postseason') {
+      if (currentWeek <= 1) {
+        // Postseason Week 1 → Conference Championship Week 1
+        prevPhase = 'conference_championship'
+        prevWeek = 1
+      } else {
+        // Postseason Week N → Postseason Week N-1
+        prevWeek = currentWeek - 1
+      }
+    } else if (currentPhase === 'offseason') {
+      if (currentWeek <= 1) {
+        // Offseason Week 1 → Postseason Week 5
+        prevPhase = 'postseason'
+        prevWeek = 5
+      } else {
+        // Offseason Week N → Offseason Week N-1
+        prevWeek = currentWeek - 1
+      }
+    } else {
+      console.error('Unknown phase:', currentPhase)
+      return
     }
 
     // Remove game data from the week we're reverting from
@@ -1885,7 +1942,7 @@ export function DynastyProvider({ children }) {
     await updateDynasty(dynastyId, scheduleUpdates)
   }
 
-  const saveRoster = async (dynastyId, players) => {
+  const saveRoster = async (dynastyId, players, options = {}) => {
     // CRITICAL: Read from localStorage to get the latest data (including any recent schedule save)
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -1905,24 +1962,29 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    // Get current team abbreviation for team-centric storage
-    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
-    const year = dynasty.currentYear
+    // Get team abbreviation - use provided teamAbbr or fall back to user's current team
+    const teamAbbr = options.teamAbbr || getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    // Get year - use provided year or fall back to current year
+    const year = options.year || dynasty.currentYear
 
-    // During preseason, replace current team's roster (but preserve honor-only players AND players from other teams)
-    // After preseason, merge with existing (for recruiting additions)
+    // Determine if we should replace or merge
+    // For user's team during preseason: replace
+    // For other teams: always replace (we're adding their roster fresh)
+    const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+    const isUserTeam = teamAbbr === userTeamAbbr
     const isPreseason = dynasty.currentPhase === 'preseason'
+    const shouldReplace = !isUserTeam || isPreseason
     const existingPlayers = dynasty.players || []
 
     // Preserve honor-only players AND players from other teams
     const playersToKeep = existingPlayers.filter(p => {
       // Always keep honor-only players
       if (p.isHonorOnly) return true
-      // Keep players from OTHER teams (they have a team field that doesn't match current team)
+      // Keep players from OTHER teams (they have a team field that doesn't match the team being edited)
       if (p.team && p.team !== teamAbbr) return true
-      // During preseason, remove current team's roster (will be replaced)
-      // After preseason, keep everything
-      return !isPreseason
+      // If we're replacing (other team or preseason), remove this team's roster
+      // Otherwise keep everything (merge mode)
+      return !shouldReplace
     })
 
     let finalPlayers
@@ -2614,9 +2676,10 @@ export function DynastyProvider({ children }) {
     }
 
     // Apply updates to existing players
+    // Use filter instead of find to get ALL updates for each player (e.g., multiple awards)
     let updatedPlayers = existingPlayers.map(p => {
-      const update = playersToUpdate.find(u => u.pid === p.pid)
-      if (!update) return p
+      const updates = playersToUpdate.filter(u => u.pid === p.pid)
+      if (updates.length === 0) return p
 
       const updatedPlayer = { ...p }
 
@@ -2626,55 +2689,58 @@ export function DynastyProvider({ children }) {
       if (!updatedPlayer.allConference) updatedPlayer.allConference = []
       if (!updatedPlayer.teams) updatedPlayer.teams = []
 
-      // Add team if not already present
-      if (update.addTeam && !updatedPlayer.teams.includes(update.addTeam)) {
-        updatedPlayer.teams.push(update.addTeam)
-      }
+      // Process each update for this player
+      for (const update of updates) {
+        // Add team if not already present
+        if (update.addTeam && !updatedPlayer.teams.includes(update.addTeam)) {
+          updatedPlayer.teams.push(update.addTeam)
+        }
 
-      // Add honor entry based on type
-      if (update.honorType === 'awards') {
-        // Check for duplicate
-        const isDupe = updatedPlayer.awards.some(a =>
-          a.year === update.entry.year && a.award === update.entry.award
-        )
-        if (!isDupe) {
-          updatedPlayer.awards.push({
-            year: update.entry.year,
-            award: update.entry.award || update.entry.awardKey,
-            team: update.entry.team,
-            position: update.entry.position,
-            class: update.entry.class
-          })
-        }
-      } else if (update.honorType === 'allAmericans') {
-        const isDupe = updatedPlayer.allAmericans.some(a =>
-          a.year === update.entry.year &&
-          a.designation === update.entry.designation &&
-          a.position === update.entry.position
-        )
-        if (!isDupe) {
-          updatedPlayer.allAmericans.push({
-            year: update.entry.year,
-            designation: update.entry.designation,
-            position: update.entry.position,
-            school: update.entry.school,
-            class: update.entry.class
-          })
-        }
-      } else if (update.honorType === 'allConference') {
-        const isDupe = updatedPlayer.allConference.some(a =>
-          a.year === update.entry.year &&
-          a.designation === update.entry.designation &&
-          a.position === update.entry.position
-        )
-        if (!isDupe) {
-          updatedPlayer.allConference.push({
-            year: update.entry.year,
-            designation: update.entry.designation,
-            position: update.entry.position,
-            school: update.entry.school,
-            class: update.entry.class
-          })
+        // Add honor entry based on type
+        if (update.honorType === 'awards') {
+          // Check for duplicate
+          const isDupe = updatedPlayer.awards.some(a =>
+            a.year === update.entry.year && a.award === update.entry.award
+          )
+          if (!isDupe) {
+            updatedPlayer.awards.push({
+              year: update.entry.year,
+              award: update.entry.award || update.entry.awardKey,
+              team: update.entry.team,
+              position: update.entry.position,
+              class: update.entry.class
+            })
+          }
+        } else if (update.honorType === 'allAmericans') {
+          const isDupe = updatedPlayer.allAmericans.some(a =>
+            a.year === update.entry.year &&
+            a.designation === update.entry.designation &&
+            a.position === update.entry.position
+          )
+          if (!isDupe) {
+            updatedPlayer.allAmericans.push({
+              year: update.entry.year,
+              designation: update.entry.designation,
+              position: update.entry.position,
+              school: update.entry.school,
+              class: update.entry.class
+            })
+          }
+        } else if (update.honorType === 'allConference') {
+          const isDupe = updatedPlayer.allConference.some(a =>
+            a.year === update.entry.year &&
+            a.designation === update.entry.designation &&
+            a.position === update.entry.position
+          )
+          if (!isDupe) {
+            updatedPlayer.allConference.push({
+              year: update.entry.year,
+              designation: update.entry.designation,
+              position: update.entry.position,
+              school: update.entry.school,
+              class: update.entry.class
+            })
+          }
         }
       }
 

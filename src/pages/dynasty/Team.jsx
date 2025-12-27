@@ -694,7 +694,7 @@ export default function Team() {
         </div>
 
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {yearRecords.map((yr) => {
+          {[...yearRecords].reverse().map((yr) => {
             const isNationalChamp = yr.cfpResult?.type === 'champion'
             const madePlayoff = yr.cfpResult && yr.cfpResult.type !== 'pending'
             const hasAchievement = yr.ccWin || isNationalChamp

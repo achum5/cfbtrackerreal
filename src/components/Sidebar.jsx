@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+import { getTeamConference } from '../data/conferenceTeams'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear }) {
   const location = useLocation()
@@ -11,6 +12,10 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
 
   // Get current team abbreviation for recruiting link
   const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
+
+  // Get user's conference for all-conference link
+  const userConference = getTeamConference(teamAbbr) || 'SEC'
+  const conferenceUrlParam = encodeURIComponent(userConference.replace(/\s+/g, '-'))
 
   const handleExport = () => {
     try {
@@ -28,7 +33,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting/${teamAbbr}/${currentYear}` },
     { name: 'Awards', path: `/dynasty/${dynastyId}/awards` },
     { name: 'All-Americans', path: `/dynasty/${dynastyId}/all-americans` },
-    { name: 'All-Conference', path: `/dynasty/${dynastyId}/all-conference` },
+    { name: 'All-Conference', path: `/dynasty/${dynastyId}/all-conference/${currentYear}/${conferenceUrlParam}` },
     { name: 'CFP Bracket', path: `/dynasty/${dynastyId}/cfp-bracket` },
     { name: 'Bowl History', path: `/dynasty/${dynastyId}/bowl-history` },
     { name: 'CC History', path: `/dynasty/${dynastyId}/conference-championship-history` },

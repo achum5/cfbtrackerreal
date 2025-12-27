@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
@@ -206,21 +205,26 @@ const AWARD_ORDER = [
 ]
 
 export default function Awards() {
-  const { id } = useParams()
+  const { id, year: urlYear } = useParams()
+  const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
-  const [selectedYear, setSelectedYear] = useState(null)
 
   if (!currentDynasty) return null
 
-  // Get available years with awards
+  // Get available years with awards (most recent first)
   const awardsByYear = currentDynasty.awardsByYear || {}
   const availableYears = Object.keys(awardsByYear)
     .map(y => parseInt(y))
     .sort((a, b) => b - a)
 
-  // Set default year to most recent
-  const displayYear = selectedYear || (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
+  // Use URL year if provided, otherwise most recent, otherwise current year
+  const displayYear = urlYear ? parseInt(urlYear) : (availableYears.length > 0 ? availableYears[0] : currentDynasty.currentYear)
   const yearAwards = awardsByYear[displayYear] || {}
+
+  // Navigate to year when dropdown changes
+  const handleYearChange = (year) => {
+    navigate(`/dynasty/${id}/awards/${year}`)
+  }
 
   // No awards yet
   if (availableYears.length === 0) {
@@ -351,7 +355,7 @@ export default function Awards() {
 
         <select
           value={displayYear}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          onChange={(e) => handleYearChange(parseInt(e.target.value))}
           className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
         >
           {availableYears.map((year) => (

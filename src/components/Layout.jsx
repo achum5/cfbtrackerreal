@@ -100,7 +100,7 @@ export default function Layout({ children }) {
     )
   }
 
-  const handleAdvanceWeek = () => {
+  const handleAdvanceWeek = async () => {
     if (!currentDynasty) return
 
 
@@ -172,14 +172,15 @@ export default function Layout({ children }) {
         return
       } else {
         // No players need confirmation, advance directly
-        advanceToNewSeason(currentDynasty.id, {})
-        advanceWeek(currentDynasty.id)
+        // CRITICAL: Must await both to ensure players are processed before week advances
+        await advanceToNewSeason(currentDynasty.id, {})
+        await advanceWeek(currentDynasty.id)
         setShowWeekDropdown(false)
         return
       }
     }
 
-    advanceWeek(currentDynasty.id)
+    await advanceWeek(currentDynasty.id)
     setShowWeekDropdown(false)
   }
 

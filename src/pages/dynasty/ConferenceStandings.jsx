@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -127,22 +127,32 @@ const getConferenceData = (yearStandings, conferenceName) => {
 }
 
 export default function ConferenceStandings() {
-  const { id } = useParams()
+  const { id, year: urlYear } = useParams()
+  const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
-  const [selectedYear, setSelectedYear] = useState(null)
   const [expandedConference, setExpandedConference] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   if (!currentDynasty) return null
 
-  // Get available years from standings data
+  // Get available years from standings data (most recent first)
   const standingsByYear = currentDynasty.conferenceStandingsByYear || {}
-  const availableYears = Object.keys(standingsByYear)
-    .map(y => parseInt(y))
-    .sort((a, b) => b - a) // Most recent first
+  const yearsWithData = Object.keys(standingsByYear).map(y => parseInt(y))
 
-  // Default to most recent year or current year
-  const displayYear = selectedYear || availableYears[0] || currentDynasty.currentYear
+  // Always include current year so user can view/enter current season's data
+  if (!yearsWithData.includes(currentDynasty.currentYear)) {
+    yearsWithData.push(currentDynasty.currentYear)
+  }
+
+  const availableYears = yearsWithData.sort((a, b) => b - a)
+
+  // Use URL year if provided, otherwise most recent, otherwise current year
+  const displayYear = urlYear ? parseInt(urlYear) : (availableYears[0] || currentDynasty.currentYear)
+
+  // Navigate to year when dropdown changes
+  const handleYearChange = (year) => {
+    navigate(`/dynasty/${id}/conference-standings/${year}`)
+  }
 
   // Get standings for selected year
   const yearStandings = standingsByYear[displayYear] || {}
@@ -183,7 +193,7 @@ export default function ConferenceStandings() {
               </label>
               <select
                 value={displayYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                onChange={(e) => handleYearChange(parseInt(e.target.value))}
                 className="px-4 py-2 rounded-lg font-bold text-lg border-2 bg-gray-700 text-white border-gray-500"
               >
                 {availableYears.map(year => (

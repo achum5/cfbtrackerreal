@@ -3,6 +3,7 @@ import { useDynasty, getCurrentTeamRatings } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
+import BoxScoreSheetModal from './BoxScoreSheetModal'
 
 export default function GameEntryModal({
   isOpen,
@@ -235,6 +236,14 @@ export default function GameEntryModal({
   })
 
   const [links, setLinks] = useState(['']) // Array of link strings
+  const [showHomeStatsModal, setShowHomeStatsModal] = useState(false)
+  const [showAwayStatsModal, setShowAwayStatsModal] = useState(false)
+  const [showScoringModal, setShowScoringModal] = useState(false)
+  const [tempGameId, setTempGameId] = useState(null) // Pre-generated ID for new games
+  const [pendingHomeStats, setPendingHomeStats] = useState(null) // Home team stats for new games
+  const [pendingAwayStats, setPendingAwayStats] = useState(null) // Away team stats for new games
+  const [pendingScoringSummary, setPendingScoringSummary] = useState(null) // Scoring summary for new games
+  const [pendingSheetIds, setPendingSheetIds] = useState({}) // Sheet IDs for new games
   const [conferencePOW, setConferencePOW] = useState('') // Player name for conference POW
   const [nationalPOW, setNationalPOW] = useState('') // Player name for national POW
   const [confPOWSearch, setConfPOWSearch] = useState('')
@@ -737,6 +746,23 @@ export default function GameEntryModal({
     }
   }, [isOpen, scheduledGame, actualWeekNumber, actualYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, effectiveGame, bowlName, minimalMode])
 
+  // Generate a temporary game ID for new games (so we can create box score sheets before saving)
+  useEffect(() => {
+    if (isOpen && !effectiveGame && !tempGameId) {
+      // Generate a unique ID for this new game
+      const newId = `game-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      setTempGameId(newId)
+    }
+    // Reset all new game state when modal closes
+    if (!isOpen) {
+      setTempGameId(null)
+      setPendingHomeStats(null)
+      setPendingAwayStats(null)
+      setPendingScoringSummary(null)
+      setPendingSheetIds({})
+    }
+  }, [isOpen, effectiveGame, tempGameId])
+
   const handleLinkChange = (index, value) => {
     const newLinks = [...links]
     newLinks[index] = value
@@ -907,7 +933,8 @@ export default function GameEntryModal({
     const processedData = removeUndefined({
       ...restGameData,
       // CRITICAL: Include game ID so we know which game to update
-      id: effectiveGame?.id,
+      // Use existing game ID, or tempGameId for new games (allows box score to be linked)
+      id: effectiveGame?.id || tempGameId,
       week: effectiveGame?.week ?? actualWeekNumber,
       year: effectiveGame?.year ?? actualYear,
       links: filteredLinks,
@@ -941,7 +968,18 @@ export default function GameEntryModal({
         team1Score: teamScore,
         team2Score: opponentScore,
         winner: teamScore > opponentScore ? effectiveGame?.team1 : effectiveGame?.team2
-      })
+      }),
+      // Include pending box score data for new games
+      ...((pendingHomeStats || pendingAwayStats || pendingScoringSummary) && {
+        boxScore: {
+          home: pendingHomeStats || {},
+          away: pendingAwayStats || {},
+          scoringSummary: pendingScoringSummary || []
+        }
+      }),
+      ...(pendingSheetIds.homeStatsSheetId && { homeStatsSheetId: pendingSheetIds.homeStatsSheetId }),
+      ...(pendingSheetIds.awayStatsSheetId && { awayStatsSheetId: pendingSheetIds.awayStatsSheetId }),
+      ...(pendingSheetIds.scoringSummarySheetId && { scoringSummarySheetId: pendingSheetIds.scoringSummarySheetId })
     })
 
 
@@ -1737,13 +1775,28 @@ export default function GameEntryModal({
                   </div>
                 </div>
 
-                {confPOWOpen && filteredConfPlayers.length > 0 && (
+                {confPOWOpen && (filteredConfPlayers.length > 0 || !confPOWSearch) && (
                   <div
                     className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
                       confPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
                     }`}
                     style={{ borderColor: `${teamColors.primary}40` }}
                   >
+                    {/* None option to clear selection */}
+                    {!confPOWSearch && (
+                      <div
+                        onClick={() => handleConfPOWSelect('')}
+                        onMouseEnter={() => setConfPOWHighlight(-1)}
+                        className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                        style={{
+                          backgroundColor: confPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                          color: confPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                          borderColor: `${teamColors.primary}20`
+                        }}
+                      >
+                        (None)
+                      </div>
+                    )}
                     {filteredConfPlayers.map((name, index) => (
                       <div
                         key={name}
@@ -1820,13 +1873,28 @@ export default function GameEntryModal({
                   </div>
                 </div>
 
-                {natlPOWOpen && filteredNatlPlayers.length > 0 && (
+                {natlPOWOpen && (filteredNatlPlayers.length > 0 || !natlPOWSearch) && (
                   <div
                     className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
                       natlPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
                     }`}
                     style={{ borderColor: `${teamColors.primary}40` }}
                   >
+                    {/* None option to clear selection */}
+                    {!natlPOWSearch && (
+                      <div
+                        onClick={() => handleNatlPOWSelect('')}
+                        onMouseEnter={() => setNatlPOWHighlight(-1)}
+                        className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                        style={{
+                          backgroundColor: natlPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                          color: natlPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                          borderColor: `${teamColors.primary}20`
+                        }}
+                      >
+                        (None)
+                      </div>
+                    )}
                     {filteredNatlPlayers.map((name, index) => (
                       <div
                         key={name}
@@ -1898,6 +1966,76 @@ export default function GameEntryModal({
                 ))}
               </div>
             </div>
+
+            {/* Box Score Buttons - available for any game with an ID (existing or new with tempGameId) */}
+            {!isCPUGame && (existingGame?.id || tempGameId) && (() => {
+              // Compute home/away teams for button labels
+              const userAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
+              const oppAbbr = gameData.opponent || existingGame?.opponent || ''
+              const isUserHome = gameData.location === 'home' || gameData.location === 'neutral'
+              const homeAbbr = isUserHome ? userAbbr : oppAbbr
+              const awayAbbr = isUserHome ? oppAbbr : userAbbr
+
+              // Check if stats already entered
+              const hasHomeStats = existingGame?.boxScore?.home && Object.keys(existingGame.boxScore.home).length > 0
+              const hasAwayStats = existingGame?.boxScore?.away && Object.keys(existingGame.boxScore.away).length > 0
+              const hasScoring = existingGame?.boxScore?.scoringSummary?.length > 0
+
+              return (
+                <div className="mt-4 space-y-2">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowHomeStatsModal(true)}
+                      className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
+                      style={{
+                        backgroundColor: (hasHomeStats || pendingHomeStats) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        color: teamColors.primary,
+                        borderColor: (hasHomeStats || pendingHomeStats) ? teamColors.primary : `${teamColors.primary}40`
+                      }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {(hasHomeStats || pendingHomeStats) ? `Edit ${homeAbbr} Stats` : `Enter ${homeAbbr} Stats`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAwayStatsModal(true)}
+                      className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
+                      style={{
+                        backgroundColor: (hasAwayStats || pendingAwayStats) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        color: teamColors.primary,
+                        borderColor: (hasAwayStats || pendingAwayStats) ? teamColors.primary : `${teamColors.primary}40`
+                      }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {(hasAwayStats || pendingAwayStats) ? `Edit ${awayAbbr} Stats` : `Enter ${awayAbbr} Stats`}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowScoringModal(true)}
+                    className="w-full px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
+                    style={{
+                      backgroundColor: (hasScoring || pendingScoringSummary) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                      color: teamColors.primary,
+                      borderColor: (hasScoring || pendingScoringSummary) ? teamColors.primary : `${teamColors.primary}40`
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    {(hasScoring || pendingScoringSummary) ? 'Edit Scoring Summary' : 'Enter Scoring Summary'}
+                  </button>
+                  <p className="text-xs text-center opacity-60" style={{ color: teamColors.primary }}>
+                    All optional - you will have a chance to enter all player season stats once the season has ended
+                  </p>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Buttons */}
@@ -1926,6 +2064,123 @@ export default function GameEntryModal({
             </button>
           </div>
         </form>
+
+        {/* Home Stats Modal */}
+        {showHomeStatsModal && (
+          <BoxScoreSheetModal
+            isOpen={showHomeStatsModal}
+            onClose={() => setShowHomeStatsModal(false)}
+            onSave={async (stats) => {
+              if (existingGame) {
+                // Existing game - update immediately
+                const updatedGame = {
+                  ...existingGame,
+                  boxScore: {
+                    ...existingGame.boxScore,
+                    home: stats
+                  }
+                }
+                await onSave(updatedGame)
+              } else {
+                // New game - store for later
+                setPendingHomeStats(stats)
+              }
+            }}
+            onSheetCreated={(sheetId) => {
+              if (!existingGame) {
+                setPendingSheetIds(prev => ({ ...prev, homeStatsSheetId: sheetId }))
+              }
+            }}
+            sheetType="homeStats"
+            existingSheetId={existingGame?.homeStatsSheetId || pendingSheetIds.homeStatsSheetId}
+            game={existingGame || {
+              id: tempGameId,
+              week: actualWeekNumber,
+              year: actualYear,
+              opponent: gameData.opponent,
+              location: gameData.location
+            }}
+            teamColors={teamColors}
+          />
+        )}
+
+        {/* Away Stats Modal */}
+        {showAwayStatsModal && (
+          <BoxScoreSheetModal
+            isOpen={showAwayStatsModal}
+            onClose={() => setShowAwayStatsModal(false)}
+            onSave={async (stats) => {
+              if (existingGame) {
+                // Existing game - update immediately
+                const updatedGame = {
+                  ...existingGame,
+                  boxScore: {
+                    ...existingGame.boxScore,
+                    away: stats
+                  }
+                }
+                await onSave(updatedGame)
+              } else {
+                // New game - store for later
+                setPendingAwayStats(stats)
+              }
+            }}
+            onSheetCreated={(sheetId) => {
+              if (!existingGame) {
+                setPendingSheetIds(prev => ({ ...prev, awayStatsSheetId: sheetId }))
+              }
+            }}
+            sheetType="awayStats"
+            existingSheetId={existingGame?.awayStatsSheetId || pendingSheetIds.awayStatsSheetId}
+            game={existingGame || {
+              id: tempGameId,
+              week: actualWeekNumber,
+              year: actualYear,
+              opponent: gameData.opponent,
+              location: gameData.location
+            }}
+            teamColors={teamColors}
+          />
+        )}
+
+        {/* Scoring Summary Modal */}
+        {showScoringModal && (
+          <BoxScoreSheetModal
+            isOpen={showScoringModal}
+            onClose={() => setShowScoringModal(false)}
+            onSave={async (scoringSummary) => {
+              if (existingGame) {
+                // Existing game - update immediately
+                const updatedGame = {
+                  ...existingGame,
+                  boxScore: {
+                    ...existingGame.boxScore,
+                    scoringSummary
+                  }
+                }
+                await onSave(updatedGame)
+              } else {
+                // New game - store for later
+                setPendingScoringSummary(scoringSummary)
+              }
+            }}
+            onSheetCreated={(sheetId) => {
+              if (!existingGame) {
+                setPendingSheetIds(prev => ({ ...prev, scoringSummarySheetId: sheetId }))
+              }
+            }}
+            sheetType="scoring"
+            existingSheetId={existingGame?.scoringSummarySheetId || pendingSheetIds.scoringSummarySheetId}
+            game={existingGame || {
+              id: tempGameId,
+              week: actualWeekNumber,
+              year: actualYear,
+              opponent: gameData.opponent,
+              location: gameData.location
+            }}
+            teamColors={teamColors}
+          />
+        )}
       </div>
     </div>
   )

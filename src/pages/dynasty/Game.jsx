@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -11,6 +11,7 @@ import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
 import GameEntryModal from '../../components/GameEntryModal'
 import { parseCFPGameId, getCFPRoundInfo, getCFPSlotDisplayName } from '../../data/cfpConstants'
+import { STAT_TABS, STAT_TAB_ORDER } from '../../data/boxScoreConstants'
 
 // Map abbreviations to mascot names for logo lookup
 function getMascotName(abbr) {
@@ -178,6 +179,7 @@ export default function Game() {
   const teamColors = defaultColors
 
   const [showEditModal, setShowEditModal] = useState(false)
+  const [activeStatTab, setActiveStatTab] = useState('passing')
 
   // Find the game by ID in the games[] array
   // Supports direct ID lookup and pattern-based fallbacks
@@ -802,6 +804,174 @@ export default function Game() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Box Score Section */}
+      {game.boxScore && (
+        <div className="space-y-6">
+          {/* Box Score Stats */}
+          <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Box Score
+              </h3>
+            </div>
+
+            {/* Stat Category Tabs */}
+            <div className="flex border-b border-gray-700 overflow-x-auto">
+              {STAT_TAB_ORDER.map(key => {
+                const tab = STAT_TABS[key]
+                const hasData = (game.boxScore.home?.[key]?.length > 0) || (game.boxScore.away?.[key]?.length > 0)
+                if (!hasData) return null
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveStatTab(key)}
+                    className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                      activeStatTab === key
+                        ? 'text-white border-b-2 border-white bg-gray-800'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                    }`}
+                  >
+                    {tab.title}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Stats Table */}
+            <div className="p-4 overflow-x-auto">
+              {STAT_TABS[activeStatTab] && (
+                <div className="space-y-6">
+                  {/* Home Team Stats */}
+                  {game.boxScore.home?.[activeStatTab]?.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <img
+                          src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
+                          alt={leftData.abbr}
+                          className="w-6 h-6 object-contain"
+                        />
+                        <span className="text-white font-semibold">{leftData.abbr}</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-gray-400 text-left">
+                            {STAT_TABS[activeStatTab].headers.map((header, idx) => (
+                              <th key={idx} className={`py-2 px-2 font-medium ${idx === 0 ? '' : 'text-center'}`}>
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {game.boxScore.home[activeStatTab].map((row, idx) => (
+                            <tr key={idx} className="border-t border-gray-800">
+                              {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                return (
+                                  <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
+                                    {row[key] ?? '-'}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Away Team Stats */}
+                  {game.boxScore.away?.[activeStatTab]?.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <img
+                          src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
+                          alt={rightData.abbr}
+                          className="w-6 h-6 object-contain"
+                        />
+                        <span className="text-white font-semibold">{rightData.abbr}</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-gray-400 text-left">
+                            {STAT_TABS[activeStatTab].headers.map((header, idx) => (
+                              <th key={idx} className={`py-2 px-2 font-medium ${idx === 0 ? '' : 'text-center'}`}>
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {game.boxScore.away[activeStatTab].map((row, idx) => (
+                            <tr key={idx} className="border-t border-gray-800">
+                              {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                return (
+                                  <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
+                                    {row[key] ?? '-'}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Scoring Summary */}
+          {game.boxScore.scoringSummary?.length > 0 && (
+            <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
+              <div className="px-4 py-3 border-b border-gray-700">
+                <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Scoring Plays
+                </h3>
+              </div>
+              <div className="divide-y divide-gray-800">
+                {game.boxScore.scoringSummary.map((play, idx) => {
+                  const playTeamColors = getTeamColors(play.team) || { primary: '#666', secondary: '#333' }
+                  return (
+                    <div key={idx} className="px-4 py-3 flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: playTeamColors.primary }}
+                      >
+                        <img
+                          src={getTeamLogo(getMascotName(play.team) || play.team)}
+                          alt={play.team}
+                          className="w-5 h-5 object-contain"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-medium text-sm">{play.scoreType}</div>
+                        <div className="text-gray-400 text-xs">
+                          {play.scorer}
+                          {play.passer && ` from ${play.passer}`}
+                        </div>
+                      </div>
+                      <div className="text-gray-500 text-xs text-right flex-shrink-0">
+                        <div>Q{play.quarter}</div>
+                        <div>{play.timeLeft}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

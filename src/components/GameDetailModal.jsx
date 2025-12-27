@@ -393,7 +393,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                 ) : (
                   <>
                     <div className="text-xs sm:text-sm font-medium opacity-90">
-                      {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week} • {game.location === 'home' ? 'Home' : game.location === 'away' ? 'Away' : 'Neutral'}
+                      {game.year} • {typeof game.week === 'number' ? `Week ${game.week}` : game.week}
                     </div>
                     <div className="text-base sm:text-2xl font-bold mt-0.5 sm:mt-1">
                       {isScheduledGame ? 'Scheduled Game' : (game.gameTitle || 'Game Recap')}

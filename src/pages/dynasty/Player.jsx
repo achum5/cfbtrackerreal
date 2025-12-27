@@ -7,6 +7,7 @@ import { getTeamLogo } from '../../data/teams'
 import { getAbbreviationFromDisplayName, teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamColors } from '../../data/teamColors'
 import PlayerEditModal from '../../components/PlayerEditModal'
+import OverallProgressionModal from '../../components/OverallProgressionModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -95,6 +96,7 @@ export default function Player() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAccoladeModal, setShowAccoladeModal] = useState(false)
   const [accoladeType, setAccoladeType] = useState(null)
+  const [showOverallProgressionModal, setShowOverallProgressionModal] = useState(false)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -433,8 +435,8 @@ export default function Player() {
               </div>
 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: primaryText, opacity: 0.85 }}>
-                {player.jerseyNumber && <span className="font-bold">#{player.jerseyNumber}</span>}
-                {player.jerseyNumber && <span className="opacity-50">|</span>}
+                {player.jerseyNumber != null && player.jerseyNumber !== '' && <span className="font-bold">#{player.jerseyNumber}</span>}
+                {player.jerseyNumber != null && player.jerseyNumber !== '' && <span className="opacity-50">|</span>}
                 <span className="font-semibold">{player.position}</span>
                 {player.archetype && <><span className="opacity-50">|</span><span>{player.archetype}</span></>}
                 <span className="opacity-50">|</span>
@@ -450,12 +452,30 @@ export default function Player() {
             </div>
           </div>
 
-          <div className="text-center flex-shrink-0">
-            <div className="text-xs mb-1" style={{ color: primaryText, opacity: 0.7 }}>OVR</div>
-            <div className="text-5xl md:text-6xl font-bold" style={{ color: teamColors.secondary }}>
-              {player.overall}
+          {/* Overall Rating */}
+          {player.overall ? (
+            <div className="text-center flex-shrink-0">
+              <div className="text-xs mb-1" style={{ color: primaryText, opacity: 0.7 }}>OVR</div>
+              <button
+                onClick={() => setShowOverallProgressionModal(true)}
+                className="text-5xl md:text-6xl font-bold hover:opacity-80 transition-opacity cursor-pointer"
+                style={{ color: teamColors.secondary }}
+                title="View overall progression"
+              >
+                {player.overall}
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="text-center flex-shrink-0">
+              <div className="text-xs mb-1" style={{ color: primaryText, opacity: 0.7 }}>OVR</div>
+              <div
+                className="text-5xl md:text-6xl font-bold"
+                style={{ color: teamColors.secondary, opacity: 0.3 }}
+              >
+                —
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1498,6 +1518,17 @@ export default function Player() {
           </div>
         </div>
       )}
+
+      {/* Overall Progression Modal */}
+      <OverallProgressionModal
+        isOpen={showOverallProgressionModal}
+        onClose={() => setShowOverallProgressionModal(false)}
+        player={player}
+        trainingResultsByYear={currentDynasty?.trainingResultsByYear}
+        recruitOverallsByYear={currentDynasty?.recruitOverallsByYear}
+        teamColors={teamColors}
+        currentYear={currentDynasty?.currentYear}
+      />
     </div>
   )
 }

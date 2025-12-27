@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getCurrentRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
@@ -16,8 +16,11 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, teamColors, teamAbbr, teamName }) {
   const { currentDynasty, updateDynasty } = useDynasty()
+
+  // Use provided team info or fall back to user's team
+  const editingTeamName = teamName || currentDynasty?.teamName || 'Dynasty'
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -95,12 +98,22 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
         try {
           // Create the roster sheet
           const sheetInfo = await createRosterSheet(
-            currentDynasty?.teamName || 'Dynasty',
+            editingTeamName,
             currentYear
           )
 
           // Pre-fill with existing roster if available
-          const existingPlayers = currentDynasty?.players || []
+          // If teamAbbr is provided, filter to that team's players
+          let existingPlayers = getCurrentRoster(currentDynasty)
+          if (teamAbbr) {
+            // Filter to the specific team being edited
+            existingPlayers = (currentDynasty?.players || []).filter(p => {
+              if (p.isHonorOnly) return false
+              if (p.isRecruit) return false
+              if (p.leftTeam) return false
+              return p.team === teamAbbr
+            })
+          }
           if (existingPlayers.length > 0) {
             await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers)
           }
@@ -225,7 +238,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            {currentYear} Roster Edit
+            {currentYear} {teamAbbr ? `${teamAbbr} ` : ''}Roster Edit
           </h2>
           <button
             onClick={handleClose}
