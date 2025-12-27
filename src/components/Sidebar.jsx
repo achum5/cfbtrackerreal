@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
@@ -8,6 +8,7 @@ import ShareDynastyModal from './ShareDynastyModal'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear, isViewOnly, shareCode, dynasty: dynastyProp }) {
   const location = useLocation()
+  const navigate = useNavigate()
   // Use dynasty from props if provided (view mode), otherwise from context
   let contextDynasty, exportDynasty
   try {
@@ -21,6 +22,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   }
   const currentDynasty = dynastyProp || contextDynasty
   const [showShareModal, setShowShareModal] = useState(false)
+  const [copying, setCopying] = useState(false)
   const primaryBgText = getContrastTextColor(teamColors.primary)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
@@ -39,6 +41,27 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
       console.error('Error exporting dynasty:', error)
       alert('Failed to export dynasty. Please try again.')
     }
+  }
+
+  const handleCopyDynasty = () => {
+    if (!currentDynasty || copying) return
+    setCopying(true)
+
+    // Create a copy of the dynasty data, removing share-specific and ID fields
+    const dynastyCopy = { ...currentDynasty }
+    delete dynastyCopy.id
+    delete dynastyCopy.shareCode
+    delete dynastyCopy.isPublic
+    delete dynastyCopy.userId
+    delete dynastyCopy.createdAt
+    delete dynastyCopy.lastModified
+
+    // Store the copy in localStorage for the create page to pick up
+    localStorage.setItem('dynastyCopyData', JSON.stringify(dynastyCopy))
+
+    // Navigate to home page with a flag indicating we have a copy
+    navigate('/?importCopy=true')
+    setCopying(false)
   }
 
   // Build path prefix based on view mode
@@ -133,20 +156,39 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
           {/* Bottom section - different for view mode vs edit mode */}
           <div className="mt-4 pt-4 border-t" style={{ borderColor: `${secondaryBgText}20` }}>
             {isViewOnly ? (
-              /* View mode - show Create Your Dynasty CTA */
-              <Link
-                to="/"
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90"
-                style={{
-                  backgroundColor: teamColors.primary,
-                  color: primaryBgText
-                }}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Create Your Dynasty</span>
-              </Link>
+              /* View mode - show Create Your Dynasty CTA and Copy Dynasty button */
+              <>
+                <Link
+                  to="/"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: primaryBgText
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Create Your Dynasty</span>
+                </Link>
+
+                <button
+                  onClick={handleCopyDynasty}
+                  disabled={copying}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70 mt-2"
+                  style={{
+                    color: secondaryBgText,
+                    opacity: copying ? 0.5 : 0.8,
+                    backgroundColor: 'transparent',
+                    border: `2px solid ${teamColors.primary}`
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>{copying ? 'Copying...' : 'Copy this Dynasty'}</span>
+                </button>
+              </>
             ) : (
               /* Edit mode - show Download and Share buttons */
               <>

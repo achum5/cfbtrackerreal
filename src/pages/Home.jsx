@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
 import { getTeamLogo } from '../data/teams'
@@ -84,7 +84,9 @@ function getWeekPhaseDisplay(dynasty) {
 }
 
 export default function Home() {
-  const { dynasties, deleteDynasty, importDynasty, exportDynasty, updateDynasty, loading } = useDynasty()
+  const { dynasties, deleteDynasty, importDynasty, exportDynasty, updateDynasty, createDynasty, loading } = useDynasty()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   // Sort dynasties by lastModified (most recent first)
   const sortedDynasties = [...dynasties].sort((a, b) => {
@@ -106,6 +108,42 @@ export default function Home() {
   const hasDynasties = dynasties.length > 0
   const nonStarredDynasties = dynasties.filter(d => !d.favorite)
   const hasNonStarred = nonStarredDynasties.length > 0
+
+  // Handle copying a dynasty from view mode
+  useEffect(() => {
+    const importCopy = searchParams.get('importCopy')
+    if (importCopy === 'true' && createDynasty) {
+      const copyData = localStorage.getItem('dynastyCopyData')
+      if (copyData) {
+        try {
+          const dynastyData = JSON.parse(copyData)
+          // Create the new dynasty with the copied data
+          createDynasty(dynastyData).then((newDynasty) => {
+            // Clear localStorage
+            localStorage.removeItem('dynastyCopyData')
+            // Clear query param
+            setSearchParams({})
+            // Navigate to the new dynasty
+            if (newDynasty?.id) {
+              navigate(`/dynasty/${newDynasty.id}`)
+            }
+          }).catch((error) => {
+            console.error('Error creating copied dynasty:', error)
+            alert('Failed to copy dynasty. Please try again.')
+            localStorage.removeItem('dynastyCopyData')
+            setSearchParams({})
+          })
+        } catch (error) {
+          console.error('Error parsing dynasty copy data:', error)
+          localStorage.removeItem('dynastyCopyData')
+          setSearchParams({})
+        }
+      } else {
+        // No copy data found, just clear the param
+        setSearchParams({})
+      }
+    }
+  }, [searchParams, createDynasty, setSearchParams, navigate])
 
   const handleDeleteClick = (e, dynasty) => {
     e.preventDefault()

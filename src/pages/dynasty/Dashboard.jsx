@@ -53,7 +53,7 @@ const normalizePlayerName = (name) => {
 }
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers, isViewOnly } = useDynasty()
   const { user } = useAuth()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -146,6 +146,16 @@ export default function Dashboard() {
   const [filledDCVacancy, setFilledDCVacancy] = useState(null) // null = not asked, true/false = answered
   const [newOCName, setNewOCName] = useState('')
   const [newDCName, setNewDCName] = useState('')
+
+  // View-only badge component for showing when editing is disabled
+  const ViewOnlyBadge = () => (
+    <span
+      className="px-3 py-1.5 rounded-lg text-xs font-medium"
+      style={{ backgroundColor: `${secondaryBgText}15`, color: secondaryBgText, opacity: 0.7 }}
+    >
+      View Only
+    </span>
+  )
 
   // Restore CC state from saved dynasty data
   useEffect(() => {
@@ -1834,43 +1844,45 @@ export default function Dashboard() {
                     )}
                   </div>
                 </div>
-                {item.isRecruiting && !item.done ? (
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button
-                      onClick={handleNoCommitments}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                      style={{
-                        backgroundColor: teamColors.primary,
-                        color: primaryBgText
-                      }}
-                    >
-                      No
-                    </button>
+                {isViewOnly ? <ViewOnlyBadge /> : (
+                  item.isRecruiting && !item.done ? (
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={handleNoCommitments}
+                        className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                        style={{
+                          backgroundColor: teamColors.primary,
+                          color: primaryBgText
+                        }}
+                      >
+                        No
+                      </button>
+                      <button
+                        onClick={item.action}
+                        className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                        style={{
+                          backgroundColor: teamColors.primary,
+                          color: primaryBgText
+                        }}
+                      >
+                        Yes
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       onClick={item.action}
-                      className="flex-1 sm:flex-none px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                      style={{
+                      className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                      style={item.optional && !item.done ? {
+                        backgroundColor: `${secondaryBgText}20`,
+                        color: secondaryBgText
+                      } : {
                         backgroundColor: teamColors.primary,
                         color: primaryBgText
                       }}
                     >
-                      Yes
+                      {item.actionText}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={item.action}
-                    className="w-full sm:w-auto px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                    style={item.optional && !item.done ? {
-                      backgroundColor: `${secondaryBgText}20`,
-                      color: secondaryBgText
-                    } : {
-                      backgroundColor: teamColors.primary,
-                      color: primaryBgText
-                    }}
-                  >
-                    {item.actionText}
-                  </button>
+                  )
                 )}
               </div>
             )
@@ -1967,16 +1979,18 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowGameModal(true)}
-                      className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
-                      style={{
-                        backgroundColor: teamColors.primary,
-                        color: primaryBgText
-                      }}
-                    >
-                      {playedGame ? 'Edit' : 'Enter Game'}
-                    </button>
+                    {isViewOnly ? <ViewOnlyBadge /> : (
+                      <button
+                        onClick={() => setShowGameModal(true)}
+                        className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
+                        style={{
+                          backgroundColor: teamColors.primary,
+                          color: primaryBgText
+                        }}
+                      >
+                        {playedGame ? 'Edit' : 'Enter Game'}
+                      </button>
+                    )}
                   </div>
 
                   {/* Task 2: Recruiting Commitments */}
@@ -2012,31 +2026,33 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    {!hasCommitmentsData ? (
-                      <div className="flex gap-2 self-end sm:self-auto">
-                        <button
-                          onClick={handleNoCommitments}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                        >
-                          No
-                        </button>
+                    {isViewOnly ? <ViewOnlyBadge /> : (
+                      !hasCommitmentsData ? (
+                        <div className="flex gap-2 self-end sm:self-auto">
+                          <button
+                            onClick={handleNoCommitments}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            No
+                          </button>
+                          <button
+                            onClick={() => setShowRecruitingModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            Yes
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           onClick={() => setShowRecruitingModal(true)}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                           style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                         >
-                          Yes
+                          Edit
                         </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowRecruitingModal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        Edit
-                      </button>
+                      )
                     )}
                   </div>
                 </>
@@ -2130,6 +2146,8 @@ export default function Dashboard() {
                           teamColors={teamColors}
                         />
                       </div>
+                    ) : isViewOnly ? (
+                      <ViewOnlyBadge />
                     ) : ccMadeChampionship === true && (ccOpponent || ccGame) ? (
                       <button
                         onClick={() => setShowCCGameModal(true)}
@@ -2254,31 +2272,33 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      {!hasCommitmentsData ? (
-                        <div className="flex gap-2 self-end sm:self-auto">
-                          <button
-                            onClick={handleNoCommitments}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            No
-                          </button>
+                      {isViewOnly ? <ViewOnlyBadge /> : (
+                        !hasCommitmentsData ? (
+                          <div className="flex gap-2 self-end sm:self-auto">
+                            <button
+                              onClick={handleNoCommitments}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              No
+                            </button>
+                            <button
+                              onClick={() => setShowRecruitingModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             onClick={() => setShowRecruitingModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                           >
-                            Yes
+                            Edit
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowRecruitingModal(true)}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                        >
-                          Edit
-                        </button>
+                        )
                       )}
                     </div>
                   )
@@ -3069,13 +3089,15 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowBowlWeek1Modal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        {hasBowlWeek1Data ? 'Edit' : 'Enter'}
-                      </button>
+                      {isViewOnly ? <ViewOnlyBadge /> : (
+                        <button
+                          onClick={() => setShowBowlWeek1Modal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasBowlWeek1Data ? 'Edit' : 'Enter'}
+                        </button>
+                      )}
                     </div>
 
                     {/* Task 2: Enter YOUR Bowl Game (if Week 2 bowl) */}
@@ -3108,13 +3130,15 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => setShowBowlGameModal(true)}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                        >
-                          {userBowlGame ? 'Edit' : 'Enter'}
-                        </button>
+                        {isViewOnly ? <ViewOnlyBadge /> : (
+                          <button
+                            onClick={() => setShowBowlGameModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {userBowlGame ? 'Edit' : 'Enter'}
+                          </button>
+                        )}
                       </div>
                     )}
 
