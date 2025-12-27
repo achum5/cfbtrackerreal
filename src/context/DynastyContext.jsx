@@ -775,33 +775,9 @@ export function DynastyProvider({ children }) {
       return obj
     }
 
-    // If games are being updated, re-aggregate box score stats for leaderboards
-    let finalUpdates = { ...updates }
-    if (updates.games) {
-      // Get the current dynasty data to combine with updated games
-      // Try localStorage first (most up-to-date), fall back to state
-      const localData = localStorage.getItem('cfb-dynasties')
-      const localDynasties = localData ? JSON.parse(localData) : null
-      const existingDynasty = localDynasties
-        ? localDynasties.find(d => String(d.id) === String(dynastyId))
-        : dynasties.find(d => String(d.id) === String(dynastyId))
-
-      if (existingDynasty) {
-        // Create a temp dynasty with updated games to aggregate stats
-        const tempDynasty = {
-          ...existingDynasty,
-          games: updates.games
-        }
-        const aggregatedStats = aggregateBoxScoreStats(tempDynasty)
-        if (Object.keys(aggregatedStats).length > 0) {
-          finalUpdates.detailedStatsByYear = aggregatedStats
-        }
-      }
-    }
-
     // Add lastModified timestamp to all updates and sanitize
     const updatesWithTimestamp = removeUndefined({
-      ...finalUpdates,
+      ...updates,
       lastModified: Date.now()
     })
 

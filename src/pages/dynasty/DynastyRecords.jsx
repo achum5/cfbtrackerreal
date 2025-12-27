@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, aggregateBoxScoreStats } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -163,11 +163,59 @@ export default function DynastyRecords() {
 
   // Calculate leaderboards
   const leaderboards = useMemo(() => {
-    if (!currentDynasty?.detailedStatsByYear) return {}
-
     const rosterPids = new Set(getRosterPlayers().map(p => p.pid))
-    const detailedStats = currentDynasty.detailedStatsByYear
-    const playerStats = currentDynasty.playerStatsByYear || {}
+
+    // Combine stats from both sources:
+    // 1. detailedStatsByYear (end-of-season entry from sheets/player profile)
+    // 2. Box scores from games (computed on the fly)
+    const endOfSeasonStats = currentDynasty?.detailedStatsByYear || {}
+    const boxScoreStats = aggregateBoxScoreStats(currentDynasty) || {}
+    const playerStats = currentDynasty?.playerStatsByYear || {}
+
+    // Merge both stat sources into one combined structure
+    const combinedStats = {}
+    const allYears = new Set([...Object.keys(endOfSeasonStats), ...Object.keys(boxScoreStats)])
+
+    allYears.forEach(year => {
+      combinedStats[year] = {}
+      const eosYear = endOfSeasonStats[year] || {}
+      const boxYear = boxScoreStats[year] || {}
+      const allCategories = new Set([...Object.keys(eosYear), ...Object.keys(boxYear)])
+
+      allCategories.forEach(category => {
+        const eosData = eosYear[category] || []
+        const boxData = boxYear[category] || []
+
+        // Merge by PID - combine stats from both sources
+        const playerMap = {}
+
+        // Add end-of-season stats
+        eosData.forEach(entry => {
+          if (!entry.pid) return
+          playerMap[entry.pid] = { ...entry }
+        })
+
+        // Add/merge box score stats
+        boxData.forEach(entry => {
+          if (!entry.pid) return
+          if (!playerMap[entry.pid]) {
+            playerMap[entry.pid] = { ...entry }
+          } else {
+            // Merge - add numeric values
+            Object.entries(entry).forEach(([key, value]) => {
+              if (key === 'pid' || key === 'name') return
+              if (typeof value === 'number') {
+                playerMap[entry.pid][key] = (playerMap[entry.pid][key] || 0) + value
+              }
+            })
+          }
+        })
+
+        combinedStats[year][category] = Object.values(playerMap)
+      })
+    })
+
+    if (Object.keys(combinedStats).length === 0) return {}
 
     // Aggregate stats by player (career) or by player/year (season)
     const aggregateStats = (category) => {
@@ -175,10 +223,10 @@ export default function DynastyRecords() {
       // Season mode: keep each year separate
       const playerTotals = {}
 
-      const years = Object.keys(detailedStats)
+      const years = Object.keys(combinedStats)
 
       years.forEach(year => {
-        const yearData = detailedStats[year] || {}
+        const yearData = combinedStats[year] || {}
         const playerYearStats = playerStats[year] || []
 
         // Map category to tab name
@@ -280,10 +328,10 @@ export default function DynastyRecords() {
       } else {
         // Season mode: combine per year for each player
         const combined = {}
-        const years = Object.keys(detailedStats)
+        const years = Object.keys(combinedStats)
 
         years.forEach(year => {
-          const yearData = detailedStats[year] || {}
+          const yearData = combinedStats[year] || {}
           const rushData = yearData['Rushing'] || []
           const recData = yearData['Receiving'] || []
 
@@ -354,10 +402,10 @@ export default function DynastyRecords() {
       } else {
         // Season mode: combine all sources per year for each player
         const combined = {}
-        const years = Object.keys(detailedStats)
+        const years = Object.keys(combinedStats)
 
         years.forEach(year => {
-          const yearData = detailedStats[year] || {}
+          const yearData = combinedStats[year] || {}
           const rushData = yearData['Rushing'] || []
           const recData = yearData['Receiving'] || []
           const krData = yearData['Kick Return'] || []
