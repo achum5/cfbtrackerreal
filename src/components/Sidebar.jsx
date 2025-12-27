@@ -156,26 +156,12 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
           {/* Bottom section - different for view mode vs edit mode */}
           <div className="mt-4 pt-4 border-t" style={{ borderColor: `${secondaryBgText}20` }}>
             {isViewOnly ? (
-              /* View mode - show Create Your Dynasty CTA and Copy Dynasty button */
+              /* View mode - show Copy Dynasty button and Create Your Own Dynasty CTA */
               <>
-                <Link
-                  to="/"
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90"
-                  style={{
-                    backgroundColor: teamColors.primary,
-                    color: primaryBgText
-                  }}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>Create Your Dynasty</span>
-                </Link>
-
                 <button
                   onClick={handleCopyDynasty}
                   disabled={copying}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90 mt-2"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90"
                   style={{
                     backgroundColor: teamColors.primary,
                     color: primaryBgText,
@@ -187,6 +173,20 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                   </svg>
                   <span>{copying ? 'Copying...' : 'Copy to My Dynasties'}</span>
                 </button>
+
+                <Link
+                  to="/"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90 mt-2"
+                  style={{
+                    backgroundColor: teamColors.primary,
+                    color: primaryBgText
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Create My Own Dynasty</span>
+                </Link>
               </>
             ) : (
               /* Edit mode - show Download and Share buttons */
