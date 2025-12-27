@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { getPublicDynastyByShareCode } from '../services/dynastyService'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
-import { useDynasty as useDynastyContext } from './DynastyContext'
+import DynastyContext from './DynastyContext'
 
 const ViewDynastyContext = createContext()
 
@@ -117,7 +117,10 @@ export function ViewDynastyProvider({ shareCode, children }) {
 
   return (
     <ViewDynastyContext.Provider value={value}>
-      {children}
+      {/* Also provide DynastyContext so useDynasty() works in view mode */}
+      <DynastyContext.Provider value={value}>
+        {children}
+      </DynastyContext.Provider>
     </ViewDynastyContext.Provider>
   )
 }

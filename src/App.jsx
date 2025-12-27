@@ -29,9 +29,8 @@ import ConferenceChampionshipHistory from './pages/dynasty/ConferenceChampionshi
 import ConferenceStandings from './pages/dynasty/ConferenceStandings'
 import CFPBracket from './pages/dynasty/CFPBracket'
 import Game from './pages/dynasty/Game'
-// View-only pages (no auth required)
+// View-only wrapper (no auth required)
 import ViewDynasty from './pages/ViewDynasty'
-import ViewDashboard from './pages/view/ViewDashboard'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -50,9 +49,39 @@ function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* Public view routes - no auth required */}
+        {/* Public view routes - no auth required, reuses same components */}
         <Route path="/view/:shareCode" element={<ViewDynasty />}>
-          <Route index element={<ViewDashboard />} />
+          <Route index element={<Dashboard />} />
+          <Route path="player/:pid" element={<Player />} />
+          <Route path="roster" element={<Roster />} />
+          <Route path="rankings" element={<Rankings />} />
+          <Route path="rankings/:year" element={<Rankings />} />
+          <Route path="stats" element={<Stats />} />
+          <Route path="coach-career" element={<CoachCareer />} />
+          <Route path="players" element={<Players />} />
+          <Route path="all-time-lineup" element={<AllTimeLineup />} />
+          <Route path="recruiting" element={<Recruiting />} />
+          <Route path="recruiting/:teamAbbr/:year" element={<Recruiting />} />
+          <Route path="recruiting/portal/:teamAbbr/:year" element={<Recruiting />} />
+          <Route path="leaders" element={<Leaders />} />
+          <Route path="awards" element={<Awards />} />
+          <Route path="awards/:year" element={<Awards />} />
+          <Route path="all-americans" element={<AllAmericans />} />
+          <Route path="all-americans/:year" element={<AllAmericans />} />
+          <Route path="all-conference" element={<AllConference />} />
+          <Route path="all-conference/:year" element={<AllConference />} />
+          <Route path="all-conference/:year/:conference" element={<AllConference />} />
+          <Route path="dynasty-records" element={<DynastyRecords />} />
+          <Route path="teams" element={<Teams />} />
+          <Route path="team/:teamAbbr" element={<Team />} />
+          <Route path="team/:teamAbbr/:year" element={<TeamYear />} />
+          <Route path="bowl-history" element={<BowlHistory />} />
+          <Route path="conference-championship-history" element={<ConferenceChampionshipHistory />} />
+          <Route path="conference-standings" element={<ConferenceStandings />} />
+          <Route path="conference-standings/:year" element={<ConferenceStandings />} />
+          <Route path="cfp-bracket" element={<CFPBracket />} />
+          <Route path="cfp-bracket/:year" element={<CFPBracket />} />
+          <Route path="game/:gameId" element={<Game />} />
         </Route>
 
         {/* All other routes wrapped in DynastyProvider */}

@@ -6,9 +6,20 @@ import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 import ShareDynastyModal from './ShareDynastyModal'
 
-export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear }) {
+export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear, isViewOnly, shareCode, dynasty: dynastyProp }) {
   const location = useLocation()
-  const { currentDynasty, exportDynasty } = useDynasty()
+  // Use dynasty from props if provided (view mode), otherwise from context
+  let contextDynasty, exportDynasty
+  try {
+    const dynastyContext = useDynasty()
+    contextDynasty = dynastyContext.currentDynasty
+    exportDynasty = dynastyContext.exportDynasty
+  } catch (e) {
+    // Not in DynastyProvider (view mode)
+    contextDynasty = null
+    exportDynasty = null
+  }
+  const currentDynasty = dynastyProp || contextDynasty
   const [showShareModal, setShowShareModal] = useState(false)
   const primaryBgText = getContrastTextColor(teamColors.primary)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
@@ -21,6 +32,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const conferenceUrlParam = encodeURIComponent(userConference.replace(/\s+/g, '-'))
 
   const handleExport = () => {
+    if (!exportDynasty) return
     try {
       exportDynasty(dynastyId)
     } catch (error) {
@@ -29,25 +41,28 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     }
   }
 
+  // Build path prefix based on view mode
+  const pathPrefix = isViewOnly ? `/view/${shareCode}` : `/dynasty/${dynastyId}`
+
   const navItems = [
-    { name: 'Dashboard', path: `/dynasty/${dynastyId}` },
-    { name: 'Coach Career', path: `/dynasty/${dynastyId}/coach-career` },
-    { name: 'Leaderboard', path: `/dynasty/${dynastyId}/dynasty-records` },
-    { name: 'Recruiting', path: `/dynasty/${dynastyId}/recruiting/${teamAbbr}/${currentYear}` },
-    { name: 'Awards', path: `/dynasty/${dynastyId}/awards` },
-    { name: 'All-Americans', path: `/dynasty/${dynastyId}/all-americans` },
-    { name: 'All-Conference', path: `/dynasty/${dynastyId}/all-conference/${currentYear}/${conferenceUrlParam}` },
-    { name: 'CFP Bracket', path: `/dynasty/${dynastyId}/cfp-bracket` },
-    { name: 'Bowl History', path: `/dynasty/${dynastyId}/bowl-history` },
-    { name: 'CC History', path: `/dynasty/${dynastyId}/conference-championship-history` },
-    { name: 'Conf. Standings', path: `/dynasty/${dynastyId}/conference-standings` },
-    { name: 'Top 25', path: `/dynasty/${dynastyId}/rankings` },
-    { name: 'All Teams', path: `/dynasty/${dynastyId}/teams` },
-    { name: 'All Players', path: `/dynasty/${dynastyId}/players` }
+    { name: 'Dashboard', path: pathPrefix },
+    { name: 'Coach Career', path: `${pathPrefix}/coach-career` },
+    { name: 'Leaderboard', path: `${pathPrefix}/dynasty-records` },
+    { name: 'Recruiting', path: `${pathPrefix}/recruiting/${teamAbbr}/${currentYear}` },
+    { name: 'Awards', path: `${pathPrefix}/awards` },
+    { name: 'All-Americans', path: `${pathPrefix}/all-americans` },
+    { name: 'All-Conference', path: `${pathPrefix}/all-conference/${currentYear}/${conferenceUrlParam}` },
+    { name: 'CFP Bracket', path: `${pathPrefix}/cfp-bracket` },
+    { name: 'Bowl History', path: `${pathPrefix}/bowl-history` },
+    { name: 'CC History', path: `${pathPrefix}/conference-championship-history` },
+    { name: 'Conf. Standings', path: `${pathPrefix}/conference-standings` },
+    { name: 'Top 25', path: `${pathPrefix}/rankings` },
+    { name: 'All Teams', path: `${pathPrefix}/teams` },
+    { name: 'All Players', path: `${pathPrefix}/players` }
   ]
 
   const isActive = (path) => {
-    if (path === `/dynasty/${dynastyId}`) {
+    if (path === pathPrefix) {
       return location.pathname === path
     }
     return location.pathname.startsWith(path)
@@ -115,50 +130,71 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
             })}
           </div>
 
-          {/* Download Backup Button */}
+          {/* Bottom section - different for view mode vs edit mode */}
           <div className="mt-4 pt-4 border-t" style={{ borderColor: `${secondaryBgText}20` }}>
-            <button
-              onClick={handleExport}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70"
-              style={{
-                color: secondaryBgText,
-                opacity: 0.8,
-                backgroundColor: 'transparent',
-                border: `2px solid ${teamColors.primary}`
-              }}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span>Download Backup</span>
-            </button>
+            {isViewOnly ? (
+              /* View mode - show Create Your Dynasty CTA */
+              <Link
+                to="/"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all hover:opacity-90"
+                style={{
+                  backgroundColor: teamColors.primary,
+                  color: primaryBgText
+                }}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Create Your Dynasty</span>
+              </Link>
+            ) : (
+              /* Edit mode - show Download and Share buttons */
+              <>
+                <button
+                  onClick={handleExport}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70"
+                  style={{
+                    color: secondaryBgText,
+                    opacity: 0.8,
+                    backgroundColor: 'transparent',
+                    border: `2px solid ${teamColors.primary}`
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download Backup</span>
+                </button>
 
-            {/* Share Dynasty Button */}
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70 mt-2"
-              style={{
-                color: secondaryBgText,
-                opacity: 0.8,
-                backgroundColor: 'transparent',
-                border: `2px solid ${teamColors.primary}`
-              }}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              <span>Share Dynasty</span>
-            </button>
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70 mt-2"
+                  style={{
+                    color: secondaryBgText,
+                    opacity: 0.8,
+                    backgroundColor: 'transparent',
+                    border: `2px solid ${teamColors.primary}`
+                  }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  <span>Share Dynasty</span>
+                </button>
+              </>
+            )}
           </div>
         </nav>
       </aside>
 
-      {/* Share Dynasty Modal */}
-      <ShareDynastyModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        teamColors={teamColors}
-      />
+      {/* Share Dynasty Modal - only in edit mode */}
+      {!isViewOnly && (
+        <ShareDynastyModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          teamColors={teamColors}
+        />
+      )}
     </>
   )
 }

@@ -2902,3 +2902,5 @@ export function DynastyProvider({ children }) {
     </DynastyContext.Provider>
   )
 }
+
+export default DynastyContext

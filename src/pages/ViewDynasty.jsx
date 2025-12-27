@@ -1,15 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Outlet, Link } from 'react-router-dom'
 import { ViewDynastyProvider, useViewDynasty } from '../context/ViewDynastyContext'
 import { useTeamColors } from '../hooks/useTeamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { getMascotName } from '../data/teams'
-import ViewSidebar from '../components/ViewSidebar'
+import Sidebar from '../components/Sidebar'
 
 function ViewDynastyContent() {
+  const { shareCode } = useParams()
   const { currentDynasty, loading, error } = useViewDynasty()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const teamColors = useTeamColors(currentDynasty?.teamName)
+
+  // Expose sidebar toggle (similar to DynastyDashboard)
+  useEffect(() => {
+    window.toggleDynastySidebar = () => setSidebarOpen(prev => !prev)
+    return () => {
+      delete window.toggleDynastySidebar
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -52,48 +61,41 @@ function ViewDynastyContent() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header bar for mobile */}
-      <div
-        className="lg:hidden sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-lg"
+      {/* Header bar - matches Layout header style */}
+      <header
+        className="sticky top-0 z-50 h-16 px-4 flex items-center justify-between shadow-lg"
         style={{ backgroundColor: teamColors.primary }}
       >
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-lg hover:bg-black/10"
-          style={{ color: primaryBgText }}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-2">
-          <span className="font-bold" style={{ color: primaryBgText }}>
-            {getMascotName(currentDynasty.teamName) || currentDynasty.teamName}
-          </span>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full bg-black/20"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-2 rounded-lg hover:bg-black/10"
             style={{ color: primaryBgText }}
           >
-            View Only
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="font-bold text-lg" style={{ color: primaryBgText }}>
+            {getMascotName(currentDynasty.teamName) || currentDynasty.teamName}
           </span>
         </div>
-        <div className="w-10" /> {/* Spacer */}
-      </div>
+        <div
+          className="px-3 py-1 rounded-full text-sm font-medium"
+          style={{ backgroundColor: 'rgba(0,0,0,0.2)', color: primaryBgText }}
+        >
+          View Only
+        </div>
+      </header>
 
-      {/* View-only banner */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-center py-2 text-sm">
-        <span className="font-medium">You are viewing a shared dynasty</span>
-        <span className="mx-2">|</span>
-        <Link to="/" className="underline hover:no-underline">
-          Create your own dynasty
-        </Link>
-      </div>
-
-      <ViewSidebar
+      <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        dynasty={currentDynasty}
         teamColors={teamColors}
+        currentYear={currentDynasty.currentYear}
+        isViewOnly={true}
+        shareCode={shareCode}
+        dynasty={currentDynasty}
       />
 
       {/* Main content - offset by sidebar width on desktop */}
