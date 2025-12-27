@@ -320,8 +320,9 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
 }
 
 /**
- * Aggregate box score stats from all games into detailedStatsByYear format
- * This enables the dynasty leaderboards to show stats from individual games
+ * Aggregate box score stats from all games into detailedStatsByYear format.
+ * Computes fresh from all box scores each time (no merging to avoid double-counting).
+ * This enables the dynasty leaderboards to show stats from individual games.
  */
 export function aggregateBoxScoreStats(dynasty) {
   if (!dynasty?.games || !dynasty?.players) return {}
@@ -334,7 +335,6 @@ export function aggregateBoxScoreStats(dynasty) {
   players.forEach(p => {
     if (p.name && p.pid) {
       playerNameToPid[p.name] = p.pid
-      // Also store lowercase version for case-insensitive matching
       playerNameToPid[p.name.toLowerCase()] = p.pid
     }
   })
@@ -417,15 +417,15 @@ export function aggregateBoxScoreStats(dynasty) {
     }
   }
 
-  // Aggregate stats by year -> category -> player
-  const statsByYear = {}
+  // Aggregate stats from box scores by year -> category -> player
+  const result = {}
 
   games.forEach(game => {
     if (!game.boxScore) return
     const year = game.year
     if (!year) return
 
-    if (!statsByYear[year]) statsByYear[year] = {}
+    if (!result[year]) result[year] = {}
 
     // Process both home and away teams (user's team stats are in one of these)
     const teamStats = [
@@ -441,26 +441,24 @@ export function aggregateBoxScoreStats(dynasty) {
         if (!categoryData || !Array.isArray(categoryData)) return
 
         const tabName = mapping.tabName
-        if (!statsByYear[year][tabName]) statsByYear[year][tabName] = {}
+        if (!result[year][tabName]) result[year][tabName] = {}
 
         categoryData.forEach(entry => {
           const playerName = entry.playerName
           if (!playerName) return
 
-          // Look up PID
           const pid = playerNameToPid[playerName] || playerNameToPid[playerName.toLowerCase()]
-          if (!pid) return // Skip if we can't find this player in roster
+          if (!pid) return
 
-          if (!statsByYear[year][tabName][pid]) {
-            statsByYear[year][tabName][pid] = { pid, name: playerName }
+          if (!result[year][tabName][pid]) {
+            result[year][tabName][pid] = { pid, name: playerName }
           }
 
-          // Map and aggregate fields
           Object.entries(mapping.fields).forEach(([boxField, expectedField]) => {
             const value = entry[boxField]
             if (typeof value === 'number' && !isNaN(value)) {
-              statsByYear[year][tabName][pid][expectedField] =
-                (statsByYear[year][tabName][pid][expectedField] || 0) + value
+              result[year][tabName][pid][expectedField] =
+                (result[year][tabName][pid][expectedField] || 0) + value
             }
           })
         })
@@ -469,15 +467,15 @@ export function aggregateBoxScoreStats(dynasty) {
   })
 
   // Convert from nested objects to arrays
-  const result = {}
-  Object.entries(statsByYear).forEach(([year, categories]) => {
-    result[year] = {}
+  const finalResult = {}
+  Object.entries(result).forEach(([year, categories]) => {
+    finalResult[year] = {}
     Object.entries(categories).forEach(([category, playerMap]) => {
-      result[year][category] = Object.values(playerMap)
+      finalResult[year][category] = Object.values(playerMap)
     })
   })
 
-  return result
+  return finalResult
 }
 
 /**
