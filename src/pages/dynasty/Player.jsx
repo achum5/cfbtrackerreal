@@ -105,7 +105,10 @@ export default function Player() {
     window.scrollTo(0, 0)
   }, [pid])
 
-  const dynasty = currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId)
+  // In view mode, dynastyId is undefined - just use currentDynasty directly
+  const dynasty = dynastyId
+    ? (currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId))
+    : currentDynasty
   const player = dynasty?.players?.find(p => p.pid === parseInt(pid))
 
   if (!dynasty) {
