@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo } from '../../data/teams'
-import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName, getTeamName } from '../../data/teamAbbreviations'
 import { getPlayerSeasonStatsFromBoxScores } from '../../utils/boxScoreAggregator'
 
 // Stat category definitions with all 51 stats
@@ -148,12 +148,14 @@ export default function DynastyRecords() {
   const getPlayerInfo = (pid) => {
     const player = currentDynasty?.players?.find(p => p.pid === pid)
     // Get the team - use player's team if set, otherwise current dynasty team
-    const playerTeam = player?.team || currentDynasty?.teamName
-    const teamAbbr = getAbbreviationFromDisplayName(playerTeam) || playerTeam
-    const teamLogo = getTeamLogo(playerTeam)
+    const playerTeamRaw = player?.team || currentDynasty?.teamName
+    // player.team is usually an abbreviation, so convert to full name for logo lookup
+    const teamAbbr = getAbbreviationFromDisplayName(playerTeamRaw) || playerTeamRaw
+    const teamFullName = getTeamName(teamAbbr) || playerTeamRaw
+    const teamLogo = getTeamLogo(teamFullName)
     return {
       name: player?.name || `Player ${pid}`,
-      team: playerTeam,
+      team: teamFullName,
       teamAbbr,
       teamLogo
     }
