@@ -85,7 +85,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 11,
+                columnCount: 13,
                 frozenRowCount: 1
               }
             }
@@ -412,7 +412,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           fields: 'userEnteredValue'
         }
       }] : []),
-      // Roster headers (11 columns)
+      // Roster headers (13 columns)
       {
         updateCells: {
           range: {
@@ -420,11 +420,12 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 11
+            endColumnIndex: 13
           },
           rows: [{
             values: [
-              { userEnteredValue: { stringValue: 'Name' } },
+              { userEnteredValue: { stringValue: 'First Name' } },
+              { userEnteredValue: { stringValue: 'Last Name' } },
               { userEnteredValue: { stringValue: 'Position' } },
               { userEnteredValue: { stringValue: 'Class' } },
               { userEnteredValue: { stringValue: 'Dev Trait' } },
@@ -434,7 +435,8 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } }
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Image URL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -637,15 +639,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for Position column in Roster (B2:B86)
+      // Add data validation dropdown for Position column in Roster (C2:C86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 1,
-            endColumnIndex: 2
+            startColumnIndex: 2,
+            endColumnIndex: 3
           },
           rule: {
             condition: {
@@ -679,15 +681,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for Class column in Roster (C2:C86)
+      // Add data validation dropdown for Class column in Roster (D2:D86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 2,
-            endColumnIndex: 3
+            startColumnIndex: 3,
+            endColumnIndex: 4
           },
           rule: {
             condition: {
@@ -708,15 +710,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for Dev Trait column in Roster (D2:D86)
+      // Add data validation dropdown for Dev Trait column in Roster (E2:E86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 3,
-            endColumnIndex: 4
+            startColumnIndex: 4,
+            endColumnIndex: 5
           },
           rule: {
             condition: {
@@ -733,15 +735,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for Archetype column in Roster (F2:F86)
+      // Add data validation dropdown for Archetype column in Roster (G2:G86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 5,
-            endColumnIndex: 6
+            startColumnIndex: 6,
+            endColumnIndex: 7
           },
           rule: {
             condition: {
@@ -807,15 +809,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for Height column in Roster (H2:H86)
+      // Add data validation dropdown for Height column in Roster (I2:I86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 7,
-            endColumnIndex: 8
+            startColumnIndex: 8,
+            endColumnIndex: 9
           },
           rule: {
             condition: {
@@ -835,15 +837,15 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           }
         }
       },
-      // Add data validation dropdown for State column in Roster (K2:K86)
+      // Add data validation dropdown for State column in Roster (L2:L86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 10,
-            endColumnIndex: 11
+            startColumnIndex: 11,
+            endColumnIndex: 12
           },
           rule: {
             condition: {
@@ -882,6 +884,21 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
     // Add conditional formatting rules for CPU Team column (column C, index 2)
     const cpuTeamFormattingRules = generateTeamFormattingRules(scheduleSheetId, 2)
     requests.push(...cpuTeamFormattingRules)
+
+    // Add auto-filter to roster header row for sorting/filtering
+    requests.push({
+      setBasicFilter: {
+        filter: {
+          range: {
+            sheetId: rosterSheetId,
+            startRowIndex: 0,
+            endRowIndex: 86,
+            startColumnIndex: 0,
+            endColumnIndex: 13
+          }
+        }
+      }
+    })
 
     const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
       method: 'POST',
@@ -989,7 +1006,7 @@ export async function createRosterSheet(dynastyName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 11,
+                columnCount: 13,
                 frozenRowCount: 1
               }
             }
@@ -1266,7 +1283,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
   try {
 
     const requests = [
-      // Roster headers (11 columns)
+      // Roster headers (13 columns)
       {
         updateCells: {
           range: {
@@ -1274,11 +1291,12 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 11
+            endColumnIndex: 13
           },
           rows: [{
             values: [
-              { userEnteredValue: { stringValue: 'Name' } },
+              { userEnteredValue: { stringValue: 'First Name' } },
+              { userEnteredValue: { stringValue: 'Last Name' } },
               { userEnteredValue: { stringValue: 'Position' } },
               { userEnteredValue: { stringValue: 'Class' } },
               { userEnteredValue: { stringValue: 'Dev Trait' } },
@@ -1288,7 +1306,8 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } }
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Image URL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1345,15 +1364,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
         }
       },
-      // Add data validation dropdown for Position column in Roster (B2:B86)
+      // Add data validation dropdown for Position column in Roster (C2:C86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 1,
-            endColumnIndex: 2
+            startColumnIndex: 2,
+            endColumnIndex: 3
           },
           rule: {
             condition: {
@@ -1387,15 +1406,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           }
         }
       },
-      // Add data validation dropdown for Class column in Roster (C2:C86)
+      // Add data validation dropdown for Class column in Roster (D2:D86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 2,
-            endColumnIndex: 3
+            startColumnIndex: 3,
+            endColumnIndex: 4
           },
           rule: {
             condition: {
@@ -1416,15 +1435,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           }
         }
       },
-      // Add data validation dropdown for Dev Trait column in Roster (D2:D86)
+      // Add data validation dropdown for Dev Trait column in Roster (E2:E86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 3,
-            endColumnIndex: 4
+            startColumnIndex: 4,
+            endColumnIndex: 5
           },
           rule: {
             condition: {
@@ -1441,15 +1460,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           }
         }
       },
-      // Add data validation dropdown for Archetype column in Roster (F2:F86)
+      // Add data validation dropdown for Archetype column in Roster (G2:G86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 5,
-            endColumnIndex: 6
+            startColumnIndex: 6,
+            endColumnIndex: 7
           },
           rule: {
             condition: {
@@ -1515,15 +1534,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           }
         }
       },
-      // Add data validation dropdown for Height column in Roster (H2:H86)
+      // Add data validation dropdown for Height column in Roster (I2:I86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 7,
-            endColumnIndex: 8
+            startColumnIndex: 8,
+            endColumnIndex: 9
           },
           rule: {
             condition: {
@@ -1543,15 +1562,15 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
           }
         }
       },
-      // Add data validation dropdown for State column in Roster (K2:K86)
+      // Add data validation dropdown for State column in Roster (L2:L86)
       {
         setDataValidation: {
           range: {
             sheetId: rosterSheetId,
             startRowIndex: 1,
             endRowIndex: 86,
-            startColumnIndex: 10,
-            endColumnIndex: 11
+            startColumnIndex: 11,
+            endColumnIndex: 12
           },
           rule: {
             condition: {
@@ -1578,6 +1597,20 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             },
             showCustomUi: true,
             strict: true
+          }
+        }
+      },
+      // Add auto-filter to header row for sorting/filtering
+      {
+        setBasicFilter: {
+          filter: {
+            range: {
+              sheetId: rosterSheetId,
+              startRowIndex: 0,
+              endRowIndex: 86,
+              startColumnIndex: 0,
+              endColumnIndex: 13
+            }
           }
         }
       }
@@ -1659,7 +1692,7 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1673,13 +1706,6 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
 
     const data = await response.json()
     const rows = data.values || []
-
-    // Helper to convert star symbols to number
-    const starsToNumber = (starsStr) => {
-      if (!starsStr) return null
-      const count = (starsStr.match(/☆/g) || []).length
-      return count > 0 ? count : null
-    }
 
     // Helper to normalize height to 6'1" format
     const normalizeHeight = (heightStr) => {
@@ -1701,20 +1727,22 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     }
 
     return rows
-      .filter(row => row[0] && row[6]) // Has name (col A) and overall rating (col G)
+      .filter(row => row[0] && row[7]) // Has first name (col A) and overall rating (col H)
       .map(row => ({
-        name: row[0],
-        position: row[1] || 'QB',
-        year: row[2] || 'Fr',
-        devTrait: row[3] || 'Normal',
-        jerseyNumber: row[4] || '',
-        archetype: row[5] || '',
-        overall: parseInt(row[6]) || 0,
-        height: normalizeHeight(row[7]),
-        weight: row[8] ? parseInt(row[8]) : null,
-        hometown: row[9] || '',
-        state: row[10] || '',
-        stars: starsToNumber(row[11])
+        name: `${row[0] || ''} ${row[1] || ''}`.trim(),  // Combine first + last name
+        firstName: row[0] || '',                          // A: First Name
+        lastName: row[1] || '',                           // B: Last Name
+        position: row[2] || 'QB',                         // C: Position
+        year: row[3] || 'Fr',                             // D: Class
+        devTrait: row[4] || 'Normal',                     // E: Dev Trait
+        jerseyNumber: row[5] || '',                       // F: Jersey #
+        archetype: row[6] || '',                          // G: Archetype
+        overall: parseInt(row[7]) || 0,                   // H: Overall
+        height: normalizeHeight(row[8]),                  // I: Height
+        weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
+        hometown: row[10] || '',                          // K: Hometown
+        state: row[11] || '',                             // L: State
+        pictureUrl: row[12] || ''                          // M: Image URL
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -1730,27 +1758,40 @@ export async function prefillRosterSheet(spreadsheetId, players) {
 
     const accessToken = await getAccessToken()
 
+    // Helper to split name into first and last
+    const splitName = (fullName) => {
+      if (!fullName) return { firstName: '', lastName: '' }
+      const parts = fullName.trim().split(/\s+/)
+      if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+      return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+    }
+
     // Prepare roster data
-    // Columns: Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State
-    const rosterValues = players.map(p => [
-      p.name || '',
-      p.position || '',
-      p.year || '',
-      p.devTrait || 'Normal',
-      p.jerseyNumber || '',
-      p.archetype || '',
-      p.overall || '',
-      p.height || '',
-      p.weight || '',
-      p.hometown || '',
-      p.state || ''
-    ])
+    // Columns: First Name | Last Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Image URL
+    const rosterValues = players.map(p => {
+      const { firstName, lastName } = p.firstName ? { firstName: p.firstName, lastName: p.lastName || '' } : splitName(p.name)
+      return [
+        firstName,
+        lastName,
+        p.position || '',
+        p.year || '',
+        p.devTrait || 'Normal',
+        p.jerseyNumber || '',
+        p.archetype || '',
+        p.overall || '',
+        p.height || '',
+        p.weight || '',
+        p.hometown || '',
+        p.state || '',
+        p.pictureUrl || ''
+      ]
+    })
 
     if (rosterValues.length === 0) return
 
     // Write roster data starting at row 2 (after header)
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:K${rosterValues.length + 1}?valueInputOption=RAW`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -1891,7 +1932,7 @@ export async function readRosterFromSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1905,13 +1946,6 @@ export async function readRosterFromSheet(spreadsheetId) {
 
     const data = await response.json()
     const rows = data.values || []
-
-    // Helper to convert star symbols to number
-    const starsToNumber = (starsStr) => {
-      if (!starsStr) return null
-      const count = (starsStr.match(/☆/g) || []).length
-      return count > 0 ? count : null
-    }
 
     // Helper to normalize height to 6'1" format
     const normalizeHeight = (heightStr) => {
@@ -1950,21 +1984,31 @@ export async function readRosterFromSheet(spreadsheetId) {
       return h
     }
 
+    // Helper to split name into first and last
+    const splitName = (fullName) => {
+      if (!fullName) return { firstName: '', lastName: '' }
+      const parts = fullName.trim().split(/\s+/)
+      if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+      return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+    }
+
     return rows
-      .filter(row => row[0] && row[6]) // Has name (col A) and overall rating (col G)
+      .filter(row => row[0] && row[7]) // Has first name (col A) and overall rating (col H)
       .map(row => ({
-        name: row[0],                              // A: Name
-        position: row[1] || 'QB',                  // B: Position
-        year: row[2] || 'Fr',                      // C: Class
-        devTrait: row[3] || 'Normal',              // D: Dev Trait
-        jerseyNumber: row[4] || '',                // E: Jersey #
-        archetype: row[5] || '',                   // F: Archetype
-        overall: parseInt(row[6]) || 0,            // G: Overall
-        height: normalizeHeight(row[7]),           // H: Height (auto-formats to 6'1")
-        weight: row[8] ? parseInt(row[8]) : null,  // I: Weight
-        hometown: row[9] || '',                    // J: Hometown
-        state: row[10] || '',                      // K: State
-        stars: starsToNumber(row[11])              // L: Recruitment Stars (☆ symbols -> number)
+        name: `${row[0] || ''} ${row[1] || ''}`.trim(),  // Combine first + last name
+        firstName: row[0] || '',                          // A: First Name
+        lastName: row[1] || '',                           // B: Last Name
+        position: row[2] || 'QB',                         // C: Position
+        year: row[3] || 'Fr',                             // D: Class
+        devTrait: row[4] || 'Normal',                     // E: Dev Trait
+        jerseyNumber: row[5] || '',                       // F: Jersey #
+        archetype: row[6] || '',                          // G: Archetype
+        overall: parseInt(row[7]) || 0,                   // H: Overall
+        height: normalizeHeight(row[8]),                  // I: Height (auto-formats to 6'1")
+        weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
+        hometown: row[10] || '',                          // K: Hometown
+        state: row[11] || '',                             // L: State
+        pictureUrl: row[12] || ''                          // M: Image URL
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -2026,21 +2070,33 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       return h
     }
 
-    // Prepare roster data (rows 2-86, columns A-L, 12 columns)
-    const rosterValues = players?.map(player => [
-      player.name || '',                    // A: Name
-      player.position || '',                // B: Position
-      player.year || '',                    // C: Class
-      player.devTrait || 'Normal',          // D: Dev Trait
-      player.jerseyNumber || '',            // E: Jersey #
-      player.archetype || '',               // F: Archetype
-      player.overall || '',                 // G: Overall
-      normalizeHeight(player.height),       // H: Height (normalized to 6'1" format)
-      player.weight || '',                  // I: Weight
-      player.hometown || '',                // J: Hometown
-      player.state || '',                   // K: State
-      numberToStars(player.stars)           // L: Recruitment Stars (number -> ☆ symbols)
-    ]) || []
+    // Helper to split name into first and last
+    const splitName = (fullName) => {
+      if (!fullName) return { firstName: '', lastName: '' }
+      const parts = fullName.trim().split(/\s+/)
+      if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+      return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+    }
+
+    // Prepare roster data (rows 2-86, columns A-M, 13 columns)
+    const rosterValues = players?.map(player => {
+      const { firstName, lastName } = player.firstName ? { firstName: player.firstName, lastName: player.lastName || '' } : splitName(player.name)
+      return [
+        firstName,                            // A: First Name
+        lastName,                             // B: Last Name
+        player.position || '',                // C: Position
+        player.year || '',                    // D: Class
+        player.devTrait || 'Normal',          // E: Dev Trait
+        player.jerseyNumber || '',            // F: Jersey #
+        player.archetype || '',               // G: Archetype
+        player.overall || '',                 // H: Overall
+        normalizeHeight(player.height),       // I: Height (normalized to 6'1" format)
+        player.weight || '',                  // J: Weight
+        player.hometown || '',                // K: Hometown
+        player.state || '',                   // L: State
+        player.pictureUrl || ''               // M: Image URL
+      ]
+    }) || []
 
     // Batch update both sheets
     const requests = []
@@ -2061,10 +2117,10 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       )
     }
 
-    // Write roster data (12 columns)
+    // Write roster data (13 columns)
     if (rosterValues.length > 0) {
       requests.push(
-        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L${rosterValues.length + 1}?valueInputOption=RAW`, {
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -7856,7 +7912,7 @@ const RECRUIT_ARCHETYPES = [
   'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
   'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
   'Lurker', 'Signal Caller', 'Thumper',
-  'Boundary', 'Field', 'Zone',
+  'Boundary', 'Bump and Run', 'Field', 'Zone',
   'Box Specialist', 'Coverage Specialist', 'Hybrid',
   'Accurate', 'Power'
 ]

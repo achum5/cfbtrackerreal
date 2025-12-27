@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty, getCurrentRoster } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -6,49 +6,75 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import RosterEditModal from '../../components/RosterEditModal'
 
+// Helper to get last name for sorting (outside component for stability)
+function getLastName(player) {
+  // Use lastName field if available
+  if (player.lastName) return player.lastName.toLowerCase()
+  // Fall back to extracting from full name (take last word)
+  const name = player.name || ''
+  const parts = name.trim().split(/\s+/)
+  if (parts.length > 1) {
+    return parts[parts.length - 1].toLowerCase()
+  }
+  return (parts[0] || '').toLowerCase()
+}
+
+// Position groups for tabs
+const positionTabs = [
+  'All',
+  'QB',
+  'HB',
+  'FB',
+  'WR',
+  'TE',
+  'LT',
+  'LG',
+  'C',
+  'RG',
+  'RT',
+  'LEDG',
+  'REDG',
+  'DT',
+  'SAM',
+  'MIKE',
+  'WILL',
+  'CB',
+  'FS',
+  'SS',
+  'K',
+  'P'
+]
+
 export default function Roster() {
   const { currentDynasty, saveRoster } = useDynasty()
   const pathPrefix = usePathPrefix()
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState('All')
 
+  // Get team colors - call hook before any conditional returns
+  const teamColors = useTeamColors(currentDynasty?.teamName)
+
+  // Memoize the sorted and filtered players list
+  const filteredPlayers = useMemo(() => {
+    if (!currentDynasty) return []
+
+    const rosterPlayers = getCurrentRoster(currentDynasty)
+    const filtered = selectedPosition === 'All'
+      ? rosterPlayers
+      : rosterPlayers.filter(player => player.position === selectedPosition)
+
+    // Create a new sorted array (don't mutate the original)
+    return [...filtered].sort((a, b) => {
+      const lastA = getLastName(a)
+      const lastB = getLastName(b)
+      return lastA.localeCompare(lastB)
+    })
+  }, [currentDynasty, selectedPosition])
+
   if (!currentDynasty) return null
 
-  const teamColors = useTeamColors(currentDynasty.teamName)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
-
-  // Position groups for tabs
-  const positionTabs = [
-    'All',
-    'QB',
-    'HB',
-    'FB',
-    'WR',
-    'TE',
-    'LT',
-    'LG',
-    'C',
-    'RG',
-    'RT',
-    'LEDG',
-    'REDG',
-    'DT',
-    'SAM',
-    'MIKE',
-    'WILL',
-    'CB',
-    'FS',
-    'SS',
-    'K',
-    'P'
-  ]
-
-  // Use team-centric roster (filtered to current team)
-  const rosterPlayers = getCurrentRoster(currentDynasty)
-  const filteredPlayers = selectedPosition === 'All'
-    ? rosterPlayers
-    : rosterPlayers.filter(player => player.position === selectedPosition)
 
   const handleRosterSave = async (players) => {
     await saveRoster(currentDynasty.id, players)

@@ -369,17 +369,23 @@ export default function Player() {
     return totals
   }
 
-  // Check which stat categories this player has data for
+  // Helper to check if a stat object has any meaningful (non-zero) values
+  const hasNonZeroStats = (statObj, keys) => {
+    if (!statObj) return false
+    return keys.some(key => (statObj[key] || 0) > 0)
+  }
+
+  // Check which stat categories this player has actual recorded stats for
   const hasStats = {
-    passing: yearByYearStats.some(y => y.passing),
-    rushing: yearByYearStats.some(y => y.rushing),
-    receiving: yearByYearStats.some(y => y.receiving),
-    blocking: yearByYearStats.some(y => y.blocking),
-    defensive: yearByYearStats.some(y => y.defensive),
-    kicking: yearByYearStats.some(y => y.kicking),
-    punting: yearByYearStats.some(y => y.punting),
-    kickReturn: yearByYearStats.some(y => y.kickReturn),
-    puntReturn: yearByYearStats.some(y => y.puntReturn)
+    passing: yearByYearStats.some(y => y.passing && hasNonZeroStats(y.passing, ['att', 'cmp', 'yds', 'td'])),
+    rushing: yearByYearStats.some(y => y.rushing && hasNonZeroStats(y.rushing, ['car', 'yds', 'td'])),
+    receiving: yearByYearStats.some(y => y.receiving && hasNonZeroStats(y.receiving, ['rec', 'yds', 'td'])),
+    blocking: yearByYearStats.some(y => y.blocking && hasNonZeroStats(y.blocking, ['sacksAllowed', 'pancakes'])),
+    defensive: yearByYearStats.some(y => y.defensive && hasNonZeroStats(y.defensive, ['solo', 'ast', 'tfl', 'sacks', 'int', 'pdef', 'ff', 'fr'])),
+    kicking: yearByYearStats.some(y => y.kicking && hasNonZeroStats(y.kicking, ['fgm', 'fga', 'xpm', 'xpa'])),
+    punting: yearByYearStats.some(y => y.punting && hasNonZeroStats(y.punting, ['punts', 'yds'])),
+    kickReturn: yearByYearStats.some(y => y.kickReturn && hasNonZeroStats(y.kickReturn, ['ret', 'yds', 'td'])),
+    puntReturn: yearByYearStats.some(y => y.puntReturn && hasNonZeroStats(y.puntReturn, ['ret', 'yds', 'td']))
   }
 
   // Calculate averages
@@ -526,7 +532,7 @@ export default function Player() {
               <button
                 onClick={() => setShowOverallProgressionModal(true)}
                 className="text-5xl md:text-6xl font-bold hover:opacity-80 transition-opacity cursor-pointer"
-                style={{ color: teamColors.secondary }}
+                style={{ color: primaryText }}
                 title="View overall progression"
               >
                 {player.overall}
@@ -537,7 +543,7 @@ export default function Player() {
               <div className="text-xs mb-1" style={{ color: primaryText, opacity: 0.7 }}>OVR</div>
               <div
                 className="text-5xl md:text-6xl font-bold"
-                style={{ color: teamColors.secondary, opacity: 0.3 }}
+                style={{ color: primaryText, opacity: 0.3 }}
               >
                 —
               </div>
@@ -781,7 +787,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.passing).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.passing && hasNonZeroStats(y.passing, ['att', 'cmp', 'yds', 'td'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -848,7 +854,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.rushing).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.rushing && hasNonZeroStats(y.rushing, ['car', 'yds', 'td'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -911,7 +917,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.receiving).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.receiving && hasNonZeroStats(y.receiving, ['rec', 'yds', 'td'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -970,7 +976,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.blocking).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.blocking && hasNonZeroStats(y.blocking, ['sacksAllowed', 'pancakes'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -1021,7 +1027,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.defensive).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.defensive && hasNonZeroStats(y.defensive, ['solo', 'ast', 'tfl', 'sacks', 'int', 'pdef', 'ff', 'fr'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -1092,7 +1098,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.kicking).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.kicking && hasNonZeroStats(y.kicking, ['fgm', 'fga', 'xpm', 'xpa'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -1155,7 +1161,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.punting).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.punting && hasNonZeroStats(y.punting, ['punts', 'yds'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -1214,7 +1220,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.kickReturn).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.kickReturn && hasNonZeroStats(y.kickReturn, ['ret', 'yds', 'td'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (
@@ -1267,7 +1273,7 @@ export default function Player() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.puntReturn).map((y, idx) => {
+                    {yearByYearStats.filter(y => y.puntReturn && hasNonZeroStats(y.puntReturn, ['ret', 'yds', 'td'])).map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       return (

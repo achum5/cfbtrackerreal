@@ -156,13 +156,14 @@ Use dot notation for nested fields in production:
   - STRICT dropdown validation for teams and site (Home/Road/Neutral)
   - Conditional formatting applies team colors to abbreviations
 
-- **Roster Tab** (11 columns): Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State
+- **Roster Tab** (13 columns): First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL
   - 85 rows for players
   - STRICT dropdowns for Position, Class, Dev Trait, Archetype, Height, State
+  - Auto-filter enabled on header row for sorting/filtering
 
 **Data Sync Process** (in `ScheduleEntryModal.jsx`):
 1. `readScheduleFromSheet()` - Reads schedule data, auto-converts team abbreviations to uppercase
-2. `readRosterFromSheet()` - Reads roster data
+2. `readRosterFromSheet()` - Reads roster data, parses First Name + Last Name into `name`, `firstName`, `lastName` fields
 3. `onSave(schedule)` → `saveSchedule()` in DynastyContext:
    - Stores in `schedulesByTeamYear[teamAbbr][year]`
    - Sets `preseasonSetup.scheduleEntered = true` (dot notation in Firestore)
@@ -171,6 +172,11 @@ Use dot notation for nested fields in production:
    - After preseason: Merges with existing, continues PID sequence from `nextPID`
    - Tags each player with `team: teamAbbr`
    - Sets `preseasonSetup.rosterEntered = true`
+
+**Player Fields**:
+- `name` - Full name (combined from firstName + lastName)
+- `firstName`, `lastName` - Separate name fields for sorting
+- `pictureUrl` - Player image URL (synced from Image URL column)
 
 **Key Functions**:
 - `createDynastySheet()` - Creates new Sheet with Schedule/Roster tabs

@@ -229,10 +229,20 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       // Get stats for the default year
       const yearStats = getYearStats(defaultYear)
 
+      // Helper to split name into first and last
+      const splitName = (fullName) => {
+        if (!fullName) return { firstName: '', lastName: '' }
+        const parts = fullName.trim().split(/\s+/)
+        if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+        return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+      }
+      const { firstName: derivedFirst, lastName: derivedLast } = splitName(player.name)
+
       setFormData({
         // Basic Info
         pictureUrl: player.pictureUrl || '',
-        name: player.name || '',
+        firstName: player.firstName || derivedFirst || '',
+        lastName: player.lastName || derivedLast || '',
         position: player.position || '',
         archetype: player.archetype || '',
         school: player.school || defaultSchool || '',
@@ -507,7 +517,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     const updatedPlayer = {
       ...player,
       pictureUrl: formData.pictureUrl,
-      name: formData.name,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      name: `${formData.firstName || ''} ${formData.lastName || ''}`.trim(),
       position: formData.position,
       archetype: formData.archetype,
       school: formData.school,
@@ -566,7 +578,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
     'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
     'Lurker', 'Signal Caller', 'Thumper',
-    'Boundary', 'Field', 'Zone',
+    'Boundary', 'Bump and Run', 'Field', 'Zone',
     'Box Specialist', 'Coverage Specialist', 'Hybrid',
     'Accurate', 'Power'
   ]
@@ -707,9 +719,13 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Name</label>
-                      <input type="text" name="name" value={formData.name ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>First Name</label>
+                      <input type="text" name="firstName" value={formData.firstName ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Last Name</label>
+                      <input type="text" name="lastName" value={formData.lastName ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Jersey #</label>
