@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getTeamLogo } from '../../data/teams'
@@ -167,6 +168,7 @@ const getMascotName = (abbr) => {
 export default function Teams() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [searchQuery, setSearchQuery] = useState('')
 
   if (!currentDynasty) return null
@@ -254,7 +256,7 @@ export default function Teams() {
             return (
               <Link
                 key={team.abbr}
-                to={`/dynasty/${id}/team/${team.abbr}`}
+                to={`${pathPrefix}/team/${team.abbr}`}
                 className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.02] transition-transform"
                 style={{
                   backgroundColor: team.backgroundColor,

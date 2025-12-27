@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -184,6 +185,7 @@ export default function AllConference() {
   const { id, year: urlYear, conference: urlConference } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [filter, setFilter] = useState('all') // 'all', 'first', 'second', 'freshman'
   const [showEditModal, setShowEditModal] = useState(false)
   const teamColors = useTeamColors(currentDynasty?.teamName)
@@ -272,11 +274,11 @@ export default function AllConference() {
 
   // Navigate when dropdowns change
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/all-conference/${year}/${encodeConference(displayConference)}`)
+    navigate(`${pathPrefix}/all-conference/${year}/${encodeConference(displayConference)}`)
   }
 
   const handleConferenceChange = (conf) => {
-    navigate(`/dynasty/${id}/all-conference/${displayYear}/${encodeConference(conf)}`)
+    navigate(`${pathPrefix}/all-conference/${displayYear}/${encodeConference(conf)}`)
   }
 
   // Handle save from modal - transforms and saves all-conference data grouped by conference
@@ -399,7 +401,7 @@ export default function AllConference() {
         {/* Team Logo */}
         {teamLogo && (
           <Link
-            to={`/dynasty/${id}/team/${player.school}`}
+            to={`${pathPrefix}/team/${player.school}`}
             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform"
             style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
           >
@@ -415,7 +417,7 @@ export default function AllConference() {
         <div className="flex-1 min-w-0">
           {hasPlayerPage ? (
             <Link
-              to={`/dynasty/${id}/player/${matchingPlayer.pid}`}
+              to={`${pathPrefix}/player/${matchingPlayer.pid}`}
               className="font-bold truncate block hover:underline"
               style={{ color: textColor }}
             >

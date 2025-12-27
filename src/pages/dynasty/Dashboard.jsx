@@ -5552,7 +5552,7 @@ export default function Dashboard() {
                 return (
                   <Link
                     key={index}
-                    to={`/dynasty/${currentDynasty.id}/game/${playedGame.id}`}
+                    to={`${pathPrefix}/game/${playedGame.id}`}
                     className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                     style={wrapperStyle}
                   >
@@ -5687,7 +5687,7 @@ export default function Dashboard() {
                 const gameId = ccGame.id || `cc-${currentDynasty.currentYear}`
                 return (
                   <Link
-                    to={`/dynasty/${currentDynasty.id}/game/${gameId}`}
+                    to={`${pathPrefix}/game/${gameId}`}
                     className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                     style={ccWrapperStyle}
                   >
@@ -5818,7 +5818,7 @@ export default function Dashboard() {
                 const gameId = userBowlGameData.id || `bowl-${currentDynasty.currentYear}-${bowlSlug}`
                 return (
                   <Link
-                    to={`/dynasty/${currentDynasty.id}/game/${gameId}`}
+                    to={`${pathPrefix}/game/${gameId}`}
                     className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                     style={bowlWrapperStyle}
                   >
@@ -5853,7 +5853,7 @@ export default function Dashboard() {
               // Link to game page for CFP First Round
               return (
                 <Link
-                  to={`/dynasty/${currentDynasty.id}/game/${cfpFirstRoundGame.id}`}
+                  to={`${pathPrefix}/game/${cfpFirstRoundGame.id}`}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                   style={{
                     backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
@@ -5914,7 +5914,7 @@ export default function Dashboard() {
               // Link to game page for CFP Quarterfinal
               return (
                 <Link
-                  to={`/dynasty/${currentDynasty.id}/game/${cfpQFGame.id}`}
+                  to={`${pathPrefix}/game/${cfpQFGame.id}`}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                   style={{
                     backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
@@ -5974,7 +5974,7 @@ export default function Dashboard() {
               // Link to game page for CFP Semifinal
               return (
                 <Link
-                  to={`/dynasty/${currentDynasty.id}/game/${cfpSFGame.id}`}
+                  to={`${pathPrefix}/game/${cfpSFGame.id}`}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                   style={{
                     backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
@@ -6034,7 +6034,7 @@ export default function Dashboard() {
               // Link to game page for CFP Championship
               return (
                 <Link
-                  to={`/dynasty/${currentDynasty.id}/game/${cfpChampGame.id}`}
+                  to={`${pathPrefix}/game/${cfpChampGame.id}`}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
                   style={{
                     backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',

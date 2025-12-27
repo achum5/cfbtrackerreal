@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -181,6 +182,7 @@ export default function AllAmericans() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [filter, setFilter] = useState('all') // 'all', 'first', 'second', 'freshman'
 
   if (!currentDynasty) return null
@@ -203,7 +205,7 @@ export default function AllAmericans() {
 
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/all-americans/${year}`)
+    navigate(`${pathPrefix}/all-americans/${year}`)
   }
 
   // No data yet
@@ -285,7 +287,7 @@ export default function AllAmericans() {
         {/* Team Logo */}
         {teamLogo && (
           <Link
-            to={`/dynasty/${id}/team/${player.school}`}
+            to={`${pathPrefix}/team/${player.school}`}
             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform"
             style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
           >
@@ -301,7 +303,7 @@ export default function AllAmericans() {
         <div className="flex-1 min-w-0">
           {hasPlayerPage ? (
             <Link
-              to={`/dynasty/${id}/player/${matchingPlayer.pid}`}
+              to={`${pathPrefix}/player/${matchingPlayer.pid}`}
               className="font-bold truncate block hover:underline"
               style={{ color: textColor }}
             >

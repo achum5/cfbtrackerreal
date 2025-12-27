@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -91,6 +92,7 @@ const getTeamColorsFromName = (teamName) => {
 export default function CoachCareer() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false)
   const [showGamesModal, setShowGamesModal] = useState(false)
   const [gamesModalType, setGamesModalType] = useState(null) // 'favorite' or 'underdog'
@@ -629,7 +631,7 @@ export default function CoachCareer() {
                           return (
                             <Link
                               key={`${year}-${game.week}-${index}`}
-                              to={`/dynasty/${id}/game/${game.id}`}
+                              to={`${pathPrefix}/game/${game.id}`}
                               className="flex items-center justify-between p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
                               style={{
                                 backgroundColor: opponentColors.backgroundColor,

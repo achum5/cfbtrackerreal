@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty, getLockedCoachingStaff } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -211,6 +212,7 @@ export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty, addGame, saveRoster } = useDynasty()
+  const pathPrefix = usePathPrefix()
   // Note: We use the viewed team's colors, not the user's team colors
   const selectedYear = parseInt(year)
 
@@ -261,7 +263,7 @@ export default function TeamYear() {
             Team Not Found
           </h1>
           <Link
-            to={`/dynasty/${id}/teams`}
+            to={`${pathPrefix}/teams`}
             className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold"
             style={{
               backgroundColor: '#1f2937',
@@ -883,7 +885,7 @@ export default function TeamYear() {
         <div className="flex items-center gap-2">
           {/* History Link */}
           <Link
-            to={`/dynasty/${id}/team/${teamAbbr}`}
+            to={`${pathPrefix}/team/${teamAbbr}`}
             className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
             style={{
               backgroundColor: teamInfo.backgroundColor,
@@ -901,7 +903,7 @@ export default function TeamYear() {
           {isUserTeam && currentDynasty.teamStatsByYear?.[selectedYear] &&
             Object.keys(currentDynasty.teamStatsByYear[selectedYear]).length > 0 && (
             <Link
-              to={`/dynasty/${id}/stats`}
+              to={`${pathPrefix}/stats`}
               className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
               style={{
                 backgroundColor: teamInfo.backgroundColor,
@@ -922,7 +924,7 @@ export default function TeamYear() {
           {/* Team Dropdown */}
           <select
             value={teamAbbr}
-            onChange={(e) => navigate(`/dynasty/${id}/team/${e.target.value}/${selectedYear}`)}
+            onChange={(e) => navigate(`${pathPrefix}/team/${e.target.value}/${selectedYear}`)}
             className="flex-1 sm:flex-none px-2 sm:px-3 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 text-sm sm:text-base"
             style={{
               backgroundColor: teamInfo.backgroundColor,
@@ -940,7 +942,7 @@ export default function TeamYear() {
           {/* Year Dropdown */}
           <select
             value={selectedYear}
-            onChange={(e) => navigate(`/dynasty/${id}/team/${teamAbbr}/${e.target.value}`)}
+            onChange={(e) => navigate(`${pathPrefix}/team/${teamAbbr}/${e.target.value}`)}
             className="px-2 sm:px-3 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 text-sm sm:text-base"
             style={{
               backgroundColor: teamInfo.backgroundColor,
@@ -1288,7 +1290,7 @@ export default function TeamYear() {
               const bowlGameId = teamBowlGame.id || `bowl-${selectedYear}-${(teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')}`
               return (
                 <Link
-                  to={`/dynasty/${id}/game/${bowlGameId}`}
+                  to={`${pathPrefix}/game/${bowlGameId}`}
                   className="inline-flex items-center gap-1 sm:gap-1.5 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                   style={{
                     backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
@@ -1472,7 +1474,7 @@ export default function TeamYear() {
                     </div>
                     {matchingPlayer && !isCoachAward ? (
                       <Link
-                        to={`/dynasty/${id}/player/${matchingPlayer.pid}`}
+                        to={`${pathPrefix}/player/${matchingPlayer.pid}`}
                         className="font-bold text-base hover:underline"
                         style={{ color: teamInfo.textColor }}
                       >
@@ -1568,7 +1570,7 @@ export default function TeamYear() {
               {sortedTeamPlayers.map((player) => (
                 <Link
                   key={player.pid}
-                  to={`/dynasty/${id}/player/${player.pid}`}
+                  to={`${pathPrefix}/player/${player.pid}`}
                   className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
                   style={{
                     borderColor: `${teamInfo.textColor}40`,
@@ -1685,7 +1687,7 @@ export default function TeamYear() {
                       key={player.pid}
                       className="hover:opacity-80 cursor-pointer transition-opacity"
                       style={{ borderBottom: `1px solid ${teamInfo.textColor}15` }}
-                      onClick={() => navigate(`/dynasty/${id}/player/${player.pid}`)}
+                      onClick={() => navigate(`${pathPrefix}/player/${player.pid}`)}
                     >
                       <td className="py-2 px-2 text-center font-bold" style={{ color: teamBgText }}>
                         {player.jerseyNumber || '-'}
@@ -1695,7 +1697,7 @@ export default function TeamYear() {
                           {/* Player Image */}
                           {player.pictureUrl && (
                             <Link
-                              to={`/dynasty/${id}/player/${player.pid}`}
+                              to={`${pathPrefix}/player/${player.pid}`}
                               className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden block"
                               style={{ border: `2px solid ${teamInfo.textColor}` }}
                               onClick={(e) => e.stopPropagation()}
@@ -1708,7 +1710,7 @@ export default function TeamYear() {
                             </Link>
                           )}
                           <Link
-                            to={`/dynasty/${id}/player/${player.pid}`}
+                            to={`${pathPrefix}/player/${player.pid}`}
                             className="font-semibold hover:underline"
                             style={{ color: teamBgText }}
                             onClick={(e) => e.stopPropagation()}
@@ -1871,7 +1873,7 @@ export default function TeamYear() {
                       </span>
                       {oppLogo && (
                         <Link
-                          to={`/dynasty/${id}/team/${game.opponent}/${selectedYear}`}
+                          to={`${pathPrefix}/team/${game.opponent}/${selectedYear}`}
                           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform"
                           style={{
                             backgroundColor: '#FFFFFF',
@@ -1894,7 +1896,7 @@ export default function TeamYear() {
                           </span>
                         )}
                         <Link
-                          to={`/dynasty/${id}/team/${game.opponent}/${selectedYear}`}
+                          to={`${pathPrefix}/team/${game.opponent}/${selectedYear}`}
                           className="font-semibold hover:underline text-sm sm:text-base truncate"
                           style={{ color: oppColors.textColor }}
                           onClick={(e) => e.stopPropagation()}
@@ -1939,7 +1941,7 @@ export default function TeamYear() {
                 return (
                   <Link
                     key={index}
-                    to={`/dynasty/${id}/game/${properGameId}`}
+                    to={`${pathPrefix}/game/${properGameId}`}
                     className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 block ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
                     style={{
                       backgroundColor: oppColors.backgroundColor,
@@ -2011,7 +2013,7 @@ export default function TeamYear() {
               const ccGameId = teamCCGame?.id || `cc-${selectedYear}`
               const WrapperComponent = hasResult ? Link : 'div'
               const wrapperProps = hasResult ? {
-                to: `/dynasty/${id}/game/${ccGameId}`,
+                to: `${pathPrefix}/game/${ccGameId}`,
                 className: 'flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block',
                 style: {
                   backgroundColor: ccOppColors.backgroundColor,
@@ -2285,7 +2287,7 @@ export default function TeamYear() {
               {teamPlayers.map((player) => (
                 <Link
                   key={player.pid}
-                  to={`/dynasty/${id}/player/${player.pid}`}
+                  to={`${pathPrefix}/player/${player.pid}`}
                   className="flex items-center gap-2 sm:gap-3 p-2 rounded hover:opacity-80 transition-opacity"
                   style={{ backgroundColor: `${viewedTeamColors.primary}10` }}
                 >

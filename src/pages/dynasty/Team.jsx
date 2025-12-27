@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -199,6 +200,7 @@ export default function Team() {
   const { id, teamAbbr } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [showGamesModal, setShowGamesModal] = useState(false)
 
   // Scroll to top when navigating to this page
@@ -236,7 +238,7 @@ export default function Team() {
             The team "{teamAbbr}" was not found.
           </p>
           <Link
-            to={`/dynasty/${id}/teams`}
+            to={`${pathPrefix}/teams`}
             className="inline-block mt-4 px-4 py-2 rounded-lg font-semibold bg-gray-700 text-white hover:bg-gray-800"
           >
             Back to Teams
@@ -607,7 +609,7 @@ export default function Team() {
         {/* Team Dropdown */}
         <select
           value={teamAbbr}
-          onChange={(e) => navigate(`/dynasty/${id}/team/${e.target.value}`)}
+          onChange={(e) => navigate(`${pathPrefix}/team/${e.target.value}`)}
           className="px-3 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 ml-auto"
           style={{
             backgroundColor: teamInfo.backgroundColor,
@@ -702,7 +704,7 @@ export default function Team() {
             return (
               <Link
                 key={yr.year}
-                to={`/dynasty/${id}/team/${teamAbbr}/${yr.year}`}
+                to={`${pathPrefix}/team/${teamAbbr}/${yr.year}`}
                 className="p-4 rounded-lg text-center transition-transform hover:scale-[1.02]"
                 style={{
                   backgroundColor: isNationalChamp
@@ -1019,7 +1021,7 @@ export default function Team() {
                     return (
                       <Link
                         key={game.id || idx}
-                        to={`/dynasty/${id}/game/${game.id}`}
+                        to={`${pathPrefix}/game/${game.id}`}
                         className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
                         style={{
                           backgroundColor: isWin ? '#16a34a15' : '#dc262615',

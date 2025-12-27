@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 
 // Position groups for filtering
 const POSITION_GROUPS = {
@@ -30,6 +31,7 @@ const DEV_TRAIT_COLORS = {
 export default function Players() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [sortBy, setSortBy] = useState('overall')
@@ -285,7 +287,7 @@ export default function Players() {
                     >
                       <td className="px-4 py-3">
                         <Link
-                          to={`/dynasty/${id}/player/${player.pid}`}
+                          to={`${pathPrefix}/player/${player.pid}`}
                           className="font-semibold text-blue-600 hover:underline flex items-center gap-2"
                         >
                           {player.jerseyNumber && (

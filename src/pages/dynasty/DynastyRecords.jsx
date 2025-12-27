@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 
@@ -125,6 +126,7 @@ const STAT_CATEGORIES = {
 export default function DynastyRecords() {
   const { id: dynastyId } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [mode, setMode] = useState(() => {
     // Restore mode from localStorage
     return localStorage.getItem('leaderboard-mode') || 'career'
@@ -727,7 +729,7 @@ export default function DynastyRecords() {
                                           />
                                         )}
                                         <Link
-                                          to={`/dynasty/${dynastyId}/player/${entry.pid}`}
+                                          to={`${pathPrefix}/player/${entry.pid}`}
                                           className="font-medium hover:underline truncate max-w-[100px] text-blue-600"
                                           title={entry.name}
                                         >

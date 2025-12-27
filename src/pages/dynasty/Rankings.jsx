@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -168,6 +169,7 @@ export default function Rankings() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
 
   if (!currentDynasty) return null
 
@@ -190,7 +192,7 @@ export default function Rankings() {
 
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/rankings/${year}`)
+    navigate(`${pathPrefix}/rankings/${year}`)
   }
 
   // No polls yet
@@ -219,7 +221,7 @@ export default function Rankings() {
 
     return (
       <Link
-        to={`/dynasty/${id}/team/${teamAbbr}/${year}`}
+        to={`${pathPrefix}/team/${teamAbbr}/${year}`}
         className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.02] transition-transform"
         style={{
           backgroundColor: bgColor,

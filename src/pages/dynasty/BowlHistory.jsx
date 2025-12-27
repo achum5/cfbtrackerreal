@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { bowlLogos, getAllBowlNames } from '../../data/bowlLogos'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -91,6 +92,7 @@ const getMascotName = (abbr) => {
 export default function BowlHistory() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedBowl, setExpandedBowl] = useState(null)
 
@@ -436,7 +438,7 @@ export default function BowlHistory() {
                       return (
                         <Link
                           key={`${game.year}-${idx}`}
-                          to={`/dynasty/${id}/game/${gameId}`}
+                          to={`${pathPrefix}/game/${gameId}`}
                           className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform border-2 border-gray-300"
                         >
                           {/* Year */}

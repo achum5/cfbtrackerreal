@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamColors } from '../../data/teamColors'
@@ -66,6 +67,7 @@ export default function Recruiting() {
   const { currentDynasty } = useDynasty()
   const { teamAbbr: urlTeamAbbr, year: urlYear } = useParams()
   const navigate = useNavigate()
+  const pathPrefix = usePathPrefix()
   const location = useLocation()
 
   // View mode: 'both' (default), 'hs', 'portal'
@@ -108,7 +110,7 @@ export default function Recruiting() {
   // Redirect to team-specific URL if on base /recruiting route
   useEffect(() => {
     if (!urlTeamAbbr && currentTeamAbbr && currentDynasty?.currentYear) {
-      navigate(`/dynasty/${currentDynasty.id}/recruiting/${currentTeamAbbr}/${currentDynasty.currentYear}`, { replace: true })
+      navigate(`${pathPrefix}/recruiting/${currentTeamAbbr}/${currentDynasty.currentYear}`, { replace: true })
     }
   }, [urlTeamAbbr, currentTeamAbbr, currentDynasty?.id, currentDynasty?.currentYear, navigate])
 
@@ -129,7 +131,7 @@ export default function Recruiting() {
 
   // Handle year change - navigate to new URL
   const handleYearChange = (newYear) => {
-    navigate(`/dynasty/${currentDynasty.id}/recruiting/${teamAbbr}/${newYear}`)
+    navigate(`${pathPrefix}/recruiting/${teamAbbr}/${newYear}`)
   }
 
   // Change view mode (both/hs/portal)
@@ -541,7 +543,7 @@ export default function Recruiting() {
               return player ? (
                 <Link
                   key={`${recruit.name}-${index}`}
-                  to={`/dynasty/${currentDynasty.id}/player/${player.pid}`}
+                  to={`${pathPrefix}/player/${player.pid}`}
                   className="block"
                 >
                   {cardContent}

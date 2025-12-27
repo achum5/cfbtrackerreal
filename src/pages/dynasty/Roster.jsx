@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useDynasty, getCurrentRoster } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import RosterEditModal from '../../components/RosterEditModal'
 
 export default function Roster() {
   const { currentDynasty, saveRoster } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState('All')
 
@@ -142,7 +144,7 @@ export default function Roster() {
               {filteredPlayers.map((player) => (
                 <Link
                   key={player.id}
-                  to={`/dynasty/${currentDynasty.id}/player/${player.pid}`}
+                  to={`${pathPrefix}/player/${player.pid}`}
                   className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
                   style={{
                     borderColor: `${teamColors.primary}40`,
@@ -209,7 +211,7 @@ export default function Roster() {
                       </td>
                       <td className="py-2 px-3 font-semibold" style={{ color: secondaryBgText }}>
                         <Link
-                          to={`/dynasty/${currentDynasty.id}/player/${player.pid}`}
+                          to={`${pathPrefix}/player/${player.pid}`}
                           className="hover:underline"
                           style={{ color: teamColors.primary }}
                         >

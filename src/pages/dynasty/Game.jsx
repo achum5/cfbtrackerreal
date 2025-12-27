@@ -5,6 +5,7 @@ import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/te
 import { getTeamColors } from '../../data/teamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { useDynasty, getCurrentTeamRatings } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 // useTeamColors not needed - using neutral colors for game recap
 import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -173,6 +174,7 @@ export default function Game() {
   const { id, gameId } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   // Get team-centric team ratings
   const teamRatings = getCurrentTeamRatings(currentDynasty)
   // Use neutral colors for game recap pages instead of user's team colors
@@ -676,7 +678,7 @@ export default function Game() {
         <div className="px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex items-center justify-center gap-4 sm:gap-8">
             {/* Left Team */}
-            <Link to={`/dynasty/${id}/team/${leftData.abbr}/${game.year}`} className="group flex-1">
+            <Link to={`${pathPrefix}/team/${leftData.abbr}/${game.year}`} className="group flex-1">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div
                   className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center p-1.5 sm:p-2 group-hover:scale-105 transition-transform shadow-lg flex-shrink-0 bg-white"
@@ -722,7 +724,7 @@ export default function Game() {
             </div>
 
             {/* Right Team */}
-            <Link to={`/dynasty/${id}/team/${rightData.abbr}/${game.year}`} className="group flex-1">
+            <Link to={`${pathPrefix}/team/${rightData.abbr}/${game.year}`} className="group flex-1">
               <div className="flex items-center justify-end gap-2 sm:gap-3">
                 <div className="text-right">
                   <div className="text-white font-bold text-xs sm:text-sm md:text-base group-hover:underline">
@@ -875,7 +877,7 @@ export default function Game() {
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
                                     {colIdx === 0 && playerPID ? (
-                                      <Link to={`/dynasty/${id}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                      <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
                                         {value}
                                       </Link>
                                     ) : value}
@@ -920,7 +922,7 @@ export default function Game() {
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
                                     {colIdx === 0 && playerPID ? (
-                                      <Link to={`/dynasty/${id}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                      <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
                                         {value}
                                       </Link>
                                     ) : value}
@@ -1038,7 +1040,7 @@ export default function Game() {
                             </div>
                             <div className="text-gray-300 text-xs mt-1">
                               {scorerPID ? (
-                                <Link to={`/dynasty/${id}/player/${scorerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                <Link to={`${pathPrefix}/player/${scorerPID}`} className="font-medium hover:underline hover:text-blue-300">
                                   {play.scorer}
                                 </Link>
                               ) : <span className="font-medium">{play.scorer}</span>}
@@ -1046,7 +1048,7 @@ export default function Game() {
                                 <>
                                   {' from '}
                                   {passerPID ? (
-                                    <Link to={`/dynasty/${id}/player/${passerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                    <Link to={`${pathPrefix}/player/${passerPID}`} className="font-medium hover:underline hover:text-blue-300">
                                       {play.passer}
                                     </Link>
                                   ) : <span className="font-medium">{play.passer}</span>}
@@ -1183,7 +1185,7 @@ export default function Game() {
                             <div className="text-[9px] text-gray-500 uppercase">Offensive</div>
                             {getPlayerPID(game.conferencePOW) ? (
                               <Link
-                                to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
+                                to={`${pathPrefix}/player/${getPlayerPID(game.conferencePOW)}`}
                                 className="font-bold text-white text-sm hover:underline truncate block"
                               >
                                 {game.conferencePOW}
@@ -1208,7 +1210,7 @@ export default function Game() {
                             <div className="text-[9px] text-gray-500 uppercase">Defensive</div>
                             {getPlayerPID(game.confDefensePOW) ? (
                               <Link
-                                to={`/dynasty/${id}/player/${getPlayerPID(game.confDefensePOW)}`}
+                                to={`${pathPrefix}/player/${getPlayerPID(game.confDefensePOW)}`}
                                 className="font-bold text-white text-sm hover:underline truncate block"
                               >
                                 {game.confDefensePOW}
@@ -1238,7 +1240,7 @@ export default function Game() {
                             <div className="text-[9px] text-yellow-400/70 uppercase">Offensive</div>
                             {getPlayerPID(game.nationalPOW) ? (
                               <Link
-                                to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
+                                to={`${pathPrefix}/player/${getPlayerPID(game.nationalPOW)}`}
                                 className="font-bold text-yellow-300 text-sm hover:underline truncate block"
                               >
                                 {game.nationalPOW}
@@ -1260,7 +1262,7 @@ export default function Game() {
                             <div className="text-[9px] text-yellow-400/70 uppercase">Defensive</div>
                             {getPlayerPID(game.natlDefensePOW) ? (
                               <Link
-                                to={`/dynasty/${id}/player/${getPlayerPID(game.natlDefensePOW)}`}
+                                to={`${pathPrefix}/player/${getPlayerPID(game.natlDefensePOW)}`}
                                 className="font-bold text-yellow-300 text-sm hover:underline truncate block"
                               >
                                 {game.natlDefensePOW}

@@ -1,5 +1,6 @@
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -208,6 +209,7 @@ export default function Awards() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
 
   if (!currentDynasty) return null
 
@@ -223,7 +225,7 @@ export default function Awards() {
 
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/awards/${year}`)
+    navigate(`${pathPrefix}/awards/${year}`)
   }
 
   // No awards yet
@@ -281,7 +283,7 @@ export default function Awards() {
           {/* Team Logo */}
           {teamLogo && (
             <Link
-              to={`/dynasty/${id}/team/${awardData.team}/${displayYear}`}
+              to={`${pathPrefix}/team/${awardData.team}/${displayYear}`}
               className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-105 transition-transform"
               style={{ backgroundColor: '#FFFFFF', padding: '2px' }}
             >
@@ -297,7 +299,7 @@ export default function Awards() {
           <div className="flex-1 min-w-0">
             {hasPlayerPage ? (
               <Link
-                to={`/dynasty/${id}/player/${matchingPlayer.pid}`}
+                to={`${pathPrefix}/player/${matchingPlayer.pid}`}
                 className="font-bold text-lg truncate block hover:underline"
                 style={{ color: textColor }}
               >
@@ -314,7 +316,7 @@ export default function Awards() {
               </div>
             )}
             <Link
-              to={`/dynasty/${id}/team/${awardData.team}/${displayYear}`}
+              to={`${pathPrefix}/team/${awardData.team}/${displayYear}`}
               className="text-sm hover:underline"
               style={{ color: textColor, opacity: 0.7 }}
             >

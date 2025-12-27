@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useEffect, useState, useMemo } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
@@ -94,6 +95,7 @@ const getPrimaryStatCategory = (position) => {
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
   const { dynasties, currentDynasty, updatePlayer } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAccoladeModal, setShowAccoladeModal] = useState(false)
   const [accoladeType, setAccoladeType] = useState(null)
@@ -457,7 +459,7 @@ export default function Player() {
 
               <div className="flex items-center gap-2 mb-2">
                 <Link
-                  to={`/dynasty/${dynastyId}/team/${teamAbbr}`}
+                  to={`${pathPrefix}/team/${teamAbbr}`}
                   className="inline-flex items-center gap-1.5 text-sm font-semibold hover:underline"
                   style={{ color: primaryText, opacity: 0.9 }}
                 >
@@ -741,7 +743,7 @@ export default function Player() {
             )}
           </div>
           <Link
-            to={`/dynasty/${dynastyId}/recruiting/${playerTeamAbbr}/${player.recruitYear || dynasty.currentYear}`}
+            to={`${pathPrefix}/recruiting/${playerTeamAbbr}/${player.recruitYear || dynasty.currentYear}`}
             className="text-sm font-medium hover:underline"
             style={{ color: teamColors.primary }}
           >
@@ -1583,7 +1585,7 @@ export default function Player() {
                 return (
                   <Link
                     key={game.id || index}
-                    to={`/dynasty/${dynastyId}/game/${game.id}`}
+                    to={`${pathPrefix}/game/${game.id}`}
                     className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 rounded-lg border-2 gap-2 sm:gap-0 hover:opacity-90 transition-opacity text-left"
                     style={{ backgroundColor: opponentBgColor, borderColor: isWin ? '#86efac' : '#fca5a5' }}
                   >

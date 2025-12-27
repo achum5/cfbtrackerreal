@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
@@ -130,6 +131,7 @@ export default function ConferenceStandings() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [expandedConference, setExpandedConference] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -151,7 +153,7 @@ export default function ConferenceStandings() {
 
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/conference-standings/${year}`)
+    navigate(`${pathPrefix}/conference-standings/${year}`)
   }
 
   // Get standings for selected year
@@ -330,7 +332,7 @@ export default function ConferenceStandings() {
                                     </td>
                                     <td className="py-2 px-2">
                                       <Link
-                                        to={`/dynasty/${id}/team/${teamAbbr}/${displayYear}`}
+                                        to={`${pathPrefix}/team/${teamAbbr}/${displayYear}`}
                                         className="flex items-center gap-2 hover:opacity-80"
                                       >
                                         {logo && (

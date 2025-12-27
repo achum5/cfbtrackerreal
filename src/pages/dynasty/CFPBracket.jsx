@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDynasty } from '../../context/DynastyContext'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo } from '../../data/teams'
@@ -115,6 +116,7 @@ export default function CFPBracket() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty, addGame } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const teamColors = useTeamColors(currentDynasty?.teamName)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingGameData, setEditingGameData] = useState(null)
@@ -141,7 +143,7 @@ export default function CFPBracket() {
 
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
-    navigate(`/dynasty/${id}/cfp-bracket/${year}`)
+    navigate(`${pathPrefix}/cfp-bracket/${year}`)
   }
   const cfpSeeds = currentDynasty.cfpSeedsByYear?.[displayYear] || []
   const textColor = getContrastTextColor(teamColors.primary)
@@ -276,7 +278,7 @@ export default function CFPBracket() {
         <div className="flex-1 truncate">
           {team ? (
             <Link
-              to={`/dynasty/${id}/team/${team}/${displayYear}`}
+              to={`${pathPrefix}/team/${team}/${displayYear}`}
               onClick={(e) => e.stopPropagation()}
               className="text-xl font-semibold hover:underline"
               style={{ color: txtColor }}
@@ -337,7 +339,7 @@ export default function CFPBracket() {
     if (hasResult && gameId) {
       return (
         <Link
-          to={`/dynasty/${id}/game/${gameId}`}
+          to={`${pathPrefix}/game/${gameId}`}
           className="absolute flex flex-col cursor-pointer hover:opacity-90 transition-opacity"
           style={{ gap: `${SLOT_GAP}px`, ...style }}
         >

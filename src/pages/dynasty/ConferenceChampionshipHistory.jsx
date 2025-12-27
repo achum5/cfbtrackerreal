@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
@@ -105,6 +106,7 @@ const CONFERENCES = [
 export default function ConferenceChampionshipHistory() {
   const { id } = useParams()
   const { currentDynasty } = useDynasty()
+  const pathPrefix = usePathPrefix()
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedConference, setExpandedConference] = useState(null)
   // Modal state removed - now using game pages instead
@@ -284,7 +286,7 @@ export default function ConferenceChampionshipHistory() {
                       return (
                         <Link
                           key={`${game.year}-${idx}`}
-                          to={`/dynasty/${id}/game/${gameId}`}
+                          to={`${pathPrefix}/game/${gameId}`}
                           className="flex items-center gap-3 p-3 rounded-lg bg-white hover:scale-[1.01] transition-transform cursor-pointer block border-2 border-gray-300"
                         >
                           {/* Year */}
