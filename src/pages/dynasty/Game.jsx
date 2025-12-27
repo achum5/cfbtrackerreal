@@ -663,15 +663,17 @@ export default function Game() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm bg-black/20 text-white hover:bg-black/30 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <span className="hidden sm:inline">Edit</span>
-          </button>
+          {!pathPrefix.startsWith('/view/') && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm bg-black/20 text-white hover:bg-black/30 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <span className="hidden sm:inline">Edit</span>
+            </button>
+          )}
         </div>
 
         {/* Compact Scoreboard */}
@@ -1096,10 +1098,10 @@ export default function Game() {
 
           {/* Team Matchup Card */}
           {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
-            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg" style={{ background: `linear-gradient(135deg, ${leftData.colors.primary}15 0%, ${rightData.colors.primary}15 100%)` }}>
-              <div className="px-4 py-3 border-b" style={{ borderColor: `${leftData.colors.primary}30` }}>
-                <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg bg-gray-800">
+              <div className="px-4 py-3 border-b border-gray-700">
+                <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                   Team Ratings
@@ -1122,24 +1124,24 @@ export default function Game() {
                         {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-gray-800 text-sm truncate">{team.name}</div>
+                        <div className="font-bold text-white text-sm truncate">{team.name}</div>
                         <div className="flex gap-3 mt-1">
                           {ratings.ovr && (
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-gray-400 font-medium">OVR</span>
-                              <span className="font-black text-gray-800">{ratings.ovr}</span>
+                              <span className="font-black text-white">{ratings.ovr}</span>
                             </div>
                           )}
                           {ratings.off && (
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-gray-400 font-medium">OFF</span>
-                              <span className="font-bold text-green-600">{ratings.off}</span>
+                              <span className="font-bold text-green-400">{ratings.off}</span>
                             </div>
                           )}
                           {ratings.def && (
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-gray-400 font-medium">DEF</span>
-                              <span className="font-bold text-red-600">{ratings.def}</span>
+                              <span className="font-bold text-red-400">{ratings.def}</span>
                             </div>
                           )}
                         </div>
