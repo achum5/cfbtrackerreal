@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getPlayersNeedingClassConfirmation } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { useTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogo } from '../data/teams'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teamAbbreviations } from '../data/teamAbbreviations'
+import ClassAdvancementModal from './ClassAdvancementModal'
 import logo from '../assets/logo.png'
 
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentDynasty, advanceWeek, revertWeek } = useDynasty()
+  const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek } = useDynasty()
   const { user, signOut } = useAuth()
   const [showWeekDropdown, setShowWeekDropdown] = useState(false)
+  const [showClassAdvancementModal, setShowClassAdvancementModal] = useState(false)
+  const [playersNeedingConfirmation, setPlayersNeedingConfirmation] = useState([])
 
   const handleSignOut = async () => {
     try {
@@ -156,8 +159,38 @@ export default function Layout({ children }) {
       }
     }
 
+    // Check if advancing from offseason week 7 (season advancement)
+    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 7) {
+      // Check for players needing class confirmation
+      const playersNeeding = getPlayersNeedingClassConfirmation(currentDynasty)
+
+      if (playersNeeding.length > 0) {
+        // Show modal to confirm class advancement
+        setPlayersNeedingConfirmation(playersNeeding)
+        setShowClassAdvancementModal(true)
+        setShowWeekDropdown(false)
+        return
+      } else {
+        // No players need confirmation, advance directly
+        advanceToNewSeason(currentDynasty.id, {})
+        advanceWeek(currentDynasty.id)
+        setShowWeekDropdown(false)
+        return
+      }
+    }
+
     advanceWeek(currentDynasty.id)
     setShowWeekDropdown(false)
+  }
+
+  // Handle class advancement confirmation from modal
+  const handleClassAdvancementConfirm = async (confirmations) => {
+    if (!currentDynasty) return
+
+    // First apply the season advancement with confirmations
+    await advanceToNewSeason(currentDynasty.id, confirmations)
+    // Then advance the week
+    await advanceWeek(currentDynasty.id)
   }
 
   const handleRevertWeek = () => {
@@ -382,6 +415,15 @@ export default function Layout({ children }) {
       <main className={`flex-1 px-4 py-6 ${isDynastyPage ? '' : 'container mx-auto'}`}>
         {children}
       </main>
+
+      {/* Class Advancement Modal - shown when advancing to new season with players needing confirmation */}
+      <ClassAdvancementModal
+        isOpen={showClassAdvancementModal}
+        onClose={() => setShowClassAdvancementModal(false)}
+        onConfirm={handleClassAdvancementConfirm}
+        players={playersNeedingConfirmation}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

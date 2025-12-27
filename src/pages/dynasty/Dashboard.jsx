@@ -43,6 +43,7 @@ import PositionChangesModal from '../../components/PositionChangesModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
 import EncourageTransfersModal from '../../components/EncourageTransfersModal'
+import RecruitOverallsModal from '../../components/RecruitOverallsModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -101,6 +102,7 @@ export default function Dashboard() {
   const [showTrainingResultsModal, setShowTrainingResultsModal] = useState(false)
   const [showEncourageTransfersModal, setShowEncourageTransfersModal] = useState(false)
   const [showOffseasonConferencesModal, setShowOffseasonConferencesModal] = useState(false)
+  const [showRecruitOverallsModal, setShowRecruitOverallsModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -922,6 +924,44 @@ export default function Dashboard() {
     })
 
     console.log(`Updated ${updatedCount} player overalls from training results`)
+  }
+
+  // Handle recruiting class overalls save
+  const handleRecruitOverallsSave = async (results) => {
+    const year = currentDynasty.currentYear
+
+    // Update recruit overalls in the players array
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    let updatedCount = 0
+
+    results.forEach(result => {
+      // Find player by name (case-insensitive match) among recruits
+      const playerIndex = updatedPlayers.findIndex(p =>
+        p.isRecruit &&
+        p.recruitYear === year &&
+        normalizePlayerName(p.name) === normalizePlayerName(result.playerName)
+      )
+      if (playerIndex !== -1 && result.overall) {
+        updatedPlayers[playerIndex] = {
+          ...updatedPlayers[playerIndex],
+          overall: result.overall
+        }
+        updatedCount++
+      }
+    })
+
+    // Store recruit overalls for history
+    const existingResults = currentDynasty.recruitOverallsByYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      recruitOverallsByYear: {
+        ...existingResults,
+        [year]: results
+      }
+    })
+
+    console.log(`Updated ${updatedCount} recruit overalls`)
   }
 
   // Get the commitment key based on phase and week
@@ -5046,6 +5086,17 @@ export default function Dashboard() {
               const hasTrainingResultsData = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length > 0
               const trainingResultsCount = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length || 0
 
+              // Get recruits for Recruiting Class Overalls task
+              // These are players marked as recruits from this recruiting year
+              const allPlayers = currentDynasty?.players || []
+              const recruitingClassPlayers = allPlayers.filter(p =>
+                p.isRecruit &&
+                p.recruitYear === currentDynasty.currentYear &&
+                (!p.team || p.team === teamAbbr)
+              )
+              const hasRecruitOverallsData = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length > 0
+              const recruitOverallsCount = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length || 0
+
               return (
                 <>
                   <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
@@ -5091,6 +5142,48 @@ export default function Dashboard() {
                         {hasTrainingResultsData ? 'Edit' : 'Enter'}
                       </button>
                     </div>
+
+                    {/* Task 2: Recruiting Class Overalls */}
+                    {recruitingClassPlayers.length > 0 && (
+                      <div
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                          hasRecruitOverallsData ? 'border-green-200 bg-green-50' : ''
+                        }`}
+                        style={!hasRecruitOverallsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              hasRecruitOverallsData ? 'bg-green-500 text-white' : ''
+                            }`}
+                            style={!hasRecruitOverallsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          >
+                            {hasRecruitOverallsData ? (
+                              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : <span className="font-bold text-sm sm:text-base">2</span>}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm sm:text-base font-semibold" style={{ color: hasRecruitOverallsData ? '#16a34a' : secondaryBgText }}>
+                              Recruiting Class Overalls
+                            </div>
+                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasRecruitOverallsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              {hasRecruitOverallsData
+                                ? `✓ ${recruitOverallsCount} recruit overall${recruitOverallsCount !== 1 ? 's' : ''} entered`
+                                : `Enter overalls for ${recruitingClassPlayers.length} recruit${recruitingClassPlayers.length !== 1 ? 's' : ''}`}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowRecruitOverallsModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasRecruitOverallsData ? 'Edit' : 'Enter'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               )
@@ -6710,6 +6803,25 @@ export default function Dashboard() {
           })
 
           return [...returningPlayers, ...portalTransfers]
+        })()}
+      />
+
+      {/* Recruit Overalls Modal (Training Camp - Offseason Week 6) */}
+      <RecruitOverallsModal
+        isOpen={showRecruitOverallsModal}
+        onClose={() => setShowRecruitOverallsModal(false)}
+        onSave={handleRecruitOverallsSave}
+        currentYear={currentDynasty?.currentYear}
+        teamColors={teamColors}
+        recruits={(() => {
+          // Get recruits for current year (high schoolers and transfers)
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const allPlayers = currentDynasty?.players || []
+          return allPlayers.filter(p =>
+            p.isRecruit &&
+            p.recruitYear === currentDynasty?.currentYear &&
+            (!p.team || p.team === teamAbbr)
+          )
         })()}
       />
 

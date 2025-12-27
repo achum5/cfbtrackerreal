@@ -412,6 +412,24 @@ export default function Player() {
                     Commitment
                   </span>
                 )}
+                {player.leftTeam && (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                    style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
+                  >
+                    {player.leftReason === 'Pro Draft' && player.draftRound
+                      ? `${player.leftYear} NFL Draft - Round ${player.draftRound}`
+                      : player.leftReason === 'Pro Draft'
+                      ? `${player.leftYear} NFL Draft`
+                      : player.leftReason === 'Graduating'
+                      ? `Graduated (${player.leftYear})`
+                      : player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
+                      ? `Transferred (${player.leftYear})`
+                      : player.leftReason
+                      ? `${player.leftReason} (${player.leftYear})`
+                      : `Left Team (${player.leftYear})`}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: primaryText, opacity: 0.85 }}>
