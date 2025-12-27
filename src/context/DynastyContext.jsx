@@ -320,6 +320,167 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
 }
 
 /**
+ * Aggregate box score stats from all games into detailedStatsByYear format
+ * This enables the dynasty leaderboards to show stats from individual games
+ */
+export function aggregateBoxScoreStats(dynasty) {
+  if (!dynasty?.games || !dynasty?.players) return {}
+
+  const games = dynasty.games || []
+  const players = dynasty.players || []
+
+  // Create a lookup map from player name to PID
+  const playerNameToPid = {}
+  players.forEach(p => {
+    if (p.name && p.pid) {
+      playerNameToPid[p.name] = p.pid
+      // Also store lowercase version for case-insensitive matching
+      playerNameToPid[p.name.toLowerCase()] = p.pid
+    }
+  })
+
+  // Mapping from box score field names to expected detailedStatsByYear field names
+  const fieldMappings = {
+    passing: {
+      tabName: 'Passing',
+      fields: {
+        comp: 'Completions',
+        attempts: 'Attempts',
+        yards: 'Yards',
+        tD: 'Touchdowns',
+        iNT: 'Interceptions'
+      }
+    },
+    rushing: {
+      tabName: 'Rushing',
+      fields: {
+        carries: 'Carries',
+        yards: 'Yards',
+        tD: 'Touchdowns'
+      }
+    },
+    receiving: {
+      tabName: 'Receiving',
+      fields: {
+        receptions: 'Receptions',
+        yards: 'Yards',
+        tD: 'Touchdowns'
+      }
+    },
+    defense: {
+      tabName: 'Defensive',
+      fields: {
+        solo: 'Solo Tackles',
+        assists: 'Assisted Tackles',
+        tFL: 'Tackles for Loss',
+        sack: 'Sacks',
+        iNT: 'Interceptions',
+        iNTYards: 'INT Return Yards',
+        tD: 'Defensive TDs',
+        deflections: 'Deflections',
+        fF: 'Forced Fumbles',
+        blocks: 'Blocks',
+        safeties: 'Safeties'
+      }
+    },
+    kicking: {
+      tabName: 'Kicking',
+      fields: {
+        xPA: 'XP Attempted',
+        xPM: 'XP Made',
+        fGA: 'FG Attempted',
+        fGM: 'FG Made'
+      }
+    },
+    punting: {
+      tabName: 'Punting',
+      fields: {
+        punts: 'Punts',
+        yards: 'Punting Yards'
+      }
+    },
+    kickReturn: {
+      tabName: 'Kick Return',
+      fields: {
+        kR: 'Kickoff Returns',
+        yards: 'KR Yardage',
+        tD: 'KR Touchdowns'
+      }
+    },
+    puntReturn: {
+      tabName: 'Punt Return',
+      fields: {
+        pR: 'Punt Returns',
+        yards: 'PR Yardage',
+        tD: 'PR Touchdowns'
+      }
+    }
+  }
+
+  // Aggregate stats by year -> category -> player
+  const statsByYear = {}
+
+  games.forEach(game => {
+    if (!game.boxScore) return
+    const year = game.year
+    if (!year) return
+
+    if (!statsByYear[year]) statsByYear[year] = {}
+
+    // Process both home and away teams (user's team stats are in one of these)
+    const teamStats = [
+      { side: 'home', data: game.boxScore.home },
+      { side: 'away', data: game.boxScore.away }
+    ]
+
+    teamStats.forEach(({ data }) => {
+      if (!data) return
+
+      Object.entries(fieldMappings).forEach(([boxCategory, mapping]) => {
+        const categoryData = data[boxCategory]
+        if (!categoryData || !Array.isArray(categoryData)) return
+
+        const tabName = mapping.tabName
+        if (!statsByYear[year][tabName]) statsByYear[year][tabName] = {}
+
+        categoryData.forEach(entry => {
+          const playerName = entry.playerName
+          if (!playerName) return
+
+          // Look up PID
+          const pid = playerNameToPid[playerName] || playerNameToPid[playerName.toLowerCase()]
+          if (!pid) return // Skip if we can't find this player in roster
+
+          if (!statsByYear[year][tabName][pid]) {
+            statsByYear[year][tabName][pid] = { pid, name: playerName }
+          }
+
+          // Map and aggregate fields
+          Object.entries(mapping.fields).forEach(([boxField, expectedField]) => {
+            const value = entry[boxField]
+            if (typeof value === 'number' && !isNaN(value)) {
+              statsByYear[year][tabName][pid][expectedField] =
+                (statsByYear[year][tabName][pid][expectedField] || 0) + value
+            }
+          })
+        })
+      })
+    })
+  })
+
+  // Convert from nested objects to arrays
+  const result = {}
+  Object.entries(statsByYear).forEach(([year, categories]) => {
+    result[year] = {}
+    Object.entries(categories).forEach(([category, playerMap]) => {
+      result[year][category] = Object.values(playerMap)
+    })
+  })
+
+  return result
+}
+
+/**
  * Check if user is on a new team (first year coaching this team)
  */
 export function isFirstYearOnTeam(dynasty) {
@@ -616,9 +777,33 @@ export function DynastyProvider({ children }) {
       return obj
     }
 
+    // If games are being updated, re-aggregate box score stats for leaderboards
+    let finalUpdates = { ...updates }
+    if (updates.games) {
+      // Get the current dynasty data to combine with updated games
+      // Try localStorage first (most up-to-date), fall back to state
+      const localData = localStorage.getItem('cfb-dynasties')
+      const localDynasties = localData ? JSON.parse(localData) : null
+      const existingDynasty = localDynasties
+        ? localDynasties.find(d => String(d.id) === String(dynastyId))
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+
+      if (existingDynasty) {
+        // Create a temp dynasty with updated games to aggregate stats
+        const tempDynasty = {
+          ...existingDynasty,
+          games: updates.games
+        }
+        const aggregatedStats = aggregateBoxScoreStats(tempDynasty)
+        if (Object.keys(aggregatedStats).length > 0) {
+          finalUpdates.detailedStatsByYear = aggregatedStats
+        }
+      }
+    }
+
     // Add lastModified timestamp to all updates and sanitize
     const updatesWithTimestamp = removeUndefined({
-      ...updates,
+      ...finalUpdates,
       lastModified: Date.now()
     })
 
