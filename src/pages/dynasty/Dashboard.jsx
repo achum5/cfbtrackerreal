@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -55,7 +55,11 @@ const normalizePlayerName = (name) => {
 export default function Dashboard() {
   const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers, isViewOnly } = useDynasty()
   const { user } = useAuth()
+  const { id: dynastyId, shareCode } = useParams()
   const teamColors = useTeamColors(currentDynasty?.teamName)
+
+  // Build path prefix for links based on view mode
+  const pathPrefix = isViewOnly ? `/view/${shareCode}` : `/dynasty/${dynastyId}`
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
   const primaryBgText = getContrastTextColor(teamColors.primary)
 
@@ -1433,7 +1437,7 @@ export default function Dashboard() {
             }}
           >
             <Link
-              to={`/dynasty/${currentDynasty.id}/team/${getAbbreviationFromDisplayName(currentDynasty.teamName)}/${currentDynasty.currentYear}`}
+              to={`${pathPrefix}/team/${getAbbreviationFromDisplayName(currentDynasty.teamName)}/${currentDynasty.currentYear}`}
               className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0"
             >
               {getTeamLogo(currentDynasty.teamName) && (
@@ -1476,19 +1480,21 @@ export default function Dashboard() {
                   <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>DEF</div>
                   <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.defense}</div>
                 </div>
-                <button
-                  onClick={() => setShowTeamRatingsModal(true)}
-                  className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-                  style={{ color: primaryBgText }}
-                  title="Edit Team Ratings"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
+                {!isViewOnly && (
+                  <button
+                    onClick={() => setShowTeamRatingsModal(true)}
+                    className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    style={{ color: primaryBgText }}
+                    title="Edit Team Ratings"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
 
                 {/* Coaching Staff Popup (HC only) */}
-                {currentDynasty.coachPosition === 'HC' && teamCoachingStaff && (
+                {!isViewOnly && currentDynasty.coachPosition === 'HC' && teamCoachingStaff && (
                   <div className="relative">
                     <button
                       onClick={() => setShowCoachingStaffPopup(!showCoachingStaffPopup)}
