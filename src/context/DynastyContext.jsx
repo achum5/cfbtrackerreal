@@ -1510,19 +1510,42 @@ export function DynastyProvider({ children }) {
       }
     })
 
+    // Detect if first year on new team (for preseason roster entry)
+    const previousYearTeam = dynasty.coachTeamByYear?.[currentYear]?.team
+    const isFirstYearOnTeam = previousYearTeam !== teamAbbr
+
+    // Initialize empty preseason setup for the new year
+    // In subsequent years (not first year on team), we don't need roster entry
+    // Schedule and team ratings always need to be re-entered each year
+    const existingPreseasonSetup = dynasty.preseasonSetupByTeamYear || {}
+    const teamPreseasonSetup = existingPreseasonSetup[teamAbbr] || {}
+
+    const newYearPreseasonSetup = {
+      scheduleEntered: false,
+      rosterEntered: !isFirstYearOnTeam, // Skip roster entry if continuing with same team
+      teamRatingsEntered: false,
+      coachingStaffEntered: false,
+      conferencesEntered: true // Conferences were set in offseason week 7
+    }
+
     // Prepare updates
     const updates = {
-      players: updatedPlayers
+      players: updatedPlayers,
+      isFirstYearOnCurrentTeam: isFirstYearOnTeam,
+      // Initialize preseason setup for new year using team-centric pattern
+      preseasonSetupByTeamYear: {
+        ...existingPreseasonSetup,
+        [teamAbbr]: {
+          ...teamPreseasonSetup,
+          [nextYear]: newYearPreseasonSetup
+        }
+      }
     }
 
     // Apply custom conferences for next year if set
     if (dynasty.customConferencesByYear?.[nextYear]) {
       updates.customConferences = dynasty.customConferencesByYear[nextYear]
     }
-
-    // Detect if first year on new team (for preseason roster entry)
-    const previousYearTeam = dynasty.coachTeamByYear?.[currentYear]?.team
-    updates.isFirstYearOnCurrentTeam = previousYearTeam !== teamAbbr
 
     await updateDynasty(dynastyId, updates)
   }
