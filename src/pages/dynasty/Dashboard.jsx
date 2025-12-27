@@ -1618,17 +1618,18 @@ export default function Dashboard() {
                 action: () => setShowTeamRatingsModal(true),
                 actionText: teamPreseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
-              {
+              // Only show Custom Conferences in first year of dynasty (not in subsequent years)
+              ...(currentDynasty.currentYear === currentDynasty.startYear ? [{
                 num: 4,
                 title: 'Custom Conferences',
                 done: teamPreseasonSetup?.conferencesEntered,
                 conferences: currentDynasty.customConferences,
                 action: () => setShowConferencesModal(true),
                 actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
-              },
+              }] : []),
               // Only show coaching staff task for Head Coaches
               ...(currentDynasty.coachPosition === 'HC' ? [{
-                num: 5,
+                num: currentDynasty.currentYear === currentDynasty.startYear ? 5 : 4,
                 title: 'Enter Coordinators',
                 done: teamPreseasonSetup?.coachingStaffEntered,
                 coachingStaff: teamCoachingStaff,
@@ -1639,8 +1640,11 @@ export default function Dashboard() {
               (() => {
                 const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
                 const preseasonCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]?.['preseason']
+                const isFirstYear = currentDynasty.currentYear === currentDynasty.startYear
+                const baseNum = isFirstYear ? 5 : 4
+                const numWithCoach = currentDynasty.coachPosition === 'HC' ? baseNum + 1 : baseNum
                 return {
-                  num: currentDynasty.coachPosition === 'HC' ? 6 : 5,
+                  num: numWithCoach,
                   title: 'Any commitments this week?',
                   isRecruiting: true,
                   done: preseasonCommitments !== undefined,
