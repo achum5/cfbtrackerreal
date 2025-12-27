@@ -709,11 +709,12 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
           )}
 
           {/* Player of the Week Honors */}
-          {(game.conferencePOW || game.nationalPOW) && (
+          {(game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW) && (
             <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
               <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Player of the Week Honors</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
-                {game.conferencePOW && (
+                {/* Conference POW Section */}
+                {(game.conferencePOW || game.confDefensePOW) && (
                   <div
                     className="rounded-lg p-3 sm:p-4 border-2"
                     style={{
@@ -721,54 +722,99 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
                       borderColor: teamColors.primary
                     }}
                   >
-                    <div className="text-xs sm:text-sm font-semibold text-gray-600 mb-1 sm:mb-2">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">
                       Conference Player of the Week
                     </div>
-                    {getPlayerPID(game.conferencePOW) ? (
-                      <Link
-                        to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.conferencePOW)}`}
-                        className="text-base sm:text-xl font-bold hover:underline truncate block"
-                        style={{ color: teamColors.primary }}
-                      >
-                        {game.conferencePOW}
-                      </Link>
-                    ) : (
-                      <div
-                        className="text-base sm:text-xl font-bold truncate"
-                        style={{ color: teamColors.primary }}
-                      >
-                        {game.conferencePOW}
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      {game.conferencePOW && (
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase">Offensive</div>
+                          {getPlayerPID(game.conferencePOW) ? (
+                            <Link
+                              to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.conferencePOW)}`}
+                              className="text-sm sm:text-base font-bold hover:underline truncate block"
+                              style={{ color: teamColors.primary }}
+                            >
+                              {game.conferencePOW}
+                            </Link>
+                          ) : (
+                            <div className="text-sm sm:text-base font-bold truncate" style={{ color: teamColors.primary }}>
+                              {game.conferencePOW}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {game.confDefensePOW && (
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase">Defensive</div>
+                          {getPlayerPID(game.confDefensePOW) ? (
+                            <Link
+                              to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.confDefensePOW)}`}
+                              className="text-sm sm:text-base font-bold hover:underline truncate block"
+                              style={{ color: teamColors.secondary }}
+                            >
+                              {game.confDefensePOW}
+                            </Link>
+                          ) : (
+                            <div className="text-sm sm:text-base font-bold truncate" style={{ color: teamColors.secondary }}>
+                              {game.confDefensePOW}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-                {game.nationalPOW && (
+                {/* National POW Section */}
+                {(game.nationalPOW || game.natlDefensePOW) && (
                   <div
                     className="rounded-lg p-3 sm:p-4 border-2"
                     style={{
-                      backgroundColor: `${teamColors.primary}10`,
-                      borderColor: teamColors.primary
+                      backgroundColor: '#fef3c710',
+                      borderColor: '#fbbf24'
                     }}
                   >
-                    <div className="text-xs sm:text-sm font-semibold text-gray-600 mb-1 sm:mb-2">
+                    <div className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">
                       National Player of the Week
                     </div>
-                    {getPlayerPID(game.nationalPOW) ? (
-                      <Link
-                        to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.nationalPOW)}`}
-                        className="text-base sm:text-xl font-bold hover:underline truncate block"
-                        style={{ color: teamColors.primary }}
-                      >
-                        {game.nationalPOW}
-                      </Link>
-                    ) : (
-                      <div
-                        className="text-base sm:text-xl font-bold truncate"
-                        style={{ color: teamColors.primary }}
-                      >
-                        {game.nationalPOW}
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      {game.nationalPOW && (
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase">Offensive</div>
+                          {getPlayerPID(game.nationalPOW) ? (
+                            <Link
+                              to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.nationalPOW)}`}
+                              className="text-sm sm:text-base font-bold hover:underline truncate block"
+                              style={{ color: '#d97706' }}
+                            >
+                              {game.nationalPOW}
+                            </Link>
+                          ) : (
+                            <div className="text-sm sm:text-base font-bold truncate" style={{ color: '#d97706' }}>
+                              {game.nationalPOW}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {game.natlDefensePOW && (
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase">Defensive</div>
+                          {getPlayerPID(game.natlDefensePOW) ? (
+                            <Link
+                              to={`/dynasty/${currentDynasty.id}/player/${getPlayerPID(game.natlDefensePOW)}`}
+                              className="text-sm sm:text-base font-bold hover:underline truncate block"
+                              style={{ color: '#b45309' }}
+                            >
+                              {game.natlDefensePOW}
+                            </Link>
+                          ) : (
+                            <div className="text-sm sm:text-base font-bold truncate" style={{ color: '#b45309' }}>
+                              {game.natlDefensePOW}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

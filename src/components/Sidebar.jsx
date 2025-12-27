@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
+import ShareDynastyModal from './ShareDynastyModal'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear }) {
   const location = useLocation()
   const { currentDynasty, exportDynasty } = useDynasty()
+  const [showShareModal, setShowShareModal] = useState(false)
   const primaryBgText = getContrastTextColor(teamColors.primary)
   const secondaryBgText = getContrastTextColor(teamColors.secondary)
 
@@ -129,9 +132,33 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
               </svg>
               <span>Download Backup</span>
             </button>
+
+            {/* Share Dynasty Button */}
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all hover:opacity-70 mt-2"
+              style={{
+                color: secondaryBgText,
+                opacity: 0.8,
+                backgroundColor: 'transparent',
+                border: `2px solid ${teamColors.primary}`
+              }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span>Share Dynasty</span>
+            </button>
           </div>
         </nav>
       </aside>
+
+      {/* Share Dynasty Modal */}
+      <ShareDynastyModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        teamColors={teamColors}
+      />
     </>
   )
 }

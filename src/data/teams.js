@@ -142,6 +142,13 @@ export const teams = [
   "Wyoming Cowboys"
 ]
 
+// Helper function to get mascot/full team name from abbreviation
+export function getMascotName(abbr) {
+  if (!abbr) return null
+  const teamData = teamAbbreviations[abbr.toUpperCase()]
+  return teamData?.name || null
+}
+
 // Helper function to get team logo URL
 export function getTeamLogo(teamName) {
   // Check if this is an FCS team with a custom logo

@@ -167,11 +167,16 @@ export default function BoxScoreSheetModal({
 
           let sheetInfo
           if (sheetType === 'scoring') {
+            // Pass roster to home or away based on which is user's team
+            const homeRoster = isUserHome ? roster : []
+            const awayRoster = isUserHome ? [] : roster
             sheetInfo = await createScoringSummarySheet(
               homeTeamAbbr,
               awayTeamAbbr,
               year,
-              week
+              week,
+              homeRoster,
+              awayRoster
             )
           } else {
             sheetInfo = await createGameBoxScoreSheet(
@@ -264,26 +269,8 @@ export default function BoxScoreSheetModal({
       }
       await onSave(data)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from game
-      if (currentDynasty && game?.id) {
-        const games = [...(currentDynasty.games || [])]
-        const gameIndex = games.findIndex(g => g.id === game.id)
-        if (gameIndex !== -1) {
-          games[gameIndex] = {
-            ...games[gameIndex],
-            [config.sheetIdKey]: null
-          }
-          await updateDynasty(currentDynasty.id, { games })
-        }
-      }
-
-      // Notify parent that sheet was deleted
-      if (onSheetCreated) {
-        onSheetCreated(null)
-      }
 
       setSheetId(null)
       setShowDeletedNote(true)
@@ -353,12 +340,19 @@ export default function BoxScoreSheetModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            {config.title}
-          </h2>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+              {config.title}
+            </h2>
+            {sheetType !== 'scoring' && (
+              <p className="text-xs mt-1" style={{ color: teamColors.primary, opacity: 0.7 }}>
+                Reminder: This is not mandatory to be entered every game. You will have the option to enter all player season stats at the end of the season.
+              </p>
+            )}
+          </div>
           <button
             onClick={handleClose}
-            className="hover:opacity-70"
+            className="hover:opacity-70 ml-4"
             style={{ color: teamColors.primary }}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

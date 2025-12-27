@@ -94,6 +94,51 @@ export function getAllPlayers(dynasty) {
 }
 
 /**
+ * Get games for the current team only
+ * IMPORTANT: This filters by userTeam to ensure team-centric data when coach switches teams
+ * @param {Object} dynasty - The dynasty object
+ * @param {number} [year] - Optional year filter (defaults to all years for current team)
+ * @returns {Array} Games played by the current team
+ */
+export function getCurrentTeamGames(dynasty, year = null) {
+  if (!dynasty) return []
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const allGames = dynasty.games || []
+
+  return allGames.filter(g => {
+    // CPU games (team1/team2 matchups) are not tied to a specific user team
+    if (g.isCPUGame) return false
+
+    // Check if game belongs to current team
+    const gameTeam = g.userTeam
+    const belongsToCurrentTeam = gameTeam === teamAbbr ||
+      gameTeam === dynasty.teamName ||
+      (!gameTeam) // Legacy games without userTeam belong to current team if user hasn't switched
+
+    if (!belongsToCurrentTeam) return false
+
+    // Optionally filter by year
+    if (year !== null) {
+      return Number(g.year) === Number(year)
+    }
+
+    return true
+  })
+}
+
+/**
+ * Find a specific game for the current team
+ * @param {Object} dynasty - The dynasty object
+ * @param {Function} predicate - Filter function (receives game object)
+ * @returns {Object|undefined} The matching game or undefined
+ */
+export function findCurrentTeamGame(dynasty, predicate) {
+  const teamGames = getCurrentTeamGames(dynasty)
+  return teamGames.find(predicate)
+}
+
+/**
  * Get preseason setup flags for current team and year
  */
 export function getCurrentPreseasonSetup(dynasty) {

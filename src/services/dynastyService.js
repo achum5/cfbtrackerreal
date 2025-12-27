@@ -128,6 +128,44 @@ export async function getDynasty(dynastyId) {
   }
 }
 
+// Get a public dynasty by share code (no authentication required)
+export async function getPublicDynastyByShareCode(shareCode) {
+  try {
+    const q = query(
+      collection(db, DYNASTIES_COLLECTION),
+      where('shareCode', '==', shareCode),
+      where('isPublic', '==', true)
+    )
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) {
+      return null
+    }
+
+    const docSnap = snapshot.docs[0]
+    const data = docSnap.data()
+    // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
+    const { id: _, ...cleanData } = data
+    return {
+      id: docSnap.id,
+      ...cleanData
+    }
+  } catch (error) {
+    console.error('Error fetching public dynasty:', error)
+    throw error
+  }
+}
+
+// Generate a unique share code
+export function generateShareCode() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
 // Migrate localStorage data to Firestore for a user
 export async function migrateLocalStorageData(userId) {
   try {

@@ -122,8 +122,8 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
     try {
       const data = await readAllAmericansFromSheet(sheetId)
       await onSave(data)
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { allAmericansSheetId: null })
       setSheetId(null)
       setShowDeletedNote(true)
       setTimeout(() => onClose(), 2500)

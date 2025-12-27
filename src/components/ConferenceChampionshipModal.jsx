@@ -160,13 +160,8 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
       const championships = await readConferenceChampionshipsFromSheet(sheetId)
       await onSave(championships)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from dynasty
-      await updateDynasty(currentDynasty.id, {
-        conferenceChampionshipSheetId: null
-      })
 
       setSheetId(null)
       setShowDeletedNote(true)

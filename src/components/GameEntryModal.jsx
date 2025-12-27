@@ -245,21 +245,35 @@ export default function GameEntryModal({
   const [pendingAwayStats, setPendingAwayStats] = useState(null) // Away team stats for new games
   const [pendingScoringSummary, setPendingScoringSummary] = useState(null) // Scoring summary for new games
   const [pendingSheetIds, setPendingSheetIds] = useState({}) // Sheet IDs for new games
-  const [conferencePOW, setConferencePOW] = useState('') // Player name for conference POW
-  const [nationalPOW, setNationalPOW] = useState('') // Player name for national POW
+  const [conferencePOW, setConferencePOW] = useState('') // Player name for conference offensive POW
+  const [confDefensePOW, setConfDefensePOW] = useState('') // Player name for conference defensive POW
+  const [nationalPOW, setNationalPOW] = useState('') // Player name for national offensive POW
+  const [natlDefensePOW, setNatlDefensePOW] = useState('') // Player name for national defensive POW
   const [confPOWSearch, setConfPOWSearch] = useState('')
+  const [confDefPOWSearch, setConfDefPOWSearch] = useState('')
   const [natlPOWSearch, setNatlPOWSearch] = useState('')
+  const [natlDefPOWSearch, setNatlDefPOWSearch] = useState('')
   const [confPOWOpen, setConfPOWOpen] = useState(false)
+  const [confDefPOWOpen, setConfDefPOWOpen] = useState(false)
   const [natlPOWOpen, setNatlPOWOpen] = useState(false)
+  const [natlDefPOWOpen, setNatlDefPOWOpen] = useState(false)
   const [confPOWHighlight, setConfPOWHighlight] = useState(0)
+  const [confDefPOWHighlight, setConfDefPOWHighlight] = useState(0)
   const [natlPOWHighlight, setNatlPOWHighlight] = useState(0)
+  const [natlDefPOWHighlight, setNatlDefPOWHighlight] = useState(0)
   const [confPOWDropUp, setConfPOWDropUp] = useState(false)
+  const [confDefPOWDropUp, setConfDefPOWDropUp] = useState(false)
   const [natlPOWDropUp, setNatlPOWDropUp] = useState(false)
+  const [natlDefPOWDropUp, setNatlDefPOWDropUp] = useState(false)
 
   const confPOWRef = useRef(null)
+  const confDefPOWRef = useRef(null)
   const natlPOWRef = useRef(null)
+  const natlDefPOWRef = useRef(null)
   const confPOWDropdownRef = useRef(null)
+  const confDefPOWDropdownRef = useRef(null)
   const natlPOWDropdownRef = useRef(null)
+  const natlDefPOWDropdownRef = useRef(null)
   const formRef = useRef(null)
 
   // Determine if scores should be locked
@@ -338,8 +352,14 @@ export default function GameEntryModal({
   const filteredConfPlayers = playerNames.filter(name =>
     name.toLowerCase().includes(confPOWSearch.toLowerCase())
   )
+  const filteredConfDefPlayers = playerNames.filter(name =>
+    name.toLowerCase().includes(confDefPOWSearch.toLowerCase())
+  )
   const filteredNatlPlayers = playerNames.filter(name =>
     name.toLowerCase().includes(natlPOWSearch.toLowerCase())
+  )
+  const filteredNatlDefPlayers = playerNames.filter(name =>
+    name.toLowerCase().includes(natlDefPOWSearch.toLowerCase())
   )
 
   // Handle click outside for dropdowns
@@ -348,8 +368,14 @@ export default function GameEntryModal({
       if (confPOWDropdownRef.current && !confPOWDropdownRef.current.contains(event.target)) {
         setConfPOWOpen(false)
       }
+      if (confDefPOWDropdownRef.current && !confDefPOWDropdownRef.current.contains(event.target)) {
+        setConfDefPOWOpen(false)
+      }
       if (natlPOWDropdownRef.current && !natlPOWDropdownRef.current.contains(event.target)) {
         setNatlPOWOpen(false)
+      }
+      if (natlDefPOWDropdownRef.current && !natlDefPOWDropdownRef.current.contains(event.target)) {
+        setNatlDefPOWOpen(false)
       }
     }
 
@@ -363,8 +389,16 @@ export default function GameEntryModal({
   }, [confPOWSearch])
 
   useEffect(() => {
+    setConfDefPOWHighlight(0)
+  }, [confDefPOWSearch])
+
+  useEffect(() => {
     setNatlPOWHighlight(0)
   }, [natlPOWSearch])
+
+  useEffect(() => {
+    setNatlDefPOWHighlight(0)
+  }, [natlDefPOWSearch])
 
   // Check if dropdown should open upward
   const checkDropdownPosition = (inputRef, setDropUp) => {
@@ -479,6 +513,105 @@ export default function GameEntryModal({
       case 'Tab':
         // Allow Tab to work normally but close the dropdown
         setNatlPOWOpen(false)
+        break
+      default:
+        break
+    }
+  }
+
+  // Defensive POW handlers
+  const handleConfDefPOWSelect = (playerName) => {
+    setConfDefensePOW(playerName)
+    setConfDefPOWSearch('')
+    setConfDefPOWOpen(false)
+  }
+
+  const handleNatlDefPOWSelect = (playerName) => {
+    setNatlDefensePOW(playerName)
+    setNatlDefPOWSearch('')
+    setNatlDefPOWOpen(false)
+  }
+
+  const handleConfDefPOWKeyDown = (e) => {
+    if (!confDefPOWOpen && (e.key === 'Enter' || e.key === 'ArrowDown')) {
+      e.preventDefault()
+      setConfDefPOWOpen(true)
+      return
+    }
+
+    if (!confDefPOWOpen) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        e.stopPropagation()
+        setConfDefPOWHighlight(prev =>
+          prev < filteredConfDefPlayers.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        e.stopPropagation()
+        setConfDefPOWHighlight(prev => prev > 0 ? prev - 1 : 0)
+        break
+      case 'Enter':
+        e.preventDefault()
+        e.stopPropagation()
+        if (filteredConfDefPlayers[confDefPOWHighlight]) {
+          handleConfDefPOWSelect(filteredConfDefPlayers[confDefPOWHighlight])
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        e.stopPropagation()
+        setConfDefPOWOpen(false)
+        setConfDefPOWSearch('')
+        break
+      case 'Tab':
+        setConfDefPOWOpen(false)
+        break
+      default:
+        break
+    }
+  }
+
+  const handleNatlDefPOWKeyDown = (e) => {
+    if (!natlDefPOWOpen && (e.key === 'Enter' || e.key === 'ArrowDown')) {
+      e.preventDefault()
+      setNatlDefPOWOpen(true)
+      return
+    }
+
+    if (!natlDefPOWOpen) return
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        e.stopPropagation()
+        setNatlDefPOWHighlight(prev =>
+          prev < filteredNatlDefPlayers.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        e.stopPropagation()
+        setNatlDefPOWHighlight(prev => prev > 0 ? prev - 1 : 0)
+        break
+      case 'Enter':
+        e.preventDefault()
+        e.stopPropagation()
+        if (filteredNatlDefPlayers[natlDefPOWHighlight]) {
+          handleNatlDefPOWSelect(filteredNatlDefPlayers[natlDefPOWHighlight])
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        e.stopPropagation()
+        setNatlDefPOWOpen(false)
+        setNatlDefPOWSearch('')
+        break
+      case 'Tab':
+        setNatlDefPOWOpen(false)
         break
       default:
         break
@@ -652,11 +785,17 @@ export default function GameEntryModal({
 
         // Load Player of the Week selections
         setConferencePOW(gameToLoad.conferencePOW || '')
+        setConfDefensePOW(gameToLoad.confDefensePOW || '')
         setNationalPOW(gameToLoad.nationalPOW || '')
+        setNatlDefensePOW(gameToLoad.natlDefensePOW || '')
         setConfPOWSearch('')
+        setConfDefPOWSearch('')
         setNatlPOWSearch('')
+        setNatlDefPOWSearch('')
         setConfPOWOpen(false)
+        setConfDefPOWOpen(false)
         setNatlPOWOpen(false)
+        setNatlDefPOWOpen(false)
         return
       }
 
@@ -708,11 +847,17 @@ export default function GameEntryModal({
         }
 
         setConferencePOW(foundGame.conferencePOW || '')
+        setConfDefensePOW(foundGame.confDefensePOW || '')
         setNationalPOW(foundGame.nationalPOW || '')
+        setNatlDefensePOW(foundGame.natlDefensePOW || '')
         setConfPOWSearch('')
+        setConfDefPOWSearch('')
         setNatlPOWSearch('')
+        setNatlDefPOWSearch('')
         setConfPOWOpen(false)
+        setConfDefPOWOpen(false)
         setNatlPOWOpen(false)
+        setNatlDefPOWOpen(false)
       } else if (scheduledGame || isConferenceChampionship || bowlName || passedOpponent) {
         // New game - load from schedule, CC opponent, or bowl opponent
         setGameData(prev => ({
@@ -738,11 +883,17 @@ export default function GameEntryModal({
         }))
         setLinks([''])
         setConferencePOW('')
+        setConfDefensePOW('')
         setNationalPOW('')
+        setNatlDefensePOW('')
         setConfPOWSearch('')
+        setConfDefPOWSearch('')
         setNatlPOWSearch('')
+        setNatlDefPOWSearch('')
         setConfPOWOpen(false)
+        setConfDefPOWOpen(false)
         setNatlPOWOpen(false)
+        setNatlDefPOWOpen(false)
       }
     }
   }, [isOpen, scheduledGame, actualWeekNumber, actualYear, currentDynasty?.games, isConferenceChampionship, passedOpponent, effectiveGame, bowlName, minimalMode])
@@ -949,7 +1100,9 @@ export default function GameEntryModal({
       opponentDefense: gameData.opponentDefense ? parseInt(gameData.opponentDefense) : null,
       opponentRecord: opponentRecord || '',  // Combined from overallRecord + conferenceRecord
       conferencePOW: conferencePOW || null,
+      confDefensePOW: confDefensePOW || null,
       nationalPOW: nationalPOW || null,
+      natlDefensePOW: natlDefensePOW || null,
       favoriteStatus: favoriteStatus !== undefined ? favoriteStatus : null,
       isConferenceGame: isConferenceGame,
       // Preserve special game type flags from existing game
@@ -1012,11 +1165,17 @@ export default function GameEntryModal({
       })
       setLinks([''])
       setConferencePOW('')
+      setConfDefensePOW('')
       setNationalPOW('')
+      setNatlDefensePOW('')
       setConfPOWSearch('')
+      setConfDefPOWSearch('')
       setNatlPOWSearch('')
+      setNatlDefPOWSearch('')
       setConfPOWOpen(false)
+      setConfDefPOWOpen(false)
       setNatlPOWOpen(false)
+      setNatlDefPOWOpen(false)
       // Note: onClose() is called by parent's handleGameSave, don't call here to avoid race conditions
     } catch (error) {
       console.error('Error saving game:', error)
@@ -1074,14 +1233,20 @@ export default function GameEntryModal({
       conferenceRecord: conferenceRecord
     }))
 
-    // Random player of the week (50% chance each)
+    // Random player of the week (50% chance each for offense, 30% for defense)
     if (playerNames.length > 0) {
       const randomPlayer = () => playerNames[randomScore(0, playerNames.length - 1)]
       if (Math.random() > 0.5) {
         setConferencePOW(randomPlayer())
       }
+      if (Math.random() > 0.7) { // Defensive is less common
+        setConfDefensePOW(randomPlayer())
+      }
       if (Math.random() > 0.7) { // National is rarer
         setNationalPOW(randomPlayer())
+      }
+      if (Math.random() > 0.85) { // National defensive is very rare
+        setNatlDefensePOW(randomPlayer())
       }
     }
 
@@ -1756,201 +1921,403 @@ export default function GameEntryModal({
               Player of the Week Honors
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              {/* Conference POW */}
-              <div className="relative" ref={confPOWDropdownRef}>
-                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  Conference Player of the Week
-                </label>
-                <div className="relative">
-                  <input
-                    ref={confPOWRef}
-                    type="text"
-                    value={conferencePOW || confPOWSearch}
-                    onChange={(e) => {
-                      setConfPOWSearch(e.target.value)
-                      setConfPOWOpen(true)
-                      if (conferencePOW) setConferencePOW('')
-                      setTimeout(() => checkDropdownPosition(confPOWRef, setConfPOWDropUp), 0)
-                    }}
-                    onFocus={() => {
-                      setConfPOWOpen(true)
-                      setTimeout(() => checkDropdownPosition(confPOWRef, setConfPOWDropUp), 0)
-                    }}
-                    onBlur={() => {
-                      // Small delay to allow dropdown click events to fire first
-                      setTimeout(() => setConfPOWOpen(false), 150)
-                    }}
-                    onKeyDown={handleConfPOWKeyDown}
-                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
-                    style={{
-                      borderColor: teamColors.primary,
-                      paddingRight: '2.75rem'
-                    }}
-                    placeholder="Search or select..."
-                    autoComplete="off"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg
-                      className={`w-5 h-5 transition-transform ${confPOWOpen ? 'rotate-180' : ''}`}
-                      style={{ color: teamColors.primary }}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+            {/* Conference POW Row */}
+            <div className="space-y-2">
+              <h4 className="text-xs sm:text-sm font-medium" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                Conference
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {/* Conference Offensive POW */}
+                <div className="relative" ref={confPOWDropdownRef}>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Offensive
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={confPOWRef}
+                      type="text"
+                      value={conferencePOW || confPOWSearch}
+                      onChange={(e) => {
+                        setConfPOWSearch(e.target.value)
+                        setConfPOWOpen(true)
+                        if (conferencePOW) setConferencePOW('')
+                        setTimeout(() => checkDropdownPosition(confPOWRef, setConfPOWDropUp), 0)
+                      }}
+                      onFocus={() => {
+                        setConfPOWOpen(true)
+                        setTimeout(() => checkDropdownPosition(confPOWRef, setConfPOWDropUp), 0)
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setConfPOWOpen(false), 150)
+                      }}
+                      onKeyDown={handleConfPOWKeyDown}
+                      className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
+                      style={{
+                        borderColor: teamColors.primary,
+                        paddingRight: '2.75rem'
+                      }}
+                      placeholder="Search or select..."
+                      autoComplete="off"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg
+                        className={`w-5 h-5 transition-transform ${confPOWOpen ? 'rotate-180' : ''}`}
+                        style={{ color: teamColors.primary }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </div>
+
+                  {confPOWOpen && (filteredConfPlayers.length > 0 || !confPOWSearch) && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
+                        confPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      {!confPOWSearch && (
+                        <div
+                          onClick={() => handleConfPOWSelect('')}
+                          onMouseEnter={() => setConfPOWHighlight(-1)}
+                          className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                          style={{
+                            backgroundColor: confPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                            color: confPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                            borderColor: `${teamColors.primary}20`
+                          }}
+                        >
+                          (None)
+                        </div>
+                      )}
+                      {filteredConfPlayers.map((name, index) => (
+                        <div
+                          key={name}
+                          onClick={() => handleConfPOWSelect(name)}
+                          onMouseEnter={() => setConfPOWHighlight(index)}
+                          className="px-4 py-2 cursor-pointer transition-colors"
+                          style={{
+                            backgroundColor: index === confPOWHighlight ? `${teamColors.primary}20` : 'white',
+                            color: index === confPOWHighlight ? teamColors.primary : 'inherit',
+                            fontWeight: conferencePOW === name ? 'bold' : 'normal'
+                          }}
+                        >
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {confPOWOpen && confPOWSearch && filteredConfPlayers.length === 0 && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
+                        confPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      No players found matching "{confPOWSearch}"
+                    </div>
+                  )}
                 </div>
 
-                {confPOWOpen && (filteredConfPlayers.length > 0 || !confPOWSearch) && (
-                  <div
-                    className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
-                      confPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-                    }`}
-                    style={{ borderColor: `${teamColors.primary}40` }}
-                  >
-                    {/* None option to clear selection */}
-                    {!confPOWSearch && (
-                      <div
-                        onClick={() => handleConfPOWSelect('')}
-                        onMouseEnter={() => setConfPOWHighlight(-1)}
-                        className="px-4 py-2 cursor-pointer transition-colors border-b italic"
-                        style={{
-                          backgroundColor: confPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
-                          color: confPOWHighlight === -1 ? teamColors.primary : '#6b7280',
-                          borderColor: `${teamColors.primary}20`
-                        }}
+                {/* Conference Defensive POW */}
+                <div className="relative" ref={confDefPOWDropdownRef}>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Defensive
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={confDefPOWRef}
+                      type="text"
+                      value={confDefensePOW || confDefPOWSearch}
+                      onChange={(e) => {
+                        setConfDefPOWSearch(e.target.value)
+                        setConfDefPOWOpen(true)
+                        if (confDefensePOW) setConfDefensePOW('')
+                        setTimeout(() => checkDropdownPosition(confDefPOWRef, setConfDefPOWDropUp), 0)
+                      }}
+                      onFocus={() => {
+                        setConfDefPOWOpen(true)
+                        setTimeout(() => checkDropdownPosition(confDefPOWRef, setConfDefPOWDropUp), 0)
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setConfDefPOWOpen(false), 150)
+                      }}
+                      onKeyDown={handleConfDefPOWKeyDown}
+                      className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
+                      style={{
+                        borderColor: teamColors.primary,
+                        paddingRight: '2.75rem'
+                      }}
+                      placeholder="Search or select..."
+                      autoComplete="off"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg
+                        className={`w-5 h-5 transition-transform ${confDefPOWOpen ? 'rotate-180' : ''}`}
+                        style={{ color: teamColors.primary }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        (None)
-                      </div>
-                    )}
-                    {filteredConfPlayers.map((name, index) => (
-                      <div
-                        key={name}
-                        onClick={() => handleConfPOWSelect(name)}
-                        onMouseEnter={() => setConfPOWHighlight(index)}
-                        className="px-4 py-2 cursor-pointer transition-colors"
-                        style={{
-                          backgroundColor: index === confPOWHighlight ? `${teamColors.primary}20` : 'white',
-                          color: index === confPOWHighlight ? teamColors.primary : 'inherit',
-                          fontWeight: conferencePOW === name ? 'bold' : 'normal'
-                        }}
-                      >
-                        {name}
-                      </div>
-                    ))}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </div>
-                )}
 
-                {confPOWOpen && confPOWSearch && filteredConfPlayers.length === 0 && (
-                  <div
-                    className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
-                      confPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-                    }`}
-                    style={{ borderColor: `${teamColors.primary}40` }}
-                  >
-                    No players found matching "{confPOWSearch}"
-                  </div>
-                )}
+                  {confDefPOWOpen && (filteredConfDefPlayers.length > 0 || !confDefPOWSearch) && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
+                        confDefPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      {!confDefPOWSearch && (
+                        <div
+                          onClick={() => handleConfDefPOWSelect('')}
+                          onMouseEnter={() => setConfDefPOWHighlight(-1)}
+                          className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                          style={{
+                            backgroundColor: confDefPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                            color: confDefPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                            borderColor: `${teamColors.primary}20`
+                          }}
+                        >
+                          (None)
+                        </div>
+                      )}
+                      {filteredConfDefPlayers.map((name, index) => (
+                        <div
+                          key={name}
+                          onClick={() => handleConfDefPOWSelect(name)}
+                          onMouseEnter={() => setConfDefPOWHighlight(index)}
+                          className="px-4 py-2 cursor-pointer transition-colors"
+                          style={{
+                            backgroundColor: index === confDefPOWHighlight ? `${teamColors.primary}20` : 'white',
+                            color: index === confDefPOWHighlight ? teamColors.primary : 'inherit',
+                            fontWeight: confDefensePOW === name ? 'bold' : 'normal'
+                          }}
+                        >
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {confDefPOWOpen && confDefPOWSearch && filteredConfDefPlayers.length === 0 && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
+                        confDefPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      No players found matching "{confDefPOWSearch}"
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
 
-              {/* National POW */}
-              <div className="relative" ref={natlPOWDropdownRef}>
-                <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  National Player of the Week
-                </label>
-                <div className="relative">
-                  <input
-                    ref={natlPOWRef}
-                    type="text"
-                    value={nationalPOW || natlPOWSearch}
-                    onChange={(e) => {
-                      setNatlPOWSearch(e.target.value)
-                      setNatlPOWOpen(true)
-                      if (nationalPOW) setNationalPOW('')
-                      setTimeout(() => checkDropdownPosition(natlPOWRef, setNatlPOWDropUp), 0)
-                    }}
-                    onFocus={() => {
-                      setNatlPOWOpen(true)
-                      setTimeout(() => checkDropdownPosition(natlPOWRef, setNatlPOWDropUp), 0)
-                    }}
-                    onBlur={() => {
-                      // Small delay to allow dropdown click events to fire first
-                      setTimeout(() => setNatlPOWOpen(false), 150)
-                    }}
-                    onKeyDown={handleNatlPOWKeyDown}
-                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
-                    style={{
-                      borderColor: teamColors.primary,
-                      paddingRight: '2.75rem'
-                    }}
-                    placeholder="Search or select..."
-                    autoComplete="off"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg
-                      className={`w-5 h-5 transition-transform ${natlPOWOpen ? 'rotate-180' : ''}`}
-                      style={{ color: teamColors.primary }}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+            {/* National POW Row */}
+            <div className="space-y-2">
+              <h4 className="text-xs sm:text-sm font-medium" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                National
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {/* National Offensive POW */}
+                <div className="relative" ref={natlPOWDropdownRef}>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Offensive
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={natlPOWRef}
+                      type="text"
+                      value={nationalPOW || natlPOWSearch}
+                      onChange={(e) => {
+                        setNatlPOWSearch(e.target.value)
+                        setNatlPOWOpen(true)
+                        if (nationalPOW) setNationalPOW('')
+                        setTimeout(() => checkDropdownPosition(natlPOWRef, setNatlPOWDropUp), 0)
+                      }}
+                      onFocus={() => {
+                        setNatlPOWOpen(true)
+                        setTimeout(() => checkDropdownPosition(natlPOWRef, setNatlPOWDropUp), 0)
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setNatlPOWOpen(false), 150)
+                      }}
+                      onKeyDown={handleNatlPOWKeyDown}
+                      className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
+                      style={{
+                        borderColor: teamColors.primary,
+                        paddingRight: '2.75rem'
+                      }}
+                      placeholder="Search or select..."
+                      autoComplete="off"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg
+                        className={`w-5 h-5 transition-transform ${natlPOWOpen ? 'rotate-180' : ''}`}
+                        style={{ color: teamColors.primary }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </div>
+
+                  {natlPOWOpen && (filteredNatlPlayers.length > 0 || !natlPOWSearch) && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
+                        natlPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      {!natlPOWSearch && (
+                        <div
+                          onClick={() => handleNatlPOWSelect('')}
+                          onMouseEnter={() => setNatlPOWHighlight(-1)}
+                          className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                          style={{
+                            backgroundColor: natlPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                            color: natlPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                            borderColor: `${teamColors.primary}20`
+                          }}
+                        >
+                          (None)
+                        </div>
+                      )}
+                      {filteredNatlPlayers.map((name, index) => (
+                        <div
+                          key={name}
+                          onClick={() => handleNatlPOWSelect(name)}
+                          onMouseEnter={() => setNatlPOWHighlight(index)}
+                          className="px-4 py-2 cursor-pointer transition-colors"
+                          style={{
+                            backgroundColor: index === natlPOWHighlight ? `${teamColors.primary}20` : 'white',
+                            color: index === natlPOWHighlight ? teamColors.primary : 'inherit',
+                            fontWeight: nationalPOW === name ? 'bold' : 'normal'
+                          }}
+                        >
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {natlPOWOpen && natlPOWSearch && filteredNatlPlayers.length === 0 && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
+                        natlPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      No players found matching "{natlPOWSearch}"
+                    </div>
+                  )}
                 </div>
 
-                {natlPOWOpen && (filteredNatlPlayers.length > 0 || !natlPOWSearch) && (
-                  <div
-                    className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
-                      natlPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-                    }`}
-                    style={{ borderColor: `${teamColors.primary}40` }}
-                  >
-                    {/* None option to clear selection */}
-                    {!natlPOWSearch && (
-                      <div
-                        onClick={() => handleNatlPOWSelect('')}
-                        onMouseEnter={() => setNatlPOWHighlight(-1)}
-                        className="px-4 py-2 cursor-pointer transition-colors border-b italic"
-                        style={{
-                          backgroundColor: natlPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
-                          color: natlPOWHighlight === -1 ? teamColors.primary : '#6b7280',
-                          borderColor: `${teamColors.primary}20`
-                        }}
+                {/* National Defensive POW */}
+                <div className="relative" ref={natlDefPOWDropdownRef}>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Defensive
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={natlDefPOWRef}
+                      type="text"
+                      value={natlDefensePOW || natlDefPOWSearch}
+                      onChange={(e) => {
+                        setNatlDefPOWSearch(e.target.value)
+                        setNatlDefPOWOpen(true)
+                        if (natlDefensePOW) setNatlDefensePOW('')
+                        setTimeout(() => checkDropdownPosition(natlDefPOWRef, setNatlDefPOWDropUp), 0)
+                      }}
+                      onFocus={() => {
+                        setNatlDefPOWOpen(true)
+                        setTimeout(() => checkDropdownPosition(natlDefPOWRef, setNatlDefPOWDropUp), 0)
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setNatlDefPOWOpen(false), 150)
+                      }}
+                      onKeyDown={handleNatlDefPOWKeyDown}
+                      className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg focus:ring-2 focus:outline-none transition-colors text-sm sm:text-base"
+                      style={{
+                        borderColor: teamColors.primary,
+                        paddingRight: '2.75rem'
+                      }}
+                      placeholder="Search or select..."
+                      autoComplete="off"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg
+                        className={`w-5 h-5 transition-transform ${natlDefPOWOpen ? 'rotate-180' : ''}`}
+                        style={{ color: teamColors.primary }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        (None)
-                      </div>
-                    )}
-                    {filteredNatlPlayers.map((name, index) => (
-                      <div
-                        key={name}
-                        onClick={() => handleNatlPOWSelect(name)}
-                        onMouseEnter={() => setNatlPOWHighlight(index)}
-                        className="px-4 py-2 cursor-pointer transition-colors"
-                        style={{
-                          backgroundColor: index === natlPOWHighlight ? `${teamColors.primary}20` : 'white',
-                          color: index === natlPOWHighlight ? teamColors.primary : 'inherit',
-                          fontWeight: nationalPOW === name ? 'bold' : 'normal'
-                        }}
-                      >
-                        {name}
-                      </div>
-                    ))}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </div>
-                )}
 
-                {natlPOWOpen && natlPOWSearch && filteredNatlPlayers.length === 0 && (
-                  <div
-                    className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
-                      natlPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-                    }`}
-                    style={{ borderColor: `${teamColors.primary}40` }}
-                  >
-                    No players found matching "{natlPOWSearch}"
-                  </div>
-                )}
+                  {natlDefPOWOpen && (filteredNatlDefPlayers.length > 0 || !natlDefPOWSearch) && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg max-h-60 overflow-auto ${
+                        natlDefPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      {!natlDefPOWSearch && (
+                        <div
+                          onClick={() => handleNatlDefPOWSelect('')}
+                          onMouseEnter={() => setNatlDefPOWHighlight(-1)}
+                          className="px-4 py-2 cursor-pointer transition-colors border-b italic"
+                          style={{
+                            backgroundColor: natlDefPOWHighlight === -1 ? `${teamColors.primary}20` : 'white',
+                            color: natlDefPOWHighlight === -1 ? teamColors.primary : '#6b7280',
+                            borderColor: `${teamColors.primary}20`
+                          }}
+                        >
+                          (None)
+                        </div>
+                      )}
+                      {filteredNatlDefPlayers.map((name, index) => (
+                        <div
+                          key={name}
+                          onClick={() => handleNatlDefPOWSelect(name)}
+                          onMouseEnter={() => setNatlDefPOWHighlight(index)}
+                          className="px-4 py-2 cursor-pointer transition-colors"
+                          style={{
+                            backgroundColor: index === natlDefPOWHighlight ? `${teamColors.primary}20` : 'white',
+                            color: index === natlDefPOWHighlight ? teamColors.primary : 'inherit',
+                            fontWeight: natlDefensePOW === name ? 'bold' : 'normal'
+                          }}
+                        >
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {natlDefPOWOpen && natlDefPOWSearch && filteredNatlDefPlayers.length === 0 && (
+                    <div
+                      className={`absolute z-10 w-full bg-white border-2 rounded-lg shadow-lg p-4 text-center text-gray-500 ${
+                        natlDefPOWDropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                      }`}
+                      style={{ borderColor: `${teamColors.primary}40` }}
+                    >
+                      No players found matching "{natlDefPOWSearch}"
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

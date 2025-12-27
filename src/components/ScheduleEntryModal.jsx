@@ -144,13 +144,8 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
       const schedule = await readScheduleFromScheduleSheet(sheetId)
       await onSave(schedule)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from dynasty
-      await updateDynasty(currentDynasty.id, {
-        scheduleSheetId: null
-      })
 
       setSheetId(null)
       setShowDeletedNote(true)

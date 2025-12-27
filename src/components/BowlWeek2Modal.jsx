@@ -192,13 +192,8 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
       const bowlGames = await readBowlWeek2GamesFromSheet(sheetId)
       await onSave(bowlGames)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from dynasty
-      await updateDynasty(currentDynasty.id, {
-        bowlWeek2SheetId: null
-      })
 
       setSheetId(null)
       setShowDeletedNote(true)

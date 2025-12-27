@@ -163,14 +163,8 @@ export default function RecruitingCommitmentsModal({
       const recruits = await readRecruitingFromSheet(sheetId)
       await onSave(recruits)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from dynasty
-      const sheetKey = `recruitingSheet_${currentYear}_${commitmentKey}`
-      await updateDynasty(currentDynasty.id, {
-        [sheetKey]: null
-      })
 
       setSheetId(null)
       setShowDeletedNote(true)

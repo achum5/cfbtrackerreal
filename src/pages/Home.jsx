@@ -8,6 +8,7 @@ import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 import { getContrastTextColor } from '../utils/colorUtils'
 import ConfirmModal from '../components/ConfirmModal'
+import ShareDynastyModal from '../components/ShareDynastyModal'
 
 // Helper to get team's conference from dynasty data
 function getDynastyTeamConference(dynasty) {
@@ -99,6 +100,8 @@ export default function Home() {
   const [showDeleteAllConfirm2, setShowDeleteAllConfirm2] = useState(false)
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('')
   const [deletingAll, setDeletingAll] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareDynasty, setShareDynasty] = useState(null)
   const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
   const nonStarredDynasties = dynasties.filter(d => !d.favorite)
@@ -146,6 +149,13 @@ export default function Home() {
     e.preventDefault()
     e.stopPropagation()
     await updateDynasty(dynasty.id, { favorite: !dynasty.favorite })
+  }
+
+  const handleShareClick = (e, dynasty) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setShareDynasty(dynasty)
+    setShowShareModal(true)
   }
 
   const handleImportClick = () => {
@@ -395,6 +405,18 @@ export default function Home() {
                           </svg>
                         </button>
 
+                        {/* Share Dynasty button */}
+                        <button
+                          onClick={(e) => handleShareClick(e, dynasty)}
+                          className="p-1.5 sm:p-2 rounded-lg hover:bg-black hover:bg-opacity-20 transition-colors"
+                          style={{ color: textColor }}
+                          title="Share Dynasty"
+                        >
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                          </svg>
+                        </button>
+
                         {/* Delete button */}
                         <button
                           onClick={(e) => handleDeleteClick(e, dynasty)}
@@ -586,6 +608,19 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Dynasty Modal */}
+      {shareDynasty && (
+        <ShareDynastyModal
+          isOpen={showShareModal}
+          onClose={() => {
+            setShowShareModal(false)
+            setShareDynasty(null)
+          }}
+          teamColors={getTeamColors(shareDynasty.teamName) || { primary: '#1e40af', secondary: '#dbeafe' }}
+          dynasty={shareDynasty}
+        />
       )}
     </div>
   )

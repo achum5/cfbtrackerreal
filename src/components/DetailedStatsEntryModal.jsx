@@ -9,6 +9,7 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
+import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -103,10 +104,29 @@ export default function DetailedStatsEntryModal({ isOpen, onClose, onSave, curre
                 snapsPlayed: 0
               }))
 
+          // Aggregate box score stats for each player
+          // This pre-fills the sheet with stats from games played during the season
+          const aggregatedStats = {}
+          const teamAbbr = currentDynasty?.teamAbbr || currentDynasty?.teamName
+          playersWithSnaps.forEach(player => {
+            if (player.name) {
+              const playerBoxStats = aggregatePlayerBoxScoreStats(
+                currentDynasty,
+                player.name,
+                currentYear,
+                player.team || teamAbbr
+              )
+              if (playerBoxStats) {
+                aggregatedStats[player.name] = playerBoxStats
+              }
+            }
+          })
+
           const sheetInfo = await createDetailedStatsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            playersWithSnaps
+            playersWithSnaps,
+            aggregatedStats
           )
 
           setSheetId(sheetInfo.spreadsheetId)
@@ -164,13 +184,8 @@ export default function DetailedStatsEntryModal({ isOpen, onClose, onSave, curre
       const detailedStats = await readDetailedStatsFromSheet(sheetId)
       await onSave(detailedStats)
 
-      // Move sheet to trash
+      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
-
-      // Clear sheet ID from dynasty
-      await updateDynasty(currentDynasty.id, {
-        detailedStatsSheetId: null
-      })
 
       setSheetId(null)
       setShowDeletedNote(true)

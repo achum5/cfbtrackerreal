@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -608,7 +608,7 @@ export default function Dashboard() {
     if (ccMadeChampionship === false) {
       ccComplete = true
     } else if (ccMadeChampionship === true) {
-      const ccGame = currentDynasty.games?.find(
+      const ccGame = findCurrentTeamGame(currentDynasty,
         g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
       )
       ccComplete = !!ccGame
@@ -1280,7 +1280,7 @@ export default function Dashboard() {
 
   // Get CC game if played
   const getCCGame = () => {
-    return currentDynasty.games?.find(
+    return findCurrentTeamGame(currentDynasty,
       g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
     )
   }
@@ -1905,7 +1905,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             {(() => {
               const scheduledGame = teamSchedule?.find(g => Number(g.week) === Number(currentDynasty.currentWeek))
-              const playedGame = currentDynasty.games?.find(
+              const playedGame = findCurrentTeamGame(currentDynasty,
                 g => Number(g.week) === Number(currentDynasty.currentWeek) && Number(g.year) === Number(currentDynasty.currentYear)
               )
               const mascotName = scheduledGame ? getMascotName(scheduledGame.opponent) : null
@@ -2305,8 +2305,8 @@ export default function Dashboard() {
             // Bowl Week 2 sheet saves regular bowl games to week2 - check only this
             // (User's QF game from game modal goes to cfpResultsByYear.quarterfinals but that's separate)
             const hasBowlWeek2Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2?.length > 0
-            const userBowlGame = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
-            const userCFPFirstRoundGame = currentDynasty.games?.find(g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+            const userBowlGame = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
+            const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
             const userBowlIsWeek1 = selectedBowl && isBowlInWeek1(selectedBowl)
             const userBowlIsWeek2 = selectedBowl && isBowlInWeek2(selectedBowl)
 
@@ -2340,7 +2340,7 @@ export default function Dashboard() {
             const userInCFPFirstRound = userCFPSeed && userCFPSeed >= 5 && userCFPSeed <= 12
 
             // CFP Quarterfinals tracking
-            const userCFPQuarterfinalGame = currentDynasty.games?.find(g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
+            const userCFPQuarterfinalGame = findCurrentTeamGame(currentDynasty, g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
             const firstRoundResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound || []
 
             // User is in QF if they have a bye (seed 1-4) OR won their First Round game (seed 5-12)
@@ -2399,7 +2399,7 @@ export default function Dashboard() {
             const userQFBowlName = getUserQFBowlName()
 
             // CFP Semifinals tracking
-            const userCFPSemifinalGame = currentDynasty.games?.find(g => g.isCFPSemifinal && g.year === currentDynasty.currentYear)
+            const userCFPSemifinalGame = findCurrentTeamGame(currentDynasty, g => g.isCFPSemifinal && g.year === currentDynasty.currentYear)
             // Note: result can be 'W' or 'win' depending on how game was saved
             const userWonQuarterfinal = userCFPQuarterfinalGame?.result === 'W' || userCFPQuarterfinalGame?.result === 'win'
             const userInCFPSemifinal = userInCFPQuarterfinal && userWonQuarterfinal
@@ -2464,7 +2464,7 @@ export default function Dashboard() {
             const userSFBowlName = getUserSFBowlName()
 
             // CFP Championship tracking
-            const userCFPChampionshipGame = currentDynasty.games?.find(g => g.isCFPChampionship && g.year === currentDynasty.currentYear)
+            const userCFPChampionshipGame = findCurrentTeamGame(currentDynasty, g => g.isCFPChampionship && g.year === currentDynasty.currentYear)
             // Note: result can be 'W' or 'win' depending on how game was saved
             const userWonSemifinal = userCFPSemifinalGame?.result === 'W' || userCFPSemifinalGame?.result === 'win'
             const userInCFPChampionship = userInCFPSemifinal && userWonSemifinal
@@ -2634,10 +2634,11 @@ export default function Dashboard() {
                                   setBowlEligible(null)
                                   setSelectedBowl('')
                                   setBowlOpponent('')
-                                  // Remove any existing bowl game from games array
-                                  const existingBowlGame = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
+                                  // Remove any existing bowl game from games array (team-centric)
+                                  const existingBowlGame = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
+                                  const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
                                   const updatedGames = existingBowlGame
-                                    ? currentDynasty.games.filter(g => !(g.isBowlGame && g.year === currentDynasty.currentYear))
+                                    ? currentDynasty.games.filter(g => !(g.isBowlGame && g.year === currentDynasty.currentYear && (g.userTeam === currentTeamAbbr || !g.userTeam)))
                                     : currentDynasty.games
                                   await updateDynasty(currentDynasty.id, {
                                     bowlEligibilityData: null,
@@ -5677,7 +5678,7 @@ export default function Dashboard() {
 
             {/* Bowl Game - shows when user has a bowl game */}
             {(() => {
-              const userBowlGameData = currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)
+              const userBowlGameData = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
               const bowlData = currentDynasty.bowlEligibilityData
               const hasBowlEligibility = bowlData?.eligible === true && bowlData?.bowlGame && bowlData?.opponent
 
@@ -5808,7 +5809,7 @@ export default function Dashboard() {
 
             {/* CFP First Round Game - shows when user played in First Round */}
             {(() => {
-              const cfpFirstRoundGame = currentDynasty.games?.find(g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+              const cfpFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
               if (!cfpFirstRoundGame) return null
 
               const cfpOpponentAbbr = cfpFirstRoundGame.opponent
@@ -5868,7 +5869,7 @@ export default function Dashboard() {
 
             {/* CFP Quarterfinal Game - shows when user played in Quarterfinal */}
             {(() => {
-              const cfpQFGame = currentDynasty.games?.find(g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
+              const cfpQFGame = findCurrentTeamGame(currentDynasty, g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
               if (!cfpQFGame) return null
 
               const cfpOpponentAbbr = cfpQFGame.opponent
@@ -5929,7 +5930,7 @@ export default function Dashboard() {
 
             {/* CFP Semifinal Game - shows when user played in Semifinal */}
             {(() => {
-              const cfpSFGame = currentDynasty.games?.find(g => g.isCFPSemifinal && g.year === currentDynasty.currentYear)
+              const cfpSFGame = findCurrentTeamGame(currentDynasty, g => g.isCFPSemifinal && g.year === currentDynasty.currentYear)
               if (!cfpSFGame) return null
 
               const cfpOpponentAbbr = cfpSFGame.opponent
@@ -5989,7 +5990,7 @@ export default function Dashboard() {
 
             {/* CFP Championship Game - shows when user played in Championship */}
             {(() => {
-              const cfpChampGame = currentDynasty.games?.find(g => g.isCFPChampionship && g.year === currentDynasty.currentYear)
+              const cfpChampGame = findCurrentTeamGame(currentDynasty, g => g.isCFPChampionship && g.year === currentDynasty.currentYear)
               if (!cfpChampGame) return null
 
               const cfpOpponentAbbr = cfpChampGame.opponent
@@ -6167,7 +6168,7 @@ export default function Dashboard() {
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
         opponent={currentDynasty.bowlEligibilityData?.opponent || bowlOpponent}
-        existingGame={currentDynasty.games?.find(g => g.isBowlGame && g.year === currentDynasty.currentYear)}
+        existingGame={findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)}
         bowlName={currentDynasty.bowlEligibilityData?.bowlGame || selectedBowl}
       />
 

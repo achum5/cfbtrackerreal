@@ -813,10 +813,7 @@ export default function Game() {
           {/* Box Score Stats */}
           <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
             <div className="px-4 py-3 border-b border-gray-700">
-              <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+              <h3 className="font-bold text-white text-sm uppercase tracking-wide">
                 Box Score
               </h3>
             </div>
@@ -847,16 +844,16 @@ export default function Game() {
             <div className="p-4 overflow-x-auto">
               {STAT_TABS[activeStatTab] && (
                 <div className="space-y-6">
-                  {/* Home Team Stats */}
+                  {/* Home Team Stats - rightData is home team (right side = home) */}
                   {game.boxScore.home?.[activeStatTab]?.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <img
-                          src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
-                          alt={leftData.abbr}
+                          src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
+                          alt={rightData.name}
                           className="w-6 h-6 object-contain"
                         />
-                        <span className="text-white font-semibold">{leftData.abbr}</span>
+                        <span className="text-white font-semibold">{rightData.name}</span>
                       </div>
                       <table className="w-full text-sm">
                         <thead>
@@ -873,9 +870,15 @@ export default function Game() {
                             <tr key={idx} className="border-t border-gray-800">
                               {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                 const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                const value = row[key] ?? '-'
+                                const playerPID = colIdx === 0 ? getPlayerPID(value) : null
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
-                                    {row[key] ?? '-'}
+                                    {colIdx === 0 && playerPID ? (
+                                      <Link to={`/dynasty/${id}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                        {value}
+                                      </Link>
+                                    ) : value}
                                   </td>
                                 )
                               })}
@@ -886,16 +889,16 @@ export default function Game() {
                     </div>
                   )}
 
-                  {/* Away Team Stats */}
+                  {/* Away Team Stats - leftData is away team (left side = away) */}
                   {game.boxScore.away?.[activeStatTab]?.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
                         <img
-                          src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
-                          alt={rightData.abbr}
+                          src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
+                          alt={leftData.name}
                           className="w-6 h-6 object-contain"
                         />
-                        <span className="text-white font-semibold">{rightData.abbr}</span>
+                        <span className="text-white font-semibold">{leftData.name}</span>
                       </div>
                       <table className="w-full text-sm">
                         <thead>
@@ -912,9 +915,15 @@ export default function Game() {
                             <tr key={idx} className="border-t border-gray-800">
                               {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                 const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                const value = row[key] ?? '-'
+                                const playerPID = colIdx === 0 ? getPlayerPID(value) : null
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
-                                    {row[key] ?? '-'}
+                                    {colIdx === 0 && playerPID ? (
+                                      <Link to={`/dynasty/${id}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                        {value}
+                                      </Link>
+                                    ) : value}
                                   </td>
                                 )
                               })}
@@ -930,53 +939,157 @@ export default function Game() {
           </div>
 
           {/* Scoring Summary */}
-          {game.boxScore.scoringSummary?.length > 0 && (
-            <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
-              <div className="px-4 py-3 border-b border-gray-700">
-                <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Scoring Plays
-                </h3>
-              </div>
-              <div className="divide-y divide-gray-800">
-                {game.boxScore.scoringSummary.map((play, idx) => {
-                  const playTeamColors = getTeamColors(play.team) || { primary: '#666', secondary: '#333' }
-                  return (
-                    <div key={idx} className="px-4 py-3 flex items-center gap-3">
+          {game.boxScore.scoringSummary?.length > 0 && (() => {
+            // Calculate points for a play
+            const getPlayPoints = (play) => {
+              const scoreType = play.scoreType || ''
+              const patResult = play.patResult || ''
+
+              // TD-based plays
+              if (scoreType.includes('TD')) {
+                let points = 6
+                if (patResult.includes('Made XP')) points += 1
+                else if (patResult.includes('Converted 2PT')) points += 2
+                return points
+              }
+              // Field goal
+              if (scoreType === 'Field Goal') return 3
+              // Safety
+              if (scoreType === 'Safety') return 2
+
+              return 0
+            }
+
+            // Calculate running scores
+            let leftScore = 0
+            let rightScore = 0
+            const playsWithScores = game.boxScore.scoringSummary.map((play) => {
+              const points = getPlayPoints(play)
+              const isLeftTeam = play.team?.toUpperCase() === leftData.abbr?.toUpperCase()
+              if (isLeftTeam) {
+                leftScore += points
+              } else {
+                rightScore += points
+              }
+              return { ...play, runningLeftScore: leftScore, runningRightScore: rightScore }
+            })
+
+            return (
+              <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
+                <div className="px-4 py-3 border-b border-gray-700">
+                  <h3 className="font-bold text-white text-sm uppercase tracking-wide">
+                    Scoring Plays
+                  </h3>
+                </div>
+                <div className="divide-y divide-gray-800/50">
+                  {playsWithScores.map((play, idx) => {
+                    const playTeamColors = getTeamColorsRobust(play.team) || { primary: '#666', secondary: '#333' }
+                    const scorerPID = getPlayerPID(play.scorer)
+                    const passerPID = play.passer ? getPlayerPID(play.passer) : null
+                    const contrastColor = getContrastTextColor(playTeamColors.primary)
+                    const isLeftTeam = play.team?.toUpperCase() === leftData.abbr?.toUpperCase()
+                    return (
                       <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: playTeamColors.primary }}
+                        key={idx}
+                        className="flex items-stretch"
                       >
-                        <img
-                          src={getTeamLogo(getMascotName(play.team) || play.team)}
-                          alt={play.team}
-                          className="w-5 h-5 object-contain"
+                        {/* Team color bar on left */}
+                        <div
+                          className="w-1.5 flex-shrink-0"
+                          style={{ backgroundColor: playTeamColors.primary }}
                         />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-medium text-sm">{play.scoreType}</div>
-                        <div className="text-gray-400 text-xs">
-                          {play.scorer}
-                          {play.passer && ` from ${play.passer}`}
+                        {/* Main content with team-colored background */}
+                        <div
+                          className="flex-1 flex items-center gap-3 px-4 py-3"
+                          style={{
+                            background: `linear-gradient(90deg, ${playTeamColors.primary}25 0%, ${playTeamColors.primary}08 50%, transparent 100%)`
+                          }}
+                        >
+                          {/* Team logo */}
+                          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800/50">
+                            <img
+                              src={getTeamLogo(getMascotName(play.team) || play.team)}
+                              alt={play.team}
+                              className="w-7 h-7 object-contain"
+                            />
+                          </div>
+                          {/* Play details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className="font-bold text-sm"
+                                style={{ color: playTeamColors.primary }}
+                              >
+                                {getMascotName(play.team) || play.team}
+                              </span>
+                              <span className="text-gray-400 text-sm">
+                                {play.scoreType}
+                                {play.yards && ` (${play.yards} yds)`}
+                              </span>
+                              {play.patResult && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  play.patResult.includes('Made') || play.patResult.includes('Converted')
+                                    ? 'bg-green-500/30 text-green-300'
+                                    : 'bg-red-500/30 text-red-300'
+                                }`}>
+                                  {play.patResult}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-gray-300 text-xs mt-1">
+                              {scorerPID ? (
+                                <Link to={`/dynasty/${id}/player/${scorerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                  {play.scorer}
+                                </Link>
+                              ) : <span className="font-medium">{play.scorer}</span>}
+                              {play.passer && (
+                                <>
+                                  {' from '}
+                                  {passerPID ? (
+                                    <Link to={`/dynasty/${id}/player/${passerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                      {play.passer}
+                                    </Link>
+                                  ) : <span className="font-medium">{play.passer}</span>}
+                                </>
+                              )}
+                              {play.patNotes && (
+                                <span className="text-gray-400 ml-2">({play.patNotes})</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Running Score */}
+                          <div className="flex items-center gap-1 flex-shrink-0 mr-3">
+                            <span className={`text-lg font-black tabular-nums ${isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
+                              {play.runningLeftScore}
+                            </span>
+                            <span className="text-gray-500 text-sm">-</span>
+                            <span className={`text-lg font-black tabular-nums ${!isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
+                              {play.runningRightScore}
+                            </span>
+                          </div>
+                          {/* Quarter and time */}
+                          <div className="text-right flex-shrink-0">
+                            <div
+                              className="text-xs font-bold px-2 py-0.5 rounded"
+                              style={{ backgroundColor: playTeamColors.primary + '40', color: 'white' }}
+                            >
+                              Q{play.quarter}
+                            </div>
+                            <div className="text-gray-400 text-xs mt-1 font-mono">{play.timeLeft}</div>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-gray-500 text-xs text-right flex-shrink-0">
-                        <div>Q{play.quarter}</div>
-                        <div>{play.timeLeft}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
       )}
 
       {/* Game Details Section */}
-      {(!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense || game.conferencePOW || game.nationalPOW)) || game.gameNote ? (
+      {(!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense || game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW)) || game.gameNote ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
           {/* Team Matchup Card */}
@@ -1037,7 +1150,7 @@ export default function Game() {
           )}
 
           {/* Player of the Week */}
-          {!isCPUGame && (game.conferencePOW || game.nationalPOW) && (
+          {!isCPUGame && (game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW) && (
             <div className="lg:col-span-4 rounded-xl overflow-hidden shadow-lg bg-gradient-to-br from-gray-900 to-gray-800">
               <div className="px-4 py-3 border-b border-gray-700">
                 <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
@@ -1048,52 +1161,115 @@ export default function Game() {
                 </h3>
               </div>
               <div className="p-4 space-y-3">
-                {game.conferencePOW && (
+                {/* Conference POW Section */}
+                {(game.conferencePOW || game.confDefensePOW) && (
                   <div
                     className="p-3 rounded-lg"
                     style={{ background: `linear-gradient(135deg, ${teamColors.primary}40 0%, ${teamColors.primary}20 100%)` }}
                   >
-                    <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Conference</div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: teamColors.primary }}
-                      >
-                        <svg className="w-4 h-4" fill={getContrastTextColor(teamColors.primary)} viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      </div>
-                      {getPlayerPID(game.conferencePOW) ? (
-                        <Link
-                          to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
-                          className="font-bold text-white text-lg hover:underline truncate"
-                        >
-                          {game.conferencePOW}
-                        </Link>
-                      ) : (
-                        <div className="font-bold text-white text-lg truncate">{game.conferencePOW}</div>
+                    <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2">Conference</div>
+                    <div className="space-y-2">
+                      {game.conferencePOW && (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: teamColors.primary }}
+                          >
+                            <svg className="w-3.5 h-3.5" fill={getContrastTextColor(teamColors.primary)} viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] text-gray-500 uppercase">Offensive</div>
+                            {getPlayerPID(game.conferencePOW) ? (
+                              <Link
+                                to={`/dynasty/${id}/player/${getPlayerPID(game.conferencePOW)}`}
+                                className="font-bold text-white text-sm hover:underline truncate block"
+                              >
+                                {game.conferencePOW}
+                              </Link>
+                            ) : (
+                              <div className="font-bold text-white text-sm truncate">{game.conferencePOW}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {game.confDefensePOW && (
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: teamColors.secondary }}
+                          >
+                            <svg className="w-3.5 h-3.5" fill={getContrastTextColor(teamColors.secondary)} viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2A11.954 11.954 0 0110 1.944z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] text-gray-500 uppercase">Defensive</div>
+                            {getPlayerPID(game.confDefensePOW) ? (
+                              <Link
+                                to={`/dynasty/${id}/player/${getPlayerPID(game.confDefensePOW)}`}
+                                className="font-bold text-white text-sm hover:underline truncate block"
+                              >
+                                {game.confDefensePOW}
+                              </Link>
+                            ) : (
+                              <div className="font-bold text-white text-sm truncate">{game.confDefensePOW}</div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
-                {game.nationalPOW && (
+                {/* National POW Section */}
+                {(game.nationalPOW || game.natlDefensePOW) && (
                   <div className="p-3 rounded-lg bg-gradient-to-r from-yellow-500/30 to-yellow-400/20 border border-yellow-500/30">
-                    <div className="text-[10px] text-yellow-300 uppercase font-bold tracking-wider mb-1">National</div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400 shadow-lg shadow-yellow-400/30">
-                        <svg className="w-4 h-4 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      </div>
-                      {getPlayerPID(game.nationalPOW) ? (
-                        <Link
-                          to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
-                          className="font-bold text-yellow-300 text-lg hover:underline truncate"
-                        >
-                          {game.nationalPOW}
-                        </Link>
-                      ) : (
-                        <div className="font-bold text-yellow-300 text-lg truncate">{game.nationalPOW}</div>
+                    <div className="text-[10px] text-yellow-300 uppercase font-bold tracking-wider mb-2">National</div>
+                    <div className="space-y-2">
+                      {game.nationalPOW && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-400 shadow-lg shadow-yellow-400/30">
+                            <svg className="w-3.5 h-3.5 text-yellow-900" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] text-yellow-400/70 uppercase">Offensive</div>
+                            {getPlayerPID(game.nationalPOW) ? (
+                              <Link
+                                to={`/dynasty/${id}/player/${getPlayerPID(game.nationalPOW)}`}
+                                className="font-bold text-yellow-300 text-sm hover:underline truncate block"
+                              >
+                                {game.nationalPOW}
+                              </Link>
+                            ) : (
+                              <div className="font-bold text-yellow-300 text-sm truncate">{game.nationalPOW}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {game.natlDefensePOW && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-600 shadow-lg shadow-yellow-600/30">
+                            <svg className="w-3.5 h-3.5 text-yellow-100" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2A11.954 11.954 0 0110 1.944z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] text-yellow-400/70 uppercase">Defensive</div>
+                            {getPlayerPID(game.natlDefensePOW) ? (
+                              <Link
+                                to={`/dynasty/${id}/player/${getPlayerPID(game.natlDefensePOW)}`}
+                                className="font-bold text-yellow-300 text-sm hover:underline truncate block"
+                              >
+                                {game.natlDefensePOW}
+                              </Link>
+                            ) : (
+                              <div className="font-bold text-yellow-300 text-sm truncate">{game.natlDefensePOW}</div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1106,7 +1282,7 @@ export default function Game() {
           {game.gameNote && (
             <div
               className={`rounded-xl overflow-hidden shadow-lg ${
-                (!isCPUGame && (game.opponentOverall || game.conferencePOW || game.nationalPOW))
+                (!isCPUGame && (game.opponentOverall || game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW))
                   ? 'lg:col-span-3'
                   : 'lg:col-span-12'
               }`}

@@ -1,6 +1,6 @@
 import { auth } from '../config/firebase'
 import { teamAbbreviations, getTeamAbbreviationsList, getAbbreviationFromDisplayName, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
-import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, QUARTERS } from '../data/boxScoreConstants'
+import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS } from '../data/boxScoreConstants'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
@@ -4929,7 +4929,9 @@ const DETAILED_STATS_TABS = {
  * Create a Detailed Stats sheet with 9 tabs for all football statistics
  * Each tab has: Name, Snaps Played (pre-filled), then stat-specific columns
  */
-export async function createDetailedStatsSheet(dynastyName, year, playerStats = []) {
+export async function createDetailedStatsSheet(dynastyName, year, playerStats = [], aggregatedStats = {}) {
+  // aggregatedStats is an object keyed by player name, containing their aggregated box score stats
+  // Format: { 'Player Name': { passing: {...}, rushing: {...}, ... }, ... }
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -4976,7 +4978,7 @@ export async function createDetailedStatsSheet(dynastyName, year, playerStats = 
     for (let i = 0; i < tabNames.length; i++) {
       const tabName = tabNames[i]
       const sheetId = sheet.sheets[i].properties.sheetId
-      await initializeDetailedStatsTab(sheet.spreadsheetId, accessToken, sheetId, tabName, playerStats)
+      await initializeDetailedStatsTab(sheet.spreadsheetId, accessToken, sheetId, tabName, playerStats, aggregatedStats)
     }
 
     // Share sheet publicly so it can be embedded in iframe
@@ -5005,10 +5007,100 @@ const TAB_POSITION_FILTERS = {
   'Punt Return': ['HB', 'FB', 'WR', 'CB', 'FS', 'SS']
 }
 
+// Mapping from detailed stats tab names to box score stat category keys
+const TAB_TO_BOXSCORE_CATEGORY = {
+  'Passing': 'passing',
+  'Rushing': 'rushing',
+  'Receiving': 'receiving',
+  'Blocking': 'blocking',
+  'Defensive': 'defense',
+  'Kicking': 'kicking',
+  'Punting': 'punting',
+  'Kick Return': 'kickReturn',
+  'Punt Return': 'puntReturn'
+}
+
+// Mapping from detailed stats column names to box score field names
+const COLUMN_TO_BOXSCORE_FIELD = {
+  // Passing
+  'Completions': 'comp',
+  'Attempts': 'attempts',
+  'Yards': 'yards',
+  'Touchdowns': 'tD',
+  'Interceptions': 'iNT',
+  'Passing Long': 'long',
+  'Sacks Taken': 'sacks',
+  // Rushing
+  'Carries': 'carries',
+  'Rushing Long': 'long',
+  'Fumbles': 'fumbles',
+  '20+ Yard Runs': '20+',
+  'Broken Tackles': 'brokenTackles',
+  'Yards After Contact': 'yAC',
+  // Receiving
+  'Receptions': 'receptions',
+  'Receiving Long': 'long',
+  'Run After Catch': 'rAC',
+  'Drops': 'drops',
+  // Blocking
+  'Sacks Allowed': 'sacksAllowed',
+  'Pancakes': 'pancakes',
+  // Defensive
+  'Solo Tackles': 'solo',
+  'Assisted Tackles': 'assists',
+  'Tackles for Loss': 'tFL',
+  'Sacks': 'sack',
+  'INT Return Yards': 'iNTYards',
+  'INT Long': 'iNTLong',
+  'Defensive TDs': 'tD',
+  'Deflections': 'deflections',
+  'Forced Fumbles': 'fF',
+  'Fumble Recoveries': 'fR',
+  'Fumble Return Yards': 'fumbleYards',
+  'Blocks': 'blocks',
+  'Safeties': 'safeties',
+  // Kicking
+  'FG Made': 'fGM',
+  'FG Attempted': 'fGA',
+  'FG Long': 'fGLong',
+  'XP Made': 'xPM',
+  'XP Attempted': 'xPA',
+  'Kickoffs': 'kickoffs',
+  'Touchbacks': 'touchbacks',
+  'FG Blocked': 'fGBlock',
+  'XP Blocked': 'xPB',
+  'FG Made (0-29)': 'fGM29',
+  'FG Att (0-29)': 'fGA29',
+  'FG Made (30-39)': 'fGM39',
+  'FG Att (30-39)': 'fGA39',
+  'FG Made (40-49)': 'fGM49',
+  'FG Att (40-49)': 'fGA49',
+  'FG Made (50+)': 'fGM50+',
+  'FG Att (50+)': 'fGA50+',
+  // Punting
+  'Punts': 'punts',
+  'Punting Yards': 'yards',
+  'Net Punting Yards': 'netYards',
+  'Punts Inside 20': 'in20',
+  'Punt Long': 'long',
+  'Punts Blocked': 'block',
+  // Kick Return
+  'Kickoff Returns': 'kR',
+  'KR Yardage': 'yards',
+  'KR Touchdowns': 'tD',
+  'KR Long': 'long',
+  // Punt Return
+  'Punt Returns': 'pR',
+  'PR Yardage': 'yards',
+  'PR Touchdowns': 'tD',
+  'PR Long': 'long'
+}
+
 // Initialize a single tab of the detailed stats sheet
-async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, tabName, playerStats) {
+async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, tabName, playerStats, aggregatedStats = {}) {
   const statColumns = DETAILED_STATS_TABS[tabName]
   const totalColumns = statColumns.length + 4 // PID + Name + Position + Snaps + stat columns
+  const boxScoreCategory = TAB_TO_BOXSCORE_CATEGORY[tabName]
 
   // Filter players by positions relevant to this tab
   const allowedPositions = TAB_POSITION_FILTERS[tabName] || []
@@ -5157,8 +5249,23 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
     }
   ]
 
-  // Pre-fill player data if available
+  // Pre-fill player data if available (including aggregated box score stats)
   if (sortedPlayers.length > 0) {
+    // Helper to get stat value for a player from aggregated stats
+    const getPlayerStatValue = (playerName, columnName) => {
+      const playerAggStats = aggregatedStats[playerName]
+      if (!playerAggStats || !boxScoreCategory) return null
+
+      const categoryStats = playerAggStats[boxScoreCategory]
+      if (!categoryStats) return null
+
+      const fieldName = COLUMN_TO_BOXSCORE_FIELD[columnName]
+      if (!fieldName) return null
+
+      const value = categoryStats[fieldName]
+      return value !== undefined && value !== null ? value : null
+    }
+
     requests.push({
       updateCells: {
         range: {
@@ -5166,16 +5273,33 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
           startRowIndex: 1,
           endRowIndex: sortedPlayers.length + 1,
           startColumnIndex: 0,
-          endColumnIndex: 4
+          endColumnIndex: totalColumns
         },
-        rows: sortedPlayers.map(player => ({
-          values: [
+        rows: sortedPlayers.map(player => {
+          // Base player info columns
+          const baseValues = [
             { userEnteredValue: { numberValue: player.pid || 0 } },
             { userEnteredValue: { stringValue: player.name || '' } },
             { userEnteredValue: { stringValue: player.position || '' } },
             { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
           ]
-        })),
+
+          // Stat columns - pre-fill from aggregated box scores if available
+          const statValues = statColumns.map(colName => {
+            const statValue = getPlayerStatValue(player.name, colName)
+            if (statValue !== null) {
+              // Use number for numeric stats
+              if (typeof statValue === 'number') {
+                return { userEnteredValue: { numberValue: statValue } }
+              }
+              return { userEnteredValue: { stringValue: String(statValue) } }
+            }
+            // Leave empty if no aggregated stat available
+            return { userEnteredValue: { stringValue: '' } }
+          })
+
+          return { values: [...baseValues, ...statValues] }
+        }),
         fields: 'userEnteredValue'
       }
     })
@@ -9186,7 +9310,7 @@ async function initializeBoxScoreSheet(spreadsheetId, accessToken, sheetIds, isU
 }
 
 // Create a scoring summary sheet
-export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year, week) {
+export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year, week, homeRoster = [], awayRoster = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -9224,7 +9348,7 @@ export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year
     const sheetId = sheet.sheets[0].properties.sheetId
 
     // Initialize with headers, formatting, and dropdowns
-    await initializeScoringSummarySheet(sheet.spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr)
+    await initializeScoringSummarySheet(sheet.spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr, homeRoster, awayRoster)
 
     // Share sheet publicly for embedding
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -9240,7 +9364,10 @@ export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year
 }
 
 // Initialize scoring summary sheet with headers, formatting, and dropdowns
-async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr) {
+async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr, homeRoster = [], awayRoster = []) {
+  // Combine both rosters for player dropdown
+  const allPlayers = [...homeRoster, ...awayRoster].sort()
+
   const requests = [
     // Set headers
     {
@@ -9295,7 +9422,7 @@ async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId
         }
       }
     },
-    // Team dropdown (column A)
+    // Team dropdown (column A - index 0)
     {
       setDataValidation: {
         range: {
@@ -9318,27 +9445,7 @@ async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId
         }
       }
     },
-    // Score Type dropdown (column D)
-    {
-      setDataValidation: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: SCORING_SUMMARY.rowCount + 1,
-          startColumnIndex: 3,
-          endColumnIndex: 4
-        },
-        rule: {
-          condition: {
-            type: 'ONE_OF_LIST',
-            values: SCORE_TYPES.map(type => ({ userEnteredValue: type }))
-          },
-          showCustomUi: true,
-          strict: true
-        }
-      }
-    },
-    // Quarter dropdown (column E)
+    // Score Type dropdown (column E - index 4)
     {
       setDataValidation: {
         range: {
@@ -9351,6 +9458,46 @@ async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId
         rule: {
           condition: {
             type: 'ONE_OF_LIST',
+            values: SCORE_TYPES.map(type => ({ userEnteredValue: type }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    // PAT Result dropdown (column F - index 5)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 5,
+          endColumnIndex: 6
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: PAT_RESULTS.map(result => ({ userEnteredValue: result }))
+          },
+          showCustomUi: true,
+          strict: false // Allow empty for non-TD plays
+        }
+      }
+    },
+    // Quarter dropdown (column H - index 7)
+    {
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 7,
+          endColumnIndex: 8
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
             values: QUARTERS.map(q => ({ userEnteredValue: q }))
           },
           showCustomUi: true,
@@ -9359,6 +9506,29 @@ async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId
       }
     }
   ]
+
+  // Add player dropdown for Scorer column (column B - index 1) if we have players
+  if (allPlayers.length > 0) {
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: allPlayers.map(name => ({ userEnteredValue: name }))
+          },
+          showCustomUi: true,
+          strict: false // Allow free text entry as well
+        }
+      }
+    })
+  }
 
   // Add conditional formatting for team colors
   const teamFormattingRules = generateScoringTeamFormattingRules(sheetId, homeTeamAbbr, awayTeamAbbr, SCORING_SUMMARY.rowCount)
@@ -9443,7 +9613,8 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    const range = `'${SCORING_SUMMARY.title}'!A2:F${SCORING_SUMMARY.rowCount + 1}`
+    // Updated to column I (9 columns) to include PAT Result and PAT Notes
+    const range = `'${SCORING_SUMMARY.title}'!A2:I${SCORING_SUMMARY.rowCount + 1}`
     const response = await fetch(
       `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
@@ -9461,16 +9632,19 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    // Parse rows into objects
+    // Parse rows into objects - columns: Team, Scorer, Passer, Yards, Score Type, PAT Result, PAT Notes, Quarter, Time Left
     return rows
-      .filter(row => row[0] && row[3]) // Must have team and score type
+      .filter(row => row[0] && row[4]) // Must have team (index 0) and score type (index 4)
       .map(row => ({
         team: (row[0] || '').trim().toUpperCase(),
         scorer: (row[1] || '').trim(),
         passer: (row[2] || '').trim(),
-        scoreType: (row[3] || '').trim(),
-        quarter: (row[4] || '').trim(),
-        timeLeft: (row[5] || '').trim()
+        yards: (row[3] || '').trim(),
+        scoreType: (row[4] || '').trim(),
+        patResult: (row[5] || '').trim(),
+        patNotes: (row[6] || '').trim(),
+        quarter: (row[7] || '').trim(),
+        timeLeft: (row[8] || '').trim()
       }))
   } catch (error) {
     console.error('Error reading scoring summary:', error)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 export default function PlayerEditModal({ isOpen, onClose, player, teamColors, onSave, defaultSchool, dynasty }) {
   const [formData, setFormData] = useState({})
@@ -43,10 +44,29 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       if (hasData) yearsSet.add(parseInt(year))
     })
 
+    // Add years from box scores where this player appears
+    if (dynasty.games && player?.name) {
+      dynasty.games.forEach(game => {
+        if (!game.boxScore || !game.year) return
+        const checkCategory = (side) => {
+          if (!game.boxScore[side]) return false
+          return Object.values(game.boxScore[side]).some(category =>
+            Array.isArray(category) && category.some(p =>
+              p.playerName?.toLowerCase().trim() === player.name.toLowerCase().trim()
+            )
+          )
+        }
+        if (checkCategory('home') || checkCategory('away')) {
+          yearsSet.add(Number(game.year))
+        }
+      })
+    }
+
     return Array.from(yearsSet).sort((a, b) => b - a) // Most recent first
   }
 
   // Helper to get stats for a specific year
+  // Combines box score aggregated stats with manual entry, preferring box score data
   const getYearStats = (year) => {
     const detailedStats = dynasty?.detailedStatsByYear || {}
     const playerStats = dynasty?.playerStatsByYear || {}
@@ -56,7 +76,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     // Get basic stats (games, snaps)
     const basicStats = playerStats[yearStr]?.find(p => p.pid === playerPid) || {}
 
-    // Helper to get category stats
+    // Get aggregated box score stats for this player/year
+    const boxStats = player?.name && dynasty
+      ? aggregatePlayerBoxScoreStats(dynasty, player.name, year, player.team)
+      : null
+
+    // Helper to get category stats from manual entry
     const getCategoryStats = (tabName, fieldMap) => {
       const result = {}
       Object.keys(fieldMap).forEach(key => result[key] = 0)
@@ -71,46 +96,124 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       return result
     }
 
-    const passing = getCategoryStats('Passing', {
+    // Get manual entry stats
+    const manualPassing = getCategoryStats('Passing', {
       completions: 'Completions', attempts: 'Attempts', yards: 'Yards',
       touchdowns: 'Touchdowns', interceptions: 'Interceptions',
       passingLong: 'Passing Long', sacksTaken: 'Sacks Taken'
     })
-    const rushing = getCategoryStats('Rushing', {
+    const manualRushing = getCategoryStats('Rushing', {
       carries: 'Carries', yards: 'Yards', touchdowns: 'Touchdowns',
       rushingLong: 'Rushing Long', fumbles: 'Fumbles', brokenTackles: 'Broken Tackles'
     })
-    const receiving = getCategoryStats('Receiving', {
+    const manualReceiving = getCategoryStats('Receiving', {
       receptions: 'Receptions', yards: 'Yards', touchdowns: 'Touchdowns',
       receivingLong: 'Receiving Long', drops: 'Drops'
     })
-    const blocking = getCategoryStats('Blocking', { sacksAllowed: 'Sacks Allowed' })
-    const defensive = getCategoryStats('Defensive', {
+    const manualBlocking = getCategoryStats('Blocking', { sacksAllowed: 'Sacks Allowed', pancakes: 'Pancakes' })
+    const manualDefensive = getCategoryStats('Defensive', {
       soloTackles: 'Solo Tackles', assistedTackles: 'Assisted Tackles',
       tacklesForLoss: 'Tackles for Loss', sacks: 'Sacks', interceptions: 'Interceptions',
       intReturnYards: 'INT Return Yards', defensiveTDs: 'Defensive TDs',
       deflections: 'Deflections', forcedFumbles: 'Forced Fumbles', fumbleRecoveries: 'Fumble Recoveries'
     })
-    const kicking = getCategoryStats('Kicking', {
+    const manualKicking = getCategoryStats('Kicking', {
       fgMade: 'FG Made', fgAttempted: 'FG Attempted', fgLong: 'FG Long',
       xpMade: 'XP Made', xpAttempted: 'XP Attempted'
     })
-    const punting = getCategoryStats('Punting', {
+    const manualPunting = getCategoryStats('Punting', {
       punts: 'Punts', puntingYards: 'Punting Yards',
       puntsInside20: 'Punts Inside 20', puntLong: 'Punt Long'
     })
-    const kickReturn = getCategoryStats('Kick Return', {
+    const manualKickReturn = getCategoryStats('Kick Return', {
       returns: 'Kickoff Returns', returnYardage: 'KR Yardage',
       touchdowns: 'KR Touchdowns', returnLong: 'KR Long'
     })
-    const puntReturn = getCategoryStats('Punt Return', {
+    const manualPuntReturn = getCategoryStats('Punt Return', {
       returns: 'Punt Returns', returnYardage: 'PR Yardage',
       touchdowns: 'PR Touchdowns', returnLong: 'PR Long'
     })
 
+    // Merge box score stats with manual stats (box score takes priority)
+    // Convert box score format to the format expected by the form
+    const passing = boxStats?.passing ? {
+      completions: boxStats.passing.comp || 0,
+      attempts: boxStats.passing.attempts || 0,
+      yards: boxStats.passing.yards || 0,
+      touchdowns: boxStats.passing.tD || 0,
+      interceptions: boxStats.passing.iNT || 0,
+      passingLong: boxStats.passing.long || 0,
+      sacksTaken: boxStats.passing.sacks || 0
+    } : manualPassing
+
+    const rushing = boxStats?.rushing ? {
+      carries: boxStats.rushing.carries || 0,
+      yards: boxStats.rushing.yards || 0,
+      touchdowns: boxStats.rushing.tD || 0,
+      rushingLong: boxStats.rushing.long || 0,
+      fumbles: boxStats.rushing.fumbles || 0,
+      brokenTackles: boxStats.rushing.brokenTackles || 0
+    } : manualRushing
+
+    const receiving = boxStats?.receiving ? {
+      receptions: boxStats.receiving.receptions || 0,
+      yards: boxStats.receiving.yards || 0,
+      touchdowns: boxStats.receiving.tD || 0,
+      receivingLong: boxStats.receiving.long || 0,
+      drops: boxStats.receiving.drops || 0
+    } : manualReceiving
+
+    const blocking = boxStats?.blocking ? {
+      sacksAllowed: boxStats.blocking.sacksAllowed || 0,
+      pancakes: boxStats.blocking.pancakes || 0
+    } : manualBlocking
+
+    const defensive = boxStats?.defense ? {
+      soloTackles: boxStats.defense.solo || 0,
+      assistedTackles: boxStats.defense.assists || 0,
+      tacklesForLoss: boxStats.defense.tFL || 0,
+      sacks: boxStats.defense.sack || 0,
+      interceptions: boxStats.defense.iNT || 0,
+      intReturnYards: boxStats.defense.iNTYards || 0,
+      defensiveTDs: boxStats.defense.tD || 0,
+      deflections: boxStats.defense.deflections || 0,
+      forcedFumbles: boxStats.defense.fF || 0,
+      fumbleRecoveries: boxStats.defense.fR || 0
+    } : manualDefensive
+
+    const kicking = boxStats?.kicking ? {
+      fgMade: boxStats.kicking.fGM || 0,
+      fgAttempted: boxStats.kicking.fGA || 0,
+      fgLong: boxStats.kicking.fGLong || 0,
+      xpMade: boxStats.kicking.xPM || 0,
+      xpAttempted: boxStats.kicking.xPA || 0
+    } : manualKicking
+
+    const punting = boxStats?.punting ? {
+      punts: boxStats.punting.punts || 0,
+      puntingYards: boxStats.punting.yards || 0,
+      puntsInside20: boxStats.punting.in20 || 0,
+      puntLong: boxStats.punting.long || 0
+    } : manualPunting
+
+    const kickReturn = boxStats?.kickReturn ? {
+      returns: boxStats.kickReturn.kR || 0,
+      returnYardage: boxStats.kickReturn.yards || 0,
+      touchdowns: boxStats.kickReturn.tD || 0,
+      returnLong: boxStats.kickReturn.long || 0
+    } : manualKickReturn
+
+    const puntReturn = boxStats?.puntReturn ? {
+      returns: boxStats.puntReturn.pR || 0,
+      returnYardage: boxStats.puntReturn.yards || 0,
+      touchdowns: boxStats.puntReturn.tD || 0,
+      returnLong: boxStats.puntReturn.long || 0
+    } : manualPuntReturn
+
     return {
-      gamesPlayed: basicStats.gamesPlayed || 0,
+      gamesPlayed: boxStats?.gamesWithStats || basicStats.gamesPlayed || 0,
       snapsPlayed: basicStats.snapsPlayed || 0,
+      fromBoxScores: !!boxStats,
       passing, rushing, receiving, blocking, defensive, kicking, punting, kickReturn, puntReturn
     }
   }

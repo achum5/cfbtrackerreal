@@ -23,13 +23,13 @@ export const STAT_TABS = {
     key: 'blocking',
     title: 'Blocking',
     headers: ['Player Name', 'Sacks Allowed', 'Pancakes'],
-    rowCount: 10
+    rowCount: 20
   },
   defense: {
     key: 'defense',
     title: 'Defense',
     headers: ['Player Name', 'Solo', 'Assists', 'TFL', 'Sack', 'INT', 'INT Yards', 'INT Long', 'Deflections', 'FF', 'FR', 'Fumble Yards', 'Blocks', 'Safeties', 'TD'],
-    rowCount: 20
+    rowCount: 30
   },
   kicking: {
     key: 'kicking',
@@ -73,7 +73,7 @@ export const STAT_TAB_ORDER = [
 // Scoring Summary configuration
 export const SCORING_SUMMARY = {
   title: 'Scoring Summary',
-  headers: ['Team', 'Scorer', 'Passer', 'Score Type', 'Quarter', 'Time Left'],
+  headers: ['Team', 'Scorer', 'Passer', 'Yards', 'Score Type', 'PAT Result', 'PAT Notes', 'Quarter', 'Time Left'],
   rowCount: 30
 }
 
@@ -82,14 +82,21 @@ export const SCORE_TYPES = [
   'Rushing TD',
   'Passing TD',
   'Field Goal',
-  'Extra Point',
   'Safety',
-  '2-Point Conversion',
   'Kick Return TD',
   'Punt Return TD',
   'INT Return TD',
   'Fumble Return TD',
   'Blocked Punt/FG TD'
+]
+
+// PAT Result dropdown options (for after touchdowns)
+export const PAT_RESULTS = [
+  'Made XP',
+  'Missed XP',
+  'Blocked XP',
+  'Converted 2PT',
+  'Failed 2PT'
 ]
 
 // Quarter dropdown options
@@ -384,32 +391,50 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
     const quarter = quarters[rand(0, 3)]
 
     if (remainingTeamScore >= 7 && Math.random() > 0.3) {
-      // Touchdown + XP
+      // Touchdown + XP (7 points)
       const isTDPass = Math.random() > 0.4
+      const tdYards = isTDPass ? rand(10, 65) : rand(1, 45)
       plays.push({
         team: userTeamAbbr,
         scorer: isTDPass ? receivers[rand(0, Math.min(2, receivers.length - 1))] : rushers[rand(0, Math.min(1, rushers.length - 1))],
         passer: isTDPass ? passers[0] : '',
+        yards: tdYards,
         scoreType: isTDPass ? 'Passing TD' : 'Rushing TD',
-        quarter,
-        timeLeft: generateTime()
-      })
-      plays.push({
-        team: userTeamAbbr,
-        scorer: kickers[0] || 'K',
-        passer: '',
-        scoreType: 'Extra Point',
+        patResult: 'Made XP',
+        patNotes: kickers[0] || 'K',
         quarter,
         timeLeft: generateTime()
       })
       remainingTeamScore -= 7
-    } else if (remainingTeamScore >= 6) {
-      // TD no XP
+    } else if (remainingTeamScore >= 8 && Math.random() > 0.8) {
+      // Touchdown + 2PT conversion (8 points)
+      const isTDPass = Math.random() > 0.4
+      const tdYards = isTDPass ? rand(10, 65) : rand(1, 45)
       plays.push({
         team: userTeamAbbr,
-        scorer: rushers[rand(0, Math.min(1, rushers.length - 1))],
-        passer: '',
-        scoreType: 'Rushing TD',
+        scorer: isTDPass ? receivers[rand(0, Math.min(2, receivers.length - 1))] : rushers[rand(0, Math.min(1, rushers.length - 1))],
+        passer: isTDPass ? passers[0] : '',
+        yards: tdYards,
+        scoreType: isTDPass ? 'Passing TD' : 'Rushing TD',
+        patResult: 'Converted 2PT',
+        patNotes: `${rushers[0] || 'RB'} run`,
+        quarter,
+        timeLeft: generateTime()
+      })
+      remainingTeamScore -= 8
+    } else if (remainingTeamScore >= 6) {
+      // TD no XP (missed or failed 2PT)
+      const isTDPass = Math.random() > 0.5
+      const tdYards = isTDPass ? rand(10, 65) : rand(1, 45)
+      const patFailed = Math.random() > 0.5 ? 'Missed XP' : 'Failed 2PT'
+      plays.push({
+        team: userTeamAbbr,
+        scorer: isTDPass ? receivers[rand(0, Math.min(2, receivers.length - 1))] : rushers[rand(0, Math.min(1, rushers.length - 1))],
+        passer: isTDPass ? passers[0] : '',
+        yards: tdYards,
+        scoreType: isTDPass ? 'Passing TD' : 'Rushing TD',
+        patResult: patFailed,
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
@@ -420,7 +445,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: userTeamAbbr,
         scorer: kickers[0] || 'K',
         passer: '',
+        yards: rand(22, 52),
         scoreType: 'Field Goal',
+        patResult: '',
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
@@ -431,7 +459,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: userTeamAbbr,
         scorer: 'Defense',
         passer: '',
+        yards: '',
         scoreType: 'Safety',
+        patResult: '',
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
@@ -450,15 +481,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: opponentAbbr,
         scorer: 'Opponent WR',
         passer: 'Opponent QB',
+        yards: rand(10, 65),
         scoreType: 'Passing TD',
-        quarter,
-        timeLeft: generateTime()
-      })
-      plays.push({
-        team: opponentAbbr,
-        scorer: 'Opponent K',
-        passer: '',
-        scoreType: 'Extra Point',
+        patResult: 'Made XP',
+        patNotes: 'Opponent K',
         quarter,
         timeLeft: generateTime()
       })
@@ -468,7 +494,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: opponentAbbr,
         scorer: 'Opponent RB',
         passer: '',
+        yards: rand(1, 40),
         scoreType: 'Rushing TD',
+        patResult: 'Missed XP',
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
@@ -478,7 +507,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: opponentAbbr,
         scorer: 'Opponent K',
         passer: '',
+        yards: rand(22, 52),
         scoreType: 'Field Goal',
+        patResult: '',
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
@@ -488,7 +520,10 @@ const generateScoringSummary = (teamScore, opponentScore, userTeamAbbr, opponent
         team: opponentAbbr,
         scorer: 'Defense',
         passer: '',
+        yards: '',
         scoreType: 'Safety',
+        patResult: '',
+        patNotes: '',
         quarter,
         timeLeft: generateTime()
       })
