@@ -8649,3 +8649,269 @@ export async function readEncourageTransfersFromSheet(spreadsheetId) {
     throw error
   }
 }
+
+// ============================================
+// Recruit Overalls Sheet Functions
+// ============================================
+
+// Create Recruit Overalls sheet for Training Camp (Week 6)
+// Shows all recruits (HS and transfers) for user to enter their overalls
+export async function createRecruitOverallsSheet(dynastyName, year, recruits) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const rowCount = Math.max(recruits.length + 1, 30) // At least 30 rows
+    const columnCount = 5 // Name, Position, Class, Stars, Overall
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Recruiting Class Overalls ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Recruit Overalls',
+              gridProperties: {
+                rowCount: rowCount,
+                columnCount: columnCount,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create recruit overalls sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize headers and data
+    await initializeRecruitOverallsSheet(sheet.spreadsheetId, accessToken, sheetId, recruits)
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating recruit overalls sheet:', error)
+    throw error
+  }
+}
+
+// Initialize the Recruit Overalls sheet with headers and recruit data
+async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetId, recruits) {
+  const rowCount = Math.max(recruits.length + 1, 30)
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Name' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Stars' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } },
+            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, horizontalAlignment: 'CENTER', backgroundColor: { red: 0.9, green: 0.9, blue: 0.9 } } }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    },
+    // Set recruit data rows
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: recruits.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 5
+        },
+        rows: recruits.map(recruit => ({
+          values: [
+            { userEnteredValue: { stringValue: recruit.name || '' }, userEnteredFormat: { horizontalAlignment: 'LEFT' } },
+            { userEnteredValue: { stringValue: recruit.position || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { stringValue: recruit.year || recruit.class || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: { numberValue: recruit.stars || 0 }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
+            { userEnteredValue: recruit.overall ? { numberValue: recruit.overall } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
+          ]
+        })),
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: 0,
+            endColumnIndex: 5
+          },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    },
+    // Protect Name, Position, Class, Stars columns (only Overall is editable)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: rowCount,
+            startColumnIndex: 0,
+            endColumnIndex: 4
+          },
+          description: 'Recruit info - do not edit. Only enter Overall rating.',
+          warningOnly: true
+        }
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 180 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 2,
+          endIndex: 3
+        },
+        properties: { pixelSize: 70 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 3,
+          endIndex: 4
+        },
+        properties: { pixelSize: 50 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 4,
+          endIndex: 5
+        },
+        properties: { pixelSize: 70 },
+        fields: 'pixelSize'
+      }
+    }
+  ]
+
+  const batchUpdateResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchUpdateResponse.ok) {
+    const error = await batchUpdateResponse.json()
+    console.error('Batch update error:', error)
+    throw new Error(`Failed to initialize recruit overalls sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read recruit overalls from sheet
+export async function readRecruitOverallsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const range = 'Recruit Overalls!A2:E'
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read recruit overalls: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    // Return all recruits with their overalls
+    const recruitOveralls = rows
+      .filter(row => row[0] && row[4]) // Must have name and overall
+      .map(row => ({
+        name: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        class: row[2]?.trim() || '',
+        stars: parseInt(row[3], 10) || 0,
+        overall: parseInt(row[4], 10) || 0
+      }))
+      .filter(r => r.overall >= 40 && r.overall <= 99) // Valid overall range
+
+    return recruitOveralls
+  } catch (error) {
+    console.error('Error reading recruit overalls:', error)
+    throw error
+  }
+}
