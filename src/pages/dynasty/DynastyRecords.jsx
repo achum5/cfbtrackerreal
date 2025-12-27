@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty, aggregateBoxScoreStats } from '../../context/DynastyContext'
+import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import { getPlayerSeasonStatsFromBoxScores } from '../../utils/boxScoreAggregator'
 
 // Stat category definitions with all 51 stats
 const STAT_CATEGORIES = {
@@ -161,132 +162,76 @@ export default function DynastyRecords() {
   // Get player name by PID (legacy helper)
   const getPlayerName = (pid) => getPlayerInfo(pid).name
 
-  // Calculate leaderboards
+  // Calculate leaderboards - uses same data source as Player page
   const leaderboards = useMemo(() => {
-    const rosterPids = new Set(getRosterPlayers().map(p => p.pid))
+    const rosterPlayers = getRosterPlayers()
+    if (rosterPlayers.length === 0) return {}
 
-    // Combine stats from both sources:
-    // 1. detailedStatsByYear (end-of-season entry from sheets/player profile)
-    // 2. Box scores from games (computed on the fly)
-    const endOfSeasonStats = currentDynasty?.detailedStatsByYear || {}
-    const boxScoreStats = aggregateBoxScoreStats(currentDynasty) || {}
-    const playerStats = currentDynasty?.playerStatsByYear || {}
-
-    // Merge both stat sources into one combined structure
-    const combinedStats = {}
-    const allYears = new Set([...Object.keys(endOfSeasonStats), ...Object.keys(boxScoreStats)])
-
-    allYears.forEach(year => {
-      combinedStats[year] = {}
-      const eosYear = endOfSeasonStats[year] || {}
-      const boxYear = boxScoreStats[year] || {}
-      const allCategories = new Set([...Object.keys(eosYear), ...Object.keys(boxYear)])
-
-      allCategories.forEach(category => {
-        const eosData = eosYear[category] || []
-        const boxData = boxYear[category] || []
-
-        // Merge by PID - combine stats from both sources
-        const playerMap = {}
-
-        // Add end-of-season stats
-        eosData.forEach(entry => {
-          if (!entry.pid) return
-          playerMap[entry.pid] = { ...entry }
+    // Get stats for each player using the same utility as Player page
+    const allPlayerStats = []
+    rosterPlayers.forEach(player => {
+      const seasonStats = getPlayerSeasonStatsFromBoxScores(currentDynasty, player)
+      seasonStats.forEach(yearStats => {
+        allPlayerStats.push({
+          pid: player.pid,
+          name: player.name,
+          ...yearStats
         })
-
-        // Add/merge box score stats
-        boxData.forEach(entry => {
-          if (!entry.pid) return
-          if (!playerMap[entry.pid]) {
-            playerMap[entry.pid] = { ...entry }
-          } else {
-            // Merge - add numeric values
-            Object.entries(entry).forEach(([key, value]) => {
-              if (key === 'pid' || key === 'name') return
-              if (typeof value === 'number') {
-                playerMap[entry.pid][key] = (playerMap[entry.pid][key] || 0) + value
-              }
-            })
-          }
-        })
-
-        combinedStats[year][category] = Object.values(playerMap)
       })
     })
 
-    if (Object.keys(combinedStats).length === 0) return {}
+    if (allPlayerStats.length === 0) return {}
 
     // Aggregate stats by player (career) or by player/year (season)
     const aggregateStats = (category) => {
-      // Career mode: aggregate across all years
-      // Season mode: keep each year separate
       const playerTotals = {}
 
-      const years = Object.keys(combinedStats)
+      // Field mappings from boxScoreAggregator format to leaderboard format
+      const fieldMaps = {
+        passing: { cmp: 'Completions', att: 'Attempts', yds: 'Yards', td: 'Touchdowns', int: 'Interceptions' },
+        rushing: { car: 'Carries', yds: 'Yards', td: 'Touchdowns' },
+        receiving: { rec: 'Receptions', yds: 'Yards', td: 'Touchdowns' },
+        defensive: { solo: 'Solo Tackles', ast: 'Assisted Tackles', tfl: 'Tackles for Loss', sacks: 'Sacks', int: 'Interceptions', intYds: 'INT Return Yards', intTd: 'Defensive TDs', pdef: 'Deflections', ff: 'Forced Fumbles' },
+        kicking: { xpa: 'XP Attempted', xpm: 'XP Made', fga: 'FG Attempted', fgm: 'FG Made' },
+        punting: { punts: 'Punts', yds: 'Punting Yards' },
+        kickReturn: { ret: 'Kickoff Returns', yds: 'KR Yardage', td: 'KR Touchdowns' },
+        puntReturn: { ret: 'Punt Returns', yds: 'PR Yardage', td: 'PR Touchdowns' }
+      }
 
-      years.forEach(year => {
-        const yearData = combinedStats[year] || {}
-        const playerYearStats = playerStats[year] || []
+      allPlayerStats.forEach(ps => {
+        const catStats = ps[category]
+        if (!catStats) return
 
-        // Map category to tab name
-        const tabMap = {
-          passing: 'Passing',
-          rushing: 'Rushing',
-          receiving: 'Receiving',
-          defensive: 'Defensive',
-          kicking: 'Kicking',
-          punting: 'Punting',
-          kickReturn: 'Kick Return',
-          puntReturn: 'Punt Return'
+        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
+
+        if (!playerTotals[key]) {
+          playerTotals[key] = {
+            pid: ps.pid,
+            year: ps.year,
+            years: [],
+            gamesPlayed: 0
+          }
         }
 
-        const tabName = tabMap[category]
-        if (!tabName) return
+        if (!playerTotals[key].years.includes(ps.year)) {
+          playerTotals[key].years.push(ps.year)
+        }
 
-        const tabData = yearData[tabName] || []
+        if (ps.gamesPlayed) {
+          playerTotals[key].gamesPlayed += ps.gamesPlayed
+        }
 
-        tabData.forEach(entry => {
-          if (!entry.pid || !rosterPids.has(entry.pid)) return
-
-          // For career mode: key by pid only (aggregate)
-          // For season mode: key by pid+year (keep separate)
-          const key = mode === 'career' ? entry.pid : `${entry.pid}-${year}`
-
-          if (!playerTotals[key]) {
-            playerTotals[key] = {
-              pid: entry.pid,
-              year: parseInt(year), // Single year for season mode
-              years: [],
-              gamesPlayed: 0
-            }
-          }
-
-          if (!playerTotals[key].years.includes(parseInt(year))) {
-            playerTotals[key].years.push(parseInt(year))
-          }
-
-          // Get games played from playerStatsByYear
-          const basicStats = playerYearStats.find(p => p.pid === entry.pid)
-          if (basicStats?.gamesPlayed) {
+        // Map stats to expected field names
+        const fieldMap = fieldMaps[category] || {}
+        Object.entries(catStats).forEach(([shortKey, value]) => {
+          const longKey = fieldMap[shortKey] || shortKey
+          if (typeof value === 'number') {
             if (mode === 'career') {
-              playerTotals[key].gamesPlayed += basicStats.gamesPlayed
+              playerTotals[key][longKey] = (playerTotals[key][longKey] || 0) + value
             } else {
-              playerTotals[key].gamesPlayed = basicStats.gamesPlayed
+              playerTotals[key][longKey] = value
             }
           }
-
-          // Aggregate all numeric fields
-          Object.entries(entry).forEach(([keyName, value]) => {
-            if (keyName === 'pid' || keyName === 'name' || keyName === 'position' || keyName === 'year') return
-            if (typeof value === 'number') {
-              if (mode === 'career') {
-                playerTotals[key][keyName] = (playerTotals[key][keyName] || 0) + value
-              } else {
-                playerTotals[key][keyName] = value
-              }
-            }
-          })
         })
       })
 
@@ -295,148 +240,72 @@ export default function DynastyRecords() {
 
     // Calculate scrimmage stats (combined rush + receiving)
     const calcScrimmageStats = () => {
-      if (mode === 'career') {
-        // Career mode: aggregate all years
-        const rushStats = aggregateStats('rushing')
-        const recStats = aggregateStats('receiving')
+      const playerTotals = {}
 
-        const combined = {}
+      allPlayerStats.forEach(ps => {
+        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
 
-        rushStats.forEach(p => {
-          combined[p.pid] = {
-            pid: p.pid,
-            years: [...(p.years || [])],
-            plays: (p['Carries'] || 0),
-            yards: (p['Yards'] || 0),
-            tds: (p['Touchdowns'] || 0)
-          }
-        })
+        if (!playerTotals[key]) {
+          playerTotals[key] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
+        }
 
-        recStats.forEach(p => {
-          if (!combined[p.pid]) {
-            combined[p.pid] = { pid: p.pid, years: [], plays: 0, yards: 0, tds: 0 }
-          }
-          combined[p.pid].plays += (p['Receptions'] || 0)
-          combined[p.pid].yards += (p['Yards'] || 0)
-          combined[p.pid].tds += (p['Touchdowns'] || 0)
-          p.years?.forEach(y => {
-            if (!combined[p.pid].years.includes(y)) combined[p.pid].years.push(y)
-          })
-        })
+        if (!playerTotals[key].years.includes(ps.year)) {
+          playerTotals[key].years.push(ps.year)
+        }
 
-        return Object.values(combined)
-      } else {
-        // Season mode: combine per year for each player
-        const combined = {}
-        const years = Object.keys(combinedStats)
+        if (ps.rushing) {
+          playerTotals[key].plays += ps.rushing.car || 0
+          playerTotals[key].yards += ps.rushing.yds || 0
+          playerTotals[key].tds += ps.rushing.td || 0
+        }
+        if (ps.receiving) {
+          playerTotals[key].plays += ps.receiving.rec || 0
+          playerTotals[key].yards += ps.receiving.yds || 0
+          playerTotals[key].tds += ps.receiving.td || 0
+        }
+      })
 
-        years.forEach(year => {
-          const yearData = combinedStats[year] || {}
-          const rushData = yearData['Rushing'] || []
-          const recData = yearData['Receiving'] || []
-
-          // Combine rush + rec for each player in this year
-          const yearCombined = {}
-
-          rushData.forEach(entry => {
-            if (!entry.pid || !rosterPids.has(entry.pid)) return
-            yearCombined[entry.pid] = {
-              pid: entry.pid,
-              year: parseInt(year),
-              plays: (entry['Carries'] || 0),
-              yards: (entry['Yards'] || 0),
-              tds: (entry['Touchdowns'] || 0)
-            }
-          })
-
-          recData.forEach(entry => {
-            if (!entry.pid || !rosterPids.has(entry.pid)) return
-            if (!yearCombined[entry.pid]) {
-              yearCombined[entry.pid] = { pid: entry.pid, year: parseInt(year), plays: 0, yards: 0, tds: 0 }
-            }
-            yearCombined[entry.pid].plays += (entry['Receptions'] || 0)
-            yearCombined[entry.pid].yards += (entry['Yards'] || 0)
-            yearCombined[entry.pid].tds += (entry['Touchdowns'] || 0)
-          })
-
-          // Add to combined with year key
-          Object.values(yearCombined).forEach(p => {
-            combined[`${p.pid}-${year}`] = p
-          })
-        })
-
-        return Object.values(combined)
-      }
+      return Object.values(playerTotals).filter(p => p.plays > 0 || p.yards > 0)
     }
 
     // Calculate all-purpose stats
     const calcAllPurposeStats = () => {
-      if (mode === 'career') {
-        const rushStats = aggregateStats('rushing')
-        const recStats = aggregateStats('receiving')
-        const krStats = aggregateStats('kickReturn')
-        const prStats = aggregateStats('puntReturn')
+      const playerTotals = {}
 
-        const combined = {}
+      allPlayerStats.forEach(ps => {
+        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
 
-        const addStats = (stats, playsField, yardsField, tdsField) => {
-          stats.forEach(p => {
-            if (!combined[p.pid]) {
-              combined[p.pid] = { pid: p.pid, years: [], plays: 0, yards: 0, tds: 0 }
-            }
-            combined[p.pid].plays += (p[playsField] || 0)
-            combined[p.pid].yards += (p[yardsField] || 0)
-            combined[p.pid].tds += (p[tdsField] || 0)
-            p.years?.forEach(y => {
-              if (!combined[p.pid].years.includes(y)) combined[p.pid].years.push(y)
-            })
-          })
+        if (!playerTotals[key]) {
+          playerTotals[key] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
         }
 
-        addStats(rushStats, 'Carries', 'Yards', 'Touchdowns')
-        addStats(recStats, 'Receptions', 'Yards', 'Touchdowns')
-        addStats(krStats, 'Kickoff Returns', 'KR Yardage', 'KR Touchdowns')
-        addStats(prStats, 'Punt Returns', 'PR Yardage', 'PR Touchdowns')
+        if (!playerTotals[key].years.includes(ps.year)) {
+          playerTotals[key].years.push(ps.year)
+        }
 
-        return Object.values(combined)
-      } else {
-        // Season mode: combine all sources per year for each player
-        const combined = {}
-        const years = Object.keys(combinedStats)
+        if (ps.rushing) {
+          playerTotals[key].plays += ps.rushing.car || 0
+          playerTotals[key].yards += ps.rushing.yds || 0
+          playerTotals[key].tds += ps.rushing.td || 0
+        }
+        if (ps.receiving) {
+          playerTotals[key].plays += ps.receiving.rec || 0
+          playerTotals[key].yards += ps.receiving.yds || 0
+          playerTotals[key].tds += ps.receiving.td || 0
+        }
+        if (ps.kickReturn) {
+          playerTotals[key].plays += ps.kickReturn.ret || 0
+          playerTotals[key].yards += ps.kickReturn.yds || 0
+          playerTotals[key].tds += ps.kickReturn.td || 0
+        }
+        if (ps.puntReturn) {
+          playerTotals[key].plays += ps.puntReturn.ret || 0
+          playerTotals[key].yards += ps.puntReturn.yds || 0
+          playerTotals[key].tds += ps.puntReturn.td || 0
+        }
+      })
 
-        years.forEach(year => {
-          const yearData = combinedStats[year] || {}
-          const rushData = yearData['Rushing'] || []
-          const recData = yearData['Receiving'] || []
-          const krData = yearData['Kick Return'] || []
-          const prData = yearData['Punt Return'] || []
-
-          const yearCombined = {}
-
-          const addYearStats = (data, playsField, yardsField, tdsField) => {
-            data.forEach(entry => {
-              if (!entry.pid || !rosterPids.has(entry.pid)) return
-              if (!yearCombined[entry.pid]) {
-                yearCombined[entry.pid] = { pid: entry.pid, year: parseInt(year), plays: 0, yards: 0, tds: 0 }
-              }
-              yearCombined[entry.pid].plays += (entry[playsField] || 0)
-              yearCombined[entry.pid].yards += (entry[yardsField] || 0)
-              yearCombined[entry.pid].tds += (entry[tdsField] || 0)
-            })
-          }
-
-          addYearStats(rushData, 'Carries', 'Yards', 'Touchdowns')
-          addYearStats(recData, 'Receptions', 'Yards', 'Touchdowns')
-          addYearStats(krData, 'Kickoff Returns', 'KR Yardage', 'KR Touchdowns')
-          addYearStats(prData, 'Punt Returns', 'PR Yardage', 'PR Touchdowns')
-
-          Object.values(yearCombined).forEach(p => {
-            combined[`${p.pid}-${year}`] = p
-          })
-        })
-
-        return Object.values(combined)
-      }
+      return Object.values(playerTotals).filter(p => p.plays > 0 || p.yards > 0)
     }
 
     // Build leaderboards for each category
