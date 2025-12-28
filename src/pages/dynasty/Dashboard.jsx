@@ -5506,7 +5506,7 @@ export default function Dashboard() {
                       >
                         {playedGame.result === 'win' ? 'W' : 'L'}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="text-sm sm:text-base font-bold" style={{ color: opponentColors.textColor }}>
                           {playedGame.teamScore} - {playedGame.opponentScore}
                           {playedGame.overtimes && playedGame.overtimes.length > 0 && (
@@ -5651,7 +5651,7 @@ export default function Dashboard() {
                       >
                         {ccGame.result === 'win' ? 'W' : 'L'}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="text-sm sm:text-base font-bold" style={{ color: ccOpponentColors.textColor }}>
                           {ccGame.teamScore} - {ccGame.opponentScore}
                           {/* OT indicator if game went to overtime */}
@@ -5792,7 +5792,7 @@ export default function Dashboard() {
                       >
                         {userBowlGameData.result === 'win' ? 'W' : 'L'}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="text-sm sm:text-base font-bold" style={{ color: bowlOpponentColors.textColor }}>
                           {userBowlGameData.teamScore} - {userBowlGameData.opponentScore}
                           {userBowlGameData.overtimes && userBowlGameData.overtimes.length > 0 && (

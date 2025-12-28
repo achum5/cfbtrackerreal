@@ -130,18 +130,23 @@ function getTeamLogoRobust(teamInput) {
 }
 
 // Robust color lookup that tries multiple methods
+// Note: getTeamColors returns a default orange (#ea580c) for unknown teams,
+// so we need to check if the result is actually a known team's colors
 function getTeamColorsRobust(teamInput) {
   if (!teamInput) return null
 
+  // Helper to check if colors are the default fallback (orange)
+  const isDefaultColors = (colors) => colors?.primary === '#ea580c'
+
   // 1. Try direct lookup (if teamInput is already a full mascot name)
   let colors = getTeamColors(teamInput)
-  if (colors) return colors
+  if (colors && !isDefaultColors(colors)) return colors
 
   // 2. Try as abbreviation via getMascotName
   const mascotName = getMascotName(teamInput)
   if (mascotName) {
     colors = getTeamColors(mascotName)
-    if (colors) return colors
+    if (colors && !isDefaultColors(colors)) return colors
   }
 
   // 3. Try uppercase abbreviation (handle case sensitivity)
@@ -150,7 +155,7 @@ function getTeamColorsRobust(teamInput) {
     const mascotNameUpper = getMascotName(upperInput)
     if (mascotNameUpper) {
       colors = getTeamColors(mascotNameUpper)
-      if (colors) return colors
+      if (colors && !isDefaultColors(colors)) return colors
     }
   }
 
@@ -158,7 +163,7 @@ function getTeamColorsRobust(teamInput) {
   const teamData = teamAbbreviations[teamInput] || teamAbbreviations[upperInput]
   if (teamData?.name) {
     colors = getTeamColors(teamData.name)
-    if (colors) return colors
+    if (colors && !isDefaultColors(colors)) return colors
   }
 
   return null
@@ -663,7 +668,7 @@ export default function Game() {
             </div>
           </div>
 
-          {!pathPrefix.startsWith('/view/') && (
+          {!pathPrefix.startsWith('/view/') ? (
             <button
               onClick={() => setShowEditModal(true)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium text-xs sm:text-sm bg-black/20 text-white hover:bg-black/30 transition-colors"
@@ -673,6 +678,14 @@ export default function Game() {
               </svg>
               <span className="hidden sm:inline">Edit</span>
             </button>
+          ) : (
+            /* Invisible placeholder to keep title centered in view-only mode */
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 invisible">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </div>
           )}
         </div>
 
@@ -793,9 +806,14 @@ export default function Game() {
                           </span>
                         </div>
                       </td>
-                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                        <td key={q} className="text-center py-3 px-2 sm:px-3 text-gray-300 font-medium">{game.quarters[quarterKey]?.[q] ?? '-'}</td>
-                      ))}
+                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => {
+                        const val = game.quarters[quarterKey]?.[q]
+                        return (
+                          <td key={q} className="text-center py-3 px-2 sm:px-3 text-gray-300 font-medium">
+                            {val === '' || val === null || val === undefined ? 0 : val}
+                          </td>
+                        )
+                      })}
                       {game.overtimes?.map((ot, i) => (
                         <td key={i} className="text-center py-3 px-2 sm:px-3 text-yellow-400 font-medium">{ot[quarterKey] ?? '-'}</td>
                       ))}
@@ -874,7 +892,15 @@ export default function Game() {
                             <tr key={idx} className="border-t border-gray-800">
                               {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                 const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                const value = row[key] ?? '-'
+                                const rawValue = row[key]
+                                // For stat columns (not player name), treat blank/null/undefined as 0
+                                let value = colIdx === 0
+                                  ? (rawValue ?? '-')
+                                  : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
+                                // Format QB Rating to always show 1 decimal place
+                                if (key === 'qBRating' && value !== 0 && value !== '') {
+                                  value = Number(value).toFixed(1)
+                                }
                                 const playerPID = colIdx === 0 ? getPlayerPID(value) : null
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
@@ -919,7 +945,15 @@ export default function Game() {
                             <tr key={idx} className="border-t border-gray-800">
                               {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                 const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                const value = row[key] ?? '-'
+                                const rawValue = row[key]
+                                // For stat columns (not player name), treat blank/null/undefined as 0
+                                let value = colIdx === 0
+                                  ? (rawValue ?? '-')
+                                  : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
+                                // Format QB Rating to always show 1 decimal place
+                                if (key === 'qBRating' && value !== 0 && value !== '') {
+                                  value = Number(value).toFixed(1)
+                                }
                                 const playerPID = colIdx === 0 ? getPlayerPID(value) : null
                                 return (
                                   <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
@@ -1004,11 +1038,31 @@ export default function Game() {
                         />
                         {/* Main content with team-colored background */}
                         <div
-                          className="flex-1 flex items-center gap-3 px-4 py-3"
+                          className="flex-1 flex items-center gap-3 px-3 py-3"
                           style={{
                             background: `linear-gradient(90deg, ${playTeamColors.primary}25 0%, ${playTeamColors.primary}08 50%, transparent 100%)`
                           }}
                         >
+                          {/* Quarter and time - moved to left */}
+                          <div className="text-center flex-shrink-0 w-12">
+                            <div
+                              className="text-xs font-bold px-2 py-0.5 rounded"
+                              style={{ backgroundColor: playTeamColors.primary + '40', color: 'white' }}
+                            >
+                              Q{play.quarter}
+                            </div>
+                            <div className="text-gray-400 text-xs mt-1 font-mono">{play.timeLeft}</div>
+                          </div>
+                          {/* Running Score - moved to left */}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <span className={`text-lg font-black tabular-nums ${isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
+                              {play.runningLeftScore}
+                            </span>
+                            <span className="text-gray-500 text-sm">-</span>
+                            <span className={`text-lg font-black tabular-nums ${!isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
+                              {play.runningRightScore}
+                            </span>
+                          </div>
                           {/* Team logo */}
                           <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-800/50">
                             <img
@@ -1061,26 +1115,6 @@ export default function Game() {
                               )}
                             </div>
                           </div>
-                          {/* Running Score */}
-                          <div className="flex items-center gap-1 flex-shrink-0 mr-3">
-                            <span className={`text-lg font-black tabular-nums ${isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
-                              {play.runningLeftScore}
-                            </span>
-                            <span className="text-gray-500 text-sm">-</span>
-                            <span className={`text-lg font-black tabular-nums ${!isLeftTeam ? 'text-white' : 'text-gray-400'}`}>
-                              {play.runningRightScore}
-                            </span>
-                          </div>
-                          {/* Quarter and time */}
-                          <div className="text-right flex-shrink-0">
-                            <div
-                              className="text-xs font-bold px-2 py-0.5 rounded"
-                              style={{ backgroundColor: playTeamColors.primary + '40', color: 'white' }}
-                            >
-                              Q{play.quarter}
-                            </div>
-                            <div className="text-gray-400 text-xs mt-1 font-mono">{play.timeLeft}</div>
-                          </div>
                         </div>
                       </div>
                     )
@@ -1092,66 +1126,192 @@ export default function Game() {
         </div>
       )}
 
+      {/* Team Stats Section */}
+      {game.boxScore?.teamStats && (game.boxScore.teamStats.home || game.boxScore.teamStats.away) && (() => {
+        const homeStats = game.boxScore.teamStats.home || {}
+        const awayStats = game.boxScore.teamStats.away || {}
+
+        // Helper to format percentage
+        const pct = (made, att) => {
+          if (!att || att === 0) return '-'
+          return `${Math.round((made / att) * 100)}%`
+        }
+
+        // Helper to format possession time
+        const formatPoss = (mins, secs) => {
+          if (mins == null && secs == null) return '-'
+          const m = mins || 0
+          const s = secs || 0
+          return `${m}:${s.toString().padStart(2, '0')}`
+        }
+
+        // Helper to get value or dash
+        const val = (v) => v != null ? v : '-'
+
+        // Stat rows configuration - label, home value, away value
+        const statRows = [
+          { label: 'First Downs', home: val(homeStats.firstDowns), away: val(awayStats.firstDowns) },
+          { label: 'Total Offense', home: val(homeStats.totalOffense), away: val(awayStats.totalOffense), bold: true },
+          { label: 'Rushing', home: `${val(homeStats.rushAttempts)}-${val(homeStats.rushYards)}`, away: `${val(awayStats.rushAttempts)}-${val(awayStats.rushYards)}`, sub: 'ATT-YDS' },
+          { label: 'Rush TDs', home: val(homeStats.rushTds), away: val(awayStats.rushTds) },
+          { label: 'Passing', home: `${val(homeStats.completions)}-${val(homeStats.passAttempts)}`, away: `${val(awayStats.completions)}-${val(awayStats.passAttempts)}`, sub: 'CMP-ATT' },
+          { label: 'Comp %', home: pct(homeStats.completions, homeStats.passAttempts), away: pct(awayStats.completions, awayStats.passAttempts), calculated: true },
+          { label: 'Pass Yards', home: val(homeStats.passYards), away: val(awayStats.passYards) },
+          { label: 'Pass TDs', home: val(homeStats.passTds), away: val(awayStats.passTds) },
+          { label: '3rd Down', home: `${val(homeStats['3rdDownConv'])}-${val(homeStats['3rdDownAtt'])}`, away: `${val(awayStats['3rdDownConv'])}-${val(awayStats['3rdDownAtt'])}` },
+          { label: '3rd Down %', home: pct(homeStats['3rdDownConv'], homeStats['3rdDownAtt']), away: pct(awayStats['3rdDownConv'], awayStats['3rdDownAtt']), calculated: true },
+          { label: '4th Down', home: `${val(homeStats['4thDownConv'])}-${val(homeStats['4thDownAtt'])}`, away: `${val(awayStats['4thDownConv'])}-${val(awayStats['4thDownAtt'])}` },
+          { label: '4th Down %', home: pct(homeStats['4thDownConv'], homeStats['4thDownAtt']), away: pct(awayStats['4thDownConv'], awayStats['4thDownAtt']), calculated: true },
+          { label: '2PT Conv', home: `${val(homeStats['2ptConv'])}-${val(homeStats['2ptAtt'])}`, away: `${val(awayStats['2ptConv'])}-${val(awayStats['2ptAtt'])}` },
+          { label: 'Red Zone', home: `${(homeStats.redZoneTd || 0) + (homeStats.redZoneFg || 0)}`, away: `${(awayStats.redZoneTd || 0) + (awayStats.redZoneFg || 0)}`, sub: 'TD+FG' },
+          { label: 'Red Zone TD', home: val(homeStats.redZoneTd), away: val(awayStats.redZoneTd) },
+          { label: 'Red Zone FG', home: val(homeStats.redZoneFg), away: val(awayStats.redZoneFg) },
+          { label: 'Turnovers', home: val(homeStats.turnovers), away: val(awayStats.turnovers), bold: true },
+          { label: 'Fumbles Lost', home: val(homeStats.fumblesLost), away: val(awayStats.fumblesLost) },
+          { label: 'Interceptions', home: val(homeStats.interceptions), away: val(awayStats.interceptions) },
+          { label: 'Punt Ret Yds', home: val(homeStats.puntRetYards), away: val(awayStats.puntRetYards) },
+          { label: 'Kick Ret Yds', home: val(homeStats.kickRetYards), away: val(awayStats.kickRetYards) },
+          { label: 'Total Yards', home: val(homeStats.totalYards), away: val(awayStats.totalYards), bold: true },
+          { label: 'Punts', home: val(homeStats.punts), away: val(awayStats.punts) },
+          { label: 'Penalties', home: val(homeStats.penalties), away: val(awayStats.penalties) },
+          { label: 'Possession', home: formatPoss(homeStats.possMinutes, homeStats.possSeconds), away: formatPoss(awayStats.possMinutes, awayStats.possSeconds), bold: true }
+        ]
+
+        return (
+          <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Team Stats
+              </h3>
+            </div>
+            {/* Team headers - Left = away team, Right = home team */}
+            <div className="flex items-center border-b border-gray-800 bg-gray-800/50">
+              <div className="flex-1 flex items-center justify-center gap-2 py-3 px-2">
+                {getTeamLogoRobust(awayStats.teamAbbr) && (
+                  <img src={getTeamLogoRobust(awayStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
+                )}
+                <span className="font-bold text-sm text-white">{awayStats.teamAbbr}</span>
+              </div>
+              <div className="w-28 text-center text-xs font-semibold text-gray-400 uppercase">Stat</div>
+              <div className="flex-1 flex items-center justify-center gap-2 py-3 px-2">
+                <span className="font-bold text-sm text-white">{homeStats.teamAbbr}</span>
+                {getTeamLogoRobust(homeStats.teamAbbr) && (
+                  <img src={getTeamLogoRobust(homeStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
+                )}
+              </div>
+            </div>
+            {/* Stats rows */}
+            <div className="divide-y divide-gray-800/50">
+              {statRows.map((row, idx) => {
+                // Determine which team has the better stat (higher is better for most, lower for turnovers)
+                // Left side = away team, Right side = home team (standard sports convention)
+                const isLowerBetter = row.label.includes('Turnover') || row.label.includes('Fumble') || row.label.includes('Interception') || row.label === 'Penalties'
+                const leftNum = parseFloat(String(row.away).replace(/[^0-9.-]/g, '')) || 0
+                const rightNum = parseFloat(String(row.home).replace(/[^0-9.-]/g, '')) || 0
+                const leftBetter = isLowerBetter ? leftNum < rightNum : leftNum > rightNum
+                const rightBetter = isLowerBetter ? rightNum < leftNum : rightNum > leftNum
+                const isEqual = leftNum === rightNum
+
+                return (
+                  <div key={idx} className={`flex items-center ${idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-800/30'}`}>
+                    <div className={`flex-1 text-center py-2 px-2 ${row.bold ? 'font-bold' : ''} ${row.calculated ? 'text-blue-400' : 'text-white'} ${!isEqual && leftBetter ? 'text-green-400' : ''}`}>
+                      {row.away}
+                    </div>
+                    <div className="w-28 text-center py-2 px-1">
+                      <span className={`text-xs ${row.bold ? 'font-bold text-gray-300' : 'text-gray-400'}`}>{row.label}</span>
+                      {row.sub && <span className="block text-[10px] text-gray-500">{row.sub}</span>}
+                    </div>
+                    <div className={`flex-1 text-center py-2 px-2 ${row.bold ? 'font-bold' : ''} ${row.calculated ? 'text-blue-400' : 'text-white'} ${!isEqual && rightBetter ? 'text-green-400' : ''}`}>
+                      {row.home}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Game Details Section */}
       {(!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense || game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW)) || game.gameNote ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
           {/* Team Matchup Card */}
-          {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (
-            <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg bg-gray-800">
-              <div className="px-4 py-3 border-b border-gray-700">
-                <h3 className="font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Team Ratings
-                </h3>
-              </div>
-              <div className="p-4 space-y-4">
-                {[leftData, rightData].map((team, idx) => {
-                  const isOpponent = (idx === 0 ? leftTeam : rightTeam) !== 'user'
-                  const ratings = isOpponent
-                    ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
-                    : { ovr: teamRatings?.overall, off: teamRatings?.offense, def: teamRatings?.defense }
+          {!isCPUGame && (game.opponentOverall || game.opponentOffense || game.opponentDefense) && (() => {
+            // Get ratings for both teams to compare
+            const leftIsOpponent = leftTeam !== 'user'
+            const rightIsOpponent = rightTeam !== 'user'
+            const leftRatings = leftIsOpponent
+              ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
+              : { ovr: teamRatings?.overall, off: teamRatings?.offense, def: teamRatings?.defense }
+            const rightRatings = rightIsOpponent
+              ? { ovr: game.opponentOverall, off: game.opponentOffense, def: game.opponentDefense }
+              : { ovr: teamRatings?.overall, off: teamRatings?.offense, def: teamRatings?.defense }
 
-                  if (!ratings.ovr && !ratings.off && !ratings.def) return null
+            // Determine which team has better ratings
+            const leftOvrBetter = (leftRatings.ovr || 0) > (rightRatings.ovr || 0)
+            const rightOvrBetter = (rightRatings.ovr || 0) > (leftRatings.ovr || 0)
+            const leftOffBetter = (leftRatings.off || 0) > (rightRatings.off || 0)
+            const rightOffBetter = (rightRatings.off || 0) > (leftRatings.off || 0)
+            const leftDefBetter = (leftRatings.def || 0) > (rightRatings.def || 0)
+            const rightDefBetter = (rightRatings.def || 0) > (leftRatings.def || 0)
 
-                  return (
-                    <div key={idx} className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white"
-                      >
-                        {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-white text-sm truncate">{team.name}</div>
-                        <div className="flex gap-3 mt-1">
-                          {ratings.ovr && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-gray-400 font-medium">OVR</span>
-                              <span className="font-black text-white">{ratings.ovr}</span>
-                            </div>
-                          )}
-                          {ratings.off && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-gray-400 font-medium">OFF</span>
-                              <span className="font-bold text-green-400">{ratings.off}</span>
-                            </div>
-                          )}
-                          {ratings.def && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-gray-400 font-medium">DEF</span>
-                              <span className="font-bold text-red-400">{ratings.def}</span>
-                            </div>
-                          )}
+            return (
+              <div className="lg:col-span-5 rounded-xl overflow-hidden shadow-lg bg-gray-800">
+                <div className="px-4 py-3 border-b border-gray-700">
+                  <h3 className="font-bold text-white text-sm uppercase tracking-wide">
+                    Team Ratings
+                  </h3>
+                </div>
+                <div className="p-4 space-y-4">
+                  {[leftData, rightData].map((team, idx) => {
+                    const ratings = idx === 0 ? leftRatings : rightRatings
+                    const ovrBetter = idx === 0 ? leftOvrBetter : rightOvrBetter
+                    const offBetter = idx === 0 ? leftOffBetter : rightOffBetter
+                    const defBetter = idx === 0 ? leftDefBetter : rightDefBetter
+
+                    if (!ratings.ovr && !ratings.off && !ratings.def) return null
+
+                    return (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white"
+                        >
+                          {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-white text-sm truncate">{team.name}</div>
+                          <div className="flex gap-3 mt-1">
+                            {ratings.ovr && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-400 font-medium">OVR</span>
+                                <span className={`text-white ${ovrBetter ? 'font-black' : 'font-normal'}`}>{ratings.ovr}</span>
+                              </div>
+                            )}
+                            {ratings.off && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-400 font-medium">OFF</span>
+                                <span className={`text-white ${offBetter ? 'font-black' : 'font-normal'}`}>{ratings.off}</span>
+                              </div>
+                            )}
+                            {ratings.def && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-400 font-medium">DEF</span>
+                                <span className={`text-white ${defBetter ? 'font-black' : 'font-normal'}`}>{ratings.def}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Player of the Week */}
           {!isCPUGame && (game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW) && (

@@ -410,9 +410,13 @@ export default function CoachCareer() {
               )}
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-2xl font-bold" style={{ color: stintPrimaryText }}>
+                  <Link
+                    to={`${pathPrefix}/team/${stint.teamAbbr}`}
+                    className="text-2xl font-bold hover:underline"
+                    style={{ color: stintPrimaryText }}
+                  >
                     {stint.teamName}
-                  </h3>
+                  </Link>
                   {stint.isCurrent && (
                     <span
                       className="text-xs font-bold px-2 py-0.5 rounded"
@@ -557,6 +561,153 @@ export default function CoachCareer() {
                 </div>
               </div>
             </div>
+
+            {/* Season-by-Season History */}
+            {(() => {
+              // Build year-by-year data for this stint
+              const years = []
+              for (let year = stint.startYear; year <= stint.endYear; year++) {
+                const yearGames = stint.games?.filter(g => Number(g.year) === year) || []
+                const wins = yearGames.filter(g => g.result === 'win' || g.result === 'W').length
+                const losses = yearGames.filter(g => g.result === 'loss' || g.result === 'L').length
+                const hasRecord = yearGames.length > 0
+
+                // Check for conference championship
+                const ccWins = currentDynasty.conferenceChampionshipsByYear?.[year] || []
+                const wonCC = ccWins.some(cc => cc.winner === stint.teamAbbr)
+
+                // Check for CFP result
+                const cfpResults = currentDynasty.cfpResultsByYear?.[year]
+                let cfpResult = null
+                if (cfpResults) {
+                  // Check each round
+                  const rounds = ['firstRound', 'quarterfinals', 'semifinals', 'championship']
+                  const roundLabels = { firstRound: 'First Round', quarterfinals: 'Quarterfinals', semifinals: 'Semifinals', championship: 'Championship' }
+                  for (const round of rounds) {
+                    const roundGames = cfpResults[round] || []
+                    for (const game of roundGames) {
+                      if (game.team1 === stint.teamAbbr || game.team2 === stint.teamAbbr) {
+                        if (game.winner === stint.teamAbbr) {
+                          if (round === 'championship') {
+                            cfpResult = { type: 'champion' }
+                          }
+                        } else if (game.winner) {
+                          cfpResult = { type: 'lost', round: roundLabels[round] }
+                        }
+                      }
+                    }
+                  }
+                }
+                const isNationalChamp = cfpResult?.type === 'champion'
+
+                // Check for bowl result (only if not in CFP)
+                let bowlResult = null
+                if (!cfpResult) {
+                  const bowlGames = currentDynasty.bowlGamesByYear?.[year] || []
+                  const teamBowl = bowlGames.find(b =>
+                    b.team1 === stint.teamAbbr || b.team2 === stint.teamAbbr
+                  )
+                  if (teamBowl && teamBowl.winner) {
+                    bowlResult = {
+                      bowlName: teamBowl.bowlName?.replace(' Bowl', '') || 'Bowl',
+                      won: teamBowl.winner === stint.teamAbbr
+                    }
+                  }
+                }
+
+                years.push({ year, wins, losses, hasRecord, wonCC, cfpResult, bowlResult, isNationalChamp })
+              }
+
+              if (years.length === 0) return null
+
+              return (
+                <div className="mt-4 pt-4 border-t-2" style={{ borderColor: `${stintPrimaryText}30` }}>
+                  <div className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: stintPrimaryText, opacity: 0.7 }}>
+                    Season-by-Season
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                    {years.map((yr) => {
+                      const hasAchievement = yr.wonCC || yr.isNationalChamp
+
+                      return (
+                        <Link
+                          key={yr.year}
+                          to={`${pathPrefix}/team/${stint.teamAbbr}/${yr.year}`}
+                          className="p-3 rounded-lg text-center transition-transform hover:scale-[1.02]"
+                          style={{
+                            backgroundColor: yr.isNationalChamp
+                              ? '#fbbf2420'
+                              : hasAchievement
+                                ? `${stintColors.secondary}40`
+                                : yr.hasRecord
+                                  ? `${stintColors.secondary}25`
+                                  : `${stintColors.secondary}10`,
+                            border: yr.isNationalChamp
+                              ? '2px solid #fbbf24'
+                              : hasAchievement
+                                ? `2px solid ${stintColors.secondary}`
+                                : `2px solid ${yr.hasRecord ? `${stintPrimaryText}30` : `${stintPrimaryText}15`}`
+                          }}
+                        >
+                          {/* Year */}
+                          <div className="text-sm font-bold" style={{ color: stintPrimaryText }}>
+                            {yr.year}
+                          </div>
+
+                          {/* Record */}
+                          <div
+                            className="text-lg font-bold mt-0.5"
+                            style={{ color: yr.hasRecord ? stintPrimaryText : `${stintPrimaryText}50` }}
+                          >
+                            {yr.hasRecord ? `${yr.wins}-${yr.losses}` : '--'}
+                          </div>
+
+                          {/* Achievements */}
+                          <div className="mt-1 space-y-0.5">
+                            {yr.isNationalChamp && (
+                              <div
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: '#fbbf24', color: '#78350f' }}
+                              >
+                                Natl Champ
+                              </div>
+                            )}
+                            {yr.wonCC && !yr.isNationalChamp && (
+                              <div
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: stintColors.secondary, color: stintSecondaryText }}
+                              >
+                                Conf Champ
+                              </div>
+                            )}
+                            {yr.cfpResult && yr.cfpResult.type === 'lost' && (
+                              <div
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+                              >
+                                CFP {yr.cfpResult.round}
+                              </div>
+                            )}
+                            {yr.bowlResult && !yr.cfpResult && (
+                              <div
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded truncate"
+                                style={{
+                                  backgroundColor: yr.bowlResult.won ? '#16a34a' : '#6b728080',
+                                  color: '#FFFFFF'
+                                }}
+                                title={yr.bowlResult.bowlName}
+                              >
+                                {yr.bowlResult.bowlName}
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )
       })}
@@ -724,20 +875,6 @@ export default function CoachCareer() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              className="px-6 py-4 border-t flex-shrink-0"
-              style={{ borderColor: `${secondaryText}20` }}
-            >
-              <button
-                onClick={() => setShowGamesModal(false)}
-                className="w-full py-3 rounded-lg font-semibold hover:opacity-90 transition-colors"
-                style={{ backgroundColor: teamColors.primary, color: primaryText }}
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

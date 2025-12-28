@@ -475,6 +475,29 @@ export default function Team() {
     return null
   }
 
+  // Get team record from games played for a specific year (fallback when standings not available)
+  const getTeamRecordFromGames = (year) => {
+    const games = currentDynasty.games || []
+    // Filter games where user played AS this team in this year
+    const teamGames = games.filter(g => {
+      if (g.isCPUGame) return false
+      // Compare as numbers to handle string/number mismatch
+      if (Number(g.year) !== Number(year)) return false
+      // Check if this game was played by the team we're viewing
+      if (g.userTeam === teamAbbr) return true
+      // Legacy fallback
+      if (!g.userTeam && teamAbbr === userTeamAbbr) return true
+      return false
+    })
+
+    if (teamGames.length === 0) return null
+
+    const wins = teamGames.filter(g => g.result === 'win' || g.result === 'W').length
+    const losses = teamGames.filter(g => g.result === 'loss' || g.result === 'L').length
+
+    return { wins, losses }
+  }
+
   // Check if team won conference championship in a year
   const getConferenceChampionshipForYear = (year) => {
     const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[year] || []
@@ -537,9 +560,12 @@ export default function Team() {
     return teamRank?.rank || null
   }
 
-  // Calculate record for each year from conference standings
+  // Calculate record for each year from conference standings (or games played as fallback)
   const yearRecords = years.map(year => {
     const standingsRecord = getTeamRecordFromStandings(year)
+    const gamesRecord = getTeamRecordFromGames(year)
+    // Use standings record first, fall back to games record
+    const record = standingsRecord || gamesRecord
     const bowlResult = getBowlResultForYear(year)
     const ccWin = getConferenceChampionshipForYear(year)
     const cfpResult = getCFPResultForYear(year)
@@ -547,9 +573,9 @@ export default function Team() {
 
     return {
       year,
-      wins: standingsRecord?.wins || 0,
-      losses: standingsRecord?.losses || 0,
-      hasRecord: !!standingsRecord,
+      wins: record?.wins || 0,
+      losses: record?.losses || 0,
+      hasRecord: !!record,
       bowlResult,
       ccWin,
       cfpResult,

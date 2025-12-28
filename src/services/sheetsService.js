@@ -1923,6 +1923,52 @@ export async function deleteGoogleSheet(spreadsheetId) {
   }
 }
 
+// Restore a Google Sheet from trash
+export async function restoreGoogleSheet(spreadsheetId) {
+  try {
+    if (!spreadsheetId) {
+      throw new Error('No spreadsheet ID provided')
+    }
+
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+
+    // Use Drive API to untrash the file
+    const url = `${DRIVE_API_BASE}/${spreadsheetId}`
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        trashed: false
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      let errorMessage = 'Unknown error'
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorMessage = errorJson.error?.message || errorText
+      } catch {
+        errorMessage = errorText
+      }
+      throw new Error(`Failed to restore sheet: ${errorMessage}`)
+    }
+
+    await response.json()
+    return true
+  } catch (error) {
+    console.error('Error restoring Google Sheet:', error)
+    throw error
+  }
+}
+
 // Read roster data from sheet (12 columns)
 export async function readRosterFromSheet(spreadsheetId) {
   try {
@@ -9325,6 +9371,7 @@ async function initializeBoxScoreSheet(spreadsheetId, accessToken, sheetIds, isU
     })
 
     // Add player name dropdown for user's team (column A)
+    // If roster is provided, make it strict (no free text) to ensure data consistency
     if (isUserTeam && rosterPlayers.length > 0) {
       requests.push({
         setDataValidation: {
@@ -9341,7 +9388,7 @@ async function initializeBoxScoreSheet(spreadsheetId, accessToken, sheetIds, isU
               values: rosterPlayers.map(name => ({ userEnteredValue: name }))
             },
             showCustomUi: true,
-            strict: false // Allow typing to filter, but also allow free text
+            strict: true // Roster provided - must select from dropdown
           }
         }
       })
@@ -9584,6 +9631,48 @@ async function initializeScoringSummarySheet(spreadsheetId, accessToken, sheetId
         }
       }
     })
+
+    // Add player dropdown for Passer column (column C - index 2)
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 2,
+          endColumnIndex: 3
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: allPlayers.map(name => ({ userEnteredValue: name }))
+          },
+          showCustomUi: true,
+          strict: false // Allow free text entry or empty (for non-passing TDs)
+        }
+      }
+    })
+
+    // Add player dropdown for PAT Notes column (column G - index 6) for XP/2PT scorer
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: SCORING_SUMMARY.rowCount + 1,
+          startColumnIndex: 6,
+          endColumnIndex: 7
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: allPlayers.map(name => ({ userEnteredValue: name }))
+          },
+          showCustomUi: true,
+          strict: false // Allow free text entry or empty
+        }
+      }
+    })
   }
 
   // Add conditional formatting for team colors
@@ -9704,6 +9793,405 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
       }))
   } catch (error) {
     console.error('Error reading scoring summary:', error)
+    throw error
+  }
+}
+
+// Team stats row labels for game team stats sheet
+const TEAM_STATS_ROWS = [
+  'First Downs',
+  'Total Offense',
+  'Rush Attempts',
+  'Rush Yards',
+  'Rush TDs',
+  'Completions',
+  'Pass Attempts',
+  'Pass TDs',
+  'Pass Yards',
+  '3rd Down Conv',
+  '3rd Down Att',
+  '4th Down Conv',
+  '4th Down Att',
+  '2PT Conv',
+  '2PT Att',
+  'Red Zone TD',
+  'Red Zone FG',
+  'Turnovers',
+  'Fumbles Lost',
+  'Interceptions',
+  'Punt Ret Yards',
+  'Kick Ret Yards',
+  'Total Yards',
+  'Punts',
+  'Penalties',
+  'Poss Minutes',
+  'Poss Seconds'
+]
+
+// Create a game team stats sheet with two tabs (one for each team)
+export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year, week) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Create the spreadsheet with 2 tabs (home team and away team)
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `Team Stats - ${awayTeamAbbr} @ ${homeTeamAbbr} Week ${week} (${year})`
+        },
+        sheets: [
+          {
+            properties: {
+              title: homeTeamAbbr,
+              gridProperties: {
+                rowCount: TEAM_STATS_ROWS.length + 1, // +1 for header
+                columnCount: 2,
+                frozenRowCount: 1
+              }
+            }
+          },
+          {
+            properties: {
+              title: awayTeamAbbr,
+              gridProperties: {
+                rowCount: TEAM_STATS_ROWS.length + 1,
+                columnCount: 2,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create team stats sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+
+    // Extract sheet IDs for each tab
+    const homeSheetId = sheet.sheets[0].properties.sheetId
+    const awaySheetId = sheet.sheets[1].properties.sheetId
+
+    // Initialize both tabs with headers, stat labels, and formatting
+    await initializeTeamStatsSheet(sheet.spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr)
+
+    // Share sheet publicly for embedding
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl,
+      homeTeamAbbr,
+      awayTeamAbbr
+    }
+  } catch (error) {
+    console.error('Error creating team stats sheet:', error)
+    throw error
+  }
+}
+
+// Initialize team stats sheet tabs with headers, stat labels, and formatting
+async function initializeTeamStatsSheet(spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr) {
+  const requests = []
+
+  // For each team tab
+  const tabs = [
+    { sheetId: homeSheetId, teamAbbr: homeTeamAbbr },
+    { sheetId: awaySheetId, teamAbbr: awayTeamAbbr }
+  ]
+
+  tabs.forEach(({ sheetId, teamAbbr }) => {
+    // Set headers
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1,
+          startColumnIndex: 0,
+          endColumnIndex: 2
+        },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Stat' } },
+            { userEnteredValue: { stringValue: 'Value' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    })
+
+    // Set stat row labels (column A)
+    requests.push({
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: TEAM_STATS_ROWS.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rows: TEAM_STATS_ROWS.map(label => ({
+          values: [{ userEnteredValue: { stringValue: label } }]
+        })),
+        fields: 'userEnteredValue'
+      }
+    })
+
+    // Get team colors for header
+    const teamData = teamAbbreviations[teamAbbr]
+    const teamBgColor = teamData ? hexToRgb(teamData.backgroundColor) : { red: 0.2, green: 0.2, blue: 0.2 }
+    const teamTextColor = teamData ? hexToRgb(teamData.textColor) : { red: 1, green: 1, blue: 1 }
+
+    // Format header row (bold, centered, team colors)
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 0,
+          endRowIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true,
+              fontFamily: 'Barlow',
+              fontSize: 11,
+              foregroundColor: teamTextColor
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE',
+            backgroundColor: teamBgColor
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)'
+      }
+    })
+
+    // Format data cells
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: TEAM_STATS_ROWS.length + 1
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              fontFamily: 'Barlow',
+              fontSize: 10
+            },
+            horizontalAlignment: 'CENTER',
+            verticalAlignment: 'MIDDLE'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+      }
+    })
+
+    // Format stat label column (bold)
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: TEAM_STATS_ROWS.length + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        cell: {
+          userEnteredFormat: {
+            textFormat: {
+              bold: true
+            },
+            horizontalAlignment: 'LEFT'
+          }
+        },
+        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment)'
+      }
+    })
+
+    // Protect header row and stat label column
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1
+          },
+          description: 'Protected header row',
+          warningOnly: false
+        }
+      }
+    })
+
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: TEAM_STATS_ROWS.length + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          description: 'Protected stat labels',
+          warningOnly: false
+        }
+      }
+    })
+
+    // Set column widths
+    requests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 140 },
+        fields: 'pixelSize'
+      }
+    })
+
+    requests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    })
+
+    // Add number validation for value column
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: TEAM_STATS_ROWS.length + 1,
+          startColumnIndex: 1,
+          endColumnIndex: 2
+        },
+        rule: {
+          condition: {
+            type: 'NUMBER_GREATER_THAN_EQ',
+            values: [{ userEnteredValue: '0' }]
+          },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    })
+  })
+
+  // Send batch update
+  const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Batch update error:', error)
+    throw new Error(`Failed to initialize team stats sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+// Read team stats from sheet
+export async function readGameTeamStatsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // First get sheet metadata to find tab names
+    const metaResponse = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        }
+      }
+    )
+
+    if (!metaResponse.ok) {
+      throw new Error('Failed to get sheet metadata')
+    }
+
+    const meta = await metaResponse.json()
+    const sheets = meta.sheets || []
+
+    if (sheets.length < 2) {
+      throw new Error('Team stats sheet should have 2 tabs')
+    }
+
+    const homeTabName = sheets[0].properties.title
+    const awayTabName = sheets[1].properties.title
+
+    const teamStats = {
+      home: { teamAbbr: homeTabName },
+      away: { teamAbbr: awayTabName }
+    }
+
+    // Read each tab
+    for (const [key, tabName] of [['home', homeTabName], ['away', awayTabName]]) {
+      const range = `'${tabName}'!A2:B${TEAM_STATS_ROWS.length + 1}`
+
+      const response = await fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error(`Failed to read ${tabName}:`, error)
+        continue
+      }
+
+      const data = await response.json()
+      const rows = data.values || []
+
+      // Parse rows into stat object
+      rows.forEach((row, idx) => {
+        if (idx < TEAM_STATS_ROWS.length) {
+          const statLabel = TEAM_STATS_ROWS[idx]
+          const value = row[1] || ''
+          // Convert stat label to camelCase key
+          const camelKey = statLabel
+            .toLowerCase()
+            .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
+            .replace(/^./, c => c.toLowerCase())
+          teamStats[key][camelKey] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
+        }
+      })
+    }
+
+    return teamStats
+  } catch (error) {
+    console.error('Error reading team stats:', error)
     throw error
   }
 }

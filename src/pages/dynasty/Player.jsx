@@ -94,12 +94,13 @@ const getPrimaryStatCategory = (position) => {
 
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
-  const { dynasties, currentDynasty, updatePlayer } = useDynasty()
+  const { dynasties, currentDynasty, updatePlayer, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAccoladeModal, setShowAccoladeModal] = useState(false)
   const [accoladeType, setAccoladeType] = useState(null)
   const [showOverallProgressionModal, setShowOverallProgressionModal] = useState(false)
+  const [showGameLogModal, setShowGameLogModal] = useState(false)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -183,6 +184,54 @@ export default function Player() {
   }
 
   const getTeamNameFromAbbr = (abbr) => teamAbbreviations[abbr]?.name || abbr
+
+  // Get all games where this player has box score stats
+  const getPlayerGameLog = () => {
+    const games = dynasty.games || []
+    const playerName = player.name
+    const gameLog = []
+
+    games.forEach(game => {
+      if (!game.boxScore) return
+
+      // Check both home and away box scores for this player
+      const statCategories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'blocking', 'punting', 'kickReturn', 'puntReturn']
+      let playerStats = null
+      let foundInTeam = null
+
+      for (const side of ['home', 'away']) {
+        if (!game.boxScore[side]) continue
+        for (const category of statCategories) {
+          const categoryStats = game.boxScore[side][category] || []
+          const found = categoryStats.find(s => s.playerName === playerName)
+          if (found) {
+            playerStats = { ...found, category }
+            foundInTeam = side
+            break
+          }
+        }
+        if (playerStats) break
+      }
+
+      if (playerStats) {
+        gameLog.push({
+          game,
+          stats: playerStats,
+          team: foundInTeam
+        })
+      }
+    })
+
+    // Sort by year desc, then week desc
+    gameLog.sort((a, b) => {
+      if (b.game.year !== a.game.year) return b.game.year - a.game.year
+      return (b.game.week || 0) - (a.game.week || 0)
+    })
+
+    return gameLog
+  }
+
+  const playerGameLog = useMemo(() => getPlayerGameLog(), [dynasty.games, player.name])
 
   const handlePlayerSave = async (updatedPlayer, yearStats) => {
     await updatePlayer(dynastyId, updatedPlayer, yearStats)
@@ -454,16 +503,30 @@ export default function Player() {
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ color: primaryText }}>
                   {player.name}
                 </h1>
-                <button
-                  onClick={() => setShowEditModal(true)}
-                  className="p-1.5 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
-                  style={{ color: primaryText }}
-                  title="Edit Player"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
+                {playerGameLog.length > 0 && (
+                  <button
+                    onClick={() => setShowGameLogModal(true)}
+                    className="p-1.5 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                    style={{ color: primaryText }}
+                    title="Game Log"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                  </button>
+                )}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="p-1.5 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                    style={{ color: primaryText }}
+                    title="Edit Player"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-2 mb-2">
@@ -1641,6 +1704,127 @@ export default function Player() {
         teamColors={teamColors}
         currentYear={currentDynasty?.currentYear}
       />
+
+      {/* Game Log Modal */}
+      {showGameLogModal && (
+        <div
+          className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowGameLogModal(false)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="p-4 border-b flex-shrink-0"
+              style={{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg sm:text-xl font-bold" style={{ color: primaryText }}>
+                    Game Log
+                  </h3>
+                  <p className="text-sm font-semibold mt-0.5" style={{ color: primaryText, opacity: 0.9 }}>
+                    {player.name} - {playerGameLog.length} {playerGameLog.length === 1 ? 'Game' : 'Games'}
+                  </p>
+                </div>
+                <button onClick={() => setShowGameLogModal(false)} className="hover:opacity-70" style={{ color: primaryText }}>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-2 overflow-y-auto flex-1">
+              {playerGameLog.map(({ game, stats }, index) => {
+                const mascotName = getMascotName(game.opponent)
+                const opponentName = mascotName || getTeamNameFromAbbr(game.opponent)
+                const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
+                const opponentColors = getTeamColors(opponentName) || { primary: '#333', secondary: '#fff' }
+                const opponentBgColor = teamAbbreviations[game.opponent]?.backgroundColor || opponentColors.primary || '#333'
+                const opponentTextColor = teamAbbreviations[game.opponent]?.textColor || getContrastTextColor(opponentBgColor)
+                const isWin = game.result === 'win' || game.result === 'W'
+
+                // Format stats based on category
+                // Keys match camelCase conversion from Google Sheets headers in boxScoreConstants.js
+                const formatStats = () => {
+                  const { category } = stats
+                  // Helper to safely get numeric value from stats (handles strings and empty values)
+                  const num = (val) => Number(val) || 0
+
+                  if (category === 'passing') {
+                    return `${num(stats.comp)}/${num(stats.attempts)}, ${num(stats.yards)} YDS, ${num(stats.tD)} TD, ${num(stats.iNT)} INT`
+                  } else if (category === 'rushing') {
+                    return `${num(stats.carries)} CAR, ${num(stats.yards)} YDS, ${num(stats.tD)} TD`
+                  } else if (category === 'receiving') {
+                    return `${num(stats.receptions)} REC, ${num(stats.yards)} YDS, ${num(stats.tD)} TD`
+                  } else if (category === 'defense') {
+                    // Keys: solo, assists, tFL, sack, iNT, deflections, fF, fR
+                    const tackles = num(stats.solo) + num(stats.assists)
+                    return `${tackles} TKL, ${num(stats.sack)} SACK, ${num(stats.iNT)} INT`
+                  } else if (category === 'kicking') {
+                    // Keys: fGM, fGA, xPM, xPA
+                    return `${num(stats.fGM)}/${num(stats.fGA)} FG, ${num(stats.xPM)}/${num(stats.xPA)} XP`
+                  } else if (category === 'blocking') {
+                    return `${num(stats.pancakes)} Pancakes, ${num(stats.sacksAllowed)} Sacks Allowed`
+                  } else if (category === 'punting') {
+                    return `${num(stats.punts)} Punts, ${num(stats.yards)} YDS, ${num(stats.in20)} In20`
+                  } else if (category === 'kickReturn') {
+                    // Keys: kR, yards, tD
+                    return `${num(stats.kR)} KR, ${num(stats.yards)} YDS, ${num(stats.tD)} TD`
+                  } else if (category === 'puntReturn') {
+                    // Keys: pR, yards, tD
+                    return `${num(stats.pR)} PR, ${num(stats.yards)} YDS, ${num(stats.tD)} TD`
+                  }
+                  return ''
+                }
+
+                return (
+                  <Link
+                    key={game.id || index}
+                    to={`${pathPrefix}/game/${game.id}`}
+                    className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: opponentBgColor, borderColor: isWin ? '#86efac' : '#fca5a5' }}
+                    onClick={() => setShowGameLogModal(false)}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="text-xs font-medium w-16 flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.9 }}>
+                          {game.year} Wk {game.week}
+                        </div>
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: opponentTextColor, color: opponentBgColor }}>
+                          {game.location === 'away' ? '@' : 'vs'}
+                        </span>
+                        {opponentLogo && (
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', border: `2px solid ${opponentTextColor}`, padding: '2px' }}>
+                            <img src={opponentLogo} alt="" className="w-full h-full object-contain" />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 min-w-0">
+                          {game.opponentRank && <span className="text-xs font-bold flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.7 }}>#{game.opponentRank}</span>}
+                          <span className="text-sm font-semibold truncate" style={{ color: opponentTextColor }}>{opponentName}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
+                          {isWin ? 'W' : 'L'}
+                        </div>
+                        <div className="text-sm font-bold" style={{ color: opponentTextColor }}>{game.teamScore}-{game.opponentScore}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: `${opponentTextColor}20`, color: opponentTextColor }}>
+                      {formatStats()}
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

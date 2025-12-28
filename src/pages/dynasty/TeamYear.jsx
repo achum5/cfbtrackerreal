@@ -211,7 +211,7 @@ const AWARD_ORDER = [
 export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty, updateDynasty, addGame, saveRoster } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame, saveRoster, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
   // Note: We use the viewed team's colors, not the user's team colors
   const selectedYear = parseInt(year)
@@ -229,6 +229,7 @@ export default function TeamYear() {
   const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [showRecordTooltip, setShowRecordTooltip] = useState(false)
+  const [showStatsModal, setShowStatsModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -394,6 +395,94 @@ export default function TeamYear() {
   }
 
   const standingsRecord = getTeamRecordFromStandings()
+
+  // Aggregate team stats from games for this year where this team has boxScore.teamStats
+  const getSeasonTeamStats = () => {
+    const games = currentDynasty.games || []
+    const stats = {
+      gamesWithStats: 0,
+      firstDowns: 0,
+      totalOffense: 0,
+      rushAttempts: 0,
+      rushYards: 0,
+      rushTds: 0,
+      completions: 0,
+      passAttempts: 0,
+      passTds: 0,
+      passYards: 0,
+      thirdDownConv: 0,
+      thirdDownAtt: 0,
+      fourthDownConv: 0,
+      fourthDownAtt: 0,
+      twoPtConv: 0,
+      twoPtAtt: 0,
+      redZoneTd: 0,
+      redZoneFg: 0,
+      turnovers: 0,
+      fumblesLost: 0,
+      interceptions: 0,
+      puntRetYards: 0,
+      kickRetYards: 0,
+      totalYards: 0,
+      punts: 0,
+      penalties: 0,
+      possMinutes: 0,
+      possSeconds: 0
+    }
+
+    games.forEach(game => {
+      // Only count games from this year
+      if (Number(game.year) !== selectedYear) return
+      if (!game.boxScore?.teamStats) return
+
+      // Check if this team's stats are in the home or away slot
+      const homeAbbr = game.boxScore.teamStats.home?.teamAbbr?.toUpperCase()
+      const awayAbbr = game.boxScore.teamStats.away?.teamAbbr?.toUpperCase()
+      const targetAbbr = teamAbbr.toUpperCase()
+
+      let teamStats = null
+      if (homeAbbr === targetAbbr) {
+        teamStats = game.boxScore.teamStats.home
+      } else if (awayAbbr === targetAbbr) {
+        teamStats = game.boxScore.teamStats.away
+      }
+
+      if (!teamStats) return
+
+      stats.gamesWithStats++
+      stats.firstDowns += teamStats.firstDowns || 0
+      stats.totalOffense += teamStats.totalOffense || 0
+      stats.rushAttempts += teamStats.rushAttempts || 0
+      stats.rushYards += teamStats.rushYards || 0
+      stats.rushTds += teamStats.rushTds || 0
+      stats.completions += teamStats.completions || 0
+      stats.passAttempts += teamStats.passAttempts || 0
+      stats.passTds += teamStats.passTds || 0
+      stats.passYards += teamStats.passYards || 0
+      stats.thirdDownConv += teamStats['3rdDownConv'] || 0
+      stats.thirdDownAtt += teamStats['3rdDownAtt'] || 0
+      stats.fourthDownConv += teamStats['4thDownConv'] || 0
+      stats.fourthDownAtt += teamStats['4thDownAtt'] || 0
+      stats.twoPtConv += teamStats['2ptConv'] || 0
+      stats.twoPtAtt += teamStats['2ptAtt'] || 0
+      stats.redZoneTd += teamStats.redZoneTd || 0
+      stats.redZoneFg += teamStats.redZoneFg || 0
+      stats.turnovers += teamStats.turnovers || 0
+      stats.fumblesLost += teamStats.fumblesLost || 0
+      stats.interceptions += teamStats.interceptions || 0
+      stats.puntRetYards += teamStats.puntRetYards || 0
+      stats.kickRetYards += teamStats.kickRetYards || 0
+      stats.totalYards += teamStats.totalYards || 0
+      stats.punts += teamStats.punts || 0
+      stats.penalties += teamStats.penalties || 0
+      stats.possMinutes += teamStats.possMinutes || 0
+      stats.possSeconds += teamStats.possSeconds || 0
+    })
+
+    return stats
+  }
+
+  const seasonStats = getSeasonTeamStats()
 
   // Determine which record to display
   // Use game data if we have games for this team, otherwise use standings
@@ -899,11 +988,10 @@ export default function TeamYear() {
             History
           </Link>
 
-          {/* Stats Link - only show if this is user's team and stats exist for this year */}
-          {isUserTeam && currentDynasty.teamStatsByYear?.[selectedYear] &&
-            Object.keys(currentDynasty.teamStatsByYear[selectedYear]).length > 0 && (
-            <Link
-              to={`${pathPrefix}/stats`}
+          {/* Stats Button - only show if we have team stats from games for this year */}
+          {seasonStats.gamesWithStats > 0 && (
+            <button
+              onClick={() => setShowStatsModal(true)}
               className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
               style={{
                 backgroundColor: teamInfo.backgroundColor,
@@ -915,7 +1003,7 @@ export default function TeamYear() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Stats
-            </Link>
+            </button>
           )}
         </div>
 
@@ -1524,16 +1612,18 @@ export default function TeamYear() {
               >
                 {sortedTeamPlayers.length} Players
               </span>
-              <button
-                onClick={() => setShowRosterModal(true)}
-                className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-                style={{ color: teamPrimaryText }}
-                title="Edit Roster"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
+              {!isViewOnly && (
+                <button
+                  onClick={() => setShowRosterModal(true)}
+                  className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                  style={{ color: teamPrimaryText }}
+                  title="Edit Roster"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
             </div>
             {/* Sort Controls */}
             <div className="flex items-center gap-1 flex-wrap">
@@ -1766,7 +1856,7 @@ export default function TeamYear() {
       )}
 
       {/* Add Roster Section for User's Team with No Players for this year */}
-      {isUserTeam && sortedTeamPlayers.length === 0 && (
+      {!isViewOnly && isUserTeam && sortedTeamPlayers.length === 0 && (
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
@@ -1917,7 +2007,7 @@ export default function TeamYear() {
                       >
                         {isWin ? 'W' : 'L'}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
                           {game.teamScore} - {game.opponentScore}
                           {game.overtimes && game.overtimes.length > 0 && (
@@ -2269,16 +2359,18 @@ export default function TeamYear() {
               >
                 {teamPlayers.length} Players
               </span>
-              <button
-                onClick={() => setShowRosterModal(true)}
-                className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-                style={{ color: getContrastTextColor(viewedTeamColors.primary) }}
-                title="Edit Roster"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
+              {!isViewOnly && (
+                <button
+                  onClick={() => setShowRosterModal(true)}
+                  className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+                  style={{ color: getContrastTextColor(viewedTeamColors.primary) }}
+                  title="Edit Roster"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2315,7 +2407,7 @@ export default function TeamYear() {
       )}
 
       {/* Add Roster Section for Non-User Teams with No Players */}
-      {!isUserTeam && teamPlayers.length === 0 && (
+      {!isViewOnly && !isUserTeam && teamPlayers.length === 0 && (
         <div
           className="rounded-lg shadow-lg overflow-hidden"
           style={{
@@ -2383,6 +2475,178 @@ export default function TeamYear() {
         teamAbbr={teamAbbr}
         teamName={mascotName || teamAbbr}
       />
+
+      {/* Season Stats Modal */}
+      {showStatsModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowStatsModal(false)}
+        >
+          <div
+            className="rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: viewedTeamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="px-6 py-4 flex items-center justify-between flex-shrink-0"
+              style={{ backgroundColor: viewedTeamColors.primary }}
+            >
+              <div className="flex items-center gap-3">
+                {getTeamLogo(mascotName || teamAbbr) && (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white p-1.5">
+                    <img
+                      src={getTeamLogo(mascotName || teamAbbr)}
+                      alt={mascotName || teamAbbr}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-xl font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
+                    {selectedYear} Team Stats
+                  </h3>
+                  <p className="text-sm opacity-80" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
+                    {seasonStats.gamesWithStats} {seasonStats.gamesWithStats === 1 ? 'Game' : 'Games'} with Stats
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStatsModal(false)}
+                className="p-2 rounded-full hover:bg-white/20 transition-colors"
+                style={{ color: getContrastTextColor(viewedTeamColors.primary) }}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              {/* Per Game Averages */}
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                  Per Game Averages
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {[
+                    { label: 'Points/G', value: ((seasonStats.rushTds * 6 + seasonStats.passTds * 6 + seasonStats.redZoneFg * 3) / seasonStats.gamesWithStats).toFixed(1) },
+                    { label: 'Total Off/G', value: (seasonStats.totalOffense / seasonStats.gamesWithStats).toFixed(1) },
+                    { label: 'Rush Yds/G', value: (seasonStats.rushYards / seasonStats.gamesWithStats).toFixed(1) },
+                    { label: 'Pass Yds/G', value: (seasonStats.passYards / seasonStats.gamesWithStats).toFixed(1) },
+                    { label: 'First Downs/G', value: (seasonStats.firstDowns / seasonStats.gamesWithStats).toFixed(1) },
+                    { label: 'Turnovers/G', value: (seasonStats.turnovers / seasonStats.gamesWithStats).toFixed(1) }
+                  ].map((stat, idx) => (
+                    <div
+                      key={idx}
+                      className="text-center p-3 rounded-lg"
+                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
+                    >
+                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                        {stat.label}
+                      </div>
+                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
+                        {stat.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Season Totals */}
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                  Season Totals
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {[
+                    { label: 'Rush Yards', value: seasonStats.rushYards.toLocaleString(), sub: `${seasonStats.rushAttempts} att` },
+                    { label: 'Rush TDs', value: seasonStats.rushTds },
+                    { label: 'Pass Yards', value: seasonStats.passYards.toLocaleString(), sub: `${seasonStats.completions}/${seasonStats.passAttempts}` },
+                    { label: 'Pass TDs', value: seasonStats.passTds },
+                    { label: 'Total TDs', value: seasonStats.rushTds + seasonStats.passTds },
+                    { label: 'Total Yards', value: (seasonStats.totalYards > 0 ? seasonStats.totalYards : seasonStats.totalOffense).toLocaleString() }
+                  ].map((stat, idx) => (
+                    <div
+                      key={idx}
+                      className="text-center p-3 rounded-lg"
+                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
+                    >
+                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                        {stat.label}
+                      </div>
+                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
+                        {stat.value}
+                      </div>
+                      {stat.sub && (
+                        <div className="text-xs mt-0.5" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                          {stat.sub}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Efficiency Stats */}
+              <div>
+                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                  Efficiency
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {[
+                    {
+                      label: '3rd Down %',
+                      value: seasonStats.thirdDownAtt > 0 ? `${((seasonStats.thirdDownConv / seasonStats.thirdDownAtt) * 100).toFixed(1)}%` : '--',
+                      sub: `${seasonStats.thirdDownConv}/${seasonStats.thirdDownAtt}`
+                    },
+                    {
+                      label: '4th Down %',
+                      value: seasonStats.fourthDownAtt > 0 ? `${((seasonStats.fourthDownConv / seasonStats.fourthDownAtt) * 100).toFixed(1)}%` : '--',
+                      sub: `${seasonStats.fourthDownConv}/${seasonStats.fourthDownAtt}`
+                    },
+                    {
+                      label: 'Red Zone',
+                      value: seasonStats.redZoneTd + seasonStats.redZoneFg,
+                      sub: `${seasonStats.redZoneTd} TD, ${seasonStats.redZoneFg} FG`
+                    },
+                    {
+                      label: 'Comp %',
+                      value: seasonStats.passAttempts > 0 ? `${((seasonStats.completions / seasonStats.passAttempts) * 100).toFixed(1)}%` : '--'
+                    },
+                    {
+                      label: 'Turnovers',
+                      value: seasonStats.turnovers,
+                      sub: `${seasonStats.fumblesLost} Fum, ${seasonStats.interceptions} INT`
+                    },
+                    { label: 'Penalties', value: seasonStats.penalties }
+                  ].map((stat, idx) => (
+                    <div
+                      key={idx}
+                      className="text-center p-3 rounded-lg"
+                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
+                    >
+                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                        {stat.label}
+                      </div>
+                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
+                        {stat.value}
+                      </div>
+                      {stat.sub && (
+                        <div className="text-xs mt-0.5" style={{ color: secondaryBgText, opacity: 0.6 }}>
+                          {stat.sub}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

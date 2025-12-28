@@ -3,8 +3,10 @@ import SheetToolbar, { SheetErrorBanner } from './SheetToolbar'
 import {
   createGameBoxScoreSheet,
   createScoringSummarySheet,
+  createGameTeamStatsSheet,
   readGameBoxScoreFromSheet,
   readScoringSummaryFromSheet,
+  readGameTeamStatsFromSheet,
   deleteGoogleSheet,
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
@@ -104,6 +106,13 @@ export default function BoxScoreSheetModal({
           instructions: 'Enter each scoring play with team, scorer, and details',
           columns: 'Team | Scorer | Passer | Score Type | Quarter | Time Left'
         }
+      case 'teamStats':
+        return {
+          title: 'Team Stats',
+          sheetIdKey: 'teamStatsSheetId',
+          instructions: 'Enter team statistics in each tab (one for each team)',
+          columns: 'First Downs, Rush/Pass Stats, Turnovers, Penalties, Possession Time'
+        }
       default:
         return { title: 'Stats', sheetIdKey: '', instructions: '', columns: '' }
     }
@@ -178,6 +187,13 @@ export default function BoxScoreSheetModal({
               homeRoster,
               awayRoster
             )
+          } else if (sheetType === 'teamStats') {
+            sheetInfo = await createGameTeamStatsSheet(
+              homeTeamAbbr,
+              awayTeamAbbr,
+              year,
+              week
+            )
           } else {
             sheetInfo = await createGameBoxScoreSheet(
               config.teamName,
@@ -201,6 +217,10 @@ export default function BoxScoreSheetModal({
           await saveSheetIdToGame(sheetInfo.spreadsheetId)
         } catch (error) {
           console.error('Failed to create sheet:', error)
+          // Check if it's an OAuth/token error
+          if (error.message?.includes('OAuth') || error.message?.includes('token') || error.message?.includes('expired')) {
+            setShowSessionError(true)
+          }
         } finally {
           setCreatingSheet(false)
         }
@@ -242,14 +262,21 @@ export default function BoxScoreSheetModal({
       let data
       if (sheetType === 'scoring') {
         data = await readScoringSummaryFromSheet(sheetId)
+      } else if (sheetType === 'teamStats') {
+        data = await readGameTeamStatsFromSheet(sheetId)
       } else {
         data = await readGameBoxScoreFromSheet(sheetId)
       }
       await onSave(data)
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       console.error(error)
+      // Check if it's an OAuth/token error
+      if (error.message?.includes('OAuth') || error.message?.includes('token') || error.message?.includes('expired')) {
+        setShowSessionError(true)
+      } else {
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -264,6 +291,8 @@ export default function BoxScoreSheetModal({
       let data
       if (sheetType === 'scoring') {
         data = await readScoringSummaryFromSheet(sheetId)
+      } else if (sheetType === 'teamStats') {
+        data = await readGameTeamStatsFromSheet(sheetId)
       } else {
         data = await readGameBoxScoreFromSheet(sheetId)
       }
@@ -279,7 +308,12 @@ export default function BoxScoreSheetModal({
       }, 2500)
     } catch (error) {
       console.error('Failed to sync/move to trash:', error)
-      alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
+      // Check if it's an OAuth/token error
+      if (error.message?.includes('OAuth') || error.message?.includes('token') || error.message?.includes('expired')) {
+        setShowSessionError(true)
+      } else {
+        alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -313,7 +347,12 @@ export default function BoxScoreSheetModal({
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      // Check if it's an OAuth/token error
+      if (error.message?.includes('OAuth') || error.message?.includes('token') || error.message?.includes('expired')) {
+        setShowSessionError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }

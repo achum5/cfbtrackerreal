@@ -116,8 +116,11 @@ All implemented in `DynastyContext.jsx` with helper functions:
 
 - `src/context/DynastyContext.jsx` - All data operations and helpers
 - `src/pages/dynasty/Dashboard.jsx` - Main dashboard with phase-specific tasks
+- `src/pages/dynasty/TeamYear.jsx` - Team season page with Stats modal
+- `src/pages/dynasty/CoachCareer.jsx` - Coach career page with team links and season tiles
 - `src/data/teamAbbreviations.js` - Team abbreviations and colors
 - `src/data/cfpConstants.js` - CFP slot ID system
+- `src/data/boxScoreConstants.js` - Box score stat categories and keys
 
 ### Modal Pattern
 
@@ -181,6 +184,8 @@ Use dot notation for nested fields in production:
 **Key Functions**:
 - `createDynastySheet()` - Creates new Sheet with Schedule/Roster tabs
 - `initializeSheetHeaders()` - Sets up headers, protection, validation, formatting
+- `initializeTeamStatsSheet()` - Creates Team Stats tab with team-colored headers
+- `restoreGoogleSheet()` - Restores trashed sheets via Drive API (used before creating new)
 - `getSheetEmbedUrl()` - Generates iframe embed URL
 - `getAccessToken()` - Retrieves OAuth token from localStorage (throws if expired)
 
@@ -193,6 +198,21 @@ Use dot notation for nested fields in production:
 ### Team Colors
 
 Use `useTeamColors(teamName)` hook for dynamic theming.
+
+### View-Only Mode
+
+When `isViewOnly` is true from `useDynasty()`, hide all edit/add functionality:
+- Edit buttons (roster, player, game, schedule)
+- Add sections (roster entry, game entry)
+- Use invisible placeholder divs to maintain layout when hiding buttons
+
+### Box Score Stat Keys
+
+Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
+- **Defense**: `solo`, `assists`, `sack`, `iNT`, `pD`, `fF`, `fR`
+- **Kicking**: `fGM`, `fGA`, `xPM`, `xPA`
+- **Punting**: `punts`, `puntYards`, `puntLong`, `puntIn20`
+- **Returns**: `kickReturns`, `kickReturnYards`, `puntReturns`, `puntReturnYards`
 
 ## TODO / Future Work
 

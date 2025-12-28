@@ -5,6 +5,7 @@ import {
   createScheduleSheet,
   readScheduleFromScheduleSheet,
   deleteGoogleSheet,
+  restoreGoogleSheet,
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
 import { useDynasty } from '../context/DynastyContext'
@@ -75,8 +76,15 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
         // Check if we have an existing schedule sheet
         const existingSheetId = currentDynasty?.scheduleSheetId
         if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
+          // Try to restore the sheet in case it was trashed
+          try {
+            await restoreGoogleSheet(existingSheetId)
+            setSheetId(existingSheetId)
+            return
+          } catch (error) {
+            console.log('Could not restore existing sheet, will create new one:', error.message)
+            // Fall through to create a new sheet
+          }
         }
 
         setCreatingSheet(true)
