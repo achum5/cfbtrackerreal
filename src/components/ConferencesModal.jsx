@@ -132,8 +132,12 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       await onSave(conferences)
       onClose()
     } catch (error) {
-      alert('Failed to sync from Google Sheets.')
       console.error(error)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to sync from Google Sheets.')
+      }
     } finally {
       setSyncing(false)
     }
@@ -157,7 +161,11 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       }, 2500)
     } catch (error) {
       console.error('Failed to sync/move to trash:', error)
-      alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert(`Failed to sync/move to trash: ${error.message || 'Unknown error'}`)
+      }
     } finally {
       setDeletingSheet(false)
     }
@@ -175,7 +183,11 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }

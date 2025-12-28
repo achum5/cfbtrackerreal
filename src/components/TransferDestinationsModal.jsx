@@ -2,59 +2,42 @@ import { useState, useEffect } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
-import SheetToolbar from './SheetToolbar'
 import {
-  createCFPSeedsSheet,
-  readCFPSeedsFromSheet,
+  createTransferDestinationsSheet,
+  readTransferDestinationsFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
 
-// Simple mobile detection
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function TransferDestinationsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
-  const { user, signOut, refreshSession } = useAuth()
-  const [refreshing, setRefreshing] = useState(false)
+  const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
-  const [regenerating, setRegenerating] = useState(false)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
   const [useEmbedded, setUseEmbedded] = useState(() => {
-    // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [noTransfers, setNoTransfers] = useState(false)
 
-  // Check for mobile on mount and resize
   useEffect(() => {
     setIsMobile(isMobileDevice())
     const handleResize = () => setIsMobile(isMobileDevice())
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen])
 
   // Highlight save button when user returns to the window
   useEffect(() => {
@@ -81,31 +64,69 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Create CFP seeds sheet when modal opens
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  // Get transferring players (those leaving via transfer)
+  const getTransferringPlayers = () => {
+    const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
+    const transferReasons = [
+      'Playing Style', 'Proximity to Home', 'Championship Contender',
+      'Program Tradition', 'Campus Lifestyle', 'Stadium Atmosphere',
+      'Pro Potential', 'Academics', 'Playing Time', 'Scheme Fit'
+    ]
+
+    return playersLeavingThisYear
+      .filter(p => transferReasons.some(reason => p.reason?.includes(reason) || p.reason?.includes('Transfer')))
+      .map(leaving => {
+        const player = (currentDynasty?.players || []).find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+        return {
+          name: leaving.playerName,
+          pid: leaving.pid || player?.pid,
+          position: player?.position || ''
+        }
+      })
+  }
+
+  // Create sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP seeds sheet for this year
-        const existingSheetId = currentDynasty?.cfpSeedsSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
+      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote && !noTransfers) {
+        const transferringPlayers = getTransferringPlayers()
+
+        if (transferringPlayers.length === 0) {
+          setNoTransfers(true)
           return
         }
 
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createCFPSeedsSheet(
+          const sheetInfo = await createTransferDestinationsSheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            transferringPlayers
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            cfpSeedsSheetId: sheetInfo.spreadsheetId
+            transferDestinationsSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create CFP seeds sheet:', error)
+          console.error('Failed to create transfer destinations sheet:', error)
+          if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+            setShowAuthError(true)
+          }
         } finally {
           setCreatingSheet(false)
         }
@@ -113,12 +134,14 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, noTransfers, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      setNoTransfers(false)
+      setSheetId(null) // Always create fresh sheet
     }
   }, [isOpen])
 
@@ -127,15 +150,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
     setSyncing(true)
     try {
-      const seeds = await readCFPSeedsFromSheet(sheetId)
-      await onSave(seeds)
+      const destinations = await readTransferDestinationsFromSheet(sheetId)
+      await onSave(destinations)
       onClose()
     } catch (error) {
       console.error(error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets. Make sure all 12 seeds are entered.')
+        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
       }
     } finally {
       setSyncing(false)
@@ -147,10 +170,10 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
     setDeletingSheet(true)
     try {
-      const seeds = await readCFPSeedsFromSheet(sheetId)
-      await onSave(seeds)
+      const destinations = await readTransferDestinationsFromSheet(sheetId)
+      await onSave(destinations)
 
-      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       setSheetId(null)
@@ -159,11 +182,11 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
         onClose()
       }, 2500)
     } catch (error) {
-      console.error(error)
+      console.error('Error in handleSyncAndDelete:', error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets.')
+        alert(`Failed to sync/delete: ${error.message || 'Unknown error'}`)
       }
     } finally {
       setDeletingSheet(false)
@@ -172,12 +195,14 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
 
   const handleRegenerateSheet = async () => {
     if (!sheetId) return
+
     const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
     if (!confirmed) return
+
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { cfpSeedsSheetId: null })
+      await updateDynasty(currentDynasty.id, { transferDestinationsSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -196,10 +221,18 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     onClose()
   }
 
+  const handleSkip = async () => {
+    // No transfers, just save empty results and close
+    await onSave([])
+    onClose()
+  }
+
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'CFP Seeds') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Transfer Destinations') : null
   const isLoading = creatingSheet
+  const transferringPlayers = getTransferringPlayers()
+  const transferCount = transferringPlayers.length
 
   return (
     <div
@@ -214,7 +247,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            CFP Seeds (1-12)
+            Transfer Destinations
           </h2>
           <button
             onClick={handleClose}
@@ -227,7 +260,28 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
           </button>
         </div>
 
-        {isLoading ? (
+        {noTransfers ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center p-8 rounded-lg" style={{ backgroundColor: `${teamColors.primary}20` }}>
+              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke={teamColors.primary} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
+                No Outgoing Transfers
+              </p>
+              <p className="text-sm mb-6" style={{ color: teamColors.primary, opacity: 0.9 }}>
+                No players transferred out this year.
+              </p>
+              <button
+                onClick={handleSkip}
+                className="px-6 py-3 rounded-lg font-semibold hover:opacity-90"
+                style={{ backgroundColor: teamColors.primary, color: teamColors.secondary }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
@@ -238,10 +292,10 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating CFP Seeds Sheet...
+                Creating Transfer Destinations Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up seed entries 1-12
+                Pre-filling {transferCount} outgoing transfer{transferCount !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -255,7 +309,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                CFP Seeds saved to your dynasty.
+                Transfer destinations saved. Player profiles updated.
               </p>
             </div>
           </div>
@@ -291,21 +345,15 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                   <button
                     onClick={handleRegenerateSheet}
                     disabled={syncing || deletingSheet || regenerating}
-                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
+                    className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2 ml-auto"
                     style={{
                       backgroundColor: 'transparent',
-                      borderColor: teamColors.primary,
-                      color: teamColors.primary,
-                      opacity: 0.7
+                      borderColor: '#EF4444',
+                      color: '#EF4444'
                     }}
                   >
                     {regenerating ? 'Regenerating...' : 'Start Over'}
                   </button>
-                  {highlightSave && (
-                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
-
-                    </span>
-                  )}
                 </div>
               </div>
             )}
@@ -331,26 +379,34 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
               </div>
             )}
 
-            {/* Mobile View */}
             {isMobile || !useEmbedded ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
-                <div className="text-left mb-6 max-w-xs">
+                <div className="text-left mb-6 max-w-sm">
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Enter CFP seeds 1-12</span></li>
-                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync your seeds</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Outgoing transfers are pre-filled by name</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Select the team each player transferred to from the dropdown</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to update player profiles</span></li>
                   </ol>
                 </div>
-                <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
+                <a
+                  href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6"
+                  style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}
+                >
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                    <path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/>
+                  </svg>
                   Open Google Sheets
                 </a>
 
@@ -380,79 +436,33 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
-                {highlightSave && (
-                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
-
-                  </span>
-                )}
-
                 <button
                   onClick={handleRegenerateSheet}
                   disabled={syncing || deletingSheet || regenerating}
-                  className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
-                  style={{ color: teamColors.primary }}
+                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs border-2"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: '#EF4444',
+                    color: '#EF4444'
+                  }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Start Over'}
                 </button>
               </div>
             ) : (
-              <>
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <SheetToolbar
-                    sheetId={sheetId}
-                    embedUrl={embedUrl}
-                    teamColors={teamColors}
-                    title="CFP Seeds Google Sheet"
-                    onSessionError={() => setShowAuthError(true)}
-                  />
-                </div>
-              </>
+              /* Embedded iframe view */
+              <div className="flex-1 rounded-lg overflow-hidden border-2" style={{ borderColor: teamColors.primary }}>
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  title="Transfer Destinations Sheet"
+                />
+              </div>
             )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
-                Your session has expired. Click below to refresh.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={async () => {
-                    setRefreshing(true)
-                    try {
-                      const success = await refreshSession()
-                      if (success) {
-                        // Trigger sheet creation retry
-                        setRetryCount(c => c + 1)
-                      }
-                    } catch (e) {
-                      console.error('Refresh failed:', e)
-                    }
-                    setRefreshing(false)
-                  }}
-                  disabled={refreshing}
-                  className="px-4 py-2 rounded font-semibold transition-colors"
-                  style={{
-                    backgroundColor: teamColors.primary,
-                    color: teamColors.primaryText || '#fff',
-                    opacity: refreshing ? 0.7 : 1
-                  }}
-                >
-                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
-                </button>
-                <button
-                  onClick={signOut}
-                  className="px-4 py-2 rounded font-semibold transition-colors border"
-                  style={{
-                    borderColor: teamColors.primary,
-                    color: teamColors.primary,
-                    backgroundColor: 'transparent'
-                  }}
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
+            <p style={{ color: teamColors.primary }}>Failed to create sheet. Please try again.</p>
           </div>
         )}
       </div>

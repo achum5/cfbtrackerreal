@@ -77,7 +77,7 @@ function getWeekPhaseDisplay(dynasty) {
   if (dynasty.currentPhase === 'offseason') {
     if (dynasty.currentWeek === 1) return 'Players Leaving'
     if (dynasty.currentWeek === 5) return 'National Signing Day'
-    if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1} of 3`
+    if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1} of 4`
     return 'Off-Season'
   }
   return `Week ${dynasty.currentWeek} • ${phase}`

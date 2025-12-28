@@ -6,8 +6,10 @@ import {
   createRosterSheet,
   readRosterFromRosterSheet,
   deleteGoogleSheet,
-  getSingleSheetEmbedUrl
+  getSingleSheetEmbedUrl,
+  prefillRosterSheet
 } from '../services/sheetsService'
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -67,24 +69,28 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
     }
   }, [isOpen])
 
-  // Create roster sheet when modal opens
+  // Create roster sheet when modal opens - always create fresh with current data
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing roster sheet
-        const existingSheetId = currentDynasty?.rosterSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
         setCreatingSheet(true)
         try {
+          // Always create a fresh sheet
           const sheetInfo = await createRosterSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear
           )
           setSheetId(sheetInfo.spreadsheetId)
+
+          // Get current roster for this team and pre-fill the sheet
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const currentRoster = (currentDynasty?.players || []).filter(p =>
+            (!p.team || p.team === teamAbbr) && !p.leftTeam
+          )
+
+          if (currentRoster.length > 0) {
+            await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster)
+          }
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
@@ -180,7 +186,11 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }
@@ -298,11 +308,11 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
                   <button
                     onClick={handleRegenerateSheet}
                     disabled={syncing || deletingSheet || regenerating}
-                    className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm border-2 ml-auto"
+                    className="px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs sm:text-sm border-2"
                     style={{
-                      backgroundColor: 'transparent',
+                      backgroundColor: '#EF4444',
                       borderColor: '#EF4444',
-                      color: '#EF4444'
+                      color: '#FFFFFF'
                     }}
                   >
                     {regenerating ? 'Regenerating...' : 'Start Over'}

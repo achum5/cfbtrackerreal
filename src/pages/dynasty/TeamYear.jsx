@@ -241,9 +241,9 @@ export default function TeamYear() {
     }))
     .sort((a, b) => a.sortName.localeCompare(b.sortName))
 
-  // Get available years (from dynasty start year to current year)
+  // Get available years (most recent first)
   const availableYears = []
-  for (let y = currentDynasty.startYear; y <= currentDynasty.currentYear; y++) {
+  for (let y = currentDynasty.currentYear; y >= currentDynasty.startYear; y--) {
     availableYears.push(y)
   }
 
@@ -681,6 +681,11 @@ export default function TeamYear() {
     // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
     if (p.isRecruit) return false
 
+    // CRITICAL: If player has a recruitYear, they should NOT appear on rosters for that year or earlier
+    // (recruitYear = the recruiting class year, they actually START playing the NEXT year)
+    // Example: 2025 recruit → plays in 2026, should NOT appear on 2025 or earlier rosters
+    if (p.recruitYear && selectedYear <= p.recruitYear) return false
+
     // Check if player belongs to this team (by team field or legacy logic)
     const playerTeam = p.team // If player has team field, use it
     const belongsToThisTeam = playerTeam === teamAbbr ||
@@ -689,7 +694,9 @@ export default function TeamYear() {
 
     if (belongsToThisTeam) {
       // Show players who were on roster during this year
-      const playerStartYear = p.yearStarted || currentDynasty.startYear
+      // If player has recruitYear, they start playing the YEAR AFTER their recruiting class
+      // Otherwise fall back to yearStarted or startYear
+      const playerStartYear = p.recruitYear ? (p.recruitYear + 1) : (p.yearStarted || currentDynasty.startYear)
       // Use leftYear if player left, otherwise use yearDeparted or current year
       const playerEndYear = p.leftTeam ? (p.leftYear || currentDynasty.currentYear) : (p.yearDeparted || currentDynasty.currentYear)
 
@@ -1104,11 +1111,11 @@ export default function TeamYear() {
                 />
               </div>
             )}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Team Ratings (mobile) */}
               {teamRatings && (
-                <div className="flex gap-2">
-                  <div className="text-center">
+                <div className="flex gap-1 bg-black/20 rounded-lg px-2 py-1">
+                  <div className="text-center px-2">
                     <div className="text-lg font-bold" style={{ color: teamBgText }}>
                       {teamRatings.overall}
                     </div>
@@ -1116,7 +1123,7 @@ export default function TeamYear() {
                       OVR
                     </div>
                   </div>
-                  <div className="text-center">
+                  <div className="text-center px-2 border-l border-white/20">
                     <div className="text-lg font-bold" style={{ color: teamBgText }}>
                       {teamRatings.offense}
                     </div>
@@ -1124,7 +1131,7 @@ export default function TeamYear() {
                       OFF
                     </div>
                   </div>
-                  <div className="text-center">
+                  <div className="text-center px-2 border-l border-white/20">
                     <div className="text-lg font-bold" style={{ color: teamBgText }}>
                       {teamRatings.defense}
                     </div>
@@ -1432,8 +1439,8 @@ export default function TeamYear() {
           <div className="hidden sm:flex items-center gap-6">
             {/* Team Ratings (desktop) */}
             {teamRatings && (
-              <div className="flex gap-4">
-                <div className="text-center">
+              <div className="flex bg-black/20 rounded-lg px-3 py-2">
+                <div className="text-center px-3">
                   <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
                     {teamRatings.overall}
                   </div>
@@ -1441,7 +1448,7 @@ export default function TeamYear() {
                     OVR
                   </div>
                 </div>
-                <div className="text-center">
+                <div className="text-center px-3 border-l border-white/20">
                   <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
                     {teamRatings.offense}
                   </div>
@@ -1449,7 +1456,7 @@ export default function TeamYear() {
                     OFF
                   </div>
                 </div>
-                <div className="text-center">
+                <div className="text-center px-3 border-l border-white/20">
                   <div className="text-2xl md:text-3xl font-bold" style={{ color: teamBgText }}>
                     {teamRatings.defense}
                   </div>

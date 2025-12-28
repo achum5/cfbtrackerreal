@@ -61,6 +61,7 @@ export function getCurrentRoster(dynasty) {
   if (!dynasty) return []
 
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  const currentYear = dynasty.currentYear
   const allPlayers = dynasty.players || []
 
   // Filter players by team (if they have team field) and exclude honor-only, recruits, and players who left
@@ -73,6 +74,11 @@ export function getCurrentRoster(dynasty) {
 
     // Exclude players who have left the team (graduated, transferred, drafted, etc.)
     if (p.leftTeam) return false
+
+    // CRITICAL: If player has a recruitYear, they don't play until the NEXT year
+    // (recruitYear = their recruiting class year, they start playing recruitYear + 1)
+    // So if currentYear <= recruitYear, don't show them yet
+    if (p.recruitYear && currentYear <= p.recruitYear) return false
 
     // If player has team field, check it matches current team
     if (p.team) {
@@ -616,9 +622,40 @@ export function DynastyProvider({ children }) {
       return obj
     }
 
+    // BULLETPROOF: If updating players array, remove any duplicates by PID
+    // This prevents duplicate players from ever being saved
+    let sanitizedUpdates = { ...updates }
+    if (sanitizedUpdates.players && Array.isArray(sanitizedUpdates.players)) {
+      const seenPIDs = new Set()
+      const seenNames = new Set()
+      sanitizedUpdates.players = sanitizedUpdates.players.filter(player => {
+        // Skip if no player object
+        if (!player) return false
+
+        // Check for duplicate PID
+        if (player.pid != null) {
+          if (seenPIDs.has(player.pid)) {
+            console.warn(`Duplicate player PID detected and removed: ${player.pid} (${player.name})`)
+            return false
+          }
+          seenPIDs.add(player.pid)
+        }
+
+        // Also check for duplicate names (same name + same team + same year class = likely duplicate)
+        const nameKey = `${(player.name || '').toLowerCase().trim()}_${player.team || ''}_${player.year || ''}`
+        if (player.name && seenNames.has(nameKey)) {
+          console.warn(`Duplicate player name/team/class detected and removed: ${player.name}`)
+          return false
+        }
+        if (player.name) seenNames.add(nameKey)
+
+        return true
+      })
+    }
+
     // Add lastModified timestamp to all updates and sanitize
     const updatesWithTimestamp = removeUndefined({
-      ...updates,
+      ...sanitizedUpdates,
       lastModified: Date.now()
     })
 
@@ -2039,17 +2076,72 @@ export function DynastyProvider({ children }) {
     const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
     const startPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
 
-    // Add team field to each new player
-    const playersWithPIDs = players.map((player, index) => ({
-      ...player,
-      pid: startPID + index,
-      id: `player-${startPID + index}`,
-      team: teamAbbr  // CRITICAL: Tag each player with their team
-    }))
+    // Create a map of existing players by name for matching
+    const existingPlayersByName = {}
+    existingPlayers.forEach(p => {
+      if (p.name && p.team === teamAbbr) {
+        existingPlayersByName[p.name.toLowerCase().trim()] = p
+      }
+    })
+
+    // Add team field and yearStarted to each player
+    // For existing players (matched by name), preserve their original data
+    // For new players, set yearStarted to the current editing year
+    let nextPIDCounter = startPID
+    const playersWithPIDs = players.map((player) => {
+      const nameLower = (player.name || '').toLowerCase().trim()
+      const existingPlayer = existingPlayersByName[nameLower]
+
+      // For new players, assign a new PID
+      let pid, id
+      if (existingPlayer) {
+        pid = existingPlayer.pid
+        id = existingPlayer.id
+      } else {
+        pid = nextPIDCounter++
+        id = `player-${pid}`
+      }
+
+      // For existing players, preserve all their important metadata
+      // Only override fields that came from the sheet (the edited data)
+      if (existingPlayer) {
+        return {
+          // Start with existing player data to preserve all metadata
+          ...existingPlayer,
+          // Override with sheet data (the edited fields)
+          ...player,
+          // But ensure we keep the original pid/id
+          pid,
+          id,
+          team: teamAbbr,
+          // Preserve these critical fields from existing player
+          yearStarted: existingPlayer.yearStarted || player.yearStarted || year,
+          recruitYear: existingPlayer.recruitYear || player.recruitYear,
+          isPortal: existingPlayer.isPortal,
+          isRecruit: existingPlayer.isRecruit,
+          stars: existingPlayer.stars,
+          nationalRank: existingPlayer.nationalRank,
+          stateRank: existingPlayer.stateRank,
+          positionRank: existingPlayer.positionRank,
+          previousTeam: existingPlayer.previousTeam,
+          gemBust: existingPlayer.gemBust,
+          leftTeam: existingPlayer.leftTeam
+        }
+      }
+
+      // For new players, just use the sheet data with a new PID
+      return {
+        ...player,
+        pid,
+        id,
+        team: teamAbbr,
+        yearStarted: player.yearStarted || year
+      }
+    })
 
     // Combine preserved players with new roster
     finalPlayers = [...playersToKeep, ...playersWithPIDs]
-    newNextPID = startPID + players.length
+    newNextPID = nextPIDCounter  // Use the counter which only incremented for new players
 
     // Build team-centric preseason setup storage
     const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
@@ -2318,6 +2410,32 @@ export function DynastyProvider({ children }) {
     }
 
     await updateDynasty(dynastyId, updateData)
+  }
+
+  // Delete a player from the dynasty
+  const deletePlayer = async (dynastyId, playerPid) => {
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    // Remove the player from the players array
+    const updatedPlayers = (dynasty.players || []).filter(player => player.pid !== playerPid)
+
+    await updateDynasty(dynastyId, { players: updatedPlayers })
   }
 
   const createGoogleSheetForDynasty = async (dynastyId) => {
@@ -2901,6 +3019,7 @@ export function DynastyProvider({ children }) {
     saveTeamRatings,
     saveCoachingStaff,
     updatePlayer,
+    deletePlayer,
     createGoogleSheetForDynasty,
     createTempSheetWithData,
     deleteSheetAndClearRefs,

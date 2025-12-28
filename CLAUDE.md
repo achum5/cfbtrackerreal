@@ -90,6 +90,7 @@ All implemented in `DynastyContext.jsx` with helper functions:
 | Recruits | `recruitsByTeamYear[team][year]` | `getCurrentRecruits()` |
 | Games | `games[]` with `userTeam` field | Filter by `userTeam` |
 | Commitments | `recruitingCommitmentsByTeamYear[team][year][key]` | See Dashboard.jsx |
+| TransferRedshirt | `transferRedshirtByTeamYear[team][year]` | Array of redshirted player names |
 
 **Special structures:**
 - `coachTeamByYear[year]` - Locked at Week 1 of regular season
@@ -102,7 +103,10 @@ All implemented in `DynastyContext.jsx` with helper functions:
 2. **Regular Season** - Weeks 1-12
 3. **Conference Championship** - Separate phase (NOT postseason week 1)
 4. **Postseason** - Weeks 1-5 (Bowl Weeks)
-5. **Offseason** - Weeks 1-5 (Players Leaving, then Recruiting Weeks 1-4)
+5. **Offseason** - Weeks 1-6:
+   - Week 1: Players Leaving
+   - Weeks 2-5: Recruiting Weeks 1-4 (Week 5 = National Signing Day with Transfer Redshirt Status + Position Changes)
+   - Week 6: Training Camp
 
 ### Recruiting Commitment Keys
 
@@ -175,6 +179,7 @@ Use dot notation for nested fields in production:
    - After preseason: Merges with existing, continues PID sequence from `nextPID`
    - Tags each player with `team: teamAbbr`
    - Sets `preseasonSetup.rosterEntered = true`
+   - **IMPORTANT**: Preserves player metadata when matching by name (isPortal, isRecruit, stars, nationalRank, stateRank, positionRank, previousTeam, gemBust, yearStarted, recruitYear)
 
 **Player Fields**:
 - `name` - Full name (combined from firstName + lastName)
@@ -214,14 +219,18 @@ Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
 - **Punting**: `punts`, `puntYards`, `puntLong`, `puntIn20`
 - **Returns**: `kickReturns`, `kickReturnYards`, `puntReturns`, `puntReturnYards`
 
-## Current Work
+## Recent Completions
 
-**Team Stats Google Sheet** - End of season recap feature with two-tab structure:
-- **Offense Tab**: Points, Offense Yards, Yards Per Play, Passing Yards, Passing Yards Per Game, Passing TDs, Rushing Yards, Rushing Yards Per Carry, Rushing TDs, First Downs
-- **Defense Tab**: Points Allowed, Total Yards Allowed, Passing Yards Allowed, Rushing Yards Allowed, Sacks, Forced Fumbles, Interceptions
-- Pre-fills with aggregated box score data from all games
-- Manual override system: sheet values override box score aggregations (like player stats)
-- Display on TeamStats.jsx page shows totals and per-game averages
+**Transfer Redshirt Status** (National Signing Day task):
+- Modal: `src/components/TransferRedshirtModal.jsx`
+- Sheet functions: `createTransferRedshirtSheet()`, `readTransferRedshirtFromSheet()`
+- Purpose: Mark incoming portal transfers who were redshirted at previous school
+- Updates player class: Fr → RS Fr, So → RS So, Jr → RS Jr, Sr → RS Sr
+- Data stored in `transferRedshirtByTeamYear[teamAbbr][year]`
+
+**Roster Edit Metadata Preservation**:
+- Fixed `saveRoster()` to preserve all player metadata when editing via Google Sheets
+- Previously lost: isPortal, isRecruit, stars, rankings, previousTeam, gemBust, leftTeam
 
 ## TODO / Future Work
 

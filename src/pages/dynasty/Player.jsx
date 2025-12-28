@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -94,18 +94,17 @@ const getPrimaryStatCategory = (position) => {
 
 export default function Player() {
   const { id: dynastyId, pid } = useParams()
-  const { dynasties, currentDynasty, updatePlayer, isViewOnly } = useDynasty()
+  const { dynasties, currentDynasty, updatePlayer, deletePlayer, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const navigate = useNavigate()
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAccoladeModal, setShowAccoladeModal] = useState(false)
   const [accoladeType, setAccoladeType] = useState(null)
   const [showOverallProgressionModal, setShowOverallProgressionModal] = useState(false)
   const [showGameLogModal, setShowGameLogModal] = useState(false)
   const [expandedGameLogYear, setExpandedGameLogYear] = useState(null)
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [pid])
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // In view mode, dynastyId is undefined - just use currentDynasty directly
   const dynasty = dynastyId
@@ -113,6 +112,27 @@ export default function Player() {
     : currentDynasty
   const player = dynasty?.players?.find(p => p.pid === parseInt(pid))
 
+  // Determine the player's team from their team field
+  // Falls back to dynasty.teamName only for legacy players without a team field
+  const playerTeamAbbr = player?.team
+    || player?.teams?.[0]
+    || getAbbreviationFromDisplayName(dynasty?.teamName)
+    || ''
+
+  // Get the full team name from the abbreviation
+  const playerTeamName = getMascotName(playerTeamAbbr)
+    || teamAbbreviations[playerTeamAbbr]?.name
+    || dynasty?.teamName
+    || ''
+
+  // IMPORTANT: All hooks must be called before any early returns
+  const teamColors = useTeamColors(playerTeamName)
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pid])
+
+  // Early returns AFTER all hooks
   if (!dynasty) {
     return <div className="text-center py-12"><p className="text-gray-600">Dynasty not found</p></div>
   }
@@ -120,19 +140,6 @@ export default function Player() {
   if (!player) {
     return <div className="text-center py-12"><p className="text-gray-600">Player not found</p></div>
   }
-
-  // Determine the player's team from their team field
-  // Falls back to dynasty.teamName only for legacy players without a team field
-  const playerTeamAbbr = player.team
-    || player.teams?.[0]
-    || getAbbreviationFromDisplayName(dynasty.teamName)
-
-  // Get the full team name from the abbreviation
-  const playerTeamName = getMascotName(playerTeamAbbr)
-    || teamAbbreviations[playerTeamAbbr]?.name
-    || dynasty.teamName
-
-  const teamColors = useTeamColors(playerTeamName)
   const primaryText = getContrastTextColor(teamColors.primary)
   const secondaryText = getContrastTextColor(teamColors.secondary)
   const teamAbbr = playerTeamAbbr
@@ -193,7 +200,8 @@ export default function Player() {
     const gameLog = []
 
     games.forEach(game => {
-      if (!game.boxScore) return
+      // Skip games without box scores or CPU games (different property structure)
+      if (!game.boxScore || game.isCPUGame) return
 
       // Check both home and away box scores for this player
       const statCategories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'blocking', 'punting', 'kickReturn', 'puntReturn']
@@ -614,6 +622,18 @@ export default function Player() {
                     </svg>
                   </button>
                 )}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="p-1.5 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                    style={{ color: '#EF4444' }}
+                    title="Delete Player"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-2 mb-2">
@@ -643,18 +663,43 @@ export default function Player() {
                     style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
                   >
                     {player.leftReason === 'Pro Draft' && player.draftRound
-                      ? `${player.leftYear} NFL Draft - Round ${player.draftRound}`
+                      ? `${player.leftYear} NFL Draft - ${player.draftRound}`
                       : player.leftReason === 'Pro Draft'
                       ? `${player.leftYear} NFL Draft`
                       : player.leftReason === 'Graduating'
                       ? `Graduated (${player.leftYear})`
                       : player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
                       ? `Transferred (${player.leftYear})`
+                      : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
+                         'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
+                         'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
+                         'Athletic Facilities'].includes(player.leftReason)
+                      ? `Transfer: ${player.leftReason} (${player.leftYear})`
                       : player.leftReason
                       ? `${player.leftReason} (${player.leftYear})`
                       : `Left Team (${player.leftYear})`}
                   </span>
                 )}
+                {player.transferredTo && (() => {
+                  const newTeamName = getMascotName(player.transferredTo) || teamAbbreviations[player.transferredTo]?.name || player.transferredTo
+                  const newTeamColors = getTeamColors(newTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
+                  const newTeamTextColor = getContrastTextColor(newTeamColors.primary)
+                  return (
+                    <Link
+                      to={`${pathPrefix}/team/${player.transferredTo}`}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: newTeamColors.primary, color: newTeamTextColor }}
+                    >
+                      <span>→</span>
+                      {getTeamLogo(newTeamName) && (
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                          <img src={getTeamLogo(newTeamName)} alt="" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                      <span>{player.transferredTo}</span>
+                    </Link>
+                  )
+                })()}
               </div>
 
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" style={{ color: primaryText, opacity: 0.85 }}>
@@ -813,34 +858,6 @@ export default function Player() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Draft Status */}
-      {draftInfo && (
-        <div
-          className="rounded-lg shadow-lg p-4 sm:p-6"
-          style={{ backgroundColor: teamColors.secondary, border: `3px solid ${teamColors.primary}` }}
-        >
-          <h2 className="text-xl font-bold mb-4" style={{ color: secondaryText }}>Pro Career</h2>
-          <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: teamColors.primary }}
-            >
-              <svg className="w-8 h-8" fill="none" stroke={primaryText} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-lg font-bold" style={{ color: secondaryText }}>
-                {draftInfo.draftRound === 'Undrafted' ? 'Undrafted' : `${draftInfo.draftRound} Pick`}
-              </div>
-              <div className="text-sm" style={{ color: secondaryText, opacity: 0.8 }}>
-                {draftInfo.year} NFL Draft
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -2064,6 +2081,67 @@ export default function Player() {
                   </Link>
                 )
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-md w-full p-6"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FEE2E2' }}>
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: teamColors.primary }}>Delete Player?</h3>
+                <p className="text-sm" style={{ color: teamColors.primary, opacity: 0.7 }}>This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="mb-6" style={{ color: teamColors.primary }}>
+              Are you sure you want to delete <strong>{player.name}</strong>? All stats and data for this player will be permanently removed.
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 rounded-lg font-semibold border-2"
+                style={{ borderColor: teamColors.primary, color: teamColors.primary, backgroundColor: 'transparent' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setIsDeleting(true)
+                  try {
+                    await deletePlayer(dynasty.id, player.pid)
+                    navigate(`${pathPrefix}/roster`)
+                  } catch (error) {
+                    console.error('Failed to delete player:', error)
+                    alert('Failed to delete player. Please try again.')
+                  } finally {
+                    setIsDeleting(false)
+                    setShowDeleteConfirm(false)
+                  }
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-lg font-semibold"
+                style={{ backgroundColor: '#EF4444', color: '#FFFFFF', opacity: isDeleting ? 0.7 : 1 }}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Player'}
+              </button>
             </div>
           </div>
         </div>

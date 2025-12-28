@@ -209,7 +209,11 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }

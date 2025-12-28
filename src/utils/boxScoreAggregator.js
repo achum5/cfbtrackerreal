@@ -15,11 +15,12 @@ export function aggregatePlayerBoxScoreStats(dynasty, playerName, year, teamAbbr
   if (!dynasty?.games || !playerName) return null
 
   // Find all games for this year where the user's team played
+  // Exclude CPU games - they have different property structure
   const yearGames = dynasty.games.filter(g => {
     const gameYear = Number(g.year)
     if (gameYear !== year) return false
-    // Game must have box score data
-    if (!g.boxScore) return false
+    // Game must have box score data and not be a CPU game
+    if (!g.boxScore || g.isCPUGame) return false
     // User's team must be involved (either home or away)
     const userTeam = g.userTeam || teamAbbr
     return g.opponent || g.team1 === userTeam || g.team2 === userTeam
@@ -164,9 +165,10 @@ export function getPlayerSeasonStatsFromBoxScores(dynasty, player) {
   const teamAbbr = player.team
 
   // Find all years where this player appears in box scores
+  // Exclude CPU games - they have different property structure
   const years = new Set()
   dynasty.games.forEach(game => {
-    if (!game.boxScore || !game.year) return
+    if (!game.boxScore || !game.year || game.isCPUGame) return
     const boxScore = game.boxScore
     const checkCategory = (side) => {
       if (!boxScore[side]) return false
@@ -307,8 +309,9 @@ export function getPlayerGameLog(dynasty, playerName, year, teamAbbr) {
   if (!dynasty?.games || !playerName) return []
 
   // Get all games for this year that have box scores
+  // Exclude CPU games - they have team1/team2 instead of opponent/teamScore structure
   const yearGames = dynasty.games.filter(g =>
-    Number(g.year) === year && g.boxScore
+    Number(g.year) === year && g.boxScore && !g.isCPUGame
   ).sort((a, b) => {
     const weekA = a.week || 0
     const weekB = b.week || 0

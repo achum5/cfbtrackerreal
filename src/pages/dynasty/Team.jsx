@@ -901,29 +901,29 @@ export default function Team() {
 
         <div className="p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Games As */}
+            {/* Games As This Team */}
             <div
               className="p-4 rounded-lg text-center"
               style={{ backgroundColor: `${teamBgText}10` }}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                Games As
+                As {teamAbbr}
               </div>
               <div className="text-3xl font-bold" style={{ color: gamesAsTeam.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {gamesAsTeam.length || '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                {gamesAsWins}-{gamesAsLosses} record
+                {gamesAsTeam.length > 0 ? `${gamesAsWins}-${gamesAsLosses}` : 'No games'}
               </div>
             </div>
 
-            {/* Win % As */}
+            {/* Win Rate As This Team */}
             <div
               className="p-4 rounded-lg text-center"
               style={{ backgroundColor: `${teamBgText}10` }}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                Win % As
+                Win Rate
               </div>
               <div
                 className="text-3xl font-bold"
@@ -936,11 +936,11 @@ export default function Team() {
                 {winPctAs ? `${winPctAs}%` : '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                {gamesAsWins}-{gamesAsLosses} record
+                {gamesAsTeam.length > 0 ? `as ${teamAbbr}` : 'N/A'}
               </div>
             </div>
 
-            {/* User vs Team */}
+            {/* Games Against This Team */}
             <button
               onClick={() => gamesAgainst.length > 0 && setShowGamesModal(true)}
               className={`p-4 rounded-lg text-center transition-all ${gamesAgainst.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
@@ -948,23 +948,23 @@ export default function Team() {
               disabled={gamesAgainst.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                User vs {teamAbbr}
+                Vs {teamAbbr}
               </div>
               <div className="text-3xl font-bold" style={{ color: gamesAgainst.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {gamesAgainst.length || '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                {allTimeWins}-{allTimeLosses} record
+                {gamesAgainst.length > 0 ? `${allTimeWins}-${allTimeLosses}` : 'No games'}
               </div>
             </button>
 
-            {/* Win % Vs */}
+            {/* Win Rate Against This Team */}
             <div
               className="p-4 rounded-lg text-center"
               style={{ backgroundColor: `${teamBgText}10` }}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
-                Win % Vs
+                Win Rate
               </div>
               <div
                 className="text-3xl font-bold"
@@ -977,7 +977,7 @@ export default function Team() {
                 {winPctVs ? `${winPctVs}%` : '--'}
               </div>
               <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                {allTimeWins}-{allTimeLosses} record
+                {gamesAgainst.length > 0 ? `vs ${teamAbbr}` : 'N/A'}
               </div>
             </div>
           </div>

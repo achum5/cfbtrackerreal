@@ -277,6 +277,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         // Departure
         yearDeparted: player.yearDeparted || '',
         yearsInSchool: player.yearsInSchool || 0,
+        leftReason: player.leftReason || '',
         draftRound: player.draftRound || '',
 
         // Accolades
@@ -542,6 +543,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       overallRatingChange: formData.overallRatingChange,
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
+      leftReason: formData.leftReason,
       draftRound: formData.draftRound,
       confPOW: num(formData.confPOW),
       nationalPOW: num(formData.nationalPOW),
@@ -574,7 +576,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     'Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker',
     'Blocking', 'Utility',
     'Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster',
-    'Possession', 'Pure Blocker', 'Vertical Threat',
+    'Possession', 'Pure Blocker', 'Pure Possession', 'Vertical Threat',
     'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
     'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
     'Lurker', 'Signal Caller', 'Thumper',
@@ -883,6 +885,60 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                     <div>
                       <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Fr All-Am</label>
                       <input type="text" name="allAmFr" value={formData.allAmFr ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Departure */}
+            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
+              {renderSectionHeader('departure', 'Departure')}
+              {isExpanded('departure') && (
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Year Departed</label>
+                      <input type="text" name="yearDeparted" value={formData.yearDeparted ?? ''} onChange={handleChange} placeholder="2026" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Years in School</label>
+                      <input type="text" name="yearsInSchool" value={formData.yearsInSchool ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Left Reason</label>
+                      <select name="leftReason" value={formData.leftReason ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        <option value="Graduating">Graduating</option>
+                        <option value="Pro Draft">Pro Draft</option>
+                        <option value="Playing Style">Transfer - Playing Style</option>
+                        <option value="Proximity to Home">Transfer - Proximity to Home</option>
+                        <option value="Championship Contender">Transfer - Championship Contender</option>
+                        <option value="Program Tradition">Transfer - Program Tradition</option>
+                        <option value="Campus Lifestyle">Transfer - Campus Lifestyle</option>
+                        <option value="Stadium Atmosphere">Transfer - Stadium Atmosphere</option>
+                        <option value="Pro Potential">Transfer - Pro Potential</option>
+                        <option value="Brand Exposure">Transfer - Brand Exposure</option>
+                        <option value="Academic Prestige">Transfer - Academic Prestige</option>
+                        <option value="Conference Prestige">Transfer - Conference Prestige</option>
+                        <option value="Coach Stability">Transfer - Coach Stability</option>
+                        <option value="Coach Prestige">Transfer - Coach Prestige</option>
+                        <option value="Athletic Facilities">Transfer - Athletic Facilities</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Draft Round</label>
+                      <select name="draftRound" value={formData.draftRound ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                        <option value="">Select...</option>
+                        <option value="1st Round">1st Round</option>
+                        <option value="2nd Round">2nd Round</option>
+                        <option value="3rd Round">3rd Round</option>
+                        <option value="4th Round">4th Round</option>
+                        <option value="5th Round">5th Round</option>
+                        <option value="6th Round">6th Round</option>
+                        <option value="7th Round">7th Round</option>
+                        <option value="Undrafted">Undrafted</option>
+                      </select>
                     </div>
                   </div>
                 </div>

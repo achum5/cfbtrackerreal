@@ -774,6 +774,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
                 // TE Archetypes
                 { userEnteredValue: 'Possession' },
                 { userEnteredValue: 'Pure Blocker' },
+                { userEnteredValue: 'Pure Possession' },
                 { userEnteredValue: 'Vertical Threat' },
                 // OL Archetypes
                 { userEnteredValue: 'Agile' },
@@ -1499,6 +1500,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
                 // TE Archetypes
                 { userEnteredValue: 'Possession' },
                 { userEnteredValue: 'Pure Blocker' },
+                { userEnteredValue: 'Pure Possession' },
                 { userEnteredValue: 'Vertical Threat' },
                 // OL Archetypes
                 { userEnteredValue: 'Agile' },
@@ -6081,10 +6083,8 @@ const TEAM_STATS_OFFENSE = [
   'Offense Yards',
   'Yards Per Play',
   'Passing Yards',
-  'Passing Yards Per Game',
   'Passing Touchdowns',
   'Rushing Yards',
-  'Rushing Yards Per Carry',
   'Rushing Touchdowns',
   'First Downs'
 ]
@@ -6106,10 +6106,8 @@ const TEAM_STATS_OFFENSE_KEY_MAP = {
   'Offense Yards': 'totalOffense',
   'Yards Per Play': 'yardsPerPlay', // calculated
   'Passing Yards': 'passYards',
-  'Passing Yards Per Game': 'passYardsPerGame', // calculated
   'Passing Touchdowns': 'passTds',
   'Rushing Yards': 'rushYards',
-  'Rushing Yards Per Carry': 'rushYardsPerCarry', // calculated
   'Rushing Touchdowns': 'rushTds',
   'First Downs': 'firstDowns'
 }
@@ -7788,7 +7786,12 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
     // Build batch update requests
     const requests = []
 
-    // Set header row
+    // Set header row with white text on dark background
+    const headerFormat = {
+      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+      backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+      horizontalAlignment: 'CENTER'
+    }
     requests.push({
       updateCells: {
         range: {
@@ -7800,10 +7803,10 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
         },
         rows: [{
           values: [
-            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: { stringValue: 'Draft Round' }, userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' } }
+            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerFormat },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: headerFormat },
+            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: headerFormat },
+            { userEnteredValue: { stringValue: 'Draft Round' }, userEnteredFormat: headerFormat }
           ]
         }],
         fields: 'userEnteredValue,userEnteredFormat'
@@ -7964,10 +7967,10 @@ export async function readDraftResultsFromSheet(spreadsheetId) {
 }
 
 // Recruiting class options
-const RECRUIT_CLASSES = ['HS', 'Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']
+const RECRUIT_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr', 'Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr']
 
 const RECRUIT_POSITIONS = [
-  'QB', 'HB', 'FB', 'WR', 'TE', 'OT', 'OG', 'C',
+  'QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT',
   'EDGE', 'DT', 'OLB', 'MIKE', 'CB', 'FS', 'SS', 'K', 'P', 'ATH'
 ]
 
@@ -7976,7 +7979,7 @@ const RECRUIT_ARCHETYPES = [
   'Backfield Threat', 'East/West Playmaker', 'Elusive Bruiser', 'North/South Receiver', 'North/South Blocker',
   'Blocking', 'Utility',
   'Contested Specialist', 'Elusive Route Runner', 'Gadget', 'Gritty Possession', 'Physical Route Runner', 'Route Artist', 'Speedster',
-  'Possession', 'Pure Blocker', 'Vertical Threat',
+  'Possession', 'Pure Blocker', 'Pure Possession', 'Vertical Threat',
   'Agile', 'Pass Protector', 'Raw Strength', 'Ground and Pound', 'Well Rounded',
   'Edge Setter', 'Gap Specialist', 'Power Rusher', 'Pure Power', 'Speed Rusher',
   'Lurker', 'Signal Caller', 'Thumper',
@@ -8330,25 +8333,32 @@ export async function readRecruitingFromSheet(spreadsheetId) {
     const rows = data.values || []
 
     // Parse rows into recruit objects
+    // Non-portal classes: HS, JUCO Fr, JUCO So, JUCO Jr (regular recruits)
+    // Portal classes: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr (transfer portal)
+    const nonPortalClasses = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr']
     const recruits = rows
       .filter(row => row[0] && row[0].trim()) // Must have player name
-      .map(row => ({
-        name: row[0]?.trim() || '',
-        class: row[1]?.trim() || 'HS',
-        position: row[2]?.trim() || '',
-        archetype: row[3]?.trim() || '',
-        stars: starsSymbolToNumber(row[4]),
-        nationalRank: row[5] ? parseInt(row[5]) : null,
-        stateRank: row[6] ? parseInt(row[6]) : null,
-        positionRank: row[7] ? parseInt(row[7]) : null,
-        height: row[8]?.trim() || '',
-        weight: row[9] ? parseInt(row[9]) : null,
-        hometown: row[10]?.trim() || '',
-        state: row[11]?.trim() || '',
-        gemBust: row[12]?.trim() || '',
-        devTrait: row[13]?.trim() || 'Normal',
-        previousTeam: row[14]?.trim() || ''
-      }))
+      .map(row => {
+        const recruitClass = row[1]?.trim() || 'HS'
+        return {
+          name: row[0]?.trim() || '',
+          class: recruitClass,
+          position: row[2]?.trim() || '',
+          archetype: row[3]?.trim() || '',
+          stars: starsSymbolToNumber(row[4]),
+          nationalRank: row[5] ? parseInt(row[5]) : null,
+          stateRank: row[6] ? parseInt(row[6]) : null,
+          positionRank: row[7] ? parseInt(row[7]) : null,
+          height: row[8]?.trim() || '',
+          weight: row[9] ? parseInt(row[9]) : null,
+          hometown: row[10]?.trim() || '',
+          state: row[11]?.trim() || '',
+          gemBust: row[12]?.trim() || '',
+          devTrait: row[13]?.trim() || 'Normal',
+          previousTeam: row[14]?.trim() || '',
+          isPortal: !nonPortalClasses.includes(recruitClass) // Fr, So, Jr, etc. are portal transfers
+        }
+      })
 
     return recruits
   } catch (error) {
@@ -8600,6 +8610,14 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
           }
         },
         fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
+      }
+    },
+    // Add auto-filter to header row so user can sort/filter
+    {
+      setBasicFilter: {
+        filter: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 }
+        }
       }
     }
   ]
@@ -8973,7 +8991,17 @@ export async function createRecruitOverallsSheet(dynastyName, year, recruits) {
 
 // Initialize the Recruit Overalls sheet with headers and recruit data
 async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetId, recruits) {
-  const rowCount = Math.max(recruits.length + 1, 30)
+  // Sort recruits by last name
+  const sortedRecruits = [...recruits].sort((a, b) => {
+    const getLastName = (name) => {
+      if (!name) return ''
+      const parts = name.trim().split(' ')
+      return parts[parts.length - 1].toLowerCase()
+    }
+    return getLastName(a.name).localeCompare(getLastName(b.name))
+  })
+
+  const rowCount = Math.max(sortedRecruits.length + 1, 30)
 
   const requests = [
     // Set headers
@@ -9005,11 +9033,11 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
         range: {
           sheetId: sheetId,
           startRowIndex: 1,
-          endRowIndex: recruits.length + 1,
+          endRowIndex: sortedRecruits.length + 1,
           startColumnIndex: 0,
           endColumnIndex: 6
         },
-        rows: recruits.map(recruit => ({
+        rows: sortedRecruits.map(recruit => ({
           values: [
             { userEnteredValue: { stringValue: recruit.name || '' }, userEnteredFormat: { horizontalAlignment: 'LEFT' } },
             { userEnteredValue: { stringValue: recruit.position || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
@@ -9125,6 +9153,14 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
         },
         properties: { pixelSize: 70 },
         fields: 'pixelSize'
+      }
+    },
+    // Add auto-filter to header row so user can sort/filter
+    {
+      setBasicFilter: {
+        filter: {
+          range: { sheetId: sheetId, startRowIndex: 0, endRowIndex: rowCount, startColumnIndex: 0, endColumnIndex: 6 }
+        }
       }
     }
   ]
@@ -10224,6 +10260,496 @@ export async function readGameTeamStatsFromSheet(spreadsheetId) {
     return teamStats
   } catch (error) {
     console.error('Error reading team stats:', error)
+    throw error
+  }
+}
+
+// ==================== TRANSFER DESTINATIONS SHEET ====================
+
+/**
+ * Create a Transfer Destinations sheet for tracking where outgoing transfers committed
+ * @param {string} dynastyName - Name of the dynasty
+ * @param {number} year - Current year
+ * @param {Array} transferringPlayers - Players who are transferring out
+ * @returns {Object} { spreadsheetId, spreadsheetUrl }
+ */
+export async function createTransferDestinationsSheet(dynastyName, year, transferringPlayers) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Sort players by last name
+    const sortedPlayers = [...transferringPlayers].sort((a, b) => {
+      const getLastName = (name) => {
+        if (!name) return ''
+        const parts = name.trim().split(' ')
+        return parts[parts.length - 1].toLowerCase()
+      }
+      return getLastName(a.name).localeCompare(getLastName(b.name))
+    })
+
+    const totalRows = Math.max(sortedPlayers.length + 5, 20)
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - ${year} Transfer Destinations`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Transfer Destinations',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 2,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to create transfer destinations sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const spreadsheet = await response.json()
+    const spreadsheetId = spreadsheet.spreadsheetId
+    const sheetId = spreadsheet.sheets[0].properties.sheetId
+
+    // Get all team abbreviations for dropdown
+    const teamAbbrs = Object.keys(teamAbbreviations).filter(key =>
+      typeof teamAbbreviations[key] === 'object' && teamAbbreviations[key].name
+    ).sort()
+
+    // Build batch update requests
+    const requests = []
+
+    // Set header row
+    const headerFormat = {
+      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+      backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+      horizontalAlignment: 'CENTER'
+    }
+    requests.push({
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 2 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player Name' }, userEnteredFormat: headerFormat },
+            { userEnteredValue: { stringValue: 'New Team' }, userEnteredFormat: headerFormat }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    })
+
+    // Pre-fill player names
+    if (sortedPlayers.length > 0) {
+      requests.push({
+        updateCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: sortedPlayers.length + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          rows: sortedPlayers.map(p => ({
+            values: [{ userEnteredValue: { stringValue: p.name || '' } }]
+          })),
+          fields: 'userEnteredValue'
+        }
+      })
+    }
+
+    // Set column widths
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    })
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    })
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: false
+        }
+      }
+    })
+
+    // Protect player name column
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Player names - do not edit',
+          warningOnly: false
+        }
+      }
+    })
+
+    // Add team dropdown validation (STRICT - only dropdown values allowed)
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: teamAbbrs.map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true,
+          strict: true // MANDATORY dropdown - no free text
+        }
+      }
+    })
+
+    // Add conditional formatting for team colors
+    for (const abbr of teamAbbrs) {
+      const teamInfo = teamAbbreviations[abbr]
+      if (!teamInfo?.backgroundColor && !teamInfo?.textColor) continue
+
+      const bgColor = teamInfo.backgroundColor || '#FFFFFF'
+      const textColor = teamInfo.textColor || '#000000'
+
+      // Parse hex colors
+      const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+        return result ? {
+          red: parseInt(result[1], 16) / 255,
+          green: parseInt(result[2], 16) / 255,
+          blue: parseInt(result[3], 16) / 255
+        } : { red: 1, green: 1, blue: 1 }
+      }
+
+      requests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: abbr }]
+              },
+              format: {
+                backgroundColor: hexToRgb(bgColor),
+                textFormat: { foregroundColor: hexToRgb(textColor), bold: true }
+              }
+            }
+          },
+          index: 0
+        }
+      })
+    }
+
+    // Format all cells center aligned and bold
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 2 },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    })
+
+    // Add auto-filter
+    requests.push({
+      setBasicFilter: {
+        filter: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 2 }
+        }
+      }
+    })
+
+    // Execute batch update
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    // Share sheet publicly
+    await shareSheetPublicly(spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId,
+      spreadsheetUrl: spreadsheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating transfer destinations sheet:', error)
+    throw error
+  }
+}
+
+/**
+ * Read transfer destinations from sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @returns {Array} Array of { playerName, newTeam }
+ */
+export async function readTransferDestinationsFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Transfer Destinations!A2:B`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read transfer destinations: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    const destinations = rows
+      .filter(row => row[0] && row[1]) // Must have both player name and new team
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        newTeam: row[1]?.trim().toUpperCase() || ''
+      }))
+
+    return destinations
+  } catch (error) {
+    console.error('Error reading transfer destinations:', error)
+    throw error
+  }
+}
+
+// ==================== TRANSFER REDSHIRT SHEET ====================
+
+/**
+ * Create a Transfer Redshirt sheet for marking incoming portal transfers' redshirt status
+ * @param {string} dynastyName - Name of the dynasty
+ * @param {number} year - Current year
+ * @param {Array} portalTransfers - Incoming portal transfer players to list
+ * @returns {Object} { spreadsheetId, spreadsheetUrl }
+ */
+export async function createTransferRedshirtSheet(dynastyName, year, portalTransfers) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const totalRows = Math.max(portalTransfers.length, 10) + 1 // +1 for header
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - ${year} Transfer Redshirt Status`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Transfer Redshirts',
+              gridProperties: {
+                rowCount: totalRows,
+                columnCount: 4,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to create transfer redshirt sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const spreadsheet = await response.json()
+    const spreadsheetId = spreadsheet.spreadsheetId
+    const sheetId = spreadsheet.sheets[0].properties.sheetId
+
+    // Build batch update requests
+    const requests = []
+
+    // Set header row with dark background
+    const headerStyle = {
+      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+      backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+      horizontalAlignment: 'CENTER'
+    }
+    requests.push({
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: headerStyle },
+            { userEnteredValue: { stringValue: 'Redshirted in Past?' }, userEnteredFormat: headerStyle }
+          ]
+        }],
+        fields: 'userEnteredValue,userEnteredFormat'
+      }
+    })
+
+    // Set column widths
+    const columnWidths = [180, 80, 80, 140]
+    columnWidths.forEach((width, idx) => {
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'COLUMNS', startIndex: idx, endIndex: idx + 1 },
+          properties: { pixelSize: width },
+          fields: 'pixelSize'
+        }
+      })
+    })
+
+    // Pre-fill with portal transfer data (read-only columns A-C, editable column D)
+    if (portalTransfers.length > 0) {
+      const dataRows = portalTransfers.map(transfer => ({
+        values: [
+          { userEnteredValue: { stringValue: transfer.name || '' } },
+          { userEnteredValue: { stringValue: transfer.position || '' } },
+          { userEnteredValue: { stringValue: transfer.year || '' } },
+          { userEnteredValue: { stringValue: '' } } // Redshirted column - user fills this
+        ]
+      }))
+
+      requests.push({
+        updateCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 1 + portalTransfers.length, startColumnIndex: 0, endColumnIndex: 4 },
+          rows: dataRows,
+          fields: 'userEnteredValue'
+        }
+      })
+    }
+
+    // Column D: Checkbox dropdown (Yes/No)
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 3, endColumnIndex: 4 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }, { userEnteredValue: '' }] },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    })
+
+    // Center align all data columns
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 1, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: { horizontalAlignment: 'CENTER' }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment)'
+      }
+    })
+
+    // Protect columns A-C (read-only)
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 0, endColumnIndex: 3 },
+          description: 'Player info - read only. Only edit the Redshirted column.',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+          description: 'Header row - do not edit',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Execute all requests
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    // Share sheet publicly for embedding
+    await shareSheetPublicly(spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId,
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+    }
+  } catch (error) {
+    console.error('Error creating transfer redshirt sheet:', error)
+    throw error
+  }
+}
+
+/**
+ * Read transfer redshirt status from sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @returns {Array} Array of { playerName, position, class, wasRedshirted }
+ */
+export async function readTransferRedshirtFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Transfer Redshirts!A2:D`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read transfer redshirt data: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    const transfers = rows
+      .filter(row => row[0]) // Must have player name
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        playerClass: row[2]?.trim() || '',
+        wasRedshirted: row[3]?.trim().toLowerCase() === 'yes'
+      }))
+
+    return transfers
+  } catch (error) {
+    console.error('Error reading transfer redshirt data:', error)
     throw error
   }
 }

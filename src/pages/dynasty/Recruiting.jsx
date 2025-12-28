@@ -7,6 +7,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
+import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 
 // Star display helper
 const StarRating = ({ stars, size = 'md' }) => {
@@ -30,6 +31,20 @@ const StarRating = ({ stars, size = 'md' }) => {
       ))}
     </div>
   )
+}
+
+// State abbreviation to full name
+const stateFullNames = {
+  'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
+  'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware', 'FL': 'Florida', 'GA': 'Georgia',
+  'HI': 'Hawaii', 'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+  'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+  'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi', 'MO': 'Missouri',
+  'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey',
+  'NM': 'New Mexico', 'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+  'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+  'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah', 'VT': 'Vermont',
+  'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'Washington D.C.'
 }
 
 // Dev trait badge colors
@@ -64,7 +79,7 @@ const GemBustBadge = ({ value }) => {
 }
 
 export default function Recruiting() {
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, isViewOnly } = useDynasty()
   const { teamAbbr: urlTeamAbbr, year: urlYear } = useParams()
   const navigate = useNavigate()
   const pathPrefix = usePathPrefix()
@@ -79,6 +94,9 @@ export default function Recruiting() {
 
   // Star filter state - which star ratings to show (empty = show all)
   const [selectedStars, setSelectedStars] = useState([])
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Toggle star filter
   const toggleStarFilter = (starCount) => {
@@ -137,6 +155,126 @@ export default function Recruiting() {
   // Change view mode (both/hs/portal)
   const handleViewModeChange = (mode) => {
     setViewMode(mode)
+  }
+
+  // Handle saving recruiting edits
+  const handleRecruitingSave = async (recruits) => {
+    if (!currentDynasty?.id) return
+
+    const existingPlayers = currentDynasty.players || []
+    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+
+    const classToYear = {
+      'HS': 'Fr',
+      'JUCO Fr': 'So',
+      'JUCO So': 'Jr',
+      'JUCO Jr': 'Sr',
+      'Fr': 'Fr',
+      'RS Fr': 'RS Fr',
+      'So': 'So',
+      'RS So': 'RS So',
+      'Jr': 'Jr',
+      'RS Jr': 'RS Jr',
+      'Sr': 'Sr',
+      'RS Sr': 'RS Sr'
+    }
+
+    // Build a map of existing players by normalized name for this team
+    const existingPlayersByName = {}
+    existingPlayers.forEach(p => {
+      if (p.team === teamAbbr) {
+        const normalizedName = p.name?.toLowerCase().trim()
+        if (normalizedName) {
+          existingPlayersByName[normalizedName] = p
+        }
+      }
+    })
+
+    // Process each recruit: update existing players or create new ones
+    const updatedPlayers = [...existingPlayers]
+    const newPlayers = []
+
+    recruits.forEach(recruit => {
+      if (!recruit.name) return
+
+      const normalizedName = recruit.name.toLowerCase().trim()
+      const existingPlayer = existingPlayersByName[normalizedName]
+
+      if (existingPlayer) {
+        // Update existing player's info from the sheet
+        const playerIndex = updatedPlayers.findIndex(p => p.pid === existingPlayer.pid)
+        if (playerIndex !== -1) {
+          updatedPlayers[playerIndex] = {
+            ...updatedPlayers[playerIndex],
+            // Update fields from sheet, but PRESERVE existing position/archetype (may have been changed in-app)
+            position: updatedPlayers[playerIndex].position || recruit.position,
+            archetype: updatedPlayers[playerIndex].archetype || recruit.archetype,
+            // These fields can be updated from sheet
+            devTrait: recruit.devTrait || updatedPlayers[playerIndex].devTrait,
+            height: recruit.height || updatedPlayers[playerIndex].height,
+            weight: recruit.weight || updatedPlayers[playerIndex].weight,
+            hometown: recruit.hometown || updatedPlayers[playerIndex].hometown,
+            state: recruit.state || updatedPlayers[playerIndex].state,
+            stars: recruit.stars ?? updatedPlayers[playerIndex].stars,
+            nationalRank: recruit.nationalRank ?? updatedPlayers[playerIndex].nationalRank,
+            stateRank: recruit.stateRank ?? updatedPlayers[playerIndex].stateRank,
+            positionRank: recruit.positionRank ?? updatedPlayers[playerIndex].positionRank,
+            gemBust: recruit.gemBust || updatedPlayers[playerIndex].gemBust,
+            previousTeam: recruit.previousTeam || updatedPlayers[playerIndex].previousTeam,
+            isPortal: recruit.isPortal ?? updatedPlayers[playerIndex].isPortal ?? false
+          }
+        }
+      } else {
+        // No existing player found - create new one
+        const pid = nextPID++
+        newPlayers.push({
+          pid,
+          id: `player-${pid}`,
+          name: recruit.name,
+          position: recruit.position || '',
+          year: classToYear[recruit.class] || 'Fr',
+          jerseyNumber: '',
+          devTrait: recruit.devTrait || 'Normal',
+          archetype: recruit.archetype || '',
+          overall: null,
+          height: recruit.height || '',
+          weight: recruit.weight || 0,
+          hometown: recruit.hometown || '',
+          state: recruit.state || '',
+          team: teamAbbr,
+          isRecruit: true,
+          recruitYear: selectedYear,
+          stars: recruit.stars || 0,
+          nationalRank: recruit.nationalRank || null,
+          stateRank: recruit.stateRank || null,
+          positionRank: recruit.positionRank || null,
+          gemBust: recruit.gemBust || '',
+          previousTeam: recruit.previousTeam || '',
+          isPortal: recruit.isPortal || false // Track if transfer portal player
+        })
+      }
+    })
+
+    // When editing, replace ALL commitment keys with just 'edit' to avoid duplicates
+    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
+    const existingForTeam = existingByTeamYear[teamAbbr] || {}
+
+    const finalPlayers = [...updatedPlayers, ...newPlayers]
+
+    await updateDynasty(currentDynasty.id, {
+      recruitingCommitmentsByTeamYear: {
+        ...existingByTeamYear,
+        [teamAbbr]: {
+          ...existingForTeam,
+          [selectedYear]: {
+            edit: recruits // Replace all keys with just 'edit'
+          }
+        }
+      },
+      players: finalPlayers,
+      nextPID: nextPID
+    })
   }
 
   if (!currentDynasty) return null
@@ -247,7 +385,7 @@ export default function Recruiting() {
             </div>
           </div>
 
-          {/* Year Selector */}
+          {/* Year Selector and Edit Button */}
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium" style={{ color: secondaryBgText }}>
               Season:
@@ -270,6 +408,21 @@ export default function Recruiting() {
                 <option value={selectedYear}>{selectedYear}</option>
               )}
             </select>
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="px-3 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors flex items-center gap-2"
+                style={{
+                  backgroundColor: teamColors.primary,
+                  color: primaryBgText
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+            )}
           </div>
         </div>
 
@@ -496,7 +649,9 @@ export default function Recruiting() {
                       <div className="col-span-2">
                         <span style={{ color: secondaryBgText, opacity: 0.6 }}>From: </span>
                         <span className="font-medium" style={{ color: secondaryBgText }}>
-                          {recruit.hometown}{recruit.state ? `, ${recruit.state}` : ''}
+                          {recruit.hometown
+                            ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
+                            : stateFullNames[recruit.state] || recruit.state}
                         </span>
                       </div>
                     )}
@@ -573,6 +728,20 @@ export default function Recruiting() {
           </div>
         )}
       </div>
+
+      {/* Edit Recruiting Modal */}
+      <RecruitingCommitmentsModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleRecruitingSave}
+        currentYear={selectedYear}
+        currentPhase="offseason"
+        currentWeek={5}
+        commitmentKey="edit"
+        recruitingLabel={`${selectedYear} Recruiting Class`}
+        existingCommitments={allCommitmentsUnfiltered}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

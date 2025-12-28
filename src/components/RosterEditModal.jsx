@@ -205,7 +205,11 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowAuthError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }
@@ -312,10 +316,9 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                     disabled={syncing || deletingSheet || regenerating}
                     className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2"
                     style={{
-                      backgroundColor: 'transparent',
-                      borderColor: teamColors.primary,
-                      color: teamColors.primary,
-                      opacity: 0.7
+                      backgroundColor: '#EF4444',
+                      borderColor: '#EF4444',
+                      color: '#FFFFFF'
                     }}
                   >
                     {regenerating ? 'Regenerating...' : 'Start Over'}

@@ -38,12 +38,14 @@ import PlayerMatchConfirmModal from '../../components/PlayerMatchConfirmModal'
 import NewJobEditModal from '../../components/NewJobEditModal'
 import PlayersLeavingModal from '../../components/PlayersLeavingModal'
 import DraftResultsModal from '../../components/DraftResultsModal'
+import TransferDestinationsModal from '../../components/TransferDestinationsModal'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import PositionChangesModal from '../../components/PositionChangesModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
 import EncourageTransfersModal from '../../components/EncourageTransfersModal'
 import RecruitOverallsModal from '../../components/RecruitOverallsModal'
+import TransferRedshirtModal from '../../components/TransferRedshirtModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -232,6 +234,7 @@ export default function Dashboard() {
   const [showNewJobEditModal, setShowNewJobEditModal] = useState(false)
   const [showPlayersLeavingModal, setShowPlayersLeavingModal] = useState(false)
   const [showDraftResultsModal, setShowDraftResultsModal] = useState(false)
+  const [showTransferDestinationsModal, setShowTransferDestinationsModal] = useState(false)
   const [showRecruitingModal, setShowRecruitingModal] = useState(false)
   const [showPositionChangesModal, setShowPositionChangesModal] = useState(false)
   const [showRecruitingClassRankModal, setShowRecruitingClassRankModal] = useState(false)
@@ -239,6 +242,7 @@ export default function Dashboard() {
   const [showEncourageTransfersModal, setShowEncourageTransfersModal] = useState(false)
   const [showOffseasonConferencesModal, setShowOffseasonConferencesModal] = useState(false)
   const [showRecruitOverallsModal, setShowRecruitOverallsModal] = useState(false)
+  const [showTransferRedshirtModal, setShowTransferRedshirtModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -995,6 +999,36 @@ export default function Dashboard() {
     })
   }
 
+  // Handle transfer destinations save (Offseason - Recruiting Week 1)
+  const handleTransferDestinationsSave = async (destinations) => {
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.transferDestinationsByYear || {}
+
+    // Update player records with their new team
+    const updatedPlayers = [...(currentDynasty.players || [])]
+
+    destinations.forEach(dest => {
+      const playerIndex = updatedPlayers.findIndex(p =>
+        p.name?.toLowerCase().trim() === dest.playerName?.toLowerCase().trim()
+      )
+      if (playerIndex !== -1) {
+        // Update the player's transferredTo field (keeps stats with original team)
+        updatedPlayers[playerIndex] = {
+          ...updatedPlayers[playerIndex],
+          transferredTo: dest.newTeam
+        }
+      }
+    })
+
+    await updateDynasty(currentDynasty.id, {
+      transferDestinationsByYear: {
+        ...existingByYear,
+        [year]: destinations
+      },
+      players: updatedPlayers
+    })
+  }
+
   // Handle recruiting class rank save (National Signing Day)
   const handleRecruitingClassRankSave = async (rank) => {
     const year = currentDynasty.currentYear
@@ -1048,6 +1082,62 @@ export default function Dashboard() {
       positionChangesByYear: {
         ...existingChangesAll,
         [year]: changesRecord // Replace, don't append
+      }
+    })
+  }
+
+  // Handle transfer redshirt status save (National Signing Day)
+  const handleTransferRedshirtSave = async (transfers) => {
+    const year = currentDynasty.currentYear
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+
+    // Update player classes for those marked as redshirted
+    // e.g., Fr -> RS Fr, So -> RS So, Jr -> RS Jr
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    const classUpgrade = {
+      'Fr': 'RS Fr',
+      'So': 'RS So',
+      'Jr': 'RS Jr',
+      'Sr': 'RS Sr'
+    }
+
+    let updatedCount = 0
+    transfers.forEach(transfer => {
+      if (!transfer.wasRedshirted) return // Skip if not redshirted
+
+      // Find player by name (case-insensitive match) and team
+      const playerIndex = updatedPlayers.findIndex(p =>
+        normalizePlayerName(p.name) === normalizePlayerName(transfer.playerName) &&
+        p.team === teamAbbr &&
+        p.isPortal // Only update portal transfers
+      )
+
+      if (playerIndex !== -1) {
+        const player = updatedPlayers[playerIndex]
+        const currentClass = player.year
+        // Only upgrade if current class is non-RS
+        if (classUpgrade[currentClass]) {
+          updatedPlayers[playerIndex] = {
+            ...player,
+            year: classUpgrade[currentClass]
+          }
+          updatedCount++
+        }
+      }
+    })
+
+    // Store the transfer redshirt data for this year (team-centric)
+    const existingByTeamYear = currentDynasty.transferRedshirtByTeamYear || {}
+    const existingForTeam = existingByTeamYear[teamAbbr] || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      transferRedshirtByTeamYear: {
+        ...existingByTeamYear,
+        [teamAbbr]: {
+          ...existingForTeam,
+          [year]: transfers.filter(t => t.wasRedshirted).map(t => t.playerName)
+        }
       }
     })
   }
@@ -1165,6 +1255,12 @@ export default function Dashboard() {
     const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
     let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
 
+    // BULLETPROOF: Collect ALL existing player names (not just recruits) to prevent ANY duplicates
+    const existingPlayerNames = new Set()
+    existingPlayers.forEach(p => {
+      if (p.name) existingPlayerNames.add(p.name.toLowerCase().trim())
+    })
+
     // Get existing recruits from OTHER weeks (not the current commitment key) to avoid duplicating
     const commitmentsForTeamYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[year] || {}
     const existingRecruitNames = new Set()
@@ -1178,9 +1274,18 @@ export default function Dashboard() {
       }
     })
 
-    // Find NEW recruits (ones not already in OTHER weeks' commitments)
-    // This allows re-saving the current week while preventing cross-week duplicates
-    const newRecruits = recruits.filter(r => r.name && !existingRecruitNames.has(r.name.toLowerCase().trim()))
+    // Find NEW recruits - MUST pass ALL checks:
+    // 1. Not already in the players array (prevents duplicating existing roster)
+    // 2. Not already in OTHER weeks' commitments (prevents cross-week duplicates)
+    const newRecruits = recruits.filter(r => {
+      if (!r.name) return false
+      const nameLower = r.name.toLowerCase().trim()
+      // Reject if already exists as a player
+      if (existingPlayerNames.has(nameLower)) return false
+      // Reject if already in other weeks' commitments
+      if (existingRecruitNames.has(nameLower)) return false
+      return true
+    })
 
     // Create player entries for new recruits
     const newPlayers = newRecruits.map(recruit => {
@@ -1189,6 +1294,9 @@ export default function Dashboard() {
       // Convert recruit class to player year (they'll be this class when they enroll)
       const classToYear = {
         'HS': 'Fr',
+        'JUCO Fr': 'So',      // JUCO freshmen enter as sophomores
+        'JUCO So': 'Jr',      // JUCO sophomores enter as juniors
+        'JUCO Jr': 'Sr',      // JUCO juniors enter as seniors
         'Fr': 'Fr',
         'RS Fr': 'RS Fr',
         'So': 'So',
@@ -1215,13 +1323,14 @@ export default function Dashboard() {
         state: recruit.state || '',
         team: teamAbbr, // CRITICAL: Tag player with team
         isRecruit: true,
-        recruitYear: year,
+        recruitYear: year, // The recruiting class year (they play NEXT year)
         stars: recruit.stars || 0,
         nationalRank: recruit.nationalRank || null,
         stateRank: recruit.stateRank || null,
         positionRank: recruit.positionRank || null,
         gemBust: recruit.gemBust || '',
-        previousTeam: recruit.previousTeam || ''
+        previousTeam: recruit.previousTeam || '',
+        isPortal: recruit.isPortal || false // Track if transfer portal player
       }
     })
 
@@ -5127,6 +5236,67 @@ export default function Dashboard() {
                       </div>
                     )}
 
+                    {/* Task 3: Transfer Destinations (only in Recruiting Week 1) */}
+                    {recruitingWeekNum === 1 && (() => {
+                      // Get transferring players
+                      const transferReasons = [
+                        'Playing Style', 'Proximity to Home', 'Championship Contender',
+                        'Program Tradition', 'Campus Lifestyle', 'Stadium Atmosphere',
+                        'Pro Potential', 'Academics', 'Playing Time', 'Scheme Fit'
+                      ]
+                      const transfers = playersLeavingThisYear.filter(p =>
+                        transferReasons.some(reason => p.reason?.includes(reason) || p.reason?.includes('Transfer'))
+                      )
+                      const hasTransfers = transfers.length > 0
+                      const hasTransferDestinationsData = currentDynasty?.transferDestinationsByYear?.[currentDynasty.currentYear]?.length > 0
+                      const transferDestinationsCount = currentDynasty?.transferDestinationsByYear?.[currentDynasty.currentYear]?.length || 0
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasTransferDestinationsData || !hasTransfers ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!(hasTransferDestinationsData || !hasTransfers) ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasTransferDestinationsData || !hasTransfers ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!(hasTransferDestinationsData || !hasTransfers) ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasTransferDestinationsData || !hasTransfers ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">3</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasTransferDestinationsData || !hasTransfers ? '#16a34a' : secondaryBgText }}>
+                                Transfer Destinations
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasTransferDestinationsData || !hasTransfers ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {!hasTransfers
+                                  ? '✓ No outgoing transfers'
+                                  : hasTransferDestinationsData
+                                    ? `✓ ${transferDestinationsCount} transfer${transferDestinationsCount !== 1 ? 's' : ''} tracked`
+                                    : `Track where ${transfers.length} transfer${transfers.length !== 1 ? 's' : ''} committed`}
+                              </div>
+                            </div>
+                          </div>
+                          {hasTransfers && (
+                            <button
+                              onClick={() => setShowTransferDestinationsModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              {hasTransferDestinationsData ? 'Edit' : 'Enter'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {/* Task 2: Recruiting Class Rank (only on National Signing Day) */}
                     {recruitingWeekNum === 4 && (() => {
                       const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
@@ -5175,7 +5345,100 @@ export default function Dashboard() {
                       )
                     })()}
 
-                    {/* Task 3: Position Changes (only on National Signing Day) */}
+                    {/* Task 3: Transfer Redshirt Status (only on National Signing Day) */}
+                    {recruitingWeekNum === 4 && (() => {
+                      // Check if user switched teams this offseason
+                      const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
+                      const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+                      const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+
+                      // Get portal transfers from this year's recruiting class
+                      const year = currentDynasty.currentYear
+                      const portalTransfers = (currentDynasty.players || []).filter(p =>
+                        p.team === currentTeamAbbr &&
+                        p.recruitYear === year &&
+                        p.isPortal &&
+                        // Only show non-RS classes (Fr, So, Jr, Sr) - already RS classes don't need this
+                        ['Fr', 'So', 'Jr', 'Sr'].includes(p.year)
+                      )
+                      const hasPortalTransfers = portalTransfers.length > 0
+
+                      // Check if transfer redshirt data has been entered
+                      const transferRedshirtData = currentDynasty.transferRedshirtByTeamYear?.[currentTeamAbbr]?.[year]
+                      const hasTransferRedshirtData = transferRedshirtData !== undefined
+
+                      // If user switched teams or no portal transfers, show skipped state
+                      if (switchedTeams || !hasPortalTransfers) {
+                        return (
+                          <div
+                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
+                          >
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
+                                  Transfer Redshirt Status - Skipped
+                                </div>
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
+                                  {switchedTeams ? 'New team - no transfers to update' : 'No portal transfers this class'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      const redshirtedCount = transferRedshirtData?.length || 0
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasTransferRedshirtData ? 'border-green-200 bg-green-50' : ''
+                          }`}
+                          style={!hasTransferRedshirtData ? { borderColor: `${teamColors.primary}30` } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasTransferRedshirtData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasTransferRedshirtData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            >
+                              {hasTransferRedshirtData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">3</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasTransferRedshirtData ? '#16a34a' : secondaryBgText }}>
+                                Transfer Redshirt Status
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasTransferRedshirtData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                {hasTransferRedshirtData
+                                  ? redshirtedCount > 0
+                                    ? `✓ ${redshirtedCount} transfer${redshirtedCount !== 1 ? 's' : ''} marked as previously redshirted`
+                                    : '✓ No transfers were previously redshirted'
+                                  : `Mark which of ${portalTransfers.length} portal transfer${portalTransfers.length !== 1 ? 's' : ''} were redshirted`}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowTransferRedshirtModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasTransferRedshirtData ? 'Edit' : 'Open'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task 4: Position Changes (only on National Signing Day) */}
                     {recruitingWeekNum === 4 && (() => {
                       // Check if user switched teams this offseason
                       const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
@@ -5228,7 +5491,7 @@ export default function Dashboard() {
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
-                              ) : <span className="font-bold text-sm sm:text-base">3</span>}
+                              ) : <span className="font-bold text-sm sm:text-base">4</span>}
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasPositionChanges ? '#16a34a' : secondaryBgText }}>
@@ -5330,12 +5593,13 @@ export default function Dashboard() {
               const trainingResultsCount = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length || 0
 
               // Get recruits for Recruiting Class Overalls task
-              // These are players marked as recruits from this recruiting year
+              // These are HS and JUCO players from this recruiting year (exclude portal)
               const allPlayers = currentDynasty?.players || []
               const recruitingClassPlayers = allPlayers.filter(p =>
                 p.isRecruit &&
                 p.recruitYear === currentDynasty.currentYear &&
-                (!p.team || p.team === teamAbbr)
+                (!p.team || p.team === teamAbbr) &&
+                !p.isPortal && !p.previousTeam // Exclude transfer portal players
               )
               const hasRecruitOverallsData = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length > 0
               const recruitOverallsCount = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length || 0
@@ -6979,6 +7243,15 @@ export default function Dashboard() {
         teamColors={teamColors}
       />
 
+      {/* Transfer Destinations Modal (Recruiting Week 1) */}
+      <TransferDestinationsModal
+        isOpen={showTransferDestinationsModal}
+        onClose={() => setShowTransferDestinationsModal(false)}
+        onSave={handleTransferDestinationsSave}
+        currentYear={currentDynasty.currentYear}
+        teamColors={teamColors}
+      />
+
       {/* Recruiting Commitments Modal (All phases) */}
       <RecruitingCommitmentsModal
         isOpen={showRecruitingModal}
@@ -7000,6 +7273,27 @@ export default function Dashboard() {
         onSave={handlePositionChangesSave}
         players={currentDynasty?.players || []}
         existingChanges={currentDynasty?.positionChangesByYear?.[currentDynasty?.currentYear] || []}
+        teamColors={teamColors}
+      />
+
+      {/* Transfer Redshirt Status Modal (National Signing Day) */}
+      <TransferRedshirtModal
+        isOpen={showTransferRedshirtModal}
+        onClose={() => setShowTransferRedshirtModal(false)}
+        onSave={handleTransferRedshirtSave}
+        currentYear={currentDynasty?.currentYear}
+        portalTransfers={(() => {
+          // Get portal transfers from this year's recruiting class
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const year = currentDynasty?.currentYear
+          return (currentDynasty?.players || []).filter(p =>
+            p.team === teamAbbr &&
+            p.recruitYear === year &&
+            p.isPortal &&
+            // Only show non-RS classes (Fr, So, Jr, Sr) - already RS classes don't need this
+            ['Fr', 'So', 'Jr', 'Sr'].includes(p.year)
+          )
+        })()}
         teamColors={teamColors}
       />
 
@@ -7058,13 +7352,14 @@ export default function Dashboard() {
         currentYear={currentDynasty?.currentYear}
         teamColors={teamColors}
         recruits={(() => {
-          // Get recruits for current year (high schoolers and transfers)
+          // Get recruits for current year (HS and JUCO only - exclude transfer portal)
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
           const allPlayers = currentDynasty?.players || []
           return allPlayers.filter(p =>
             p.isRecruit &&
             p.recruitYear === currentDynasty?.currentYear &&
-            (!p.team || p.team === teamAbbr)
+            (!p.team || p.team === teamAbbr) &&
+            !p.isPortal && !p.previousTeam // Exclude transfer portal players
           )
         })()}
       />

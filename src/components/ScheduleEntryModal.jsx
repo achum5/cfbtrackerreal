@@ -5,7 +5,6 @@ import {
   createScheduleSheet,
   readScheduleFromScheduleSheet,
   deleteGoogleSheet,
-  restoreGoogleSheet,
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
 import { useDynasty } from '../context/DynastyContext'
@@ -68,27 +67,14 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
     }
   }, [isOpen])
 
-  // Create schedule sheet when modal opens
+  // Create schedule sheet when modal opens - always create fresh
   useEffect(() => {
     const createSheet = async () => {
       // Don't create a new sheet if we just deleted one (showing success message)
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing schedule sheet
-        const existingSheetId = currentDynasty?.scheduleSheetId
-        if (existingSheetId) {
-          // Try to restore the sheet in case it was trashed
-          try {
-            await restoreGoogleSheet(existingSheetId)
-            setSheetId(existingSheetId)
-            return
-          } catch (error) {
-            console.log('Could not restore existing sheet, will create new one:', error.message)
-            // Fall through to create a new sheet
-          }
-        }
-
         setCreatingSheet(true)
         try {
+          // Always create a fresh sheet
           const sheetInfo = await createScheduleSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
@@ -189,7 +175,11 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
       setRetryCount(c => c + 1)
     } catch (error) {
       console.error('Failed to regenerate sheet:', error)
-      alert('Failed to regenerate sheet. Please try again.')
+      if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
+        setShowSessionError(true)
+      } else {
+        alert('Failed to regenerate sheet. Please try again.')
+      }
     } finally {
       setRegenerating(false)
     }
