@@ -9779,7 +9779,14 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
 
     // Parse rows into objects - columns: Team, Scorer, Passer, Yards, Score Type, PAT Result, PAT Notes, Quarter, Time Left
     return rows
-      .filter(row => row[0] && row[4]) // Must have team (index 0) and score type (index 4)
+      .filter(row => {
+        const hasTeam = row[0] && row[0].trim()
+        const hasScoreType = row[4] && row[4].trim()
+        const patResult = (row[5] || '').trim()
+        const is2PTAttempt = patResult.includes('2PT')
+        // Must have team AND (score type OR 2PT attempt)
+        return hasTeam && (hasScoreType || is2PTAttempt)
+      })
       .map(row => ({
         team: (row[0] || '').trim().toUpperCase(),
         scorer: (row[1] || '').trim(),
