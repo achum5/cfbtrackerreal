@@ -978,13 +978,28 @@ export default function Game() {
 
           {/* Scoring Summary */}
           {game.boxScore.scoringSummary?.length > 0 && (() => {
+            // Check if play is a standalone 2PT attempt (no scorer, 2PT mentioned in scoreType or patResult)
+            const is2PTAttempt = (play) => {
+              if (play.scorer) return false
+              const scoreType = play.scoreType || ''
+              const patResult = play.patResult || ''
+              return scoreType.includes('2PT') || patResult.includes('2PT')
+            }
+
+            // Check if 2PT was converted (check both fields)
+            const is2PTConverted = (play) => {
+              const scoreType = play.scoreType || ''
+              const patResult = play.patResult || ''
+              return scoreType.includes('Converted') || patResult.includes('Converted')
+            }
+
             // Calculate points for a play
             const getPlayPoints = (play) => {
               const scoreType = play.scoreType || ''
               const patResult = play.patResult || ''
 
-              // TD-based plays
-              if (scoreType.includes('TD')) {
+              // TD-based plays (but not standalone 2PT which might have "2PT" in scoreType)
+              if (scoreType.includes('TD') && !scoreType.includes('2PT')) {
                 let points = 6
                 if (patResult.includes('Made XP')) points += 1
                 else if (patResult.includes('Converted 2PT')) points += 2
@@ -994,15 +1009,13 @@ export default function Game() {
               if (scoreType === 'Field Goal') return 3
               // Safety
               if (scoreType === 'Safety') return 2
-              // Standalone 2PT conversion (no scorer, just patResult)
-              if (!play.scorer && patResult.includes('Converted 2PT')) return 2
-              if (!play.scorer && patResult.includes('Failed 2PT')) return 0
+              // Standalone 2PT conversion (no scorer, 2PT in either field)
+              if (is2PTAttempt(play)) {
+                return is2PTConverted(play) ? 2 : 0
+              }
 
               return 0
             }
-
-            // Check if play is a standalone 2PT attempt
-            const is2PTAttempt = (play) => !play.scorer && play.patResult && play.patResult.includes('2PT')
 
             // Calculate running scores
             let leftScore = 0
@@ -1101,18 +1114,18 @@ export default function Game() {
                               )}
                               {is2PTAttempt(play) && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                  play.patResult.includes('Converted')
+                                  is2PTConverted(play)
                                     ? 'bg-green-500/30 text-green-300'
                                     : 'bg-red-500/30 text-red-300'
                                 }`}>
-                                  {play.patResult.includes('Converted') ? 'Good' : 'Failed'}
+                                  {is2PTConverted(play) ? 'Good' : 'Failed'}
                                 </span>
                               )}
                             </div>
                             <div className="text-gray-300 text-xs mt-1">
                               {is2PTAttempt(play) ? (
                                 <span className="font-medium text-gray-400">
-                                  {play.patNotes || (play.patResult.includes('Converted') ? 'Successful conversion' : 'Conversion failed')}
+                                  {play.patNotes || (is2PTConverted(play) ? 'Successful conversion' : 'Conversion failed')}
                                 </span>
                               ) : (
                                 <>
