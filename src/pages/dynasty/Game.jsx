@@ -870,11 +870,13 @@ export default function Game() {
                   {game.boxScore.home?.[activeStatTab]?.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <img
-                          src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
-                          alt={rightData.name}
-                          className="w-6 h-6 object-contain"
-                        />
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
+                          <img
+                            src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
+                            alt={rightData.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
                         <span className="text-white font-semibold">{rightData.name}</span>
                       </div>
                       <table className="w-full text-sm">
@@ -923,11 +925,13 @@ export default function Game() {
                   {game.boxScore.away?.[activeStatTab]?.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <img
-                          src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
-                          alt={leftData.name}
-                          className="w-6 h-6 object-contain"
-                        />
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
+                          <img
+                            src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
+                            alt={leftData.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
                         <span className="text-white font-semibold">{leftData.name}</span>
                       </div>
                       <table className="w-full text-sm">
