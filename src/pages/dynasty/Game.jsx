@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -70,7 +70,7 @@ function getMascotName(abbr) {
     'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
     'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins',
     'UNLV': 'UNLV Rebels', 'UTEP': 'UTEP Miners',
-    'USA': 'South Alabama Jaguars', 'USU': 'Utah State Aggies',
+    'USA': 'South Alabama Jaguars', 'USM': 'Southern Mississippi Golden Eagles', 'USU': 'Utah State Aggies',
     'UTAH': 'Utah Utes', 'UTSA': 'UTSA Roadrunners',
     'VAN': 'Vanderbilt Commodores', 'UVA': 'Virginia Cavaliers',
     'VT': 'Virginia Tech Hokies', 'WAKE': 'Wake Forest Demon Deacons',
@@ -187,6 +187,11 @@ export default function Game() {
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [activeStatTab, setActiveStatTab] = useState('passing')
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   // Find the game by ID in the games[] array
   // Supports direct ID lookup and pattern-based fallbacks
@@ -863,13 +868,14 @@ export default function Game() {
             </div>
 
             {/* Stats Table */}
-            <div className="p-4 overflow-x-auto">
+            <div className="p-4">
               {STAT_TABS[activeStatTab] && (
                 <div className="space-y-6">
                   {/* Home Team Stats - rightData is home team (right side = home) */}
                   {game.boxScore.home?.[activeStatTab]?.length > 0 && (
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
+                      {/* Team Header - Fixed, doesn't scroll */}
+                      <div className="flex items-center gap-2 mb-2 px-2">
                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
                           <img
                             src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
@@ -879,52 +885,62 @@ export default function Game() {
                         </div>
                         <span className="text-white font-semibold">{rightData.name}</span>
                       </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-gray-400 text-left">
-                            {STAT_TABS[activeStatTab].headers.map((header, idx) => (
-                              <th key={idx} className={`py-2 px-2 font-medium ${idx === 0 ? '' : 'text-center'}`}>
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {game.boxScore.home[activeStatTab].map((row, idx) => (
-                            <tr key={idx} className="border-t border-gray-800">
-                              {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
-                                const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                const rawValue = row[key]
-                                // For stat columns (not player name), treat blank/null/undefined as 0
-                                let value = colIdx === 0
-                                  ? (rawValue ?? '-')
-                                  : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
-                                // Format QB Rating to always show 1 decimal place
-                                if (key === 'qBRating' && value !== 0 && value !== '') {
-                                  value = Number(value).toFixed(1)
-                                }
-                                const playerPID = colIdx === 0 ? getPlayerPID(value) : null
-                                return (
-                                  <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
-                                    {colIdx === 0 && playerPID ? (
-                                      <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
-                                        {value}
-                                      </Link>
-                                    ) : value}
-                                  </td>
-                                )
-                              })}
+                      {/* Scrollable table container */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-gray-400 text-left">
+                              {STAT_TABS[activeStatTab].headers.map((header, idx) => (
+                                <th
+                                  key={idx}
+                                  className={`py-2 px-2 font-medium whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                >
+                                  {header}
+                                </th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {game.boxScore.home[activeStatTab].map((row, rowIdx) => (
+                              <tr key={rowIdx} className="border-t border-gray-800">
+                                {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                  const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                  const rawValue = row[key]
+                                  // For stat columns (not player name), treat blank/null/undefined as 0
+                                  let value = colIdx === 0
+                                    ? (rawValue ?? '-')
+                                    : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
+                                  // Format QB Rating to always show 1 decimal place
+                                  if (key === 'qBRating' && value !== 0 && value !== '') {
+                                    value = Number(value).toFixed(1)
+                                  }
+                                  const playerPID = colIdx === 0 ? getPlayerPID(value) : null
+                                  return (
+                                    <td
+                                      key={colIdx}
+                                      className={`py-2 px-2 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                    >
+                                      {colIdx === 0 && playerPID ? (
+                                        <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                          {value}
+                                        </Link>
+                                      ) : value}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
 
                   {/* Away Team Stats - leftData is away team (left side = away) */}
                   {game.boxScore.away?.[activeStatTab]?.length > 0 && (
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
+                      {/* Team Header - Fixed, doesn't scroll */}
+                      <div className="flex items-center gap-2 mb-2 px-2">
                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
                           <img
                             src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
@@ -934,45 +950,54 @@ export default function Game() {
                         </div>
                         <span className="text-white font-semibold">{leftData.name}</span>
                       </div>
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-gray-400 text-left">
-                            {STAT_TABS[activeStatTab].headers.map((header, idx) => (
-                              <th key={idx} className={`py-2 px-2 font-medium ${idx === 0 ? '' : 'text-center'}`}>
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {game.boxScore.away[activeStatTab].map((row, idx) => (
-                            <tr key={idx} className="border-t border-gray-800">
-                              {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
-                                const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                const rawValue = row[key]
-                                // For stat columns (not player name), treat blank/null/undefined as 0
-                                let value = colIdx === 0
-                                  ? (rawValue ?? '-')
-                                  : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
-                                // Format QB Rating to always show 1 decimal place
-                                if (key === 'qBRating' && value !== 0 && value !== '') {
-                                  value = Number(value).toFixed(1)
-                                }
-                                const playerPID = colIdx === 0 ? getPlayerPID(value) : null
-                                return (
-                                  <td key={colIdx} className={`py-2 px-2 text-white ${colIdx === 0 ? '' : 'text-center'}`}>
-                                    {colIdx === 0 && playerPID ? (
-                                      <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
-                                        {value}
-                                      </Link>
-                                    ) : value}
-                                  </td>
-                                )
-                              })}
+                      {/* Scrollable table container */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-gray-400 text-left">
+                              {STAT_TABS[activeStatTab].headers.map((header, idx) => (
+                                <th
+                                  key={idx}
+                                  className={`py-2 px-2 font-medium whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                >
+                                  {header}
+                                </th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {game.boxScore.away[activeStatTab].map((row, rowIdx) => (
+                              <tr key={rowIdx} className="border-t border-gray-800">
+                                {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                  const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                  const rawValue = row[key]
+                                  // For stat columns (not player name), treat blank/null/undefined as 0
+                                  let value = colIdx === 0
+                                    ? (rawValue ?? '-')
+                                    : (rawValue === '' || rawValue === null || rawValue === undefined ? 0 : rawValue)
+                                  // Format QB Rating to always show 1 decimal place
+                                  if (key === 'qBRating' && value !== 0 && value !== '') {
+                                    value = Number(value).toFixed(1)
+                                  }
+                                  const playerPID = colIdx === 0 ? getPlayerPID(value) : null
+                                  return (
+                                    <td
+                                      key={colIdx}
+                                      className={`py-2 px-2 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                    >
+                                      {colIdx === 0 && playerPID ? (
+                                        <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
+                                          {value}
+                                        </Link>
+                                      ) : value}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1098,8 +1123,7 @@ export default function Game() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span
-                                className="font-bold text-sm"
-                                style={{ color: playTeamColors.primary }}
+                                className="font-bold text-sm text-white"
                               >
                                 {getMascotName(play.team) || play.team}
                               </span>
@@ -1203,24 +1227,33 @@ export default function Game() {
         // Helper to get value or dash
         const val = (v) => v != null ? v : '-'
 
+        // Helper to format combined stats like "3-5" (made-attempts)
+        // Returns "-" if both values are missing, otherwise shows the combined format
+        const combo = (made, att) => {
+          if (made == null && att == null) return '-'
+          return `${made ?? 0}-${att ?? 0}`
+        }
+
         // Stat rows configuration - label, home value, away value
         const statRows = [
           { label: 'First Downs', home: val(homeStats.firstDowns), away: val(awayStats.firstDowns) },
           { label: 'Total Offense', home: val(homeStats.totalOffense), away: val(awayStats.totalOffense), bold: true },
-          { label: 'Rushing', home: `${val(homeStats.rushAttempts)}-${val(homeStats.rushYards)}`, away: `${val(awayStats.rushAttempts)}-${val(awayStats.rushYards)}`, sub: 'ATT-YDS' },
+          { label: 'Total Plays', home: val(homeStats.totalPlays), away: val(awayStats.totalPlays) },
+          { label: 'Rushing', home: combo(homeStats.rushAttempts, homeStats.rushYards), away: combo(awayStats.rushAttempts, awayStats.rushYards), sub: 'ATT-YDS' },
           { label: 'Rush TDs', home: val(homeStats.rushTds), away: val(awayStats.rushTds) },
-          { label: 'Passing', home: `${val(homeStats.completions)}-${val(homeStats.passAttempts)}`, away: `${val(awayStats.completions)}-${val(awayStats.passAttempts)}`, sub: 'CMP-ATT' },
+          { label: 'Passing', home: combo(homeStats.completions, homeStats.passAttempts), away: combo(awayStats.completions, awayStats.passAttempts), sub: 'CMP-ATT' },
           { label: 'Comp %', home: pct(homeStats.completions, homeStats.passAttempts), away: pct(awayStats.completions, awayStats.passAttempts), calculated: true },
           { label: 'Pass Yards', home: val(homeStats.passYards), away: val(awayStats.passYards) },
           { label: 'Pass TDs', home: val(homeStats.passTds), away: val(awayStats.passTds) },
-          { label: '3rd Down', home: `${val(homeStats['3rdDownConv'])}-${val(homeStats['3rdDownAtt'])}`, away: `${val(awayStats['3rdDownConv'])}-${val(awayStats['3rdDownAtt'])}` },
+          { label: '3rd Down', home: combo(homeStats['3rdDownConv'], homeStats['3rdDownAtt']), away: combo(awayStats['3rdDownConv'], awayStats['3rdDownAtt']) },
           { label: '3rd Down %', home: pct(homeStats['3rdDownConv'], homeStats['3rdDownAtt']), away: pct(awayStats['3rdDownConv'], awayStats['3rdDownAtt']), calculated: true },
-          { label: '4th Down', home: `${val(homeStats['4thDownConv'])}-${val(homeStats['4thDownAtt'])}`, away: `${val(awayStats['4thDownConv'])}-${val(awayStats['4thDownAtt'])}` },
+          { label: '4th Down', home: combo(homeStats['4thDownConv'], homeStats['4thDownAtt']), away: combo(awayStats['4thDownConv'], awayStats['4thDownAtt']) },
           { label: '4th Down %', home: pct(homeStats['4thDownConv'], homeStats['4thDownAtt']), away: pct(awayStats['4thDownConv'], awayStats['4thDownAtt']), calculated: true },
-          { label: '2PT Conv', home: `${val(homeStats['2ptConv'])}-${val(homeStats['2ptAtt'])}`, away: `${val(awayStats['2ptConv'])}-${val(awayStats['2ptAtt'])}` },
+          { label: '2PT Conv', home: combo(homeStats['2ptConv'], homeStats['2ptAtt']), away: combo(awayStats['2ptConv'], awayStats['2ptAtt']) },
           { label: 'Red Zone', home: `${(homeStats.redZoneTd || 0) + (homeStats.redZoneFg || 0)}`, away: `${(awayStats.redZoneTd || 0) + (awayStats.redZoneFg || 0)}`, sub: 'TD+FG' },
           { label: 'Red Zone TD', home: val(homeStats.redZoneTd), away: val(awayStats.redZoneTd) },
           { label: 'Red Zone FG', home: val(homeStats.redZoneFg), away: val(awayStats.redZoneFg) },
+          { label: 'Red Zone %', home: homeStats.redZonePct != null ? `${homeStats.redZonePct}%` : '-', away: awayStats.redZonePct != null ? `${awayStats.redZonePct}%` : '-' },
           { label: 'Turnovers', home: val(homeStats.turnovers), away: val(awayStats.turnovers), bold: true },
           { label: 'Fumbles Lost', home: val(homeStats.fumblesLost), away: val(awayStats.fumblesLost) },
           { label: 'Interceptions', home: val(homeStats.interceptions), away: val(awayStats.interceptions) },
@@ -1255,11 +1288,17 @@ export default function Game() {
                 {getTeamLogoRobust(awayStats.teamAbbr) && (
                   <img src={getTeamLogoRobust(awayStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
                 )}
-                <span className="font-bold text-sm text-white">{awayStats.teamAbbr}</span>
+                <span className="font-bold text-sm text-white">
+                  <span className="hidden sm:inline">{getMascotName(awayStats.teamAbbr) || awayStats.teamAbbr}</span>
+                  <span className="sm:hidden">{awayStats.teamAbbr}</span>
+                </span>
               </div>
-              <div className="w-28 text-center text-xs font-semibold text-gray-400 uppercase">Stat</div>
+              <div className="w-28 text-center text-xs font-bold text-gray-400 uppercase">Stat</div>
               <div className="flex-1 flex items-center justify-center gap-2 py-3 px-2">
-                <span className="font-bold text-sm text-white">{homeStats.teamAbbr}</span>
+                <span className="font-bold text-sm text-white">
+                  <span className="hidden sm:inline">{getMascotName(homeStats.teamAbbr) || homeStats.teamAbbr}</span>
+                  <span className="sm:hidden">{homeStats.teamAbbr}</span>
+                </span>
                 {getTeamLogoRobust(homeStats.teamAbbr) && (
                   <img src={getTeamLogoRobust(homeStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
                 )}
@@ -1268,25 +1307,16 @@ export default function Game() {
             {/* Stats rows */}
             <div className="divide-y divide-gray-800/50">
               {filteredStatRows.map((row, idx) => {
-                // Determine which team has the better stat (higher is better for most, lower for turnovers)
-                // Left side = away team, Right side = home team (standard sports convention)
-                const isLowerBetter = row.label.includes('Turnover') || row.label.includes('Fumble') || row.label.includes('Interception') || row.label === 'Penalties'
-                const leftNum = parseFloat(String(row.away).replace(/[^0-9.-]/g, '')) || 0
-                const rightNum = parseFloat(String(row.home).replace(/[^0-9.-]/g, '')) || 0
-                const leftBetter = isLowerBetter ? leftNum < rightNum : leftNum > rightNum
-                const rightBetter = isLowerBetter ? rightNum < leftNum : rightNum > leftNum
-                const isEqual = leftNum === rightNum
-
                 return (
                   <div key={idx} className={`flex items-center ${idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-800/30'}`}>
-                    <div className={`flex-1 text-center py-2 px-2 ${row.bold ? 'font-bold' : ''} ${row.calculated ? 'text-blue-400' : 'text-white'} ${!isEqual && leftBetter ? 'text-green-400' : ''}`}>
+                    <div className="flex-1 text-center py-2 px-2 font-bold text-white">
                       {row.away}
                     </div>
                     <div className="w-28 text-center py-2 px-1">
-                      <span className={`text-xs ${row.bold ? 'font-bold text-gray-300' : 'text-gray-400'}`}>{row.label}</span>
-                      {row.sub && <span className="block text-[10px] text-gray-500">{row.sub}</span>}
+                      <span className="text-xs font-bold text-gray-300">{row.label}</span>
+                      {row.sub && <span className="block text-[10px] text-gray-500 font-bold">{row.sub}</span>}
                     </div>
-                    <div className={`flex-1 text-center py-2 px-2 ${row.bold ? 'font-bold' : ''} ${row.calculated ? 'text-blue-400' : 'text-white'} ${!isEqual && rightBetter ? 'text-green-400' : ''}`}>
+                    <div className="flex-1 text-center py-2 px-2 font-bold text-white">
                       {row.home}
                     </div>
                   </div>

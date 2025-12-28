@@ -29,6 +29,7 @@ import ConferenceChampionshipHistory from './pages/dynasty/ConferenceChampionshi
 import ConferenceStandings from './pages/dynasty/ConferenceStandings'
 import CFPBracket from './pages/dynasty/CFPBracket'
 import Game from './pages/dynasty/Game'
+import TeamStats from './pages/dynasty/TeamStats'
 // View-only wrapper (no auth required)
 import ViewDynasty from './pages/ViewDynasty'
 
@@ -82,6 +83,7 @@ function AppRoutes() {
           <Route path="cfp-bracket" element={<CFPBracket />} />
           <Route path="cfp-bracket/:year" element={<CFPBracket />} />
           <Route path="game/:gameId" element={<Game />} />
+          <Route path="team-stats/:team/:year" element={<TeamStats />} />
         </Route>
 
         {/* All other routes wrapped in DynastyProvider */}
@@ -141,6 +143,7 @@ function AppRoutes() {
                 <Route path="cfp-bracket" element={<CFPBracket />} />
                 <Route path="cfp-bracket/:year" element={<CFPBracket />} />
                 <Route path="game/:gameId" element={<Game />} />
+                <Route path="team-stats/:team/:year" element={<TeamStats />} />
               </Route>
             </Routes>
           </DynastyProvider>

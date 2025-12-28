@@ -2556,11 +2556,26 @@ export function DynastyProvider({ children }) {
           // Parse the JSON file
           const dynastyData = JSON.parse(e.target.result)
 
-          // Remove the old ID and lastModified - will be replaced with fresh values
-          const { id: oldId, userId: oldUserId, lastModified: oldLastModified, ...cleanDynastyData } = dynastyData
+          // Remove fields that would link this to the original dynasty
+          // This ensures the imported dynasty is a completely separate entity
+          const {
+            id: oldId,
+            userId: oldUserId,
+            lastModified: oldLastModified,
+            createdAt: oldCreatedAt,
+            shareCode: oldShareCode,
+            isPublic: oldIsPublic,
+            googleSheetsByTeam: oldGoogleSheets,
+            ...cleanDynastyData
+          } = dynastyData
 
-          // Set lastModified to now (import time, not old export time)
-          cleanDynastyData.lastModified = Date.now()
+          // Set timestamps to now (import time, not old export time)
+          const now = Date.now()
+          cleanDynastyData.lastModified = now
+          cleanDynastyData.createdAt = now
+
+          // Ensure the imported dynasty starts as private with no share code
+          cleanDynastyData.isPublic = false
 
           // Save the dynasty using createDynasty logic
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'

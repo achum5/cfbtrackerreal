@@ -9,6 +9,7 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
+import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -98,13 +99,29 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
           // Get existing stats data to pre-fill gamesPlayed/snapsPlayed
           const existingStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
 
-          // Merge roster with existing stats data
+          // Merge roster with existing stats data AND box score games played
           const playersWithStats = players.map(player => {
             const existingStat = existingStats.find(s => s.pid === player.pid)
+
+            // Get games played from box score aggregation if no existing stat
+            let gamesFromBoxScores = null
+            if (!existingStat?.gamesPlayed && currentDynasty) {
+              const boxScoreStats = aggregatePlayerBoxScoreStats(
+                currentDynasty,
+                player.name,
+                currentYear,
+                player.team
+              )
+              if (boxScoreStats?.gamesWithStats > 0) {
+                gamesFromBoxScores = boxScoreStats.gamesWithStats
+              }
+            }
+
             return {
               ...player,
-              gamesPlayed: existingStat?.gamesPlayed || 0,
-              snapsPlayed: existingStat?.snapsPlayed || 0
+              // Use existing stat if available, then box score data, then null (not 0)
+              gamesPlayed: existingStat?.gamesPlayed || gamesFromBoxScores || null,
+              snapsPlayed: existingStat?.snapsPlayed || null
             }
           })
 

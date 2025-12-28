@@ -141,9 +141,9 @@ export default function Layout({ children }) {
       }
     }
 
-    // In postseason, check if all CC results have been entered
+    // In postseason week 1, check if all CC results have been entered
     // If user made their own CC, they only need to enter 9 others (their own is in games)
-    if (currentDynasty.currentPhase === 'postseason') {
+    if (currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek === 1) {
       const ccResults = currentDynasty.conferenceChampionships?.filter(cc => cc.team1 && cc.team2) || []
       const enteredCount = ccResults.length
       const userMadeCC = currentDynasty.conferenceChampionshipData?.madeChampionship === true
@@ -152,6 +152,45 @@ export default function Layout({ children }) {
       if (enteredCount < expectedCount) {
         const confirmAdvance = window.confirm(
           `You have only entered ${enteredCount}/${expectedCount} Conference Championship results. Are you sure you want to advance?`
+        )
+        if (!confirmAdvance) {
+          return
+        }
+      }
+    }
+
+    // In postseason weeks 2+, check bowl game entries (including CFP games)
+    if (currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek >= 2) {
+      // Count regular bowl games
+      const bowlGames = currentDynasty.bowlResults?.[currentDynasty.currentYear] || []
+      const enteredBowlGames = bowlGames.filter(b => b.team1Score !== undefined && b.team2Score !== undefined).length
+
+      // Count CFP games (first round, quarterfinals, semifinals, championship)
+      const cfpResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear] || {}
+      let enteredCFPGames = 0
+
+      // First round (4 games)
+      const firstRound = cfpResults.firstRound || []
+      enteredCFPGames += firstRound.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+
+      // Quarterfinals (4 games)
+      const quarterfinals = cfpResults.quarterfinals || []
+      enteredCFPGames += quarterfinals.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+
+      // Semifinals (2 games)
+      const semifinals = cfpResults.semifinals || []
+      enteredCFPGames += semifinals.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+
+      // Championship (1 game)
+      const championship = cfpResults.championship || []
+      enteredCFPGames += championship.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+
+      const totalEnteredGames = enteredBowlGames + enteredCFPGames
+      const expectedBowlGames = 30 // 19 regular bowls + 4 first round + 4 quarters + 2 semis + 1 champ = 30
+
+      if (totalEnteredGames < expectedBowlGames) {
+        const confirmAdvance = window.confirm(
+          `You have only entered ${totalEnteredGames}/${expectedBowlGames} bowl games. Are you sure you want to advance?`
         )
         if (!confirmAdvance) {
           return

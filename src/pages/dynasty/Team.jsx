@@ -602,6 +602,13 @@ export default function Team() {
     })
   }
 
+  // Calculate all-time record
+  const allTimeTeamWins = yearsWithRecords.reduce((sum, yr) => sum + yr.wins, 0)
+  const allTimeTeamLosses = yearsWithRecords.reduce((sum, yr) => sum + yr.losses, 0)
+  const allTimeTeamWinPct = (allTimeTeamWins + allTimeTeamLosses) > 0
+    ? ((allTimeTeamWins / (allTimeTeamWins + allTimeTeamLosses)) * 100).toFixed(1)
+    : null
+
   // Calculate vs user record (for Your History section)
   const vsUserYearRecords = years.map(year => {
     const yearGames = gamesAgainst.filter(g => g.year === year)
@@ -839,7 +846,12 @@ export default function Team() {
         </div>
 
         <div className="p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <StatCell
+              label="All-Time"
+              value={`${allTimeTeamWins}-${allTimeTeamLosses}`}
+              subValue={allTimeTeamWinPct ? `${allTimeTeamWinPct}%` : null}
+            />
             <StatCell
               label="AP Top 25"
               value={apTop25Finishes}

@@ -47,7 +47,7 @@ const mascotMap = {
   'SAM': 'Sam Houston State Bearkats', 'USF': 'South Florida Bulls', 'SMU': 'SMU Mustangs',
   'USC': 'USC Trojans', 'SCAR': 'South Carolina Gamecocks', 'STAN': 'Stanford Cardinal',
   'SYR': 'Syracuse Orange', 'TCU': 'TCU Horned Frogs', 'TEM': 'Temple Owls',
-  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies',
+  'TENN': 'Tennessee Volunteers', 'TEX': 'Texas Longhorns', 'TXAM': 'Texas A&M Aggies', 'TAMU': 'Texas A&M Aggies',
   'TXST': 'Texas State Bobcats', 'TXTECH': 'Texas Tech Red Raiders', 'TOL': 'Toledo Rockets',
   'TROY': 'Troy Trojans', 'TUL': 'Tulane Green Wave', 'TLSA': 'Tulsa Golden Hurricane',
   'UAB': 'UAB Blazers', 'UCF': 'UCF Knights', 'UCLA': 'UCLA Bruins', 'UNLV': 'UNLV Rebels',
@@ -274,7 +274,11 @@ export default function CFPBracket() {
         <span className="text-lg font-bold w-8 opacity-70" style={{ color: txtColor }}>
           {seed || ''}
         </span>
-        {logo && <img src={logo} alt="" className="w-10 h-10 object-contain" />}
+        {logo && (
+          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+            <img src={logo} alt="" className="w-7 h-7 object-contain" />
+          </div>
+        )}
         <div className="flex-1 truncate">
           {team ? (
             <Link

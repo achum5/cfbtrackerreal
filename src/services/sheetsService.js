@@ -4879,9 +4879,13 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
             { userEnteredValue: { stringValue: player.year || '' } },
             { userEnteredValue: { stringValue: player.devTrait || '' } },
             { userEnteredValue: { numberValue: player.overall || 0 } },
-            // Pre-fill existing gamesPlayed/snapsPlayed (overrides previous data when resubmitted)
-            { userEnteredValue: { numberValue: player.gamesPlayed || 0 } },
-            { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
+            // Pre-fill existing gamesPlayed/snapsPlayed - leave blank if null (not 0)
+            player.gamesPlayed != null
+              ? { userEnteredValue: { numberValue: player.gamesPlayed } }
+              : { userEnteredValue: { stringValue: '' } },
+            player.snapsPlayed != null
+              ? { userEnteredValue: { numberValue: player.snapsPlayed } }
+              : { userEnteredValue: { stringValue: '' } }
           ]
         })),
         fields: 'userEnteredValue'
@@ -5060,7 +5064,7 @@ export async function createDetailedStatsSheet(dynastyName, year, playerStats = 
             index: index,
             gridProperties: {
               rowCount: rowCount,
-              columnCount: DETAILED_STATS_TABS[tabName].length + 4, // +4 for PID, Name, Position, and Snaps
+              columnCount: DETAILED_STATS_TABS[tabName].length + 1, // +1 for Name column only
               frozenRowCount: 1
             }
           }
@@ -5201,7 +5205,7 @@ const COLUMN_TO_BOXSCORE_FIELD = {
 // Initialize a single tab of the detailed stats sheet
 async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, tabName, playerStats, aggregatedStats = {}) {
   const statColumns = DETAILED_STATS_TABS[tabName]
-  const totalColumns = statColumns.length + 4 // PID + Name + Position + Snaps + stat columns
+  const totalColumns = statColumns.length + 1 // Name + stat columns (removed PID, Pos, Snaps)
   const boxScoreCategory = TAB_TO_BOXSCORE_CATEGORY[tabName]
 
   // Filter players by positions relevant to this tab
@@ -5212,6 +5216,12 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     return (b.snapsPlayed || 0) - (a.snapsPlayed || 0)
   })
+
+  // Get all player names for dropdown (filtered by position for this tab)
+  const playerNames = filteredPlayers.map(p => p.name).sort()
+
+  // Calculate row count for validation (use 85 rows for data entry)
+  const dataRowCount = 85
 
   const requests = [
     // Set headers
@@ -5226,10 +5236,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
         },
         rows: [{
           values: [
-            { userEnteredValue: { stringValue: 'PID' } },
             { userEnteredValue: { stringValue: 'Name' } },
-            { userEnteredValue: { stringValue: 'Pos' } },
-            { userEnteredValue: { stringValue: 'Snaps' } },
             ...statColumns.map(col => ({ userEnteredValue: { stringValue: col } }))
           ]
         }],
@@ -5255,7 +5262,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
         fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)'
       }
     },
-    // Set PID column width
+    // Set Name column width
     {
       updateDimensionProperties: {
         range: {
@@ -5264,46 +5271,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
           startIndex: 0,
           endIndex: 1
         },
-        properties: { pixelSize: 50 },
-        fields: 'pixelSize'
-      }
-    },
-    // Set Name column width
-    {
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 1,
-          endIndex: 2
-        },
-        properties: { pixelSize: 180 },
-        fields: 'pixelSize'
-      }
-    },
-    // Set Position column width
-    {
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 2,
-          endIndex: 3
-        },
-        properties: { pixelSize: 50 },
-        fields: 'pixelSize'
-      }
-    },
-    // Set Snaps column width
-    {
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 3,
-          endIndex: 4
-        },
-        properties: { pixelSize: 60 },
+        properties: { pixelSize: 200 },
         fields: 'pixelSize'
       }
     },
@@ -5313,7 +5281,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
         range: {
           sheetId: sheetId,
           dimension: 'COLUMNS',
-          startIndex: 4,
+          startIndex: 1,
           endIndex: totalColumns
         },
         properties: { pixelSize: 85 },
@@ -5333,23 +5301,31 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
           warningOnly: false
         }
       }
-    },
-    // Protect PID, Name, Position and Snaps columns (pre-filled data)
-    {
-      addProtectedRange: {
-        protectedRange: {
-          range: {
-            sheetId: sheetId,
-            startRowIndex: 1,
-            startColumnIndex: 0,
-            endColumnIndex: 4
-          },
-          description: 'Protected player info columns',
-          warningOnly: false
-        }
-      }
     }
   ]
+
+  // Add dropdown validation for Name column (strict - must be from roster)
+  if (playerNames.length > 0) {
+    requests.push({
+      setDataValidation: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: 1,
+          endRowIndex: dataRowCount + 1,
+          startColumnIndex: 0,
+          endColumnIndex: 1
+        },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: playerNames.map(name => ({ userEnteredValue: name }))
+          },
+          showCustomUi: true,
+          strict: true // Reject input that doesn't match dropdown
+        }
+      }
+    })
+  }
 
   // Pre-fill player data if available (including aggregated box score stats)
   if (sortedPlayers.length > 0) {
@@ -5378,12 +5354,9 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
           endColumnIndex: totalColumns
         },
         rows: sortedPlayers.map(player => {
-          // Base player info columns
+          // Name column
           const baseValues = [
-            { userEnteredValue: { numberValue: player.pid || 0 } },
-            { userEnteredValue: { stringValue: player.name || '' } },
-            { userEnteredValue: { stringValue: player.position || '' } },
-            { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
+            { userEnteredValue: { stringValue: player.name || '' } }
           ]
 
           // Stat columns - pre-fill from aggregated box scores if available
@@ -5406,33 +5379,14 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
       }
     })
 
-    // Center all data cells (except Name column)
+    // Center stat columns (not Name column)
     requests.push({
       repeatCell: {
         range: {
           sheetId: sheetId,
           startRowIndex: 1,
           endRowIndex: sortedPlayers.length + 1,
-          startColumnIndex: 0,
-          endColumnIndex: 1
-        },
-        cell: {
-          userEnteredFormat: {
-            horizontalAlignment: 'CENTER'
-          }
-        },
-        fields: 'userEnteredFormat.horizontalAlignment'
-      }
-    })
-
-    // Center Position, Snaps and stat columns
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: sortedPlayers.length + 1,
-          startColumnIndex: 2,
+          startColumnIndex: 1,
           endColumnIndex: totalColumns
         },
         cell: {
@@ -5490,7 +5444,7 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
 
     for (const tabName of Object.keys(DETAILED_STATS_TABS)) {
       const statColumns = DETAILED_STATS_TABS[tabName]
-      const lastColumn = String.fromCharCode(65 + statColumns.length + 3) // A=65, +4 for PID/Name/Pos/Snaps
+      const lastColumn = String.fromCharCode(65 + statColumns.length) // A=65, +1 for Name column
 
       const response = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A2:${lastColumn}200`,
@@ -5512,19 +5466,16 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
 
       result[tabName] = rows.map(row => {
         const player = {
-          pid: parseInt(row[0]) || 0,
-          name: row[1] || '',
-          position: row[2] || '',
-          snapsPlayed: parseInt(row[3]) || 0
+          name: row[0]?.trim() || ''
         }
-        // Map stat columns (starting at column index 4)
+        // Map stat columns (starting at column index 1)
         statColumns.forEach((col, i) => {
-          const value = row[i + 4]
+          const value = row[i + 1]
           // Try to parse as number, otherwise keep as string
           player[col] = value !== undefined && value !== '' ? (isNaN(parseFloat(value)) ? value : parseFloat(value)) : null
         })
         return player
-      }).filter(player => player.pid > 0) // Filter out empty rows (check for valid PID)
+      }).filter(player => player.name) // Filter out empty rows (check for valid name)
     }
 
     return result
@@ -5536,7 +5487,7 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
 
 // Conference order for standings sheet
 const CONFERENCE_ORDER = [
-  'ACC', 'American', 'Big 12', 'Big Ten', 'C-USA', 'MAC', 'MWC', 'Pac-12', 'SEC', 'Sun Belt'
+  'ACC', 'American', 'Big 12', 'Big Ten', 'C-USA', 'Independent', 'MAC', 'MWC', 'Pac-12', 'SEC', 'Sun Belt'
 ]
 
 const TEAMS_PER_CONFERENCE = 20
@@ -6124,36 +6075,70 @@ export async function readFinalPollsFromSheet(spreadsheetId) {
   }
 }
 
-// Team stats columns
-const TEAM_STATS_COLUMNS = [
-  'First Downs',
-  'Rush Yards Allowed',
-  'Pass Yards Allowed',
-  'Red Zone Attempts',
-  'Red Zone TDs',
-  'Def. RZ Attempts',
-  'Def. RZ TDs',
-  '3rd Down Conversions',
-  '3rd Down Attempts',
-  '4th Down Conversions',
-  '4th Down Attempts',
-  '2pt Conversions',
-  '2pt Attempts',
-  'Penalties',
-  'Penalty Yardage'
+// Team stats - Offense tab columns (in order)
+const TEAM_STATS_OFFENSE = [
+  'Points',
+  'Offense Yards',
+  'Yards Per Play',
+  'Passing Yards',
+  'Passing Yards Per Game',
+  'Passing Touchdowns',
+  'Rushing Yards',
+  'Rushing Yards Per Carry',
+  'Rushing Touchdowns',
+  'First Downs'
 ]
 
+// Team stats - Defense tab columns (in order)
+const TEAM_STATS_DEFENSE = [
+  'Points Allowed',
+  'Total Yards Allowed',
+  'Passing Yards Allowed',
+  'Rushing Yards Allowed',
+  'Sacks',
+  'Forced Fumbles',
+  'Interceptions'
+]
+
+// Mapping from display names to aggregated stat keys
+const TEAM_STATS_OFFENSE_KEY_MAP = {
+  'Points': 'pointsFor',
+  'Offense Yards': 'totalOffense',
+  'Yards Per Play': 'yardsPerPlay', // calculated
+  'Passing Yards': 'passYards',
+  'Passing Yards Per Game': 'passYardsPerGame', // calculated
+  'Passing Touchdowns': 'passTds',
+  'Rushing Yards': 'rushYards',
+  'Rushing Yards Per Carry': 'rushYardsPerCarry', // calculated
+  'Rushing Touchdowns': 'rushTds',
+  'First Downs': 'firstDowns'
+}
+
+const TEAM_STATS_DEFENSE_KEY_MAP = {
+  'Points Allowed': 'pointsAgainst',
+  'Total Yards Allowed': 'defTotalYards',
+  'Passing Yards Allowed': 'defPassYards',
+  'Rushing Yards Allowed': 'defRushYards',
+  'Sacks': 'defSacks',
+  'Forced Fumbles': 'forcedFumbles',
+  'Interceptions': 'defInterceptions'
+}
+
 /**
- * Create a Google Sheet for team stats entry
+ * Create a Google Sheet for team stats entry with Offense and Defense tabs
  * Vertical two-column layout: Column A = stat names, Column B = values
+ * @param {number} year - The season year
+ * @param {string} teamName - The team name
+ * @param {Object} aggregatedStats - Optional pre-aggregated stats from box scores to pre-fill
  */
-export async function createTeamStatsSheet(year, teamName) {
+export async function createTeamStatsSheet(year, teamName, aggregatedStats = {}) {
   try {
     const accessToken = await getAccessToken()
 
-    const numStats = TEAM_STATS_COLUMNS.length
+    const numOffenseStats = TEAM_STATS_OFFENSE.length
+    const numDefenseStats = TEAM_STATS_DEFENSE.length
 
-    // Create spreadsheet with 2 columns and rows for each stat
+    // Create spreadsheet with two tabs: Offense and Defense
     const createResponse = await fetch(SHEETS_API_BASE, {
       method: 'POST',
       headers: {
@@ -6164,16 +6149,28 @@ export async function createTeamStatsSheet(year, teamName) {
         properties: {
           title: `${year} ${teamName} Team Stats`
         },
-        sheets: [{
-          properties: {
-            title: 'Team Stats',
-            gridProperties: {
-              rowCount: numStats,
-              columnCount: 2,
-              frozenColumnCount: 1
+        sheets: [
+          {
+            properties: {
+              title: 'Offense',
+              gridProperties: {
+                rowCount: numOffenseStats,
+                columnCount: 2,
+                frozenColumnCount: 1
+              }
+            }
+          },
+          {
+            properties: {
+              title: 'Defense',
+              gridProperties: {
+                rowCount: numDefenseStats,
+                columnCount: 2,
+                frozenColumnCount: 1
+              }
             }
           }
-        }]
+        ]
       })
     })
 
@@ -6184,7 +6181,8 @@ export async function createTeamStatsSheet(year, teamName) {
 
     const spreadsheet = await createResponse.json()
     const spreadsheetId = spreadsheet.spreadsheetId
-    const sheetId = spreadsheet.sheets[0].properties.sheetId
+    const offenseSheetId = spreadsheet.sheets[0].properties.sheetId
+    const defenseSheetId = spreadsheet.sheets[1].properties.sheetId
 
     // Share publicly for embedding
     await shareSheetPublicly(spreadsheetId, accessToken)
@@ -6192,116 +6190,136 @@ export async function createTeamStatsSheet(year, teamName) {
     // Build requests for formatting and data
     const requests = []
 
-    // Set Column A with stat names (protected)
+    // Helper to format a value for display (round decimals to 1 place)
+    const formatValue = (value) => {
+      if (value === undefined || value === null || value === 0) return null
+      if (Number.isInteger(value)) return value
+      return Math.round(value * 10) / 10
+    }
+
+    // === OFFENSE TAB ===
     requests.push({
       updateCells: {
         range: {
-          sheetId,
+          sheetId: offenseSheetId,
           startRowIndex: 0,
-          endRowIndex: numStats,
+          endRowIndex: numOffenseStats,
           startColumnIndex: 0,
-          endColumnIndex: 1
+          endColumnIndex: 2
         },
-        rows: TEAM_STATS_COLUMNS.map(stat => ({
-          values: [{
-            userEnteredValue: { stringValue: stat },
-            userEnteredFormat: {
-              backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
-              textFormat: {
-                bold: true,
-                foregroundColor: { red: 1, green: 1, blue: 1 },
-                fontSize: 11
+        rows: TEAM_STATS_OFFENSE.map(stat => {
+          const key = TEAM_STATS_OFFENSE_KEY_MAP[stat]
+          const rawValue = key && aggregatedStats[key]
+          const value = formatValue(rawValue)
+          const hasValue = value !== null
+
+          return {
+            values: [
+              {
+                userEnteredValue: { stringValue: stat },
+                userEnteredFormat: {
+                  backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 11 },
+                  horizontalAlignment: 'LEFT',
+                  verticalAlignment: 'MIDDLE',
+                  padding: { left: 8 }
+                }
               },
-              horizontalAlignment: 'LEFT',
-              verticalAlignment: 'MIDDLE',
-              padding: { left: 8 }
-            }
-          }]
-        })),
+              {
+                userEnteredValue: hasValue ? { numberValue: value } : { stringValue: '' },
+                userEnteredFormat: {
+                  horizontalAlignment: 'CENTER',
+                  verticalAlignment: 'MIDDLE',
+                  textFormat: { fontSize: 12, bold: true },
+                  backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 }
+                }
+              }
+            ]
+          }
+        }),
         fields: 'userEnteredValue,userEnteredFormat'
       }
     })
 
-    // Protect Column A (stat names)
+    // Protect Column A for Offense
     requests.push({
       addProtectedRange: {
         protectedRange: {
-          range: {
-            sheetId,
-            startRowIndex: 0,
-            endRowIndex: numStats,
-            startColumnIndex: 0,
-            endColumnIndex: 1
-          },
+          range: { sheetId: offenseSheetId, startRowIndex: 0, endRowIndex: numOffenseStats, startColumnIndex: 0, endColumnIndex: 1 },
           description: 'Stat names - do not edit',
           warningOnly: true
         }
       }
     })
 
-    // Set Column A width (wider for stat names)
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 0,
-          endIndex: 1
-        },
-        properties: { pixelSize: 180 },
-        fields: 'pixelSize'
-      }
-    })
+    // Column widths and row heights for Offense
+    requests.push(
+      { updateDimensionProperties: { range: { sheetId: offenseSheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 200 }, fields: 'pixelSize' } },
+      { updateDimensionProperties: { range: { sheetId: offenseSheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 }, properties: { pixelSize: 100 }, fields: 'pixelSize' } },
+      { updateDimensionProperties: { range: { sheetId: offenseSheetId, dimension: 'ROWS', startIndex: 0, endIndex: numOffenseStats }, properties: { pixelSize: 32 }, fields: 'pixelSize' } }
+    )
 
-    // Set Column B width (for numbers)
+    // === DEFENSE TAB ===
     requests.push({
-      updateDimensionProperties: {
+      updateCells: {
         range: {
-          sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 1,
-          endIndex: 2
-        },
-        properties: { pixelSize: 100 },
-        fields: 'pixelSize'
-      }
-    })
-
-    // Set row height for all rows
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId,
-          dimension: 'ROWS',
-          startIndex: 0,
-          endIndex: numStats
-        },
-        properties: { pixelSize: 32 },
-        fields: 'pixelSize'
-      }
-    })
-
-    // Format Column B (value entry cells)
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId,
+          sheetId: defenseSheetId,
           startRowIndex: 0,
-          endRowIndex: numStats,
-          startColumnIndex: 1,
+          endRowIndex: numDefenseStats,
+          startColumnIndex: 0,
           endColumnIndex: 2
         },
-        cell: {
-          userEnteredFormat: {
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE',
-            textFormat: { fontSize: 12, bold: true },
-            backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 }
+        rows: TEAM_STATS_DEFENSE.map(stat => {
+          const key = TEAM_STATS_DEFENSE_KEY_MAP[stat]
+          const rawValue = key && aggregatedStats[key]
+          const value = formatValue(rawValue)
+          const hasValue = value !== null
+
+          return {
+            values: [
+              {
+                userEnteredValue: { stringValue: stat },
+                userEnteredFormat: {
+                  backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 }, fontSize: 11 },
+                  horizontalAlignment: 'LEFT',
+                  verticalAlignment: 'MIDDLE',
+                  padding: { left: 8 }
+                }
+              },
+              {
+                userEnteredValue: hasValue ? { numberValue: value } : { stringValue: '' },
+                userEnteredFormat: {
+                  horizontalAlignment: 'CENTER',
+                  verticalAlignment: 'MIDDLE',
+                  textFormat: { fontSize: 12, bold: true },
+                  backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 }
+                }
+              }
+            ]
           }
-        },
-        fields: 'userEnteredFormat'
+        }),
+        fields: 'userEnteredValue,userEnteredFormat'
       }
     })
+
+    // Protect Column A for Defense
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId: defenseSheetId, startRowIndex: 0, endRowIndex: numDefenseStats, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Stat names - do not edit',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Column widths and row heights for Defense
+    requests.push(
+      { updateDimensionProperties: { range: { sheetId: defenseSheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 200 }, fields: 'pixelSize' } },
+      { updateDimensionProperties: { range: { sheetId: defenseSheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 }, properties: { pixelSize: 100 }, fields: 'pixelSize' } },
+      { updateDimensionProperties: { range: { sheetId: defenseSheetId, dimension: 'ROWS', startIndex: 0, endIndex: numDefenseStats }, properties: { pixelSize: 32 }, fields: 'pixelSize' } }
+    )
 
     // Execute all requests
     const batchResponse = await fetch(
@@ -6334,58 +6352,62 @@ export async function createTeamStatsSheet(year, teamName) {
 
 /**
  * Read team stats from Google Sheet
- * Reads values from Column B (vertical layout)
+ * Reads values from both Offense and Defense tabs
  */
 export async function readTeamStatsFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    const numStats = TEAM_STATS_COLUMNS.length
+    const numOffenseStats = TEAM_STATS_OFFENSE.length
+    const numDefenseStats = TEAM_STATS_DEFENSE.length
 
-    // Read Column B (values) for all stat rows
-    const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/'Team Stats'!B1:B${numStats}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      }
-    )
+    // Read from both tabs in parallel
+    const [offenseResponse, defenseResponse] = await Promise.all([
+      fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'Offense'!B1:B${numOffenseStats}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      ),
+      fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'Defense'!B1:B${numDefenseStats}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      )
+    ])
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read team stats: ${error.error?.message || 'Unknown error'}`)
+    if (!offenseResponse.ok) {
+      const error = await offenseResponse.json()
+      throw new Error(`Failed to read offense stats: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const data = await response.json()
-    const rows = data.values || []
+    if (!defenseResponse.ok) {
+      const error = await defenseResponse.json()
+      throw new Error(`Failed to read defense stats: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const offenseData = await offenseResponse.json()
+    const defenseData = await defenseResponse.json()
+
+    const offenseRows = offenseData.values || []
+    const defenseRows = defenseData.values || []
 
     // Map rows to stat object
     const stats = {}
 
-    // Special key mappings for stats that start with numbers
-    const keyMappings = {
-      '3rd Down Conversions': 'thirdDownConversions',
-      '3rd Down Attempts': 'thirdDownAttempts',
-      '4th Down Conversions': 'fourthDownConversions',
-      '4th Down Attempts': 'fourthDownAttempts',
-      '2pt Conversions': 'twoptConversions',
-      '2pt Attempts': 'twoptAttempts'
-    }
-
-    TEAM_STATS_COLUMNS.forEach((col, index) => {
-      const value = rows[index]?.[0]
-
-      // Use special mapping if available, otherwise convert to camelCase
-      let key = keyMappings[col]
-      if (!key) {
-        key = col
-          .toLowerCase()
-          .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
-          .replace(/^./, str => str.toLowerCase())
+    // Parse offense stats
+    TEAM_STATS_OFFENSE.forEach((col, index) => {
+      const value = offenseRows[index]?.[0]
+      const key = TEAM_STATS_OFFENSE_KEY_MAP[col]
+      if (key) {
+        stats[key] = value !== undefined && value !== '' ? (parseFloat(value) || 0) : null
       }
+    })
 
-      stats[key] = value !== undefined && value !== '' ? parseInt(value) || 0 : 0
+    // Parse defense stats
+    TEAM_STATS_DEFENSE.forEach((col, index) => {
+      const value = defenseRows[index]?.[0]
+      const key = TEAM_STATS_DEFENSE_KEY_MAP[col]
+      if (key) {
+        stats[key] = value !== undefined && value !== '' ? (parseFloat(value) || 0) : null
+      }
     })
 
     return stats
@@ -9809,6 +9831,7 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
 const TEAM_STATS_ROWS = [
   'First Downs',
   'Total Offense',
+  'Total Plays',
   'Rush Attempts',
   'Rush Yards',
   'Rush TDs',
@@ -9824,6 +9847,7 @@ const TEAM_STATS_ROWS = [
   '2PT Att',
   'Red Zone TD',
   'Red Zone FG',
+  'Red Zone Pct',
   'Turnovers',
   'Fumbles Lost',
   'Interceptions',

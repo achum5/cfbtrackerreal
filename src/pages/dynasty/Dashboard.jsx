@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
@@ -70,6 +70,138 @@ export default function Dashboard() {
   const teamRatings = getCurrentTeamRatings(currentDynasty)
   const teamCoachingStaff = getCurrentCoachingStaff(currentDynasty)
   const teamGoogleSheet = getCurrentGoogleSheet(currentDynasty)
+
+  // Aggregate team stats from box scores for pre-filling the Team Stats sheet
+  const aggregatedTeamStats = useMemo(() => {
+    if (!currentDynasty?.games) return {}
+
+    const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+    const year = currentDynasty.currentYear
+
+    // Offense stats
+    let pointsFor = 0
+    let totalOffense = 0
+    let rushAttempts = 0
+    let rushYards = 0
+    let rushTds = 0
+    let passAttempts = 0
+    let passYards = 0
+    let passTds = 0
+    let firstDowns = 0
+
+    // Defense stats
+    let pointsAgainst = 0
+    let defTotalYards = 0
+    let defPassYards = 0
+    let defRushYards = 0
+    let defSacks = 0
+    let forcedFumbles = 0
+    let defInterceptions = 0
+
+    let gamesWithStats = 0
+
+    currentDynasty.games.forEach(game => {
+      if (game.isCPUGame) return
+      if (parseInt(game.year) !== year) return
+      if (game.userTeam !== currentTeamAbbr) return
+
+      // Always count points from game scores
+      pointsFor += game.teamScore || 0
+      pointsAgainst += game.opponentScore || 0
+
+      if (!game.boxScore) return
+
+      // Determine which side we are on (home or away) based on location
+      const isHome = game.location === 'home' || game.location === 'Home'
+
+      // Get our player box score (for defensive stats like sacks, INTs)
+      const ourPlayerBoxScore = isHome ? game.boxScore.home : game.boxScore.away
+
+      // Aggregate offense from team stats
+      if (game.boxScore.teamStats) {
+        const homeAbbr = game.boxScore.teamStats.home?.teamAbbr?.toUpperCase()
+        const awayAbbr = game.boxScore.teamStats.away?.teamAbbr?.toUpperCase()
+
+        let ourTeamStats = null
+        let oppTeamStats = null
+
+        if (homeAbbr === currentTeamAbbr) {
+          ourTeamStats = game.boxScore.teamStats.home
+          oppTeamStats = game.boxScore.teamStats.away
+        } else if (awayAbbr === currentTeamAbbr) {
+          ourTeamStats = game.boxScore.teamStats.away
+          oppTeamStats = game.boxScore.teamStats.home
+        }
+
+        if (ourTeamStats) {
+          gamesWithStats++
+          totalOffense += parseFloat(ourTeamStats.totalOffense) || 0
+          rushAttempts += parseFloat(ourTeamStats.rushAttempts) || 0
+          rushYards += parseFloat(ourTeamStats.rushYards) || 0
+          rushTds += parseFloat(ourTeamStats.rushTds) || 0
+          passAttempts += parseFloat(ourTeamStats.passAttempts) || 0
+          passYards += parseFloat(ourTeamStats.passYards) || 0
+          passTds += parseFloat(ourTeamStats.passTds) || 0
+          firstDowns += parseFloat(ourTeamStats.firstDowns) || 0
+        }
+
+        // Opponent's offense = our defense allowed
+        if (oppTeamStats) {
+          defTotalYards += parseFloat(oppTeamStats.totalOffense) || 0
+          defPassYards += parseFloat(oppTeamStats.passYards) || 0
+          defRushYards += parseFloat(oppTeamStats.rushYards) || 0
+        }
+      }
+
+      // Aggregate defensive player stats (sacks, forced fumbles, interceptions)
+      if (ourPlayerBoxScore?.defense && Array.isArray(ourPlayerBoxScore.defense)) {
+        ourPlayerBoxScore.defense.forEach(player => {
+          defSacks += parseFloat(player.sack) || 0
+          forcedFumbles += parseFloat(player.fF) || 0
+          defInterceptions += parseFloat(player.iNT) || 0
+        })
+      }
+    })
+
+    // Count total games played (for per-game calculations)
+    const totalGamesPlayed = currentDynasty.games.filter(game =>
+      !game.isCPUGame &&
+      parseInt(game.year) === year &&
+      game.userTeam === currentTeamAbbr
+    ).length
+
+    if (totalGamesPlayed === 0) return {}
+
+    // Calculate rate stats using total games played
+    const totalPlays = rushAttempts + passAttempts
+    const yardsPerPlay = totalPlays > 0 ? totalOffense / totalPlays : 0
+    const passYardsPerGame = totalGamesPlayed > 0 ? passYards / totalGamesPlayed : 0
+    const rushYardsPerCarry = rushAttempts > 0 ? rushYards / rushAttempts : 0
+
+    return {
+      // Offense
+      pointsFor,
+      totalOffense,
+      yardsPerPlay,
+      passYards,
+      passYardsPerGame,
+      passTds,
+      rushYards,
+      rushYardsPerCarry,
+      rushTds,
+      firstDowns,
+      // Defense
+      pointsAgainst,
+      defTotalYards,
+      defPassYards,
+      defRushYards,
+      defSacks,
+      forcedFumbles,
+      defInterceptions,
+      // Meta
+      gamesWithStats
+    }
+  }, [currentDynasty?.games, currentDynasty?.teamName, currentDynasty?.currentYear])
 
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showRosterModal, setShowRosterModal] = useState(false)
@@ -2325,12 +2457,31 @@ export default function Dashboard() {
           {(() => {
             const week = currentDynasty.currentWeek
             const hasCCData = currentDynasty.conferenceChampionships?.length > 0
+            // Count entered CC games (games with both scores)
+            const ccGames = currentDynasty.conferenceChampionships || []
+            const ccGamesWithScores = ccGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+            const totalCCGames = currentDynasty.conferenceChampionshipData?.madeChampionship === true ? 9 : 10
+
             const hasCFPSeedsData = currentDynasty.cfpSeedsByYear?.[currentDynasty.currentYear]?.length > 0
             const hasCFPFirstRoundData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound?.length > 0
             const hasBowlWeek1Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week1?.length > 0
             // Bowl Week 2 sheet saves regular bowl games to week2 - check only this
             // (User's QF game from game modal goes to cfpResultsByYear.quarterfinals but that's separate)
             const hasBowlWeek2Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2?.length > 0
+
+            // Count entered games for Week 1 (26 regular bowls + 4 CFP First Round = 30 total)
+            const bowlWeek1Games = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week1 || []
+            const cfpFirstRoundGames = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound || []
+            const enteredBowlWeek1 = bowlWeek1Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+            const enteredCFPFirstRound = cfpFirstRoundGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+            const totalEnteredWeek1 = enteredBowlWeek1 + enteredCFPFirstRound
+
+            // Count entered games for Week 2 (8 regular bowls + 4 CFP Quarterfinals = 12 total)
+            const bowlWeek2Games = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2 || []
+            const cfpQuarterfinalGames = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.quarterfinals || []
+            const enteredBowlWeek2 = bowlWeek2Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+            const enteredCFPQuarterfinals = cfpQuarterfinalGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+            const totalEnteredWeek2 = enteredBowlWeek2 + enteredCFPQuarterfinals
             const userBowlGame = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
             const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
             const userBowlIsWeek1 = selectedBowl && isBowlInWeek1(selectedBowl)
@@ -2552,7 +2703,7 @@ export default function Dashboard() {
                             Conference Championship Results
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCCData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                            {hasCCData ? '✓ Results entered' : `${currentDynasty.conferenceChampionshipData?.madeChampionship === true ? '9' : '10'} conference championships`}
+                            {ccGamesWithScores === totalCCGames ? `✓ All ${totalCCGames} games entered` : `${ccGamesWithScores}/${totalCCGames} games entered`}
                           </div>
                         </div>
                       </div>
@@ -3091,7 +3242,7 @@ export default function Dashboard() {
                             Week 1 Bowl Results
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                            {hasBowlWeek1Data ? '✓ Results entered' : '30 bowl games (incl. CFP First Round)'}
+                            {totalEnteredWeek1 === 30 ? '✓ All 30 games entered' : `${totalEnteredWeek1}/30 games entered (incl. CFP First Round)`}
                           </div>
                         </div>
                       </div>
@@ -3712,36 +3863,38 @@ export default function Dashboard() {
 
                     {/* Task: Player Stats Entry */}
                     {(() => {
-                      const hasStatsData = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length > 0
+                      // Check if the Google Sheet was actually created, not just if data exists from box scores
+                      const hasStatsSheet = !!currentDynasty?.statsEntrySheetId
+                      const playerCount = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0
                       const taskNumber = !userInCFPChampionship ? 2 : 1
 
                       return (
                         <div
                           className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasStatsData ? 'border-green-200 bg-green-50' : ''
+                            hasStatsSheet ? 'border-green-200 bg-green-50' : ''
                           }`}
-                          style={!hasStatsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                          style={!hasStatsSheet ? { borderColor: `${teamColors.primary}30` } : {}}
                         >
                           <div className="flex items-center gap-2 sm:gap-3">
                             <div
                               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                hasStatsData ? 'bg-green-500 text-white' : ''
+                                hasStatsSheet ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasStatsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                              style={!hasStatsSheet ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                             >
-                              {hasStatsData ? (
+                              {hasStatsSheet ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasStatsData ? '#16a34a' : secondaryBgText }}>
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasStatsSheet ? '#16a34a' : secondaryBgText }}>
                                 Player Stats Entry
                               </div>
-                              {hasStatsData && (
+                              {hasStatsSheet && (
                                 <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
-                                  ✓ Stats entered for {currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0} players
+                                  ✓ Stats entered for {playerCount} players
                                 </div>
                               )}
                             </div>
@@ -3751,7 +3904,7 @@ export default function Dashboard() {
                             className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
                           >
-                            {hasStatsData ? 'Edit' : 'Enter'}
+                            {hasStatsSheet ? 'Edit' : 'Enter'}
                           </button>
                         </div>
                       )
@@ -3759,27 +3912,27 @@ export default function Dashboard() {
 
                     {/* Task: Detailed Stats Entry */}
                     {(() => {
-                      const hasStatsData = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length > 0
-                      const hasDetailedStats = currentDynasty?.detailedStatsByYear?.[currentDynasty.currentYear] &&
-                        Object.keys(currentDynasty.detailedStatsByYear[currentDynasty.currentYear]).length > 0
+                      // Check if the Google Sheets were actually created
+                      const hasStatsSheet = !!currentDynasty?.statsEntrySheetId
+                      const hasDetailedStatsSheet = !!currentDynasty?.detailedStatsSheetId
                       const taskNumber = !userInCFPChampionship ? 3 : 2
-                      const isLocked = !hasStatsData
+                      const isLocked = !hasStatsSheet
 
                       return (
                         <div
                           className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasDetailedStats ? 'border-green-200 bg-green-50' : ''
+                            hasDetailedStatsSheet ? 'border-green-200 bg-green-50' : ''
                           } ${isLocked ? 'opacity-50' : ''}`}
-                          style={!hasDetailedStats ? { borderColor: `${teamColors.primary}30` } : {}}
+                          style={!hasDetailedStatsSheet ? { borderColor: `${teamColors.primary}30` } : {}}
                         >
                           <div className="flex items-center gap-2 sm:gap-3">
                             <div
                               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                hasDetailedStats ? 'bg-green-500 text-white' : ''
+                                hasDetailedStatsSheet ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasDetailedStats ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                              style={!hasDetailedStatsSheet ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
                             >
-                              {hasDetailedStats ? (
+                              {hasDetailedStatsSheet ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
@@ -3790,12 +3943,12 @@ export default function Dashboard() {
                               ) : <span className="font-bold text-sm sm:text-base">{taskNumber}</span>}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText }}>
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasDetailedStatsSheet ? '#16a34a' : secondaryBgText }}>
                                 Detailed Stats Entry
                               </div>
-                              {(hasDetailedStats || isLocked) && (
-                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStats ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                                  {hasDetailedStats
+                              {(hasDetailedStatsSheet || isLocked) && (
+                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStatsSheet ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                                  {hasDetailedStatsSheet
                                     ? '✓ Detailed stats entered across all categories'
                                     : 'Complete Player Stats Entry first'}
                                 </div>
@@ -3808,7 +3961,7 @@ export default function Dashboard() {
                             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-sm self-end sm:self-auto ${isLocked ? 'cursor-not-allowed' : 'hover:opacity-90'}`}
                             style={{ backgroundColor: teamColors.primary, color: primaryBgText, opacity: isLocked ? 0.5 : 1 }}
                           >
-                            {hasDetailedStats ? 'Edit' : 'Enter'}
+                            {hasDetailedStatsSheet ? 'Edit' : 'Enter'}
                           </button>
                         </div>
                       )
@@ -4097,7 +4250,7 @@ export default function Dashboard() {
                             Week 2 Bowl Results
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasBowlWeek2Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                            {hasBowlWeek2Data ? '✓ Results entered' : '12 bowl games (incl. CFP Quarterfinals)'}
+                            {totalEnteredWeek2 === 12 ? '✓ All 12 games entered' : `${totalEnteredWeek2}/12 games entered (incl. CFP Quarterfinals)`}
                           </div>
                         </div>
                       </div>
@@ -4171,16 +4324,9 @@ export default function Dashboard() {
                   {week === 4 && (() => {
                     const sfData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
                     // Need BOTH SF games (2 total) to determine Championship matchup
-                    // If user was in SF, their game is already in there from Week 3
-                    const allSFComplete = sfData.length >= 2
-                    // Calculate how many more games needed
-                    const gamesEntered = sfData.length
-                    const gamesRemaining = 2 - gamesEntered
-                    const sfGamesNeeded = gamesRemaining === 1
-                      ? '1 game remaining (to determine your opponent)'
-                      : gamesRemaining === 2
-                        ? '2 games'
-                        : ''
+                    // Count games that actually have scores entered
+                    const sfGamesWithScores = sfData.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
+                    const allSFComplete = sfGamesWithScores >= 2
 
                     return (
                     <div
@@ -4207,7 +4353,7 @@ export default function Dashboard() {
                             CFP Semifinal Results
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: allSFComplete ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                            {allSFComplete ? '✓ Results entered' : sfGamesNeeded}
+                            {allSFComplete ? '✓ All 2 games entered' : `${sfGamesWithScores}/2 games entered`}
                           </div>
                         </div>
                       </div>
@@ -6784,6 +6930,7 @@ export default function Dashboard() {
         currentYear={currentDynasty.currentYear}
         teamName={currentDynasty.teamName}
         teamColors={teamColors}
+        aggregatedStats={aggregatedTeamStats}
       />
 
       {/* Awards Entry Modal (End of Season Recap) */}

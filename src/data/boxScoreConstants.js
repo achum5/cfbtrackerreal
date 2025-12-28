@@ -16,7 +16,7 @@ export const STAT_TABS = {
   receiving: {
     key: 'receiving',
     title: 'Receiving',
-    headers: ['Player Name', 'Receptions', 'Yards', 'TD', 'RAC', 'Long', 'Drops'],
+    headers: ['Player Name', 'Receptions', 'Yards', 'TD', 'RAC', 'Drops', 'Long'],
     rowCount: 15
   },
   blocking: {

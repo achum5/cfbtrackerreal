@@ -15,7 +15,7 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function TeamStatsModal({ isOpen, onClose, onSave, currentYear, teamName, teamColors }) {
+export default function TeamStatsModal({ isOpen, onClose, onSave, currentYear, teamName, teamColors, aggregatedStats = {} }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
@@ -80,7 +80,7 @@ export default function TeamStatsModal({ isOpen, onClose, onSave, currentYear, t
         }
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createTeamStatsSheet(currentYear, teamName)
+          const sheetInfo = await createTeamStatsSheet(currentYear, teamName, aggregatedStats)
           setSheetId(sheetInfo.sheetId)
           await updateDynasty(currentDynasty.id, { teamStatsSheetId: sheetInfo.sheetId })
         } catch (error) {

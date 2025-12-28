@@ -181,32 +181,14 @@ export function SheetErrorBanner({ teamColors, onReload, onOpenNewTab, onRefresh
           <p className="text-sm text-amber-700 mb-3">
             Google detected a session mismatch. This usually happens when you've signed into a different Google account in another tab.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {onReload && (
-              <button
-                onClick={onReload}
-                className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm font-medium hover:bg-amber-700 transition-colors"
-              >
-                Reload Sheet
-              </button>
-            )}
-            {onOpenNewTab && (
-              <button
-                onClick={onOpenNewTab}
-                className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded text-sm font-medium hover:bg-amber-200 transition-colors border border-amber-300"
-              >
-                Open in New Tab
-              </button>
-            )}
-            {onRefreshSession && (
-              <button
-                onClick={onRefreshSession}
-                className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded text-sm font-medium hover:bg-amber-200 transition-colors border border-amber-300"
-              >
-                Refresh Session
-              </button>
-            )}
-          </div>
+          {onRefreshSession && (
+            <button
+              onClick={onRefreshSession}
+              className="px-4 py-2 bg-amber-600 text-white rounded text-sm font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Refresh Session
+            </button>
+          )}
         </div>
       </div>
     </div>

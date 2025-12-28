@@ -76,15 +76,20 @@ const getOpponentColors = (abbr) => {
 
 // Get team colors from team name
 const getTeamColorsFromName = (teamName) => {
-  const colors = getTeamColors(teamName)
-  if (colors) return colors
-  // Try to find via abbreviation
-  const abbr = getAbbreviationFromDisplayName(teamName)
-  if (abbr && teamAbbreviations[abbr]) {
-    return {
-      primary: teamAbbreviations[abbr].backgroundColor || '#4B5563',
-      secondary: teamAbbreviations[abbr].textColor || '#FFFFFF'
+  if (!teamName) return { primary: '#4B5563', secondary: '#FFFFFF' }
+  try {
+    const colors = getTeamColors(teamName)
+    if (colors) return colors
+    // Try to find via abbreviation
+    const abbr = getAbbreviationFromDisplayName(teamName)
+    if (abbr && teamAbbreviations[abbr]) {
+      return {
+        primary: teamAbbreviations[abbr].backgroundColor || '#4B5563',
+        secondary: teamAbbreviations[abbr].textColor || '#FFFFFF'
+      }
     }
+  } catch (e) {
+    console.error('Error getting team colors:', e)
   }
   return { primary: '#4B5563', secondary: '#FFFFFF' }
 }
@@ -205,9 +210,9 @@ export default function CoachCareer() {
 
     // Build stints from game data, sorted by earliest year
     const teamStints = Object.entries(gamesByTeam).map(([teamAbbr, games]) => {
-      const years = games.map(g => Number(g.year)).filter(y => !isNaN(y))
-      const startYear = years.length > 0 ? Math.min(...years) : currentDynasty.startYear
-      const endYear = years.length > 0 ? Math.max(...years) : currentDynasty.currentYear
+      const years = games.map(g => Number(g.year)).filter(y => !isNaN(y) && y > 1900 && y < 3000)
+      const startYear = years.length > 0 ? Math.min(...years) : (currentDynasty.startYear || 2024)
+      const endYear = years.length > 0 ? Math.max(...years) : (currentDynasty.currentYear || 2024)
       const wins = games.filter(isWin).length
       const losses = games.filter(isLoss).length
 
@@ -219,6 +224,11 @@ export default function CoachCareer() {
       const underdogWins = underdogGames.filter(isWin).length
       const underdogLosses = underdogGames.filter(isLoss).length
 
+      // Bowl games (includes bowl games and CFP games)
+      const bowlGames = games.filter(g => g.bowlName || g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
+      const bowlWins = bowlGames.filter(isWin).length
+      const bowlLosses = bowlGames.filter(isLoss).length
+
       return {
         teamAbbr,
         teamName: getTeamFullName(teamAbbr),
@@ -229,8 +239,10 @@ export default function CoachCareer() {
         overallRecord: `${wins}-${losses}`,
         favoriteRecord: `${favoriteWins}-${favoriteLosses}`,
         underdogRecord: `${underdogWins}-${underdogLosses}`,
+        bowlRecord: `${bowlWins}-${bowlLosses}`,
         favoriteGames,
         underdogGames,
+        bowlGames,
         games
       }
     }).sort((a, b) => a.startYear - b.startYear)
@@ -277,8 +289,10 @@ export default function CoachCareer() {
         overallRecord: '0-0',
         favoriteRecord: '0-0',
         underdogRecord: '0-0',
+        bowlRecord: '0-0',
         favoriteGames: [],
         underdogGames: [],
+        bowlGames: [],
         confChampionships: 0,
         playoffAppearances: 0,
         nationalChampionships: 0,
@@ -304,9 +318,9 @@ export default function CoachCareer() {
   }, { wins: 0, losses: 0, teams: 0 })
 
   // Get team colors for current team (used for header)
-  const teamColors = useTeamColors(currentDynasty.teamName)
-  const primaryText = getContrastTextColor(teamColors.primary)
-  const secondaryText = getContrastTextColor(teamColors.secondary)
+  const teamColors = useTeamColors(currentDynasty?.teamName)
+  const primaryText = getContrastTextColor(teamColors?.primary || '#4B5563')
+  const secondaryText = getContrastTextColor(teamColors?.secondary || '#FFFFFF')
 
   // Get games for the modal
   const getGamesForModal = () => {
@@ -371,10 +385,11 @@ export default function CoachCareer() {
       </div>
 
       {/* Coaching Stints - reverse order so current team is first */}
-      {[...coachingHistory].reverse().map((stint, index) => {
+      {(Array.isArray(coachingHistory) ? [...coachingHistory].reverse() : []).map((stint, index) => {
+        if (!stint) return null
         const stintColors = getTeamColorsFromName(stint.teamName)
-        const stintPrimaryText = getContrastTextColor(stintColors.primary)
-        const stintSecondaryText = getContrastTextColor(stintColors.secondary)
+        const stintPrimaryText = getContrastTextColor(stintColors?.primary || '#4B5563')
+        const stintSecondaryText = getContrastTextColor(stintColors?.secondary || '#FFFFFF')
         const stintLogo = getTeamLogo(stint.teamName)
         // For current team, show "Present" instead of end year
         const yearRange = stint.isCurrent
@@ -441,7 +456,7 @@ export default function CoachCareer() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {/* Overall Record */}
               <div
                 className="text-center p-4 rounded-lg border-2"
@@ -529,6 +544,22 @@ export default function CoachCareer() {
                 </div>
               </div>
 
+              {/* Bowl Record */}
+              <div
+                className="text-center p-4 rounded-lg border-2"
+                style={{
+                  backgroundColor: stintColors.secondary,
+                  borderColor: stintPrimaryText
+                }}
+              >
+                <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
+                  Bowl Record
+                </div>
+                <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
+                  {stint.bowlRecord || '0-0'}
+                </div>
+              </div>
+
               {/* Conference Championships */}
               <div
                 className="text-center p-4 rounded-lg border-2"
@@ -566,7 +597,13 @@ export default function CoachCareer() {
             {(() => {
               // Build year-by-year data for this stint
               const years = []
-              for (let year = stint.startYear; year <= stint.endYear; year++) {
+              const startYear = parseInt(stint.startYear) || currentDynasty.startYear
+              const endYear = parseInt(stint.endYear) || currentDynasty.currentYear
+              // Safety check to prevent infinite loops
+              if (isNaN(startYear) || isNaN(endYear) || endYear < startYear || endYear - startYear > 50) {
+                return null
+              }
+              for (let year = startYear; year <= endYear; year++) {
                 const yearGames = stint.games?.filter(g => Number(g.year) === year) || []
                 const wins = yearGames.filter(g => g.result === 'win' || g.result === 'W').length
                 const losses = yearGames.filter(g => g.result === 'loss' || g.result === 'L').length
@@ -603,9 +640,10 @@ export default function CoachCareer() {
                 // Check for bowl result (only if not in CFP)
                 let bowlResult = null
                 if (!cfpResult) {
-                  const bowlGames = currentDynasty.bowlGamesByYear?.[year] || []
+                  const bowlGamesData = currentDynasty.bowlGamesByYear?.[year]
+                  const bowlGames = Array.isArray(bowlGamesData) ? bowlGamesData : []
                   const teamBowl = bowlGames.find(b =>
-                    b.team1 === stint.teamAbbr || b.team2 === stint.teamAbbr
+                    b && (b.team1 === stint.teamAbbr || b.team2 === stint.teamAbbr)
                   )
                   if (teamBowl && teamBowl.winner) {
                     bowlResult = {

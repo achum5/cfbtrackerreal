@@ -1,6 +1,8 @@
 // Box Score Aggregator Utility
 // Aggregates per-game box score stats into season totals for players
 
+import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
+
 /**
  * Aggregate all box score stats for a player across games in a specific year
  * @param {Object} dynasty - The dynasty object containing games
@@ -304,56 +306,86 @@ export function getPlayerSeasonStatsFromBoxScores(dynasty, player) {
 export function getPlayerGameLog(dynasty, playerName, year, teamAbbr) {
   if (!dynasty?.games || !playerName) return []
 
+  // Get all games for this year that have box scores
   const yearGames = dynasty.games.filter(g =>
     Number(g.year) === year && g.boxScore
   ).sort((a, b) => {
-    // Sort by week/game order
     const weekA = a.week || 0
     const weekB = b.week || 0
     return weekA - weekB
   })
 
   const gameLog = []
+  const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
 
   yearGames.forEach(game => {
     const boxScore = game.boxScore
-    const isHome = game.location === 'home'
-    const teamBoxScore = isHome ? boxScore.home : boxScore.away
+    if (!boxScore) return
 
-    if (!teamBoxScore) return
+    // Search BOTH home and away box scores for this player
+    // This handles all cases: user's team, opponent team, any team
+    let playerFoundIn = null // 'home' or 'away'
+    let playerStats = {}
 
-    // Find player stats in any category
-    const gameStats = {
+    for (const side of ['home', 'away']) {
+      if (!boxScore[side]) continue
+
+      categories.forEach(category => {
+        const categoryStats = boxScore[side][category]
+        if (!categoryStats || !Array.isArray(categoryStats)) return
+
+        const found = categoryStats.find(p =>
+          p.playerName?.toLowerCase().trim() === playerName.toLowerCase().trim()
+        )
+
+        if (found) {
+          playerFoundIn = side
+          playerStats[category] = { ...found }
+        }
+      })
+
+      if (playerFoundIn) break // Found player, stop searching
+    }
+
+    if (!playerFoundIn) return // Player not in this game
+
+    // Determine game details from player's perspective
+    // If player is in 'home' box score and user was home, OR player is in 'away' and user was away -> same team as user
+    const isHome = game.location === 'home' || game.location === 'Home'
+    const playerOnUserSide = (playerFoundIn === 'home' && isHome) || (playerFoundIn === 'away' && !isHome)
+
+    let opponent, playerTeamScore, playerOpponentScore, playerResult
+
+    if (playerOnUserSide) {
+      // Player is on user's team
+      opponent = game.opponent
+      playerTeamScore = game.teamScore
+      playerOpponentScore = game.opponentScore
+      playerResult = game.result
+    } else {
+      // Player is on opponent's team
+      opponent = game.userTeam || getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+      playerTeamScore = game.opponentScore
+      playerOpponentScore = game.teamScore
+      // Invert result
+      if (game.result === 'W' || game.result === 'win') {
+        playerResult = 'L'
+      } else if (game.result === 'L' || game.result === 'loss') {
+        playerResult = 'W'
+      } else {
+        playerResult = game.result
+      }
+    }
+
+    gameLog.push({
       gameId: game.id,
       week: game.week,
-      opponent: game.opponent,
-      result: game.result,
-      teamScore: game.teamScore,
-      opponentScore: game.opponentScore
-    }
-
-    let hasStats = false
-
-    // Check each category
-    const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
-
-    categories.forEach(category => {
-      const categoryStats = teamBoxScore[category]
-      if (!categoryStats || !Array.isArray(categoryStats)) return
-
-      const playerStats = categoryStats.find(p =>
-        p.playerName?.toLowerCase().trim() === playerName.toLowerCase().trim()
-      )
-
-      if (playerStats) {
-        hasStats = true
-        gameStats[category] = { ...playerStats }
-      }
+      opponent,
+      result: playerResult,
+      teamScore: playerTeamScore,
+      opponentScore: playerOpponentScore,
+      ...playerStats
     })
-
-    if (hasStats) {
-      gameLog.push(gameStats)
-    }
   })
 
   return gameLog

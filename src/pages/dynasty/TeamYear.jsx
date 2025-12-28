@@ -229,7 +229,6 @@ export default function TeamYear() {
   const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [showRecordTooltip, setShowRecordTooltip] = useState(false)
-  const [showStatsModal, setShowStatsModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -326,19 +325,50 @@ export default function TeamYear() {
     return 99
   }
   // Get games for THIS TEAM from games array
-  // IMPORTANT: Filter by g.userTeam (the team that played the game), NOT by current user's team
-  // This ensures games stay with the team that played them, even after user switches teams
-  const teamGamesFromArray = (currentDynasty.games || []).filter(g => {
-    if (g.isCPUGame) return false
-    if (Number(g.year) !== Number(selectedYear)) return false
-    // Check if game was played by this team
-    // g.userTeam is the team abbreviation that played this game
-    if (g.userTeam === teamAbbr) return true
-    // Legacy fallback: if no userTeam field and this is the current user's team, include it
-    // (for games saved before userTeam field was added)
-    if (!g.userTeam && isUserTeam) return true
-    return false
-  })
+  // Includes games where team was the userTeam OR the opponent
+  const teamGamesFromArray = (() => {
+    const games = currentDynasty.games || []
+    const result = []
+
+    games.forEach(g => {
+      if (g.isCPUGame) return
+      if (Number(g.year) !== Number(selectedYear)) return
+
+      // Games played AS this team
+      if (g.userTeam === teamAbbr) {
+        result.push(g)
+        return
+      }
+
+      // Legacy fallback: if no userTeam field and this is the current user's team
+      if (!g.userTeam && isUserTeam) {
+        result.push(g)
+        return
+      }
+
+      // Games played AGAINST this team - flip perspective for display only
+      if (g.opponent === teamAbbr) {
+        // Flip the result
+        const flippedResult = g.result === 'win' || g.result === 'W' ? 'loss' :
+                              g.result === 'loss' || g.result === 'L' ? 'win' : g.result
+        // Flip the location
+        const flippedLocation = g.location === 'home' ? 'away' :
+                                g.location === 'away' ? 'home' : g.location
+        result.push({
+          ...g,
+          // Keep original ID so game page link works
+          _displayOpponent: g.userTeam, // For display: show who they played against
+          _displayResult: flippedResult,
+          _displayLocation: flippedLocation,
+          _displayTeamScore: g.opponentScore,
+          _displayOpponentScore: g.teamScore,
+          _isFlippedPerspective: true // Flag to identify flipped games
+        })
+      }
+    })
+
+    return result
+  })()
 
   // Also check if there's a bowl game in bowlGamesByYear that should be included
   const yearBowlDataForTeam = currentDynasty.bowlGamesByYear?.[selectedYear] || {}
@@ -990,8 +1020,8 @@ export default function TeamYear() {
 
           {/* Stats Button - only show if we have team stats from games for this year */}
           {seasonStats.gamesWithStats > 0 && (
-            <button
-              onClick={() => setShowStatsModal(true)}
+            <Link
+              to={`${pathPrefix}/team-stats/${teamAbbr}/${selectedYear}`}
               className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-opacity text-sm sm:text-base"
               style={{
                 backgroundColor: teamInfo.backgroundColor,
@@ -1003,7 +1033,7 @@ export default function TeamYear() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Stats
-            </button>
+            </Link>
           )}
         </div>
 
@@ -1910,11 +1940,18 @@ export default function TeamYear() {
 
           <div className="space-y-2 p-2 sm:p-4">
             {teamYearGames.map((game, index) => {
-              const oppMascot = getMascotName(game.opponent)
+              // Use display values for flipped games, otherwise use original values
+              const displayOpponent = game._isFlippedPerspective ? game._displayOpponent : game.opponent
+              const displayResult = game._isFlippedPerspective ? game._displayResult : game.result
+              const displayLocation = game._isFlippedPerspective ? game._displayLocation : game.location
+              const displayTeamScore = game._isFlippedPerspective ? game._displayTeamScore : game.teamScore
+              const displayOpponentScore = game._isFlippedPerspective ? game._displayOpponentScore : game.opponentScore
+
+              const oppMascot = getMascotName(displayOpponent)
               const oppLogo = oppMascot ? getTeamLogo(oppMascot) : null
-              const oppColors = teamAbbreviations[game.opponent] || { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              const isWin = game.result === 'win' || game.result === 'W'
-              const isLoss = game.result === 'loss' || game.result === 'L'
+              const oppColors = teamAbbreviations[displayOpponent] || { backgroundColor: '#6b7280', textColor: '#ffffff' }
+              const isWin = displayResult === 'win' || displayResult === 'W'
+              const isLoss = displayResult === 'loss' || displayResult === 'L'
               const hasResult = isWin || isLoss
 
               // Generate proper game ID for CFP games (don't trust stored id which may be "peach"/"fiesta")
@@ -1959,11 +1996,11 @@ export default function TeamYear() {
                           color: oppColors.backgroundColor
                         }}
                       >
-                        {game.location === 'away' ? '@' : 'vs'}
+                        {displayLocation === 'away' ? '@' : 'vs'}
                       </span>
                       {oppLogo && (
                         <Link
-                          to={`${pathPrefix}/team/${game.opponent}/${selectedYear}`}
+                          to={`${pathPrefix}/team/${displayOpponent}/${selectedYear}`}
                           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform"
                           style={{
                             backgroundColor: '#FFFFFF',
@@ -1986,12 +2023,12 @@ export default function TeamYear() {
                           </span>
                         )}
                         <Link
-                          to={`${pathPrefix}/team/${game.opponent}/${selectedYear}`}
+                          to={`${pathPrefix}/team/${displayOpponent}/${selectedYear}`}
                           className="font-semibold hover:underline text-sm sm:text-base truncate"
                           style={{ color: oppColors.textColor }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {oppMascot || game.opponent}
+                          {oppMascot || displayOpponent}
                         </Link>
                       </div>
                     </div>
@@ -2009,7 +2046,7 @@ export default function TeamYear() {
                       </div>
                       <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
-                          {game.teamScore} - {game.opponentScore}
+                          {displayTeamScore} - {displayOpponentScore}
                           {game.overtimes && game.overtimes.length > 0 && (
                             <span className="ml-1 text-xs opacity-80">
                               {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
@@ -2475,178 +2512,6 @@ export default function TeamYear() {
         teamAbbr={teamAbbr}
         teamName={mascotName || teamAbbr}
       />
-
-      {/* Season Stats Modal */}
-      {showStatsModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
-          style={{ margin: 0 }}
-          onClick={() => setShowStatsModal(false)}
-        >
-          <div
-            className="rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
-            style={{ backgroundColor: viewedTeamColors.secondary }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              className="px-6 py-4 flex items-center justify-between flex-shrink-0"
-              style={{ backgroundColor: viewedTeamColors.primary }}
-            >
-              <div className="flex items-center gap-3">
-                {getTeamLogo(mascotName || teamAbbr) && (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white p-1.5">
-                    <img
-                      src={getTeamLogo(mascotName || teamAbbr)}
-                      alt={mascotName || teamAbbr}
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                )}
-                <div>
-                  <h3 className="text-xl font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
-                    {selectedYear} Team Stats
-                  </h3>
-                  <p className="text-sm opacity-80" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
-                    {seasonStats.gamesWithStats} {seasonStats.gamesWithStats === 1 ? 'Game' : 'Games'} with Stats
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowStatsModal(false)}
-                className="p-2 rounded-full hover:bg-white/20 transition-colors"
-                style={{ color: getContrastTextColor(viewedTeamColors.primary) }}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              {/* Per Game Averages */}
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                  Per Game Averages
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {[
-                    { label: 'Points/G', value: ((seasonStats.rushTds * 6 + seasonStats.passTds * 6 + seasonStats.redZoneFg * 3) / seasonStats.gamesWithStats).toFixed(1) },
-                    { label: 'Total Off/G', value: (seasonStats.totalOffense / seasonStats.gamesWithStats).toFixed(1) },
-                    { label: 'Rush Yds/G', value: (seasonStats.rushYards / seasonStats.gamesWithStats).toFixed(1) },
-                    { label: 'Pass Yds/G', value: (seasonStats.passYards / seasonStats.gamesWithStats).toFixed(1) },
-                    { label: 'First Downs/G', value: (seasonStats.firstDowns / seasonStats.gamesWithStats).toFixed(1) },
-                    { label: 'Turnovers/G', value: (seasonStats.turnovers / seasonStats.gamesWithStats).toFixed(1) }
-                  ].map((stat, idx) => (
-                    <div
-                      key={idx}
-                      className="text-center p-3 rounded-lg"
-                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
-                    >
-                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                        {stat.label}
-                      </div>
-                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
-                        {stat.value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Season Totals */}
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                  Season Totals
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {[
-                    { label: 'Rush Yards', value: seasonStats.rushYards.toLocaleString(), sub: `${seasonStats.rushAttempts} att` },
-                    { label: 'Rush TDs', value: seasonStats.rushTds },
-                    { label: 'Pass Yards', value: seasonStats.passYards.toLocaleString(), sub: `${seasonStats.completions}/${seasonStats.passAttempts}` },
-                    { label: 'Pass TDs', value: seasonStats.passTds },
-                    { label: 'Total TDs', value: seasonStats.rushTds + seasonStats.passTds },
-                    { label: 'Total Yards', value: (seasonStats.totalYards > 0 ? seasonStats.totalYards : seasonStats.totalOffense).toLocaleString() }
-                  ].map((stat, idx) => (
-                    <div
-                      key={idx}
-                      className="text-center p-3 rounded-lg"
-                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
-                    >
-                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                        {stat.label}
-                      </div>
-                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
-                        {stat.value}
-                      </div>
-                      {stat.sub && (
-                        <div className="text-xs mt-0.5" style={{ color: secondaryBgText, opacity: 0.6 }}>
-                          {stat.sub}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Efficiency Stats */}
-              <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                  Efficiency
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {[
-                    {
-                      label: '3rd Down %',
-                      value: seasonStats.thirdDownAtt > 0 ? `${((seasonStats.thirdDownConv / seasonStats.thirdDownAtt) * 100).toFixed(1)}%` : '--',
-                      sub: `${seasonStats.thirdDownConv}/${seasonStats.thirdDownAtt}`
-                    },
-                    {
-                      label: '4th Down %',
-                      value: seasonStats.fourthDownAtt > 0 ? `${((seasonStats.fourthDownConv / seasonStats.fourthDownAtt) * 100).toFixed(1)}%` : '--',
-                      sub: `${seasonStats.fourthDownConv}/${seasonStats.fourthDownAtt}`
-                    },
-                    {
-                      label: 'Red Zone',
-                      value: seasonStats.redZoneTd + seasonStats.redZoneFg,
-                      sub: `${seasonStats.redZoneTd} TD, ${seasonStats.redZoneFg} FG`
-                    },
-                    {
-                      label: 'Comp %',
-                      value: seasonStats.passAttempts > 0 ? `${((seasonStats.completions / seasonStats.passAttempts) * 100).toFixed(1)}%` : '--'
-                    },
-                    {
-                      label: 'Turnovers',
-                      value: seasonStats.turnovers,
-                      sub: `${seasonStats.fumblesLost} Fum, ${seasonStats.interceptions} INT`
-                    },
-                    { label: 'Penalties', value: seasonStats.penalties }
-                  ].map((stat, idx) => (
-                    <div
-                      key={idx}
-                      className="text-center p-3 rounded-lg"
-                      style={{ backgroundColor: `${viewedTeamColors.primary}15` }}
-                    >
-                      <div className="text-xs font-semibold mb-1" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                        {stat.label}
-                      </div>
-                      <div className="text-xl font-bold" style={{ color: secondaryBgText }}>
-                        {stat.value}
-                      </div>
-                      {stat.sub && (
-                        <div className="text-xs mt-0.5" style={{ color: secondaryBgText, opacity: 0.6 }}>
-                          {stat.sub}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -214,6 +214,15 @@ Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
 - **Punting**: `punts`, `puntYards`, `puntLong`, `puntIn20`
 - **Returns**: `kickReturns`, `kickReturnYards`, `puntReturns`, `puntReturnYards`
 
+## Current Work
+
+**Team Stats Google Sheet** - End of season recap feature with two-tab structure:
+- **Offense Tab**: Points, Offense Yards, Yards Per Play, Passing Yards, Passing Yards Per Game, Passing TDs, Rushing Yards, Rushing Yards Per Carry, Rushing TDs, First Downs
+- **Defense Tab**: Points Allowed, Total Yards Allowed, Passing Yards Allowed, Rushing Yards Allowed, Sacks, Forced Fumbles, Interceptions
+- Pre-fills with aggregated box score data from all games
+- Manual override system: sheet values override box score aggregations (like player stats)
+- Display on TeamStats.jsx page shows totals and per-game averages
+
 ## TODO / Future Work
 
 - Team stats: CFP Appearances, National Titles, Heisman Winners, All-Americans

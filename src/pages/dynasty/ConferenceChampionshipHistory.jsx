@@ -314,9 +314,6 @@ export default function ConferenceChampionshipHistory() {
                             >
                               {team1Mascot || game.team1}
                             </span>
-                            {winner === game.team1 && (
-                              <span className="text-yellow-500 text-sm">&#127942;</span>
-                            )}
                           </div>
 
                           {/* Score */}
@@ -336,9 +333,6 @@ export default function ConferenceChampionshipHistory() {
 
                           {/* Team 2 */}
                           <div className="flex items-center gap-2 flex-1 justify-end">
-                            {winner === game.team2 && (
-                              <span className="text-yellow-500 text-sm">&#127942;</span>
-                            )}
                             <span
                               className={`font-semibold ${winner === game.team2 ? '' : 'opacity-60'}`}
                               style={{ color: team2Info?.backgroundColor || '#333' }}

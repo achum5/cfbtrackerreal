@@ -1342,11 +1342,11 @@ export default function GameEntryModal({
       onMouseDown={onClose}
     >
       <div
-        className="rounded-lg shadow-xl w-full max-w-4xl max-h-[calc(100vh-4rem)] sm:max-h-[95vh] overflow-y-auto"
+        className="rounded-lg shadow-xl w-full max-w-4xl max-h-[calc(100vh-4rem)] sm:max-h-[95vh] flex flex-col overflow-hidden"
         style={{ backgroundColor: teamColors.secondary }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b-2 z-10 gap-2"
+        <div className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b-2 z-10 gap-2"
           style={{
             backgroundColor: teamColors.secondary,
             borderColor: teamColors.primary
@@ -1417,7 +1417,8 @@ export default function GameEntryModal({
           </div>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="p-3 sm:p-6 space-y-4 sm:space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6 pb-0">
           {/* Score Section */}
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
@@ -1928,7 +1929,7 @@ export default function GameEntryModal({
           {!isCPUGame && (
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
-              Opponent Record
+              Opponent Record <span className="text-xs sm:text-sm font-normal opacity-70">(after this game)</span>
             </h3>
 
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -2501,8 +2502,10 @@ export default function GameEntryModal({
             })()}
           </div>
 
-          {/* Buttons */}
-          <div className="flex gap-2 sm:gap-3 pt-3 sm:pt-4 border-t-2" style={{ borderColor: teamColors.primary }}>
+          </div>
+
+          {/* Buttons - Sticky Footer */}
+          <div className="flex-shrink-0 flex gap-2 sm:gap-3 p-3 sm:p-6 pt-3 sm:pt-4 border-t-2" style={{ borderColor: teamColors.primary, backgroundColor: teamColors.secondary }}>
             <button
               type="button"
               onClick={onClose}
