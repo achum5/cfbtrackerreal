@@ -48,6 +48,15 @@ export default function GameEntryModal({
   const actualWeekNumber = existingGame?.week ?? (isConferenceChampionship ? 'CC' : (currentDynasty?.currentPhase === 'regular_season' && weekNumber === 0 ? 1 : weekNumber))
   const actualYear = existingGame?.year ?? currentYear ?? currentDynasty?.currentYear
 
+  // Helper to get the latest game data from dynasty (for box score syncing)
+  // This ensures we don't lose previously synced data when syncing another part
+  const getLatestGameData = () => {
+    if (!existingGame?.id) return existingGame
+    const games = currentDynasty?.games || []
+    const latestGame = games.find(g => g.id === existingGame.id)
+    return latestGame || existingGame
+  }
+
   // Find the scheduled game for this week (not for CC games)
   const scheduledGame = isConferenceChampionship ? null : currentDynasty?.schedule?.find(g => g.week === actualWeekNumber)
 
@@ -2526,11 +2535,12 @@ export default function GameEntryModal({
             onClose={() => setShowHomeStatsModal(false)}
             onSave={async (stats) => {
               if (existingGame) {
-                // Existing game - update immediately
+                // Existing game - get latest data and update
+                const latestGame = getLatestGameData()
                 const updatedGame = {
-                  ...existingGame,
+                  ...latestGame,
                   boxScore: {
-                    ...existingGame.boxScore,
+                    ...latestGame.boxScore,
                     home: stats
                   }
                 }
@@ -2565,11 +2575,12 @@ export default function GameEntryModal({
             onClose={() => setShowAwayStatsModal(false)}
             onSave={async (stats) => {
               if (existingGame) {
-                // Existing game - update immediately
+                // Existing game - get latest data and update
+                const latestGame = getLatestGameData()
                 const updatedGame = {
-                  ...existingGame,
+                  ...latestGame,
                   boxScore: {
-                    ...existingGame.boxScore,
+                    ...latestGame.boxScore,
                     away: stats
                   }
                 }
@@ -2604,11 +2615,12 @@ export default function GameEntryModal({
             onClose={() => setShowScoringModal(false)}
             onSave={async (scoringSummary) => {
               if (existingGame) {
-                // Existing game - update immediately
+                // Existing game - get latest data and update
+                const latestGame = getLatestGameData()
                 const updatedGame = {
-                  ...existingGame,
+                  ...latestGame,
                   boxScore: {
-                    ...existingGame.boxScore,
+                    ...latestGame.boxScore,
                     scoringSummary
                   }
                 }
@@ -2643,11 +2655,12 @@ export default function GameEntryModal({
             onClose={() => setShowTeamStatsModal(false)}
             onSave={async (teamStats) => {
               if (existingGame) {
-                // Existing game - update immediately
+                // Existing game - get latest data and update
+                const latestGame = getLatestGameData()
                 const updatedGame = {
-                  ...existingGame,
+                  ...latestGame,
                   boxScore: {
-                    ...existingGame.boxScore,
+                    ...latestGame.boxScore,
                     teamStats
                   }
                 }
