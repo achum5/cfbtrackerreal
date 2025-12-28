@@ -158,6 +158,13 @@ export default function BoxScoreSheetModal({
     }
   }, [isOpen])
 
+  // Reset session error when modal opens or sheetId changes
+  useEffect(() => {
+    if (isOpen) {
+      setShowSessionError(false)
+    }
+  }, [isOpen, sheetId])
+
   // Load existing sheet or create new one
   useEffect(() => {
     const initSheet = async () => {

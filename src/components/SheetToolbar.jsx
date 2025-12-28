@@ -35,11 +35,14 @@ export default function SheetToolbar({
   }
 
   // Detect iframe load errors (session mismatch, etc.)
-  // Note: Cross-origin restrictions limit what we can detect,
-  // but we can at least detect if the iframe fails to load
+  // Note: Cross-origin restrictions severely limit what we can detect.
+  // The onError event rarely fires for cross-origin iframes, so we
+  // DON'T trigger onSessionError here to avoid false positives.
+  // Users can manually click "Reload" or "Open in New Tab" if needed.
   const handleIframeError = () => {
     setHasError(true)
-    onSessionError?.()
+    // Don't call onSessionError - it causes false positives
+    // onSessionError?.()
   }
 
   return (
