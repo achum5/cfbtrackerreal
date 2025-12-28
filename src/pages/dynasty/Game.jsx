@@ -994,9 +994,15 @@ export default function Game() {
               if (scoreType === 'Field Goal') return 3
               // Safety
               if (scoreType === 'Safety') return 2
+              // Standalone 2PT conversion (no scorer, just patResult)
+              if (!play.scorer && patResult.includes('Converted 2PT')) return 2
+              if (!play.scorer && patResult.includes('Failed 2PT')) return 0
 
               return 0
             }
+
+            // Check if play is a standalone 2PT attempt
+            const is2PTAttempt = (play) => !play.scorer && play.patResult && play.patResult.includes('2PT')
 
             // Calculate running scores
             let leftScore = 0
@@ -1081,10 +1087,10 @@ export default function Game() {
                                 {getMascotName(play.team) || play.team}
                               </span>
                               <span className="text-gray-400 text-sm">
-                                {play.scoreType}
+                                {is2PTAttempt(play) ? '2PT Conversion' : play.scoreType}
                                 {play.yards && ` (${play.yards} yds)`}
                               </span>
-                              {play.patResult && (
+                              {play.patResult && !is2PTAttempt(play) && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
                                   play.patResult.includes('Made') || play.patResult.includes('Converted')
                                     ? 'bg-green-500/30 text-green-300'
@@ -1093,25 +1099,42 @@ export default function Game() {
                                   {play.patResult}
                                 </span>
                               )}
+                              {is2PTAttempt(play) && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  play.patResult.includes('Converted')
+                                    ? 'bg-green-500/30 text-green-300'
+                                    : 'bg-red-500/30 text-red-300'
+                                }`}>
+                                  {play.patResult.includes('Converted') ? 'Good' : 'Failed'}
+                                </span>
+                              )}
                             </div>
                             <div className="text-gray-300 text-xs mt-1">
-                              {scorerPID ? (
-                                <Link to={`${pathPrefix}/player/${scorerPID}`} className="font-medium hover:underline hover:text-blue-300">
-                                  {play.scorer}
-                                </Link>
-                              ) : <span className="font-medium">{play.scorer}</span>}
-                              {play.passer && (
+                              {is2PTAttempt(play) ? (
+                                <span className="font-medium text-gray-400">
+                                  {play.patNotes || (play.patResult.includes('Converted') ? 'Successful conversion' : 'Conversion failed')}
+                                </span>
+                              ) : (
                                 <>
-                                  {' from '}
-                                  {passerPID ? (
-                                    <Link to={`${pathPrefix}/player/${passerPID}`} className="font-medium hover:underline hover:text-blue-300">
-                                      {play.passer}
+                                  {scorerPID ? (
+                                    <Link to={`${pathPrefix}/player/${scorerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                      {play.scorer}
                                     </Link>
-                                  ) : <span className="font-medium">{play.passer}</span>}
+                                  ) : <span className="font-medium">{play.scorer}</span>}
+                                  {play.passer && (
+                                    <>
+                                      {' from '}
+                                      {passerPID ? (
+                                        <Link to={`${pathPrefix}/player/${passerPID}`} className="font-medium hover:underline hover:text-blue-300">
+                                          {play.passer}
+                                        </Link>
+                                      ) : <span className="font-medium">{play.passer}</span>}
+                                    </>
+                                  )}
+                                  {play.patNotes && (
+                                    <span className="text-gray-400 ml-2">({play.patNotes})</span>
+                                  )}
                                 </>
-                              )}
-                              {play.patNotes && (
-                                <span className="text-gray-400 ml-2">({play.patNotes})</span>
                               )}
                             </div>
                           </div>
