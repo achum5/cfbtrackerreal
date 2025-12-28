@@ -301,35 +301,35 @@ export default function Home() {
         </div>
       ) : (
         <div>
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Your Dynasties</h1>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Your Dynasties</h1>
+            <div className="flex gap-2 flex-wrap">
               <Link
                 to="/create"
-                className="bg-gray-800 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-700"
+                className="bg-gray-800 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-700"
               >
                 + New
               </Link>
               <button
                 onClick={handleImportClick}
                 disabled={importing}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="bg-gray-600 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 sm:gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                {importing ? 'Importing...' : 'Import'}
+                <span className="hidden sm:inline">{importing ? 'Importing...' : 'Import'}</span>
               </button>
               {hasNonStarred && (
                 <button
                   onClick={handleDeleteAllClick}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-red-700 flex items-center gap-2"
+                  className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm transition-colors hover:bg-red-700 flex items-center gap-1 sm:gap-2"
                   title={`Delete ${nonStarredDynasties.length} non-starred dynasties`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete All
+                  <span className="hidden sm:inline">Delete All</span>
                 </button>
               )}
             </div>
@@ -366,11 +366,11 @@ export default function Home() {
                     <div className="flex items-center gap-3 sm:gap-4">
                       {logoUrl && (
                         <div
-                          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                          className="w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{
                             backgroundColor: '#FFFFFF',
                             border: `2px solid ${colors.secondary}`,
-                            padding: '3px'
+                            padding: '2px'
                           }}
                         >
                           <img
@@ -380,30 +380,30 @@ export default function Home() {
                           />
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 overflow-hidden">
                         <h2
-                          className="text-base sm:text-lg font-bold truncate"
+                          className="text-sm sm:text-lg font-bold truncate"
                           style={{ color: textColor }}
                         >
                           {dynasty.teamName}
                         </h2>
-                        <div className="flex items-center gap-1.5 sm:gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           {conference && getConferenceLogo(conference) && (
                             <img
                               src={getConferenceLogo(conference)}
                               alt={`${conference} logo`}
-                              className="w-3.5 h-3.5 sm:w-4 sm:h-4 object-contain opacity-80 flex-shrink-0"
+                              className="w-3 h-3 sm:w-4 sm:h-4 object-contain opacity-80 flex-shrink-0"
                             />
                           )}
                           <p
-                            className="text-xs sm:text-sm opacity-80 truncate"
+                            className="text-[11px] sm:text-sm opacity-80 truncate"
                             style={{ color: textColor }}
                           >
                             {conference ? `${conference} • ` : ''}{dynasty.currentYear}
                           </p>
                         </div>
                         <p
-                          className="text-xs mt-0.5 sm:mt-1 opacity-70 truncate"
+                          className="text-[10px] sm:text-xs mt-0.5 opacity-70 truncate"
                           style={{ color: textColor }}
                         >
                           {weekPhase}
