@@ -73,7 +73,7 @@ export const STAT_TAB_ORDER = [
 // Scoring Summary configuration
 export const SCORING_SUMMARY = {
   title: 'Scoring Summary',
-  headers: ['Team', 'Scorer', 'Passer', 'Yards', 'Score Type', 'PAT Result', 'PAT Notes', 'Quarter', 'Time Left'],
+  headers: ['Team', 'Scorer', 'Passer', 'Yards', 'Score Type', 'PAT Result', 'PAT Notes', 'Quarter', 'Time Left', 'Video Link'],
   rowCount: 30
 }
 

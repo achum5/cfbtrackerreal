@@ -9758,8 +9758,8 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    // Updated to column I (9 columns) to include PAT Result and PAT Notes
-    const range = `'${SCORING_SUMMARY.title}'!A2:I${SCORING_SUMMARY.rowCount + 1}`
+    // Updated to column J (10 columns) to include Video Link
+    const range = `'${SCORING_SUMMARY.title}'!A2:J${SCORING_SUMMARY.rowCount + 1}`
     const response = await fetch(
       `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
@@ -9777,7 +9777,7 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    // Parse rows into objects - columns: Team, Scorer, Passer, Yards, Score Type, PAT Result, PAT Notes, Quarter, Time Left
+    // Parse rows into objects - columns: Team, Scorer, Passer, Yards, Score Type, PAT Result, PAT Notes, Quarter, Time Left, Video Link
     return rows
       .filter(row => {
         const hasTeam = row[0] && row[0].trim()
@@ -9796,7 +9796,8 @@ export async function readScoringSummaryFromSheet(spreadsheetId) {
         patResult: (row[5] || '').trim(),
         patNotes: (row[6] || '').trim(),
         quarter: (row[7] || '').trim(),
-        timeLeft: (row[8] || '').trim()
+        timeLeft: (row[8] || '').trim(),
+        videoLink: (row[9] || '').trim()
       }))
   } catch (error) {
     console.error('Error reading scoring summary:', error)
