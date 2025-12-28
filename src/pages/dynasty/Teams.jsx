@@ -173,19 +173,22 @@ export default function Teams() {
 
   if (!currentDynasty) return null
 
-  // Get all teams with their info, sorted alphabetically by mascot name
-  const allTeams = Object.entries(teamAbbreviations).map(([abbr, team]) => ({
-    abbr,
-    name: team.name,
-    backgroundColor: team.backgroundColor,
-    textColor: team.textColor,
-    conference: getTeamConference(abbr),
-    mascotName: getMascotName(abbr)
-  })).sort((a, b) => {
-    const nameA = a.mascotName || a.name
-    const nameB = b.mascotName || b.name
-    return nameA.localeCompare(nameB)
-  })
+  // Get all FBS teams with their info, sorted alphabetically by mascot name
+  // Filter out FCS teams (abbreviations starting with 'FCS')
+  const allTeams = Object.entries(teamAbbreviations)
+    .filter(([abbr]) => !abbr.startsWith('FCS'))
+    .map(([abbr, team]) => ({
+      abbr,
+      name: team.name,
+      backgroundColor: team.backgroundColor,
+      textColor: team.textColor,
+      conference: getTeamConference(abbr),
+      mascotName: getMascotName(abbr)
+    })).sort((a, b) => {
+      const nameA = a.mascotName || a.name
+      const nameB = b.mascotName || b.name
+      return nameA.localeCompare(nameB)
+    })
 
   // Filter teams by search
   const filteredTeams = allTeams.filter(team => {
