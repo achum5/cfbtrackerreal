@@ -1068,7 +1068,7 @@ export default function Game() {
                               className="text-xs font-bold px-2 py-0.5 rounded"
                               style={{ backgroundColor: playTeamColors.primary + '40', color: 'white' }}
                             >
-                              Q{play.quarter}
+                              {play.quarter === 'OT' || play.quarter?.toString().includes('OT') ? 'OT' : `Q${play.quarter}`}
                             </div>
                             <div className="text-gray-400 text-xs mt-1 font-mono">{play.timeLeft}</div>
                           </div>
