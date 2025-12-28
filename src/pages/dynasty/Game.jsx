@@ -1177,6 +1177,16 @@ export default function Game() {
           { label: 'Possession', home: formatPoss(homeStats.possMinutes, homeStats.possSeconds), away: formatPoss(awayStats.possMinutes, awayStats.possSeconds), bold: true }
         ]
 
+        // Helper to check if a value is empty (dash, 0, or combinations like "-" or "0-0")
+        const isEmpty = (v) => {
+          if (v == null || v === '' || v === '-') return true
+          const str = String(v).replace(/[-0\s]/g, '')
+          return str === ''
+        }
+
+        // Filter out rows where both teams have no data
+        const filteredStatRows = statRows.filter(row => !isEmpty(row.home) || !isEmpty(row.away))
+
         return (
           <div className="rounded-xl overflow-hidden shadow-lg bg-gray-900">
             <div className="px-4 py-3 border-b border-gray-700">
@@ -1205,7 +1215,7 @@ export default function Game() {
             </div>
             {/* Stats rows */}
             <div className="divide-y divide-gray-800/50">
-              {statRows.map((row, idx) => {
+              {filteredStatRows.map((row, idx) => {
                 // Determine which team has the better stat (higher is better for most, lower for turnovers)
                 // Left side = away team, Right side = home team (standard sports convention)
                 const isLowerBetter = row.label.includes('Turnover') || row.label.includes('Fumble') || row.label.includes('Interception') || row.label === 'Penalties'
