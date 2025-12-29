@@ -1045,15 +1045,16 @@ export function DynastyProvider({ children }) {
     const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
     const existingGames = dynasty.games || []
 
-    // Filter out existing CPU bowl games for this year and week to avoid duplicates
+    // Filter out existing bowl games for this year and week to avoid duplicates
+    // (Both CPU and user bowl games entered via the modal will be replaced)
     const filteredGames = existingGames.filter(g => {
-      // Keep user games
-      if (!g.isCPUGame) return true
       // Keep games from different years
       if (Number(g.year) !== Number(year)) return true
+      // Keep non-bowl games
+      if (!g.isBowlGame) return true
       // Keep games from different bowl weeks
       if (g.bowlWeek !== week) return true
-      // Remove CPU bowl games from same year/week (will be replaced)
+      // Remove bowl games from same year/week (will be replaced with fresh data)
       return false
     })
 
@@ -1064,8 +1065,6 @@ export function DynastyProvider({ children }) {
         if (!bowl.team1 || !bowl.team2) return false
         if (bowl.team1Score === null || bowl.team1Score === undefined) return false
         if (bowl.team2Score === null || bowl.team2Score === undefined) return false
-        // Skip user's bowl game (they enter it separately with full details)
-        if (bowl.team1 === userTeamAbbr || bowl.team2 === userTeamAbbr) return false
         return true
       })
       .map(bowl => {
@@ -1075,9 +1074,12 @@ export function DynastyProvider({ children }) {
         const winner = team1Score > team2Score ? bowl.team1 : bowl.team2
         const winnerIsTeam1 = winner === bowl.team1
 
+        // Check if this is the user's bowl game
+        const isUserBowlGame = bowl.team1 === userTeamAbbr || bowl.team2 === userTeamAbbr
+
         return {
           id: `bowl-${year}-${bowl.bowlName?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
-          isCPUGame: true,
+          isCPUGame: !isUserBowlGame, // User's bowl game is not a CPU game
           isBowlGame: true,
           bowlName: bowl.bowlName,
           bowlWeek: week,
@@ -1090,12 +1092,22 @@ export function DynastyProvider({ children }) {
           team1Score: team1Score,
           team2Score: team2Score,
           winner: winner,
-          // For display purposes (from winner's perspective)
-          viewingTeamAbbr: winner,
-          opponent: winnerIsTeam1 ? bowl.team2 : bowl.team1,
-          teamScore: winnerIsTeam1 ? team1Score : team2Score,
-          opponentScore: winnerIsTeam1 ? team2Score : team1Score,
-          result: 'win',
+          // For user's game, set userTeam properly
+          userTeam: isUserBowlGame ? userTeamAbbr : winner,
+          // For display purposes
+          viewingTeamAbbr: isUserBowlGame ? userTeamAbbr : winner,
+          opponent: isUserBowlGame
+            ? (bowl.team1 === userTeamAbbr ? bowl.team2 : bowl.team1)
+            : (winnerIsTeam1 ? bowl.team2 : bowl.team1),
+          teamScore: isUserBowlGame
+            ? (bowl.team1 === userTeamAbbr ? team1Score : team2Score)
+            : (winnerIsTeam1 ? team1Score : team2Score),
+          opponentScore: isUserBowlGame
+            ? (bowl.team1 === userTeamAbbr ? team2Score : team1Score)
+            : (winnerIsTeam1 ? team2Score : team1Score),
+          result: isUserBowlGame
+            ? (winner === userTeamAbbr ? 'win' : 'loss')
+            : 'win',
           // Preserve any notes/links if they exist
           gameNote: bowl.gameNote || '',
           links: bowl.links || '',
@@ -1135,15 +1147,14 @@ export function DynastyProvider({ children }) {
     const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
     const existingGames = dynasty.games || []
 
-    // Filter out existing CPU conference championship games for this year to avoid duplicates
+    // Filter out existing conference championship games for this year to avoid duplicates
+    // (Both CPU and user CC games entered via the modal will be replaced)
     const filteredGames = existingGames.filter(g => {
-      // Keep user games
-      if (!g.isCPUGame) return true
       // Keep games from different years
       if (Number(g.year) !== Number(year)) return true
       // Keep non-CC games
       if (!g.isConferenceChampionship) return true
-      // Remove CPU CC games from same year (will be replaced)
+      // Remove CC games from same year (will be replaced with fresh data)
       return false
     })
 
@@ -1154,8 +1165,6 @@ export function DynastyProvider({ children }) {
         if (!cc.team1 || !cc.team2) return false
         if (cc.team1Score === null || cc.team1Score === undefined) return false
         if (cc.team2Score === null || cc.team2Score === undefined) return false
-        // Skip user's CC game (they enter it separately with full details)
-        if (cc.team1 === userTeamAbbr || cc.team2 === userTeamAbbr) return false
         return true
       })
       .map(cc => {
@@ -1165,9 +1174,12 @@ export function DynastyProvider({ children }) {
         const winner = team1Score > team2Score ? cc.team1 : cc.team2
         const winnerIsTeam1 = winner === cc.team1
 
+        // Check if this is the user's CC game
+        const isUserCCGame = cc.team1 === userTeamAbbr || cc.team2 === userTeamAbbr
+
         return {
           id: `cc-${year}-${cc.conference?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
-          isCPUGame: true,
+          isCPUGame: !isUserCCGame, // User's CC game is not a CPU game
           isConferenceChampionship: true,
           conference: cc.conference,
           year: Number(year),
@@ -1179,12 +1191,22 @@ export function DynastyProvider({ children }) {
           team1Score: team1Score,
           team2Score: team2Score,
           winner: winner,
-          // For display purposes (from winner's perspective)
-          viewingTeamAbbr: winner,
-          opponent: winnerIsTeam1 ? cc.team2 : cc.team1,
-          teamScore: winnerIsTeam1 ? team1Score : team2Score,
-          opponentScore: winnerIsTeam1 ? team2Score : team1Score,
-          result: 'win',
+          // For user's game, set userTeam properly
+          userTeam: isUserCCGame ? userTeamAbbr : winner,
+          // For display purposes
+          viewingTeamAbbr: isUserCCGame ? userTeamAbbr : winner,
+          opponent: isUserCCGame
+            ? (cc.team1 === userTeamAbbr ? cc.team2 : cc.team1)
+            : (winnerIsTeam1 ? cc.team2 : cc.team1),
+          teamScore: isUserCCGame
+            ? (cc.team1 === userTeamAbbr ? team1Score : team2Score)
+            : (winnerIsTeam1 ? team1Score : team2Score),
+          opponentScore: isUserCCGame
+            ? (cc.team1 === userTeamAbbr ? team2Score : team1Score)
+            : (winnerIsTeam1 ? team2Score : team1Score),
+          result: isUserCCGame
+            ? (winner === userTeamAbbr ? 'win' : 'loss')
+            : 'win',
           // Preserve any notes/links if they exist
           gameNote: cc.gameNote || '',
           links: cc.links || '',

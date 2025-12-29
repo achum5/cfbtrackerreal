@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -34,6 +34,9 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -81,44 +84,41 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Create CFP seeds sheet when modal opens
+  // Create fresh CFP seeds sheet when modal opens (always new, pre-filled with existing data)
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP seeds sheet for this year
-        const existingSheetId = currentDynasty?.cfpSeedsSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Get existing seeds data to pre-fill
+          const existingSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
+
           const sheetInfo = await createCFPSeedsSheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            existingSeeds
           )
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            cfpSeedsSheetId: sheetInfo.spreadsheetId
-          })
         } catch (error) {
           console.error('Failed to create CFP seeds sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, currentYear, retryCount, showDeletedNote])
 
-  // Reset state when modal closes
+  // Reset state when modal closes - clear sheetId so fresh sheet is created next time
   useEffect(() => {
     if (!isOpen) {
+      setSheetId(null)
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
@@ -177,7 +177,6 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { cfpSeedsSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

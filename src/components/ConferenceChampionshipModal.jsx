@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -18,7 +18,7 @@ const isMobileDevice = () => {
 }
 
 export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -35,6 +35,9 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -84,14 +87,9 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   // Create a CC sheet when modal opens if user is authenticated
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CC sheet for this year
-        const existingSheetId = currentDynasty?.conferenceChampionshipSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           // Check if user played in a CC game this year - if so, exclude their conference
@@ -102,22 +100,21 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
           const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
           const userConference = userTeamAbbr ? getTeamConference(userTeamAbbr) : null
           const excludeConference = userCCGame ? userConference : null
+          // Get existing CC data for pre-filling
+          const existingCCData = currentDynasty?.conferenceChampionshipsByYear?.[currentYear] || []
 
           const sheetInfo = await createConferenceChampionshipSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            excludeConference
+            excludeConference,
+            existingCCData
           )
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            conferenceChampionshipSheetId: sheetInfo.spreadsheetId
-          })
         } catch (error) {
           console.error('Failed to create CC sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -129,6 +126,8 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      setSheetId(null)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
@@ -187,7 +186,6 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { conferenceChampionshipSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

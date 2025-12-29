@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -34,6 +34,9 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   })
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   // Check for mobile on mount and resize
   useEffect(() => {
@@ -84,7 +87,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   // Create Conferences sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // Check if we have an existing conferences sheet
         const existingSheetId = currentDynasty?.conferencesSheetId
         if (existingSheetId) {
@@ -92,6 +95,8 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
           return
         }
 
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           const sheetInfo = await createConferencesSheet(
@@ -109,6 +114,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
           console.error('Failed to create conferences sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -120,6 +126,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

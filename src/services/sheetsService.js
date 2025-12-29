@@ -51,6 +51,7 @@ async function shareSheetPublicly(spreadsheetId, accessToken) {
 
 // Create a new Google Sheet for a dynasty
 export async function createDynastySheet(dynastyName, coachName, year) {
+  console.log(`[SHEETS] CREATE: Starting sheet creation for "${dynastyName}" dynasty, coach "${coachName}", year ${year}`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -112,12 +113,13 @@ export async function createDynastySheet(dynastyName, coachName, year) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
+    console.log(`[SHEETS] CREATE SUCCESS: Sheet created with ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
     }
   } catch (error) {
-    console.error('Error creating dynasty sheet:', error)
+    console.error('[SHEETS] CREATE ERROR:', error)
     throw error
   }
 }
@@ -926,6 +928,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
 
 // Create a Schedule-only Google Sheet
 export async function createScheduleSheet(dynastyName, year, userTeamName) {
+  console.log(`[SHEETS] CREATE SCHEDULE: Starting for "${dynastyName}", year ${year}, team "${userTeamName}"`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -973,18 +976,20 @@ export async function createScheduleSheet(dynastyName, year, userTeamName) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
+    console.log(`[SHEETS] CREATE SCHEDULE SUCCESS: Sheet ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
     }
   } catch (error) {
-    console.error('Error creating schedule sheet:', error)
+    console.error('[SHEETS] CREATE SCHEDULE ERROR:', error)
     throw error
   }
 }
 
 // Create a Roster-only Google Sheet
 export async function createRosterSheet(dynastyName, year) {
+  console.log(`[SHEETS] CREATE ROSTER: Starting for "${dynastyName}", year ${year}`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -1032,12 +1037,13 @@ export async function createRosterSheet(dynastyName, year) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
+    console.log(`[SHEETS] CREATE ROSTER SUCCESS: Sheet ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
     }
   } catch (error) {
-    console.error('Error creating roster sheet:', error)
+    console.error('[SHEETS] CREATE ROSTER ERROR:', error)
     throw error
   }
 }
@@ -1827,11 +1833,14 @@ export function getSheetEmbedUrl(spreadsheetId, sheetName) {
   // Get the sheet GID (0 for Schedule, 1 for Roster in combined sheet)
   // For single-tab sheets, always use 0
   const gid = sheetName === 'Roster' ? 1 : 0
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=${gid}`
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=${gid}`
+  console.log(`[SHEETS] EMBED: Generating embed URL for sheet "${spreadsheetId}", tab "${sheetName}"`)
+  return url
 }
 
 // Get embed URL for a single-tab sheet (always gid=0)
 export function getSingleSheetEmbedUrl(spreadsheetId) {
+  console.log(`[SHEETS] EMBED: Generating single-tab embed URL for sheet "${spreadsheetId}"`)
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=0`
 }
 
@@ -1883,6 +1892,7 @@ export async function readScheduleFromSheet(spreadsheetId) {
 
 // Delete a Google Sheet (move to trash)
 export async function deleteGoogleSheet(spreadsheetId) {
+  console.log(`[SHEETS] TRASH: Attempting to move sheet "${spreadsheetId}" to trash`)
   try {
     if (!spreadsheetId) {
       throw new Error('No spreadsheet ID provided')
@@ -1916,19 +1926,22 @@ export async function deleteGoogleSheet(spreadsheetId) {
       } catch {
         errorMessage = errorText
       }
+      console.error(`[SHEETS] TRASH ERROR: Failed to trash sheet "${spreadsheetId}": ${errorMessage}`)
       throw new Error(`Failed to delete sheet: ${errorMessage}`)
     }
 
-    await response.json()
+    const result = await response.json()
+    console.log(`[SHEETS] TRASH SUCCESS: Sheet "${spreadsheetId}" moved to trash. Response trashed=${result.trashed}`)
     return true
   } catch (error) {
-    console.error('Error deleting Google Sheet:', error)
+    console.error('[SHEETS] TRASH ERROR:', error)
     throw error
   }
 }
 
 // Restore a Google Sheet from trash
 export async function restoreGoogleSheet(spreadsheetId) {
+  console.log(`[SHEETS] RESTORE: Attempting to restore sheet "${spreadsheetId}" from trash`)
   try {
     if (!spreadsheetId) {
       throw new Error('No spreadsheet ID provided')
@@ -1962,13 +1975,15 @@ export async function restoreGoogleSheet(spreadsheetId) {
       } catch {
         errorMessage = errorText
       }
+      console.error(`[SHEETS] RESTORE ERROR: Failed to restore sheet "${spreadsheetId}": ${errorMessage}`)
       throw new Error(`Failed to restore sheet: ${errorMessage}`)
     }
 
-    await response.json()
+    const result = await response.json()
+    console.log(`[SHEETS] RESTORE SUCCESS: Sheet "${spreadsheetId}" restored from trash. Response trashed=${result.trashed}`)
     return true
   } catch (error) {
-    console.error('Error restoring Google Sheet:', error)
+    console.error('[SHEETS] RESTORE ERROR:', error)
     throw error
   }
 }
@@ -2202,7 +2217,7 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
 
 // Create a Conference Championship sheet
 // excludeConference: optional conference name to exclude (if user already played their CC game)
-export async function createConferenceChampionshipSheet(dynastyName, year, excludeConference = null) {
+export async function createConferenceChampionshipSheet(dynastyName, year, excludeConference = null, existingData = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -2263,7 +2278,7 @@ export async function createConferenceChampionshipSheet(dynastyName, year, exclu
     const ccSheetId = sheet.sheets[0].properties.sheetId
 
     // Initialize headers and data
-    await initializeConferenceChampionshipSheet(sheet.spreadsheetId, accessToken, ccSheetId, conferences)
+    await initializeConferenceChampionshipSheet(sheet.spreadsheetId, accessToken, ccSheetId, conferences, existingData)
 
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -2348,10 +2363,15 @@ function generateCCTeamFormattingRules(sheetId, columnIndex, rowCount) {
 }
 
 // Initialize the Conference Championship sheet with headers and conference rows
-async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken, sheetId, conferences) {
+async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken, sheetId, conferences, existingData = []) {
   // Get team abbreviations for dropdown validation
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = conferences.length
+
+  // Get existing data for a conference
+  const getExistingCC = (conferenceName) => {
+    return existingData.find(cc => cc.conference === conferenceName) || {}
+  }
 
   const requests = [
     // Set headers
@@ -2376,7 +2396,7 @@ async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken,
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill conference names
+    // Pre-fill conference names and existing data
     {
       updateCells: {
         range: {
@@ -2384,11 +2404,20 @@ async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken,
           startRowIndex: 1,
           endRowIndex: rowCount + 1,
           startColumnIndex: 0,
-          endColumnIndex: 1
+          endColumnIndex: 5
         },
-        rows: conferences.map(conf => ({
-          values: [{ userEnteredValue: { stringValue: conf } }]
-        })),
+        rows: conferences.map(conf => {
+          const existing = getExistingCC(conf)
+          return {
+            values: [
+              { userEnteredValue: { stringValue: conf } },
+              { userEnteredValue: { stringValue: existing.team1 || '' } },
+              { userEnteredValue: { stringValue: existing.team2 || '' } },
+              { userEnteredValue: existing.team1Score != null ? { numberValue: existing.team1Score } : { stringValue: '' } },
+              { userEnteredValue: existing.team2Score != null ? { numberValue: existing.team2Score } : { stringValue: '' } }
+            ]
+          }
+        }),
         fields: 'userEnteredValue'
       }
     },
@@ -2664,7 +2693,7 @@ const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
 
 // Create Bowl Week 1 sheet with all bowl games (including CFP First Round with pre-filled teams)
 // excludeGames: array of game names to exclude (user's CFP First Round game, user's bowl game)
-export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = []) {
+export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = [], existingBowlWeek1 = [], existingCFPFirstRound = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -2707,8 +2736,8 @@ export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], exc
     const sheet = await response.json()
     const bowlSheetId = sheet.sheets[0].properties.sheetId
 
-    // Initialize headers and data (pass cfpSeeds to pre-fill CFP First Round teams)
-    await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds)
+    // Initialize headers and data (pass cfpSeeds to pre-fill CFP First Round teams, and existing data for prefill)
+    await initializeBowlWeek1Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds, existingBowlWeek1, existingCFPFirstRound)
 
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -2762,7 +2791,7 @@ function generateBowlTeamFormattingRules(sheetId, columnIndex, rowCount) {
 }
 
 // Initialize the Bowl Week 1 sheet with headers and bowl game rows
-async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = []) {
+async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = [], existingBowlWeek1 = [], existingCFPFirstRound = []) {
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = bowlGames.length
 
@@ -2772,27 +2801,68 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
     return seedData?.team || ''
   }
 
-  // Create rows with bowl names and pre-filled CFP teams
-  const bowlRows = bowlGames.map(bowl => {
-    const matchup = CFP_FIRST_ROUND_MATCHUPS.find(m => m.game === bowl)
-    if (matchup && cfpSeeds.length > 0) {
-      // This is a CFP First Round game - pre-fill teams based on seeds
-      return {
-        values: [
-          { userEnteredValue: { stringValue: bowl } },
-          { userEnteredValue: { stringValue: getTeamBySeed(matchup.seed1) } },
-          { userEnteredValue: { stringValue: getTeamBySeed(matchup.seed2) } }
-        ]
+  // Helper to get existing bowl data by bowl name
+  const getExistingBowlData = (bowlName) => {
+    // Check in regular bowl games
+    const bowlData = existingBowlWeek1.find(b => b.bowlName === bowlName)
+    if (bowlData) return bowlData
+
+    // Check in CFP First Round results (different data structure)
+    const cfpMatch = CFP_FIRST_ROUND_MATCHUPS.find(m => m.game === bowlName)
+    if (cfpMatch) {
+      const cfpData = existingCFPFirstRound.find(g => {
+        // Match by seeds or by teams
+        return (g.seed1 === cfpMatch.seed1 && g.seed2 === cfpMatch.seed2)
+      })
+      if (cfpData) {
+        return {
+          bowlName,
+          team1: cfpData.team1 || getTeamBySeed(cfpMatch.seed1),
+          team2: cfpData.team2 || getTeamBySeed(cfpMatch.seed2),
+          team1Score: cfpData.score1,
+          team2Score: cfpData.score2
+        }
       }
     }
-    // Regular bowl game - just the name
-    return {
-      values: [
-        { userEnteredValue: { stringValue: bowl } },
-        { userEnteredValue: { stringValue: '' } },
-        { userEnteredValue: { stringValue: '' } }
-      ]
+    return null
+  }
+
+  // Create rows with bowl names and pre-filled CFP teams + existing data
+  const bowlRows = bowlGames.map(bowl => {
+    const existingData = getExistingBowlData(bowl)
+    const matchup = CFP_FIRST_ROUND_MATCHUPS.find(m => m.game === bowl)
+
+    // Priority: existing data > CFP seed data > empty
+    let team1 = existingData?.team1 || ''
+    let team2 = existingData?.team2 || ''
+    let team1Score = existingData?.team1Score
+    let team2Score = existingData?.team2Score
+
+    // For CFP First Round games without existing data, use seed data
+    if (!existingData && matchup && cfpSeeds.length > 0) {
+      team1 = getTeamBySeed(matchup.seed1)
+      team2 = getTeamBySeed(matchup.seed2)
     }
+
+    const values = [
+      { userEnteredValue: { stringValue: bowl } },
+      { userEnteredValue: { stringValue: team1 } },
+      { userEnteredValue: { stringValue: team2 } }
+    ]
+
+    // Add scores if we have them
+    if (team1Score !== undefined && team1Score !== null) {
+      values.push({ userEnteredValue: { numberValue: team1Score } })
+    } else {
+      values.push({ userEnteredValue: { stringValue: '' } })
+    }
+    if (team2Score !== undefined && team2Score !== null) {
+      values.push({ userEnteredValue: { numberValue: team2Score } })
+    } else {
+      values.push({ userEnteredValue: { stringValue: '' } })
+    }
+
+    return { values }
   })
 
   const requests = [
@@ -2818,7 +2888,7 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill bowl game names and CFP teams
+    // Pre-fill bowl game names, teams, and scores
     {
       updateCells: {
         range: {
@@ -2826,7 +2896,7 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
           startRowIndex: 1,
           endRowIndex: rowCount + 1,
           startColumnIndex: 0,
-          endColumnIndex: 3
+          endColumnIndex: 5
         },
         rows: bowlRows,
         fields: 'userEnteredValue'
@@ -3094,7 +3164,7 @@ export function getCFPQuarterfinalGameName(seed, firstRoundResults = []) {
 
 // Create Bowl Week 2 sheet with CFP Quarterfinals teams pre-filled
 // excludeGames: array of game names to exclude (user's QF game, user's Week 2 bowl game)
-export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = [], excludeGames = []) {
+export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], firstRoundResults = [], excludeGames = [], existingBowlWeek2 = [], existingCFPQuarterfinals = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -3137,8 +3207,8 @@ export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], fir
     const sheet = await response.json()
     const bowlSheetId = sheet.sheets[0].properties.sheetId
 
-    // Initialize headers and data with CFP teams pre-filled
-    await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds, firstRoundResults)
+    // Initialize headers and data with CFP teams pre-filled and existing data
+    await initializeBowlWeek2Sheet(sheet.spreadsheetId, accessToken, bowlSheetId, bowlGames, cfpSeeds, firstRoundResults, existingBowlWeek2, existingCFPQuarterfinals)
 
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -3154,7 +3224,7 @@ export async function createBowlWeek2Sheet(dynastyName, year, cfpSeeds = [], fir
 }
 
 // Initialize the Bowl Week 2 sheet with headers and bowl game rows
-async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = [], firstRoundResults = []) {
+async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bowlGames, cfpSeeds = [], firstRoundResults = [], existingBowlWeek2 = [], existingCFPQuarterfinals = []) {
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = bowlGames.length
 
@@ -3171,22 +3241,51 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
     return game?.winner || ''
   }
 
-  // Build row data with teams pre-filled for CFP QF games
+  // Helper to get existing bowl data by bowl name
+  const getExistingBowlData = (bowlName) => {
+    // Check in regular bowl games
+    const bowlData = existingBowlWeek2.find(b => b.bowlName === bowlName)
+    if (bowlData) return bowlData
+
+    // Check in CFP Quarterfinals results
+    const cfpMatch = CFP_QF_MATCHUPS[bowlName]
+    if (cfpMatch) {
+      const cfpData = existingCFPQuarterfinals.find(g => g.bowl === bowlName)
+      if (cfpData) {
+        return {
+          bowlName,
+          team1: cfpData.team1 || '',
+          team2: cfpData.team2 || '',
+          team1Score: cfpData.score1,
+          team2Score: cfpData.score2
+        }
+      }
+    }
+    return null
+  }
+
+  // Build row data with teams pre-filled for CFP QF games + existing data
   // Team 1 = higher seed (1-4), Team 2 = lower seed (First Round winner)
   const rowData = bowlGames.map(bowl => {
+    const existingData = getExistingBowlData(bowl)
     const matchup = CFP_QF_MATCHUPS[bowl]
-    if (matchup && cfpSeeds.length > 0) {
-      // This is a CFP QF game - pre-fill teams
+
+    // Priority: existing data > CFP computed data > empty
+    let team1 = existingData?.team1 || ''
+    let team2 = existingData?.team2 || ''
+    let team1Score = existingData?.team1Score
+    let team2Score = existingData?.team2Score
+
+    // For CFP QF games without existing data, compute from seeds/first round
+    if (!existingData && matchup && cfpSeeds.length > 0) {
       const [seed1, seed2] = matchup.firstRoundSeeds
       const firstRoundWinner = getFirstRoundWinner(seed1, seed2)
       const topSeedTeam = getTeamBySeed(matchup.topSeed)
-      return {
-        bowl,
-        team1: topSeedTeam,        // Higher seed (1-4)
-        team2: firstRoundWinner    // Lower seed (First Round winner)
-      }
+      team1 = topSeedTeam       // Higher seed (1-4)
+      team2 = firstRoundWinner  // Lower seed (First Round winner)
     }
-    return { bowl, team1: '', team2: '' }
+
+    return { bowl, team1, team2, team1Score, team2Score }
   })
 
   const requests = [
@@ -3212,7 +3311,7 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill bowl game names and CFP QF teams
+    // Pre-fill bowl game names, teams, and scores
     {
       updateCells: {
         range: {
@@ -3220,13 +3319,19 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
           startRowIndex: 1,
           endRowIndex: rowCount + 1,
           startColumnIndex: 0,
-          endColumnIndex: 3
+          endColumnIndex: 5
         },
         rows: rowData.map(row => ({
           values: [
             { userEnteredValue: { stringValue: row.bowl } },
             { userEnteredValue: { stringValue: row.team1 } },
-            { userEnteredValue: { stringValue: row.team2 } }
+            { userEnteredValue: { stringValue: row.team2 } },
+            row.team1Score !== undefined && row.team1Score !== null
+              ? { userEnteredValue: { numberValue: row.team1Score } }
+              : { userEnteredValue: { stringValue: '' } },
+            row.team2Score !== undefined && row.team2Score !== null
+              ? { userEnteredValue: { numberValue: row.team2Score } }
+              : { userEnteredValue: { stringValue: '' } }
           ]
         })),
         fields: 'userEnteredValue'
@@ -3431,7 +3536,7 @@ export async function readBowlWeek2GamesFromSheet(spreadsheetId) {
 // ==================== CFP SHEETS ====================
 
 // Create CFP Seeds sheet (for entering seeds 1-12)
-export async function createCFPSeedsSheet(dynastyName, year) {
+export async function createCFPSeedsSheet(dynastyName, year, existingSeeds = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -3473,6 +3578,11 @@ export async function createCFPSeedsSheet(dynastyName, year) {
     // Initialize headers and data
     await initializeCFPSeedsSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
 
+    // Pre-fill with existing seeds data if provided
+    if (existingSeeds && existingSeeds.length > 0) {
+      await prefillCFPSeedsData(sheet.spreadsheetId, accessToken, existingSeeds)
+    }
+
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
@@ -3483,6 +3593,45 @@ export async function createCFPSeedsSheet(dynastyName, year) {
   } catch (error) {
     console.error('Error creating CFP seeds sheet:', error)
     throw error
+  }
+}
+
+// Pre-fill CFP seeds with existing data
+async function prefillCFPSeedsData(spreadsheetId, accessToken, existingSeeds) {
+  if (!existingSeeds || existingSeeds.length === 0) return
+
+  // Build values array - 12 rows for seeds 1-12
+  const values = new Array(12).fill([''])
+  existingSeeds.forEach(seedData => {
+    const seedNum = seedData.seed
+    if (seedNum >= 1 && seedNum <= 12 && seedData.team) {
+      values[seedNum - 1] = [seedData.team]
+    }
+  })
+
+  // Write values to column B (Team column) starting at row 2
+  const range = `'CFP Seeds'!B2:B13`
+
+  const response = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        range: range,
+        majorDimension: 'ROWS',
+        values: values
+      })
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    console.error('Failed to prefill CFP seeds:', error)
+    // Don't throw - sheet is still usable, just without prefilled data
   }
 }
 
@@ -3692,7 +3841,7 @@ export async function readCFPSeedsFromSheet(spreadsheetId) {
 }
 
 // Create CFP First Round sheet (4 games - seeds 5-12 play)
-export async function createCFPFirstRoundSheet(dynastyName, year) {
+export async function createCFPFirstRoundSheet(dynastyName, year, existingData = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -3732,7 +3881,7 @@ export async function createCFPFirstRoundSheet(dynastyName, year) {
     const cfpSheetId = sheet.sheets[0].properties.sheetId
 
     // Initialize headers and data
-    await initializeCFPFirstRoundSheet(sheet.spreadsheetId, accessToken, cfpSheetId)
+    await initializeCFPFirstRoundSheet(sheet.spreadsheetId, accessToken, cfpSheetId, existingData)
 
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -3748,7 +3897,7 @@ export async function createCFPFirstRoundSheet(dynastyName, year) {
 }
 
 // Initialize CFP First Round sheet
-async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId) {
+async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId, existingData = []) {
   const teamList = getTeamAbbreviationsList()
 
   // CFP First Round matchups (seeds play each other: 5v12, 6v11, 7v10, 8v9)
@@ -3758,6 +3907,11 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
     'Game 3 (7 vs 10)',
     'Game 4 (8 vs 9)'
   ]
+
+  // Get existing data for pre-filling (match by game name)
+  const getExistingGame = (gameName) => {
+    return existingData.find(g => g.game === gameName) || {}
+  }
 
   const requests = [
     // Headers
@@ -3782,7 +3936,7 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill game names
+    // Pre-fill game names and existing data
     {
       updateCells: {
         range: {
@@ -3790,11 +3944,20 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId)
           startRowIndex: 1,
           endRowIndex: 5,
           startColumnIndex: 0,
-          endColumnIndex: 1
+          endColumnIndex: 5
         },
-        rows: games.map(game => ({
-          values: [{ userEnteredValue: { stringValue: game } }]
-        })),
+        rows: games.map(gameName => {
+          const existing = getExistingGame(gameName)
+          return {
+            values: [
+              { userEnteredValue: { stringValue: gameName } },
+              { userEnteredValue: { stringValue: existing.higherSeed || '' } },
+              { userEnteredValue: { stringValue: existing.lowerSeed || '' } },
+              { userEnteredValue: existing.higherSeedScore != null ? { numberValue: existing.higherSeedScore } : { stringValue: '' } },
+              { userEnteredValue: existing.lowerSeedScore != null ? { numberValue: existing.lowerSeedScore } : { stringValue: '' } }
+            ]
+          }
+        }),
         fields: 'userEnteredValue'
       }
     },
@@ -3973,7 +4136,7 @@ export async function readCFPFirstRoundFromSheet(spreadsheetId) {
 }
 
 // Create CFP Quarterfinals sheet with auto-filled teams
-export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, firstRoundResults) {
+export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, firstRoundResults, existingQuarterfinals = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -4011,7 +4174,7 @@ export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, f
     const cfpSheetId = sheet.sheets[0].properties.sheetId
 
     // Initialize sheet with headers and auto-filled teams
-    await initializeCFPQuarterfinalsSheet(sheet.spreadsheetId, accessToken, cfpSheetId, cfpSeeds, firstRoundResults)
+    await initializeCFPQuarterfinalsSheet(sheet.spreadsheetId, accessToken, cfpSheetId, cfpSeeds, firstRoundResults, existingQuarterfinals)
 
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -4027,7 +4190,7 @@ export async function createCFPQuarterfinalsSheet(dynastyName, year, cfpSeeds, f
 }
 
 // Initialize CFP Quarterfinals sheet with teams
-async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheetId, cfpSeeds, firstRoundResults) {
+async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheetId, cfpSeeds, firstRoundResults, existingQuarterfinals = []) {
   // Get seed teams
   const getTeamBySeed = (seed) => cfpSeeds?.find(s => s.seed === seed)?.team || ''
 
@@ -4039,6 +4202,11 @@ async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheet
       (g.seed1 === seedB && g.seed2 === seedA)
     )
     return game?.winner || ''
+  }
+
+  // Get existing quarterfinal data by bowl name
+  const getExistingQF = (bowlName) => {
+    return existingQuarterfinals.find(g => g.bowlName === bowlName) || {}
   }
 
   // Quarterfinal matchups with bowl games
@@ -4070,9 +4238,19 @@ async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheet
     }
   ]
 
-  // Build the data rows
+  // Build the data rows with existing scores pre-filled
   const headers = ['Bowl Game', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Winner']
-  const dataRows = quarterfinals.map(qf => [qf.bowl, qf.team1, qf.team2, '', '', ''])
+  const dataRows = quarterfinals.map(qf => {
+    const existing = getExistingQF(qf.bowl)
+    return [
+      qf.bowl,
+      existing.team1 || qf.team1,
+      existing.team2 || qf.team2,
+      existing.team1Score != null ? existing.team1Score : '',
+      existing.team2Score != null ? existing.team2Score : '',
+      existing.winner || ''
+    ]
+  })
 
   // Update values
   const updateResponse = await fetch(
@@ -5500,7 +5678,7 @@ const TEAMS_PER_CONFERENCE = 20
  * Create a Google Sheet for conference standings entry
  * All conferences stacked with 20 team slots each
  */
-export async function createConferenceStandingsSheet(year) {
+export async function createConferenceStandingsSheet(year, existingStandings = {}) {
   try {
     const accessToken = await getAccessToken()
 
@@ -5729,6 +5907,11 @@ export async function createConferenceStandingsSheet(year) {
       throw new Error(`Failed to setup sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
+    // Pre-fill existing data if provided
+    if (existingStandings && Object.keys(existingStandings).length > 0) {
+      await prefillConferenceStandingsData(spreadsheetId, accessToken, existingStandings)
+    }
+
     return {
       sheetId: spreadsheetId,
       sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
@@ -5736,6 +5919,88 @@ export async function createConferenceStandingsSheet(year) {
   } catch (error) {
     console.error('Error creating conference standings sheet:', error)
     throw error
+  }
+}
+
+/**
+ * Pre-fill existing conference standings data into sheet
+ */
+async function prefillConferenceStandingsData(spreadsheetId, accessToken, existingStandings) {
+  // Build values array - need to calculate row positions for each conference
+  // Row 1 = header, then 20 rows per conference with spacer rows between
+  const values = []
+
+  let currentRow = 0 // 0-indexed, row 0 is header so data starts at row 1
+
+  CONFERENCE_ORDER.forEach((conference, confIndex) => {
+    const confData = existingStandings[conference] || []
+
+    // Fill 20 rows for this conference
+    for (let teamRank = 1; teamRank <= TEAMS_PER_CONFERENCE; teamRank++) {
+      // Find team with this rank in existing data
+      const teamData = confData.find(t => t.rank === teamRank)
+
+      if (teamData) {
+        // Row format: [Conference, Rank, Team, Wins, Losses, Points For, Points Against]
+        // We only need to fill Team (C), Wins (D), Losses (E), Points For (F), Points Against (G)
+        values.push({
+          row: currentRow + 2, // +2 because row 1 is header and sheets are 1-indexed
+          team: teamData.team || '',
+          wins: teamData.wins || 0,
+          losses: teamData.losses || 0,
+          pointsFor: teamData.pointsFor || 0,
+          pointsAgainst: teamData.pointsAgainst || 0
+        })
+      }
+      currentRow++
+    }
+
+    // Account for spacer row (except after last conference)
+    if (confIndex < CONFERENCE_ORDER.length - 1) {
+      currentRow++
+    }
+  })
+
+  if (values.length === 0) return
+
+  // Build batch update for existing data - update columns C-G for each team
+  const requests = values.map(v => ({
+    updateCells: {
+      range: {
+        sheetId: 0,
+        startRowIndex: v.row - 1, // Convert to 0-indexed
+        endRowIndex: v.row,
+        startColumnIndex: 2, // Column C
+        endColumnIndex: 7    // Column G
+      },
+      rows: [{
+        values: [
+          { userEnteredValue: { stringValue: v.team } },
+          { userEnteredValue: { numberValue: v.wins } },
+          { userEnteredValue: { numberValue: v.losses } },
+          { userEnteredValue: { numberValue: v.pointsFor } },
+          { userEnteredValue: { numberValue: v.pointsAgainst } }
+        ]
+      }],
+      fields: 'userEnteredValue'
+    }
+  }))
+
+  // Execute batch update
+  const response = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    }
+  )
+
+  if (!response.ok) {
+    console.error('Failed to pre-fill conference standings:', await response.json())
   }
 }
 
@@ -5809,7 +6074,7 @@ export async function readConferenceStandingsFromSheet(spreadsheetId) {
  * Create a Google Sheet for final Top 25 polls entry
  * Three columns: # | Media | Coaches with 25 rows
  */
-export async function createFinalPollsSheet(year) {
+export async function createFinalPollsSheet(year, existingPolls = {}) {
   try {
     const accessToken = await getAccessToken()
 
@@ -6014,6 +6279,11 @@ export async function createFinalPollsSheet(year) {
       throw new Error(`Failed to setup sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
+    // Pre-fill existing polls if provided
+    if (existingPolls && (existingPolls.media?.length > 0 || existingPolls.coaches?.length > 0)) {
+      await prefillFinalPollsData(spreadsheetId, accessToken, sheetId, existingPolls)
+    }
+
     return {
       sheetId: spreadsheetId,
       sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
@@ -6021,6 +6291,68 @@ export async function createFinalPollsSheet(year) {
   } catch (error) {
     console.error('Error creating final polls sheet:', error)
     throw error
+  }
+}
+
+/**
+ * Pre-fill existing final polls data into sheet
+ */
+async function prefillFinalPollsData(spreadsheetId, accessToken, sheetId, existingPolls) {
+  const { media = [], coaches = [] } = existingPolls
+
+  // Build values array for each rank 1-25
+  const values = []
+  for (let rank = 1; rank <= 25; rank++) {
+    const mediaTeam = media.find(t => t.rank === rank)?.team || ''
+    const coachesTeam = coaches.find(t => t.rank === rank)?.team || ''
+
+    // Only add if there's data
+    if (mediaTeam || coachesTeam) {
+      values.push({
+        row: rank + 1, // +1 because row 1 is header (1-indexed)
+        media: mediaTeam,
+        coaches: coachesTeam
+      })
+    }
+  }
+
+  if (values.length === 0) return
+
+  // Build batch update for existing data - update columns B-C for each rank
+  const requests = values.map(v => ({
+    updateCells: {
+      range: {
+        sheetId,
+        startRowIndex: v.row - 1, // Convert to 0-indexed
+        endRowIndex: v.row,
+        startColumnIndex: 1, // Column B
+        endColumnIndex: 3    // Column C
+      },
+      rows: [{
+        values: [
+          { userEnteredValue: { stringValue: v.media } },
+          { userEnteredValue: { stringValue: v.coaches } }
+        ]
+      }],
+      fields: 'userEnteredValue'
+    }
+  }))
+
+  // Execute batch update
+  const response = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests })
+    }
+  )
+
+  if (!response.ok) {
+    console.error('Failed to pre-fill final polls:', await response.json())
   }
 }
 
@@ -10018,13 +10350,13 @@ const TEAM_STATS_ROWS = [
   'Poss Seconds'
 ]
 
-// Create a game team stats sheet with two tabs (one for each team)
+// Create a game team stats sheet with a single tab (columns for away and home teams)
 // existingData: optional object { home: {...}, away: {...} } to pre-fill (from game.boxScore.teamStats)
 export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year, week, existingData = null) {
   try {
     const accessToken = await getAccessToken()
 
-    // Create the spreadsheet with 2 tabs (home team and away team)
+    // Create the spreadsheet with 1 tab (3 columns: Stat, Away, Home)
     const response = await fetch(SHEETS_API_BASE, {
       method: 'POST',
       headers: {
@@ -10038,20 +10370,10 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
         sheets: [
           {
             properties: {
-              title: awayTeamAbbr,
+              title: 'Team Stats',
               gridProperties: {
                 rowCount: TEAM_STATS_ROWS.length + 1, // +1 for header
-                columnCount: 2,
-                frozenRowCount: 1
-              }
-            }
-          },
-          {
-            properties: {
-              title: homeTeamAbbr,
-              gridProperties: {
-                rowCount: TEAM_STATS_ROWS.length + 1,
-                columnCount: 2,
+                columnCount: 3,
                 frozenRowCount: 1
               }
             }
@@ -10068,16 +10390,15 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
 
     const sheet = await response.json()
 
-    // Extract sheet IDs for each tab (away is first, home is second)
-    const awaySheetId = sheet.sheets[0].properties.sheetId
-    const homeSheetId = sheet.sheets[1].properties.sheetId
+    // Get the sheet ID for the single tab
+    const sheetId = sheet.sheets[0].properties.sheetId
 
-    // Initialize both tabs with headers, stat labels, and formatting
-    await initializeTeamStatsSheet(sheet.spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr)
+    // Initialize the tab with headers, stat labels, and formatting
+    await initializeTeamStatsSheet(sheet.spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr)
 
     // Pre-fill with existing team stats data if provided
     if (existingData && (existingData.home || existingData.away)) {
-      await prefillTeamStatsData(sheet.spreadsheetId, accessToken, homeTeamAbbr, awayTeamAbbr, existingData)
+      await prefillTeamStatsData(sheet.spreadsheetId, accessToken, existingData)
     }
 
     // Share sheet publicly for embedding
@@ -10095,109 +10416,144 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
   }
 }
 
-// Initialize team stats sheet tabs with headers, stat labels, and formatting
-async function initializeTeamStatsSheet(spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr) {
+// Initialize team stats sheet with single tab, 3 columns (Stat, Away, Home)
+async function initializeTeamStatsSheet(spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr) {
   const requests = []
 
-  // For each team tab
-  const tabs = [
-    { sheetId: homeSheetId, teamAbbr: homeTeamAbbr },
-    { sheetId: awaySheetId, teamAbbr: awayTeamAbbr }
-  ]
+  // Get team colors
+  const awayTeamData = teamAbbreviations[awayTeamAbbr]
+  const homeTeamData = teamAbbreviations[homeTeamAbbr]
+  const awayBgColor = awayTeamData ? hexToRgb(awayTeamData.backgroundColor) : { red: 0.2, green: 0.2, blue: 0.2 }
+  const awayTextColor = awayTeamData ? hexToRgb(awayTeamData.textColor) : { red: 1, green: 1, blue: 1 }
+  const homeBgColor = homeTeamData ? hexToRgb(homeTeamData.backgroundColor) : { red: 0.2, green: 0.2, blue: 0.2 }
+  const homeTextColor = homeTeamData ? hexToRgb(homeTeamData.textColor) : { red: 1, green: 1, blue: 1 }
 
-  tabs.forEach(({ sheetId, teamAbbr }) => {
-    // Set headers
-    requests.push({
-      updateCells: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 0,
-          endColumnIndex: 2
-        },
-        rows: [{
-          values: [
-            { userEnteredValue: { stringValue: 'Stat' } },
-            { userEnteredValue: { stringValue: 'Value' } }
-          ]
-        }],
-        fields: 'userEnteredValue'
-      }
-    })
+  // Set header row with all three columns (Stat, AwayAbbr, HomeAbbr)
+  requests.push({
+    updateCells: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: 0,
+        endRowIndex: 1,
+        startColumnIndex: 0,
+        endColumnIndex: 3
+      },
+      rows: [{
+        values: [
+          {
+            userEnteredValue: { stringValue: 'Stat' },
+            userEnteredFormat: {
+              textFormat: { bold: true, fontFamily: 'Barlow', fontSize: 11 },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE',
+              backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+              textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true, fontFamily: 'Barlow', fontSize: 11 }
+            }
+          },
+          {
+            userEnteredValue: { stringValue: awayTeamAbbr },
+            userEnteredFormat: {
+              textFormat: { bold: true, fontFamily: 'Barlow', fontSize: 11, foregroundColor: awayTextColor },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE',
+              backgroundColor: awayBgColor
+            }
+          },
+          {
+            userEnteredValue: { stringValue: homeTeamAbbr },
+            userEnteredFormat: {
+              textFormat: { bold: true, fontFamily: 'Barlow', fontSize: 11, foregroundColor: homeTextColor },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE',
+              backgroundColor: homeBgColor
+            }
+          }
+        ]
+      }],
+      fields: 'userEnteredValue,userEnteredFormat'
+    }
+  })
 
-    // Set stat row labels (column A)
-    requests.push({
-      updateCells: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: TEAM_STATS_ROWS.length + 1,
-          startColumnIndex: 0,
-          endColumnIndex: 1
-        },
-        rows: TEAM_STATS_ROWS.map(label => ({
-          values: [{ userEnteredValue: { stringValue: label } }]
-        })),
-        fields: 'userEnteredValue'
-      }
-    })
+  // Set stat row labels (column A)
+  requests.push({
+    updateCells: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: 1,
+        endRowIndex: TEAM_STATS_ROWS.length + 1,
+        startColumnIndex: 0,
+        endColumnIndex: 1
+      },
+      rows: TEAM_STATS_ROWS.map(label => ({
+        values: [{ userEnteredValue: { stringValue: label } }]
+      })),
+      fields: 'userEnteredValue'
+    }
+  })
 
-    // Get team colors for header
-    const teamData = teamAbbreviations[teamAbbr]
-    const teamBgColor = teamData ? hexToRgb(teamData.backgroundColor) : { red: 0.2, green: 0.2, blue: 0.2 }
-    const teamTextColor = teamData ? hexToRgb(teamData.textColor) : { red: 1, green: 1, blue: 1 }
+  // Format data cells (rows 2+)
+  requests.push({
+    repeatCell: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: 1,
+        endRowIndex: TEAM_STATS_ROWS.length + 1
+      },
+      cell: {
+        userEnteredFormat: {
+          textFormat: {
+            fontFamily: 'Barlow',
+            fontSize: 10
+          },
+          horizontalAlignment: 'CENTER',
+          verticalAlignment: 'MIDDLE'
+        }
+      },
+      fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+    }
+  })
 
-    // Format header row (bold, centered, team colors)
-    requests.push({
-      repeatCell: {
+  // Format stat label column (bold, left-aligned)
+  requests.push({
+    repeatCell: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: 1,
+        endRowIndex: TEAM_STATS_ROWS.length + 1,
+        startColumnIndex: 0,
+        endColumnIndex: 1
+      },
+      cell: {
+        userEnteredFormat: {
+          textFormat: {
+            bold: true
+          },
+          horizontalAlignment: 'LEFT'
+        }
+      },
+      fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment)'
+    }
+  })
+
+  // Protect header row
+  requests.push({
+    addProtectedRange: {
+      protectedRange: {
         range: {
           sheetId: sheetId,
           startRowIndex: 0,
           endRowIndex: 1
         },
-        cell: {
-          userEnteredFormat: {
-            textFormat: {
-              bold: true,
-              fontFamily: 'Barlow',
-              fontSize: 11,
-              foregroundColor: teamTextColor
-            },
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE',
-            backgroundColor: teamBgColor
-          }
-        },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)'
+        description: 'Protected header row',
+        warningOnly: false
       }
-    })
+    }
+  })
 
-    // Format data cells
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: TEAM_STATS_ROWS.length + 1
-        },
-        cell: {
-          userEnteredFormat: {
-            textFormat: {
-              fontFamily: 'Barlow',
-              fontSize: 10
-            },
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE'
-          }
-        },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Format stat label column (bold)
-    requests.push({
-      repeatCell: {
+  // Protect stat labels column (column A, data rows only)
+  requests.push({
+    addProtectedRange: {
+      protectedRange: {
         range: {
           sheetId: sheetId,
           startRowIndex: 1,
@@ -10205,78 +10561,37 @@ async function initializeTeamStatsSheet(spreadsheetId, accessToken, homeSheetId,
           startColumnIndex: 0,
           endColumnIndex: 1
         },
-        cell: {
-          userEnteredFormat: {
-            textFormat: {
-              bold: true
-            },
-            horizontalAlignment: 'LEFT'
-          }
-        },
-        fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment)'
+        description: 'Protected stat labels',
+        warningOnly: false
       }
-    })
+    }
+  })
 
-    // Protect header row and stat label column
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: {
-            sheetId: sheetId,
-            startRowIndex: 0,
-            endRowIndex: 1
-          },
-          description: 'Protected header row',
-          warningOnly: false
-        }
-      }
-    })
+  // Set column widths: Stat (140px), Away (80px), Home (80px)
+  requests.push({
+    updateDimensionProperties: {
+      range: {
+        sheetId: sheetId,
+        dimension: 'COLUMNS',
+        startIndex: 0,
+        endIndex: 1
+      },
+      properties: { pixelSize: 140 },
+      fields: 'pixelSize'
+    }
+  })
 
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: {
-            sheetId: sheetId,
-            startRowIndex: 1,
-            endRowIndex: TEAM_STATS_ROWS.length + 1,
-            startColumnIndex: 0,
-            endColumnIndex: 1
-          },
-          description: 'Protected stat labels',
-          warningOnly: false
-        }
-      }
-    })
-
-    // Set column widths
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 0,
-          endIndex: 1
-        },
-        properties: { pixelSize: 140 },
-        fields: 'pixelSize'
-      }
-    })
-
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'COLUMNS',
-          startIndex: 1,
-          endIndex: 2
-        },
-        properties: { pixelSize: 80 },
-        fields: 'pixelSize'
-      }
-    })
-
-    // Number validation removed - yards stats can be negative in football
-    // (e.g., rush yards when sacked repeatedly)
+  requests.push({
+    updateDimensionProperties: {
+      range: {
+        sheetId: sheetId,
+        dimension: 'COLUMNS',
+        startIndex: 1,
+        endIndex: 3
+      },
+      properties: { pixelSize: 80 },
+      fields: 'pixelSize'
+    }
   })
 
   // Send batch update
@@ -10296,14 +10611,16 @@ async function initializeTeamStatsSheet(spreadsheetId, accessToken, homeSheetId,
   }
 }
 
-// Read team stats from sheet
+// Read team stats from sheet (single tab with columns: Stat, Away, Home)
 export async function readGameTeamStatsFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    // First get sheet metadata to find tab names
-    const metaResponse = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties`,
+    // Read header row to get team abbreviations and data rows
+    const range = `'Team Stats'!A1:C${TEAM_STATS_ROWS.length + 1}`
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -10311,60 +10628,44 @@ export async function readGameTeamStatsFromSheet(spreadsheetId) {
       }
     )
 
-    if (!metaResponse.ok) {
-      throw new Error('Failed to get sheet metadata')
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Failed to read team stats:', error)
+      throw new Error('Failed to read team stats from sheet')
     }
 
-    const meta = await metaResponse.json()
-    const sheets = meta.sheets || []
+    const data = await response.json()
+    const rows = data.values || []
 
-    if (sheets.length < 2) {
-      throw new Error('Team stats sheet should have 2 tabs')
+    if (rows.length < 1) {
+      throw new Error('Team stats sheet is empty')
     }
 
-    const homeTabName = sheets[0].properties.title
-    const awayTabName = sheets[1].properties.title
+    // Header row contains: Stat, AwayAbbr, HomeAbbr
+    const headerRow = rows[0]
+    const awayTeamAbbr = headerRow[1] || ''
+    const homeTeamAbbr = headerRow[2] || ''
 
     const teamStats = {
-      home: { teamAbbr: homeTabName },
-      away: { teamAbbr: awayTabName }
+      away: { teamAbbr: awayTeamAbbr },
+      home: { teamAbbr: homeTeamAbbr }
     }
 
-    // Read each tab
-    for (const [key, tabName] of [['home', homeTabName], ['away', awayTabName]]) {
-      const range = `'${tabName}'!A2:B${TEAM_STATS_ROWS.length + 1}`
+    // Parse data rows (starting from row 2)
+    for (let i = 1; i < rows.length && i <= TEAM_STATS_ROWS.length; i++) {
+      const row = rows[i]
+      const statLabel = TEAM_STATS_ROWS[i - 1]
+      const awayValue = row[1] || ''
+      const homeValue = row[2] || ''
 
-      const response = await fetch(
-        `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          }
-        }
-      )
+      // Convert stat label to camelCase key
+      const camelKey = statLabel
+        .toLowerCase()
+        .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
+        .replace(/^./, c => c.toLowerCase())
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error(`Failed to read ${tabName}:`, error)
-        continue
-      }
-
-      const data = await response.json()
-      const rows = data.values || []
-
-      // Parse rows into stat object
-      rows.forEach((row, idx) => {
-        if (idx < TEAM_STATS_ROWS.length) {
-          const statLabel = TEAM_STATS_ROWS[idx]
-          const value = row[1] || ''
-          // Convert stat label to camelCase key
-          const camelKey = statLabel
-            .toLowerCase()
-            .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
-            .replace(/^./, c => c.toLowerCase())
-          teamStats[key][camelKey] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
-        }
-      })
+      teamStats.away[camelKey] = awayValue === '' ? null : (isNaN(Number(awayValue)) ? awayValue : Number(awayValue))
+      teamStats.home[camelKey] = homeValue === '' ? null : (isNaN(Number(homeValue)) ? homeValue : Number(homeValue))
     }
 
     return teamStats
@@ -10374,8 +10675,8 @@ export async function readGameTeamStatsFromSheet(spreadsheetId) {
   }
 }
 
-// Pre-fill team stats sheet with existing data
-async function prefillTeamStatsData(spreadsheetId, accessToken, homeTeamAbbr, awayTeamAbbr, teamStatsData) {
+// Pre-fill team stats sheet with existing data (single tab with columns B=away, C=home)
+async function prefillTeamStatsData(spreadsheetId, accessToken, teamStatsData) {
   if (!teamStatsData) return
 
   // Map of camelCase keys to TEAM_STATS_ROWS indices
@@ -10388,61 +10689,54 @@ async function prefillTeamStatsData(spreadsheetId, accessToken, homeTeamAbbr, aw
     keyToRowIndex[camelKey] = idx
   })
 
-  // Process both home and away tabs
-  const tabsToUpdate = []
+  // Build values array for both columns (B=away, C=home)
+  const values = new Array(TEAM_STATS_ROWS.length).fill(null).map(() => ['', ''])
 
-  // Note: In the sheet, tab order is [away, home], but the data is keyed as home/away
-  // The away tab uses awayTeamAbbr name, home tab uses homeTeamAbbr name
-  if (teamStatsData.home) {
-    const values = new Array(TEAM_STATS_ROWS.length).fill([''])
-    Object.entries(teamStatsData.home).forEach(([key, value]) => {
-      if (key === 'teamAbbr') return // Skip metadata
-      const rowIdx = keyToRowIndex[key]
-      if (rowIdx !== undefined && value !== null && value !== undefined) {
-        values[rowIdx] = [String(value)]
-      }
-    })
-    tabsToUpdate.push({ tabName: homeTeamAbbr, values })
-  }
-
+  // Fill away team values (column B)
   if (teamStatsData.away) {
-    const values = new Array(TEAM_STATS_ROWS.length).fill([''])
     Object.entries(teamStatsData.away).forEach(([key, value]) => {
       if (key === 'teamAbbr') return // Skip metadata
       const rowIdx = keyToRowIndex[key]
       if (rowIdx !== undefined && value !== null && value !== undefined) {
-        values[rowIdx] = [String(value)]
+        values[rowIdx][0] = String(value)
       }
     })
-    tabsToUpdate.push({ tabName: awayTeamAbbr, values })
   }
 
-  // Write data to each tab
-  for (const { tabName, values } of tabsToUpdate) {
-    // Write values to column B starting at row 2 (after header)
-    const range = `'${tabName}'!B2:B${TEAM_STATS_ROWS.length + 1}`
-
-    const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          range: range,
-          majorDimension: 'ROWS',
-          values: values
-        })
+  // Fill home team values (column C)
+  if (teamStatsData.home) {
+    Object.entries(teamStatsData.home).forEach(([key, value]) => {
+      if (key === 'teamAbbr') return // Skip metadata
+      const rowIdx = keyToRowIndex[key]
+      if (rowIdx !== undefined && value !== null && value !== undefined) {
+        values[rowIdx][1] = String(value)
       }
-    )
+    })
+  }
 
-    if (!response.ok) {
-      const error = await response.json()
-      console.error(`Failed to prefill team stats for ${tabName}:`, error)
-      // Don't throw - sheet is still usable, just without prefilled data
+  // Write values to columns B and C starting at row 2 (after header)
+  const range = `'Team Stats'!B2:C${TEAM_STATS_ROWS.length + 1}`
+
+  const response = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        range: range,
+        majorDimension: 'ROWS',
+        values: values
+      })
     }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    console.error('Failed to prefill team stats:', error)
+    // Don't throw - sheet is still usable, just without prefilled data
   }
 }
 

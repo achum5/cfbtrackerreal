@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -16,7 +16,7 @@ const isMobileDevice = () => {
 }
 
 export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -33,6 +33,9 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -82,36 +85,30 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   // Create CFP Quarterfinals sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP Quarterfinals sheet for this year
-        const existingSheetId = currentDynasty?.cfpQuarterfinalsSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          // Get CFP seeds and First Round results
+          // Get CFP seeds and First Round results for team auto-fill
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
           const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
+          // Get existing quarterfinals data for pre-filling scores
+          const existingQuarterfinals = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
 
           const sheetInfo = await createCFPQuarterfinalsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             cfpSeeds,
-            firstRoundResults
+            firstRoundResults,
+            existingQuarterfinals
           )
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            cfpQuarterfinalsSheetId: sheetInfo.spreadsheetId
-          })
         } catch (error) {
           console.error('Failed to create CFP Quarterfinals sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -123,6 +120,8 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      setSheetId(null)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
@@ -181,7 +180,6 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { cfpQuarterfinalsSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -31,6 +31,9 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [noTransfers, setNoTransfers] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -101,7 +104,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
   // Create sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote && !noTransfers) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers) {
         const transferringPlayers = getTransferringPlayers()
 
         if (transferringPlayers.length === 0) {
@@ -109,6 +112,8 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
           return
         }
 
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           const sheetInfo = await createTransferDestinationsSheet(
@@ -129,6 +134,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
           }
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -142,6 +148,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
       setShowDeletedNote(false)
       setNoTransfers(false)
       setSheetId(null) // Always create fresh sheet
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

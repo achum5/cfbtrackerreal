@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty, getCurrentRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -37,6 +37,9 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -86,7 +89,9 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   // Create roster sheet when modal opens - ALWAYS create fresh with current data
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           // Delete any existing roster edit sheet first (don't try to reuse old data)
@@ -152,6 +157,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
           }
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -163,6 +169,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

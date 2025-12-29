@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import SheetToolbar, { SheetErrorBanner } from './SheetToolbar'
 import {
   createGameBoxScoreSheet,
@@ -55,15 +55,31 @@ export default function BoxScoreSheetModal({
   const [regenerating, setRegenerating] = useState(false)
   const [ignoreExistingSheetId, setIgnoreExistingSheetId] = useState(false)
 
-  // Determine teams based on game location
-  const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
-  const opponentAbbr = game?.opponent || ''
-  const isUserHome = game?.location === 'home' || game?.location === 'neutral'
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
-  const homeTeamAbbr = isUserHome ? userTeamAbbr : opponentAbbr
-  const awayTeamAbbr = isUserHome ? opponentAbbr : userTeamAbbr
-  const homeTeamName = isUserHome ? currentDynasty?.teamName : opponentAbbr
-  const awayTeamName = isUserHome ? opponentAbbr : currentDynasty?.teamName
+  // Determine teams based on game type (CPU vs user game)
+  const isCPUGame = game?.isCPUGame
+  const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
+  // Ensure opponent is an abbreviation (convert full name if needed)
+  const rawOpponent = game?.opponent || ''
+  const opponentAbbr = getAbbreviationFromDisplayName(rawOpponent) || rawOpponent
+
+  // For CPU games: team1 = home, team2 = away
+  // For user games: based on location (home/neutral = user is home)
+  let homeTeamAbbr, awayTeamAbbr, homeTeamName, awayTeamName
+  if (isCPUGame) {
+    homeTeamAbbr = game?.team1 || 'Team 1'
+    awayTeamAbbr = game?.team2 || 'Team 2'
+    homeTeamName = homeTeamAbbr
+    awayTeamName = awayTeamAbbr
+  } else {
+    const isUserHome = game?.location === 'home' || game?.location === 'neutral'
+    homeTeamAbbr = isUserHome ? userTeamAbbr : opponentAbbr
+    awayTeamAbbr = isUserHome ? opponentAbbr : userTeamAbbr
+    homeTeamName = isUserHome ? currentDynasty?.teamName : opponentAbbr
+    awayTeamName = isUserHome ? opponentAbbr : currentDynasty?.teamName
+  }
 
   // Get roster for player dropdowns (only for user's team)
   const roster = useMemo(() => {
@@ -185,14 +201,20 @@ export default function BoxScoreSheetModal({
   // Load existing sheet or create new one
   useEffect(() => {
     const initSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      // Use ref for immediate check to prevent race conditions (state updates are async)
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        console.log(`[SHEETS] MODAL INIT: sheetType="${sheetType}", existingSheetId="${existingSheetId}", ignoreExisting=${ignoreExistingSheetId}, gameId="${game?.id}"`)
+
         // Check for existing sheet (unless we're regenerating and should ignore it)
         if (existingSheetId && !ignoreExistingSheetId) {
+          console.log(`[SHEETS] MODAL REUSE: Using existing sheet "${existingSheetId}" for ${sheetType}`)
           setSheetId(existingSheetId)
           return
         }
 
-        // Create new sheet
+        // Create new sheet - set ref immediately to prevent concurrent calls
+        creatingSheetRef.current = true
+        console.log(`[SHEETS] MODAL CREATE: Creating NEW sheet for ${sheetType} (existingSheetId was ${existingSheetId ? 'set but ignored' : 'null/undefined'})`)
         setCreatingSheet(true)
         try {
           const year = game?.year || currentDynasty?.currentYear
@@ -241,6 +263,7 @@ export default function BoxScoreSheetModal({
             )
           }
 
+          console.log(`[SHEETS] MODAL CREATED: New ${sheetType} sheet ID "${sheetInfo.spreadsheetId}"`)
           setSheetId(sheetInfo.spreadsheetId)
 
           // Reset the ignore flag now that we have a new sheet
@@ -248,10 +271,12 @@ export default function BoxScoreSheetModal({
 
           // Notify parent of new sheet ID
           if (onSheetCreated) {
+            console.log(`[SHEETS] MODAL CALLBACK: Calling onSheetCreated with "${sheetInfo.spreadsheetId}"`)
             onSheetCreated(sheetInfo.spreadsheetId)
           }
 
           // Also try to save to game in dynasty (for existing games)
+          console.log(`[SHEETS] MODAL SAVE: Saving sheet ID to game (gameId="${game?.id}")`)
           await saveSheetIdToGame(sheetInfo.spreadsheetId)
         } catch (error) {
           console.error('Failed to create sheet:', error)
@@ -261,6 +286,7 @@ export default function BoxScoreSheetModal({
           }
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -273,23 +299,32 @@ export default function BoxScoreSheetModal({
     if (!isOpen) {
       setShowDeletedNote(false)
       setIgnoreExistingSheetId(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
   // Save sheet ID to game in dynasty (for existing games)
   const saveSheetIdToGame = async (newSheetId) => {
-    if (!currentDynasty || !game?.id) return
+    if (!currentDynasty || !game?.id) {
+      console.log(`[SHEETS] SAVE SKIP: No dynasty or game.id (dynasty=${!!currentDynasty}, gameId=${game?.id})`)
+      return
+    }
 
     const games = [...(currentDynasty.games || [])]
     const gameIndex = games.findIndex(g => g.id === game.id)
-    if (gameIndex === -1) return // Game doesn't exist yet, parent will handle
+    if (gameIndex === -1) {
+      console.log(`[SHEETS] SAVE SKIP: Game not found in dynasty games array (gameId=${game.id})`)
+      return // Game doesn't exist yet, parent will handle
+    }
 
+    console.log(`[SHEETS] SAVE: Saving ${config.sheetIdKey}="${newSheetId}" to game at index ${gameIndex}`)
     games[gameIndex] = {
       ...games[gameIndex],
       [config.sheetIdKey]: newSheetId
     }
 
     await updateDynasty(currentDynasty.id, { games })
+    console.log(`[SHEETS] SAVE SUCCESS: Sheet ID saved to game`)
   }
 
   // Sync data from sheet

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -16,7 +16,7 @@ const isMobileDevice = () => {
 }
 
 export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -33,6 +33,9 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -82,30 +85,25 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   // Create CFP First Round sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing CFP First Round sheet for this year
-        const existingSheetId = currentDynasty?.cfpFirstRoundSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Get existing first round data for pre-filling
+          const existingFirstRound = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
+
           const sheetInfo = await createCFPFirstRoundSheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentYear
+            currentYear,
+            existingFirstRound
           )
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            cfpFirstRoundSheetId: sheetInfo.spreadsheetId
-          })
         } catch (error) {
           console.error('Failed to create CFP First Round sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -117,6 +115,8 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      setSheetId(null)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
@@ -167,7 +167,6 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { cfpFirstRoundSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

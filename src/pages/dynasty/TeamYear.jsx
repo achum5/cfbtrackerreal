@@ -326,13 +326,43 @@ export default function TeamYear() {
   }
   // Get games for THIS TEAM from games array
   // Includes games where team was the userTeam OR the opponent
+  // Also includes postseason games (CC, Bowl, CFP) where team is team1 or team2
   const teamGamesFromArray = (() => {
     const games = currentDynasty.games || []
     const result = []
 
     games.forEach(g => {
-      if (g.isCPUGame) return
       if (Number(g.year) !== Number(selectedYear)) return
+
+      // Convert opponent to abbreviation for comparison (might be full name like "Sam Houston State Bearkats")
+      const opponentAbbr = getAbbreviationFromDisplayName(g.opponent) || g.opponent
+
+      // Check if this team is involved via team1/team2 fields (used in postseason games)
+      const isTeam1 = g.team1 === teamAbbr
+      const isTeam2 = g.team2 === teamAbbr
+      const isInTeam1Team2 = isTeam1 || isTeam2
+
+      // Check if this is a postseason game
+      const isPostseason = g.isConferenceChampionship || g.isBowlGame || g.isPlayoff ||
+                           g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship
+
+      // For CPU games, only include if this team is involved
+      if (g.isCPUGame) {
+        if (isInTeam1Team2) {
+          // Convert to display format for this team's perspective
+          const teamWon = g.winner === teamAbbr
+          result.push({
+            ...g,
+            userTeam: teamAbbr,
+            opponent: isTeam1 ? g.team2 : g.team1,
+            teamScore: isTeam1 ? g.team1Score : g.team2Score,
+            opponentScore: isTeam1 ? g.team2Score : g.team1Score,
+            result: teamWon ? 'win' : 'loss',
+            _fromCPUPostseason: true
+          })
+        }
+        return
+      }
 
       // Games played AS this team
       if (g.userTeam === teamAbbr) {
@@ -346,22 +376,36 @@ export default function TeamYear() {
         return
       }
 
-      // Games played AGAINST this team - flip perspective for display only
-      if (g.opponent === teamAbbr) {
+      // Games played AGAINST this team - check both opponent field AND team1/team2 fields
+      // Need to check team1/team2 because user postseason games now have those for Bowl History
+      const isOpponent = opponentAbbr === teamAbbr || isInTeam1Team2
+
+      if (isOpponent) {
         // Flip the result
         const flippedResult = g.result === 'win' || g.result === 'W' ? 'loss' :
                               g.result === 'loss' || g.result === 'L' ? 'win' : g.result
         // Flip the location
         const flippedLocation = g.location === 'home' ? 'away' :
                                 g.location === 'away' ? 'home' : g.location
+
+        // For postseason games with team1/team2, calculate scores from those fields
+        let displayTeamScore, displayOpponentScore
+        if (isInTeam1Team2 && g.team1Score !== undefined) {
+          displayTeamScore = isTeam1 ? g.team1Score : g.team2Score
+          displayOpponentScore = isTeam1 ? g.team2Score : g.team1Score
+        } else {
+          displayTeamScore = g.opponentScore
+          displayOpponentScore = g.teamScore
+        }
+
         result.push({
           ...g,
           // Keep original ID so game page link works
           _displayOpponent: g.userTeam, // For display: show who they played against
           _displayResult: flippedResult,
           _displayLocation: flippedLocation,
-          _displayTeamScore: g.opponentScore,
-          _displayOpponentScore: g.teamScore,
+          _displayTeamScore: displayTeamScore,
+          _displayOpponentScore: displayOpponentScore,
           _isFlippedPerspective: true // Flag to identify flipped games
         })
       }
@@ -2000,7 +2044,9 @@ export default function TeamYear() {
           <div className="space-y-2 p-2 sm:p-4">
             {teamYearGames.map((game, index) => {
               // Use display values for flipped games, otherwise use original values
-              const displayOpponent = game._isFlippedPerspective ? game._displayOpponent : game.opponent
+              const rawDisplayOpponent = game._isFlippedPerspective ? game._displayOpponent : game.opponent
+              // Convert full team name to abbreviation if needed
+              const displayOpponent = getAbbreviationFromDisplayName(rawDisplayOpponent) || rawDisplayOpponent
               const displayResult = game._isFlippedPerspective ? game._displayResult : game.result
               const displayLocation = game._isFlippedPerspective ? game._displayLocation : game.location
               const displayTeamScore = game._isFlippedPerspective ? game._displayTeamScore : game.teamScore

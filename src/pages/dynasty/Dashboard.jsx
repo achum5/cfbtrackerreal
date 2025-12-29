@@ -297,10 +297,11 @@ export default function Dashboard() {
     </span>
   )
 
-  // Restore CC state from saved dynasty data
+  // Restore CC state from saved dynasty data (year-specific)
   useEffect(() => {
-    if (currentDynasty?.conferenceChampionshipData) {
-      const ccData = currentDynasty.conferenceChampionshipData
+    const year = currentDynasty?.currentYear
+    const ccData = currentDynasty?.conferenceChampionshipDataByYear?.[year]
+    if (ccData) {
       setCCMadeChampionship(ccData.madeChampionship ?? null)
       setCCOpponent(ccData.opponent || '')
       // Restore pending firing selection
@@ -313,28 +314,29 @@ export default function Dashboard() {
         setCoordinatorToFire('')
       }
     } else {
-      // Reset when no data
+      // Reset when no data for this year
       setCCMadeChampionship(null)
       setCCOpponent('')
       setFiringCoordinators(null)
       setCoordinatorToFire('')
     }
-  }, [currentDynasty?.id, currentDynasty?.conferenceChampionshipData])
+  }, [currentDynasty?.id, currentDynasty?.currentYear, currentDynasty?.conferenceChampionshipDataByYear])
 
-  // Restore bowl eligibility state from saved dynasty data
+  // Restore bowl eligibility state from saved dynasty data (year-specific)
   useEffect(() => {
-    if (currentDynasty?.bowlEligibilityData) {
-      const bowlData = currentDynasty.bowlEligibilityData
+    const year = currentDynasty?.currentYear
+    const bowlData = currentDynasty?.bowlEligibilityDataByYear?.[year]
+    if (bowlData) {
       setBowlEligible(bowlData.eligible ?? null)
       setSelectedBowl(bowlData.bowlGame || '')
       setBowlOpponent(bowlData.opponent || '')
     } else {
-      // Reset when no data
+      // Reset when no data for this year
       setBowlEligible(null)
       setSelectedBowl('')
       setBowlOpponent('')
     }
-  }, [currentDynasty?.id, currentDynasty?.bowlEligibilityData])
+  }, [currentDynasty?.id, currentDynasty?.currentYear, currentDynasty?.bowlEligibilityDataByYear])
 
   // Restore new job state from saved dynasty data
   // If user declined in a previous week, reset so they can be asked again
@@ -669,12 +671,13 @@ export default function Dashboard() {
   // Handle CC championship answer
   const handleCCAnswer = async (madeChampionship) => {
     setCCMadeChampionship(madeChampionship)
-    // Save to dynasty
+    // Save to dynasty using year-specific storage
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.conferenceChampionshipDataByYear || {}
     await updateDynasty(currentDynasty.id, {
-      conferenceChampionshipData: {
-        ...currentDynasty.conferenceChampionshipData,
-        madeChampionship,
-        year: currentDynasty.currentYear
+      conferenceChampionshipDataByYear: {
+        ...existingByYear,
+        [year]: { ...(existingByYear[year] || {}), madeChampionship }
       }
     })
   }
@@ -684,12 +687,13 @@ export default function Dashboard() {
     setCCOpponent(opponent)
     setCCOpponentSearch('')
     setShowCCOpponentDropdown(false)
-    // Save to dynasty
+    // Save to dynasty using year-specific storage
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.conferenceChampionshipDataByYear || {}
     await updateDynasty(currentDynasty.id, {
-      conferenceChampionshipData: {
-        ...currentDynasty.conferenceChampionshipData,
-        opponent,
-        year: currentDynasty.currentYear
+      conferenceChampionshipDataByYear: {
+        ...existingByYear,
+        [year]: { ...(existingByYear[year] || {}), opponent }
       }
     })
   }
@@ -713,12 +717,13 @@ export default function Dashboard() {
         conference: conferenceForGame,
         gameTitle: `${conferenceForGame || 'Conference'} Championship Game`
       }))
-      // Update CC data with game played flag
+      // Update CC data with game played flag using year-specific storage
+      const year = currentDynasty.currentYear
+      const existingByYear = currentDynasty.conferenceChampionshipDataByYear || {}
       await updateDynasty(currentDynasty.id, {
-        conferenceChampionshipData: {
-          ...currentDynasty.conferenceChampionshipData,
-          gamePlayed: true,
-          year: currentDynasty.currentYear
+        conferenceChampionshipDataByYear: {
+          ...existingByYear,
+          [year]: { ...(existingByYear[year] || {}), gamePlayed: true }
         }
       })
       setShowCCGameModal(false)
@@ -732,15 +737,18 @@ export default function Dashboard() {
   // Handle user's bowl game save
   const handleBowlGameSave = async (gameData) => {
     try {
+      // Get bowl data from year-specific storage
+      const year = currentDynasty.currentYear
+      const bowlData = currentDynasty.bowlEligibilityDataByYear?.[year] || {}
       // Get the bowl week from the selected bowl
-      const bowlWeek = currentDynasty.bowlEligibilityData?.bowlGame
-        ? (isBowlInWeek1(currentDynasty.bowlEligibilityData.bowlGame) ? 1 : 2)
+      const bowlWeek = bowlData.bowlGame
+        ? (isBowlInWeek1(bowlData.bowlGame) ? 1 : 2)
         : 1
       // Add the game with special flag for bowl game
       await addGame(currentDynasty.id, {
         ...gameData,
         isBowlGame: true,
-        bowlName: currentDynasty.bowlEligibilityData?.bowlGame || selectedBowl,
+        bowlName: bowlData.bowlGame || selectedBowl,
         bowlWeek: bowlWeek
       })
       setShowBowlGameModal(false)
@@ -783,12 +791,13 @@ export default function Dashboard() {
     setCoordinatorToFire(selection)
     setFiringCoordinators(selection !== 'none')
 
-    // Save pending firing decision (actual firing happens on advance week)
+    // Save pending firing decision using year-specific storage
+    const year = currentDynasty.currentYear
+    const existingByYear = currentDynasty.conferenceChampionshipDataByYear || {}
     await updateDynasty(currentDynasty.id, {
-      conferenceChampionshipData: {
-        ...currentDynasty.conferenceChampionshipData,
-        pendingFiring: selection, // 'none', 'oc', 'dc', or 'both'
-        year: currentDynasty.currentYear
+      conferenceChampionshipDataByYear: {
+        ...existingByYear,
+        [year]: { ...(existingByYear[year] || {}), pendingFiring: selection }
       }
     })
   }
@@ -1841,7 +1850,8 @@ export default function Dashboard() {
                             {/* Offensive Coordinator */}
                             {(() => {
                               const ocName = teamCoachingStaff?.ocName
-                              const firedOCName = currentDynasty.conferenceChampionshipData?.firedOCName
+                              const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                              const firedOCName = ccDataForYear.firedOCName
                               const displayName = ocName || firedOCName
                               const isFired = !ocName && firedOCName
 
@@ -1875,7 +1885,8 @@ export default function Dashboard() {
                             {/* Defensive Coordinator */}
                             {(() => {
                               const dcName = teamCoachingStaff?.dcName
-                              const firedDCName = currentDynasty.conferenceChampionshipData?.firedDCName
+                              const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                              const firedDCName = ccDataForYear.firedDCName
                               const displayName = dcName || firedDCName
                               const isFired = !dcName && firedDCName
 
@@ -1907,8 +1918,10 @@ export default function Dashboard() {
                             })()}
 
                             {/* Show message if no coordinators at all */}
-                            {!teamCoachingStaff?.ocName && !teamCoachingStaff?.dcName &&
-                             !currentDynasty.conferenceChampionshipData?.firedOCName && !currentDynasty.conferenceChampionshipData?.firedDCName && (
+                            {!teamCoachingStaff?.ocName && !teamCoachingStaff?.dcName && (() => {
+                              const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                              return !ccDataForYear.firedOCName && !ccDataForYear.firedDCName
+                            })() && (
                               <div className="text-center py-2 text-sm" style={{ color: secondaryBgText, opacity: 0.6 }}>
                                 No coordinators entered
                               </div>
@@ -2465,8 +2478,14 @@ export default function Dashboard() {
                         onClick={async () => {
                           setCCMadeChampionship(null)
                           setCCOpponent('')
+                          const year = currentDynasty.currentYear
+                          const existingByYear = currentDynasty.conferenceChampionshipDataByYear || {}
+                          const currentCCData = existingByYear[year] || {}
                           await updateDynasty(currentDynasty.id, {
-                            conferenceChampionshipData: { ...currentDynasty.conferenceChampionshipData, madeChampionship: null, opponent: null }
+                            conferenceChampionshipDataByYear: {
+                              ...existingByYear,
+                              [year]: { ...currentCCData, madeChampionship: null, opponent: null }
+                            }
                           })
                         }}
                         className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
@@ -2622,11 +2641,15 @@ export default function Dashboard() {
         >
           {(() => {
             const week = currentDynasty.currentWeek
-            const hasCCData = currentDynasty.conferenceChampionships?.length > 0
+            const currentYear = currentDynasty.currentYear
+            // Read from year-specific storage to prevent data carrying over between seasons
+            const ccGames = currentDynasty.conferenceChampionshipsByYear?.[currentYear] || []
+            const hasCCData = ccGames.length > 0
             // Count entered CC games (games with both scores)
-            const ccGames = currentDynasty.conferenceChampionships || []
             const ccGamesWithScores = ccGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
-            const totalCCGames = currentDynasty.conferenceChampionshipData?.madeChampionship === true ? 9 : 10
+            // Read conference championship data from year-specific storage
+            const ccData = currentDynasty.conferenceChampionshipDataByYear?.[currentYear] || {}
+            const totalCCGames = ccData.madeChampionship === true ? 9 : 10
 
             const hasCFPSeedsData = currentDynasty.cfpSeedsByYear?.[currentDynasty.currentYear]?.length > 0
             const hasCFPFirstRoundData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound?.length > 0
@@ -2923,7 +2946,8 @@ export default function Dashboard() {
                     {/* Task 3: Bowl/CFP Status */}
                     {(() => {
                       const bowlTaskComplete = hasCFPSeedsData && (userHasCFPBye || userInCFPFirstRound || (bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent))))
-                      const showBowlEditButton = !userCFPSeed && bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent))
+                      // Edit button only shows when CFP seeds are entered AND bowl eligibility has been answered
+                      const showBowlEditButton = hasCFPSeedsData && !userCFPSeed && bowlEligible !== null && (bowlEligible === false || (bowlEligible && selectedBowl && bowlOpponent))
 
                       return (
                         <div
@@ -2957,12 +2981,12 @@ export default function Dashboard() {
                                     ✓ #{userCFPSeed} Seed vs #{17 - userCFPSeed} {getMascotName(userCFPOpponent)}
                                   </div>
                                 )}
-                                {!userCFPSeed && bowlEligible === false && (
+                                {hasCFPSeedsData && !userCFPSeed && bowlEligible === false && (
                                   <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ Not bowl eligible this year
                                   </div>
                                 )}
-                                {!userCFPSeed && bowlEligible && selectedBowl && bowlOpponent && (
+                                {hasCFPSeedsData && !userCFPSeed && bowlEligible && selectedBowl && bowlOpponent && (
                                   <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
                                     ✓ {selectedBowl} vs {bowlOpponent}
                                     {userBowlIsWeek2 && <span className="ml-2 opacity-70">(plays in Week 2)</span>}
@@ -2983,8 +3007,11 @@ export default function Dashboard() {
                                   const updatedGames = existingBowlGame
                                     ? currentDynasty.games.filter(g => !(g.isBowlGame && g.year === currentDynasty.currentYear && (g.userTeam === currentTeamAbbr || !g.userTeam)))
                                     : currentDynasty.games
+                                  // Clear year-specific bowl eligibility data
+                                  const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
+                                  const { [currentYear]: _, ...restByYear } = existingByYear
                                   await updateDynasty(currentDynasty.id, {
-                                    bowlEligibilityData: null,
+                                    bowlEligibilityDataByYear: restByYear,
                                     games: updatedGames
                                   })
                                 }}
@@ -3011,8 +3038,12 @@ export default function Dashboard() {
                                 <button
                                   onClick={async () => {
                                     setBowlEligible(true)
+                                    const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
                                     await updateDynasty(currentDynasty.id, {
-                                      bowlEligibilityData: { eligible: true, bowlGame: '', opponent: '' }
+                                      bowlEligibilityDataByYear: {
+                                        ...existingByYear,
+                                        [currentYear]: { eligible: true, bowlGame: '', opponent: '' }
+                                      }
                                     })
                                   }}
                                   className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
@@ -3023,8 +3054,12 @@ export default function Dashboard() {
                                 <button
                                   onClick={async () => {
                                     setBowlEligible(false)
+                                    const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
                                     await updateDynasty(currentDynasty.id, {
-                                      bowlEligibilityData: { eligible: false, bowlGame: null, opponent: null }
+                                      bowlEligibilityDataByYear: {
+                                        ...existingByYear,
+                                        [currentYear]: { eligible: false, bowlGame: null, opponent: null }
+                                      }
                                     })
                                   }}
                                   className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
@@ -3044,8 +3079,13 @@ export default function Dashboard() {
                                   value={selectedBowl}
                                   onChange={async (bowl) => {
                                     setSelectedBowl(bowl)
+                                    const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
+                                    const currentBowlData = existingByYear[currentYear] || {}
                                     await updateDynasty(currentDynasty.id, {
-                                      bowlEligibilityData: { ...currentDynasty.bowlEligibilityData, eligible: true, bowlGame: bowl }
+                                      bowlEligibilityDataByYear: {
+                                        ...existingByYear,
+                                        [currentYear]: { ...currentBowlData, eligible: true, bowlGame: bowl }
+                                      }
                                     })
                                   }}
                                   placeholder="Search bowls..."
@@ -3064,8 +3104,13 @@ export default function Dashboard() {
                                   value={bowlOpponent}
                                   onChange={async (value) => {
                                     setBowlOpponent(value)
+                                    const existingByYear = currentDynasty.bowlEligibilityDataByYear || {}
+                                    const currentBowlData = existingByYear[currentYear] || {}
                                     await updateDynasty(currentDynasty.id, {
-                                      bowlEligibilityData: { ...currentDynasty.bowlEligibilityData, opponent: value }
+                                      bowlEligibilityDataByYear: {
+                                        ...existingByYear,
+                                        [currentYear]: { ...currentBowlData, opponent: value }
+                                      }
                                     })
                                   }}
                                   placeholder="Search for opponent..."
@@ -3655,11 +3700,14 @@ export default function Dashboard() {
                     })()}
 
                     {/* Task: Fill Coordinator Vacancy (appears in Bowl Week 2+ if coordinator was fired) */}
-                    {currentDynasty.coachPosition === 'HC' &&
-                     (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName) &&
+                    {currentDynasty.coachPosition === 'HC' && (() => {
+                      const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                      return ccDataForYear.firedOCName || ccDataForYear.firedDCName
+                    })() &&
                     (() => {
-                      const firedOC = currentDynasty.conferenceChampionshipData?.firedOCName
-                      const firedDC = currentDynasty.conferenceChampionshipData?.firedDCName
+                      const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                      const firedOC = ccDataForYear.firedOCName
+                      const firedDC = ccDataForYear.firedDCName
                       // Only mark as done if vacancy is actually filled (user said Yes and entered name)
                       const ocFilled = !firedOC || (filledOCVacancy === true && newOCName)
                       const dcFilled = !firedDC || (filledDCVacancy === true && newDCName)
@@ -3906,7 +3954,8 @@ export default function Dashboard() {
                       if (bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2) taskNum++
                       if (userInCFPQuarterfinal && hasBowlWeek1Data) taskNum++
                       taskNum++ // After "Taking a New Job" task
-                      if (currentDynasty.coachPosition === 'HC' && (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName)) taskNum++ // After coordinator hire task
+                      const ccDataForTaskNum = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                      if (currentDynasty.coachPosition === 'HC' && (ccDataForTaskNum.firedOCName || ccDataForTaskNum.firedDCName)) taskNum++ // After coordinator hire task
 
                       return (
                         <div
@@ -4732,11 +4781,14 @@ export default function Dashboard() {
                   )}
 
                   {/* Task: Fill Coordinator Vacancy (appears in Bowl Week 3-5 if coordinator was fired) */}
-                  {currentDynasty.coachPosition === 'HC' &&
-                   (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName) &&
+                  {currentDynasty.coachPosition === 'HC' && (() => {
+                    const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                    return ccDataForYear.firedOCName || ccDataForYear.firedDCName
+                  })() &&
                   (() => {
-                    const firedOC = currentDynasty.conferenceChampionshipData?.firedOCName
-                    const firedDC = currentDynasty.conferenceChampionshipData?.firedDCName
+                    const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                    const firedOC = ccDataForYear.firedOCName
+                    const firedDC = ccDataForYear.firedDCName
                     // Only mark as done if vacancy is actually filled (user said Yes and entered name)
                     const ocFilled = !firedOC || (filledOCVacancy === true && newOCName)
                     const dcFilled = !firedDC || (filledDCVacancy === true && newDCName)
@@ -4982,7 +5034,8 @@ export default function Dashboard() {
                       if (userInCFPChampionship) taskNum++ // After user Championship game
                     }
                     taskNum++ // After "Taking a New Job" task
-                    if (currentDynasty.coachPosition === 'HC' && (currentDynasty.conferenceChampionshipData?.firedOCName || currentDynasty.conferenceChampionshipData?.firedDCName)) taskNum++ // After coordinator hire task
+                    const ccDataForTaskNum = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+                    if (currentDynasty.coachPosition === 'HC' && (ccDataForTaskNum.firedOCName || ccDataForTaskNum.firedDCName)) taskNum++ // After coordinator hire task
 
                     return (
                       <div
@@ -6044,9 +6097,13 @@ export default function Dashboard() {
             })}
 
             {/* Conference Championship Game - shows when user made the championship */}
-            {(ccMadeChampionship === true || currentDynasty.conferenceChampionshipData?.madeChampionship === true) && (() => {
+            {(() => {
+              const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+              return ccMadeChampionship === true || ccDataForYear.madeChampionship === true
+            })() && (() => {
               const ccGame = getCCGame()
-              const ccOpponentAbbr = ccGame?.opponent || ccOpponent || currentDynasty.conferenceChampionshipData?.opponent
+              const ccDataForYear = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear] || {}
+              const ccOpponentAbbr = ccGame?.opponent || ccOpponent || ccDataForYear.opponent
               const hasOpponent = !!ccOpponentAbbr
               const ccOpponentColors = hasOpponent ? getOpponentColors(ccOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
               // ccOpponentAbbr could be an abbreviation OR a mascot name
@@ -6670,9 +6727,9 @@ export default function Dashboard() {
         weekNumber="Bowl"
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
-        opponent={currentDynasty.bowlEligibilityData?.opponent || bowlOpponent}
+        opponent={currentDynasty.bowlEligibilityDataByYear?.[currentDynasty.currentYear]?.opponent || bowlOpponent}
         existingGame={findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)}
-        bowlName={currentDynasty.bowlEligibilityData?.bowlGame || selectedBowl}
+        bowlName={currentDynasty.bowlEligibilityDataByYear?.[currentDynasty.currentYear]?.bowlGame || selectedBowl}
       />
 
       {/* Bowl Week 1 Modal */}

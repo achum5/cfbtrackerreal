@@ -187,6 +187,72 @@ export default function Game() {
 
   const [showEditModal, setShowEditModal] = useState(false)
   const [activeStatTab, setActiveStatTab] = useState('passing')
+  // Box score sort state: { column: string | null, direction: 'asc' | 'desc' | null }
+  const [homeSortConfig, setHomeSortConfig] = useState({ column: null, direction: null })
+  const [awaySortConfig, setAwaySortConfig] = useState({ column: null, direction: null })
+
+  // Reset sort when changing stat tabs
+  useEffect(() => {
+    setHomeSortConfig({ column: null, direction: null })
+    setAwaySortConfig({ column: null, direction: null })
+  }, [activeStatTab])
+
+  // Handle column header click for sorting
+  const handleSort = (team, columnKey) => {
+    const setSortConfig = team === 'home' ? setHomeSortConfig : setAwaySortConfig
+    const currentConfig = team === 'home' ? homeSortConfig : awaySortConfig
+
+    if (currentConfig.column !== columnKey) {
+      // New column: start with descending (highest first for stats)
+      // For playerName, start with ascending (A-Z)
+      setSortConfig({ column: columnKey, direction: columnKey === 'playerName' ? 'asc' : 'desc' })
+    } else if (currentConfig.direction === 'desc') {
+      // Second click: switch to ascending
+      setSortConfig({ column: columnKey, direction: 'asc' })
+    } else if (currentConfig.direction === 'asc') {
+      // Third click: reset to default (no sort)
+      setSortConfig({ column: null, direction: null })
+    }
+  }
+
+  // Sort data based on sort config
+  const sortBoxScoreData = (data, sortConfig) => {
+    if (!data || !sortConfig.column || !sortConfig.direction) {
+      return data // Return original order
+    }
+
+    return [...data].sort((a, b) => {
+      let aVal = a[sortConfig.column]
+      let bVal = b[sortConfig.column]
+
+      // Handle special computed fields
+      if (activeStatTab === 'defense' && sortConfig.column === 'total') {
+        aVal = (parseFloat(a.solo) || 0) + (parseFloat(a.assists) || 0)
+        bVal = (parseFloat(b.solo) || 0) + (parseFloat(b.assists) || 0)
+      }
+
+      // For player name, do alphabetical sort
+      if (sortConfig.column === 'playerName') {
+        const aStr = (aVal || '').toString().toLowerCase()
+        const bStr = (bVal || '').toString().toLowerCase()
+        if (sortConfig.direction === 'asc') {
+          return aStr.localeCompare(bStr)
+        } else {
+          return bStr.localeCompare(aStr)
+        }
+      }
+
+      // For numeric values
+      const aNum = parseFloat(aVal) || 0
+      const bNum = parseFloat(bVal) || 0
+
+      if (sortConfig.direction === 'asc') {
+        return aNum - bNum
+      } else {
+        return bNum - aNum
+      }
+    })
+  }
 
   // Scroll to top when page loads
   useEffect(() => {
@@ -416,8 +482,9 @@ export default function Game() {
   } else {
     displayTeam = userTeam
     displayTeamAbbr = userTeamAbbr
-    opponentAbbr = game.opponent
-    opponent = getMascotName(game.opponent) || game.opponent
+    // Convert opponent to abbreviation if it's a full name
+    opponentAbbr = getAbbreviationFromDisplayName(game.opponent) || game.opponent
+    opponent = getMascotName(opponentAbbr) || game.opponent
   }
 
   // Get team info for display - use robust lookups to handle various team name formats
@@ -614,13 +681,43 @@ export default function Game() {
   const confLogo = game.isConferenceChampionship && confName ? getConferenceLogo(confName) : null
   const eventLogo = bowlLogo || confLogo
 
-  // Get rankings
-  const leftRank = leftTeam === 'user' ? game.userRank : game.opponentRank
-  const rightRank = rightTeam === 'user' ? game.userRank : game.opponentRank
+  // Get rankings - for CPU games use team1Rank/team2Rank, for user games use userRank/opponentRank
+  let leftRank, rightRank
+  if (isCPUGame) {
+    // For CPU games, displayTeamAbbr is team1 by default
+    const isLeftTeam1 = displayTeamAbbr === game.team1
+    leftRank = isLeftTeam1 ? game.team1Rank : game.team2Rank
+    rightRank = isLeftTeam1 ? game.team2Rank : game.team1Rank
+  } else {
+    leftRank = leftTeam === 'user' ? game.userRank : game.opponentRank
+    rightRank = rightTeam === 'user' ? game.userRank : game.opponentRank
+  }
 
   // Team data for rendering
   const getTeamData = (side) => {
     const isDisplayTeam = side === 'user'
+
+    // For CPU games, get record and rating from team1/team2 fields
+    let record = null
+    let overall = null
+    let offense = null
+    let defense = null
+
+    if (isCPUGame) {
+      // Determine if this side corresponds to team1 or team2
+      const isTeam1 = isDisplayTeam ? (displayTeamAbbr === game.team1) : (opponentAbbr === game.team1)
+      record = isTeam1 ? game.team1Record : game.team2Record
+      overall = isTeam1 ? game.team1Overall : game.team2Overall
+      offense = isTeam1 ? game.team1Offense : game.team2Offense
+      defense = isTeam1 ? game.team1Defense : game.team2Defense
+    } else {
+      // User game - user team uses dynasty record, opponent uses opponentRecord
+      record = isDisplayTeam && userRecord ? `${userRecord.overall} (${userRecord.conference})` : game.opponentRecord
+      overall = isDisplayTeam ? null : game.opponentOverall
+      offense = isDisplayTeam ? null : game.opponentOffense
+      defense = isDisplayTeam ? null : game.opponentDefense
+    }
+
     return {
       name: isDisplayTeam ? displayTeam : opponent,
       abbr: isDisplayTeam ? displayTeamAbbr : opponentAbbr,
@@ -629,12 +726,23 @@ export default function Game() {
       score: isDisplayTeam ? userScore : opponentScore,
       isWinner: isDisplayTeam ? userWon : !userWon,
       rank: side === leftTeam ? leftRank : rightRank,
-      record: isDisplayTeam && !isCPUGame && userRecord ? `${userRecord.overall} (${userRecord.conference})` : (isDisplayTeam ? null : game.opponentRecord)
+      record: record,
+      overall: overall,
+      offense: offense,
+      defense: defense
     }
   }
 
   const leftData = getTeamData(leftTeam)
   const rightData = getTeamData(rightTeam)
+
+  // Determine which team is "home" in the boxScore sense (matching BoxScoreSheetModal logic)
+  // For home/neutral games: user is home in boxScore, opponent is away
+  // For away games: opponent is home in boxScore, user is away
+  // This is DIFFERENT from visual layout (left/right) which is based on scoreboard convention
+  const boxScoreHomeIsUser = location === 'home' || location === 'neutral'
+  const boxScoreHomeTeamData = boxScoreHomeIsUser ? getTeamData('user') : getTeamData('opponent')
+  const boxScoreAwayTeamData = boxScoreHomeIsUser ? getTeamData('opponent') : getTeamData('user')
 
   // Winner takes more of the gradient with smooth blend - winner gets 70%, blend zone in middle
   const leftWon = leftData.isWinner
@@ -730,7 +838,7 @@ export default function Game() {
               <div className="flex flex-col items-center gap-1">
                 <span className="text-gray-500 text-xs font-medium">FINAL</span>
                 {game.overtimes && game.overtimes.length > 0 && (
-                  <span className="text-yellow-400 text-[10px] font-bold">
+                  <span className="text-gray-400 text-[10px] font-bold">
                     {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
                   </span>
                 )}
@@ -822,7 +930,7 @@ export default function Game() {
                         )
                       })}
                       {game.overtimes?.map((ot, i) => (
-                        <td key={i} className="text-center py-3 px-2 sm:px-3 text-yellow-400 font-medium">{ot[quarterKey] ?? '-'}</td>
+                        <td key={i} className="text-center py-3 px-2 sm:px-3 text-gray-300 font-medium">{ot[quarterKey] ?? '-'}</td>
                       ))}
                       <td className={`text-center py-3 px-3 sm:px-4 font-black text-lg sm:text-xl ${team.isWinner ? 'text-white' : 'text-gray-500'}`}>
                         {team.score}
@@ -873,37 +981,43 @@ export default function Game() {
             <div className="p-4">
               {STAT_TABS[activeStatTab] && (
                 <div className="space-y-6">
-                  {/* Home Team Stats - rightData is home team (right side = home) */}
+                  {/* Home Team Stats - uses boxScoreHomeTeamData (matches BoxScoreSheetModal logic) */}
                   {game.boxScore.home?.[activeStatTab]?.length > 0 && (
                     <div>
                       {/* Team Header - Fixed, doesn't scroll */}
-                      <Link to={`${pathPrefix}/team/${rightData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
+                      <Link to={`${pathPrefix}/team/${boxScoreHomeTeamData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1 group-hover:scale-105 transition-transform">
                           <img
-                            src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
-                            alt={rightData.name}
+                            src={getTeamLogo(getMascotName(boxScoreHomeTeamData.abbr) || boxScoreHomeTeamData.abbr)}
+                            alt={boxScoreHomeTeamData.name}
                             className="w-full h-full object-contain"
                           />
                         </div>
-                        <span className="text-white font-semibold group-hover:underline">{rightData.name}</span>
+                        <span className="text-white font-semibold group-hover:underline">{boxScoreHomeTeamData.name}</span>
                       </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="text-gray-400 text-left">
-                              {STAT_TABS[activeStatTab].headers.map((header, idx) => (
-                                <th
-                                  key={idx}
-                                  className={`py-2 px-2 font-medium whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
-                                >
-                                  {header}
-                                </th>
-                              ))}
+                              {STAT_TABS[activeStatTab].headers.map((header, idx) => {
+                                const columnKey = idx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                const isSorted = homeSortConfig.column === columnKey
+                                const sortArrow = isSorted ? (homeSortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''
+                                return (
+                                  <th
+                                    key={idx}
+                                    onClick={() => handleSort('home', columnKey)}
+                                    className={`py-2 px-2 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'} ${isSorted ? 'text-white' : ''}`}
+                                  >
+                                    {header}{sortArrow}
+                                  </th>
+                                )
+                              })}
                             </tr>
                           </thead>
                           <tbody>
-                            {game.boxScore.home[activeStatTab].map((row, rowIdx) => (
+                            {sortBoxScoreData(game.boxScore.home[activeStatTab], homeSortConfig).map((row, rowIdx) => (
                               <tr key={rowIdx} className="border-t border-gray-800">
                                 {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
@@ -942,37 +1056,43 @@ export default function Game() {
                     </div>
                   )}
 
-                  {/* Away Team Stats - leftData is away team (left side = away) */}
+                  {/* Away Team Stats - uses boxScoreAwayTeamData (matches BoxScoreSheetModal logic) */}
                   {game.boxScore.away?.[activeStatTab]?.length > 0 && (
                     <div>
                       {/* Team Header - Fixed, doesn't scroll */}
-                      <Link to={`${pathPrefix}/team/${leftData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
+                      <Link to={`${pathPrefix}/team/${boxScoreAwayTeamData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
                         <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1 group-hover:scale-105 transition-transform">
                           <img
-                            src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
-                            alt={leftData.name}
+                            src={getTeamLogo(getMascotName(boxScoreAwayTeamData.abbr) || boxScoreAwayTeamData.abbr)}
+                            alt={boxScoreAwayTeamData.name}
                             className="w-full h-full object-contain"
                           />
                         </div>
-                        <span className="text-white font-semibold group-hover:underline">{leftData.name}</span>
+                        <span className="text-white font-semibold group-hover:underline">{boxScoreAwayTeamData.name}</span>
                       </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="text-gray-400 text-left">
-                              {STAT_TABS[activeStatTab].headers.map((header, idx) => (
-                                <th
-                                  key={idx}
-                                  className={`py-2 px-2 font-medium whitespace-nowrap ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
-                                >
-                                  {header}
-                                </th>
-                              ))}
+                              {STAT_TABS[activeStatTab].headers.map((header, idx) => {
+                                const columnKey = idx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+                                const isSorted = awaySortConfig.column === columnKey
+                                const sortArrow = isSorted ? (awaySortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''
+                                return (
+                                  <th
+                                    key={idx}
+                                    onClick={() => handleSort('away', columnKey)}
+                                    className={`py-2 px-2 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'} ${isSorted ? 'text-white' : ''}`}
+                                  >
+                                    {header}{sortArrow}
+                                  </th>
+                                )
+                              })}
                             </tr>
                           </thead>
                           <tbody>
-                            {game.boxScore.away[activeStatTab].map((row, rowIdx) => (
+                            {sortBoxScoreData(game.boxScore.away[activeStatTab], awaySortConfig).map((row, rowIdx) => (
                               <tr key={rowIdx} className="border-t border-gray-800">
                                 {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
@@ -1220,6 +1340,9 @@ export default function Game() {
       {game.boxScore?.teamStats && (game.boxScore.teamStats.home || game.boxScore.teamStats.away) && (() => {
         const homeStats = game.boxScore.teamStats.home || {}
         const awayStats = game.boxScore.teamStats.away || {}
+        // Convert team names to abbreviations for links (might be full names like "Sam Houston State Bearkats")
+        const homeTeamAbbrForLink = getAbbreviationFromDisplayName(homeStats.teamAbbr) || homeStats.teamAbbr
+        const awayTeamAbbrForLink = getAbbreviationFromDisplayName(awayStats.teamAbbr) || awayStats.teamAbbr
 
         // Helper to format percentage
         const pct = (made, att) => {
@@ -1295,23 +1418,23 @@ export default function Game() {
             </div>
             {/* Team headers - Left = away team, Right = home team */}
             <div className="flex items-center border-b border-gray-800 bg-gray-800/50">
-              <Link to={`${pathPrefix}/team/${awayStats.teamAbbr}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
-                {getTeamLogoRobust(awayStats.teamAbbr) && (
-                  <img src={getTeamLogoRobust(awayStats.teamAbbr)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
+              <Link to={`${pathPrefix}/team/${awayTeamAbbrForLink}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
+                {getTeamLogoRobust(awayTeamAbbrForLink) && (
+                  <img src={getTeamLogoRobust(awayTeamAbbrForLink)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
                 )}
                 <span className="font-bold text-sm text-white group-hover:underline">
-                  <span className="hidden sm:inline">{getMascotName(awayStats.teamAbbr) || awayStats.teamAbbr}</span>
-                  <span className="sm:hidden">{awayStats.teamAbbr}</span>
+                  <span className="hidden sm:inline">{getMascotName(awayTeamAbbrForLink) || awayTeamAbbrForLink}</span>
+                  <span className="sm:hidden">{awayTeamAbbrForLink}</span>
                 </span>
               </Link>
               <div className="w-28 text-center text-xs font-bold text-gray-400 uppercase">Stat</div>
-              <Link to={`${pathPrefix}/team/${homeStats.teamAbbr}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
+              <Link to={`${pathPrefix}/team/${homeTeamAbbrForLink}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
                 <span className="font-bold text-sm text-white group-hover:underline">
-                  <span className="hidden sm:inline">{getMascotName(homeStats.teamAbbr) || homeStats.teamAbbr}</span>
-                  <span className="sm:hidden">{homeStats.teamAbbr}</span>
+                  <span className="hidden sm:inline">{getMascotName(homeTeamAbbrForLink) || homeTeamAbbrForLink}</span>
+                  <span className="sm:hidden">{homeTeamAbbrForLink}</span>
                 </span>
-                {getTeamLogoRobust(homeStats.teamAbbr) && (
-                  <img src={getTeamLogoRobust(homeStats.teamAbbr)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
+                {getTeamLogoRobust(homeTeamAbbrForLink) && (
+                  <img src={getTeamLogoRobust(homeTeamAbbrForLink)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
                 )}
               </Link>
             </div>

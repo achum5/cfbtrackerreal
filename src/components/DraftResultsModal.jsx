@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -31,6 +31,9 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [noDraftDeclarees, setNoDraftDeclarees] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -80,7 +83,7 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
   // Create draft results sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote && !noDraftDeclarees) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noDraftDeclarees) {
         // Check if we have an existing sheet for this year
         const existingSheetId = currentDynasty?.draftResultsSheetId
         if (existingSheetId) {
@@ -97,6 +100,8 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
           return
         }
 
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           const sheetInfo = await createDraftResultsSheet(
@@ -118,6 +123,7 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
           }
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -130,6 +136,7 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
     if (!isOpen) {
       setShowDeletedNote(false)
       setNoDraftDeclarees(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

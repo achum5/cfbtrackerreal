@@ -31,7 +31,12 @@ export default function GameEntryModal({
   const teamRatings = getCurrentTeamRatings(currentDynasty)
 
   // Detect if this is a CPU vs CPU game from existingGame or passed props
-  const isCPUGame = existingGame?.isCPUGame || (existingGame?.team1 && existingGame?.team2) || (passedTeam1 && passedTeam2)
+  // IMPORTANT: Check isCPUGame flag explicitly - user postseason games now have team1/team2
+  // for Bowl History but are NOT CPU games (they have isCPUGame: false and userTeam set)
+  const isCPUGame =
+    (existingGame?.isCPUGame === true) || // Explicitly marked as CPU game
+    (existingGame?.isCPUGame !== false && existingGame?.team1 && existingGame?.team2 && !existingGame?.userTeam) || // Has team1/team2 without userTeam, not marked as user game
+    (passedTeam1 && passedTeam2) // Passed as CPU game via props
 
   // Merge existingGame with backward compat props (existingGame takes priority)
   const effectiveGame = existingGame ? existingGame : (passedTeam1 && passedTeam2 ? {
@@ -242,7 +247,18 @@ export default function GameEntryModal({
       team: { Q1: '', Q2: '', Q3: '', Q4: '' },
       opponent: { Q1: '', Q2: '', Q3: '', Q4: '' }
     },
-    overtimes: []
+    overtimes: [],
+    // CPU game-specific fields
+    team1Overall: '',
+    team1Offense: '',
+    team1Defense: '',
+    team1Record: '',
+    team2Overall: '',
+    team2Offense: '',
+    team2Defense: '',
+    team2Record: '',
+    team1Rank: '',
+    team2Rank: ''
   })
 
   const [links, setLinks] = useState(['']) // Array of link strings
@@ -817,7 +833,18 @@ export default function GameEntryModal({
           overtimes: getOvertimesForQuarters(
             gameToLoad.quarters || { team: { Q1: '', Q2: '', Q3: '', Q4: '' }, opponent: { Q1: '', Q2: '', Q3: '', Q4: '' } },
             gameToLoad.overtimes || []
-          )
+          ),
+          // CPU game-specific fields
+          team1Overall: gameToLoad.team1Overall?.toString() || '',
+          team1Offense: gameToLoad.team1Offense?.toString() || '',
+          team1Defense: gameToLoad.team1Defense?.toString() || '',
+          team1Record: gameToLoad.team1Record || '',
+          team2Overall: gameToLoad.team2Overall?.toString() || '',
+          team2Offense: gameToLoad.team2Offense?.toString() || '',
+          team2Defense: gameToLoad.team2Defense?.toString() || '',
+          team2Record: gameToLoad.team2Record || '',
+          team1Rank: gameToLoad.team1Rank?.toString() || '',
+          team2Rank: gameToLoad.team2Rank?.toString() || ''
         })
 
         // Load links
@@ -1109,7 +1136,8 @@ export default function GameEntryModal({
 
     // Auto-detect if this is a conference game
     const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
-    const opponentAbbr = gameData.opponent || scheduledGame?.opponent
+    const rawOpponent = gameData.opponent || scheduledGame?.opponent
+    const opponentAbbr = getAbbreviationFromDisplayName(rawOpponent) || rawOpponent
     const userConference = getTeamConference(userTeamAbbr)
     const opponentConference = getTeamConference(opponentAbbr)
 
@@ -1153,15 +1181,26 @@ export default function GameEntryModal({
       natlDefensePOW: natlDefensePOW || null,
       favoriteStatus: favoriteStatus !== undefined ? favoriteStatus : null,
       isConferenceGame: isConferenceGame,
-      // Preserve special game type flags from existing game
+      // Preserve special game type flags from existing game or set from props
       ...(effectiveGame?.bowlName && { bowlName: effectiveGame.bowlName }),
       ...(effectiveGame?.isConferenceChampionship && { isConferenceChampionship: true }),
       ...(effectiveGame?.isCFPFirstRound && { isCFPFirstRound: true }),
       ...(effectiveGame?.isCFPQuarterfinal && { isCFPQuarterfinal: true }),
       ...(effectiveGame?.isCFPSemifinal && { isCFPSemifinal: true }),
       ...(effectiveGame?.isCFPChampionship && { isCFPChampionship: true }),
-      ...(effectiveGame?.isBowlGame && { isBowlGame: true }),
+      // Set isBowlGame if existing game has it OR if a bowlName is provided
+      ...((effectiveGame?.isBowlGame || bowlName) && { isBowlGame: true }),
       ...(bowlName && !effectiveGame?.bowlName && { bowlName: bowlName }),
+      // For postseason games (bowl, CFP, CC), also set unified team fields for history tracking
+      ...((bowlName || effectiveGame?.isBowlGame || effectiveGame?.isConferenceChampionship ||
+           effectiveGame?.isCFPFirstRound || effectiveGame?.isCFPQuarterfinal ||
+           effectiveGame?.isCFPSemifinal || effectiveGame?.isCFPChampionship) && !isCPUGame && {
+        team1: userTeamAbbr,
+        team2: opponentAbbr,
+        team1Score: teamScore,
+        team2Score: opponentScore,
+        winner: result === 'win' || result === 'W' ? userTeamAbbr : opponentAbbr
+      }),
       // CPU vs CPU game data
       ...(isCPUGame && {
         isCPUGame: true,
@@ -1169,7 +1208,19 @@ export default function GameEntryModal({
         team2: effectiveGame?.team2,
         team1Score: teamScore,
         team2Score: opponentScore,
-        winner: teamScore > opponentScore ? effectiveGame?.team1 : effectiveGame?.team2
+        winner: teamScore > opponentScore ? effectiveGame?.team1 : effectiveGame?.team2,
+        // Team 1 details
+        team1Rank: gameData.team1Rank ? parseInt(gameData.team1Rank) : null,
+        team1Record: gameData.team1Record || null,
+        team1Overall: gameData.team1Overall ? parseInt(gameData.team1Overall) : null,
+        team1Offense: gameData.team1Offense ? parseInt(gameData.team1Offense) : null,
+        team1Defense: gameData.team1Defense ? parseInt(gameData.team1Defense) : null,
+        // Team 2 details
+        team2Rank: gameData.team2Rank ? parseInt(gameData.team2Rank) : null,
+        team2Record: gameData.team2Record || null,
+        team2Overall: gameData.team2Overall ? parseInt(gameData.team2Overall) : null,
+        team2Offense: gameData.team2Offense ? parseInt(gameData.team2Offense) : null,
+        team2Defense: gameData.team2Defense ? parseInt(gameData.team2Defense) : null
       }),
       // Include pending box score data for new games
       ...((pendingHomeStats || pendingAwayStats || pendingScoringSummary || pendingTeamStats) && {
@@ -1302,7 +1353,8 @@ export default function GameEntryModal({
 
     // Generate random box score stats based on player positions
     const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
-    const opponentAbbr = gameData.opponent || scheduledGame?.opponent || 'OPP'
+    const rawOpp = gameData.opponent || scheduledGame?.opponent || 'OPP'
+    const opponentAbbr = getAbbreviationFromDisplayName(rawOpp) || rawOpp
 
     // Determine home/away based on location
     const isUserHome = gameData.location === 'home' || gameData.location === 'neutral'
@@ -1379,7 +1431,8 @@ export default function GameEntryModal({
                   </p>
                 )
               } else if (scheduledGame || isConferenceChampionship || passedOpponent) {
-                const opponentAbbr = passedOpponent || scheduledGame?.opponent
+                const rawOppAbbr = passedOpponent || scheduledGame?.opponent
+                const opponentAbbr = getAbbreviationFromDisplayName(rawOppAbbr) || rawOppAbbr
                 const opponentFullName = opponentAbbr ? (getMascotName(opponentAbbr) || getOpponentTeamName(opponentAbbr)) : opponentAbbr
                 return (
                   <p className="text-xs sm:text-sm mt-0.5 sm:mt-1 truncate" style={{ color: teamColors.primary, opacity: 0.7 }}>
@@ -1449,7 +1502,9 @@ export default function GameEntryModal({
                   // Determine team order based on location
                   // For CPU vs CPU games, use passed team1 and team2
                   const team1Abbr = isCPUGame ? effectiveGame?.team1 : getAbbreviationFromDisplayName(currentDynasty?.teamName)
-                  const team2Abbr = isCPUGame ? effectiveGame?.team2 : (gameData.opponent || passedOpponent || scheduledGame?.opponent)
+                  // Ensure opponent is an abbreviation (convert full name if needed)
+                  const rawOpponent = isCPUGame ? effectiveGame?.team2 : (gameData.opponent || passedOpponent || scheduledGame?.opponent)
+                  const team2Abbr = getAbbreviationFromDisplayName(rawOpponent) || rawOpponent
 
                   const team1MascotName = team1Abbr ? getMascotName(team1Abbr) : null
                   const team2MascotName = team2Abbr ? getMascotName(team2Abbr) : null
@@ -1845,7 +1900,8 @@ export default function GameEntryModal({
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center gap-2 sm:gap-3">
               {(() => {
-                const opponentAbbr = gameData.opponent || scheduledGame?.opponent
+                const rawOppAbbr = gameData.opponent || scheduledGame?.opponent
+                const opponentAbbr = getAbbreviationFromDisplayName(rawOppAbbr) || rawOppAbbr
                 const opponentMascotName = opponentAbbr ? getMascotName(opponentAbbr) : null
                 const opponentDisplayName = opponentMascotName || (opponentAbbr ? getOpponentTeamName(opponentAbbr) : 'Opponent')
                 const opponentLogo = opponentMascotName ? getTeamLogo(opponentMascotName) : null
@@ -2376,6 +2432,249 @@ export default function GameEntryModal({
           </div>
           )}
 
+          {/* CPU Game Team Ratings & Records - show only for CPU vs CPU games */}
+          {isCPUGame && (
+          <>
+            {/* Team 1 Section */}
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {(() => {
+                  const team1Abbr = effectiveGame?.team1 || passedTeam1
+                  const team1MascotName = team1Abbr ? getMascotName(team1Abbr) : null
+                  const team1DisplayName = team1MascotName || (team1Abbr ? getOpponentTeamName(team1Abbr) : 'Team 1')
+                  const team1Logo = team1MascotName ? getTeamLogo(team1MascotName) : null
+                  const team1Colors = team1Abbr ? teamAbbreviations[team1Abbr] : null
+
+                  return (
+                    <>
+                      {team1Logo && (
+                        <div
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${team1Colors?.textColor || teamColors.primary}`,
+                            padding: '2px'
+                          }}
+                        >
+                          <img
+                            src={team1Logo}
+                            alt={`${team1DisplayName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <h3 className="text-base sm:text-lg font-semibold truncate" style={{ color: teamColors.primary }}>
+                        {team1DisplayName}
+                      </h3>
+                    </>
+                  )
+                })()}
+              </div>
+
+              {/* Team 1 Rank and Record */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Ranking
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team1Rank}
+                    onChange={(e) => setGameData({ ...gameData, team1Rank: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="1"
+                    max="25"
+                    placeholder="Unranked"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Record
+                  </label>
+                  <input
+                    type="text"
+                    value={gameData.team1Record}
+                    onChange={(e) => setGameData({ ...gameData, team1Record: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base font-mono text-center"
+                    style={{ borderColor: teamColors.primary }}
+                    placeholder="10-2"
+                    maxLength="10"
+                  />
+                </div>
+              </div>
+
+              {/* Team 1 Ratings */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Overall
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team1Overall}
+                    onChange={(e) => setGameData({ ...gameData, team1Overall: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="85"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Offense
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team1Offense}
+                    onChange={(e) => setGameData({ ...gameData, team1Offense: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="87"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Defense
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team1Defense}
+                    onChange={(e) => setGameData({ ...gameData, team1Defense: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="83"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Team 2 Section */}
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {(() => {
+                  const team2Abbr = effectiveGame?.team2 || passedTeam2
+                  const team2MascotName = team2Abbr ? getMascotName(team2Abbr) : null
+                  const team2DisplayName = team2MascotName || (team2Abbr ? getOpponentTeamName(team2Abbr) : 'Team 2')
+                  const team2Logo = team2MascotName ? getTeamLogo(team2MascotName) : null
+                  const team2Colors = team2Abbr ? teamAbbreviations[team2Abbr] : null
+
+                  return (
+                    <>
+                      {team2Logo && (
+                        <div
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: `2px solid ${team2Colors?.textColor || teamColors.primary}`,
+                            padding: '2px'
+                          }}
+                        >
+                          <img
+                            src={team2Logo}
+                            alt={`${team2DisplayName} logo`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      )}
+                      <h3 className="text-base sm:text-lg font-semibold truncate" style={{ color: teamColors.primary }}>
+                        {team2DisplayName}
+                      </h3>
+                    </>
+                  )
+                })()}
+              </div>
+
+              {/* Team 2 Rank and Record */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Ranking
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team2Rank}
+                    onChange={(e) => setGameData({ ...gameData, team2Rank: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="1"
+                    max="25"
+                    placeholder="Unranked"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Record
+                  </label>
+                  <input
+                    type="text"
+                    value={gameData.team2Record}
+                    onChange={(e) => setGameData({ ...gameData, team2Record: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base font-mono text-center"
+                    style={{ borderColor: teamColors.primary }}
+                    placeholder="8-4"
+                    maxLength="10"
+                  />
+                </div>
+              </div>
+
+              {/* Team 2 Ratings */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Overall
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team2Overall}
+                    onChange={(e) => setGameData({ ...gameData, team2Overall: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="85"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Offense
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team2Offense}
+                    onChange={(e) => setGameData({ ...gameData, team2Offense: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="87"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
+                    Defense
+                  </label>
+                  <input
+                    type="number"
+                    value={gameData.team2Defense}
+                    onChange={(e) => setGameData({ ...gameData, team2Defense: e.target.value })}
+                    className="w-full px-2 sm:px-4 py-1.5 sm:py-2 border-2 rounded-lg text-sm sm:text-base"
+                    style={{ borderColor: teamColors.primary }}
+                    min="0"
+                    max="99"
+                    placeholder="83"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+          )}
+
           {/* Game Note Section */}
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
@@ -2416,13 +2715,22 @@ export default function GameEntryModal({
             </div>
 
             {/* Box Score Buttons - available for any game with an ID (existing or new with tempGameId) */}
-            {!isCPUGame && (existingGame?.id || tempGameId) && (() => {
+            {(existingGame?.id || tempGameId) && (() => {
               // Compute home/away teams for button labels
-              const userAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
-              const oppAbbr = gameData.opponent || existingGame?.opponent || ''
-              const isUserHome = gameData.location === 'home' || gameData.location === 'neutral'
-              const homeAbbr = isUserHome ? userAbbr : oppAbbr
-              const awayAbbr = isUserHome ? oppAbbr : userAbbr
+              // For CPU games: team1 = "home", team2 = "away" in box score
+              // For user games: based on location (home/neutral = user is home)
+              let homeAbbr, awayAbbr
+              if (isCPUGame) {
+                homeAbbr = effectiveGame?.team1 || passedTeam1 || 'Team 1'
+                awayAbbr = effectiveGame?.team2 || passedTeam2 || 'Team 2'
+              } else {
+                const userAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
+                const rawOppAbbr = gameData.opponent || existingGame?.opponent || ''
+                const oppAbbr = getAbbreviationFromDisplayName(rawOppAbbr) || rawOppAbbr
+                const isUserHome = gameData.location === 'home' || gameData.location === 'neutral'
+                homeAbbr = isUserHome ? userAbbr : oppAbbr
+                awayAbbr = isUserHome ? oppAbbr : userAbbr
+              }
 
               // Check if stats already entered (via data or sheet creation)
               const hasHomeStats = existingGame?.boxScore?.home && Object.keys(existingGame.boxScore.home).length > 0
@@ -2579,7 +2887,11 @@ export default function GameEntryModal({
               week: actualWeekNumber,
               year: actualYear,
               opponent: gameData.opponent,
-              location: gameData.location
+              location: gameData.location,
+              // CPU game info
+              isCPUGame: isCPUGame,
+              team1: effectiveGame?.team1 || passedTeam1,
+              team2: effectiveGame?.team2 || passedTeam2
             }}
             teamColors={teamColors}
           />
@@ -2619,7 +2931,11 @@ export default function GameEntryModal({
               week: actualWeekNumber,
               year: actualYear,
               opponent: gameData.opponent,
-              location: gameData.location
+              location: gameData.location,
+              // CPU game info
+              isCPUGame: isCPUGame,
+              team1: effectiveGame?.team1 || passedTeam1,
+              team2: effectiveGame?.team2 || passedTeam2
             }}
             teamColors={teamColors}
           />
@@ -2659,7 +2975,11 @@ export default function GameEntryModal({
               week: actualWeekNumber,
               year: actualYear,
               opponent: gameData.opponent,
-              location: gameData.location
+              location: gameData.location,
+              // CPU game info
+              isCPUGame: isCPUGame,
+              team1: effectiveGame?.team1 || passedTeam1,
+              team2: effectiveGame?.team2 || passedTeam2
             }}
             teamColors={teamColors}
           />
@@ -2699,7 +3019,11 @@ export default function GameEntryModal({
               week: actualWeekNumber,
               year: actualYear,
               opponent: gameData.opponent,
-              location: gameData.location
+              location: gameData.location,
+              // CPU game info
+              isCPUGame: isCPUGame,
+              team1: effectiveGame?.team1 || passedTeam1,
+              team2: effectiveGame?.team2 || passedTeam2
             }}
             teamColors={teamColors}
           />

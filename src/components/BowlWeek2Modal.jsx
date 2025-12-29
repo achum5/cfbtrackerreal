@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -19,7 +19,7 @@ const isMobileDevice = () => {
 }
 
 export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, teamColors }) {
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -36,6 +36,9 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   })
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -85,14 +88,9 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   // Create bowl sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check if we have an existing bowl Week 2 sheet for this year
-        const existingSheetId = currentDynasty?.bowlWeek2SheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           // Get CFP data to pre-fill quarterfinal teams
@@ -133,23 +131,25 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
             excludeGames.push(userBowlGame)
           }
 
+          // Get existing bowl week 2 data for pre-filling
+          const existingBowlWeek2 = currentDynasty?.bowlGamesByYear?.[currentYear]?.week2 || []
+          const existingCFPQuarterfinals = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
+
           const sheetInfo = await createBowlWeek2Sheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             cfpSeeds,
             firstRoundResults,
-            excludeGames
+            excludeGames,
+            existingBowlWeek2,
+            existingCFPQuarterfinals
           )
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            bowlWeek2SheetId: sheetInfo.spreadsheetId
-          })
         } catch (error) {
           console.error('Failed to create bowl Week 2 sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -161,6 +161,8 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
+      setSheetId(null)
     }
   }, [isOpen])
 
@@ -221,7 +223,6 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { bowlWeek2SheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

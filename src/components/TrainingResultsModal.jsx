@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -30,6 +30,9 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, currentY
   })
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -79,7 +82,7 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, currentY
   // Create training results sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // Check if we have an existing sheet for this year
         const existingSheetId = currentDynasty?.trainingResultsSheetId
         if (existingSheetId) {
@@ -87,6 +90,8 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, currentY
           return
         }
 
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           const sheetInfo = await createTrainingResultsSheet(
@@ -107,6 +112,7 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, currentY
           }
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -118,6 +124,7 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, currentY
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

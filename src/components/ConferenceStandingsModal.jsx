@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -16,7 +16,7 @@ const isMobileDevice = () => {
 }
 
 export default function ConferenceStandingsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -33,6 +33,9 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -78,24 +81,20 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
 
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        const existingSheetId = currentDynasty?.conferenceStandingsSheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
-
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createConferenceStandingsSheet(currentYear)
+          // Get existing data for pre-filling (if any)
+          const existingStandings = currentDynasty?.conferenceStandingsByYear?.[currentYear] || {}
+          const sheetInfo = await createConferenceStandingsSheet(currentYear, existingStandings)
           setSheetId(sheetInfo.sheetId)
-          await updateDynasty(currentDynasty.id, {
-            conferenceStandingsSheetId: sheetInfo.sheetId
-          })
         } catch (error) {
           console.error('Failed to create conference standings sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -105,6 +104,8 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
+      setSheetId(null)
     }
   }, [isOpen])
 
@@ -157,7 +158,6 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { conferenceStandingsSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

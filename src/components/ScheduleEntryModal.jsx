@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ScheduleSpreadsheet from './ScheduleSpreadsheet'
 import SheetToolbar, { SheetErrorBanner } from './SheetToolbar'
 import {
@@ -27,6 +27,9 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   const [showSessionError, setShowSessionError] = useState(false)
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   // Highlight save button when user returns to the window (after editing in Google Sheets)
   useEffect(() => {
@@ -71,7 +74,9 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   useEffect(() => {
     const createSheet = async () => {
       // Don't create a new sheet if we just deleted one (showing success message)
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           // Always create a fresh sheet
@@ -90,6 +95,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
           console.error('Failed to create schedule sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -101,6 +107,7 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 

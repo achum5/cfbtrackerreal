@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
@@ -34,6 +34,9 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
   })
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+
+  // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
+  const creatingSheetRef = useRef(false)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -83,7 +86,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
   // Create stats sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // Check if we have an existing stats sheet for this year
         const existingSheetId = currentDynasty?.statsEntrySheetId
         if (existingSheetId) {
@@ -91,6 +94,8 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
           return
         }
 
+        // Set ref immediately to prevent concurrent calls (state updates are async)
+        creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
           // Get current roster for pre-filling
@@ -141,6 +146,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
           console.error('Failed to create stats sheet:', error)
         } finally {
           setCreatingSheet(false)
+          creatingSheetRef.current = false
         }
       }
     }
@@ -152,6 +158,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
     }
   }, [isOpen])
 
