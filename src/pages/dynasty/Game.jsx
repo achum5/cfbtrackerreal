@@ -799,17 +799,19 @@ export default function Game() {
                   return (
                     <tr key={idx} className={idx === 0 ? 'border-b border-gray-700' : ''}>
                       <td className="py-3 px-3 sm:px-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div
-                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0 bg-white"
-                          >
-                            {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
+                        <Link to={`${pathPrefix}/team/${team.abbr}/${game.year}`} className="group">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0 bg-white group-hover:scale-105 transition-transform"
+                            >
+                              {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
+                            </div>
+                            <span className={`font-bold group-hover:underline ${team.isWinner ? 'text-white' : 'text-gray-400'}`}>
+                              <span className="sm:hidden">{team.abbr}</span>
+                              <span className="hidden sm:inline">{team.name}</span>
+                            </span>
                           </div>
-                          <span className={`font-bold ${team.isWinner ? 'text-white' : 'text-gray-400'}`}>
-                            <span className="sm:hidden">{team.abbr}</span>
-                            <span className="hidden sm:inline">{team.name}</span>
-                          </span>
-                        </div>
+                        </Link>
                       </td>
                       {['Q1', 'Q2', 'Q3', 'Q4'].map(q => {
                         const val = game.quarters[quarterKey]?.[q]
@@ -875,16 +877,16 @@ export default function Game() {
                   {game.boxScore.home?.[activeStatTab]?.length > 0 && (
                     <div>
                       {/* Team Header - Fixed, doesn't scroll */}
-                      <div className="flex items-center gap-2 mb-2 px-2">
-                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
+                      <Link to={`${pathPrefix}/team/${rightData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1 group-hover:scale-105 transition-transform">
                           <img
                             src={getTeamLogo(getMascotName(rightData.abbr) || rightData.abbr)}
                             alt={rightData.name}
                             className="w-full h-full object-contain"
                           />
                         </div>
-                        <span className="text-white font-semibold">{rightData.name}</span>
-                      </div>
+                        <span className="text-white font-semibold group-hover:underline">{rightData.name}</span>
+                      </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -940,16 +942,16 @@ export default function Game() {
                   {game.boxScore.away?.[activeStatTab]?.length > 0 && (
                     <div>
                       {/* Team Header - Fixed, doesn't scroll */}
-                      <div className="flex items-center gap-2 mb-2 px-2">
-                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1">
+                      <Link to={`${pathPrefix}/team/${leftData.abbr}/${game.year}`} className="group flex items-center gap-2 mb-2 px-2">
+                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-1 group-hover:scale-105 transition-transform">
                           <img
                             src={getTeamLogo(getMascotName(leftData.abbr) || leftData.abbr)}
                             alt={leftData.name}
                             className="w-full h-full object-contain"
                           />
                         </div>
-                        <span className="text-white font-semibold">{leftData.name}</span>
-                      </div>
+                        <span className="text-white font-semibold group-hover:underline">{leftData.name}</span>
+                      </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -1122,11 +1124,12 @@ export default function Game() {
                           {/* Play details */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className="font-bold text-sm text-white"
+                              <Link
+                                to={`${pathPrefix}/team/${play.team}/${game.year}`}
+                                className="font-bold text-sm text-white hover:underline"
                               >
                                 {getMascotName(play.team) || play.team}
-                              </span>
+                              </Link>
                               <span className="text-gray-400 text-sm">
                                 {is2PTAttempt(play) ? '2PT Conversion' : play.scoreType}
                                 {play.yards && ` (${play.yards} yds)`}
@@ -1284,25 +1287,25 @@ export default function Game() {
             </div>
             {/* Team headers - Left = away team, Right = home team */}
             <div className="flex items-center border-b border-gray-800 bg-gray-800/50">
-              <div className="flex-1 flex items-center justify-center gap-2 py-3 px-2">
+              <Link to={`${pathPrefix}/team/${awayStats.teamAbbr}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
                 {getTeamLogoRobust(awayStats.teamAbbr) && (
-                  <img src={getTeamLogoRobust(awayStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
+                  <img src={getTeamLogoRobust(awayStats.teamAbbr)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
                 )}
-                <span className="font-bold text-sm text-white">
+                <span className="font-bold text-sm text-white group-hover:underline">
                   <span className="hidden sm:inline">{getMascotName(awayStats.teamAbbr) || awayStats.teamAbbr}</span>
                   <span className="sm:hidden">{awayStats.teamAbbr}</span>
                 </span>
-              </div>
+              </Link>
               <div className="w-28 text-center text-xs font-bold text-gray-400 uppercase">Stat</div>
-              <div className="flex-1 flex items-center justify-center gap-2 py-3 px-2">
-                <span className="font-bold text-sm text-white">
+              <Link to={`${pathPrefix}/team/${homeStats.teamAbbr}/${game.year}`} className="group flex-1 flex items-center justify-center gap-2 py-3 px-2 hover:bg-gray-700/50 transition-colors">
+                <span className="font-bold text-sm text-white group-hover:underline">
                   <span className="hidden sm:inline">{getMascotName(homeStats.teamAbbr) || homeStats.teamAbbr}</span>
                   <span className="sm:hidden">{homeStats.teamAbbr}</span>
                 </span>
                 {getTeamLogoRobust(homeStats.teamAbbr) && (
-                  <img src={getTeamLogoRobust(homeStats.teamAbbr)} alt="" className="w-6 h-6 object-contain" />
+                  <img src={getTeamLogoRobust(homeStats.teamAbbr)} alt="" className="w-6 h-6 object-contain group-hover:scale-105 transition-transform" />
                 )}
-              </div>
+              </Link>
             </div>
             {/* Stats rows */}
             <div className="divide-y divide-gray-800/50">
@@ -1368,14 +1371,14 @@ export default function Game() {
                     if (!ratings.ovr && !ratings.off && !ratings.def) return null
 
                     return (
-                      <div key={idx} className="flex items-center gap-3">
+                      <Link key={idx} to={`${pathPrefix}/team/${team.abbr}/${game.year}`} className="group flex items-center gap-3">
                         <div
-                          className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white"
+                          className="w-10 h-10 rounded-lg flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white group-hover:scale-105 transition-transform"
                         >
                           {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-white text-sm truncate">{team.name}</div>
+                          <div className="font-bold text-white text-sm truncate group-hover:underline">{team.name}</div>
                           <div className="flex gap-3 mt-1">
                             {ratings.ovr && (
                               <div className="flex items-center gap-1">
@@ -1397,7 +1400,7 @@ export default function Game() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     )
                   })}
                 </div>

@@ -9304,7 +9304,8 @@ function generateScoringTeamFormattingRules(sheetId, teamAbbr1, teamAbbr2, rowCo
 }
 
 // Create a game box score sheet with 9 tabs for a single team's stats
-export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, year, week, isUserTeam, rosterPlayers = []) {
+// existingData: optional object with stat arrays keyed by tab name (passing, rushing, etc.) to pre-fill
+export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, year, week, isUserTeam, rosterPlayers = [], existingData = null) {
   try {
     const accessToken = await getAccessToken()
 
@@ -9351,6 +9352,11 @@ export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, 
 
     // Initialize all tabs with headers and formatting
     await initializeBoxScoreSheet(sheet.spreadsheetId, accessToken, sheetIds, isUserTeam, rosterPlayers)
+
+    // Pre-fill with existing player stats data if provided
+    if (existingData) {
+      await prefillPlayerStatsData(sheet.spreadsheetId, accessToken, existingData)
+    }
 
     // Share sheet publicly for embedding
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -9472,8 +9478,73 @@ async function initializeBoxScoreSheet(spreadsheetId, accessToken, sheetIds, isU
   }
 }
 
+// Pre-fill player stats sheet with existing data
+// existingData: object with arrays keyed by tab name (passing, rushing, etc.)
+async function prefillPlayerStatsData(spreadsheetId, accessToken, existingData) {
+  if (!existingData) return
+
+  // For each stat tab, write the data
+  for (const key of STAT_TAB_ORDER) {
+    const tabData = existingData[key]
+    if (!tabData || !Array.isArray(tabData) || tabData.length === 0) continue
+
+    const tab = STAT_TABS[key]
+
+    // Build header key mapping (same logic as read function)
+    const headerToKey = {}
+    tab.headers.forEach((header, idx) => {
+      if (idx === 0) {
+        headerToKey[idx] = 'playerName'
+      } else {
+        const camelKey = header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
+        headerToKey[idx] = camelKey
+      }
+    })
+
+    // Convert player stat objects to row arrays
+    const rows = tabData.map(playerStats => {
+      const row = []
+      tab.headers.forEach((header, idx) => {
+        const key = headerToKey[idx]
+        const value = playerStats[key]
+        row.push(value !== null && value !== undefined ? String(value) : '')
+      })
+      return row
+    })
+
+    // Get column letter for last column
+    const lastColLetter = String.fromCharCode(65 + tab.headers.length - 1)
+
+    // Write data to sheet starting at row 2 (after headers)
+    const range = `'${tab.title}'!A2:${lastColLetter}${rows.length + 1}`
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          range: range,
+          majorDimension: 'ROWS',
+          values: rows
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error(`Failed to prefill player stats for ${tab.title}:`, error)
+      // Don't throw - sheet is still usable, just without prefilled data
+    }
+  }
+}
+
 // Create a scoring summary sheet
-export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year, week, homeRoster = [], awayRoster = []) {
+// existingData: optional array of scoring plays to pre-fill (from game.boxScore.scoringSummary)
+export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year, week, homeRoster = [], awayRoster = [], existingData = []) {
   try {
     const accessToken = await getAccessToken()
 
@@ -9513,6 +9584,11 @@ export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year
     // Initialize with headers, formatting, and dropdowns
     await initializeScoringSummarySheet(sheet.spreadsheetId, accessToken, sheetId, homeTeamAbbr, awayTeamAbbr, homeRoster, awayRoster)
 
+    // Pre-fill with existing scoring data if provided
+    if (existingData && existingData.length > 0) {
+      await prefillScoringSummaryData(sheet.spreadsheetId, accessToken, existingData)
+    }
+
     // Share sheet publicly for embedding
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
@@ -9523,6 +9599,50 @@ export async function createScoringSummarySheet(homeTeamAbbr, awayTeamAbbr, year
   } catch (error) {
     console.error('Error creating scoring summary sheet:', error)
     throw error
+  }
+}
+
+// Pre-fill scoring summary sheet with existing data
+async function prefillScoringSummaryData(spreadsheetId, accessToken, scoringData) {
+  if (!scoringData || scoringData.length === 0) return
+
+  // Convert scoring data objects to row arrays
+  // Headers: Team, Scorer, Passer, Yards, Score Type, PAT Result, PAT Notes, Quarter, Time Left, Video Link
+  const rows = scoringData.map(play => [
+    play.team || '',
+    play.scorer || '',
+    play.passer || '',
+    play.yards || '',
+    play.scoreType || '',
+    play.patResult || '',
+    play.patNotes || '',
+    play.quarter || '',
+    play.timeLeft || '',
+    play.videoLink || ''
+  ])
+
+  // Write data to sheet starting at row 2 (after headers)
+  const range = `'${SCORING_SUMMARY.title}'!A2:J${rows.length + 1}`
+  const response = await fetch(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        range: range,
+        majorDimension: 'ROWS',
+        values: rows
+      })
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    console.error('Failed to prefill scoring data:', error)
+    // Don't throw - sheet is still usable, just without prefilled data
   }
 }
 
@@ -9899,7 +10019,8 @@ const TEAM_STATS_ROWS = [
 ]
 
 // Create a game team stats sheet with two tabs (one for each team)
-export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year, week) {
+// existingData: optional object { home: {...}, away: {...} } to pre-fill (from game.boxScore.teamStats)
+export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year, week, existingData = null) {
   try {
     const accessToken = await getAccessToken()
 
@@ -9953,6 +10074,11 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
 
     // Initialize both tabs with headers, stat labels, and formatting
     await initializeTeamStatsSheet(sheet.spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr)
+
+    // Pre-fill with existing team stats data if provided
+    if (existingData && (existingData.home || existingData.away)) {
+      await prefillTeamStatsData(sheet.spreadsheetId, accessToken, homeTeamAbbr, awayTeamAbbr, existingData)
+    }
 
     // Share sheet publicly for embedding
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
@@ -10149,26 +10275,8 @@ async function initializeTeamStatsSheet(spreadsheetId, accessToken, homeSheetId,
       }
     })
 
-    // Add number validation for value column
-    requests.push({
-      setDataValidation: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: TEAM_STATS_ROWS.length + 1,
-          startColumnIndex: 1,
-          endColumnIndex: 2
-        },
-        rule: {
-          condition: {
-            type: 'NUMBER_GREATER_THAN_EQ',
-            values: [{ userEnteredValue: '0' }]
-          },
-          showCustomUi: true,
-          strict: false
-        }
-      }
-    })
+    // Number validation removed - yards stats can be negative in football
+    // (e.g., rush yards when sacked repeatedly)
   })
 
   // Send batch update
@@ -10263,6 +10371,78 @@ export async function readGameTeamStatsFromSheet(spreadsheetId) {
   } catch (error) {
     console.error('Error reading team stats:', error)
     throw error
+  }
+}
+
+// Pre-fill team stats sheet with existing data
+async function prefillTeamStatsData(spreadsheetId, accessToken, homeTeamAbbr, awayTeamAbbr, teamStatsData) {
+  if (!teamStatsData) return
+
+  // Map of camelCase keys to TEAM_STATS_ROWS indices
+  const keyToRowIndex = {}
+  TEAM_STATS_ROWS.forEach((label, idx) => {
+    const camelKey = label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
+      .replace(/^./, c => c.toLowerCase())
+    keyToRowIndex[camelKey] = idx
+  })
+
+  // Process both home and away tabs
+  const tabsToUpdate = []
+
+  // Note: In the sheet, tab order is [away, home], but the data is keyed as home/away
+  // The away tab uses awayTeamAbbr name, home tab uses homeTeamAbbr name
+  if (teamStatsData.home) {
+    const values = new Array(TEAM_STATS_ROWS.length).fill([''])
+    Object.entries(teamStatsData.home).forEach(([key, value]) => {
+      if (key === 'teamAbbr') return // Skip metadata
+      const rowIdx = keyToRowIndex[key]
+      if (rowIdx !== undefined && value !== null && value !== undefined) {
+        values[rowIdx] = [String(value)]
+      }
+    })
+    tabsToUpdate.push({ tabName: homeTeamAbbr, values })
+  }
+
+  if (teamStatsData.away) {
+    const values = new Array(TEAM_STATS_ROWS.length).fill([''])
+    Object.entries(teamStatsData.away).forEach(([key, value]) => {
+      if (key === 'teamAbbr') return // Skip metadata
+      const rowIdx = keyToRowIndex[key]
+      if (rowIdx !== undefined && value !== null && value !== undefined) {
+        values[rowIdx] = [String(value)]
+      }
+    })
+    tabsToUpdate.push({ tabName: awayTeamAbbr, values })
+  }
+
+  // Write data to each tab
+  for (const { tabName, values } of tabsToUpdate) {
+    // Write values to column B starting at row 2 (after header)
+    const range = `'${tabName}'!B2:B${TEAM_STATS_ROWS.length + 1}`
+
+    const response = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          range: range,
+          majorDimension: 'ROWS',
+          values: values
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error(`Failed to prefill team stats for ${tabName}:`, error)
+      // Don't throw - sheet is still usable, just without prefilled data
+    }
   }
 }
 

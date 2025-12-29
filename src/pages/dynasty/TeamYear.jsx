@@ -399,8 +399,15 @@ export default function TeamYear() {
   const teamYearGames = [...teamGamesFromArray, ...(teamBowlGameConverted ? [teamBowlGameConverted] : [])]
     .sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
   // Check for both 'win'/'loss' and 'W'/'L' formats
-  const teamWins = teamYearGames.filter(g => g.result === 'win' || g.result === 'W').length
-  const teamLosses = teamYearGames.filter(g => g.result === 'loss' || g.result === 'L').length
+  // Use _displayResult for flipped perspective games (opponent team pages)
+  const teamWins = teamYearGames.filter(g => {
+    const result = g._isFlippedPerspective ? g._displayResult : g.result
+    return result === 'win' || result === 'W'
+  }).length
+  const teamLosses = teamYearGames.filter(g => {
+    const result = g._isFlippedPerspective ? g._displayResult : g.result
+    return result === 'loss' || result === 'L'
+  }).length
 
   // Get team record from conference standings (for teams without detailed game data)
   const getTeamRecordFromStandings = () => {
@@ -425,6 +432,47 @@ export default function TeamYear() {
   }
 
   const standingsRecord = getTeamRecordFromStandings()
+
+  // Get the last known opponent record from games where this team was the opponent
+  // This gives us the most recent record entered by the user during game input
+  const getLastKnownOpponentRecord = () => {
+    const games = currentDynasty.games || []
+    // Find games where this team was the opponent (not the user's team)
+    const gamesAsOpponent = games
+      .filter(g => !g.isCPUGame && Number(g.year) === Number(selectedYear) && g.opponent === teamAbbr && g.opponentRecord)
+      .sort((a, b) => {
+        // Sort by week/game order to get the most recent
+        const getOrder = (g) => {
+          if (g.isConferenceChampionship) return 15
+          if (g.isBowlGame) return 16 + (g.bowlWeek || 0)
+          if (g.isCFPFirstRound) return 20
+          if (g.isCFPQuarterfinal) return 21
+          if (g.isCFPSemifinal) return 22
+          if (g.isCFPChampionship) return 23
+          return g.week || 0
+        }
+        return getOrder(b) - getOrder(a) // Descending - most recent first
+      })
+
+    if (gamesAsOpponent.length === 0) return null
+
+    const lastRecord = gamesAsOpponent[0].opponentRecord
+    // Parse "5-2 (3-1)" format
+    const recordMatch = lastRecord.match(/(\d+)-(\d+)\s*(?:\((\d+)-(\d+)\))?/)
+    if (!recordMatch) return null
+
+    return {
+      wins: parseInt(recordMatch[1]),
+      losses: parseInt(recordMatch[2]),
+      confWins: recordMatch[3] ? parseInt(recordMatch[3]) : null,
+      confLosses: recordMatch[4] ? parseInt(recordMatch[4]) : null,
+      rawRecord: lastRecord,
+      pointsFor: null,
+      pointsAgainst: null
+    }
+  }
+
+  const lastKnownRecord = getLastKnownOpponentRecord()
 
   // Aggregate team stats from games for this year where this team has boxScore.teamStats
   const getSeasonTeamStats = () => {
@@ -515,10 +563,22 @@ export default function TeamYear() {
   const seasonStats = getSeasonTeamStats()
 
   // Determine which record to display
-  // Use game data if we have games for this team, otherwise use standings
-  const displayRecord = teamYearGames.length > 0
-    ? { wins: teamWins, losses: teamLosses, pointsFor: null, pointsAgainst: null }
-    : standingsRecord
+  // Priority: 1. Conference standings (end of year), 2. Last known opponent record, 3. Calculated from games
+  const displayRecord = (() => {
+    // Conference standings are the most authoritative (end of year data)
+    if (standingsRecord) {
+      return standingsRecord
+    }
+    // For opponent teams, use the last known record entered during game input
+    if (lastKnownRecord) {
+      return lastKnownRecord
+    }
+    // Fall back to calculating from games (for user's own team pages)
+    if (teamYearGames.length > 0) {
+      return { wins: teamWins, losses: teamLosses, pointsFor: null, pointsAgainst: null }
+    }
+    return null
+  })()
 
   // Get team ratings for this year
   const teamRatings = currentDynasty.teamRatingsByTeamYear?.[teamAbbr]?.[selectedYear] || null
@@ -1610,10 +1670,10 @@ export default function TeamYear() {
       {/* Roster Section - User's Team */}
       {isUserTeam && sortedTeamPlayers.length > 0 && (
         <div
-          className="rounded-lg shadow-lg overflow-hidden"
+          className="rounded-xl shadow-lg overflow-hidden"
           style={{
             backgroundColor: teamInfo.backgroundColor,
-            border: `3px solid ${teamInfo.textColor}`
+            border: `2px solid ${teamInfo.textColor}`
           }}
         >
           <div
@@ -1682,10 +1742,10 @@ export default function TeamYear() {
                 <Link
                   key={player.pid}
                   to={`${pathPrefix}/player/${player.pid}`}
-                  className="block p-3 rounded-lg border-2 hover:opacity-90 transition-opacity"
+                  className="block p-3 rounded-lg shadow-sm active:shadow-none transition-shadow"
                   style={{
-                    borderColor: `${teamInfo.textColor}40`,
-                    backgroundColor: `${teamInfo.textColor}10`
+                    backgroundColor: `${teamInfo.textColor}08`,
+                    borderLeft: `3px solid ${teamInfo.textColor}`
                   }}
                 >
                   <div className="flex items-center justify-between">
@@ -1793,11 +1853,14 @@ export default function TeamYear() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTeamPlayers.map((player) => (
+                  {sortedTeamPlayers.map((player, idx) => (
                     <tr
                       key={player.pid}
-                      className="hover:opacity-80 cursor-pointer transition-opacity"
-                      style={{ borderBottom: `1px solid ${teamInfo.textColor}15` }}
+                      className="cursor-pointer transition-all hover:brightness-95"
+                      style={{
+                        borderBottom: `1px solid ${teamInfo.textColor}15`,
+                        backgroundColor: idx % 2 === 1 ? `${teamInfo.textColor}08` : 'transparent'
+                      }}
                       onClick={() => navigate(`${pathPrefix}/player/${player.pid}`)}
                     >
                       <td className="py-2 px-2 text-center font-bold" style={{ color: teamBgText }}>

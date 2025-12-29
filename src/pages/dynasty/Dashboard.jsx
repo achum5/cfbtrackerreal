@@ -1261,6 +1261,14 @@ export default function Dashboard() {
       if (p.name) existingPlayerNames.add(p.name.toLowerCase().trim())
     })
 
+    // Track players who left (leftTeam: true) - they can "return" via portal
+    const leftPlayersMap = new Map()
+    existingPlayers.forEach(p => {
+      if (p.name && p.leftTeam) {
+        leftPlayersMap.set(p.name.toLowerCase().trim(), p)
+      }
+    })
+
     // Get existing recruits from OTHER weeks (not the current commitment key) to avoid duplicating
     const commitmentsForTeamYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[year] || {}
     const existingRecruitNames = new Set()
@@ -1274,14 +1282,24 @@ export default function Dashboard() {
       }
     })
 
+    // Find recruits that are RETURNING players (they left but are coming back via portal)
+    const returningPlayerRecruits = recruits.filter(r => {
+      if (!r.name) return false
+      const nameLower = r.name.toLowerCase().trim()
+      // Must be a portal transfer AND match a player who left
+      return r.isPortal && leftPlayersMap.has(nameLower)
+    })
+
     // Find NEW recruits - MUST pass ALL checks:
-    // 1. Not already in the players array (prevents duplicating existing roster)
+    // 1. Not already in the players array (prevents duplicating existing roster) - UNLESS they left
     // 2. Not already in OTHER weeks' commitments (prevents cross-week duplicates)
     const newRecruits = recruits.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
-      // Reject if already exists as a player
-      if (existingPlayerNames.has(nameLower)) return false
+      // Skip if this is a returning player (handled separately)
+      if (r.isPortal && leftPlayersMap.has(nameLower)) return false
+      // Reject if already exists as an ACTIVE player (not one who left)
+      if (existingPlayerNames.has(nameLower) && !leftPlayersMap.has(nameLower)) return false
       // Reject if already in other weeks' commitments
       if (existingRecruitNames.has(nameLower)) return false
       return true
@@ -1336,13 +1354,47 @@ export default function Dashboard() {
       }
     })
 
-    // Store recruits for this phase/week AND add new players
-    const updatedPlayers = [...existingPlayers, ...newPlayers]
+    // Update returning players - players who left but are coming back via portal
+    // This clears their leftTeam flag and updates their team assignment
+    let playersWithReturning = existingPlayers
+    if (returningPlayerRecruits.length > 0) {
+      const returningNames = new Set(returningPlayerRecruits.map(r => r.name.toLowerCase().trim()))
+      playersWithReturning = existingPlayers.map(p => {
+        if (p.name && returningNames.has(p.name.toLowerCase().trim())) {
+          // Find the matching recruit data to get updated info
+          const recruitData = returningPlayerRecruits.find(
+            r => r.name.toLowerCase().trim() === p.name.toLowerCase().trim()
+          )
+          return {
+            ...p,
+            leftTeam: false, // Clear the left flag - they're back!
+            team: teamAbbr, // Update team assignment
+            teamsByYear: {
+              ...p.teamsByYear,
+              [year + 1]: teamAbbr // Add them to next year's roster
+            },
+            isRecruit: true, // Mark as recruit until season starts
+            recruitYear: year,
+            isPortal: true,
+            // Update any new info from the recruit entry
+            ...(recruitData?.position && { position: recruitData.position }),
+            ...(recruitData?.devTrait && { devTrait: recruitData.devTrait }),
+            ...(recruitData?.stars && { stars: recruitData.stars })
+          }
+        }
+        return p
+      })
+      console.log(`[Recruiting] ${returningPlayerRecruits.length} player(s) returning via portal:`,
+        returningPlayerRecruits.map(r => r.name).join(', '))
+    }
 
-    // Only save if there are new recruits for this week
-    // (prevents duplicating pre-populated recruits across weeks)
-    if (newRecruits.length > 0) {
-      // Store in TEAM-CENTRIC structure - only store NEW recruits for this commitment key
+    // Store recruits for this phase/week AND add new players
+    const updatedPlayers = [...playersWithReturning, ...newPlayers]
+
+    // Save if there are new recruits OR returning players for this week
+    const allCommittedRecruits = [...newRecruits, ...returningPlayerRecruits]
+    if (allCommittedRecruits.length > 0) {
+      // Store in TEAM-CENTRIC structure - store all commits for this commitment key
       await updateDynasty(currentDynasty.id, {
         recruitingCommitmentsByTeamYear: {
           ...existingByTeamYear,
@@ -1350,7 +1402,7 @@ export default function Dashboard() {
             ...existingForTeam,
             [year]: {
               ...existingForYear,
-              [commitmentKey]: newRecruits
+              [commitmentKey]: allCommittedRecruits
             }
           }
         },
@@ -2230,7 +2282,10 @@ export default function Dashboard() {
                     </div>
                     {isViewOnly ? <ViewOnlyBadge /> : (
                       <button
-                        onClick={() => setShowGameModal(true)}
+                        onClick={() => {
+                          setEditingGame(playedGame)
+                          setShowGameModal(true)
+                        }}
                         className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm"
                         style={{
                           backgroundColor: teamColors.primary,
@@ -3060,6 +3115,7 @@ export default function Dashboard() {
                             setEditingYear(currentDynasty.currentYear)
                             setEditingOpponent(userCFPOpponent)
                             setEditingBowlName('CFP First Round')
+                            setEditingGame(userCFPFirstRoundGame)
                             setShowGameModal(true)
                           }}
                           className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -3448,6 +3504,7 @@ export default function Dashboard() {
                             setEditingYear(currentDynasty.currentYear)
                             setEditingOpponent(userQFOpponent)
                             setEditingBowlName(userQFBowlName)
+                            setEditingGame(userCFPQuarterfinalGame)
                             setShowGameModal(true)
                           }}
                           className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -4413,6 +4470,7 @@ export default function Dashboard() {
                           setEditingYear(currentDynasty.currentYear)
                           setEditingOpponent(userSFOpponent)
                           setEditingBowlName(userSFBowlName || 'CFP Semifinal')
+                          setEditingGame(userCFPSemifinalGame)
                           setShowGameModal(true)
                         }}
                         className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -4525,6 +4583,7 @@ export default function Dashboard() {
                           setEditingYear(currentDynasty.currentYear)
                           setEditingOpponent(userChampOpponent)
                           setEditingBowlName('National Championship')
+                          setEditingGame(userCFPChampionshipGame)
                           setShowGameModal(true)
                         }}
                         className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -6556,6 +6615,7 @@ export default function Dashboard() {
           setEditingYear(null)
           setEditingOpponent(null)
           setEditingBowlName(null)
+          setEditingGame(null)
         }}
         onSave={handleGameSave}
         weekNumber={editingWeek || currentDynasty.currentWeek}
@@ -6563,6 +6623,7 @@ export default function Dashboard() {
         teamColors={teamColors}
         opponent={editingOpponent}
         bowlName={editingBowlName}
+        existingGame={editingGame}
       />
 
       {/* GameDetailModal removed - now using game pages instead */}

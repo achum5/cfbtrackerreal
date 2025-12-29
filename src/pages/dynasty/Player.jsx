@@ -106,6 +106,104 @@ export default function Player() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Sort preferences for stat tables (persisted in localStorage)
+  const [statSortPrefs, setStatSortPrefs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('playerStatsSortPrefs')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  // Handle stat table column sort
+  const handleStatSort = (category, column) => {
+    const currentSort = statSortPrefs[category]
+    let newSort
+    if (currentSort?.column === column) {
+      // Toggle direction: desc -> asc -> clear
+      if (currentSort.direction === 'desc') {
+        newSort = { column, direction: 'asc' }
+      } else {
+        newSort = null // Clear sort, return to default (year ascending)
+      }
+    } else {
+      // New column, start with descending (highest first)
+      newSort = { column, direction: 'desc' }
+    }
+
+    const newPrefs = { ...statSortPrefs }
+    if (newSort) {
+      newPrefs[category] = newSort
+    } else {
+      delete newPrefs[category]
+    }
+    setStatSortPrefs(newPrefs)
+    localStorage.setItem('playerStatsSortPrefs', JSON.stringify(newPrefs))
+  }
+
+  // Sort stat years by the selected column
+  const sortStatYears = (years, category, getStatValue) => {
+    const sortPref = statSortPrefs[category]
+    if (!sortPref) return years // Default: keep original order (by year ascending)
+
+    const { column, direction } = sortPref
+    return [...years].sort((a, b) => {
+      let aVal, bVal
+
+      // Handle special columns
+      if (column === 'year') {
+        aVal = a.year
+        bVal = b.year
+      } else if (column === 'class') {
+        aVal = CLASS_ORDER.indexOf(a.class)
+        bVal = CLASS_ORDER.indexOf(b.class)
+      } else if (column === 'gamesPlayed') {
+        aVal = a.gamesPlayed || 0
+        bVal = b.gamesPlayed || 0
+      } else if (column === 'snapsPlayed') {
+        aVal = a.snapsPlayed || 0
+        bVal = b.snapsPlayed || 0
+      } else {
+        // Use the provided accessor for stat-specific columns
+        aVal = getStatValue(a, column)
+        bVal = getStatValue(b, column)
+      }
+
+      // Handle null/undefined
+      if (aVal == null) aVal = -Infinity
+      if (bVal == null) bVal = -Infinity
+
+      const result = aVal > bVal ? 1 : aVal < bVal ? -1 : 0
+      return direction === 'desc' ? -result : result
+    })
+  }
+
+  // Render a sortable table header
+  const renderSortableHeader = (category, column, label, align = 'right', extraClasses = '') => {
+    const sortPref = statSortPrefs[category]
+    const isActive = sortPref?.column === column
+    const direction = isActive ? sortPref.direction : null
+
+    return (
+      <th
+        key={column}
+        className={`px-2 py-2 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none ${extraClasses} text-${align}`}
+        onClick={() => handleStatSort(category, column)}
+        title={`Sort by ${label}`}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          {isActive && (
+            <span className="text-blue-500">
+              {direction === 'desc' ? '▼' : '▲'}
+            </span>
+          )}
+        </span>
+      </th>
+    )
+  }
+
   // In view mode, dynastyId is undefined - just use currentDynasty directly
   const dynasty = dynastyId
     ? (currentDynasty?.id === dynastyId ? currentDynasty : dynasties.find(d => d.id === dynastyId))
@@ -942,23 +1040,37 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Passing</h3>
               </div>
               {(() => {
-                const passingYears = yearByYearStats.filter(y => y.passing && hasNonZeroStats(y.passing, ['att', 'cmp', 'yds', 'td']))
-                const hasAnySnaps = passingYears.some(y => y.snapsPlayed > 0)
+                const passingYearsUnsorted = yearByYearStats.filter(y => y.passing && hasNonZeroStats(y.passing, ['att', 'cmp', 'yds', 'td']))
+                const hasAnySnaps = passingYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'passing' && hasAnySnaps
+
+                // Sort by selected column
+                const passingYears = sortStatYears(passingYearsUnsorted, 'passing', (y, col) => {
+                  const statMap = { cmp: y.passing?.cmp, att: y.passing?.att, yds: y.passing?.yds, td: y.passing?.td, int: y.passing?.int, lng: y.passing?.lng, sck: y.passing?.sacks }
+                  if (col === 'pct') return y.passing?.att ? (y.passing.cmp / y.passing.att) * 100 : 0
+                  if (col === 'ypa') return y.passing?.att ? y.passing.yds / y.passing.att : 0
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('passing', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('passing', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'passing' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['Cmp', 'Att', 'Pct', 'Yds', 'Y/A', 'TD', 'Int', 'Lng', 'Sck'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'passing' && renderSortableHeader('passing', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('passing', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('passing', 'cmp', 'Cmp', 'right')}
+                          {renderSortableHeader('passing', 'att', 'Att', 'right')}
+                          {renderSortableHeader('passing', 'pct', 'Pct', 'right')}
+                          {renderSortableHeader('passing', 'yds', 'Yds', 'right')}
+                          {renderSortableHeader('passing', 'ypa', 'Y/A', 'right')}
+                          {renderSortableHeader('passing', 'td', 'TD', 'right')}
+                          {renderSortableHeader('passing', 'int', 'Int', 'right')}
+                          {renderSortableHeader('passing', 'lng', 'Lng', 'right')}
+                          {renderSortableHeader('passing', 'sck', 'Sck', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1028,23 +1140,34 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Rushing</h3>
               </div>
               {(() => {
-                const rushingYears = yearByYearStats.filter(y => y.rushing && hasNonZeroStats(y.rushing, ['car', 'yds', 'td']))
-                const hasAnySnaps = rushingYears.some(y => y.snapsPlayed > 0)
+                const rushingYearsUnsorted = yearByYearStats.filter(y => y.rushing && hasNonZeroStats(y.rushing, ['car', 'yds', 'td']))
+                const hasAnySnaps = rushingYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'rushing' && hasAnySnaps
+
+                // Sort by selected column
+                const rushingYears = sortStatYears(rushingYearsUnsorted, 'rushing', (y, col) => {
+                  const statMap = { car: y.rushing?.car, yds: y.rushing?.yds, td: y.rushing?.td, lng: y.rushing?.lng, fum: y.rushing?.fum, bt: y.rushing?.bt }
+                  if (col === 'ypc') return y.rushing?.car ? y.rushing.yds / y.rushing.car : 0
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('rushing', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('rushing', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'rushing' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['Car', 'Yds', 'Y/C', 'TD', 'Lng', 'Fum', 'BTkl'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'rushing' && renderSortableHeader('rushing', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('rushing', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('rushing', 'car', 'Car', 'right')}
+                          {renderSortableHeader('rushing', 'yds', 'Yds', 'right')}
+                          {renderSortableHeader('rushing', 'ypc', 'Y/C', 'right')}
+                          {renderSortableHeader('rushing', 'td', 'TD', 'right')}
+                          {renderSortableHeader('rushing', 'lng', 'Lng', 'right')}
+                          {renderSortableHeader('rushing', 'fum', 'Fum', 'right')}
+                          {renderSortableHeader('rushing', 'bt', 'BTkl', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1111,23 +1234,33 @@ export default function Player() {
               </div>
               {(() => {
                 // Check if any receiving year has non-zero snaps
-                const receivingYears = yearByYearStats.filter(y => y.receiving && hasNonZeroStats(y.receiving, ['rec', 'yds', 'td']))
-                const hasAnySnaps = receivingYears.some(y => y.snapsPlayed > 0)
+                const receivingYearsUnsorted = yearByYearStats.filter(y => y.receiving && hasNonZeroStats(y.receiving, ['rec', 'yds', 'td']))
+                const hasAnySnaps = receivingYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'receiving' && hasAnySnaps
+
+                // Sort by selected column
+                const receivingYears = sortStatYears(receivingYearsUnsorted, 'receiving', (y, col) => {
+                  const statMap = { rec: y.receiving?.rec, yds: y.receiving?.yds, td: y.receiving?.td, lng: y.receiving?.lng, drops: y.receiving?.drops }
+                  if (col === 'ypr') return y.receiving?.rec ? y.receiving.yds / y.receiving.rec : 0
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('receiving', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('receiving', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'receiving' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['Rec', 'Yds', 'Y/R', 'TD', 'Lng', 'Drops'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'receiving' && renderSortableHeader('receiving', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('receiving', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('receiving', 'rec', 'Rec', 'right')}
+                          {renderSortableHeader('receiving', 'yds', 'Yds', 'right')}
+                          {renderSortableHeader('receiving', 'ypr', 'Y/R', 'right')}
+                          {renderSortableHeader('receiving', 'td', 'TD', 'right')}
+                          {renderSortableHeader('receiving', 'lng', 'Lng', 'right')}
+                          {renderSortableHeader('receiving', 'drops', 'Drops', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1191,21 +1324,27 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Blocking</h3>
               </div>
               {(() => {
-                const blockingYears = yearByYearStats.filter(y => y.blocking && hasNonZeroStats(y.blocking, ['sacksAllowed', 'pancakes']))
-                const hasAnySnaps = blockingYears.some(y => (y.snapsPlayed || 0) > 0)
+                const blockingYearsUnsorted = yearByYearStats.filter(y => y.blocking && hasNonZeroStats(y.blocking, ['sacksAllowed', 'pancakes']))
+                const hasAnySnaps = blockingYearsUnsorted.some(y => (y.snapsPlayed || 0) > 0)
                 const showSnapsCol = primaryStat === 'blocking' && hasAnySnaps
+
+                // Sort by selected column
+                const blockingYears = sortStatYears(blockingYearsUnsorted, 'blocking', (y, col) => {
+                  const statMap = { sacksAllowed: y.blocking?.sacksAllowed }
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('blocking', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('blocking', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'blocking' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Sacks Allowed</th>
+                          {primaryStat === 'blocking' && renderSortableHeader('blocking', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('blocking', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('blocking', 'sacksAllowed', 'Sacks Allowed', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1259,23 +1398,39 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Defense</h3>
               </div>
               {(() => {
-                const defenseYears = yearByYearStats.filter(y => y.defensive && hasNonZeroStats(y.defensive, ['solo', 'ast', 'tfl', 'sacks', 'int', 'pdef', 'ff', 'fr']))
-                const hasAnySnaps = defenseYears.some(y => y.snapsPlayed > 0)
+                const defenseYearsUnsorted = yearByYearStats.filter(y => y.defensive && hasNonZeroStats(y.defensive, ['solo', 'ast', 'tfl', 'sacks', 'int', 'pdef', 'ff', 'fr']))
+                const hasAnySnaps = defenseYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'defense' && hasAnySnaps
+
+                // Sort by selected column
+                const defenseYears = sortStatYears(defenseYearsUnsorted, 'defense', (y, col) => {
+                  const d = y.defensive
+                  const statMap = { solo: d?.solo, ast: d?.ast, tfl: d?.tfl, sck: d?.sacks, int: d?.int, intYd: d?.intYds, td: d?.intTd, pd: d?.pdef, ff: d?.ff, fr: d?.fr }
+                  if (col === 'tot') return (d?.solo || 0) + (d?.ast || 0)
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('defense', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('defense', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'defense' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['Solo', 'Ast', 'Tot', 'TFL', 'Sck', 'Int', 'IntYd', 'TD', 'PD', 'FF', 'FR'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'defense' && renderSortableHeader('defense', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('defense', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('defense', 'solo', 'Solo', 'right')}
+                          {renderSortableHeader('defense', 'ast', 'Ast', 'right')}
+                          {renderSortableHeader('defense', 'tot', 'Tot', 'right')}
+                          {renderSortableHeader('defense', 'tfl', 'TFL', 'right')}
+                          {renderSortableHeader('defense', 'sck', 'Sck', 'right')}
+                          {renderSortableHeader('defense', 'int', 'Int', 'right')}
+                          {renderSortableHeader('defense', 'intYd', 'IntYd', 'right')}
+                          {renderSortableHeader('defense', 'td', 'TD', 'right')}
+                          {renderSortableHeader('defense', 'pd', 'PD', 'right')}
+                          {renderSortableHeader('defense', 'ff', 'FF', 'right')}
+                          {renderSortableHeader('defense', 'fr', 'FR', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1349,23 +1504,36 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Kicking</h3>
               </div>
               {(() => {
-                const kickingYears = yearByYearStats.filter(y => y.kicking && hasNonZeroStats(y.kicking, ['fgm', 'fga', 'xpm', 'xpa']))
-                const hasAnySnaps = kickingYears.some(y => y.snapsPlayed > 0)
+                const kickingYearsUnsorted = yearByYearStats.filter(y => y.kicking && hasNonZeroStats(y.kicking, ['fgm', 'fga', 'xpm', 'xpa']))
+                const hasAnySnaps = kickingYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'kicking' && hasAnySnaps
+
+                // Sort by selected column
+                const kickingYears = sortStatYears(kickingYearsUnsorted, 'kicking', (y, col) => {
+                  const k = y.kicking
+                  const statMap = { fgm: k?.fgm, fga: k?.fga, lng: k?.lng, xpm: k?.xpm, xpa: k?.xpa }
+                  if (col === 'fgPct') return k?.fga ? (k.fgm / k.fga) * 100 : 0
+                  if (col === 'xpPct') return k?.xpa ? (k.xpm / k.xpa) * 100 : 0
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('kicking', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('kicking', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'kicking' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['FGM', 'FGA', 'FG%', 'Lng', 'XPM', 'XPA', 'XP%'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'kicking' && renderSortableHeader('kicking', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('kicking', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('kicking', 'fgm', 'FGM', 'right')}
+                          {renderSortableHeader('kicking', 'fga', 'FGA', 'right')}
+                          {renderSortableHeader('kicking', 'fgPct', 'FG%', 'right')}
+                          {renderSortableHeader('kicking', 'lng', 'Lng', 'right')}
+                          {renderSortableHeader('kicking', 'xpm', 'XPM', 'right')}
+                          {renderSortableHeader('kicking', 'xpa', 'XPA', 'right')}
+                          {renderSortableHeader('kicking', 'xpPct', 'XP%', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1431,23 +1599,34 @@ export default function Player() {
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Punting</h3>
               </div>
               {(() => {
-                const puntingYears = yearByYearStats.filter(y => y.punting && hasNonZeroStats(y.punting, ['punts', 'yds']))
-                const hasAnySnaps = puntingYears.some(y => y.snapsPlayed > 0)
+                const puntingYearsUnsorted = yearByYearStats.filter(y => y.punting && hasNonZeroStats(y.punting, ['punts', 'yds']))
+                const hasAnySnaps = puntingYearsUnsorted.some(y => y.snapsPlayed > 0)
                 const showSnapsCol = primaryStat === 'punting' && hasAnySnaps
+
+                // Sort by selected column
+                const puntingYears = sortStatYears(puntingYearsUnsorted, 'punting', (y, col) => {
+                  const p = y.punting
+                  const statMap = { punts: p?.punts, yds: p?.yds, lng: p?.lng, in20: p?.in20, tb: p?.tb }
+                  if (col === 'avg') return p?.punts ? p.yds / p.punts : 0
+                  return statMap[col] ?? 0
+                })
 
                 return (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                          <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                          {renderSortableHeader('punting', 'year', 'Year', 'left', 'w-14')}
+                          {renderSortableHeader('punting', 'class', 'Class', 'left', 'w-16')}
                           <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                          {primaryStat === 'punting' && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">G</th>}
-                          {showSnapsCol && <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">Snaps</th>}
-                          {['Punts', 'Yds', 'Avg', 'Lng', 'In20', 'TB'].map((h, i) => (
-                            <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                          ))}
+                          {primaryStat === 'punting' && renderSortableHeader('punting', 'gamesPlayed', 'G', 'right')}
+                          {showSnapsCol && renderSortableHeader('punting', 'snapsPlayed', 'Snaps', 'right')}
+                          {renderSortableHeader('punting', 'punts', 'Punts', 'right')}
+                          {renderSortableHeader('punting', 'yds', 'Yds', 'right')}
+                          {renderSortableHeader('punting', 'avg', 'Avg', 'right')}
+                          {renderSortableHeader('punting', 'lng', 'Lng', 'right')}
+                          {renderSortableHeader('punting', 'in20', 'In20', 'right')}
+                          {renderSortableHeader('punting', 'tb', 'TB', 'right')}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1510,20 +1689,34 @@ export default function Player() {
               <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Kick Returns</h3>
               </div>
+              {(() => {
+                const kickReturnYearsUnsorted = yearByYearStats.filter(y => y.kickReturn && hasNonZeroStats(y.kickReturn, ['ret', 'yds', 'td']))
+
+                // Sort by selected column
+                const kickReturnYears = sortStatYears(kickReturnYearsUnsorted, 'kickReturn', (y, col) => {
+                  const kr = y.kickReturn
+                  const statMap = { ret: kr?.ret, yds: kr?.yds, td: kr?.td, lng: kr?.lng }
+                  if (col === 'avg') return kr?.ret ? kr.yds / kr.ret : 0
+                  return statMap[col] ?? 0
+                })
+
+                return (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                      <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                      {renderSortableHeader('kickReturn', 'year', 'Year', 'left', 'w-14')}
+                      {renderSortableHeader('kickReturn', 'class', 'Class', 'left', 'w-16')}
                       <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                      {['Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
-                        <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                      ))}
+                      {renderSortableHeader('kickReturn', 'ret', 'Ret', 'right')}
+                      {renderSortableHeader('kickReturn', 'yds', 'Yds', 'right')}
+                      {renderSortableHeader('kickReturn', 'avg', 'Avg', 'right')}
+                      {renderSortableHeader('kickReturn', 'td', 'TD', 'right')}
+                      {renderSortableHeader('kickReturn', 'lng', 'Lng', 'right')}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.kickReturn && hasNonZeroStats(y.kickReturn, ['ret', 'yds', 'td'])).map((y, idx) => {
+                    {kickReturnYears.map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       const colSpan = 8
@@ -1565,6 +1758,8 @@ export default function Player() {
                   </tfoot>
                 </table>
               </div>
+                )
+              })()}
             </div>
           )}
 
@@ -1574,20 +1769,34 @@ export default function Player() {
               <div className="px-4 py-3 border-b-2" style={{ backgroundColor: teamColors.primary, borderColor: teamColors.primary }}>
                 <h3 className="text-sm font-bold uppercase tracking-wide" style={{ color: primaryText }}>Punt Returns</h3>
               </div>
+              {(() => {
+                const puntReturnYearsUnsorted = yearByYearStats.filter(y => y.puntReturn && hasNonZeroStats(y.puntReturn, ['ret', 'yds', 'td']))
+
+                // Sort by selected column
+                const puntReturnYears = sortStatYears(puntReturnYearsUnsorted, 'puntReturn', (y, col) => {
+                  const pr = y.puntReturn
+                  const statMap = { ret: pr?.ret, yds: pr?.yds, td: pr?.td, lng: pr?.lng }
+                  if (col === 'avg') return pr?.ret ? pr.yds / pr.ret : 0
+                  return statMap[col] ?? 0
+                })
+
+                return (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-14">Year</th>
-                      <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-left w-16">Class</th>
+                      {renderSortableHeader('puntReturn', 'year', 'Year', 'left', 'w-14')}
+                      {renderSortableHeader('puntReturn', 'class', 'Class', 'left', 'w-16')}
                       <th className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-center w-12">Team</th>
-                      {['Ret', 'Yds', 'Avg', 'TD', 'Lng'].map((h, i) => (
-                        <th key={i} className="px-2 py-2 text-xs font-semibold text-gray-600 uppercase text-right">{h}</th>
-                      ))}
+                      {renderSortableHeader('puntReturn', 'ret', 'Ret', 'right')}
+                      {renderSortableHeader('puntReturn', 'yds', 'Yds', 'right')}
+                      {renderSortableHeader('puntReturn', 'avg', 'Avg', 'right')}
+                      {renderSortableHeader('puntReturn', 'td', 'TD', 'right')}
+                      {renderSortableHeader('puntReturn', 'lng', 'Lng', 'right')}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {yearByYearStats.filter(y => y.puntReturn && hasNonZeroStats(y.puntReturn, ['ret', 'yds', 'td'])).map((y, idx) => {
+                    {puntReturnYears.map((y, idx) => {
                       const mascot = getMascotName(teamAbbr)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       const colSpan = 8
@@ -1629,6 +1838,8 @@ export default function Player() {
                   </tfoot>
                 </table>
               </div>
+                )
+              })()}
             </div>
           )}
         </div>

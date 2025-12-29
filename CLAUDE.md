@@ -247,6 +247,23 @@ Some features are hidden with `{false && (...)}` for future use:
 
 ## Recent Completions
 
+**Team Name Links on Game Page**:
+- All team names in Game.jsx are now clickable, linking to their team season page
+- Added to: quarter scores table, box score headers, scoring plays, team stats, team ratings
+- Link pattern: `${pathPrefix}/team/${teamAbbr}/${year}`
+
+**Opponent Team Record Display** (TeamYear.jsx):
+- Priority system for displaying team records on opponent team pages:
+  1. Conference standings (highest priority - end of year data)
+  2. Last known `opponentRecord` from games where user played against that team
+  3. Calculated from games (fallback for user's own team)
+- Fixed flipped perspective record calculation for opponent team pages
+- Uses `_displayResult` for games where `_isFlippedPerspective` is true
+
+**Team Stats Sheet Validation**:
+- Removed >= 0 validation from team stats Google Sheets
+- Yards stats (rush, pass, total, returns) can now be negative
+
 **Player teamsByYear System**:
 - Immutable roster history field tracking which team each player was on per season
 - Fixes roster display issues when players transfer or coaches change teams

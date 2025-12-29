@@ -2573,8 +2573,8 @@ export default function GameEntryModal({
               }
             }}
             sheetType="homeStats"
-            existingSheetId={existingGame?.homeStatsSheetId || pendingSheetIds.homeStatsSheetId}
-            game={existingGame || {
+            existingSheetId={getLatestGameData()?.homeStatsSheetId || pendingSheetIds.homeStatsSheetId}
+            game={getLatestGameData() || {
               id: tempGameId,
               week: actualWeekNumber,
               year: actualYear,
@@ -2613,8 +2613,8 @@ export default function GameEntryModal({
               }
             }}
             sheetType="awayStats"
-            existingSheetId={existingGame?.awayStatsSheetId || pendingSheetIds.awayStatsSheetId}
-            game={existingGame || {
+            existingSheetId={getLatestGameData()?.awayStatsSheetId || pendingSheetIds.awayStatsSheetId}
+            game={getLatestGameData() || {
               id: tempGameId,
               week: actualWeekNumber,
               year: actualYear,
@@ -2653,8 +2653,8 @@ export default function GameEntryModal({
               }
             }}
             sheetType="scoring"
-            existingSheetId={existingGame?.scoringSummarySheetId || pendingSheetIds.scoringSummarySheetId}
-            game={existingGame || {
+            existingSheetId={getLatestGameData()?.scoringSummarySheetId || pendingSheetIds.scoringSummarySheetId}
+            game={getLatestGameData() || {
               id: tempGameId,
               week: actualWeekNumber,
               year: actualYear,
@@ -2693,8 +2693,8 @@ export default function GameEntryModal({
               }
             }}
             sheetType="teamStats"
-            existingSheetId={existingGame?.teamStatsSheetId || pendingSheetIds.teamStatsSheetId}
-            game={existingGame || {
+            existingSheetId={getLatestGameData()?.teamStatsSheetId || pendingSheetIds.teamStatsSheetId}
+            game={getLatestGameData() || {
               id: tempGameId,
               week: actualWeekNumber,
               year: actualYear,

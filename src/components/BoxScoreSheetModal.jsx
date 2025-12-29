@@ -53,6 +53,7 @@ export default function BoxScoreSheetModal({
   const [showSessionError, setShowSessionError] = useState(false)
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [ignoreExistingSheetId, setIgnoreExistingSheetId] = useState(false)
 
   // Determine teams based on game location
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
@@ -68,11 +69,27 @@ export default function BoxScoreSheetModal({
   const roster = useMemo(() => {
     if (!currentDynasty?.players) return []
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+    const currentYear = currentDynasty.currentYear
+    const yearKey = String(currentYear)
     return currentDynasty.players
-      .filter(p => p.team === teamAbbr && !p.leftTeam)
+      .filter(p => {
+        // Exclude players who left (unless they have teamsByYear showing they returned)
+        if (p.leftTeam) {
+          // Check if they returned via teamsByYear
+          const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[currentYear]
+          if (teamForYear !== teamAbbr) return false
+        }
+        // PRIMARY CHECK: If player has teamsByYear record for this year, use it
+        const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[currentYear]
+        if (teamForYear !== undefined) {
+          return teamForYear === teamAbbr
+        }
+        // FALLBACK: Use team field
+        return p.team === teamAbbr
+      })
       .map(p => p.name)
       .sort()
-  }, [currentDynasty?.players, currentDynasty?.teamName])
+  }, [currentDynasty?.players, currentDynasty?.teamName, currentDynasty?.currentYear])
 
   // Determine title and team info based on sheet type
   const getSheetConfig = () => {
@@ -169,8 +186,8 @@ export default function BoxScoreSheetModal({
   useEffect(() => {
     const initSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
-        // Check for existing sheet
-        if (existingSheetId) {
+        // Check for existing sheet (unless we're regenerating and should ignore it)
+        if (existingSheetId && !ignoreExistingSheetId) {
           setSheetId(existingSheetId)
           return
         }
@@ -186,22 +203,32 @@ export default function BoxScoreSheetModal({
             // Pass roster to home or away based on which is user's team
             const homeRoster = isUserHome ? roster : []
             const awayRoster = isUserHome ? [] : roster
+            // Get existing scoring data to pre-fill (if editing a game that already has scoring data)
+            const existingScoringData = game?.boxScore?.scoringSummary || []
             sheetInfo = await createScoringSummarySheet(
               homeTeamAbbr,
               awayTeamAbbr,
               year,
               week,
               homeRoster,
-              awayRoster
+              awayRoster,
+              existingScoringData
             )
           } else if (sheetType === 'teamStats') {
+            // Get existing team stats data to pre-fill
+            const existingTeamStats = game?.boxScore?.teamStats || null
             sheetInfo = await createGameTeamStatsSheet(
               homeTeamAbbr,
               awayTeamAbbr,
               year,
-              week
+              week,
+              existingTeamStats
             )
           } else {
+            // Get existing player stats to pre-fill (homeStats or awayStats)
+            const existingPlayerStats = sheetType === 'homeStats'
+              ? game?.boxScore?.home || null
+              : game?.boxScore?.away || null
             sheetInfo = await createGameBoxScoreSheet(
               config.teamName,
               config.teamAbbr,
@@ -209,11 +236,15 @@ export default function BoxScoreSheetModal({
               year,
               week,
               config.isUserTeam,
-              config.isUserTeam ? roster : []
+              config.isUserTeam ? roster : [],
+              existingPlayerStats
             )
           }
 
           setSheetId(sheetInfo.spreadsheetId)
+
+          // Reset the ignore flag now that we have a new sheet
+          setIgnoreExistingSheetId(false)
 
           // Notify parent of new sheet ID
           if (onSheetCreated) {
@@ -235,12 +266,13 @@ export default function BoxScoreSheetModal({
     }
 
     initSheet()
-  }, [isOpen, user, sheetId, creatingSheet, existingSheetId, retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, creatingSheet, existingSheetId, retryCount, showDeletedNote, ignoreExistingSheetId])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      setIgnoreExistingSheetId(false)
     }
   }, [isOpen])
 
@@ -350,6 +382,8 @@ export default function BoxScoreSheetModal({
         }
       }
 
+      // Ignore the old existingSheetId prop so we create a fresh sheet
+      setIgnoreExistingSheetId(true)
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {

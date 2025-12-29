@@ -271,11 +271,16 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         overallProgression: player.overallProgression || 0,
         overallRatingChange: player.overallRatingChange || 0,
 
+        // Player Status Flags
+        isRecruit: player.isRecruit || false,
+        isPortal: player.isPortal || false,
+
         // Game Logs (for selected year)
         snapsPlayed: yearStats.snapsPlayed,
         gamesPlayed: yearStats.gamesPlayed,
 
         // Departure
+        leftTeam: player.leftTeam || false,
         yearDeparted: player.yearDeparted || '',
         yearsInSchool: player.yearsInSchool || 0,
         leftReason: player.leftReason || '',
@@ -545,6 +550,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       gemBust: formData.gemBust,
       overallProgression: formData.overallProgression,
       overallRatingChange: formData.overallRatingChange,
+      leftTeam: formData.leftTeam,
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
       leftReason: formData.leftReason,
@@ -560,7 +566,10 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       notes: formData.notes,
       links: formData.links,
       // Roster History - which team this player was on each year
-      teamsByYear: formData.teamsByYear
+      teamsByYear: formData.teamsByYear,
+      // Status flags
+      isRecruit: formData.isRecruit,
+      isPortal: formData.isPortal
     }
 
     // Pass both player info and year-specific stats
@@ -850,6 +859,28 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                       <input type="text" name="previousTeam" value={formData.previousTeam ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
                     </div>
                   </div>
+                  <div className="flex gap-6 pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="isRecruit"
+                        checked={formData.isRecruit || false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isRecruit: e.target.checked }))}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm" style={labelStyle}>Is Recruit (not yet enrolled)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="isPortal"
+                        checked={formData.isPortal || false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isPortal: e.target.checked }))}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm" style={labelStyle}>Is Portal Transfer</span>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
@@ -902,6 +933,26 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               {renderSectionHeader('departure', 'Departure')}
               {isExpanded('departure') && (
                 <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
+                  {/* Left Team Toggle */}
+                  <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: formData.leftTeam ? 'rgba(239, 68, 68, 0.1)' : 'rgba(0,0,0,0.05)' }}>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        name="leftTeam"
+                        checked={formData.leftTeam || false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, leftTeam: e.target.checked }))}
+                        className="w-5 h-5 rounded"
+                      />
+                      <span className="text-sm font-medium" style={{ color: formData.leftTeam ? '#dc2626' : teamColors.primaryText }}>
+                        Player Has Left Team
+                      </span>
+                      {formData.leftTeam && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">
+                          Will not appear on active roster
+                        </span>
+                      )}
+                    </label>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Year Departed</label>

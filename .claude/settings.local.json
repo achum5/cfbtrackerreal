@@ -43,7 +43,8 @@
       "Bash(timeout 10 npm run dev:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "WebFetch(domain:1000logos.net)"
+      "WebFetch(domain:1000logos.net)",
+      "Bash(env)"
     ],
     "deny": [],
     "ask": []
