@@ -1227,17 +1227,31 @@ export default function Player() {
                 </div>
               )}
               {/* Previous Team for transfers */}
-              {recruitmentInfo.previousTeam && (
-                <div className="text-sm flex items-center gap-1.5" style={{ color: primaryText }}>
-                  <span style={{ opacity: 0.6 }}>from</span>
-                  <span className="font-semibold">{recruitmentInfo.previousTeam}</span>
-                  {getTeamLogo(getMascotName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam) && (
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
-                      <img src={getTeamLogo(getMascotName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam)} alt="" className="w-full h-full object-contain" />
-                    </div>
-                  )}
-                </div>
-              )}
+              {recruitmentInfo.previousTeam && (() => {
+                // Get the abbreviation for the previous team (might be abbr or mascot name)
+                const prevTeamAbbr = getAbbreviationFromDisplayName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam
+                // The year they transferred is their recruit/start year
+                const transferYear = player.recruitYear || player.yearStarted || dynasty?.currentYear
+                const prevTeamLogo = getTeamLogo(getMascotName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam)
+
+                return (
+                  <div className="text-sm flex items-center gap-1.5" style={{ color: primaryText }}>
+                    <span style={{ opacity: 0.6 }}>from</span>
+                    <Link
+                      to={`${pathPrefix}/team/${prevTeamAbbr}/${transferYear}`}
+                      className="font-semibold hover:underline flex items-center gap-1.5"
+                      style={{ color: primaryText }}
+                    >
+                      {recruitmentInfo.previousTeam}
+                      {prevTeamLogo && (
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                          <img src={prevTeamLogo} alt="" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                    </Link>
+                  </div>
+                )
+              })()}
               {/* Gem/Bust tag */}
               {recruitmentInfo.gemBust && (
                 <span

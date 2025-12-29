@@ -290,6 +290,7 @@ export default function TeamStats() {
     const aggregated = {
       passing: {},
       rushing: {},
+      receiving: {},
       blocking: {},
       defense: {},
       kicking: {},
@@ -333,6 +334,7 @@ export default function TeamStats() {
       // Aggregate each category
       aggregateCategory('passing', ['comp', 'attempts', 'yards', 'tD', 'iNT', 'long', 'sacks'])
       aggregateCategory('rushing', ['carries', 'yards', 'tD', 'fumbles', 'brokenTackles', 'yAC', 'long', '20+'])
+      aggregateCategory('receiving', ['receptions', 'yards', 'tD', 'rAC', 'drops', 'long'])
       aggregateCategory('blocking', ['sacksAllowed', 'pancakes'])
       aggregateCategory('defense', ['solo', 'assists', 'tFL', 'sack', 'iNT', 'iNTYards', 'deflections', 'fF', 'fR', 'tD'])
       aggregateCategory('kicking', ['fGM', 'fGA', 'xPM', 'xPA', 'kickoffs', 'touchbacks'])
@@ -355,6 +357,12 @@ export default function TeamStats() {
     const rushing = toArray(aggregated.rushing).map(p => ({
       ...p,
       ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0'
+    }))
+
+    // Receiving: add Y/R (yards per reception)
+    const receiving = toArray(aggregated.receiving).map(p => ({
+      ...p,
+      ypr: p.receptions > 0 ? (p.yards / p.receptions).toFixed(1) : '0.0'
     }))
 
     // Defense: add total tackles
@@ -389,6 +397,7 @@ export default function TeamStats() {
     return {
       passing,
       rushing,
+      receiving,
       blocking: toArray(aggregated.blocking),
       defense,
       kicking,
@@ -633,6 +642,17 @@ export default function TeamStats() {
       { key: '20+', label: '20+' },
       { key: 'long', label: 'LNG' }
     ],
+    receiving: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'receptions', label: 'REC' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'ypr', label: 'Y/R' },
+      { key: 'tD', label: 'TD' },
+      { key: 'rAC', label: 'RAC' },
+      { key: 'drops', label: 'DROP' },
+      { key: 'long', label: 'LNG' }
+    ],
     blocking: [
       { key: 'playerName', label: 'Player' },
       { key: 'games', label: 'G' },
@@ -705,7 +725,70 @@ export default function TeamStats() {
         className="rounded-xl shadow-lg overflow-hidden"
         style={{ backgroundColor: teamColors.primary }}
       >
-        <div className="p-5">
+        {/* Mobile Layout */}
+        <div className="sm:hidden p-4">
+          {/* Row 1: Logo + Team Name */}
+          <div className="flex items-center gap-3 mb-3">
+            {teamLogo && (
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 shadow"
+                style={{ backgroundColor: '#FFFFFF', padding: '4px' }}
+              >
+                <img src={teamLogo} alt={teamFullName} className="w-full h-full object-contain" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <Link
+                to={`${pathPrefix}/team/${selectedTeam}/${selectedYear}`}
+                className="text-lg font-bold truncate hover:underline block"
+                style={{ color: primaryText }}
+              >
+                {teamFullName}
+              </Link>
+              <p className="text-xs" style={{ color: primaryText, opacity: 0.7 }}>
+                {selectedYear} Season Stats
+              </p>
+            </div>
+          </div>
+          {/* Row 2: Dropdowns + Edit */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedTeam}
+              onChange={(e) => handleTeamChange(e.target.value)}
+              className="flex-1 px-2 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-white/20 border-0 focus:ring-2 focus:ring-white/50"
+              style={{ color: primaryText }}
+            >
+              {availableTeams.map(team => (
+                <option key={team} value={team} className="text-gray-900">
+                  {getMascotName(team) || team}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="px-2 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-white/20 border-0 focus:ring-2 focus:ring-white/50"
+              style={{ color: primaryText }}
+            >
+              {availableYears.map(year => (
+                <option key={year} value={year} className="text-gray-900">{year}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowStatsModal(true)}
+              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0"
+              style={{ color: primaryText }}
+              title="Edit Stats"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden sm:block p-5">
           <div className="flex items-center gap-4">
             {/* Team Logo */}
             {teamLogo && (
@@ -832,6 +915,12 @@ export default function TeamStats() {
             title="Rushing"
             columns={statColumns.rushing}
             data={playerStats.rushing}
+          />
+          <PlayerStatsTable
+            category="receiving"
+            title="Receiving"
+            columns={statColumns.receiving}
+            data={playerStats.receiving}
           />
           <PlayerStatsTable
             category="blocking"

@@ -738,16 +738,21 @@ export default function TeamYear() {
     // Exclude honor-only players (players only in system for awards, not on actual roster)
     if (p.isHonorOnly) return false
 
-    // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
-    if (p.isRecruit) return false
-
-    // PRIMARY CHECK: If player has teamsByYear record for this year, use it (immutable history)
+    // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
+    // This check must come FIRST before isRecruit - teamsByYear is the source of truth
     // Check both numeric and string keys to handle any data format
     const yearKey = String(selectedYear)
-    const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[selectedYear]
+    const numKey = Number(selectedYear)
+    const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[numKey]
+
     if (teamForYear !== undefined) {
+      // Player has explicit roster membership for this year - trust it completely
       return teamForYear === teamAbbr
     }
+
+    // Exclude recruits who don't have explicit teamsByYear entry
+    // (they haven't enrolled yet - show on recruiting page instead)
+    if (p.isRecruit) return false
 
     // FALLBACK: Use old calculation logic for backwards compatibility with existing data
     // CRITICAL: If player has a recruitYear, they should NOT appear on rosters for that year or earlier
