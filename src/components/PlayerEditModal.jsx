@@ -261,6 +261,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
         // Recruiting
         yearStarted: player.yearStarted || '',
+        recruitYear: player.recruitYear || '',
         stars: player.stars || 0,
         positionRank: player.positionRank || 0,
         stateRank: player.stateRank || 0,
@@ -543,6 +544,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       state: formData.state,
       previousTeam: formData.previousTeam,
       yearStarted: formData.yearStarted,
+      recruitYear: formData.recruitYear ? num(formData.recruitYear) : null,
       stars: num(formData.stars),
       positionRank: num(formData.positionRank),
       stateRank: num(formData.stateRank),
@@ -817,8 +819,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                 <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div>
-                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Recruit Year</label>
-                      <input type="text" name="yearStarted" value={formData.yearStarted ?? ''} onChange={handleChange} placeholder="2024" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
+                      <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Class Year</label>
+                      <input type="text" name="recruitYear" value={formData.recruitYear ?? ''} onChange={handleChange} placeholder="2025" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
                     </div>
                     <div>
                       <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Stars</label>

@@ -657,8 +657,26 @@ export default function Player() {
     careerGames > 0 || careerSnaps > 0 || Object.values(hasStats).some(v => v)
   )
 
-  // Get recruitment info for recruits from the recruiting commitments data
+  // Get recruitment info - check player object first, then recruiting commitments
   const getRecruitmentInfo = () => {
+    // First check if player has recruitment data directly on the object
+    const hasPlayerRecruitData = player.stars || player.nationalRank || player.stateRank ||
+                                  player.positionRank || player.previousTeam || player.gemBust
+
+    if (hasPlayerRecruitData) {
+      return {
+        stars: player.stars,
+        nationalRank: player.nationalRank,
+        stateRank: player.stateRank,
+        positionRank: player.positionRank,
+        previousTeam: player.previousTeam,
+        gemBust: player.gemBust,
+        state: player.state,
+        isPortal: player.isPortal
+      }
+    }
+
+    // Fall back to checking recruiting commitments data
     if (!player.isRecruit) return null
     const recruitYear = player.recruitYear || dynasty.currentYear
     const commitments = dynasty.recruitingCommitmentsByTeamYear?.[playerTeamAbbr]?.[recruitYear] || {}
@@ -676,9 +694,204 @@ export default function Player() {
 
   return (
     <div className="space-y-6">
-      {/* Player Header */}
+      {/* Player Header - Mobile Layout */}
       <div
-        className="rounded-lg shadow-lg p-4 sm:p-6"
+        className="sm:hidden rounded-xl shadow-lg overflow-hidden"
+        style={{ backgroundColor: teamColors.primary, border: `2px solid ${teamColors.secondary}` }}
+      >
+        {/* Top row: Photo, Name, Overall */}
+        <div className="p-4 flex items-center gap-3">
+          {player.pictureUrl && (
+            <img
+              src={player.pictureUrl}
+              alt={player.name}
+              className="w-16 h-16 object-cover rounded-lg border-2 flex-shrink-0"
+              style={{ borderColor: teamColors.secondary }}
+              onError={(e) => { e.target.style.display = 'none' }}
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold leading-tight" style={{ color: primaryText }}>
+              {player.name}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm font-semibold" style={{ color: primaryText, opacity: 0.9 }}>
+                {player.jerseyNumber != null && player.jerseyNumber !== '' && `#${player.jerseyNumber} • `}{player.position}
+              </span>
+              {player.devTrait && player.devTrait !== 'Normal' && (
+                <span
+                  className="px-1.5 py-0.5 rounded text-xs font-bold"
+                  style={{
+                    backgroundColor: player.devTrait === 'Elite' ? '#fbbf24' :
+                                   player.devTrait === 'Star' ? '#8b5cf6' :
+                                   player.devTrait === 'Impact' ? '#3b82f6' : '#9ca3af',
+                    color: player.devTrait === 'Elite' ? '#78350f' : '#ffffff'
+                  }}
+                >
+                  {player.devTrait}
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Overall Rating */}
+          <div className="text-center flex-shrink-0">
+            {player.overall ? (
+              <button
+                onClick={() => setShowOverallProgressionModal(true)}
+                className="hover:opacity-80 transition-opacity"
+                title="View overall progression"
+              >
+                <div className="text-3xl font-black" style={{ color: primaryText }}>{player.overall}</div>
+                <div className="text-[10px] font-semibold" style={{ color: primaryText, opacity: 0.6 }}>OVR</div>
+              </button>
+            ) : (
+              <div>
+                <div className="text-3xl font-black" style={{ color: primaryText, opacity: 0.3 }}>—</div>
+                <div className="text-[10px] font-semibold" style={{ color: primaryText, opacity: 0.6 }}>OVR</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Info rows */}
+        <div className="px-4 pb-3 space-y-2" style={{ color: primaryText }}>
+          {/* Team and Class */}
+          <div className="flex items-center justify-between">
+            <Link
+              to={`${pathPrefix}/team/${teamAbbr}`}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold hover:underline"
+              style={{ color: primaryText, opacity: 0.9 }}
+            >
+              {getTeamLogo(playerTeamName) && (
+                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                  <img src={getTeamLogo(playerTeamName)} alt="" className="w-full h-full object-contain" />
+                </div>
+              )}
+              <span className="truncate max-w-[140px]">{playerTeamName}</span>
+            </Link>
+            <span className="text-sm font-medium" style={{ opacity: 0.85 }}>{player.year}</span>
+          </div>
+
+          {/* Archetype and Physical */}
+          {(player.archetype || player.height || player.weight) && (
+            <div className="flex items-center justify-between text-xs" style={{ opacity: 0.8 }}>
+              {player.archetype && <span>{player.archetype}</span>}
+              {(player.height || player.weight) && (
+                <span>{player.height}{player.height && player.weight && ', '}{player.weight ? `${player.weight} lbs` : ''}</span>
+              )}
+            </div>
+          )}
+
+          {/* Hometown */}
+          {(player.hometown || player.state) && (
+            <div className="text-xs" style={{ opacity: 0.7 }}>
+              {player.hometown}{player.hometown && player.state && ', '}{player.state}
+            </div>
+          )}
+
+          {/* Status badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            {player.isRecruit && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                style={{ backgroundColor: teamColors.secondary, color: secondaryText }}
+              >
+                Commitment
+              </span>
+            )}
+            {player.leftTeam && (
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-bold"
+                style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
+              >
+                {player.leftReason === 'Pro Draft' && player.draftRound
+                  ? `${player.leftYear} NFL Draft - ${player.draftRound}`
+                  : player.leftReason === 'Pro Draft'
+                  ? `${player.leftYear} NFL Draft`
+                  : player.leftReason === 'Graduating'
+                  ? `Graduated (${player.leftYear})`
+                  : player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
+                  ? `Transferred (${player.leftYear})`
+                  : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
+                     'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
+                     'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
+                     'Athletic Facilities'].includes(player.leftReason)
+                  ? `Transfer: ${player.leftReason} (${player.leftYear})`
+                  : player.leftReason
+                  ? `${player.leftReason} (${player.leftYear})`
+                  : `Left Team (${player.leftYear})`}
+              </span>
+            )}
+            {player.transferredTo && (() => {
+              const newTeamName = getMascotName(player.transferredTo) || teamAbbreviations[player.transferredTo]?.name || player.transferredTo
+              const newTeamColors = getTeamColors(newTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
+              const newTeamTextColor = getContrastTextColor(newTeamColors.primary)
+              return (
+                <Link
+                  to={`${pathPrefix}/team/${player.transferredTo}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: newTeamColors.primary, color: newTeamTextColor }}
+                >
+                  <span>→</span>
+                  {getTeamLogo(newTeamName) && (
+                    <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                      <img src={getTeamLogo(newTeamName)} alt="" className="w-full h-full object-contain" />
+                    </div>
+                  )}
+                  <span>{player.transferredTo}</span>
+                </Link>
+              )
+            })()}
+          </div>
+        </div>
+
+        {/* Action buttons row */}
+        <div
+          className="flex items-center justify-end gap-1 px-3 py-2"
+          style={{ backgroundColor: `${teamColors.secondary}30` }}
+        >
+          {playerGameLog.length > 0 && (
+            <button
+              onClick={() => setShowGameLogModal(true)}
+              className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: primaryText }}
+              title="Game Log"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+            </button>
+          )}
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: primaryText }}
+              title="Edit Player"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: '#EF4444' }}
+              title="Delete Player"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Player Header - Desktop Layout */}
+      <div
+        className="hidden sm:block rounded-lg shadow-lg p-6"
         style={{ backgroundColor: teamColors.primary, border: `3px solid ${teamColors.secondary}` }}
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -687,7 +900,7 @@ export default function Player() {
               <img
                 src={player.pictureUrl}
                 alt={player.name}
-                className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-lg border-2 flex-shrink-0"
+                className="w-24 h-24 object-cover rounded-lg border-2 flex-shrink-0"
                 style={{ borderColor: teamColors.secondary }}
                 onError={(e) => { e.target.style.display = 'none' }}
               />
@@ -695,7 +908,7 @@ export default function Player() {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ color: primaryText }}>
+                <h1 className="text-2xl md:text-3xl font-bold" style={{ color: primaryText }}>
                   {player.name}
                 </h1>
                 {playerGameLog.length > 0 && (
@@ -961,70 +1174,94 @@ export default function Player() {
         </div>
       )}
 
-      {/* Recruitment Information - Compact display for recruits without stats */}
-      {player.isRecruit && !hasMeaningfulStats && recruitmentInfo && (
+      {/* Recruitment Information - Show for any player with recruitment data */}
+      {recruitmentInfo && (
         <div
-          className="rounded-lg shadow px-4 py-3 flex flex-wrap items-center justify-between gap-3"
-          style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+          className="rounded-xl shadow-md overflow-hidden"
+          style={{ backgroundColor: teamColors.primary, border: `2px solid ${teamColors.secondary}` }}
         >
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            {/* Recruit Year */}
-            <span
-              className="px-2 py-0.5 rounded text-xs font-bold"
-              style={{ backgroundColor: teamColors.primary, color: primaryText }}
-            >
-              {player.recruitYear || dynasty.currentYear} Recruit
+          <div className="px-4 py-2 flex items-center gap-2" style={{ backgroundColor: teamColors.secondary }}>
+            <span className="text-sm font-bold" style={{ color: secondaryText }}>
+              {recruitmentInfo.isPortal || player.isPortal ? 'Transfer Portal' : 'Recruitment'}
             </span>
-            {/* Stars */}
-            {recruitmentInfo.stars && (
-              <div className="flex gap-0.5">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-4 h-4" fill={i < Number(recruitmentInfo.stars) ? '#FFD700' : '#D1D5DB'} viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-            )}
-            {/* Rankings inline */}
-            {recruitmentInfo.nationalRank && (
-              <span className="font-semibold" style={{ color: secondaryText }}>
-                #{recruitmentInfo.nationalRank} <span style={{ opacity: 0.6 }}>Nat'l</span>
-              </span>
-            )}
-            {recruitmentInfo.positionRank && (
-              <span className="font-semibold" style={{ color: secondaryText }}>
-                #{recruitmentInfo.positionRank} <span style={{ opacity: 0.6 }}>{player.position}</span>
-              </span>
-            )}
-            {recruitmentInfo.stateRank && (
-              <span className="font-semibold" style={{ color: secondaryText }}>
-                #{recruitmentInfo.stateRank} <span style={{ opacity: 0.6 }}>{recruitmentInfo.state || player.state}</span>
-              </span>
-            )}
-            {recruitmentInfo.previousTeam && (
-              <span style={{ color: secondaryText }}>
-                <span style={{ opacity: 0.6 }}>from</span> <span className="font-semibold">{recruitmentInfo.previousTeam}</span>
-              </span>
-            )}
-            {recruitmentInfo.gemBust && (
-              <span
-                className="px-2 py-0.5 rounded-full text-xs font-bold"
-                style={{
-                  backgroundColor: recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '#10B981' : '#EF4444',
-                  color: 'white'
-                }}
-              >
-                {recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '💎 Gem' : '💥 Bust'}
+            {(player.recruitYear || player.yearStarted) && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: teamColors.primary, color: primaryText }}>
+                Class of {player.recruitYear || player.yearStarted}
               </span>
             )}
           </div>
-          <Link
-            to={`${pathPrefix}/recruiting/${playerTeamAbbr}/${player.recruitYear || dynasty.currentYear}`}
-            className="text-sm font-medium hover:underline"
-            style={{ color: teamColors.primary }}
-          >
-            View Class →
-          </Link>
+          <div className="px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {/* Stars */}
+              {recruitmentInfo.stars && Number(recruitmentInfo.stars) > 0 && (
+                <div className="flex items-center gap-1">
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <svg key={i} className="w-4 h-4" fill={i < Number(recruitmentInfo.stars) ? '#FFD700' : '#4B5563'} viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: primaryText, opacity: 0.7 }}>
+                    {recruitmentInfo.stars}-Star
+                  </span>
+                </div>
+              )}
+              {/* Rankings */}
+              {recruitmentInfo.nationalRank && Number(recruitmentInfo.nationalRank) > 0 && (
+                <div className="text-sm" style={{ color: primaryText }}>
+                  <span className="font-bold">#{recruitmentInfo.nationalRank}</span>
+                  <span style={{ opacity: 0.6 }}> National</span>
+                </div>
+              )}
+              {recruitmentInfo.positionRank && Number(recruitmentInfo.positionRank) > 0 && (
+                <div className="text-sm" style={{ color: primaryText }}>
+                  <span className="font-bold">#{recruitmentInfo.positionRank}</span>
+                  <span style={{ opacity: 0.6 }}> {player.position}</span>
+                </div>
+              )}
+              {recruitmentInfo.stateRank && Number(recruitmentInfo.stateRank) > 0 && (
+                <div className="text-sm" style={{ color: primaryText }}>
+                  <span className="font-bold">#{recruitmentInfo.stateRank}</span>
+                  <span style={{ opacity: 0.6 }}> {recruitmentInfo.state || player.state}</span>
+                </div>
+              )}
+              {/* Previous Team for transfers */}
+              {recruitmentInfo.previousTeam && (
+                <div className="text-sm flex items-center gap-1.5" style={{ color: primaryText }}>
+                  <span style={{ opacity: 0.6 }}>from</span>
+                  <span className="font-semibold">{recruitmentInfo.previousTeam}</span>
+                  {getTeamLogo(getMascotName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam) && (
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                      <img src={getTeamLogo(getMascotName(recruitmentInfo.previousTeam) || recruitmentInfo.previousTeam)} alt="" className="w-full h-full object-contain" />
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Gem/Bust tag */}
+              {recruitmentInfo.gemBust && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{
+                    backgroundColor: recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '#10B981' : '#EF4444',
+                    color: 'white'
+                  }}
+                >
+                  {recruitmentInfo.gemBust.toLowerCase() === 'gem' ? '💎 Gem' : '💥 Bust'}
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Link to recruiting class if applicable */}
+          {player.recruitYear && (
+            <Link
+              to={`${pathPrefix}/recruiting/${playerTeamAbbr}/${player.recruitYear}`}
+              className="block px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity text-center"
+              style={{ backgroundColor: `${teamColors.secondary}50`, color: primaryText }}
+            >
+              View Recruiting Class →
+            </Link>
+          )}
         </div>
       )}
 
