@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useDynasty, getCurrentRoster } from '../context/DynastyContext'
+import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
 import {
-  createRosterSheet,
-  readRosterFromRosterSheet,
+  createRosterHistorySheet,
+  readRosterHistoryFromSheet,
   deleteGoogleSheet,
   getSingleSheetEmbedUrl,
-  prefillRosterSheet
+  prefillRosterHistorySheet
 } from '../services/sheetsService'
 
 const isMobileDevice = () => {
@@ -16,11 +16,8 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, teamColors, teamAbbr, teamName }) {
+export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
-
-  // Use provided team info or fall back to user's team
-  const editingTeamName = teamName || currentDynasty?.teamName || 'Dynasty'
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -33,10 +30,17 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
   const [useEmbedded, setUseEmbedded] = useState(() => {
-    // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
   const [highlightSave, setHighlightSave] = useState(false)
+
+  // Determine years to show based on dynasty data
+  const startYear = currentDynasty?.startYear || 2025
+  const currentYear = currentDynasty?.currentYear || startYear
+  const years = []
+  for (let y = startYear; y <= currentYear; y++) {
+    years.push(y)
+  }
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -77,76 +81,47 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
     } else {
       document.body.style.overflow = 'unset'
     }
-
     return () => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
 
-  // Create roster sheet when modal opens - ALWAYS create fresh with current data
+  // Create sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !showDeletedNote) {
         setCreatingSheet(true)
         try {
-          // Delete any existing roster edit sheet first (don't try to reuse old data)
-          const existingSheetId = currentDynasty?.rosterEditSheetId
+          // Delete any existing roster history sheet first
+          const existingSheetId = currentDynasty?.rosterHistorySheetId
           if (existingSheetId) {
             try {
               await deleteGoogleSheet(existingSheetId)
             } catch (e) {
-              // Ignore errors if sheet doesn't exist or already deleted
               console.log('Old sheet cleanup:', e.message)
             }
           }
 
-          // Create a fresh roster sheet
-          const sheetInfo = await createRosterSheet(
-            editingTeamName,
-            currentYear
+          // Create fresh sheet
+          const sheetInfo = await createRosterHistorySheet(
+            currentDynasty?.dynastyName || 'Dynasty',
+            years
           )
 
-          // Pre-fill with roster data for the SELECTED YEAR (season-aligned)
-          // PRIMARY: Use teamsByYear[year] for immutable historical record
-          // FALLBACK: Use old calculation logic for backwards compatibility
-          const selectedYear = currentYear // currentYear prop is the year being edited
-          const targetTeam = teamAbbr || getCurrentRoster(currentDynasty)[0]?.team
-
-          let existingPlayers = (currentDynasty?.players || []).filter(p => {
-            // Exclude honor-only players
-            if (p.isHonorOnly) return false
-            // Exclude recruits who haven't enrolled yet
-            if (p.isRecruit) return false
-
-            // PRIMARY CHECK: Use teamsByYear if available (immutable roster history)
-            if (p.teamsByYear && p.teamsByYear[selectedYear] !== undefined) {
-              return p.teamsByYear[selectedYear] === targetTeam
-            }
-
-            // FALLBACK: Old calculation logic for backwards compatibility
-            const playerTeam = p.team
-            if (playerTeam !== targetTeam && playerTeam) return false
-            if (p.recruitYear && selectedYear <= p.recruitYear) return false
-
-            const startYear = currentDynasty?.startYear || 2024
-            const playerStartYear = p.recruitYear ? (p.recruitYear + 1) : (p.yearStarted || startYear)
-            if (selectedYear < playerStartYear) return false
-            if (p.leftTeam && selectedYear > p.leftYear) return false
-
-            return true
-          })
-          if (existingPlayers.length > 0) {
-            await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers)
+          // Prefill with all non-honor-only players
+          const players = (currentDynasty?.players || []).filter(p => !p.isHonorOnly)
+          if (players.length > 0) {
+            await prefillRosterHistorySheet(sheetInfo.spreadsheetId, players, years)
           }
 
           setSheetId(sheetInfo.spreadsheetId)
 
-          // Save new sheet ID to dynasty
+          // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            rosterEditSheetId: sheetInfo.spreadsheetId
+            rosterHistorySheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create roster sheet:', error)
+          console.error('Failed to create roster history sheet:', error)
           if (error.message?.includes('authentication') || error.message?.includes('token')) {
             setShowAuthError(true)
           }
@@ -171,8 +146,27 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
 
     setSyncing(true)
     try {
-      const roster = await readRosterFromRosterSheet(sheetId)
-      await onSave(roster)
+      const historyData = await readRosterHistoryFromSheet(sheetId, years)
+
+      // Update players with teamsByYear data
+      const updatedPlayers = (currentDynasty?.players || []).map(player => {
+        if (player.isHonorOnly) return player
+
+        // Find matching entry by PID
+        const match = historyData.find(h => h.pid === player.pid)
+        if (match && Object.keys(match.teamsByYear).length > 0) {
+          return {
+            ...player,
+            teamsByYear: {
+              ...(player.teamsByYear || {}),
+              ...match.teamsByYear
+            }
+          }
+        }
+        return player
+      })
+
+      await updateDynasty(currentDynasty.id, { players: updatedPlayers })
       onClose()
     } catch (error) {
       console.error(error)
@@ -191,10 +185,29 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
 
     setDeletingSheet(true)
     try {
-      const roster = await readRosterFromRosterSheet(sheetId)
-      await onSave(roster)
+      const historyData = await readRosterHistoryFromSheet(sheetId, years)
 
-      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
+      // Update players with teamsByYear data
+      const updatedPlayers = (currentDynasty?.players || []).map(player => {
+        if (player.isHonorOnly) return player
+
+        // Find matching entry by PID
+        const match = historyData.find(h => h.pid === player.pid)
+        if (match && Object.keys(match.teamsByYear).length > 0) {
+          return {
+            ...player,
+            teamsByYear: {
+              ...(player.teamsByYear || {}),
+              ...match.teamsByYear
+            }
+          }
+        }
+        return player
+      })
+
+      await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       setSheetId(null)
@@ -221,7 +234,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { rosterEditSheetId: null })
+      await updateDynasty(currentDynasty.id, { rosterHistorySheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -258,7 +271,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            {currentYear} {teamAbbr ? `${teamAbbr} ` : ''}Roster Edit
+            Roster History Editor
           </h2>
           <button
             onClick={handleClose}
@@ -282,10 +295,10 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Roster Sheet...
+                Creating Roster History Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Pre-filling current roster data
+                Pre-filling all players with team data
               </p>
             </div>
           </div>
@@ -299,7 +312,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Roster saved to your dynasty.
+                Roster history saved to your dynasty.
               </p>
             </div>
           </div>
@@ -344,11 +357,6 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                   >
                     {regenerating ? 'Regenerating...' : 'Start Over'}
                   </button>
-                  {highlightSave && (
-                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
-
-                    </span>
-                  )}
                 </div>
               </div>
             )}
@@ -378,18 +386,21 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit Roster History</h3>
                 <div className="text-left mb-6 max-w-md">
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
-                    <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Edit player info (Name, Position, Class, Dev Trait, etc.)</span></li>
-                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return to this app when done</span></li>
-                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Tap "Save" below to sync your roster</span></li>
+                    <li className="flex gap-2"><span className="font-bold">1.</span><span>Open Google Sheets using the button below</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>For each player, set their team for each season</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Use dropdowns to select team abbreviations</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to update</span></li>
                   </ol>
+                  <p className="text-xs mt-3" style={{ color: teamColors.primary, opacity: 0.6 }}>
+                    This tracks which team each player was on in each season. Useful for fixing roster display issues after team changes.
+                  </p>
                 </div>
                 <a href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`} target="_blank" rel="noopener noreferrer" className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6" style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}>
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/><path d="M7 7h2v2H7zm0 4h2v2H7zm0 4h2v2H7zm4-8h6v2h-6zm0 4h6v2h-6zm0 4h6v2h-6z"/></svg>
@@ -422,11 +433,6 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
-                {highlightSave && (
-                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
-
-                  </span>
-                )}
 
                 <button
                   onClick={handleRegenerateSheet}
@@ -444,13 +450,13 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                     sheetId={sheetId}
                     embedUrl={embedUrl}
                     teamColors={teamColors}
-                    title="Roster Google Sheet"
+                    title="Roster History Sheet"
                     onSessionError={() => setShowAuthError(true)}
                   />
                 </div>
                 <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-                  <p><strong>Columns:</strong> Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State</p>
-                  <p>Edit player information as needed. Add or remove players from the roster.</p>
+                  <p><strong>Columns:</strong> Player Name | PID | {years.map(y => `${y} Team`).join(' | ')}</p>
+                  <p>Set which team each player was on in each season. Use dropdowns for team abbreviations.</p>
                 </div>
               </>
             )}
@@ -468,7 +474,6 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                     try {
                       const success = await refreshSession()
                       if (success) {
-                        // Trigger sheet creation retry
                         setRetryCount(c => c + 1)
                       }
                     } catch (e) {

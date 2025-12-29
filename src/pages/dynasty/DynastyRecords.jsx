@@ -479,10 +479,22 @@ export default function DynastyRecords() {
           }
         })
 
-        // Filter out null values and sort
+        // Filter out null/undefined values and 0s for counting stats (not rate stats)
+        const isRateStat = stat.format === 'pct' || stat.format === 'avg' || stat.format === 'rating'
         leaderboard = leaderboard
-          .filter(p => p.value !== null && p.value !== undefined)
-          .sort((a, b) => stat.lowerIsBetter ? a.value - b.value : b.value - a.value)
+          .filter(p => {
+            if (p.value === null || p.value === undefined) return false
+            // For counting stats (not rate stats), exclude 0 values from leaderboards
+            if (!isRateStat && p.value === 0) return false
+            return true
+          })
+          .sort((a, b) => {
+            // Explicit check: lowerIsBetter === true means ascending, otherwise descending
+            if (stat.lowerIsBetter === true) {
+              return a.value - b.value  // Ascending (lower is better)
+            }
+            return b.value - a.value  // Descending (higher is better)
+          })
           .slice(0, 10)
 
         result[catKey][stat.key] = leaderboard

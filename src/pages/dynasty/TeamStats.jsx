@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -81,6 +81,9 @@ export default function TeamStats() {
   // Modal state
   const [modalData, setModalData] = useState(null)
   const [showStatsModal, setShowStatsModal] = useState(false)
+
+  // Sort state for player stats tables
+  const [sortConfig, setSortConfig] = useState({})
 
   // Get current team abbreviation
   const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
@@ -282,6 +285,169 @@ export default function TeamStats() {
     return aggregated
   }, [currentDynasty, selectedTeam, selectedYear, stats.games])
 
+  // Aggregate player stats from all box scores
+  const playerStats = useMemo(() => {
+    const aggregated = {
+      passing: {},
+      rushing: {},
+      blocking: {},
+      defense: {},
+      kicking: {},
+      punting: {},
+      kickReturn: {},
+      puntReturn: {}
+    }
+
+    stats.games.forEach(game => {
+      if (!game.boxScore) return
+
+      const isHome = game.location === 'home' || game.location === 'Home'
+      const ourPlayerBoxScore = isHome ? game.boxScore.home : game.boxScore.away
+
+      if (!ourPlayerBoxScore) return
+
+      // Helper to aggregate stats for a category
+      const aggregateCategory = (category, statFields) => {
+        const players = ourPlayerBoxScore[category]
+        if (!Array.isArray(players)) return
+
+        players.forEach(player => {
+          if (!player.playerName) return
+          const name = player.playerName
+
+          if (!aggregated[category][name]) {
+            aggregated[category][name] = { playerName: name, games: 0 }
+            statFields.forEach(field => {
+              aggregated[category][name][field] = 0
+            })
+          }
+
+          aggregated[category][name].games++
+          statFields.forEach(field => {
+            const val = parseFloat(player[field]) || 0
+            aggregated[category][name][field] += val
+          })
+        })
+      }
+
+      // Aggregate each category
+      aggregateCategory('passing', ['comp', 'attempts', 'yards', 'tD', 'iNT', 'long', 'sacks'])
+      aggregateCategory('rushing', ['carries', 'yards', 'tD', 'fumbles', 'brokenTackles', 'yAC', 'long', '20+'])
+      aggregateCategory('blocking', ['sacksAllowed', 'pancakes'])
+      aggregateCategory('defense', ['solo', 'assists', 'tFL', 'sack', 'iNT', 'iNTYards', 'deflections', 'fF', 'fR', 'tD'])
+      aggregateCategory('kicking', ['fGM', 'fGA', 'xPM', 'xPA', 'kickoffs', 'touchbacks'])
+      aggregateCategory('punting', ['punts', 'yards', 'netYards', 'in20', 'tB', 'long'])
+      aggregateCategory('kickReturn', ['kR', 'yards', 'tD', 'long'])
+      aggregateCategory('puntReturn', ['pR', 'yards', 'tD', 'long'])
+    })
+
+    // Convert to arrays and compute derived stats
+    const toArray = (obj) => Object.values(obj)
+
+    // Passing: add comp %, yards/game
+    const passing = toArray(aggregated.passing).map(p => ({
+      ...p,
+      compPct: p.attempts > 0 ? ((p.comp / p.attempts) * 100).toFixed(1) : '0.0',
+      yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0'
+    }))
+
+    // Rushing: add YPC
+    const rushing = toArray(aggregated.rushing).map(p => ({
+      ...p,
+      ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0'
+    }))
+
+    // Defense: add total tackles
+    const defense = toArray(aggregated.defense).map(p => ({
+      ...p,
+      totalTackles: p.solo + p.assists
+    }))
+
+    // Kicking: add FG%
+    const kicking = toArray(aggregated.kicking).map(p => ({
+      ...p,
+      fgPct: p.fGA > 0 ? ((p.fGM / p.fGA) * 100).toFixed(1) : '0.0'
+    }))
+
+    // Punting: add avg
+    const punting = toArray(aggregated.punting).map(p => ({
+      ...p,
+      avg: p.punts > 0 ? (p.yards / p.punts).toFixed(1) : '0.0'
+    }))
+
+    // Returns: add avg
+    const kickReturn = toArray(aggregated.kickReturn).map(p => ({
+      ...p,
+      avg: p.kR > 0 ? (p.yards / p.kR).toFixed(1) : '0.0'
+    }))
+
+    const puntReturn = toArray(aggregated.puntReturn).map(p => ({
+      ...p,
+      avg: p.pR > 0 ? (p.yards / p.pR).toFixed(1) : '0.0'
+    }))
+
+    return {
+      passing,
+      rushing,
+      blocking: toArray(aggregated.blocking),
+      defense,
+      kicking,
+      punting,
+      kickReturn,
+      puntReturn
+    }
+  }, [stats.games])
+
+  // Helper to find player PID by name
+  const getPlayerPID = useCallback((playerName) => {
+    if (!playerName || !currentDynasty?.players) return null
+    const normalizedName = playerName.toLowerCase().trim()
+    const player = currentDynasty.players.find(p =>
+      p.name?.toLowerCase().trim() === normalizedName
+    )
+    return player?.pid || null
+  }, [currentDynasty?.players])
+
+  // Sort handler
+  const handleSort = useCallback((category, column) => {
+    setSortConfig(prev => {
+      const currentSort = prev[category]
+      if (currentSort?.column === column) {
+        return {
+          ...prev,
+          [category]: { column, direction: currentSort.direction === 'desc' ? 'asc' : 'desc' }
+        }
+      }
+      return { ...prev, [category]: { column, direction: 'desc' } }
+    })
+  }, [])
+
+  // Get sorted data for a category
+  const getSortedData = useCallback((category, data) => {
+    const config = sortConfig[category]
+    if (!config) return data
+
+    return [...data].sort((a, b) => {
+      let aVal = a[config.column]
+      let bVal = b[config.column]
+
+      // Handle numeric strings
+      if (typeof aVal === 'string' && !isNaN(parseFloat(aVal))) aVal = parseFloat(aVal)
+      if (typeof bVal === 'string' && !isNaN(parseFloat(bVal))) bVal = parseFloat(bVal)
+
+      // Handle string comparison
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return config.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      }
+
+      // Numeric comparison
+      if (config.direction === 'asc') {
+        return (aVal || 0) - (bVal || 0)
+      }
+      return (bVal || 0) - (aVal || 0)
+    })
+  }, [sortConfig])
+
   const handleTeamChange = (newTeam) => {
     navigate(`${pathPrefix}/team-stats/${newTeam}/${selectedYear}`)
   }
@@ -345,6 +511,192 @@ export default function TeamStats() {
       <span className="font-bold" style={{ color: primaryText }}>{record}</span>
     </div>
   )
+
+  // Sortable table header component
+  const SortableHeader = ({ category, column, label, align = 'right' }) => {
+    const config = sortConfig[category]
+    const isActive = config?.column === column
+    const direction = isActive ? config.direction : null
+
+    return (
+      <th
+        className={`px-2 py-2 text-xs font-semibold uppercase cursor-pointer hover:bg-white/10 transition-colors ${align === 'left' ? 'text-left' : 'text-right'}`}
+        style={{ color: primaryText, opacity: isActive ? 1 : 0.7 }}
+        onClick={() => handleSort(category, column)}
+      >
+        <span className="inline-flex items-center gap-1">
+          {align === 'right' && direction && (
+            <span className="text-[10px]">{direction === 'desc' ? '▼' : '▲'}</span>
+          )}
+          {label}
+          {align === 'left' && direction && (
+            <span className="text-[10px]">{direction === 'desc' ? '▼' : '▲'}</span>
+          )}
+        </span>
+      </th>
+    )
+  }
+
+  // Player stats table component
+  const PlayerStatsTable = ({ category, title, columns, data }) => {
+    if (!data || data.length === 0) return null
+
+    const sortedData = getSortedData(category, data)
+
+    return (
+      <div
+        className="rounded-xl shadow-lg overflow-hidden"
+        style={{ backgroundColor: teamColors.primary }}
+      >
+        <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: 'rgba(0,0,0,0.15)' }}>
+          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: primaryText }}>
+            {title}
+          </h3>
+          <span className="text-xs px-2 py-1 rounded-full bg-white/10" style={{ color: primaryText, opacity: 0.6 }}>
+            {data.length} {data.length === 1 ? 'Player' : 'Players'}
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-max">
+            <thead>
+              <tr style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                {columns.map((col, idx) => (
+                  <SortableHeader
+                    key={col.key}
+                    category={category}
+                    column={col.key}
+                    label={col.label}
+                    align={idx === 0 ? 'left' : 'right'}
+                  />
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedData.map((player, idx) => {
+                const playerPID = getPlayerPID(player.playerName)
+                return (
+                  <tr
+                    key={player.playerName}
+                    className="border-t border-white/10 hover:bg-white/5 transition-colors"
+                  >
+                    {columns.map((col, colIdx) => (
+                      <td
+                        key={col.key}
+                        className={`px-2 py-2 text-sm ${colIdx === 0 ? 'text-left font-medium' : 'text-right'}`}
+                        style={{ color: primaryText, opacity: colIdx === 0 ? 1 : 0.9 }}
+                      >
+                        {colIdx === 0 && playerPID ? (
+                          <Link
+                            to={`${pathPrefix}/player/${playerPID}`}
+                            className="hover:underline"
+                            style={{ color: primaryText }}
+                          >
+                            {player[col.key]}
+                          </Link>
+                        ) : (
+                          col.format ? col.format(player[col.key]) : player[col.key]
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // Define column configurations for each stat category
+  const statColumns = {
+    passing: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'comp', label: 'CMP' },
+      { key: 'attempts', label: 'ATT' },
+      { key: 'compPct', label: 'CMP%' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'yardsPerGame', label: 'YDS/G' },
+      { key: 'tD', label: 'TD' },
+      { key: 'iNT', label: 'INT' },
+      { key: 'sacks', label: 'SCK' }
+    ],
+    rushing: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'carries', label: 'CAR' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'ypc', label: 'YPC' },
+      { key: 'tD', label: 'TD' },
+      { key: 'fumbles', label: 'FUM' },
+      { key: '20+', label: '20+' },
+      { key: 'long', label: 'LNG' }
+    ],
+    blocking: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'pancakes', label: 'PANC' },
+      { key: 'sacksAllowed', label: 'SCK ALW' }
+    ],
+    defense: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'totalTackles', label: 'TOT' },
+      { key: 'solo', label: 'SOLO' },
+      { key: 'assists', label: 'AST' },
+      { key: 'tFL', label: 'TFL' },
+      { key: 'sack', label: 'SCK' },
+      { key: 'iNT', label: 'INT' },
+      { key: 'deflections', label: 'PD' },
+      { key: 'fF', label: 'FF' },
+      { key: 'fR', label: 'FR' },
+      { key: 'tD', label: 'TD' }
+    ],
+    kicking: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'fGM', label: 'FGM' },
+      { key: 'fGA', label: 'FGA' },
+      { key: 'fgPct', label: 'FG%' },
+      { key: 'xPM', label: 'XPM' },
+      { key: 'xPA', label: 'XPA' },
+      { key: 'kickoffs', label: 'KO' },
+      { key: 'touchbacks', label: 'TB' }
+    ],
+    punting: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'punts', label: 'PUNTS' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'avg', label: 'AVG' },
+      { key: 'netYards', label: 'NET' },
+      { key: 'in20', label: 'IN20' },
+      { key: 'tB', label: 'TB' },
+      { key: 'long', label: 'LNG' }
+    ],
+    kickReturn: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'kR', label: 'RET' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'avg', label: 'AVG' },
+      { key: 'tD', label: 'TD' },
+      { key: 'long', label: 'LNG' }
+    ],
+    puntReturn: [
+      { key: 'playerName', label: 'Player' },
+      { key: 'games', label: 'G' },
+      { key: 'pR', label: 'RET' },
+      { key: 'yards', label: 'YDS' },
+      { key: 'avg', label: 'AVG' },
+      { key: 'tD', label: 'TD' },
+      { key: 'long', label: 'LNG' }
+    ]
+  }
+
+  // Check if we have any player stats to show
+  const hasPlayerStats = Object.values(playerStats).some(arr => arr.length > 0)
 
   return (
     <div className="space-y-4">
@@ -465,6 +817,60 @@ export default function TeamStats() {
           </div>
         </div>
       </div>
+
+      {/* Player Stats Sections */}
+      {hasPlayerStats && (
+        <div className="space-y-4">
+          <PlayerStatsTable
+            category="passing"
+            title="Passing"
+            columns={statColumns.passing}
+            data={playerStats.passing}
+          />
+          <PlayerStatsTable
+            category="rushing"
+            title="Rushing"
+            columns={statColumns.rushing}
+            data={playerStats.rushing}
+          />
+          <PlayerStatsTable
+            category="blocking"
+            title="Blocking"
+            columns={statColumns.blocking}
+            data={playerStats.blocking}
+          />
+          <PlayerStatsTable
+            category="defense"
+            title="Defense"
+            columns={statColumns.defense}
+            data={playerStats.defense}
+          />
+          <PlayerStatsTable
+            category="kicking"
+            title="Kicking"
+            columns={statColumns.kicking}
+            data={playerStats.kicking}
+          />
+          <PlayerStatsTable
+            category="punting"
+            title="Punting"
+            columns={statColumns.punting}
+            data={playerStats.punting}
+          />
+          <PlayerStatsTable
+            category="kickReturn"
+            title="Kick Returns"
+            columns={statColumns.kickReturn}
+            data={playerStats.kickReturn}
+          />
+          <PlayerStatsTable
+            category="puntReturn"
+            title="Punt Returns"
+            columns={statColumns.puntReturn}
+            data={playerStats.puntReturn}
+          />
+        </div>
+      )}
 
       {/* Team Statistics */}
       {(teamStats.gamesWithStats > 0 || stats.games.length > 0) && (

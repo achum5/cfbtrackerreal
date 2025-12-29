@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { useTeamColors } from '../../hooks/useTeamColors'
+import RosterHistoryModal from '../../components/RosterHistoryModal'
 
 // Position groups for filtering
 const POSITION_GROUPS = {
@@ -30,12 +32,19 @@ const DEV_TRAIT_COLORS = {
 
 export default function Players() {
   const { id } = useParams()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [sortBy, setSortBy] = useState('overall')
   const [sortOrder, setSortOrder] = useState('desc')
+  const [showRosterHistoryModal, setShowRosterHistoryModal] = useState(false)
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   if (!currentDynasty) return null
 
@@ -226,6 +235,19 @@ export default function Players() {
                 </option>
               ))}
             </select>
+
+            {/* Roster History Button - Owner only (HIDDEN - kept for future use) */}
+            {false && !isViewOnly && (
+              <button
+                onClick={() => setShowRosterHistoryModal(true)}
+                className="px-4 py-2 rounded-lg font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Roster History
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -374,6 +396,13 @@ export default function Players() {
           )}
         </div>
       )}
+
+      {/* Roster History Modal */}
+      <RosterHistoryModal
+        isOpen={showRosterHistoryModal}
+        onClose={() => setShowRosterHistoryModal(false)}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

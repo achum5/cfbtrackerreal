@@ -431,19 +431,32 @@ export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
   }
 
   // Check locked coaching staff first (set at end of Week 12)
-  const lockedStaff = dynasty.lockedCoachingStaffByYear?.[teamAbbr]?.[year]
-  if (lockedStaff) {
-    return lockedStaff
-  }
+  let staff = dynasty.lockedCoachingStaffByYear?.[teamAbbr]?.[year]
 
   // Fall back to team-centric coaching staff (may have been updated after firings)
-  const teamYearStaff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year]
-  if (teamYearStaff) {
-    return teamYearStaff
+  if (!staff) {
+    staff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year]
   }
 
   // Fall back to legacy coaching staff
-  return dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+  if (!staff) {
+    staff = dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+  }
+
+  // Check if the user was coaching this team in this year and add their name
+  const coachTeamForYear = getCoachTeamForYear(dynasty, year)
+  if (coachTeamForYear && coachTeamForYear.team === teamAbbr && dynasty.coachName) {
+    staff = { ...staff }
+    if (coachTeamForYear.position === 'HC') {
+      staff.hcName = dynasty.coachName
+    } else if (coachTeamForYear.position === 'OC') {
+      staff.ocName = dynasty.coachName
+    } else if (coachTeamForYear.position === 'DC') {
+      staff.dcName = dynasty.coachName
+    }
+  }
+
+  return staff
 }
 
 export function useDynasty() {
@@ -1233,18 +1246,32 @@ export function DynastyProvider({ children }) {
       nextPhase = 'conference_championship'
       nextWeek = 1
 
-      // LOCK IN COACHING STAFF: Save the coordinators at end of regular season
+      // LOCK IN COACHING STAFF: Save the full coaching staff at end of regular season
       // This preserves them for historical display even if they're fired in CC week
+      // Also includes the user's position so their name shows in historical views
       const currentTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
       const currentStaff = dynasty.coachingStaff || getCurrentCoachingStaff(dynasty)
-      if (currentStaff && (currentStaff.hcName || currentStaff.ocName || currentStaff.dcName)) {
+
+      // Build complete staff including user's position
+      const completeStaff = { ...currentStaff }
+      if (dynasty.coachName && dynasty.coachPosition) {
+        if (dynasty.coachPosition === 'HC') {
+          completeStaff.hcName = dynasty.coachName
+        } else if (dynasty.coachPosition === 'OC') {
+          completeStaff.ocName = dynasty.coachName
+        } else if (dynasty.coachPosition === 'DC') {
+          completeStaff.dcName = dynasty.coachName
+        }
+      }
+
+      if (completeStaff.hcName || completeStaff.ocName || completeStaff.dcName) {
         const existingLockedStaff = dynasty.lockedCoachingStaffByYear || {}
         const teamLockedStaff = existingLockedStaff[currentTeamAbbr] || {}
         additionalUpdates.lockedCoachingStaffByYear = {
           ...existingLockedStaff,
           [currentTeamAbbr]: {
             ...teamLockedStaff,
-            [dynasty.currentYear]: { ...currentStaff }
+            [dynasty.currentYear]: { ...completeStaff }
           }
         }
       }
@@ -1519,7 +1546,7 @@ export function DynastyProvider({ children }) {
       if (d.pid) draftByPid[d.pid] = d
     })
 
-    // Process each player
+    // Process each player (nextYear is already defined above as currentYear + 1)
     const updatedPlayers = players.map(player => {
       // Skip honor-only players
       if (player.isHonorOnly) return player
@@ -1536,6 +1563,7 @@ export function DynastyProvider({ children }) {
         const reason = leavingEntry?.reason || 'Unknown'
         const draftInfo = draftByPid[player.pid]
 
+        // Player is leaving - do NOT add next year to teamsByYear
         return {
           ...player,
           leftTeam: true,
@@ -1547,6 +1575,7 @@ export function DynastyProvider({ children }) {
 
       // Check if player is an encouraged transfer
       if (!player.isRecruit && encouragedNames.has(player.name?.toLowerCase().trim())) {
+        // Player is leaving - do NOT add next year to teamsByYear
         return {
           ...player,
           leftTeam: true,
@@ -1557,6 +1586,7 @@ export function DynastyProvider({ children }) {
 
       // Check for RS Sr players not in playersLeaving - auto-graduate them
       if (player.year === 'RS Sr' && !player.isRecruit) {
+        // Player is leaving - do NOT add next year to teamsByYear
         return {
           ...player,
           leftTeam: true,
@@ -1567,6 +1597,7 @@ export function DynastyProvider({ children }) {
 
       // Convert recruits to active players
       if (player.isRecruit && player.recruitYear === currentYear) {
+        // Recruit enrolling - they already have teamsByYear[nextYear] from when they signed
         return {
           ...player,
           isRecruit: false
@@ -1602,9 +1633,17 @@ export function DynastyProvider({ children }) {
         newYear = CLASS_PROGRESSION[player.year] || player.year
       }
 
+      // CRITICAL: Add next year to teamsByYear for players continuing on the team
+      // This creates the immutable roster history record
+      const updatedTeamsByYear = {
+        ...(player.teamsByYear || {}),
+        [nextYear]: teamAbbr
+      }
+
       return {
         ...player,
-        year: newYear
+        year: newYear,
+        teamsByYear: updatedTeamsByYear
       }
     })
 
@@ -2049,24 +2088,33 @@ export function DynastyProvider({ children }) {
     // Get year - use provided year or fall back to current year
     const year = options.year || dynasty.currentYear
 
-    // Determine if we should replace or merge
-    // For user's team during preseason: replace
-    // For other teams: always replace (we're adding their roster fresh)
-    const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
-    const isUserTeam = teamAbbr === userTeamAbbr
-    const isPreseason = dynasty.currentPhase === 'preseason'
-    const shouldReplace = !isUserTeam || isPreseason
+    // ALWAYS use merge mode - never delete existing players that aren't in the sheet
+    // This prevents accidental data loss if the sheet has fewer players than expected
     const existingPlayers = dynasty.players || []
 
-    // Preserve honor-only players AND players from other teams
+    // Keep all players that are NOT on the team being edited
+    // Players on the team being edited will be handled via name matching below
     const playersToKeep = existingPlayers.filter(p => {
       // Always keep honor-only players
       if (p.isHonorOnly) return true
-      // Keep players from OTHER teams (they have a team field that doesn't match the team being edited)
+      // Keep players from OTHER teams
       if (p.team && p.team !== teamAbbr) return true
-      // If we're replacing (other team or preseason), remove this team's roster
-      // Otherwise keep everything (merge mode)
-      return !shouldReplace
+      // Keep players with no team field (legacy data)
+      if (!p.team) return true
+      // For this team's players: they'll be updated via name matching if in sheet,
+      // or preserved below if not in sheet
+      return false
+    })
+
+    // Also preserve existing team players who are NOT in the incoming sheet data
+    // This prevents accidental deletion of players who were filtered out of the sheet
+    const incomingNames = new Set(players.map(p => (p.name || '').toLowerCase().trim()).filter(n => n))
+    const teamPlayersNotInSheet = existingPlayers.filter(p => {
+      if (p.isHonorOnly) return false // Already in playersToKeep
+      if (p.team !== teamAbbr) return false // Not this team
+      const nameLower = (p.name || '').toLowerCase().trim()
+      // Keep if this player is NOT in the incoming sheet data
+      return nameLower && !incomingNames.has(nameLower)
     })
 
     let finalPlayers
@@ -2102,40 +2150,55 @@ export function DynastyProvider({ children }) {
         id = `player-${pid}`
       }
 
-      // For existing players, preserve all their important metadata
-      // Only override fields that came from the sheet (the edited data)
+      // For existing players, START with existing data and only update SPECIFIC editable fields from sheet
+      // This prevents accidentally overwriting critical metadata with undefined values
       if (existingPlayer) {
+        // CRITICAL: Set teamsByYear[year] = teamAbbr to record this player was on this team this year
+        // This is the IMMUTABLE record that determines roster membership for past seasons
+        const updatedTeamsByYear = {
+          ...(existingPlayer.teamsByYear || {}),
+          [year]: teamAbbr
+        }
+
         return {
-          // Start with existing player data to preserve all metadata
+          // Start with ALL existing player data (preserves everything by default)
           ...existingPlayer,
-          // Override with sheet data (the edited fields)
-          ...player,
-          // But ensure we keep the original pid/id
+          // Update ONLY the fields that are editable via Google Sheet
+          // These are the columns: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL
+          firstName: player.firstName ?? existingPlayer.firstName,
+          lastName: player.lastName ?? existingPlayer.lastName,
+          name: player.name || existingPlayer.name,
+          position: player.position || existingPlayer.position,
+          year: player.year || existingPlayer.year, // class (Fr, So, Jr, Sr, etc.)
+          devTrait: player.devTrait || existingPlayer.devTrait,
+          jerseyNumber: player.jerseyNumber ?? existingPlayer.jerseyNumber,
+          archetype: player.archetype ?? existingPlayer.archetype,
+          overall: player.overall ?? existingPlayer.overall,
+          height: player.height ?? existingPlayer.height,
+          weight: player.weight ?? existingPlayer.weight,
+          hometown: player.hometown ?? existingPlayer.hometown,
+          state: player.state ?? existingPlayer.state,
+          pictureUrl: player.pictureUrl ?? existingPlayer.pictureUrl,
+          // Ensure pid/id/team are correct
           pid,
           id,
           team: teamAbbr,
-          // Preserve these critical fields from existing player
-          yearStarted: existingPlayer.yearStarted || player.yearStarted || year,
-          recruitYear: existingPlayer.recruitYear || player.recruitYear,
-          isPortal: existingPlayer.isPortal,
-          isRecruit: existingPlayer.isRecruit,
-          stars: existingPlayer.stars,
-          nationalRank: existingPlayer.nationalRank,
-          stateRank: existingPlayer.stateRank,
-          positionRank: existingPlayer.positionRank,
-          previousTeam: existingPlayer.previousTeam,
-          gemBust: existingPlayer.gemBust,
-          leftTeam: existingPlayer.leftTeam
+          // IMMUTABLE roster history - records which team player was on each year
+          teamsByYear: updatedTeamsByYear
+          // ALL other fields (recruitYear, yearStarted, isRecruit, isPortal, stars, etc.)
+          // are automatically preserved from ...existingPlayer and NOT overwritten
         }
       }
 
-      // For new players, just use the sheet data with a new PID
+      // For NEW players (no name match), use sheet data with required fields
       return {
         ...player,
         pid,
         id,
         team: teamAbbr,
-        yearStarted: player.yearStarted || year
+        yearStarted: player.yearStarted || year,
+        // IMMUTABLE roster history - this player is on this team this year
+        teamsByYear: { [year]: teamAbbr }
       }
     })
 
@@ -2146,8 +2209,12 @@ export function DynastyProvider({ children }) {
     // This prevents duplicates when the same player appears in both playersToKeep and playersWithPIDs
     const filteredPlayersToKeep = playersToKeep.filter(p => !updatedPIDs.has(p.pid))
 
-    // Combine preserved players with new roster
-    finalPlayers = [...filteredPlayersToKeep, ...playersWithPIDs]
+    // Filter out teamPlayersNotInSheet that somehow got a matching PID (edge case)
+    const filteredTeamPlayersNotInSheet = teamPlayersNotInSheet.filter(p => !updatedPIDs.has(p.pid))
+
+    // Combine: other teams + honor-only + team players not in sheet + sheet players
+    // This ensures we never lose players just because they weren't in the sheet
+    finalPlayers = [...filteredPlayersToKeep, ...filteredTeamPlayersNotInSheet, ...playersWithPIDs]
     newNextPID = nextPIDCounter  // Use the counter which only incremented for new players
 
     // Build team-centric preseason setup storage
@@ -2934,6 +3001,8 @@ export function DynastyProvider({ children }) {
 
     // Create new players
     for (const newPlayer of playersToCreate) {
+      // Get the year from the entry for teamsByYear
+      const entryYear = newPlayer.entry?.year || dynasty.currentYear
       const player = {
         pid: nextPID,
         id: `player-${nextPID}`,
@@ -2942,6 +3011,8 @@ export function DynastyProvider({ children }) {
         team: newPlayer.team,
         teams: [newPlayer.team],
         isHonorOnly: true, // Not a user's roster player
+        // IMMUTABLE roster history - record which team they were on for this award year
+        teamsByYear: { [entryYear]: newPlayer.team },
         awards: [],
         allAmericans: [],
         allConference: []

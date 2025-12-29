@@ -1391,20 +1391,22 @@ export default function GameEntryModal({
             })()}
           </div>
           <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
-            {/* DEV: Random Fill Button */}
-            <button
-              type="button"
-              onClick={handleRandomFill}
-              className="px-2 sm:px-3 py-1 rounded text-xs font-semibold hover:opacity-80 transition-opacity"
-              style={{
-                backgroundColor: '#f59e0b',
-                color: '#000'
-              }}
-              title="DEV: Fill with random data"
-            >
-              <span className="hidden sm:inline">Random Fill</span>
-              <span className="sm:hidden">Fill</span>
-            </button>
+            {/* DEV: Random Fill Button (HIDDEN - kept for future use) */}
+            {false && (
+              <button
+                type="button"
+                onClick={handleRandomFill}
+                className="px-2 sm:px-3 py-1 rounded text-xs font-semibold hover:opacity-80 transition-opacity"
+                style={{
+                  backgroundColor: '#f59e0b',
+                  color: '#000'
+                }}
+                title="DEV: Fill with random data"
+              >
+                <span className="hidden sm:inline">Random Fill</span>
+                <span className="sm:hidden">Fill</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               className="hover:opacity-70 p-1"
@@ -2422,11 +2424,23 @@ export default function GameEntryModal({
               const homeAbbr = isUserHome ? userAbbr : oppAbbr
               const awayAbbr = isUserHome ? oppAbbr : userAbbr
 
-              // Check if stats already entered
+              // Check if stats already entered (via data or sheet creation)
               const hasHomeStats = existingGame?.boxScore?.home && Object.keys(existingGame.boxScore.home).length > 0
               const hasAwayStats = existingGame?.boxScore?.away && Object.keys(existingGame.boxScore.away).length > 0
               const hasScoring = existingGame?.boxScore?.scoringSummary?.length > 0
               const hasTeamStats = existingGame?.boxScore?.teamStats && (existingGame.boxScore.teamStats.home || existingGame.boxScore.teamStats.away)
+
+              // Also check if sheets have been created (even if data not synced yet)
+              const hasHomeSheet = existingGame?.homeStatsSheetId || pendingSheetIds.homeStatsSheetId
+              const hasAwaySheet = existingGame?.awayStatsSheetId || pendingSheetIds.awayStatsSheetId
+              const hasScoringSheet = existingGame?.scoringSummarySheetId || pendingSheetIds.scoringSummarySheetId
+              const hasTeamStatsSheet = existingGame?.teamStatsSheetId || pendingSheetIds.teamStatsSheetId
+
+              // Combine checks - completed if has data OR has sheet
+              const homeCompleted = hasHomeStats || pendingHomeStats || hasHomeSheet
+              const awayCompleted = hasAwayStats || pendingAwayStats || hasAwaySheet
+              const scoringCompleted = hasScoring || pendingScoringSummary || hasScoringSheet
+              const teamStatsCompleted = hasTeamStats || pendingTeamStats || hasTeamStatsSheet
 
               return (
                 <div className="mt-4 space-y-2">
@@ -2436,30 +2450,30 @@ export default function GameEntryModal({
                       onClick={() => setShowHomeStatsModal(true)}
                       className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
                       style={{
-                        backgroundColor: (hasHomeStats || pendingHomeStats) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        backgroundColor: homeCompleted ? `${teamColors.primary}25` : `${teamColors.primary}10`,
                         color: teamColors.primary,
-                        borderColor: (hasHomeStats || pendingHomeStats) ? teamColors.primary : `${teamColors.primary}40`
+                        borderColor: homeCompleted ? teamColors.primary : `${teamColors.primary}40`
                       }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      {(hasHomeStats || pendingHomeStats) ? `Edit ${homeAbbr} Stats` : `Enter ${homeAbbr} Stats`}
+                      {homeCompleted ? `Edit ${homeAbbr} Stats` : `Enter ${homeAbbr} Stats`}
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowAwayStatsModal(true)}
                       className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
                       style={{
-                        backgroundColor: (hasAwayStats || pendingAwayStats) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        backgroundColor: awayCompleted ? `${teamColors.primary}25` : `${teamColors.primary}10`,
                         color: teamColors.primary,
-                        borderColor: (hasAwayStats || pendingAwayStats) ? teamColors.primary : `${teamColors.primary}40`
+                        borderColor: awayCompleted ? teamColors.primary : `${teamColors.primary}40`
                       }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      {(hasAwayStats || pendingAwayStats) ? `Edit ${awayAbbr} Stats` : `Enter ${awayAbbr} Stats`}
+                      {awayCompleted ? `Edit ${awayAbbr} Stats` : `Enter ${awayAbbr} Stats`}
                     </button>
                   </div>
                   <div className="flex gap-2">
@@ -2468,30 +2482,30 @@ export default function GameEntryModal({
                       onClick={() => setShowScoringModal(true)}
                       className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
                       style={{
-                        backgroundColor: (hasScoring || pendingScoringSummary) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        backgroundColor: scoringCompleted ? `${teamColors.primary}25` : `${teamColors.primary}10`,
                         color: teamColors.primary,
-                        borderColor: (hasScoring || pendingScoringSummary) ? teamColors.primary : `${teamColors.primary}40`
+                        borderColor: scoringCompleted ? teamColors.primary : `${teamColors.primary}40`
                       }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
-                      {(hasScoring || pendingScoringSummary) ? 'Edit Scoring' : 'Scoring Plays'}
+                      {scoringCompleted ? 'Edit Scoring' : 'Scoring Plays'}
                     </button>
                     <button
                       type="button"
                       onClick={() => setShowTeamStatsModal(true)}
                       className="flex-1 px-3 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 border-2 hover:opacity-90 transition-colors"
                       style={{
-                        backgroundColor: (hasTeamStats || pendingTeamStats) ? `${teamColors.primary}25` : `${teamColors.primary}10`,
+                        backgroundColor: teamStatsCompleted ? `${teamColors.primary}25` : `${teamColors.primary}10`,
                         color: teamColors.primary,
-                        borderColor: (hasTeamStats || pendingTeamStats) ? teamColors.primary : `${teamColors.primary}40`
+                        borderColor: teamStatsCompleted ? teamColors.primary : `${teamColors.primary}40`
                       }}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                       </svg>
-                      {(hasTeamStats || pendingTeamStats) ? 'Edit Team Stats' : 'Team Stats'}
+                      {teamStatsCompleted ? 'Edit Team Stats' : 'Team Stats'}
                     </button>
                   </div>
                   <p className="text-xs text-center opacity-60" style={{ color: teamColors.primary }}>

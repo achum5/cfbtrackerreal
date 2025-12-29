@@ -219,7 +219,38 @@ Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
 - **Punting**: `punts`, `puntYards`, `puntLong`, `puntIn20`
 - **Returns**: `kickReturns`, `kickReturnYards`, `puntReturns`, `puntReturnYards`
 
+### Player teamsByYear (Roster Membership Tracking)
+
+Each player can have a `teamsByYear` object that explicitly tracks which team they were on for each season:
+```javascript
+player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
+```
+
+**Used for**:
+- Roster filtering on TeamYear.jsx (PRIMARY check, with fallback to old logic)
+- Roster prefill in RosterEditModal.jsx
+- Historical roster accuracy when coaches change teams
+
+**Updated automatically in**:
+- `saveRoster()` - Sets teamsByYear[year] = teamAbbr when saving
+- `advanceToNewSeason()` - Adds next year to teamsByYear for continuing players
+- Recruit creation (Dashboard.jsx, Recruiting.jsx) - Sets teamsByYear for enrollment year
+
+**Manual editing**: Player Edit Modal has "Roster History" section for manual corrections
+
+### Hidden Dev Tools
+
+Some features are hidden with `{false && (...)}` for future use:
+- **Roster History button** - All Players page (`Players.jsx:240`)
+- **Random Fill button** - Game Entry modal (`GameEntryModal.jsx:1395`)
+- **RosterHistoryModal** - Bulk edit teamsByYear via Google Sheets (kept, just hidden trigger)
+
 ## Recent Completions
+
+**Player teamsByYear System**:
+- Immutable roster history field tracking which team each player was on per season
+- Fixes roster display issues when players transfer or coaches change teams
+- Fixed Player.jsx save to use `dynasty?.id` fallback when `dynastyId` is undefined from URL
 
 **Transfer Redshirt Status** (National Signing Day task):
 - Modal: `src/components/TransferRedshirtModal.jsx`
@@ -231,6 +262,10 @@ Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
 **Roster Edit Metadata Preservation**:
 - Fixed `saveRoster()` to preserve all player metadata when editing via Google Sheets
 - Previously lost: isPortal, isRecruit, stars, rankings, previousTeam, gemBust, leftTeam
+
+**Dynasty Records Leaderboard Sorting**:
+- Fixed sorting to explicitly check `lowerIsBetter === true` for ascending sorts
+- Excludes 0 values from counting stat leaderboards (not rate stats)
 
 ## TODO / Future Work
 

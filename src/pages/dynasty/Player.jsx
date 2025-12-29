@@ -243,7 +243,9 @@ export default function Player() {
   const playerGameLog = useMemo(() => getPlayerGameLog(), [dynasty.games, player.name])
 
   const handlePlayerSave = async (updatedPlayer, yearStats) => {
-    await updatePlayer(dynastyId, updatedPlayer, yearStats)
+    // Use dynastyId from URL params, or fall back to currentDynasty.id
+    const targetDynastyId = dynastyId || dynasty?.id
+    await updatePlayer(targetDynastyId, updatedPlayer, yearStats)
     setShowEditModal(false)
   }
 

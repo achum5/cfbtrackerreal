@@ -1324,6 +1324,8 @@ export default function Dashboard() {
         team: teamAbbr, // CRITICAL: Tag player with team
         isRecruit: true,
         recruitYear: year, // The recruiting class year (they play NEXT year)
+        // IMMUTABLE roster history - recruits will be on team starting NEXT year
+        teamsByYear: { [year + 1]: teamAbbr },
         stars: recruit.stars || 0,
         nationalRank: recruit.nationalRank || null,
         stateRank: recruit.stateRank || null,

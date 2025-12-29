@@ -671,9 +671,9 @@ export default function TeamYear() {
     (game.team1 === teamAbbr || game.team2 === teamAbbr) && game.team1Score !== null && game.team2Score !== null
   ).sort((a, b) => (a.round || 0) - (b.round || 0))
 
-  // Find players associated with this team
-  // TEAM-CENTRIC: Players have a `team` field that identifies which team they belong to
-  // For backwards compatibility, players without a `team` field are considered to belong to user's current team
+  // Find players associated with this team for the selected year
+  // PRIMARY: Use teamsByYear[year] - explicit, immutable record of roster membership
+  // FALLBACK: Use old calculation logic for backwards compatibility
   const teamPlayers = (currentDynasty.players || []).filter(p => {
     // Exclude honor-only players (players only in system for awards, not on actual roster)
     if (p.isHonorOnly) return false
@@ -681,29 +681,27 @@ export default function TeamYear() {
     // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
     if (p.isRecruit) return false
 
+    // PRIMARY CHECK: If player has teamsByYear record for this year, use it (immutable history)
+    // Check both numeric and string keys to handle any data format
+    const yearKey = String(selectedYear)
+    const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[selectedYear]
+    if (teamForYear !== undefined) {
+      return teamForYear === teamAbbr
+    }
+
+    // FALLBACK: Use old calculation logic for backwards compatibility with existing data
     // CRITICAL: If player has a recruitYear, they should NOT appear on rosters for that year or earlier
-    // (recruitYear = the recruiting class year, they actually START playing the NEXT year)
-    // Example: 2025 recruit → plays in 2026, should NOT appear on 2025 or earlier rosters
     if (p.recruitYear && selectedYear <= p.recruitYear) return false
 
     // Check if player belongs to this team (by team field or legacy logic)
-    const playerTeam = p.team // If player has team field, use it
+    const playerTeam = p.team
     const belongsToThisTeam = playerTeam === teamAbbr ||
-      // Legacy: players without team field belong to user's CURRENT team (not necessarily this team)
       (!playerTeam && isUserTeam && getAbbreviationFromDisplayName(currentDynasty.teamName) === teamAbbr)
 
     if (belongsToThisTeam) {
-      // Show players who were on roster during this year
-      // If player has recruitYear, they start playing the YEAR AFTER their recruiting class
-      // Otherwise fall back to yearStarted or startYear
       const playerStartYear = p.recruitYear ? (p.recruitYear + 1) : (p.yearStarted || currentDynasty.startYear)
-      // Use leftYear if player left, otherwise use yearDeparted or current year
       const playerEndYear = p.leftTeam ? (p.leftYear || currentDynasty.currentYear) : (p.yearDeparted || currentDynasty.currentYear)
-
-      // For the year they left, they should NOT appear on the roster (they left before that season started)
-      // So if leftYear is 2025, they should not appear on 2026 roster
       if (p.leftTeam && selectedYear > p.leftYear) return false
-
       return selectedYear >= playerStartYear && selectedYear <= playerEndYear
     }
 
@@ -1238,8 +1236,8 @@ export default function TeamYear() {
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate" style={{ color: teamBgText }}>
                 {mascotName || teamInfo.name}
               </h1>
-              {/* Coaching Staff Info Icon - only for user's team in current year */}
-              {isUserTeam && selectedYear === currentDynasty.currentYear && (currentDynasty.coachName || teamCoachingStaff?.ocName || teamCoachingStaff?.dcName) && (
+              {/* Coaching Staff Info Icon - show for any team/year with coaching staff data */}
+              {(teamCoachingStaff?.hcName || teamCoachingStaff?.ocName || teamCoachingStaff?.dcName) && (
                 <div className="relative">
                   <button
                     onClick={() => setShowCoachingStaffTooltip(!showCoachingStaffTooltip)}
@@ -1267,37 +1265,23 @@ export default function TeamYear() {
                       onMouseLeave={() => setShowCoachingStaffTooltip(false)}
                     >
                       <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: teamPrimaryText, opacity: 0.7 }}>
-                        Coaching Staff
+                        {selectedYear} Coaching Staff
                       </div>
                       <div className="space-y-1">
-                        {/* Show user as their position */}
-                        {currentDynasty.coachPosition === 'HC' && currentDynasty.coachName && (
-                          <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
-                            HC: {currentDynasty.coachName}
-                          </div>
-                        )}
-                        {currentDynasty.coachPosition === 'OC' && currentDynasty.coachName && (
-                          <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
-                            OC: {currentDynasty.coachName}
-                          </div>
-                        )}
-                        {currentDynasty.coachPosition === 'DC' && currentDynasty.coachName && (
-                          <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
-                            DC: {currentDynasty.coachName}
-                          </div>
-                        )}
-                        {/* Show other coaches from coachingStaff */}
-                        {teamCoachingStaff?.hcName && currentDynasty.coachPosition !== 'HC' && (
+                        {/* Show HC */}
+                        {teamCoachingStaff?.hcName && (
                           <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
                             HC: {teamCoachingStaff.hcName}
                           </div>
                         )}
-                        {teamCoachingStaff?.ocName && currentDynasty.coachPosition !== 'OC' && (
+                        {/* Show OC */}
+                        {teamCoachingStaff?.ocName && (
                           <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
                             OC: {teamCoachingStaff.ocName}
                           </div>
                         )}
-                        {teamCoachingStaff?.dcName && currentDynasty.coachPosition !== 'DC' && (
+                        {/* Show DC */}
+                        {teamCoachingStaff?.dcName && (
                           <div className="text-sm font-semibold truncate" style={{ color: teamPrimaryText }}>
                             DC: {teamCoachingStaff.dcName}
                           </div>

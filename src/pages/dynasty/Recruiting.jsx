@@ -126,11 +126,23 @@ export default function Recruiting() {
   const primaryBgText = getContrastTextColor(teamColors.primary)
 
   // Redirect to team-specific URL if on base /recruiting route
+  // Default to previous year if no recruits for current year (unless it's the first year)
   useEffect(() => {
     if (!urlTeamAbbr && currentTeamAbbr && currentDynasty?.currentYear) {
-      navigate(`${pathPrefix}/recruiting/${currentTeamAbbr}/${currentDynasty.currentYear}`, { replace: true })
+      const currentYear = currentDynasty.currentYear
+      const startYear = currentDynasty.startYear || currentYear
+      const isFirstYear = currentYear === startYear
+
+      // Check if there are any recruits for the current year
+      const currentYearCommitments = currentDynasty.recruitingCommitmentsByTeamYear?.[currentTeamAbbr]?.[currentYear] || {}
+      const hasCurrentYearRecruits = Object.keys(currentYearCommitments).length > 0
+
+      // If no recruits for current year and not first year, show previous year
+      const targetYear = (!hasCurrentYearRecruits && !isFirstYear) ? currentYear - 1 : currentYear
+
+      navigate(`${pathPrefix}/recruiting/${currentTeamAbbr}/${targetYear}`, { replace: true })
     }
-  }, [urlTeamAbbr, currentTeamAbbr, currentDynasty?.id, currentDynasty?.currentYear, navigate])
+  }, [urlTeamAbbr, currentTeamAbbr, currentDynasty?.id, currentDynasty?.currentYear, currentDynasty?.startYear, currentDynasty?.recruitingCommitmentsByTeamYear, navigate, pathPrefix])
 
   // Get all years with recruiting commitments for this team - TEAM-CENTRIC
   // Always include current year so user can view/enter current season's recruits
@@ -245,6 +257,8 @@ export default function Recruiting() {
           team: teamAbbr,
           isRecruit: true,
           recruitYear: selectedYear,
+          // IMMUTABLE roster history - recruits will be on team starting NEXT year
+          teamsByYear: { [selectedYear + 1]: teamAbbr },
           stars: recruit.stars || 0,
           nationalRank: recruit.nationalRank || null,
           stateRank: recruit.stateRank || null,
@@ -498,7 +512,7 @@ export default function Recruiting() {
                 }`}
                 style={{
                   backgroundColor: selectedStars.includes(5) ? '#FEF3C7' : '#FEF3C720',
-                  minWidth: '60px'
+                  width: '70px'
                 }}
               >
                 <div className="text-xl font-bold" style={{ color: '#B45309' }}>{classStats.fiveStars}</div>
@@ -513,7 +527,7 @@ export default function Recruiting() {
                 }`}
                 style={{
                   backgroundColor: selectedStars.includes(4) ? '#E0E7FF' : '#E0E7FF20',
-                  minWidth: '60px'
+                  width: '70px'
                 }}
               >
                 <div className="text-xl font-bold" style={{ color: '#4338CA' }}>{classStats.fourStars}</div>
@@ -528,7 +542,7 @@ export default function Recruiting() {
                 }`}
                 style={{
                   backgroundColor: selectedStars.includes(3) ? '#DBEAFE' : '#DBEAFE20',
-                  minWidth: '60px'
+                  width: '70px'
                 }}
               >
                 <div className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{classStats.threeStars}</div>
@@ -543,7 +557,7 @@ export default function Recruiting() {
                 }`}
                 style={{
                   backgroundColor: selectedStars.includes(2) ? '#E5E7EB' : '#F3F4F620',
-                  minWidth: '60px'
+                  width: '70px'
                 }}
               >
                 <div className="text-xl font-bold" style={{ color: '#6B7280' }}>{classStats.twoStars}</div>
@@ -558,7 +572,7 @@ export default function Recruiting() {
                 }`}
                 style={{
                   backgroundColor: selectedStars.includes(1) ? '#F3F4F6' : '#F3F4F610',
-                  minWidth: '60px'
+                  width: '70px'
                 }}
               >
                 <div className="text-xl font-bold" style={{ color: '#9CA3AF' }}>{classStats.oneStars}</div>
@@ -573,10 +587,9 @@ export default function Recruiting() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {allCommitments.map((recruit, index) => {
               const player = findPlayerByName(recruit.name)
-              const transferTeamColors = recruit.previousTeam ? getTeamColors(recruit.previousTeam) : null
-              const transferTeamLogo = recruit.previousTeam ? getTeamLogo(
-                teamAbbreviations[recruit.previousTeam]?.name || recruit.previousTeam
-              ) : null
+              const transferTeamFullName = recruit.previousTeam ? (teamAbbreviations[recruit.previousTeam]?.name || recruit.previousTeam) : null
+              const transferTeamColors = transferTeamFullName ? getTeamColors(transferTeamFullName) : null
+              const transferTeamLogo = transferTeamFullName ? getTeamLogo(transferTeamFullName) : null
 
               const cardContent = (
                 <div

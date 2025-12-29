@@ -794,6 +794,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
                 { userEnteredValue: 'Thumper' },
                 // CB Archetypes
                 { userEnteredValue: 'Boundary' },
+                { userEnteredValue: 'Bump and Run' },
                 { userEnteredValue: 'Field' },
                 { userEnteredValue: 'Zone' },
                 // S Archetypes
@@ -1520,6 +1521,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
                 { userEnteredValue: 'Thumper' },
                 // CB Archetypes
                 { userEnteredValue: 'Boundary' },
+                { userEnteredValue: 'Bump and Run' },
                 { userEnteredValue: 'Field' },
                 { userEnteredValue: 'Zone' },
                 // S Archetypes
@@ -9915,7 +9917,7 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
         sheets: [
           {
             properties: {
-              title: homeTeamAbbr,
+              title: awayTeamAbbr,
               gridProperties: {
                 rowCount: TEAM_STATS_ROWS.length + 1, // +1 for header
                 columnCount: 2,
@@ -9925,7 +9927,7 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
           },
           {
             properties: {
-              title: awayTeamAbbr,
+              title: homeTeamAbbr,
               gridProperties: {
                 rowCount: TEAM_STATS_ROWS.length + 1,
                 columnCount: 2,
@@ -9945,9 +9947,9 @@ export async function createGameTeamStatsSheet(homeTeamAbbr, awayTeamAbbr, year,
 
     const sheet = await response.json()
 
-    // Extract sheet IDs for each tab
-    const homeSheetId = sheet.sheets[0].properties.sheetId
-    const awaySheetId = sheet.sheets[1].properties.sheetId
+    // Extract sheet IDs for each tab (away is first, home is second)
+    const awaySheetId = sheet.sheets[0].properties.sheetId
+    const homeSheetId = sheet.sheets[1].properties.sheetId
 
     // Initialize both tabs with headers, stat labels, and formatting
     await initializeTeamStatsSheet(sheet.spreadsheetId, accessToken, homeSheetId, awaySheetId, homeTeamAbbr, awayTeamAbbr)
@@ -10750,6 +10752,252 @@ export async function readTransferRedshirtFromSheet(spreadsheetId) {
     return transfers
   } catch (error) {
     console.error('Error reading transfer redshirt data:', error)
+    throw error
+  }
+}
+
+/**
+ * Create a Roster History sheet for bulk-updating teamsByYear
+ * Columns: Player Name | PID | 2025 Team | 2026 Team
+ */
+export async function createRosterHistorySheet(dynastyName, years = [2025, 2026]) {
+  try {
+    const user = auth.currentUser
+    if (!user) throw new Error('User not authenticated')
+
+    const accessToken = await getAccessToken()
+    const allTeamAbbrs = getTeamAbbreviationsList()
+
+    // Create spreadsheet
+    const createResponse = await fetch(`${SHEETS_API_BASE}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Roster History`
+        },
+        sheets: [{
+          properties: {
+            title: 'Roster History',
+            gridProperties: { rowCount: 500, columnCount: 2 + years.length, frozenRowCount: 1 }
+          }
+        }]
+      })
+    })
+
+    if (!createResponse.ok) {
+      const error = await createResponse.json()
+      throw new Error(`Failed to create sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const spreadsheet = await createResponse.json()
+    const spreadsheetId = spreadsheet.spreadsheetId
+    const sheetId = spreadsheet.sheets[0].properties.sheetId
+
+    // Build header row: Player Name, PID, then year columns
+    const headers = ['Player Name', 'PID', ...years.map(y => `${y} Team`)]
+
+    // Build requests for formatting
+    const requests = []
+
+    // Header formatting
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+      }
+    })
+
+    // Column widths
+    requests.push(
+      { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 200 }, fields: 'pixelSize' } },
+      { updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 }, properties: { pixelSize: 60 }, fields: 'pixelSize' } }
+    )
+    years.forEach((_, i) => {
+      requests.push({ updateDimensionProperties: { range: { sheetId, dimension: 'COLUMNS', startIndex: 2 + i, endIndex: 3 + i }, properties: { pixelSize: 100 }, fields: 'pixelSize' } })
+    })
+
+    // Set default white background with black text for data cells (year columns)
+    years.forEach((_, i) => {
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 500, startColumnIndex: 2 + i, endColumnIndex: 3 + i },
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: { red: 1, green: 1, blue: 1 },
+              textFormat: { foregroundColor: { red: 0, green: 0, blue: 0 } },
+              horizontalAlignment: 'CENTER'
+            }
+          },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+        }
+      })
+    })
+
+    // Add dropdowns for each year column (rows 2-500)
+    years.forEach((_, i) => {
+      requests.push({
+        setDataValidation: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 500, startColumnIndex: 2 + i, endColumnIndex: 3 + i },
+          rule: {
+            condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: '' }, ...allTeamAbbrs.map(abbr => ({ userEnteredValue: abbr }))] },
+            showCustomUi: true,
+            strict: false
+          }
+        }
+      })
+    })
+
+    // Add conditional formatting for each team's colors (for each year column)
+    years.forEach((_, yearIndex) => {
+      allTeamAbbrs.forEach(abbr => {
+        const teamInfo = teamAbbreviations[abbr]
+        if (teamInfo?.backgroundColor) {
+          const bgColor = hexToRgb(teamInfo.backgroundColor)
+          const textColor = hexToRgb(teamInfo.textColor || '#FFFFFF')
+          requests.push({
+            addConditionalFormatRule: {
+              rule: {
+                ranges: [{ sheetId, startRowIndex: 1, endRowIndex: 500, startColumnIndex: 2 + yearIndex, endColumnIndex: 3 + yearIndex }],
+                booleanRule: {
+                  condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: abbr }] },
+                  format: {
+                    backgroundColor: { red: bgColor.r / 255, green: bgColor.g / 255, blue: bgColor.b / 255 },
+                    textFormat: { foregroundColor: { red: textColor.r / 255, green: textColor.g / 255, blue: textColor.b / 255 }, bold: true }
+                  }
+                }
+              },
+              index: 0
+            }
+          })
+        }
+      })
+    })
+
+    // Protect header row
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: true
+        }
+      }
+    })
+
+    // Apply formatting
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ requests })
+    })
+
+    // Write headers
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster History!A1:${String.fromCharCode(65 + headers.length - 1)}1?valueInputOption=RAW`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: [headers] })
+    })
+
+    // Share publicly for embedding
+    await shareSheetPublicly(spreadsheetId, accessToken)
+
+    return { spreadsheetId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` }
+  } catch (error) {
+    console.error('Error creating roster history sheet:', error)
+    throw error
+  }
+}
+
+/**
+ * Prefill roster history sheet with player data
+ */
+export async function prefillRosterHistorySheet(spreadsheetId, players, years = [2025, 2026]) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Build data rows: Player Name, PID, team for each year
+    const rows = players
+      .filter(p => !p.isHonorOnly) // Exclude honor-only players
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map(p => {
+        const row = [p.name || '', p.pid || '']
+        years.forEach(year => {
+          row.push(p.teamsByYear?.[year] || p.team || '')
+        })
+        return row
+      })
+
+    if (rows.length === 0) return
+
+    const endCol = String.fromCharCode(65 + 1 + years.length) // A=65, so 2+years.length columns
+    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster History!A2:${endCol}${rows.length + 1}?valueInputOption=RAW`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ values: rows })
+    })
+  } catch (error) {
+    console.error('Error prefilling roster history sheet:', error)
+    throw error
+  }
+}
+
+/**
+ * Read roster history from sheet
+ * Returns array of { playerName, pid, teamsByYear: { year: team } }
+ */
+export async function readRosterHistoryFromSheet(spreadsheetId, years = [2025, 2026]) {
+  try {
+    const accessToken = await getAccessToken()
+    const endCol = String.fromCharCode(65 + 1 + years.length)
+
+    const response = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster History!A2:${endCol}500`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read roster history: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    return rows
+      .filter(row => row[0] && row[1]) // Must have name and PID
+      .map(row => {
+        const teamsByYear = {}
+        years.forEach((year, i) => {
+          const team = row[2 + i]?.trim().toUpperCase()
+          if (team) teamsByYear[year] = team
+        })
+        return {
+          playerName: row[0]?.trim() || '',
+          pid: parseInt(row[1]) || null,
+          teamsByYear
+        }
+      })
+  } catch (error) {
+    console.error('Error reading roster history:', error)
     throw error
   }
 }
