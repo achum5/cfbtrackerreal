@@ -907,7 +907,11 @@ export default function Game() {
                               <tr key={rowIdx} className="border-t border-gray-800">
                                 {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                  const rawValue = row[key]
+                                  let rawValue = row[key]
+                                  // Compute total tackles for defense (solo + assists)
+                                  if (activeStatTab === 'defense' && key === 'total') {
+                                    rawValue = (parseFloat(row.solo) || 0) + (parseFloat(row.assists) || 0)
+                                  }
                                   // For stat columns (not player name), treat blank/null/undefined as 0
                                   let value = colIdx === 0
                                     ? (rawValue ?? '-')
@@ -972,7 +976,11 @@ export default function Game() {
                               <tr key={rowIdx} className="border-t border-gray-800">
                                 {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
-                                  const rawValue = row[key]
+                                  let rawValue = row[key]
+                                  // Compute total tackles for defense (solo + assists)
+                                  if (activeStatTab === 'defense' && key === 'total') {
+                                    rawValue = (parseFloat(row.solo) || 0) + (parseFloat(row.assists) || 0)
+                                  }
                                   // For stat columns (not player name), treat blank/null/undefined as 0
                                   let value = colIdx === 0
                                     ? (rawValue ?? '-')

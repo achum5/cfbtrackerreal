@@ -2105,7 +2105,7 @@ export default function TeamYear() {
                       </div>
                       <div className="text-right min-w-[85px] sm:min-w-[95px]">
                         <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
-                          {displayTeamScore} - {displayOpponentScore}
+                          {Math.max(displayTeamScore, displayOpponentScore)} - {Math.min(displayTeamScore, displayOpponentScore)}
                           {game.overtimes && game.overtimes.length > 0 && (
                             <span className="ml-1 text-xs opacity-80">
                               {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
@@ -2270,7 +2270,7 @@ export default function TeamYear() {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-sm sm:text-base" style={{ color: ccOppColors.textColor }}>
-                          {thisTeamScore} - {oppScore}
+                          {Math.max(thisTeamScore, oppScore)} - {Math.min(thisTeamScore, oppScore)}
                         </div>
                       </div>
                     </div>
@@ -2404,9 +2404,7 @@ export default function TeamYear() {
                       {teamWon ? 'WIN' : 'LOSS'}
                     </span>
                     <span className="text-lg sm:text-xl font-bold" style={{ color: secondaryBgText }}>
-                      {game.team1 === teamAbbr
-                        ? `${game.team1Score} - ${game.team2Score}`
-                        : `${game.team2Score} - ${game.team1Score}`}
+                      {Math.max(game.team1Score, game.team2Score)} - {Math.min(game.team1Score, game.team2Score)}
                     </span>
                     <span className="text-xs sm:text-sm" style={{ color: secondaryBgText, opacity: 0.8 }}>
                       vs {game.team1 === teamAbbr ? game.team2 : game.team1}

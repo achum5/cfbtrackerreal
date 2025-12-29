@@ -662,9 +662,9 @@ export default function TeamStats() {
     defense: [
       { key: 'playerName', label: 'Player' },
       { key: 'games', label: 'G' },
-      { key: 'totalTackles', label: 'TOT' },
       { key: 'solo', label: 'SOLO' },
       { key: 'assists', label: 'AST' },
+      { key: 'totalTackles', label: 'TOT' },
       { key: 'tFL', label: 'TFL' },
       { key: 'sack', label: 'SCK' },
       { key: 'iNT', label: 'INT' },
@@ -1169,7 +1169,7 @@ export default function TeamStats() {
                       </div>
 
                       <div className="font-bold text-sm" style={{ color: oppPrimaryText }}>
-                        {game.teamScore}-{game.opponentScore}
+                        {Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}
                       </div>
                     </Link>
                   )

@@ -390,9 +390,13 @@ export default function Recruiting() {
               </div>
             )}
             <div>
-              <h2 className="text-2xl font-bold" style={{ color: secondaryBgText }}>
+              <Link
+                to={`${pathPrefix}/team/${teamAbbr}/${selectedYear}`}
+                className="text-2xl font-bold hover:underline"
+                style={{ color: secondaryBgText }}
+              >
                 {teamFullName}
-              </h2>
+              </Link>
               <p className="text-sm font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>
                 {selectedYear} Recruiting Class
               </p>

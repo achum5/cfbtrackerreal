@@ -798,7 +798,7 @@ export default function CoachCareer() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {Object.entries(gamesByYear).map(([year, yearGames]) => (
+                  {Object.entries(gamesByYear).sort((a, b) => Number(b[0]) - Number(a[0])).map(([year, yearGames]) => (
                     <div key={year}>
                       {/* Year Header - scrolls with content */}
                       <div
@@ -902,7 +902,7 @@ export default function CoachCareer() {
                                   className="font-bold text-sm"
                                   style={{ color: opponentColors.textColor }}
                                 >
-                                  {game.teamScore}-{game.opponentScore}
+                                  {Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}
                                 </span>
                               </div>
                             </Link>
