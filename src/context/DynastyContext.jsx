@@ -2139,8 +2139,15 @@ export function DynastyProvider({ children }) {
       }
     })
 
+    // Get the PIDs of players being updated from the sheet
+    const updatedPIDs = new Set(playersWithPIDs.map(p => p.pid))
+
+    // Filter out players from playersToKeep that are being replaced by sheet data
+    // This prevents duplicates when the same player appears in both playersToKeep and playersWithPIDs
+    const filteredPlayersToKeep = playersToKeep.filter(p => !updatedPIDs.has(p.pid))
+
     // Combine preserved players with new roster
-    finalPlayers = [...playersToKeep, ...playersWithPIDs]
+    finalPlayers = [...filteredPlayersToKeep, ...playersWithPIDs]
     newNextPID = nextPIDCounter  // Use the counter which only incremented for new players
 
     // Build team-centric preseason setup storage
