@@ -1909,40 +1909,127 @@ export function DynastyProvider({ children }) {
     const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
     const year = dynasty.currentYear
 
-    // During preseason, replace current team's roster (but preserve honor-only players AND players from other teams)
-    // After preseason, merge with existing (for recruiting additions)
-    const isPreseason = dynasty.currentPhase === 'preseason'
     const existingPlayers = dynasty.players || []
+    const isPreseason = dynasty.currentPhase === 'preseason'
 
-    // Preserve honor-only players AND players from other teams
-    const playersToKeep = existingPlayers.filter(p => {
-      // Always keep honor-only players
-      if (p.isHonorOnly) return true
-      // Keep players from OTHER teams (they have a team field that doesn't match current team)
-      if (p.team && p.team !== teamAbbr) return true
-      // During preseason, remove current team's roster (will be replaced)
-      // After preseason, keep everything
-      return !isPreseason
-    })
+    // Check if roster already has players for this team (editing vs first entry)
+    const existingTeamPlayers = existingPlayers.filter(p =>
+      !p.isHonorOnly && !p.isRecruit && (!p.team || p.team === teamAbbr) && !p.leftTeam
+    )
+    const isEditing = existingTeamPlayers.length > 0
+
+    // Helper to normalize names for matching
+    const normalizeName = (name) => (name || '').trim().toLowerCase()
 
     let finalPlayers
-    let newNextPID
+    let newNextPID = dynasty.nextPID || 1
 
-    // Find the highest existing PID to continue from
-    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
-    const startPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
+    if (isEditing) {
+      // EDITING MODE: Match players by name and update existing records
+      // Create a map of existing players by normalized name for quick lookup
+      const existingByName = new Map()
+      existingPlayers.forEach(p => {
+        if (!p.isHonorOnly && (!p.team || p.team === teamAbbr) && !p.leftTeam) {
+          const key = normalizeName(p.name)
+          if (key && !existingByName.has(key)) {
+            existingByName.set(key, p)
+          }
+        }
+      })
 
-    // Add team field to each new player
-    const playersWithPIDs = players.map((player, index) => ({
-      ...player,
-      pid: startPID + index,
-      id: `player-${startPID + index}`,
-      team: teamAbbr  // CRITICAL: Tag each player with their team
-    }))
+      // Track which existing players were matched
+      const matchedPids = new Set()
 
-    // Combine preserved players with new roster
-    finalPlayers = [...playersToKeep, ...playersWithPIDs]
-    newNextPID = startPID + players.length
+      // Find the highest existing PID for new players
+      const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+      let nextPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
+
+      // Process incoming players from sheet
+      const updatedPlayers = players.map(sheetPlayer => {
+        const key = normalizeName(sheetPlayer.name)
+        const existingPlayer = existingByName.get(key)
+
+        if (existingPlayer) {
+          // MATCH FOUND: Update existing player, preserving PID and metadata
+          matchedPids.add(existingPlayer.pid)
+          return {
+            ...existingPlayer,           // Keep pid, id, team, isRecruit, recruitYear, leftTeam, etc.
+            // Update editable fields from sheet
+            name: sheetPlayer.name,       // Use sheet name (might have case changes)
+            position: sheetPlayer.position || existingPlayer.position,
+            year: sheetPlayer.year || existingPlayer.year,
+            devTrait: sheetPlayer.devTrait || existingPlayer.devTrait,
+            jerseyNumber: sheetPlayer.jerseyNumber ?? existingPlayer.jerseyNumber,
+            archetype: sheetPlayer.archetype || existingPlayer.archetype,
+            overall: sheetPlayer.overall || existingPlayer.overall,
+            height: sheetPlayer.height || existingPlayer.height,
+            weight: sheetPlayer.weight ?? existingPlayer.weight,
+            hometown: sheetPlayer.hometown || existingPlayer.hometown,
+            state: sheetPlayer.state || existingPlayer.state,
+            stars: sheetPlayer.stars ?? existingPlayer.stars,
+            imageUrl: sheetPlayer.imageUrl || existingPlayer.imageUrl
+          }
+        } else {
+          // NEW PLAYER: Assign new PID
+          const newPlayer = {
+            ...sheetPlayer,
+            pid: nextPID,
+            id: `player-${nextPID}`,
+            team: teamAbbr
+          }
+          nextPID++
+          return newPlayer
+        }
+      })
+
+      newNextPID = nextPID
+
+      // Combine: keep all non-team players, honor-only, left players, and unmatched team players
+      // Replace matched players with updated versions
+      const otherPlayers = existingPlayers.filter(p => {
+        // Keep honor-only players
+        if (p.isHonorOnly) return true
+        // Keep players from other teams
+        if (p.team && p.team !== teamAbbr) return true
+        // Keep players who left
+        if (p.leftTeam) return true
+        // Keep recruits (they're separate from roster)
+        if (p.isRecruit) return true
+        // Exclude matched players (they're in updatedPlayers)
+        if (matchedPids.has(p.pid)) return false
+        // Keep unmatched players (they were removed from sheet - keep for now)
+        // Actually, if user removed them from sheet, we should remove them too
+        // But to be safe, we'll keep them - user can use Players Leaving to remove
+        return true
+      })
+
+      finalPlayers = [...otherPlayers, ...updatedPlayers]
+    } else {
+      // FIRST ENTRY MODE: Replace roster (original behavior for new roster)
+      // Preserve honor-only players AND players from other teams
+      const playersToKeep = existingPlayers.filter(p => {
+        if (p.isHonorOnly) return true
+        if (p.team && p.team !== teamAbbr) return true
+        if (p.leftTeam) return true
+        if (p.isRecruit) return true
+        return !isPreseason
+      })
+
+      // Find the highest existing PID to continue from
+      const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+      const startPID = Math.max(maxExistingPID + 1, dynasty.nextPID || 1)
+
+      // Add team field to each new player
+      const playersWithPIDs = players.map((player, index) => ({
+        ...player,
+        pid: startPID + index,
+        id: `player-${startPID + index}`,
+        team: teamAbbr
+      }))
+
+      finalPlayers = [...playersToKeep, ...playersWithPIDs]
+      newNextPID = startPID + players.length
+    }
 
     // Build team-centric preseason setup storage
     const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}

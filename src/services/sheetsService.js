@@ -411,7 +411,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           fields: 'userEnteredValue'
         }
       }] : []),
-      // Roster headers (11 columns)
+      // Roster headers (13 columns: A-M)
       {
         updateCells: {
           range: {
@@ -419,7 +419,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 11
+            endColumnIndex: 13
           },
           rows: [{
             values: [
@@ -433,7 +433,9 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } }
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Stars' } },
+              { userEnteredValue: { stringValue: 'Image URL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1265,7 +1267,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
   try {
 
     const requests = [
-      // Roster headers (11 columns)
+      // Roster headers (13 columns: A-M)
       {
         updateCells: {
           range: {
@@ -1273,7 +1275,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 11
+            endColumnIndex: 13
           },
           rows: [{
             values: [
@@ -1287,7 +1289,9 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
               { userEnteredValue: { stringValue: 'Height' } },
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
-              { userEnteredValue: { stringValue: 'State' } }
+              { userEnteredValue: { stringValue: 'State' } },
+              { userEnteredValue: { stringValue: 'Stars' } },
+              { userEnteredValue: { stringValue: 'Image URL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1658,7 +1662,7 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1673,11 +1677,15 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    // Helper to convert star symbols to number
-    const starsToNumber = (starsStr) => {
+    // Helper to convert star symbols or numbers to number
+    const parseStars = (starsStr) => {
       if (!starsStr) return null
-      const count = (starsStr.match(/☆/g) || []).length
-      return count > 0 ? count : null
+      // Check for star symbols (☆ or ★)
+      const starCount = (starsStr.match(/[☆★]/g) || []).length
+      if (starCount > 0) return starCount
+      // Check for plain number
+      const num = parseInt(starsStr)
+      return !isNaN(num) && num >= 1 && num <= 5 ? num : null
     }
 
     // Helper to normalize height to 6'1" format
@@ -1702,18 +1710,19 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     return rows
       .filter(row => row[0] && row[6]) // Has name (col A) and overall rating (col G)
       .map(row => ({
-        name: row[0],
-        position: row[1] || 'QB',
-        year: row[2] || 'Fr',
-        devTrait: row[3] || 'Normal',
-        jerseyNumber: row[4] || '',
-        archetype: row[5] || '',
-        overall: parseInt(row[6]) || 0,
-        height: normalizeHeight(row[7]),
-        weight: row[8] ? parseInt(row[8]) : null,
-        hometown: row[9] || '',
-        state: row[10] || '',
-        stars: starsToNumber(row[11])
+        name: row[0],                              // A: Name
+        position: row[1] || 'QB',                  // B: Position
+        year: row[2] || 'Fr',                      // C: Class
+        devTrait: row[3] || 'Normal',              // D: Dev Trait
+        jerseyNumber: row[4] || '',                // E: Jersey #
+        archetype: row[5] || '',                   // F: Archetype
+        overall: parseInt(row[6]) || 0,            // G: Overall
+        height: normalizeHeight(row[7]),           // H: Height
+        weight: row[8] ? parseInt(row[8]) : null,  // I: Weight
+        hometown: row[9] || '',                    // J: Hometown
+        state: row[10] || '',                      // K: State
+        stars: parseStars(row[11]),                // L: Stars
+        imageUrl: row[12] || ''                    // M: Image URL
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -1729,8 +1738,14 @@ export async function prefillRosterSheet(spreadsheetId, players) {
 
     const accessToken = await getAccessToken()
 
+    // Helper to convert star number to symbols
+    const starsToSymbols = (num) => {
+      if (!num || num < 1 || num > 5) return ''
+      return '★'.repeat(num)
+    }
+
     // Prepare roster data
-    // Columns: Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State
+    // Columns: Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Stars | Image URL
     const rosterValues = players.map(p => [
       p.name || '',
       p.position || '',
@@ -1742,14 +1757,16 @@ export async function prefillRosterSheet(spreadsheetId, players) {
       p.height || '',
       p.weight || '',
       p.hometown || '',
-      p.state || ''
+      p.state || '',
+      starsToSymbols(p.stars),
+      p.imageUrl || ''
     ])
 
     if (rosterValues.length === 0) return
 
     // Write roster data starting at row 2 (after header)
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:K${rosterValues.length + 1}?valueInputOption=RAW`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -1881,7 +1898,7 @@ export async function deleteGoogleSheet(spreadsheetId) {
   }
 }
 
-// Read roster data from sheet (12 columns)
+// Read roster data from sheet (13 columns)
 export async function readRosterFromSheet(spreadsheetId) {
   try {
     const user = auth.currentUser
@@ -1890,7 +1907,7 @@ export async function readRosterFromSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1905,11 +1922,15 @@ export async function readRosterFromSheet(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    // Helper to convert star symbols to number
-    const starsToNumber = (starsStr) => {
+    // Helper to convert star symbols or numbers to number
+    const parseStars = (starsStr) => {
       if (!starsStr) return null
-      const count = (starsStr.match(/☆/g) || []).length
-      return count > 0 ? count : null
+      // Check for star symbols (☆ or ★)
+      const starCount = (starsStr.match(/[☆★]/g) || []).length
+      if (starCount > 0) return starCount
+      // Check for plain number
+      const num = parseInt(starsStr)
+      return !isNaN(num) && num >= 1 && num <= 5 ? num : null
     }
 
     // Helper to normalize height to 6'1" format
@@ -1963,7 +1984,8 @@ export async function readRosterFromSheet(spreadsheetId) {
         weight: row[8] ? parseInt(row[8]) : null,  // I: Weight
         hometown: row[9] || '',                    // J: Hometown
         state: row[10] || '',                      // K: State
-        stars: starsToNumber(row[11])              // L: Recruitment Stars (☆ symbols -> number)
+        stars: parseStars(row[11]),                // L: Stars
+        imageUrl: row[12] || ''                    // M: Image URL
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -2025,7 +2047,7 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       return h
     }
 
-    // Prepare roster data (rows 2-86, columns A-L, 12 columns)
+    // Prepare roster data (rows 2-86, columns A-M, 13 columns)
     const rosterValues = players?.map(player => [
       player.name || '',                    // A: Name
       player.position || '',                // B: Position
@@ -2038,7 +2060,8 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       player.weight || '',                  // I: Weight
       player.hometown || '',                // J: Hometown
       player.state || '',                   // K: State
-      numberToStars(player.stars)           // L: Recruitment Stars (number -> ☆ symbols)
+      numberToStars(player.stars),          // L: Stars (number -> ★ symbols)
+      player.imageUrl || ''                 // M: Image URL
     ]) || []
 
     // Batch update both sheets
@@ -2060,10 +2083,10 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       )
     }
 
-    // Write roster data (12 columns)
+    // Write roster data (13 columns)
     if (rosterValues.length > 0) {
       requests.push(
-        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:L${rosterValues.length + 1}?valueInputOption=RAW`, {
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
