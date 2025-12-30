@@ -28,7 +28,7 @@ export const STAT_TABS = {
   defense: {
     key: 'defense',
     title: 'Defense',
-    headers: ['Player Name', 'Solo', 'Assists', 'TFL', 'Sack', 'INT', 'INT Yards', 'INT Long', 'Deflections', 'FF', 'FR', 'Fumble Yards', 'Blocks', 'Safeties', 'TD'],
+    headers: ['Player Name', 'Solo', 'Assists', 'Total', 'TFL', 'Sack', 'INT', 'INT Yards', 'INT Long', 'Deflections', 'FF', 'FR', 'Fumble Yards', 'Blocks', 'Safeties', 'TD'],
     rowCount: 30
   },
   kicking: {

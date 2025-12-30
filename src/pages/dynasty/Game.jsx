@@ -997,7 +997,7 @@ export default function Game() {
                       </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="text-sm border-collapse">
                           <thead>
                             <tr className="text-gray-400 text-left">
                               {STAT_TABS[activeStatTab].headers.map((header, idx) => {
@@ -1008,7 +1008,7 @@ export default function Game() {
                                   <th
                                     key={idx}
                                     onClick={() => handleSort('home', columnKey)}
-                                    className={`py-2 px-2 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'} ${isSorted ? 'text-white' : ''}`}
+                                    className={`py-2 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[150px]' : 'text-center min-w-[50px]'} ${isSorted ? 'text-white' : ''}`}
                                   >
                                     {header}{sortArrow}
                                   </th>
@@ -1038,7 +1038,7 @@ export default function Game() {
                                   return (
                                     <td
                                       key={colIdx}
-                                      className={`py-2 px-2 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                      className={`py-2 px-3 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[150px]' : 'text-center min-w-[50px]'}`}
                                     >
                                       {colIdx === 0 && playerPID ? (
                                         <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">
@@ -1072,7 +1072,7 @@ export default function Game() {
                       </Link>
                       {/* Scrollable table container */}
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="text-sm border-collapse">
                           <thead>
                             <tr className="text-gray-400 text-left">
                               {STAT_TABS[activeStatTab].headers.map((header, idx) => {
@@ -1083,7 +1083,7 @@ export default function Game() {
                                   <th
                                     key={idx}
                                     onClick={() => handleSort('away', columnKey)}
-                                    className={`py-2 px-2 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'} ${isSorted ? 'text-white' : ''}`}
+                                    className={`py-2 px-3 font-medium whitespace-nowrap cursor-pointer hover:text-white select-none ${idx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[150px]' : 'text-center min-w-[50px]'} ${isSorted ? 'text-white' : ''}`}
                                   >
                                     {header}{sortArrow}
                                   </th>
@@ -1113,7 +1113,7 @@ export default function Game() {
                                   return (
                                     <td
                                       key={colIdx}
-                                      className={`py-2 px-2 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[140px]' : 'text-center'}`}
+                                      className={`py-2 px-3 text-white whitespace-nowrap ${colIdx === 0 ? 'sticky left-0 bg-gray-900 z-10 min-w-[150px]' : 'text-center min-w-[50px]'}`}
                                     >
                                       {colIdx === 0 && playerPID ? (
                                         <Link to={`${pathPrefix}/player/${playerPID}`} className="hover:underline hover:text-blue-300">

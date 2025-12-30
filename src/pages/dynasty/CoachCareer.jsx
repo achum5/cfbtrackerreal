@@ -224,10 +224,22 @@ export default function CoachCareer() {
       const underdogWins = underdogGames.filter(isWin).length
       const underdogLosses = underdogGames.filter(isLoss).length
 
-      // Bowl games (includes bowl games and CFP games)
-      const bowlGames = games.filter(g => g.bowlName || g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
+      // Bowl games (regular bowls only, not CFP)
+      const bowlGames = games.filter(g => g.bowlName && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship)
       const bowlWins = bowlGames.filter(isWin).length
       const bowlLosses = bowlGames.filter(isLoss).length
+
+      // CFP games
+      const cfpGames = games.filter(g => g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
+      const cfpWins = cfpGames.filter(isWin).length
+      const cfpLosses = cfpGames.filter(isLoss).length
+
+      // Conference championship games
+      const confChampGames = games.filter(g => g.isConferenceChampionship)
+      const confChampWins = confChampGames.filter(isWin).length
+
+      // Count unique CFP years (playoff appearances)
+      const cfpYears = new Set(cfpGames.map(g => g.year)).size
 
       return {
         teamAbbr,
@@ -240,9 +252,14 @@ export default function CoachCareer() {
         favoriteRecord: `${favoriteWins}-${favoriteLosses}`,
         underdogRecord: `${underdogWins}-${underdogLosses}`,
         bowlRecord: `${bowlWins}-${bowlLosses}`,
+        cfpRecord: `${cfpWins}-${cfpLosses}`,
         favoriteGames,
         underdogGames,
         bowlGames,
+        cfpGames,
+        confChampGames,
+        confChampionships: confChampWins,
+        playoffAppearances: cfpYears,
         games
       }
     }).sort((a, b) => a.startYear - b.startYear)
@@ -256,9 +273,9 @@ export default function CoachCareer() {
       stint.isPast = !isCurrentTeam
       stint.position = currentDynasty.coachPosition || 'HC'
       stint.conference = isCurrentTeam ? currentDynasty.conference : ''
-      stint.confChampionships = 0 // TODO: Calculate
-      stint.playoffAppearances = 0 // TODO: Calculate
-      stint.nationalChampionships = 0 // TODO: Calculate
+      // confChampionships and playoffAppearances are already calculated above
+      // Calculate national championships from CFP championship wins
+      stint.nationalChampionships = (stint.cfpGames || []).filter(g => g.isCFPChampionship && isWin(g)).length
     })
 
     // If current team has no games yet (just switched), add it
@@ -290,9 +307,13 @@ export default function CoachCareer() {
         favoriteRecord: '0-0',
         underdogRecord: '0-0',
         bowlRecord: '0-0',
+        cfpRecord: '0-0',
         favoriteGames: [],
         underdogGames: [],
         bowlGames: [],
+        cfpGames: [],
+        confChampGames: [],
+        games: [],
         confChampionships: 0,
         playoffAppearances: 0,
         nationalChampionships: 0,
@@ -331,14 +352,22 @@ export default function CoachCareer() {
       return stint.favoriteGames || []
     } else if (gamesModalType === 'underdog') {
       return stint.underdogGames || []
+    } else if (gamesModalType === 'all') {
+      return stint.games || []
+    } else if (gamesModalType === 'bowl') {
+      return stint.bowlGames || []
+    } else if (gamesModalType === 'confChamp') {
+      return stint.confChampGames || []
+    } else if (gamesModalType === 'cfp') {
+      return stint.cfpGames || []
     }
     return []
   }
 
-  // Sort games by year (descending) then week (ascending)
+  // Sort games by year (descending) then week (descending - most recent first)
   const sortedGames = getGamesForModal().sort((a, b) => {
     if (b.year !== a.year) return b.year - a.year
-    return (a.week || 0) - (b.week || 0)
+    return (b.week || 0) - (a.week || 0)
   })
 
   // Group games by year for display
@@ -457,19 +486,23 @@ export default function CoachCareer() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {/* Overall Record */}
+              {/* Overall Record - Clickable */}
               <div
-                className="text-center p-4 rounded-lg border-2"
+                className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
                 style={{
                   backgroundColor: stintColors.secondary,
                   borderColor: stintPrimaryText
                 }}
+                onClick={() => openGamesModal('all', stint.teamName)}
               >
                 <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
                   Overall Record
                 </div>
                 <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
                   {stint.overallRecord}
+                </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
                 </div>
               </div>
 
@@ -544,13 +577,14 @@ export default function CoachCareer() {
                 </div>
               </div>
 
-              {/* Bowl Record */}
+              {/* Bowl Record - Clickable */}
               <div
-                className="text-center p-4 rounded-lg border-2"
+                className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
                 style={{
                   backgroundColor: stintColors.secondary,
                   borderColor: stintPrimaryText
                 }}
+                onClick={() => openGamesModal('bowl', stint.teamName)}
               >
                 <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
                   Bowl Record
@@ -558,15 +592,19 @@ export default function CoachCareer() {
                 <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
                   {stint.bowlRecord || '0-0'}
                 </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
+                </div>
               </div>
 
-              {/* Conference Championships */}
+              {/* Conference Championships - Clickable */}
               <div
-                className="text-center p-4 rounded-lg border-2"
+                className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
                 style={{
                   backgroundColor: stintColors.secondary,
                   borderColor: stintPrimaryText
                 }}
+                onClick={() => openGamesModal('confChamp', stint.teamName)}
               >
                 <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
                   Conf. Championships
@@ -574,21 +612,28 @@ export default function CoachCareer() {
                 <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
                   {stint.confChampionships || 0}
                 </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
+                </div>
               </div>
 
-              {/* Playoff Appearances */}
+              {/* CFP Appearances - Clickable */}
               <div
-                className="text-center p-4 rounded-lg border-2"
+                className="text-center p-4 rounded-lg border-2 cursor-pointer hover:scale-105 transition-transform"
                 style={{
                   backgroundColor: stintColors.secondary,
                   borderColor: stintPrimaryText
                 }}
+                onClick={() => openGamesModal('cfp', stint.teamName)}
               >
                 <div className="text-xs font-semibold mb-1" style={{ color: stintSecondaryText, opacity: 0.7 }}>
                   CFP Appearances
                 </div>
                 <div className="text-2xl font-bold" style={{ color: stintSecondaryText }}>
                   {stint.playoffAppearances || 0}
+                </div>
+                <div className="text-xs mt-1 opacity-60" style={{ color: stintSecondaryText }}>
+                  Click to view games
                 </div>
               </div>
             </div>
@@ -664,7 +709,7 @@ export default function CoachCareer() {
                     Season-by-Season
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                    {years.map((yr) => {
+                    {[...years].reverse().map((yr) => {
                       const hasAchievement = yr.wonCC || yr.isNationalChamp
 
                       return (
@@ -769,7 +814,12 @@ export default function CoachCareer() {
             >
               <div>
                 <h3 className="text-xl font-bold" style={{ color: primaryText }}>
-                  Games as {gamesModalType === 'favorite' ? 'Favorite' : 'Underdog'}
+                  {gamesModalType === 'favorite' ? 'Games as Favorite' :
+                   gamesModalType === 'underdog' ? 'Games as Underdog' :
+                   gamesModalType === 'all' ? 'All Games' :
+                   gamesModalType === 'bowl' ? 'Bowl Games' :
+                   gamesModalType === 'confChamp' ? 'Conference Championship Games' :
+                   gamesModalType === 'cfp' ? 'CFP Games' : 'Games'}
                 </h3>
                 <p className="text-sm mt-0.5 opacity-80" style={{ color: primaryText }}>
                   {sortedGames.length} game{sortedGames.length !== 1 ? 's' : ''}

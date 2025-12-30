@@ -247,45 +247,62 @@ Some features are hidden with `{false && (...)}` for future use:
 
 ## Recent Completions
 
-**Team Name Links on Game Page**:
-- All team names in Game.jsx are now clickable, linking to their team season page
-- Added to: quarter scores table, box score headers, scoring plays, team stats, team ratings
-- Link pattern: `${pathPrefix}/team/${teamAbbr}/${year}`
+**Player Name Change Propagation**:
+- When a player's name is changed via `updatePlayer()`, it now updates:
+  - All box scores in all games (`playerName` field in all stat categories)
+  - Scoring summary (`scorer`, `passer`, `patNotes` fields)
+  - `playerStatsByYear` and `detailedStatsByYear` entries
+- Fixes issue where renaming a player broke their game log connection
 
-**Opponent Team Record Display** (TeamYear.jsx):
-- Priority system for displaying team records on opponent team pages:
-  1. Conference standings (highest priority - end of year data)
-  2. Last known `opponentRecord` from games where user played against that team
-  3. Calculated from games (fallback for user's own team)
-- Fixed flipped perspective record calculation for opponent team pages
-- Uses `_displayResult` for games where `_isFlippedPerspective` is true
+**Team Page Clickable Modals** (Team.jsx):
+- All Team Accomplishments stats are now clickable with detailed modals:
+  - AP Top 25 Finishes, Conference Titles, Bowl Games, CFP Appearances, National Titles, All-Americans
+- Your History section: "As {team}" and "Vs {team}" tiles show games modals
+- Result handling supports both 'W'/'L' and 'win'/'loss' formats
 
-**Team Stats Sheet Validation**:
-- Removed >= 0 validation from team stats Google Sheets
-- Yards stats (rush, pass, total, returns) can now be negative
+**Coach Career Page Clickable Modals** (CoachCareer.jsx):
+- All stat tiles are clickable: Overall Record, As Favorite, As Underdog, Bowl Record, Conf Championships, CFP Appearances
+- Season-by-Season section now shows newest years first
+- Games in modals sorted by most recent first within each year
+- CFP games tracked separately from bowl games
 
-**Player teamsByYear System**:
-- Immutable roster history field tracking which team each player was on per season
-- Fixes roster display issues when players transfer or coaches change teams
-- Fixed Player.jsx save to use `dynasty?.id` fallback when `dynastyId` is undefined from URL
+**CFP/CC/Bowl Games on Team Pages** (TeamYear.jsx):
+- All teams now properly display postseason games from legacy data structures:
+  - `cfpResultsByYear` - CFP first round, quarterfinals, semifinals, championship
+  - `conferenceChampionshipsByYear` - Conference championship games
+  - `bowlGamesByYear` - Bowl games
+- Games only linkable if they have actual entries in the games array (prevents "Game not found" errors)
 
-**Transfer Redshirt Status** (National Signing Day task):
-- Modal: `src/components/TransferRedshirtModal.jsx`
-- Sheet functions: `createTransferRedshirtSheet()`, `readTransferRedshirtFromSheet()`
-- Purpose: Mark incoming portal transfers who were redshirted at previous school
-- Updates player class: Fr → RS Fr, So → RS So, Jr → RS Jr, Sr → RS Sr
-- Data stored in `transferRedshirtByTeamYear[teamAbbr][year]`
+**Conference Standings Mobile Support** (ConferenceStandings.jsx):
+- All columns (W, L, PF, PA, +/-) now visible on mobile (removed `hidden sm:table-cell`)
+- Compact column widths and smaller logos for mobile
+- W/L columns no longer use green/red text (point differential still colored)
+- Team abbreviations shown instead of full names on mobile
 
-**Roster Edit Metadata Preservation**:
-- Fixed `saveRoster()` to preserve all player metadata when editing via Google Sheets
-- Previously lost: isPortal, isRecruit, stars, rankings, previousTeam, gemBust, leftTeam
+**Defense Box Score Total Column**:
+- Added "Total" column to defense stats (auto-calculated as Solo + Assists)
+- Display-only calculation, not stored in Google Sheets
+- Column is sortable like other stat columns
 
-**Dynasty Records Leaderboard Sorting**:
-- Fixed sorting to explicitly check `lowerIsBetter === true` for ascending sorts
-- Excludes 0 values from counting stat leaderboards (not rate stats)
+**Recruiting "All Seasons" View** (Recruiting.jsx):
+- Dropdown option to view all recruits ever made by the team
+- Shows year badge on each recruit card when viewing all seasons
+- Edit button hidden in all-seasons view
+- Stats section shows totals instead of ranks
+
+**Player Page Team Logo Links** (Player.jsx):
+- All team logos in player stats tables are now clickable
+- Links to the team's page for that specific year
+
+**ScrollToTop Component**:
+- New component: `src/components/ScrollToTop.jsx`
+- Added to App.jsx router - pages now scroll to top on navigation
+
+**Coaching Staff Team Isolation**:
+- Fixed `getLockedCoachingStaff()` to only fall back to `dynasty.coachingStaff` for user's current team
+- Other teams no longer incorrectly show user's coordinators
 
 ## TODO / Future Work
 
-- Team stats: CFP Appearances, National Titles, Heisman Winners, All-Americans
 - User's games as/against each team with win percentages
 - Convert recruits to active roster players at season start

@@ -425,23 +425,132 @@ export default function TeamYear() {
     ) || null
 
   // Convert legacy bowl game to schedule format if found
-  const teamBowlGameConverted = teamBowlFromLegacy ? {
-    id: teamBowlFromLegacy.id || `bowl-${selectedYear}-${(teamBowlFromLegacy.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')}`,
-    week: 'Bowl',
-    year: selectedYear,
-    opponent: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team2 : teamBowlFromLegacy.team1,
-    location: 'neutral',
-    result: (teamBowlFromLegacy.team1 === teamAbbr && teamBowlFromLegacy.team1Score > teamBowlFromLegacy.team2Score) ||
-            (teamBowlFromLegacy.team2 === teamAbbr && teamBowlFromLegacy.team2Score > teamBowlFromLegacy.team1Score) ? 'win' : 'loss',
-    teamScore: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team1Score : teamBowlFromLegacy.team2Score,
-    opponentScore: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team2Score : teamBowlFromLegacy.team1Score,
-    isBowlGame: true,
-    bowlName: teamBowlFromLegacy.bowlName
-  } : null
+  const teamBowlGameConverted = teamBowlFromLegacy ? (() => {
+    // Only use real IDs that exist in games array
+    const hasRealGameEntry = teamBowlFromLegacy.id && (currentDynasty.games || []).some(g => g.id === teamBowlFromLegacy.id)
+    return {
+      id: hasRealGameEntry ? teamBowlFromLegacy.id : null, // Only use real IDs, not generated ones
+      week: 'Bowl',
+      year: selectedYear,
+      opponent: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team2 : teamBowlFromLegacy.team1,
+      location: 'neutral',
+      result: (teamBowlFromLegacy.team1 === teamAbbr && teamBowlFromLegacy.team1Score > teamBowlFromLegacy.team2Score) ||
+              (teamBowlFromLegacy.team2 === teamAbbr && teamBowlFromLegacy.team2Score > teamBowlFromLegacy.team1Score) ? 'win' : 'loss',
+      teamScore: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team1Score : teamBowlFromLegacy.team2Score,
+      opponentScore: teamBowlFromLegacy.team1 === teamAbbr ? teamBowlFromLegacy.team2Score : teamBowlFromLegacy.team1Score,
+      isBowlGame: true,
+      bowlName: teamBowlFromLegacy.bowlName
+    }
+  })() : null
 
-  // Combine team's games with legacy bowl game if applicable
-  const teamYearGames = [...teamGamesFromArray, ...(teamBowlGameConverted ? [teamBowlGameConverted] : [])]
-    .sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
+  // Also check for conference championship games from conferenceChampionshipsByYear
+  const ccGamesFromLegacyStructure = (() => {
+    const yearChampionships = currentDynasty.conferenceChampionshipsByYear?.[selectedYear] || []
+    return yearChampionships
+      .filter(cc =>
+        (cc.team1 === teamAbbr || cc.team2 === teamAbbr) &&
+        cc.team1Score !== null && cc.team2Score !== null &&
+        // Don't add if already in games array
+        !teamGamesFromArray.some(g => g.isConferenceChampionship)
+      )
+      .map(cc => {
+        const isTeam1 = cc.team1 === teamAbbr
+        const teamWon = cc.winner === teamAbbr
+        // Only use real IDs that exist in games array
+        const hasRealGameEntry = cc.id && (currentDynasty.games || []).some(g => g.id === cc.id)
+        return {
+          id: hasRealGameEntry ? cc.id : null, // Only use real IDs, not generated ones
+          week: 'CCG',
+          year: selectedYear,
+          opponent: isTeam1 ? cc.team2 : cc.team1,
+          location: 'neutral',
+          result: teamWon ? 'win' : 'loss',
+          teamScore: isTeam1 ? cc.team1Score : cc.team2Score,
+          opponentScore: isTeam1 ? cc.team2Score : cc.team1Score,
+          isConferenceChampionship: true,
+          conference: cc.conference
+        }
+      })
+  })()
+
+  // Also check for CFP games from cfpResultsByYear that should be included
+  const cfpResultsForYear = currentDynasty.cfpResultsByYear?.[selectedYear] || {}
+  const teamCFPGamesConverted = (() => {
+    const converted = []
+
+    // Helper to convert CFP game to schedule format
+    const convertCFPGame = (game, roundName, cfpFlags) => {
+      if (!game || game.team1Score === null || game.team2Score === null) return null
+      const isTeam1 = game.team1 === teamAbbr
+      const isTeam2 = game.team2 === teamAbbr
+      if (!isTeam1 && !isTeam2) return null
+
+      const teamWon = game.winner === teamAbbr
+      // If the game has a real ID that exists in the games array, use it; otherwise mark as non-linkable
+      const hasRealGameEntry = game.id && (currentDynasty.games || []).some(g => g.id === game.id)
+      return {
+        id: hasRealGameEntry ? game.id : null, // Only use real IDs, not generated ones
+        week: roundName,
+        year: selectedYear,
+        opponent: isTeam1 ? game.team2 : game.team1,
+        location: 'neutral',
+        result: teamWon ? 'win' : 'loss',
+        teamScore: isTeam1 ? game.team1Score : game.team2Score,
+        opponentScore: isTeam1 ? game.team2Score : game.team1Score,
+        bowlName: game.bowlName || roundName,
+        _isConvertedFromCFPResults: true, // Mark as converted (for debugging)
+        ...cfpFlags
+      }
+    }
+
+    // Helper to safely get array from cfpResults (handles both array and non-array cases)
+    const safeArray = (val) => Array.isArray(val) ? val : []
+
+    // First Round
+    safeArray(cfpResultsForYear.firstRound).forEach(game => {
+      const conv = convertCFPGame(game, 'CFP R1', { isCFPFirstRound: true, isPlayoff: true })
+      if (conv && !teamGamesFromArray.some(g => g.isCFPFirstRound && g.opponent === conv.opponent)) {
+        converted.push(conv)
+      }
+    })
+
+    // Quarterfinals
+    safeArray(cfpResultsForYear.quarterfinals).forEach(game => {
+      const conv = convertCFPGame(game, 'CFP QF', { isCFPQuarterfinal: true, isPlayoff: true })
+      if (conv && !teamGamesFromArray.some(g => g.isCFPQuarterfinal && g.opponent === conv.opponent)) {
+        converted.push(conv)
+      }
+    })
+
+    // Semifinals
+    safeArray(cfpResultsForYear.semifinals).forEach(game => {
+      const conv = convertCFPGame(game, 'CFP SF', { isCFPSemifinal: true, isPlayoff: true })
+      if (conv && !teamGamesFromArray.some(g => g.isCFPSemifinal && g.opponent === conv.opponent)) {
+        converted.push(conv)
+      }
+    })
+
+    // Championship
+    const champGame = Array.isArray(cfpResultsForYear.championship)
+      ? cfpResultsForYear.championship[0]
+      : cfpResultsForYear.championship
+    if (champGame) {
+      const conv = convertCFPGame(champGame, 'CFP Champ', { isCFPChampionship: true, isPlayoff: true })
+      if (conv && !teamGamesFromArray.some(g => g.isCFPChampionship && g.opponent === conv.opponent)) {
+        converted.push(conv)
+      }
+    }
+
+    return converted
+  })()
+
+  // Combine team's games with legacy bowl game, CC games, and CFP games if applicable
+  const teamYearGames = [
+    ...teamGamesFromArray,
+    ...ccGamesFromLegacyStructure,
+    ...(teamBowlGameConverted ? [teamBowlGameConverted] : []),
+    ...teamCFPGamesConverted
+  ].sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
   // Check for both 'win'/'loss' and 'W'/'L' formats
   // Use _displayResult for flipped perspective games (opponent team pages)
   const teamWins = teamYearGames.filter(g => {

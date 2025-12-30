@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DynastyProvider } from './context/DynastyContext'
 import Layout from './components/Layout'
+import ScrollToTop from './components/ScrollToTop'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import CreateDynasty from './pages/CreateDynasty'
@@ -49,6 +50,7 @@ function ProtectedRoute({ children }) {
 function AppRoutes() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* Public view routes - no auth required, reuses same components */}
         <Route path="/view/:shareCode" element={<ViewDynasty />}>

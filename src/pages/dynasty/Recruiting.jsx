@@ -112,7 +112,7 @@ export default function Recruiting() {
 
   // Use URL params if provided, otherwise use current team/year
   const teamAbbr = urlTeamAbbr || currentTeamAbbr
-  const selectedYear = urlYear ? Number(urlYear) : currentDynasty?.currentYear
+  const selectedYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : currentDynasty?.currentYear)
 
   // Get team info for display
   const teamData = teamAbbreviations[teamAbbr]
@@ -163,6 +163,9 @@ export default function Recruiting() {
   const handleYearChange = (newYear) => {
     navigate(`${pathPrefix}/recruiting/${teamAbbr}/${newYear}`)
   }
+
+  // Check if viewing all seasons
+  const isAllSeasons = selectedYear === 'all'
 
   // Change view mode (both/hs/portal)
   const handleViewModeChange = (mode) => {
@@ -294,18 +297,40 @@ export default function Recruiting() {
   if (!currentDynasty) return null
 
   // Get all commitments for selected year - TEAM-CENTRIC
-  const commitmentsForYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[selectedYear] || {}
+  // If 'all' is selected, combine all years' data
   const allCommitmentsUnfiltered = useMemo(() => {
     const commitments = []
-    Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
-      if (Array.isArray(weekCommitments)) {
-        weekCommitments.forEach(commit => {
-          commitments.push({ ...commit, commitmentWeek: key })
+
+    if (isAllSeasons) {
+      // Get commitments from all years for this team
+      const allYearsData = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr] || {}
+      Object.entries(allYearsData).forEach(([year, yearCommitments]) => {
+        Object.entries(yearCommitments).forEach(([key, weekCommitments]) => {
+          if (Array.isArray(weekCommitments)) {
+            weekCommitments.forEach(commit => {
+              commitments.push({ ...commit, commitmentWeek: key, recruitYear: Number(year) })
+            })
+          }
         })
-      }
-    })
-    // Sort by national rank (lowest/best first), unranked players at the end
+      })
+    } else {
+      // Get commitments for selected year only
+      const commitmentsForYear = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[selectedYear] || {}
+      Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
+        if (Array.isArray(weekCommitments)) {
+          weekCommitments.forEach(commit => {
+            commitments.push({ ...commit, commitmentWeek: key, recruitYear: selectedYear })
+          })
+        }
+      })
+    }
+
+    // Sort by year (most recent first), then by national rank
     return commitments.sort((a, b) => {
+      // If viewing all seasons, sort by year first
+      if (isAllSeasons && a.recruitYear !== b.recruitYear) {
+        return b.recruitYear - a.recruitYear
+      }
       const rankA = Number(a.nationalRank) || 9999
       const rankB = Number(b.nationalRank) || 9999
       if (rankA !== rankB) return rankA - rankB
@@ -314,7 +339,7 @@ export default function Recruiting() {
       const starsB = Number(b.stars) || 0
       return starsB - starsA
     })
-  }, [commitmentsForYear])
+  }, [currentDynasty.recruitingCommitmentsByTeamYear, teamAbbr, selectedYear, isAllSeasons])
 
   // Filter commitments based on view mode (Both/HS/Portal) AND star filter
   const allCommitments = useMemo(() => {
@@ -391,14 +416,14 @@ export default function Recruiting() {
             )}
             <div>
               <Link
-                to={`${pathPrefix}/team/${teamAbbr}/${selectedYear}`}
+                to={`${pathPrefix}/team/${teamAbbr}/${isAllSeasons ? currentDynasty?.currentYear : selectedYear}`}
                 className="text-2xl font-bold hover:underline"
                 style={{ color: secondaryBgText }}
               >
                 {teamFullName}
               </Link>
               <p className="text-sm font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                {selectedYear} Recruiting Class
+                {isAllSeasons ? 'All-Time Recruiting' : `${selectedYear} Recruiting Class`}
               </p>
             </div>
           </div>
@@ -410,7 +435,7 @@ export default function Recruiting() {
             </label>
             <select
               value={selectedYear}
-              onChange={(e) => handleYearChange(Number(e.target.value))}
+              onChange={(e) => handleYearChange(e.target.value === 'all' ? 'all' : Number(e.target.value))}
               className="px-3 py-2 rounded-lg border-2 font-semibold"
               style={{
                 borderColor: teamColors.primary,
@@ -418,6 +443,9 @@ export default function Recruiting() {
                 color: secondaryBgText
               }}
             >
+              {availableYears.length > 0 && (
+                <option value="all">All Seasons</option>
+              )}
               {availableYears.length > 0 ? (
                 availableYears.map(year => (
                   <option key={year} value={year}>{year}</option>
@@ -426,7 +454,7 @@ export default function Recruiting() {
                 <option value={selectedYear}>{selectedYear}</option>
               )}
             </select>
-            {!isViewOnly && (
+            {!isViewOnly && !isAllSeasons && (
               <button
                 onClick={() => setShowEditModal(true)}
                 className="px-3 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors flex items-center gap-2"
@@ -485,7 +513,7 @@ export default function Recruiting() {
 
         {/* Class Stats Summary */}
         {(() => {
-          const nationalRank = currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[selectedYear]
+          const nationalRank = !isAllSeasons ? currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[selectedYear] : null
 
           // Mini star component for stats
           const MiniStars = ({ count, filled }) => (
@@ -500,13 +528,24 @@ export default function Recruiting() {
 
           return (
             <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-6">
-              {/* National Rank */}
-              <div className="px-4 py-2 rounded-lg text-center" style={{ backgroundColor: `${teamColors.primary}15`, minWidth: '80px' }}>
-                <div className="text-xl font-bold" style={{ color: teamColors.primary }}>
-                  {nationalRank ? `#${nationalRank}` : '—'}
+              {/* National Rank - hide when viewing all seasons */}
+              {!isAllSeasons && (
+                <div className="px-4 py-2 rounded-lg text-center" style={{ backgroundColor: `${teamColors.primary}15`, minWidth: '80px' }}>
+                  <div className="text-xl font-bold" style={{ color: teamColors.primary }}>
+                    {nationalRank ? `#${nationalRank}` : '—'}
+                  </div>
+                  <div className="text-xs font-medium mt-0.5" style={{ color: secondaryBgText, opacity: 0.7 }}>Rank</div>
                 </div>
-                <div className="text-xs font-medium mt-0.5" style={{ color: secondaryBgText, opacity: 0.7 }}>Rank</div>
-              </div>
+              )}
+              {/* Total recruits when viewing all seasons */}
+              {isAllSeasons && (
+                <div className="px-4 py-2 rounded-lg text-center" style={{ backgroundColor: `${teamColors.primary}15`, minWidth: '80px' }}>
+                  <div className="text-xl font-bold" style={{ color: teamColors.primary }}>
+                    {classStats.total}
+                  </div>
+                  <div className="text-xs font-medium mt-0.5" style={{ color: secondaryBgText, opacity: 0.7 }}>Total</div>
+                </div>
+              )}
 
               {/* 5-Star */}
               <button
@@ -630,6 +669,14 @@ export default function Recruiting() {
                           >
                             {recruit.position || 'ATH'}
                           </span>
+                          {isAllSeasons && recruit.recruitYear && (
+                            <span
+                              className="px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ backgroundColor: secondaryBgText, color: teamColors.secondary, opacity: 0.8 }}
+                            >
+                              {recruit.recruitYear}
+                            </span>
+                          )}
                           <span className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>
                             {recruit.class || 'HS'}
                           </span>
@@ -738,9 +785,11 @@ export default function Recruiting() {
               {viewMode === 'portal' ? 'No Transfer Portal Commits' : viewMode === 'hs' ? 'No HS Commitments Yet' : 'No Commitments Yet'}
             </h3>
             <p style={{ color: secondaryBgText, opacity: 0.8 }} className="max-w-md mx-auto">
-              {selectedYear === currentDynasty.currentYear
-                ? 'Record recruiting commitments during preseason, regular season, or signing day.'
-                : `No recruiting data recorded for the ${selectedYear} class.`}
+              {isAllSeasons
+                ? 'No recruiting data has been recorded for this team yet.'
+                : selectedYear === currentDynasty.currentYear
+                  ? 'Record recruiting commitments during preseason, regular season, or signing day.'
+                  : `No recruiting data recorded for the ${selectedYear} class.`}
             </p>
           </div>
         )}

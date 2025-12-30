@@ -438,9 +438,16 @@ export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
     staff = dynasty.coachingStaffByTeamYear?.[teamAbbr]?.[year]
   }
 
-  // Fall back to legacy coaching staff
-  if (!staff) {
+  // ONLY fall back to legacy coaching staff if this is the user's CURRENT team
+  // This prevents showing the user's coordinators on other teams' pages
+  const userCurrentTeam = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+  if (!staff && teamAbbr === userCurrentTeam) {
     staff = dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
+  }
+
+  // If still no staff (other team with no data), return empty
+  if (!staff) {
+    staff = { hcName: null, ocName: null, dcName: null }
   }
 
   // Check if the user was coaching this team in this year and add their name
@@ -2433,6 +2440,12 @@ export function DynastyProvider({ children }) {
       return
     }
 
+    // Find the original player to check if name changed
+    const originalPlayer = (dynasty.players || []).find(p => p.pid === updatedPlayer.pid)
+    const oldName = originalPlayer?.name
+    const newName = updatedPlayer.name
+    const nameChanged = oldName && newName && oldName !== newName
+
     // Update the player in the players array
     const updatedPlayers = (dynasty.players || []).map(player =>
       player.pid === updatedPlayer.pid ? updatedPlayer : player
@@ -2440,6 +2453,92 @@ export function DynastyProvider({ children }) {
 
     // Build the update object
     const updateData = { players: updatedPlayers }
+
+    // If name changed, update all box scores in all games
+    if (nameChanged) {
+      const updatedGames = (dynasty.games || []).map(game => {
+        if (!game.boxScore) return game
+
+        // Helper to update player names in a stat category
+        const updateStatCategory = (stats) => {
+          if (!Array.isArray(stats)) return stats
+          return stats.map(row => {
+            if (row.playerName === oldName) {
+              return { ...row, playerName: newName }
+            }
+            return row
+          })
+        }
+
+        // Update both home and away box scores
+        const updatedBoxScore = { ...game.boxScore }
+
+        if (updatedBoxScore.home) {
+          updatedBoxScore.home = { ...updatedBoxScore.home }
+          Object.keys(updatedBoxScore.home).forEach(category => {
+            updatedBoxScore.home[category] = updateStatCategory(updatedBoxScore.home[category])
+          })
+        }
+
+        if (updatedBoxScore.away) {
+          updatedBoxScore.away = { ...updatedBoxScore.away }
+          Object.keys(updatedBoxScore.away).forEach(category => {
+            updatedBoxScore.away[category] = updateStatCategory(updatedBoxScore.away[category])
+          })
+        }
+
+        // Also update scoring summary if it contains the player's name
+        if (Array.isArray(updatedBoxScore.scoringSummary)) {
+          updatedBoxScore.scoringSummary = updatedBoxScore.scoringSummary.map(play => {
+            const updated = { ...play }
+            if (updated.scorer === oldName) updated.scorer = newName
+            if (updated.passer === oldName) updated.passer = newName
+            if (updated.patNotes === oldName) updated.patNotes = newName
+            return updated
+          })
+        }
+
+        return { ...game, boxScore: updatedBoxScore }
+      })
+
+      updateData.games = updatedGames
+
+      // Also update player name in playerStatsByYear and detailedStatsByYear
+      if (dynasty.playerStatsByYear) {
+        const updatedPlayerStatsByYear = JSON.parse(JSON.stringify(dynasty.playerStatsByYear))
+        Object.keys(updatedPlayerStatsByYear).forEach(year => {
+          if (Array.isArray(updatedPlayerStatsByYear[year])) {
+            updatedPlayerStatsByYear[year] = updatedPlayerStatsByYear[year].map(entry => {
+              if (entry.name === oldName || entry.pid === updatedPlayer.pid) {
+                return { ...entry, name: newName }
+              }
+              return entry
+            })
+          }
+        })
+        updateData.playerStatsByYear = updatedPlayerStatsByYear
+      }
+
+      if (dynasty.detailedStatsByYear) {
+        const updatedDetailedStatsByYear = JSON.parse(JSON.stringify(dynasty.detailedStatsByYear))
+        Object.keys(updatedDetailedStatsByYear).forEach(year => {
+          const yearData = updatedDetailedStatsByYear[year]
+          if (yearData && typeof yearData === 'object') {
+            Object.keys(yearData).forEach(category => {
+              if (Array.isArray(yearData[category])) {
+                yearData[category] = yearData[category].map(entry => {
+                  if (entry.name === oldName || entry.pid === updatedPlayer.pid) {
+                    return { ...entry, name: newName }
+                  }
+                  return entry
+                })
+              }
+            })
+          }
+        })
+        updateData.detailedStatsByYear = updatedDetailedStatsByYear
+      }
+    }
 
     // If yearStats is provided, update playerStatsByYear and detailedStatsByYear
     if (yearStats && yearStats.year) {

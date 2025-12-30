@@ -1341,7 +1341,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right">{y.passing.cmp}</td>
@@ -1438,7 +1442,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right">{y.rushing.car}</td>
@@ -1531,7 +1539,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right">{y.receiving.rec}</td>
@@ -1615,7 +1627,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'blocking' && <td className="px-2 py-2 text-right">{y.gamesPlayed || 0}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{(y.snapsPlayed || 0).toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right font-medium">{y.blocking.sacksAllowed}</td>
@@ -1701,7 +1717,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'defense' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right text-gray-500">{y.defensive.solo}</td>
@@ -1804,7 +1824,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'kicking' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right font-medium">{y.kicking.fgm}</td>
@@ -1897,7 +1921,11 @@ export default function Player() {
                                   {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                                <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                                <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                                 {primaryStat === 'punting' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
                                 {showSnapsCol && <td className="px-2 py-2 text-right text-gray-500">{y.snapsPlayed.toLocaleString()}</td>}
                                 <td className="px-2 py-2 text-right">{y.punting.punts}</td>
@@ -1983,7 +2011,11 @@ export default function Player() {
                               {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                             </td>
                             <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                            <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                            <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                             <td className="px-2 py-2 text-right">{y.kickReturn.ret}</td>
                             <td className="px-2 py-2 text-right font-medium">{y.kickReturn.yds}</td>
                             <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.kickReturn.yds, y.kickReturn.ret)}</td>
@@ -2063,7 +2095,11 @@ export default function Player() {
                               {expandedGameLogYear === y.year && <span className="ml-1 text-xs">▼</span>}
                             </td>
                             <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
-                            <td className="px-2 py-2 text-center w-12">{logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}</td>
+                            <td className="px-2 py-2 text-center w-12">
+                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  </Link>
+                                </td>
                             <td className="px-2 py-2 text-right">{y.puntReturn.ret}</td>
                             <td className="px-2 py-2 text-right font-medium">{y.puntReturn.yds}</td>
                             <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.puntReturn.yds, y.puntReturn.ret)}</td>
