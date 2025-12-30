@@ -13,8 +13,9 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
 
   if (!isOpen || !game) return null
 
-  // Check if this is a CPU vs CPU game (has viewingTeam property)
-  const isCPUGame = !!game.viewingTeam
+  // Check if this is a CPU vs CPU game - games have viewingTeam set for display perspective
+  // In the unified model, CPU games are identified by having team1/team2 but no userTeam
+  const isCPUGame = !!game.viewingTeam || (!game.userTeam && game.team1 && game.team2)
   const displayTeam = isCPUGame ? game.viewingTeam : userTeam
   const displayTeamAbbr = isCPUGame ? game.viewingTeamAbbr : getAbbreviationFromDisplayName(userTeam)
 

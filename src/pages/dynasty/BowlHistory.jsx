@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, GAME_TYPES, detectGameType } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { bowlLogos, getAllBowlNames } from '../../data/bowlLogos'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
@@ -108,32 +108,40 @@ export default function BowlHistory() {
   })
 
   // Get all bowl game results from the dynasty
-  // UNIFIED: Read from games[] first (unified storage), then fallback to bowlGamesByYear and cfpResultsByYear
+  // UNIFIED: Read from games[] array using gameType
   const getBowlResults = (bowlName) => {
     const results = []
     const games = currentDynasty.games || []
 
-    // First, find bowl games from the unified games[] array
-    // Include both regular bowl games AND CFP games
-    const bowlGamesFromArray = games.filter(g =>
-      (g.isBowlGame || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship) &&
-      g.bowlName === bowlName &&
-      g.team1Score !== null && g.team1Score !== undefined
-    )
+    // Find bowl games from the unified games[] array using gameType
+    const bowlGamesFromArray = games.filter(g => {
+      const gameType = detectGameType(g)
+      const isBowlType = gameType === GAME_TYPES.BOWL ||
+                         gameType === GAME_TYPES.CFP_QUARTERFINAL ||
+                         gameType === GAME_TYPES.CFP_SEMIFINAL ||
+                         gameType === GAME_TYPES.CFP_CHAMPIONSHIP
+      return isBowlType && g.bowlName === bowlName &&
+             g.team1Score !== null && g.team1Score !== undefined
+    })
 
     bowlGamesFromArray.forEach(game => {
+      const gameType = detectGameType(game)
+      const isCFP = gameType === GAME_TYPES.CFP_QUARTERFINAL ||
+                    gameType === GAME_TYPES.CFP_SEMIFINAL ||
+                    gameType === GAME_TYPES.CFP_CHAMPIONSHIP
       results.push({
         year: game.year,
         bowlName: game.bowlName,
-        team1: game.team1,
-        team2: game.team2,
+        team1: game.team1 || game.userTeam,
+        team2: game.team2 || game.opponent,
         team1Score: game.team1Score,
         team2Score: game.team2Score,
         winner: game.winner,
         week: game.bowlWeek || 'week1',
         gameNote: game.gameNote,
         links: game.links,
-        isCFP: game.isCFPQuarterfinal || game.isCFPSemifinal || game.isCFPChampionship,
+        isCFP,
+        gameType,
         // Include the full game reference for editing
         gameRef: game
       })
@@ -230,6 +238,25 @@ export default function BowlHistory() {
 
   // Count total bowl games played (including CFP bowls)
   const getTotalBowlGames = () => {
+    const games = currentDynasty.games || []
+
+    // Count bowl games from games[] array using gameType
+    const bowlGamesInArray = games.filter(g => {
+      const gameType = detectGameType(g)
+      const isBowlType = gameType === GAME_TYPES.BOWL ||
+                         gameType === GAME_TYPES.CFP_QUARTERFINAL ||
+                         gameType === GAME_TYPES.CFP_SEMIFINAL ||
+                         gameType === GAME_TYPES.CFP_CHAMPIONSHIP
+      return isBowlType && g.team1Score !== null && g.team1Score !== undefined
+    }).length
+
+    // With unified migration, all bowl games are in games[] array
+    // No need for legacy fallback counting
+    return bowlGamesInArray
+  }
+
+  // Legacy counting function (kept for reference, no longer used)
+  const getTotalBowlGamesLegacy = () => {
     let total = 0
     const games = currentDynasty.games || []
 

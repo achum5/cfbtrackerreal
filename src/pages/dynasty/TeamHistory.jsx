@@ -39,7 +39,8 @@ export default function TeamHistory() {
 
   // Get all games for the current team
   const allTeamGames = (currentDynasty.games || []).filter(game => {
-    if (game.isCPUGame) return false
+    // Skip CPU games (have team1/team2 but no userTeam)
+    if (!game.userTeam && game.team1 && game.team2) return false
     const gameTeam = game.userTeam || currentTeamAbbr
     return gameTeam === currentTeamAbbr || gameTeam === currentDynasty.teamName
   })

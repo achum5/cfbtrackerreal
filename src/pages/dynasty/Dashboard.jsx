@@ -103,7 +103,8 @@ export default function Dashboard() {
     let gamesWithStats = 0
 
     currentDynasty.games.forEach(game => {
-      if (game.isCPUGame) return
+      // Skip CPU games (have team1/team2 but no userTeam)
+      if (!game.userTeam && game.team1 && game.team2) return
       if (parseInt(game.year) !== year) return
       if (game.userTeam !== currentTeamAbbr) return
 
@@ -166,8 +167,9 @@ export default function Dashboard() {
     })
 
     // Count total games played (for per-game calculations)
+    // Exclude CPU games (have team1/team2 but no userTeam)
     const totalGamesPlayed = currentDynasty.games.filter(game =>
-      !game.isCPUGame &&
+      game.userTeam && // Has userTeam = user game
       parseInt(game.year) === year &&
       game.userTeam === currentTeamAbbr
     ).length
@@ -1662,8 +1664,9 @@ export default function Dashboard() {
     return phases[phase] || phase
   }
 
+  // Get user games for current year (games with userTeam set, not CPU games)
   const currentYearGames = (currentDynasty.games || [])
-    .filter(g => Number(g.year) === Number(currentDynasty.currentYear) && !g.isCPUGame)
+    .filter(g => Number(g.year) === Number(currentDynasty.currentYear) && g.userTeam)
     .sort((a, b) => a.week - b.week)
 
   return (

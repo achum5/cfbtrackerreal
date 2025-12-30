@@ -270,8 +270,8 @@ export default function Team() {
   // Get all games against this team (user's games across all teams they've coached)
   const gamesAgainst = (currentDynasty.games || [])
     .filter(g => {
-      // Exclude CPU vs CPU games
-      if (g.isCPUGame) return false
+      // Exclude CPU vs CPU games (have team1/team2 but no userTeam)
+      if (!g.userTeam && g.team1 && g.team2) return false
 
       // Must be against the team we're viewing
       if (g.opponent !== teamAbbr) return false
@@ -375,7 +375,8 @@ export default function Team() {
   const getGamesAsTeam = () => {
     const games = currentDynasty.games || []
     return games.filter(g => {
-      if (g.isCPUGame) return false
+      // Skip CPU games (have team1/team2 but no userTeam)
+      if (!g.userTeam && g.team1 && g.team2) return false
       // Check if this game was played by the team we're viewing
       if (g.userTeam === teamAbbr) return true
       // Legacy fallback: if no userTeam and this is the current user's team
@@ -646,7 +647,8 @@ export default function Team() {
     const games = currentDynasty.games || []
     // Filter games where user played AS this team in this year
     const teamGames = games.filter(g => {
-      if (g.isCPUGame) return false
+      // Skip CPU games (have team1/team2 but no userTeam)
+      if (!g.userTeam && g.team1 && g.team2) return false
       // Compare as numbers to handle string/number mismatch
       if (Number(g.year) !== Number(year)) return false
       // Check if this game was played by the team we're viewing

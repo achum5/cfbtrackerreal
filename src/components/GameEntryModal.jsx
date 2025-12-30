@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty, getCurrentTeamRatings } from '../context/DynastyContext'
+import { useDynasty, getCurrentTeamRatings, GAME_TYPES } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
@@ -31,22 +31,21 @@ export default function GameEntryModal({
   const teamRatings = getCurrentTeamRatings(currentDynasty)
 
   // Detect if this is a CPU vs CPU game from existingGame or passed props
-  // IMPORTANT: Check isCPUGame flag explicitly - user postseason games now have team1/team2
-  // for Bowl History but are NOT CPU games (they have isCPUGame: false and userTeam set)
+  // In unified model: games WITHOUT userTeam field are CPU vs CPU games
+  // User games always have userTeam set to the user's team abbreviation
   const isCPUGame =
-    (existingGame?.isCPUGame === true) || // Explicitly marked as CPU game
-    (existingGame?.isCPUGame !== false && existingGame?.team1 && existingGame?.team2 && !existingGame?.userTeam) || // Has team1/team2 without userTeam, not marked as user game
-    (passedTeam1 && passedTeam2) // Passed as CPU game via props
+    (!existingGame?.userTeam && existingGame?.team1 && existingGame?.team2) || // Has team1/team2 but no userTeam
+    (passedTeam1 && passedTeam2 && !existingGame?.userTeam) // Passed as CPU game via props
 
   // Merge existingGame with backward compat props (existingGame takes priority)
+  // Note: No isCPUGame flag needed - CPU games are identified by absence of userTeam
   const effectiveGame = existingGame ? existingGame : (passedTeam1 && passedTeam2 ? {
     team1: passedTeam1,
     team2: passedTeam2,
     team1Score: existingTeam1Score,
     team2Score: existingTeam2Score,
     gameNote: existingGameNote,
-    links: existingLinks,
-    isCPUGame: true
+    links: existingLinks
   } : null)
 
   // Use existing game's week if available, otherwise use passed weekNumber
@@ -796,9 +795,10 @@ export default function GameEntryModal({
       // SIMPLE APPROACH: If existingGame or effectiveGame is provided, use it directly
       const gameToLoad = effectiveGame
       if (gameToLoad) {
-        // For CPU vs CPU games, use team1Score/team2Score; for user games use teamScore/opponentScore
-        const teamScore = gameToLoad.isCPUGame ? gameToLoad.team1Score : gameToLoad.teamScore
-        const oppScore = gameToLoad.isCPUGame ? gameToLoad.team2Score : gameToLoad.opponentScore
+        // CPU games (!userTeam with team1/team2) use team1Score/team2Score; user games use teamScore/opponentScore
+        const isCPUGameData = !gameToLoad.userTeam && gameToLoad.team1 && gameToLoad.team2
+        const teamScore = isCPUGameData ? gameToLoad.team1Score : gameToLoad.teamScore
+        const oppScore = isCPUGameData ? gameToLoad.team2Score : gameToLoad.opponentScore
 
         // Parse opponent record into parts
         let overallRecord = ''
@@ -1181,6 +1181,8 @@ export default function GameEntryModal({
       natlDefensePOW: natlDefensePOW || null,
       favoriteStatus: favoriteStatus !== undefined ? favoriteStatus : null,
       isConferenceGame: isConferenceGame,
+      // Set userTeam for user games (non-CPU games) - identifies this as a user game
+      ...(!isCPUGame && { userTeam: userTeamAbbr }),
       // Preserve special game type flags from existing game or set from props
       ...(effectiveGame?.bowlName && { bowlName: effectiveGame.bowlName }),
       ...(effectiveGame?.isConferenceChampionship && { isConferenceChampionship: true }),
@@ -1191,6 +1193,14 @@ export default function GameEntryModal({
       // Set isBowlGame if existing game has it OR if a bowlName is provided
       ...((effectiveGame?.isBowlGame || bowlName) && { isBowlGame: true }),
       ...(bowlName && !effectiveGame?.bowlName && { bowlName: bowlName }),
+      // UNIFIED: Set gameType for the unified game system
+      gameType: effectiveGame?.isCFPChampionship ? GAME_TYPES.CFP_CHAMPIONSHIP
+        : effectiveGame?.isCFPSemifinal ? GAME_TYPES.CFP_SEMIFINAL
+        : effectiveGame?.isCFPQuarterfinal ? GAME_TYPES.CFP_QUARTERFINAL
+        : effectiveGame?.isCFPFirstRound ? GAME_TYPES.CFP_FIRST_ROUND
+        : (isConferenceChampionship || effectiveGame?.isConferenceChampionship) ? GAME_TYPES.CONFERENCE_CHAMPIONSHIP
+        : (bowlName || effectiveGame?.isBowlGame) ? GAME_TYPES.BOWL
+        : GAME_TYPES.REGULAR,
       // For postseason games (bowl, CFP, CC), also set unified team fields for history tracking
       ...((bowlName || effectiveGame?.isBowlGame || effectiveGame?.isConferenceChampionship ||
            effectiveGame?.isCFPFirstRound || effectiveGame?.isCFPQuarterfinal ||
@@ -1201,9 +1211,8 @@ export default function GameEntryModal({
         team2Score: opponentScore,
         winner: result === 'win' || result === 'W' ? userTeamAbbr : opponentAbbr
       }),
-      // CPU vs CPU game data
+      // CPU vs CPU game data (no userTeam field = CPU game)
       ...(isCPUGame && {
-        isCPUGame: true,
         team1: effectiveGame?.team1,
         team2: effectiveGame?.team2,
         team1Score: teamScore,
@@ -1852,7 +1861,8 @@ export default function GameEntryModal({
             </div>
           </div>
 
-          {/* Rankings Section */}
+          {/* Rankings Section - only show for user games (CPU games have ranks in team cards) */}
+          {!isCPUGame && (
           <div className="space-y-3 sm:space-y-4">
             <div>
               <h3 className="text-base sm:text-lg font-semibold" style={{ color: teamColors.primary }}>
@@ -1866,7 +1876,7 @@ export default function GameEntryModal({
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  {isCPUGame ? `${getOpponentTeamName(effectiveGame?.team1)} Rank` : 'Your National Rank'}
+                  Your National Rank
                 </label>
                 <input
                   type="number"
@@ -1880,7 +1890,7 @@ export default function GameEntryModal({
               </div>
               <div>
                 <label className="block text-xs sm:text-sm font-semibold mb-1 sm:mb-2" style={{ color: teamColors.primary }}>
-                  {isCPUGame ? `${getOpponentTeamName(effectiveGame?.team2)} Rank` : 'Opponent Rank'}
+                  Opponent Rank
                 </label>
                 <input
                   type="number"
@@ -1894,6 +1904,7 @@ export default function GameEntryModal({
               </div>
             </div>
           </div>
+          )}
 
           {/* Opponent Team Ratings Section - hide for CPU vs CPU games */}
           {!isCPUGame && (
@@ -2888,8 +2899,7 @@ export default function GameEntryModal({
               year: actualYear,
               opponent: gameData.opponent,
               location: gameData.location,
-              // CPU game info
-              isCPUGame: isCPUGame,
+              // CPU game: has team1/team2 but no userTeam
               team1: effectiveGame?.team1 || passedTeam1,
               team2: effectiveGame?.team2 || passedTeam2
             }}
@@ -2932,8 +2942,7 @@ export default function GameEntryModal({
               year: actualYear,
               opponent: gameData.opponent,
               location: gameData.location,
-              // CPU game info
-              isCPUGame: isCPUGame,
+              // CPU game: has team1/team2 but no userTeam
               team1: effectiveGame?.team1 || passedTeam1,
               team2: effectiveGame?.team2 || passedTeam2
             }}
@@ -2976,8 +2985,7 @@ export default function GameEntryModal({
               year: actualYear,
               opponent: gameData.opponent,
               location: gameData.location,
-              // CPU game info
-              isCPUGame: isCPUGame,
+              // CPU game: has team1/team2 but no userTeam
               team1: effectiveGame?.team1 || passedTeam1,
               team2: effectiveGame?.team2 || passedTeam2
             }}
@@ -3020,8 +3028,7 @@ export default function GameEntryModal({
               year: actualYear,
               opponent: gameData.opponent,
               location: gameData.location,
-              // CPU game info
-              isCPUGame: isCPUGame,
+              // CPU game: has team1/team2 but no userTeam
               team1: effectiveGame?.team1 || passedTeam1,
               team2: effectiveGame?.team2 || passedTeam2
             }}

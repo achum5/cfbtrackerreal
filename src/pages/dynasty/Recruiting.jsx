@@ -296,8 +296,22 @@ export default function Recruiting() {
 
   if (!currentDynasty) return null
 
+  // Build a lookup map of players by normalized name for quick access
+  const playersByName = useMemo(() => {
+    const map = {}
+    ;(currentDynasty.players || []).forEach(p => {
+      if (p.name) {
+        const normalizedName = p.name.toLowerCase().trim()
+        // Store the most recent version (later entries override earlier)
+        map[normalizedName] = p
+      }
+    })
+    return map
+  }, [currentDynasty.players])
+
   // Get all commitments for selected year - TEAM-CENTRIC
   // If 'all' is selected, combine all years' data
+  // IMPORTANT: Merge with current player data from players[] to reflect any edits
   const allCommitmentsUnfiltered = useMemo(() => {
     const commitments = []
 
@@ -308,7 +322,40 @@ export default function Recruiting() {
         Object.entries(yearCommitments).forEach(([key, weekCommitments]) => {
           if (Array.isArray(weekCommitments)) {
             weekCommitments.forEach(commit => {
-              commitments.push({ ...commit, commitmentWeek: key, recruitYear: Number(year) })
+              // Find matching player in players array to get latest data
+              const normalizedName = commit.name?.toLowerCase().trim()
+              const currentPlayer = normalizedName ? playersByName[normalizedName] : null
+
+              // Merge: use current player data, but keep commitment-specific fields
+              commitments.push({
+                ...commit,
+                // Override with current player data if available (for fields that can be edited)
+                ...(currentPlayer && {
+                  name: currentPlayer.name,
+                  firstName: currentPlayer.firstName,
+                  lastName: currentPlayer.lastName,
+                  position: currentPlayer.position,
+                  class: currentPlayer.year, // 'year' in player = 'class' in recruit display
+                  devTrait: currentPlayer.devTrait,
+                  archetype: currentPlayer.archetype,
+                  height: currentPlayer.height,
+                  weight: currentPlayer.weight,
+                  hometown: currentPlayer.hometown,
+                  state: currentPlayer.state,
+                  pictureUrl: currentPlayer.pictureUrl,
+                  stars: currentPlayer.stars,
+                  nationalRank: currentPlayer.nationalRank,
+                  stateRank: currentPlayer.stateRank,
+                  positionRank: currentPlayer.positionRank,
+                  gemBust: currentPlayer.gemBust,
+                  previousTeam: currentPlayer.previousTeam,
+                  isPortal: currentPlayer.isPortal,
+                  pid: currentPlayer.pid
+                }),
+                // Always keep these commitment-specific fields from the original
+                commitmentWeek: key,
+                recruitYear: Number(year)
+              })
             })
           }
         })
@@ -319,7 +366,40 @@ export default function Recruiting() {
       Object.entries(commitmentsForYear).forEach(([key, weekCommitments]) => {
         if (Array.isArray(weekCommitments)) {
           weekCommitments.forEach(commit => {
-            commitments.push({ ...commit, commitmentWeek: key, recruitYear: selectedYear })
+            // Find matching player in players array to get latest data
+            const normalizedName = commit.name?.toLowerCase().trim()
+            const currentPlayer = normalizedName ? playersByName[normalizedName] : null
+
+            // Merge: use current player data, but keep commitment-specific fields
+            commitments.push({
+              ...commit,
+              // Override with current player data if available (for fields that can be edited)
+              ...(currentPlayer && {
+                name: currentPlayer.name,
+                firstName: currentPlayer.firstName,
+                lastName: currentPlayer.lastName,
+                position: currentPlayer.position,
+                class: currentPlayer.year, // 'year' in player = 'class' in recruit display
+                devTrait: currentPlayer.devTrait,
+                archetype: currentPlayer.archetype,
+                height: currentPlayer.height,
+                weight: currentPlayer.weight,
+                hometown: currentPlayer.hometown,
+                state: currentPlayer.state,
+                pictureUrl: currentPlayer.pictureUrl,
+                stars: currentPlayer.stars,
+                nationalRank: currentPlayer.nationalRank,
+                stateRank: currentPlayer.stateRank,
+                positionRank: currentPlayer.positionRank,
+                gemBust: currentPlayer.gemBust,
+                previousTeam: currentPlayer.previousTeam,
+                isPortal: currentPlayer.isPortal,
+                pid: currentPlayer.pid
+              }),
+              // Always keep these commitment-specific fields from the original
+              commitmentWeek: key,
+              recruitYear: selectedYear
+            })
           })
         }
       })
@@ -339,7 +419,7 @@ export default function Recruiting() {
       const starsB = Number(b.stars) || 0
       return starsB - starsA
     })
-  }, [currentDynasty.recruitingCommitmentsByTeamYear, teamAbbr, selectedYear, isAllSeasons])
+  }, [currentDynasty.recruitingCommitmentsByTeamYear, teamAbbr, selectedYear, isAllSeasons, playersByName])
 
   // Filter commitments based on view mode (Both/HS/Portal) AND star filter
   const allCommitments = useMemo(() => {
@@ -689,6 +769,12 @@ export default function Recruiting() {
                             #{recruit.nationalRank} Nat'l
                           </span>
                         )}
+                        {(recruit.stateRank || recruit.positionRank) && (
+                          <div className="flex flex-col items-end text-xs" style={{ color: secondaryBgText, opacity: 0.7 }}>
+                            {recruit.stateRank && <span>#{recruit.stateRank} in State</span>}
+                            {recruit.positionRank && <span>#{recruit.positionRank} {recruit.position}</span>}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -720,14 +806,6 @@ export default function Recruiting() {
                       </div>
                     )}
                   </div>
-
-                  {/* Rankings Row */}
-                  {(recruit.stateRank || recruit.positionRank) && (
-                    <div className="flex gap-3 text-xs mb-3" style={{ color: secondaryBgText, opacity: 0.7 }}>
-                      {recruit.stateRank && <span>#{recruit.stateRank} in State</span>}
-                      {recruit.positionRank && <span>#{recruit.positionRank} {recruit.position}</span>}
-                    </div>
-                  )}
 
                   {/* Bottom Row: Dev Trait, Gem/Bust, Transfer */}
                   <div className="flex items-center flex-wrap gap-2">

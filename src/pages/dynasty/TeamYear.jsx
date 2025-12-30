@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty, getLockedCoachingStaff } from '../../context/DynastyContext'
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -346,8 +346,9 @@ export default function TeamYear() {
       const isPostseason = g.isConferenceChampionship || g.isBowlGame || g.isPlayoff ||
                            g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship
 
-      // For CPU games, only include if this team is involved
-      if (g.isCPUGame) {
+      // For CPU games (have team1/team2 but no userTeam), only include if this team is involved
+      const isCPUGame = !g.userTeam && g.team1 && g.team2
+      if (isCPUGame) {
         if (isInTeam1Team2) {
           // Convert to display format for this team's perspective
           const teamWon = g.winner === teamAbbr
@@ -591,8 +592,9 @@ export default function TeamYear() {
   const getLastKnownOpponentRecord = () => {
     const games = currentDynasty.games || []
     // Find games where this team was the opponent (not the user's team)
+    // Exclude CPU games (have team1/team2 but no userTeam)
     const gamesAsOpponent = games
-      .filter(g => !g.isCPUGame && Number(g.year) === Number(selectedYear) && g.opponent === teamAbbr && g.opponentRecord)
+      .filter(g => g.userTeam && Number(g.year) === Number(selectedYear) && g.opponent === teamAbbr && g.opponentRecord)
       .sort((a, b) => {
         // Sort by week/game order to get the most recent
         const getOrder = (g) => {
@@ -1008,7 +1010,8 @@ export default function TeamYear() {
 
   // Handle edit game click - opens GameEntryModal
   const handleEditGame = (game) => {
-    const isCPUGame = !!game.viewingTeam // If has viewingTeam, it's a CPU vs CPU game
+    // CPU games are identified by having viewingTeam set, or by having team1/team2 but no userTeam
+    const isCPUGame = !!game.viewingTeam || (!game.userTeam && game.team1 && game.team2)
 
     if (isCPUGame) {
       // CPU vs CPU game - pass both teams and existing data
@@ -1040,7 +1043,9 @@ export default function TeamYear() {
   // Handle game save from GameEntryModal
   const handleGameSave = async (gameData) => {
     try {
-      if (gameData.isCPUGame) {
+      // CPU games are identified by having team1/team2 but no userTeam
+      const isCPUGame = gameData.team1 && gameData.team2 && !gameData.userTeam
+      if (isCPUGame) {
         // CPU vs CPU game - save to unified games[] array
         const gameType = editingGameData.gameType
 
@@ -1524,10 +1529,11 @@ export default function TeamYear() {
                 </span>
               </div>
             )}
-            {/* Postseason Result Badge */}
+            {/* Postseason Result Badge - all CFP badges link to CFP Bracket */}
             {cfpResult === 'champion' && (
-              <div
-                className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-full text-sm font-bold"
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+                className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-full text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 style={{
                   background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
                   color: '#78350f',
@@ -1540,78 +1546,90 @@ export default function TeamYear() {
                   className="w-5 h-5 object-contain"
                 />
                 National Champions
-              </div>
+              </Link>
             )}
             {cfpResult === 'lost-championship' && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ backgroundColor: '#c0c0c0', color: '#1f2937' }}
               >
                 🥈 Championship Game
-              </div>
+              </Link>
             )}
             {cfpResult === 'lost-semifinal' && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ backgroundColor: '#d1d5db', color: '#374151' }}
               >
                 Made CFP Semifinals
-              </div>
+              </Link>
             )}
             {cfpResult === 'lost-quarterfinal' && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ backgroundColor: '#e5e7eb', color: '#4b5563' }}
               >
                 Made CFP Quarterfinals
-              </div>
+              </Link>
             )}
             {cfpResult === 'lost-first-round' && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
                 style={{ backgroundColor: '#f3f4f6', color: '#6b7280' }}
               >
                 Made CFP First Round
-              </div>
+              </Link>
             )}
-            {/* Bowl Game Result (only if not in CFP) */}
-            {!cfpResult && teamBowlGame && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
-                style={{
-                  backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
-                  color: '#ffffff'
-                }}
-              >
-                {bowlLogos[teamBowlGame.bowlName] && (
-                  <img
-                    src={bowlLogos[teamBowlGame.bowlName]}
-                    alt=""
-                    className="w-4 h-4 object-contain"
-                  />
-                )}
-                {wonBowl ? 'Won' : 'Lost'} {teamBowlGame.bowlName}
-              </div>
-            )}
-            {/* Conference Championship Badge - only show for winners */}
-            {teamCCGame && wonCC && (
-              <div
-                className="inline-flex items-center gap-1 sm:gap-2 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold"
-                style={{
-                  backgroundColor: '#fbbf24',
-                  color: '#78350f'
-                }}
-              >
-                {getConferenceLogo(teamCCGame.conference) && (
-                  <img
-                    src={getConferenceLogo(teamCCGame.conference)}
-                    alt=""
-                    className="w-4 h-4 object-contain"
-                  />
-                )}
-                {teamCCGame.conference} Champions
-              </div>
-            )}
+            {/* Bowl Game Result (only if not in CFP) - clickable link to game */}
+            {!cfpResult && teamBowlGame && (() => {
+              const bowlGameId = teamBowlGame.id || `bowl-${selectedYear}-${(teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')}`
+              return (
+                <Link
+                  to={`${pathPrefix}/game/${bowlGameId}`}
+                  className="inline-flex items-center gap-1.5 mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                  style={{
+                    backgroundColor: wonBowl ? '#16a34a' : '#dc2626',
+                    color: '#ffffff'
+                  }}
+                >
+                  {bowlLogos[teamBowlGame.bowlName] && (
+                    <img
+                      src={bowlLogos[teamBowlGame.bowlName]}
+                      alt=""
+                      className="w-4 h-4 object-contain"
+                    />
+                  )}
+                  {wonBowl ? 'Won' : 'Lost'} {teamBowlGame.bowlName}
+                </Link>
+              )
+            })()}
+            {/* Conference Championship Badge - only show for winners, clickable link to game */}
+            {teamCCGame && wonCC && (() => {
+              const ccGameId = teamCCGame.id || `cc-${selectedYear}-${(teamCCGame.conference || 'cc').toLowerCase().replace(/\s+/g, '-')}`
+              return (
+                <Link
+                  to={`${pathPrefix}/game/${ccGameId}`}
+                  className="inline-flex items-center gap-1 sm:gap-2 mt-2 sm:ml-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                  style={{
+                    backgroundColor: '#fbbf24',
+                    color: '#78350f'
+                  }}
+                >
+                  {getConferenceLogo(teamCCGame.conference) && (
+                    <img
+                      src={getConferenceLogo(teamCCGame.conference)}
+                      alt=""
+                      className="w-4 h-4 object-contain"
+                    />
+                  )}
+                  {teamCCGame.conference} Champions
+                </Link>
+              )
+            })()}
             {/* Bowl Game Badge - only show clickable version if in CFP (otherwise shown above) */}
             {cfpResult && teamBowlGame && (() => {
               const bowlGameId = teamBowlGame.id || `bowl-${selectedYear}-${(teamBowlGame.bowlName || 'bowl').toLowerCase().replace(/\s+/g, '-')}`
@@ -2530,14 +2548,15 @@ export default function TeamYear() {
             border: `3px solid ${viewedTeamColors.primary}`
           }}
         >
-          <div
-            className="px-3 sm:px-4 py-2 sm:py-3"
+          <Link
+            to={`${pathPrefix}/cfp-bracket/${selectedYear}`}
+            className="px-3 sm:px-4 py-2 sm:py-3 block hover:opacity-90 transition-opacity"
             style={{ backgroundColor: viewedTeamColors.primary }}
           >
-            <h2 className="text-sm sm:text-lg font-bold" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
+            <h2 className="text-sm sm:text-lg font-bold hover:underline" style={{ color: getContrastTextColor(viewedTeamColors.primary) }}>
               College Football Playoff
             </h2>
-          </div>
+          </Link>
 
           <div className="divide-y" style={{ borderColor: `${viewedTeamColors.primary}30` }}>
             {teamCFPGames.map((game, index) => {

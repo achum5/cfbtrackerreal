@@ -302,6 +302,24 @@ Some features are hidden with `{false && (...)}` for future use:
 - Fixed `getLockedCoachingStaff()` to only fall back to `dynasty.coachingStaff` for user's current team
 - Other teams no longer incorrectly show user's coordinators
 
+**Unified Game System** (DynastyContext.jsx, GameEntryModal.jsx):
+- All games stored in unified `games[]` array with `gameType` field
+- Game types: `regular`, `conference_championship`, `bowl`, `cfp_first_round`, `cfp_quarterfinal`, `cfp_semifinal`, `cfp_championship`
+- **CPU games identified by**: Having `team1`/`team2` but NO `opponent` field
+- **User games identified by**: Having `opponent` field (and optionally `userTeam`)
+- User games now also set `userTeam` field for explicit identification
+- Helper functions: `detectGameType(game)`, `getGamesByType(dynasty, type, year)`, `getCFPGames(dynasty, year)`
+- Migration function runs on dynasty load to consolidate legacy structures
+- No more `isCPUGame` flag - detection is based on presence/absence of `opponent`
+
+**Box Score Stats Aggregation** (boxScoreAggregator.js):
+- `aggregatePlayerBoxScoreStats()` - Aggregates season totals from game box scores
+- `getPlayerSeasonStatsFromBoxScores()` - Returns year-by-year stats for Player.jsx
+- `getPlayerGameLog()` - Returns per-game breakdown for game log display
+- All functions search BOTH `home` and `away` sides of box scores (robust to location field)
+- Player name matching uses `normalizeName()` helper (handles case, extra whitespace)
+- CPU game detection: `!game.opponent && game.team1 && game.team2`
+
 ## TODO / Future Work
 
 - User's games as/against each team with win percentages

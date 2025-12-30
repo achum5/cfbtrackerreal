@@ -144,7 +144,8 @@ export default function TeamStats() {
   // Calculate stats for selected team and year
   const stats = useMemo(() => {
     const games = (currentDynasty.games || []).filter(g => {
-      if (g.isCPUGame) return false
+      // Skip CPU games (have team1/team2 but no userTeam)
+      if (!g.userTeam && g.team1 && g.team2) return false
       const gameYear = parseInt(g.year)
       if (gameYear !== selectedYear) return false
       return g.userTeam === selectedTeam

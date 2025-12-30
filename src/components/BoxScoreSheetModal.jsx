@@ -59,7 +59,8 @@ export default function BoxScoreSheetModal({
   const creatingSheetRef = useRef(false)
 
   // Determine teams based on game type (CPU vs user game)
-  const isCPUGame = game?.isCPUGame
+  // CPU games are identified by having team1/team2 but no userTeam field
+  const isCPUGame = !game?.userTeam && game?.team1 && game?.team2
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
   // Ensure opponent is an abbreviation (convert full name if needed)
   const rawOpponent = game?.opponent || ''

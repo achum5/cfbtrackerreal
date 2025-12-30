@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getGamesByType, GAME_TYPES, detectGameType } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
@@ -120,22 +120,29 @@ export default function ConferenceChampionshipHistory() {
   })
 
   // Get all conference championship results for a conference
+  // UNIFIED: Read from games[] array using gameType
   const getConferenceResults = (conferenceName) => {
-    const results = []
-    const ccByYear = currentDynasty.conferenceChampionshipsByYear || {}
+    const games = currentDynasty.games || []
 
-    // Check each year's conference championships
-    Object.entries(ccByYear).forEach(([year, yearData]) => {
-      if (!yearData) return
-      const games = Array.isArray(yearData) ? yearData : []
-      const match = games.find(g => g.conference === conferenceName)
-      if (match && match.team1 && match.team2) {
-        results.push({
-          year: parseInt(year),
-          ...match
-        })
-      }
+    // Filter games by gameType and conference
+    const ccGames = games.filter(g => {
+      const gameType = detectGameType(g)
+      return gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP &&
+             g.conference === conferenceName &&
+             (g.team1 || g.userTeam) && (g.team2 || g.opponent)
     })
+
+    // Map to result format
+    const results = ccGames.map(g => ({
+      year: g.year,
+      conference: g.conference,
+      team1: g.team1 || g.userTeam,
+      team2: g.team2 || g.opponent,
+      team1Score: g.team1Score,
+      team2Score: g.team2Score,
+      winner: g.winner,
+      gameRef: g
+    }))
 
     // Sort by year descending (most recent first)
     return results.sort((a, b) => b.year - a.year)
@@ -143,14 +150,24 @@ export default function ConferenceChampionshipHistory() {
 
   // Count total conference championship games played
   const getTotalCCGames = () => {
-    let total = 0
-    const ccByYear = currentDynasty.conferenceChampionshipsByYear || {}
-    Object.values(ccByYear).forEach(yearData => {
-      if (!yearData) return
-      const games = Array.isArray(yearData) ? yearData : []
-      total += games.filter(g => g.team1 && g.team2).length
+    const games = currentDynasty.games || []
+    return games.filter(g => {
+      const gameType = detectGameType(g)
+      return gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP &&
+             (g.team1 || g.userTeam) && (g.team2 || g.opponent)
+    }).length
+  }
+
+  // Get unique seasons with CC data
+  const getSeasonCount = () => {
+    const games = currentDynasty.games || []
+    const years = new Set()
+    games.forEach(g => {
+      if (detectGameType(g) === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) {
+        years.add(g.year)
+      }
     })
-    return total
+    return years.size
   }
 
   // Get winner of a championship game
@@ -169,7 +186,7 @@ export default function ConferenceChampionshipHistory() {
           Conference Championship History
         </h1>
         <p className="mt-1 text-gray-300">
-          {getTotalCCGames()} championship games played across {Object.keys(currentDynasty.conferenceChampionshipsByYear || {}).length} seasons
+          {getTotalCCGames()} championship games played across {getSeasonCount()} seasons
         </p>
       </div>
 

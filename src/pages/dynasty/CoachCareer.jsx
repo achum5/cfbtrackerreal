@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -130,7 +130,8 @@ export default function CoachCareer() {
 
     // Filter games for this team during this period
     const games = (currentDynasty.games || []).filter(g => {
-      if (g.isCPUGame) return false
+      // Skip CPU games (have team1/team2 but no userTeam)
+      if (!g.userTeam && g.team1 && g.team2) return false
       const gameYear = Number(g.year)
 
       // Determine which team this game belongs to
@@ -180,7 +181,8 @@ export default function CoachCareer() {
   // This is more reliable than coachingHistory array since games have userTeam field
   const buildCoachingHistory = () => {
     const history = []
-    const userGames = (currentDynasty.games || []).filter(g => !g.isCPUGame)
+    // Filter for user games (have userTeam set, not CPU games)
+    const userGames = (currentDynasty.games || []).filter(g => g.userTeam || (!g.team1 && !g.team2))
 
     // Group games by team to identify all teams coached
     const gamesByTeam = {}
@@ -224,18 +226,27 @@ export default function CoachCareer() {
       const underdogWins = underdogGames.filter(isWin).length
       const underdogLosses = underdogGames.filter(isLoss).length
 
-      // Bowl games (regular bowls only, not CFP)
-      const bowlGames = games.filter(g => g.bowlName && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship)
+      // Bowl games (regular bowls only, not CFP) - use gameType for cleaner filtering
+      const bowlGames = games.filter(g => {
+        const gameType = detectGameType(g)
+        return gameType === GAME_TYPES.BOWL
+      })
       const bowlWins = bowlGames.filter(isWin).length
       const bowlLosses = bowlGames.filter(isLoss).length
 
-      // CFP games
-      const cfpGames = games.filter(g => g.isCFPFirstRound || g.isCFPQuarterfinal || g.isCFPSemifinal || g.isCFPChampionship)
+      // CFP games - all CFP rounds
+      const cfpGames = games.filter(g => {
+        const gameType = detectGameType(g)
+        return gameType === GAME_TYPES.CFP_FIRST_ROUND ||
+               gameType === GAME_TYPES.CFP_QUARTERFINAL ||
+               gameType === GAME_TYPES.CFP_SEMIFINAL ||
+               gameType === GAME_TYPES.CFP_CHAMPIONSHIP
+      })
       const cfpWins = cfpGames.filter(isWin).length
       const cfpLosses = cfpGames.filter(isLoss).length
 
       // Conference championship games
-      const confChampGames = games.filter(g => g.isConferenceChampionship)
+      const confChampGames = games.filter(g => detectGameType(g) === GAME_TYPES.CONFERENCE_CHAMPIONSHIP)
       const confChampWins = confChampGames.filter(isWin).length
 
       // Count unique CFP years (playoff appearances)
@@ -275,7 +286,7 @@ export default function CoachCareer() {
       stint.conference = isCurrentTeam ? currentDynasty.conference : ''
       // confChampionships and playoffAppearances are already calculated above
       // Calculate national championships from CFP championship wins
-      stint.nationalChampionships = (stint.cfpGames || []).filter(g => g.isCFPChampionship && isWin(g)).length
+      stint.nationalChampionships = (stint.cfpGames || []).filter(g => detectGameType(g) === GAME_TYPES.CFP_CHAMPIONSHIP && isWin(g)).length
     })
 
     // If current team has no games yet (just switched), add it
@@ -883,10 +894,13 @@ export default function CoachCareer() {
                                   className="text-xs font-medium w-14 flex-shrink-0 opacity-80"
                                   style={{ color: opponentColors.textColor }}
                                 >
-                                  {game.isConferenceChampionship ? 'CC' :
-                                   game.isBowlGame ? 'Bowl' :
-                                   game.isPlayoff ? 'CFP' :
-                                   `Wk ${game.week}`}
+                                  {(() => {
+                                    const gameType = detectGameType(game)
+                                    if (gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 'CC'
+                                    if (gameType === GAME_TYPES.BOWL) return 'Bowl'
+                                    if (gameType.startsWith('cfp_')) return 'CFP'
+                                    return `Wk ${game.week}`
+                                  })()}
                                 </div>
 
                                 {/* Location Badge */}

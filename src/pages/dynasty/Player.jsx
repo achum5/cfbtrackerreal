@@ -297,9 +297,16 @@ export default function Player() {
     const playerName = player.name
     const gameLog = []
 
+    // Helper to normalize names for comparison (handles case, extra whitespace)
+    const normalizeName = (name) => name ? name.toLowerCase().trim().replace(/\s+/g, ' ') : ''
+    const normalizedPlayerName = normalizeName(playerName)
+
     games.forEach(game => {
-      // Skip games without box scores or CPU games (different property structure)
-      if (!game.boxScore || game.isCPUGame) return
+      // Skip games without box scores
+      if (!game.boxScore) return
+      // CPU game detection: has team1/team2 but NO opponent field
+      const isCPUGame = !game.opponent && game.team1 && game.team2
+      if (isCPUGame) return
 
       // Check both home and away box scores for this player
       const statCategories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'blocking', 'punting', 'kickReturn', 'puntReturn']
@@ -310,7 +317,7 @@ export default function Player() {
         if (!game.boxScore[side]) continue
         for (const category of statCategories) {
           const categoryStats = game.boxScore[side][category] || []
-          const found = categoryStats.find(s => s.playerName === playerName)
+          const found = categoryStats.find(s => normalizeName(s.playerName) === normalizedPlayerName)
           if (found) {
             playerStats = { ...found, category }
             foundInTeam = side

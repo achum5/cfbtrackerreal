@@ -17,6 +17,324 @@ import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId } from '../dat
 const DynastyContext = createContext()
 
 // ============================================================================
+// GAME TYPE CONSTANTS - Unified game classification system
+// ============================================================================
+export const GAME_TYPES = {
+  REGULAR: 'regular',
+  CONFERENCE_CHAMPIONSHIP: 'conference_championship',
+  BOWL: 'bowl',
+  CFP_FIRST_ROUND: 'cfp_first_round',
+  CFP_QUARTERFINAL: 'cfp_quarterfinal',
+  CFP_SEMIFINAL: 'cfp_semifinal',
+  CFP_CHAMPIONSHIP: 'cfp_championship'
+}
+
+/**
+ * Detect game type from existing game flags
+ * Used during migration and for backwards compatibility
+ */
+export function detectGameType(game) {
+  if (game.gameType) return game.gameType // Already has type
+  if (game.isCFPChampionship) return GAME_TYPES.CFP_CHAMPIONSHIP
+  if (game.isCFPSemifinal) return GAME_TYPES.CFP_SEMIFINAL
+  if (game.isCFPQuarterfinal) return GAME_TYPES.CFP_QUARTERFINAL
+  if (game.isCFPFirstRound) return GAME_TYPES.CFP_FIRST_ROUND
+  if (game.isConferenceChampionship) return GAME_TYPES.CONFERENCE_CHAMPIONSHIP
+  if (game.isBowlGame) return GAME_TYPES.BOWL
+  return GAME_TYPES.REGULAR
+}
+
+/**
+ * Get games by type from unified games array
+ * @param {Object} dynasty - The dynasty object
+ * @param {string} gameType - One of GAME_TYPES values
+ * @param {number} [year] - Optional year filter
+ * @returns {Array} Games matching the type
+ */
+export function getGamesByType(dynasty, gameType, year = null) {
+  if (!dynasty) return []
+  const games = dynasty.games || []
+
+  return games.filter(g => {
+    const type = detectGameType(g)
+    if (type !== gameType) return false
+    if (year !== null && Number(g.year) !== Number(year)) return false
+    return true
+  })
+}
+
+/**
+ * Get all CFP games for a year (all CFP rounds)
+ */
+export function getCFPGames(dynasty, year) {
+  if (!dynasty) return []
+  const games = dynasty.games || []
+
+  return games.filter(g => {
+    if (Number(g.year) !== Number(year)) return false
+    const type = detectGameType(g)
+    return type === GAME_TYPES.CFP_FIRST_ROUND ||
+           type === GAME_TYPES.CFP_QUARTERFINAL ||
+           type === GAME_TYPES.CFP_SEMIFINAL ||
+           type === GAME_TYPES.CFP_CHAMPIONSHIP
+  })
+}
+
+/**
+ * Get a specific game by teams and year (for finding duplicates)
+ */
+export function findGameByTeams(dynasty, team1, team2, year, gameType = null) {
+  if (!dynasty) return null
+  const games = dynasty.games || []
+
+  return games.find(g => {
+    if (Number(g.year) !== Number(year)) return false
+
+    // Check if teams match (in either order)
+    const teamsMatch =
+      (g.team1 === team1 && g.team2 === team2) ||
+      (g.team1 === team2 && g.team2 === team1) ||
+      (g.userTeam === team1 && g.opponent === team2) ||
+      (g.userTeam === team2 && g.opponent === team1)
+
+    if (!teamsMatch) return false
+
+    // If gameType specified, check it matches
+    if (gameType && detectGameType(g) !== gameType) return false
+
+    return true
+  })
+}
+
+/**
+ * Migrate dynasty to unified game system
+ * Converts cfpResultsByYear, bowlGamesByYear, conferenceChampionshipsByYear to games[]
+ * Safe to run multiple times (idempotent)
+ */
+export function migrateToUnifiedGames(dynasty) {
+  if (!dynasty) return dynasty
+
+  const existingGames = [...(dynasty.games || [])]
+  const migratedGames = []
+  const processedKeys = new Set() // Track what we've processed to avoid duplicates
+
+  // Helper to generate a unique key for dedup
+  const getGameKey = (year, team1, team2, type) => {
+    const teams = [team1, team2].sort().join('-')
+    return `${year}-${teams}-${type}`
+  }
+
+  // Helper to check if game already exists
+  const gameExists = (year, team1, team2, type) => {
+    const key = getGameKey(year, team1, team2, type)
+    if (processedKeys.has(key)) return true
+
+    // Check in existing games array
+    const found = existingGames.find(g => {
+      const gType = detectGameType(g)
+      if (gType !== type) return false
+      if (Number(g.year) !== Number(year)) return false
+
+      const gTeam1 = g.team1 || g.userTeam
+      const gTeam2 = g.team2 || g.opponent
+      const matchedTeams = [gTeam1, gTeam2].sort().join('-')
+      return matchedTeams === [team1, team2].sort().join('-')
+    })
+
+    return !!found
+  }
+
+  // Process existing games - add gameType if missing
+  existingGames.forEach(game => {
+    const gameType = detectGameType(game)
+    const team1 = game.team1 || game.userTeam
+    const team2 = game.team2 || game.opponent
+    const key = getGameKey(game.year, team1, team2, gameType)
+
+    migratedGames.push({
+      ...game,
+      gameType,
+      // Normalize team fields
+      team1: team1,
+      team2: team2
+    })
+    processedKeys.add(key)
+  })
+
+  // Migrate CFP results
+  const cfpResults = dynasty.cfpResultsByYear || {}
+  Object.entries(cfpResults).forEach(([year, yearData]) => {
+    if (!yearData) return
+
+    // First Round
+    const firstRound = Array.isArray(yearData.firstRound) ? yearData.firstRound : []
+    firstRound.forEach(game => {
+      if (!game || !game.team1 || !game.team2) return
+      if (gameExists(year, game.team1, game.team2, GAME_TYPES.CFP_FIRST_ROUND)) return
+
+      const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.CFP_FIRST_ROUND)
+      processedKeys.add(key)
+
+      migratedGames.push({
+        id: game.id || `migrate-cfp-fr-${year}-${game.team1}-${game.team2}`,
+        year: Number(year),
+        gameType: GAME_TYPES.CFP_FIRST_ROUND,
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        cfpSeed1: game.seed1,
+        cfpSeed2: game.seed2,
+        isCFPFirstRound: true // Keep legacy flag for backwards compat
+      })
+    })
+
+    // Quarterfinals
+    const quarterfinals = Array.isArray(yearData.quarterfinals) ? yearData.quarterfinals : []
+    quarterfinals.forEach(game => {
+      if (!game || !game.team1 || !game.team2) return
+      if (gameExists(year, game.team1, game.team2, GAME_TYPES.CFP_QUARTERFINAL)) return
+
+      const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.CFP_QUARTERFINAL)
+      processedKeys.add(key)
+
+      migratedGames.push({
+        id: game.id || `migrate-cfp-qf-${year}-${game.team1}-${game.team2}`,
+        year: Number(year),
+        gameType: GAME_TYPES.CFP_QUARTERFINAL,
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        bowlName: game.bowlName,
+        cfpSeed1: game.seed1,
+        cfpSeed2: game.seed2,
+        isCFPQuarterfinal: true
+      })
+    })
+
+    // Semifinals
+    const semifinals = Array.isArray(yearData.semifinals) ? yearData.semifinals : []
+    semifinals.forEach(game => {
+      if (!game || !game.team1 || !game.team2) return
+      if (gameExists(year, game.team1, game.team2, GAME_TYPES.CFP_SEMIFINAL)) return
+
+      const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.CFP_SEMIFINAL)
+      processedKeys.add(key)
+
+      migratedGames.push({
+        id: game.id || `migrate-cfp-sf-${year}-${game.team1}-${game.team2}`,
+        year: Number(year),
+        gameType: GAME_TYPES.CFP_SEMIFINAL,
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        bowlName: game.bowlName,
+        cfpSeed1: game.seed1,
+        cfpSeed2: game.seed2,
+        isCFPSemifinal: true
+      })
+    })
+
+    // Championship
+    const championship = Array.isArray(yearData.championship) ? yearData.championship : []
+    championship.forEach(game => {
+      if (!game || !game.team1 || !game.team2) return
+      if (gameExists(year, game.team1, game.team2, GAME_TYPES.CFP_CHAMPIONSHIP)) return
+
+      const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.CFP_CHAMPIONSHIP)
+      processedKeys.add(key)
+
+      migratedGames.push({
+        id: game.id || `migrate-cfp-nc-${year}-${game.team1}-${game.team2}`,
+        year: Number(year),
+        gameType: GAME_TYPES.CFP_CHAMPIONSHIP,
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        cfpSeed1: game.seed1,
+        cfpSeed2: game.seed2,
+        isCFPChampionship: true
+      })
+    })
+  })
+
+  // Migrate Bowl results
+  const bowlResults = dynasty.bowlGamesByYear || {}
+  Object.entries(bowlResults).forEach(([year, yearData]) => {
+    if (!yearData) return
+
+    // Process week1 and week2 bowls
+    ['week1', 'week2'].forEach(weekKey => {
+      const weekGames = Array.isArray(yearData[weekKey]) ? yearData[weekKey] : []
+      weekGames.forEach(game => {
+        if (!game || !game.team1 || !game.team2) return
+        if (!game.bowlName) return // Skip if no bowl name
+        if (gameExists(year, game.team1, game.team2, GAME_TYPES.BOWL)) return
+
+        const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.BOWL)
+        processedKeys.add(key)
+
+        migratedGames.push({
+          id: game.id || `migrate-bowl-${year}-${game.bowlName.replace(/\s+/g, '-')}`,
+          year: Number(year),
+          gameType: GAME_TYPES.BOWL,
+          team1: game.team1,
+          team2: game.team2,
+          team1Score: game.team1Score,
+          team2Score: game.team2Score,
+          winner: game.winner,
+          bowlName: game.bowlName,
+          bowlWeek: weekKey,
+          isBowlGame: true
+        })
+      })
+    })
+  })
+
+  // Migrate Conference Championship results
+  const ccResults = dynasty.conferenceChampionshipsByYear || {}
+  Object.entries(ccResults).forEach(([year, yearData]) => {
+    if (!yearData) return
+
+    const games = Array.isArray(yearData) ? yearData : []
+    games.forEach(game => {
+      if (!game || !game.team1 || !game.team2) return
+      if (gameExists(year, game.team1, game.team2, GAME_TYPES.CONFERENCE_CHAMPIONSHIP)) return
+
+      const key = getGameKey(year, game.team1, game.team2, GAME_TYPES.CONFERENCE_CHAMPIONSHIP)
+      processedKeys.add(key)
+
+      migratedGames.push({
+        id: game.id || `migrate-cc-${year}-${game.conference || 'unknown'}`,
+        year: Number(year),
+        gameType: GAME_TYPES.CONFERENCE_CHAMPIONSHIP,
+        team1: game.team1,
+        team2: game.team2,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        winner: game.winner,
+        conference: game.conference,
+        isConferenceChampionship: true
+      })
+    })
+  })
+
+  return {
+    ...dynasty,
+    games: migratedGames,
+    // Mark as migrated to avoid re-running
+    _gamesMigrated: true
+  }
+}
+
+// ============================================================================
 // TEAM-CENTRIC HELPER FUNCTIONS
 // These functions get/set data specific to the current team and year
 // ============================================================================
@@ -113,8 +431,9 @@ export function getCurrentTeamGames(dynasty, year = null) {
   const allGames = dynasty.games || []
 
   return allGames.filter(g => {
-    // CPU games (team1/team2 matchups) are not tied to a specific user team
-    if (g.isCPUGame) return false
+    // CPU games (team1/team2 without userTeam) are not tied to a specific user team
+    // Skip games that have team1/team2 but no userTeam - these are CPU vs CPU games
+    if (!g.userTeam && g.team1 && g.team2) return false
 
     // Check if game belongs to current team
     const gameTeam = g.userTeam
@@ -481,6 +800,15 @@ export function DynastyProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [migrated, setMigrated] = useState(false)
 
+  // Helper to apply game migration to dynasties
+  const applyGameMigration = (dynastyList) => {
+    return dynastyList.map(dynasty => {
+      // Skip if already migrated
+      if (dynasty._gamesMigrated) return dynasty
+      return migrateToUnifiedGames(dynasty)
+    })
+  }
+
   // Load dynasties when user changes
   useEffect(() => {
     // In dev mode, use localStorage fallback (even without user)
@@ -491,7 +819,9 @@ export function DynastyProvider({ children }) {
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
-          setDynasties(parsed)
+          // Apply game migration to all dynasties
+          const migratedDynasties = applyGameMigration(parsed)
+          setDynasties(migratedDynasties)
         } catch (error) {
           console.error('Error loading dynasties:', error)
         }
@@ -523,12 +853,14 @@ export function DynastyProvider({ children }) {
 
     // Subscribe to real-time updates
     const unsubscribe = subscribeToDynasties(user.uid, (firestoreDynasties) => {
-      setDynasties(firestoreDynasties)
+      // Apply game migration to all dynasties from Firestore
+      const migratedDynasties = applyGameMigration(firestoreDynasties)
+      setDynasties(migratedDynasties)
       setLoading(false)
 
       // Update current dynasty if it's in the list
       if (currentDynasty) {
-        const updated = firestoreDynasties.find(d => d.id === currentDynasty.id)
+        const updated = migratedDynasties.find(d => d.id === currentDynasty.id)
         if (updated) {
           setCurrentDynasty(updated)
         } else {
@@ -798,8 +1130,10 @@ export function DynastyProvider({ children }) {
 
     // CRITICAL: Always store the actual team abbreviation for user games
     // This ensures games are correctly attributed when user switches teams
+    // CPU games are identified by having team1/team2 but no userTeam
     const currentUserTeam = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
-    if (!cleanGameData.isCPUGame) {
+    const isCPUGame = cleanGameData.team1 && cleanGameData.team2 && !cleanGameData.userTeam
+    if (!isCPUGame) {
       cleanGameData.userTeam = currentUserTeam
     }
 
@@ -1086,21 +1420,22 @@ export function DynastyProvider({ children }) {
 
         return {
           id: `bowl-${year}-${bowl.bowlName?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
-          isCPUGame: !isUserBowlGame, // User's bowl game is not a CPU game
+          // No isCPUGame flag - CPU games identified by absence of userTeam
           isBowlGame: true,
           bowlName: bowl.bowlName,
           bowlWeek: week,
           year: Number(year),
           week: 'Bowl',
           location: 'neutral',
+          gameType: GAME_TYPES.BOWL,
           // Store both teams' data
           team1: bowl.team1,
           team2: bowl.team2,
           team1Score: team1Score,
           team2Score: team2Score,
           winner: winner,
-          // For user's game, set userTeam properly
-          userTeam: isUserBowlGame ? userTeamAbbr : winner,
+          // For user's game, set userTeam properly; CPU games have no userTeam
+          ...(isUserBowlGame && { userTeam: userTeamAbbr }),
           // For display purposes
           viewingTeamAbbr: isUserBowlGame ? userTeamAbbr : winner,
           opponent: isUserBowlGame
@@ -1186,20 +1521,21 @@ export function DynastyProvider({ children }) {
 
         return {
           id: `cc-${year}-${cc.conference?.replace(/\s+/g, '-').toLowerCase() || Date.now()}`,
-          isCPUGame: !isUserCCGame, // User's CC game is not a CPU game
+          // No isCPUGame flag - CPU games identified by absence of userTeam
           isConferenceChampionship: true,
           conference: cc.conference,
           year: Number(year),
           week: 'CCG',
           location: 'neutral',
+          gameType: GAME_TYPES.CONFERENCE_CHAMPIONSHIP,
           // Store both teams' data
           team1: cc.team1,
           team2: cc.team2,
           team1Score: team1Score,
           team2Score: team2Score,
           winner: winner,
-          // For user's game, set userTeam properly
-          userTeam: isUserCCGame ? userTeamAbbr : winner,
+          // For user's game, set userTeam properly; CPU games have no userTeam
+          ...(isUserCCGame && { userTeam: userTeamAbbr }),
           // For display purposes
           viewingTeamAbbr: isUserCCGame ? userTeamAbbr : winner,
           opponent: isUserCCGame
@@ -1364,7 +1700,7 @@ export function DynastyProvider({ children }) {
         const currentTeamGames = (dynasty.games || []).filter(g =>
           g.userTeam === dynasty.teamName ||
           g.userTeam === getAbbreviationFromDisplayName(dynasty.teamName) ||
-          (!g.userTeam && !g.isCPUGame) // Legacy games without userTeam field
+          (!g.userTeam && !g.team1 && !g.team2) // Legacy games without userTeam (not CPU games which have team1/team2)
         )
         const currentStintGames = currentTeamGames.filter(g => {
           // Get the start year of the current stint
@@ -1423,8 +1759,8 @@ export function DynastyProvider({ children }) {
         const taggedGames = existingGames.map(g => {
           // If game already has userTeam field, keep it
           if (g.userTeam) return g
-          // CPU games don't need userTeam (they have team1/team2)
-          if (g.isCPUGame) return g
+          // CPU games don't need userTeam - they're identified by having team1/team2 but no userTeam
+          if (g.team1 && g.team2) return g
           // Tag legacy user game with the current team
           return { ...g, userTeam: currentTeamAbbr }
         })

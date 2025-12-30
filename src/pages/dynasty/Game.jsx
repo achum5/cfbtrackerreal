@@ -354,7 +354,8 @@ export default function Game() {
           id: gameId,
           year,
           isPlayoff: true,
-          isCPUGame: !isUserGame,
+          // userTeam field indicates user involvement (no field = CPU game)
+          ...(isUserGame && { userTeam: userTeamAbbr }),
           gameTitle: displayName,
           bowlName: displayName,
           ...roundInfo
@@ -391,7 +392,7 @@ export default function Game() {
           id: gameId,
           year: year,
           isConferenceChampionship: true,
-          isCPUGame: true,
+          // No userTeam field = CPU game (legacy CC from conferenceChampionshipsByYear)
           gameTitle: `${ccGame.conference} Championship`
         }
       }
@@ -424,7 +425,7 @@ export default function Game() {
             id: gameId,
             year: year,
             isBowlGame: true,
-            isCPUGame: true,
+            // No userTeam field = CPU game (legacy bowl from bowlGamesByYear)
             viewingTeamAbbr: winner,
             gameTitle: bowlGame.bowlName
           }
@@ -469,8 +470,8 @@ export default function Game() {
   const userTeam = currentDynasty.teamName
   const userTeamAbbr = getAbbreviationFromDisplayName(userTeam)
 
-  // Check if this is a CPU vs CPU game
-  const isCPUGame = game.isCPUGame || (game.team1 && game.team2 && game.team1 !== userTeamAbbr && game.team2 !== userTeamAbbr)
+  // Check if this is a CPU vs CPU game (no userTeam field = CPU game)
+  const isCPUGame = !game.userTeam && game.team1 && game.team2 && game.team1 !== userTeamAbbr && game.team2 !== userTeamAbbr
 
   // For CPU games, determine viewing perspective
   let displayTeam, displayTeamAbbr, opponent, opponentAbbr
@@ -518,7 +519,8 @@ export default function Game() {
     if (isCPUGame) return null
 
     const allGames = currentDynasty?.games || []
-    const yearGames = allGames.filter(g => Number(g.year) === Number(game.year) && !g.isCPUGame)
+    // Filter for user games (games with userTeam set, or legacy games with userTeam/opponent fields)
+    const yearGames = allGames.filter(g => Number(g.year) === Number(game.year) && (g.userTeam || (!g.team1 && g.opponent)))
 
     const getGameOrder = (g) => {
       if (typeof g.week === 'number' && g.week >= 1 && g.week <= 14 &&
@@ -672,7 +674,7 @@ export default function Game() {
     gameSubtitle = `${game.year} Bowl Season`
   } else {
     gameTitle = typeof game.week === 'number' ? `Week ${game.week}` : (game.week || 'Game')
-    gameSubtitle = `${game.year} ${location === 'home' ? 'Home' : location === 'away' ? 'Away' : 'Neutral Site'}`
+    gameSubtitle = `${game.year} Regular Season`
   }
 
   // Get logos
@@ -775,10 +777,21 @@ export default function Game() {
                 <img src={eventLogo} alt="Event" className="w-full h-full object-contain" />
               </div>
             )}
-            <div className="text-white text-center">
-              <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
-              <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
-            </div>
+            {/* CFP games link to CFP Bracket page */}
+            {(game.isCFPFirstRound || game.isCFPQuarterfinal || game.isCFPSemifinal || game.isCFPChampionship) ? (
+              <Link
+                to={`${pathPrefix}/cfp-bracket/${game.year}`}
+                className="text-white text-center hover:underline"
+              >
+                <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
+                <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
+              </Link>
+            ) : (
+              <div className="text-white text-center">
+                <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
+                <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
+              </div>
+            )}
           </div>
 
           {!pathPrefix.startsWith('/view/') ? (

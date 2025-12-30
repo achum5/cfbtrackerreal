@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getGamesByType, GAME_TYPES, detectGameType } from '../../context/DynastyContext'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -150,52 +150,52 @@ export default function CFPBracket() {
 
   const getTeamBySeed = (seed) => cfpSeeds.find(s => s.seed === seed)?.team || null
 
-  // Get CFP results from cfpResultsByYear - this is the source of truth
-  const cfpResults = currentDynasty.cfpResultsByYear?.[displayYear] || {}
+  // UNIFIED: Get CFP results from games[] array with gameType filter
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-  const allGames = currentDynasty.games || []
 
-  // Convert a user game from games[] to bracket format
-  const convertUserGame = (game) => {
-    const userScore = parseInt(game.teamScore)
-    const oppScore = parseInt(game.opponentScore)
-    // Handle both 'W' and 'win' result formats
-    const userWon = game.result === 'W' || game.result === 'win'
+  // Helper to normalize a game from games[] to bracket display format
+  const normalizeGame = (game) => {
+    if (!game) return null
+    // Handle both user games (userTeam/opponent) and CPU games (team1/team2)
+    const team1 = game.team1 || game.userTeam
+    const team2 = game.team2 || game.opponent
+    let team1Score, team2Score, winner
+
+    if (game.team1Score !== undefined) {
+      team1Score = game.team1Score
+      team2Score = game.team2Score
+      winner = game.winner
+    } else if (game.teamScore !== undefined) {
+      // User game format
+      const userWon = game.result === 'W' || game.result === 'win'
+      if (game.userTeam === team1) {
+        team1Score = parseInt(game.teamScore)
+        team2Score = parseInt(game.opponentScore)
+        winner = userWon ? team1 : team2
+      } else {
+        team1Score = parseInt(game.opponentScore)
+        team2Score = parseInt(game.teamScore)
+        winner = userWon ? team2 : team1
+      }
+    }
+
     return {
-      team1: userTeamAbbr,
-      team2: game.opponent,
-      team1Score: userScore,
-      team2Score: oppScore,
-      winner: userWon ? userTeamAbbr : game.opponent,
-      seed1: game.seed1,
-      seed2: game.seed2,
-      bowlName: game.bowlName
+      ...game,
+      team1,
+      team2,
+      team1Score,
+      team2Score,
+      winner,
+      seed1: game.cfpSeed1 || game.seed1,
+      seed2: game.cfpSeed2 || game.seed2
     }
   }
 
-  // Get user's CFP games from games[] array (if any)
-  const getUserGame = (cfpFlag) => {
-    const game = allGames.find(g => g[cfpFlag] && Number(g.year) === Number(displayYear) && !g.isCPUGame)
-    return game ? convertUserGame(game) : null
-  }
-
-  // Merge stored results with user games from games[] array
-  // User games take priority (they're the user's actual results)
-  const mergeWithUserGame = (storedResults, userGame) => {
-    if (!userGame) return storedResults
-    // Replace any game involving the user's team, or add if not found
-    const filtered = storedResults.filter(g =>
-      g.team1 !== userTeamAbbr && g.team2 !== userTeamAbbr &&
-      g.team1 !== userGame.team2 && g.team2 !== userGame.team2
-    )
-    return [...filtered, userGame]
-  }
-
-  // Get results arrays - merge cfpResultsByYear with user games from games[]
-  const firstRoundResults = mergeWithUserGame(cfpResults.firstRound || [], getUserGame('isCFPFirstRound'))
-  const quarterfinalsResults = mergeWithUserGame(cfpResults.quarterfinals || [], getUserGame('isCFPQuarterfinal'))
-  const semifinalsResults = mergeWithUserGame(cfpResults.semifinals || [], getUserGame('isCFPSemifinal'))
-  const championshipResults = mergeWithUserGame(cfpResults.championship || [], getUserGame('isCFPChampionship'))
+  // Get CFP games from unified games[] array by game type
+  const firstRoundResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_FIRST_ROUND, displayYear).map(normalizeGame)
+  const quarterfinalsResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_QUARTERFINAL, displayYear).map(normalizeGame)
+  const semifinalsResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, displayYear).map(normalizeGame)
+  const championshipResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_CHAMPIONSHIP, displayYear).map(normalizeGame)
 
   // Simple lookup helpers - just find games by their stored properties
   const getFirstRoundGame = (seed1, seed2) => {
@@ -540,87 +540,125 @@ export default function CFPBracket() {
   // Handle game save from GameEntryModal
   const handleGameSave = async (gameData) => {
     try {
-      // Map round names to storage keys (handle both singular and plural)
+      // Map round names to gameType
       const round = editingGameData.round
+      const gameType = (round === 'First Round') ? GAME_TYPES.CFP_FIRST_ROUND
+        : (round === 'Quarterfinal' || round === 'Quarterfinals') ? GAME_TYPES.CFP_QUARTERFINAL
+        : (round === 'Semifinal' || round === 'Semifinals') ? GAME_TYPES.CFP_SEMIFINAL
+        : GAME_TYPES.CFP_CHAMPIONSHIP
+
+      // Get legacy flag for backwards compatibility
+      const cfpFlag = (round === 'First Round') ? 'isCFPFirstRound'
+        : (round === 'Quarterfinal' || round === 'Quarterfinals') ? 'isCFPQuarterfinal'
+        : (round === 'Semifinal' || round === 'Semifinals') ? 'isCFPSemifinal'
+        : 'isCFPChampionship'
+
+      const team1Score = parseInt(gameData.team1Score)
+      const team2Score = parseInt(gameData.team2Score)
+      const winner = team1Score > team2Score ? gameData.team1 : gameData.team2
+
+      // Find existing game in games[] array
+      const existingGames = currentDynasty.games || []
+      const originalGame = editingGameData.originalGameData
+      const gameIndex = existingGames.findIndex(g => {
+        if (detectGameType(g) !== gameType) return false
+        if (Number(g.year) !== Number(displayYear)) return false
+        // Match by seeds for First Round
+        if (originalGame?.seed1 !== undefined && g.cfpSeed1 !== undefined) {
+          return g.cfpSeed1 === originalGame.seed1 && g.cfpSeed2 === originalGame.seed2
+        }
+        // Match by bowlName for other rounds
+        if (originalGame?.bowlName && g.bowlName) {
+          return g.bowlName === originalGame.bowlName
+        }
+        // Fallback: exact team match
+        const gTeam1 = g.team1 || g.userTeam
+        const gTeam2 = g.team2 || g.opponent
+        return (gTeam1 === gameData.team1 && gTeam2 === gameData.team2) ||
+               (gTeam1 === gameData.team2 && gTeam2 === gameData.team1)
+      })
+
+      // Build the updated game
+      // Note: CPU games are identified by having team1/team2 but no userTeam - no isCPUGame flag needed
+      const updatedGame = {
+        ...(gameIndex >= 0 ? existingGames[gameIndex] : {}),
+        ...(originalGame || {}),
+        id: gameIndex >= 0 ? existingGames[gameIndex].id : `cfp-${displayYear}-${gameType}-${Date.now()}`,
+        year: displayYear,
+        gameType,
+        team1: gameData.team1,
+        team2: gameData.team2,
+        team1Score,
+        team2Score,
+        winner,
+        bowlName: editingGameData.bowlName,
+        cfpSeed1: originalGame?.seed1 || editingGameData.seed1,
+        cfpSeed2: originalGame?.seed2 || editingGameData.seed2,
+        gameNote: gameData.gameNote || '',
+        links: gameData.links || '',
+        [cfpFlag]: true, // Legacy flag
+        // Preserve userTeam if set (for user's CFP games)
+        ...(gameData.userTeam && { userTeam: gameData.userTeam })
+      }
+
+      // Update games array
+      const newGames = [...existingGames]
+      if (gameIndex >= 0) {
+        newGames[gameIndex] = updatedGame
+      } else {
+        newGames.push(updatedGame)
+      }
+
+      // Also update legacy cfpResultsByYear for backwards compatibility
       const roundKey = (round === 'First Round') ? 'firstRound'
         : (round === 'Quarterfinal' || round === 'Quarterfinals') ? 'quarterfinals'
         : (round === 'Semifinal' || round === 'Semifinals') ? 'semifinals'
         : 'championship'
 
-      if (gameData.isCPUGame) {
-        // CPU vs CPU game - save to cfpResultsByYear
-        // BULLETPROOF: Since we now edit using original team order, just save directly
-        const existingCFP = currentDynasty.cfpResultsByYear || {}
-        const existingYear = existingCFP[displayYear] || {}
-        const existingRound = existingYear[roundKey] || []
-        const originalGame = editingGameData.originalGameData
+      const existingCFP = currentDynasty.cfpResultsByYear || {}
+      const existingYear = existingCFP[displayYear] || {}
+      const existingRound = existingYear[roundKey] || []
 
-        // Find the game using seeds (First Round) or bowlName (other rounds)
-        const gameIndex = existingRound.findIndex(g => {
-          if (originalGame) {
-            // Match by seeds for First Round
-            if (originalGame.seed1 !== undefined && g.seed1 !== undefined) {
-              return g.seed1 === originalGame.seed1 && g.seed2 === originalGame.seed2
-            }
-            // Match by bowlName for other rounds
-            if (originalGame.bowlName && g.bowlName) {
-              return g.bowlName === originalGame.bowlName
-            }
-          }
-          // Fallback: exact team match (since editor uses original order)
-          return g.team1 === gameData.team1 && g.team2 === gameData.team2
-        })
-
-        // Scores come directly from editor in original team order - no mapping needed
-        const team1Score = parseInt(gameData.team1Score)
-        const team2Score = parseInt(gameData.team2Score)
-        const winner = team1Score > team2Score ? gameData.team1 : gameData.team2
-
-        // Build new game preserving ALL original fields (seeds, etc.)
-        const newGame = {
-          ...(originalGame || {}),
-          team1: gameData.team1,
-          team2: gameData.team2,
-          team1Score: team1Score,
-          team2Score: team2Score,
-          winner: winner,
-          bowlName: editingGameData.bowlName,
-          gameNote: gameData.gameNote || '',
-          links: gameData.links || ''
-        }
-
-        const newRound = [...existingRound]
-        if (gameIndex >= 0) {
-          newRound[gameIndex] = newGame
-        } else {
-          newRound.push(newGame)
-        }
-
-        await updateDynasty(currentDynasty.id, {
-          cfpResultsByYear: {
-            ...existingCFP,
-            [displayYear]: {
-              ...existingYear,
-              [roundKey]: newRound
-            }
-          }
-        })
-      } else {
-        // User's CFP game - use addGame which handles both games array AND cfpResultsByYear
-        const cfpFlag = roundKey === 'firstRound' ? 'isCFPFirstRound'
-          : roundKey === 'quarterfinals' ? 'isCFPQuarterfinal'
-          : roundKey === 'semifinals' ? 'isCFPSemifinal'
-          : 'isCFPChampionship'
-
-        await addGame(currentDynasty.id, {
-          ...gameData,
-          opponent: gameData.opponent || editingGameData.opponent,
-          year: displayYear,
-          bowlName: editingGameData.bowlName,
-          [cfpFlag]: true,
-          location: 'neutral'
-        })
+      const legacyGame = {
+        team1: gameData.team1,
+        team2: gameData.team2,
+        team1Score,
+        team2Score,
+        winner,
+        bowlName: editingGameData.bowlName,
+        seed1: originalGame?.seed1 || editingGameData.seed1,
+        seed2: originalGame?.seed2 || editingGameData.seed2,
+        gameNote: gameData.gameNote || '',
+        links: gameData.links || ''
       }
+
+      const legacyIndex = existingRound.findIndex(g => {
+        if (originalGame?.seed1 !== undefined && g.seed1 !== undefined) {
+          return g.seed1 === originalGame.seed1 && g.seed2 === originalGame.seed2
+        }
+        if (originalGame?.bowlName && g.bowlName) {
+          return g.bowlName === originalGame.bowlName
+        }
+        return g.team1 === gameData.team1 && g.team2 === gameData.team2
+      })
+
+      const newRound = [...existingRound]
+      if (legacyIndex >= 0) {
+        newRound[legacyIndex] = legacyGame
+      } else {
+        newRound.push(legacyGame)
+      }
+
+      await updateDynasty(currentDynasty.id, {
+        games: newGames,
+        cfpResultsByYear: {
+          ...existingCFP,
+          [displayYear]: {
+            ...existingYear,
+            [roundKey]: newRound
+          }
+        }
+      })
 
       setShowEditModal(false)
       setEditingGameData(null)
