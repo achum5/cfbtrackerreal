@@ -851,9 +851,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               {renderSectionHeader('basic', 'Basic Information')}
               {isExpanded('basic') && (
                 <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
-                  {/* Picture URL */}
+                  {/* Player Picture */}
                   <div>
-                    <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Picture URL</label>
+                    <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Player Picture</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -861,7 +861,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                         value={formData.pictureUrl ?? ''}
                         onChange={handleChange}
                         onPaste={handlePaste}
-                        placeholder="Paste image or enter URL..."
+                        placeholder="Paste image here (Ctrl+V) or enter URL..."
                         className="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm"
                         style={inputStyle}
                       />
