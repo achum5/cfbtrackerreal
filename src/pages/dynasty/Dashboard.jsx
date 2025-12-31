@@ -5626,52 +5626,54 @@ export default function Dashboard() {
                       const hasPortalTransfers = portalTransfersForClass.length > 0
                       const hasPortalTransferClassData = currentDynasty?.portalTransferClassByYear?.[offseasonDataYear]?.length > 0
                       const isBlocked = !hasCommitmentsData // Blocked until Signing Day (Task 1) is complete
-
-                      if (!hasPortalTransfers) return null
+                      // Task is complete if: no portal transfers exist, OR class data has been saved
+                      const isComplete = (!hasPortalTransfers && hasCommitmentsData) || hasPortalTransferClassData
 
                       return (
                         <div
                           className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasPortalTransferClassData ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
+                            isComplete ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
                           }`}
-                          style={!hasPortalTransferClassData && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !hasPortalTransferClassData ? { borderColor: '#9ca3af' } : {}}
+                          style={!isComplete && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !isComplete ? { borderColor: '#9ca3af' } : {}}
                         >
                           <div className="flex items-center gap-2 sm:gap-3">
                             <div
                               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                hasPortalTransferClassData ? 'bg-green-500 text-white' : ''
+                                isComplete ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasPortalTransferClassData ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
+                              style={!isComplete ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
                             >
-                              {hasPortalTransferClassData ? (
+                              {isComplete ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : <span className="font-bold text-sm sm:text-base">5</span>}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasPortalTransferClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: isComplete ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
                                 Portal Transfer Class Assignment
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasPortalTransferClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: isComplete ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
                                 {isBlocked
                                   ? 'Complete Signing Day first'
-                                  : hasPortalTransferClassData
-                                    ? `✓ ${portalTransfersForClass.length} transfer class${portalTransfersForClass.length !== 1 ? 'es' : ''} assigned`
-                                    : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`}
+                                  : !hasPortalTransfers
+                                    ? '✓ No portal transfers to assign'
+                                    : hasPortalTransferClassData
+                                      ? `✓ ${portalTransfersForClass.length} transfer class${portalTransfersForClass.length !== 1 ? 'es' : ''} assigned`
+                                      : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`}
                               </div>
                             </div>
                           </div>
                           <button
                             onClick={() => setShowPortalTransferClassModal(true)}
-                            disabled={isBlocked}
+                            disabled={isBlocked || !hasPortalTransfers}
                             className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
                             style={{
-                              backgroundColor: isBlocked ? '#9ca3af' : teamColors.primary,
-                              color: isBlocked ? '#ffffff' : primaryBgText
+                              backgroundColor: (isBlocked || !hasPortalTransfers) ? '#9ca3af' : teamColors.primary,
+                              color: (isBlocked || !hasPortalTransfers) ? '#ffffff' : primaryBgText
                             }}
                           >
-                            {hasPortalTransferClassData ? 'Edit' : 'Open'}
+                            {isComplete ? 'Done' : 'Open'}
                           </button>
                         </div>
                       )
@@ -5756,52 +5758,54 @@ export default function Dashboard() {
                       const hasFringeCases = fringeCasePlayers.length > 0
                       const hasFringeCaseClassData = currentDynasty?.fringeCaseClassByYear?.[offseasonDataYear]?.length > 0
                       const isBlocked = !hasCommitmentsData // Blocked until Signing Day (Task 1) is complete
-
-                      if (!hasFringeCases) return null
+                      // Task is complete if: no fringe cases exist, OR class data has been saved
+                      const isComplete = (!hasFringeCases && hasCommitmentsData) || hasFringeCaseClassData
 
                       return (
                         <div
                           className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasFringeCaseClassData ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
+                            isComplete ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
                           }`}
-                          style={!hasFringeCaseClassData && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !hasFringeCaseClassData ? { borderColor: '#9ca3af' } : {}}
+                          style={!isComplete && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !isComplete ? { borderColor: '#9ca3af' } : {}}
                         >
                           <div className="flex items-center gap-2 sm:gap-3">
                             <div
                               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                hasFringeCaseClassData ? 'bg-green-500 text-white' : ''
+                                isComplete ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasFringeCaseClassData ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
+                              style={!isComplete ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
                             >
-                              {hasFringeCaseClassData ? (
+                              {isComplete ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : <span className="font-bold text-sm sm:text-base">6</span>}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasFringeCaseClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: isComplete ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
                                 Fringe Case Class Assignment
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasFringeCaseClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: isComplete ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
                                 {isBlocked
                                   ? 'Complete Signing Day first'
-                                  : hasFringeCaseClassData
-                                    ? `✓ ${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} resolved`
-                                    : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`}
+                                  : !hasFringeCases
+                                    ? '✓ No fringe cases to resolve'
+                                    : hasFringeCaseClassData
+                                      ? `✓ ${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} resolved`
+                                      : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`}
                               </div>
                             </div>
                           </div>
                           <button
                             onClick={() => setShowFringeCaseClassModal(true)}
-                            disabled={isBlocked}
+                            disabled={isBlocked || !hasFringeCases}
                             className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
                             style={{
-                              backgroundColor: isBlocked ? '#9ca3af' : teamColors.primary,
-                              color: isBlocked ? '#ffffff' : primaryBgText
+                              backgroundColor: (isBlocked || !hasFringeCases) ? '#9ca3af' : teamColors.primary,
+                              color: (isBlocked || !hasFringeCases) ? '#ffffff' : primaryBgText
                             }}
                           >
-                            {hasFringeCaseClassData ? 'Edit' : 'Open'}
+                            {isComplete ? 'Done' : 'Open'}
                           </button>
                         </div>
                       )
