@@ -8,7 +8,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const [expandedSections, setExpandedSections] = useState([])
   const [selectedStatsYear, setSelectedStatsYear] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [showQuickImageModal, setShowQuickImageModal] = useState(false)
   const fileInputRef = useRef(null)
+  const quickFileInputRef = useRef(null)
 
   // Upload image to ImgBB
   const uploadToImgBB = async (file) => {
@@ -780,24 +782,42 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {formData.pictureUrl ? (
-                  <img
-                    src={formData.pictureUrl}
-                    alt=""
-                    className="w-12 h-12 rounded-full object-cover border-2"
-                    style={{ borderColor: teamColors.secondary }}
-                    onError={(e) => e.target.style.display = 'none'}
-                  />
-                ) : (
+                {/* Clickable image/placeholder for quick upload */}
+                <button
+                  type="button"
+                  onClick={() => setShowQuickImageModal(true)}
+                  className="relative group"
+                  title="Click to add/change photo"
+                >
+                  {formData.pictureUrl ? (
+                    <img
+                      src={formData.pictureUrl}
+                      alt=""
+                      className="w-12 h-12 rounded-full object-cover border-2 group-hover:opacity-80 transition-opacity"
+                      style={{ borderColor: teamColors.secondary }}
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  ) : (
+                    <div
+                      className="w-12 h-12 rounded-full flex items-center justify-center group-hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: `${teamColors.secondary}30` }}
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke={primaryText} viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                    </div>
+                  )}
+                  {/* Camera overlay icon */}
                   <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: `${teamColors.secondary}30` }}
+                    className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: teamColors.secondary }}
                   >
-                    <svg className="w-6 h-6" fill="none" stroke={primaryText} viewBox="0 0 24 24" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    <svg className="w-3 h-3" fill="none" stroke={secondaryText} viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
                     </svg>
                   </div>
-                )}
+                </button>
                 <div>
                   <h2 className="text-xl font-bold" style={{ color: primaryText }}>
                     {formData.name || 'Edit Player'}
@@ -1697,6 +1717,92 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                     />
                   </div>
 
+                  {/* Media - Image Upload */}
+                  <div>
+                    <label className="block text-xs font-medium mb-2" style={labelStyle}>Media</label>
+                    <div
+                      className="border-2 border-dashed rounded-lg p-4 text-center cursor-text"
+                      style={{ borderColor: `${teamColors.primary}50` }}
+                      tabIndex={0}
+                      onPaste={async (e) => {
+                        const items = e.clipboardData?.items
+                        if (!items) return
+                        for (const item of items) {
+                          if (item.type.startsWith('image/')) {
+                            e.preventDefault()
+                            const file = item.getAsFile()
+                            if (file) {
+                              const url = await uploadToImgBB(file)
+                              if (url) {
+                                setFormData(prev => ({ ...prev, pictureUrl: url }))
+                              }
+                            }
+                            return
+                          }
+                        }
+                      }}
+                    >
+                      {uploading ? (
+                        <div className="flex items-center justify-center gap-2 py-2">
+                          <svg className="animate-spin h-5 w-5" style={{ color: teamColors.primary }} viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span className="text-sm font-medium" style={{ color: secondaryText }}>Uploading...</span>
+                        </div>
+                      ) : formData.pictureUrl ? (
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={formData.pictureUrl}
+                            alt=""
+                            className="w-16 h-16 rounded-lg object-cover border-2"
+                            style={{ borderColor: teamColors.primary }}
+                          />
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium mb-1" style={{ color: secondaryText }}>Player Photo</p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setShowQuickImageModal(true)}
+                                className="text-xs px-2 py-1 rounded"
+                                style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                              >
+                                Change
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, pictureUrl: '' }))}
+                                className="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-2">
+                          <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke={teamColors.primary} viewBox="0 0 24 24" strokeWidth={1.5} opacity={0.7}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                          </svg>
+                          <p className="text-sm mb-1" style={{ color: secondaryText }}>
+                            <span className="font-medium">Paste image here</span> or{' '}
+                            <button
+                              type="button"
+                              onClick={() => setShowQuickImageModal(true)}
+                              className="font-medium underline"
+                              style={{ color: teamColors.primary }}
+                            >
+                              upload
+                            </button>
+                          </p>
+                          <p className="text-xs" style={{ color: secondaryText, opacity: 0.6 }}>
+                            Supports screenshots & image files
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Links */}
                   <div>
                     <label className="block text-xs font-medium mb-2" style={labelStyle}>Links</label>
@@ -1788,6 +1894,163 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
           </div>
         </form>
       </div>
+
+      {/* Quick Image Upload Modal */}
+      {showQuickImageModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setShowQuickImageModal(false)}
+        >
+          <div
+            className="rounded-xl max-w-sm w-full overflow-hidden shadow-2xl"
+            style={{ backgroundColor: teamColors.secondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4" style={{ backgroundColor: teamColors.primary }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold" style={{ color: primaryText }}>
+                  {formData.pictureUrl ? 'Change Photo' : 'Add Photo'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickImageModal(false)}
+                  className="p-1 rounded-lg hover:bg-white/10"
+                  style={{ color: primaryText }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Current image preview */}
+              {formData.pictureUrl && (
+                <div className="flex justify-center">
+                  <img
+                    src={formData.pictureUrl}
+                    alt=""
+                    className="w-24 h-24 rounded-full object-cover border-4"
+                    style={{ borderColor: teamColors.primary }}
+                  />
+                </div>
+              )}
+
+              {/* Paste area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-text"
+                style={{ borderColor: teamColors.primary }}
+                tabIndex={0}
+                onPaste={async (e) => {
+                  const items = e.clipboardData?.items
+                  if (!items) return
+                  for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                      e.preventDefault()
+                      const file = item.getAsFile()
+                      if (file) {
+                        const url = await uploadToImgBB(file)
+                        if (url) {
+                          setFormData(prev => ({ ...prev, pictureUrl: url }))
+                          setShowQuickImageModal(false)
+                        }
+                      }
+                      return
+                    }
+                  }
+                }}
+              >
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="animate-spin h-8 w-8" style={{ color: teamColors.primary }} viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <p className="text-sm font-medium" style={{ color: secondaryText }}>Uploading...</p>
+                  </div>
+                ) : (
+                  <>
+                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke={teamColors.primary} viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15" />
+                    </svg>
+                    <p className="text-sm font-medium mb-1" style={{ color: secondaryText }}>
+                      Click here and paste image (Ctrl+V)
+                    </p>
+                    <p className="text-xs" style={{ color: secondaryText, opacity: 0.7 }}>
+                      Works with screenshots & copied images
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Or divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: `${teamColors.primary}30` }} />
+                <span className="text-xs font-medium" style={{ color: secondaryText, opacity: 0.7 }}>or</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: `${teamColors.primary}30` }} />
+              </div>
+
+              {/* File upload button */}
+              <input
+                type="file"
+                ref={quickFileInputRef}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file')
+                    return
+                  }
+                  if (file.size > 32 * 1024 * 1024) {
+                    alert('Image must be less than 32MB')
+                    return
+                  }
+                  const url = await uploadToImgBB(file)
+                  if (url) {
+                    setFormData(prev => ({ ...prev, pictureUrl: url }))
+                    setShowQuickImageModal(false)
+                  }
+                  e.target.value = ''
+                }}
+                accept="image/*"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => quickFileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: teamColors.primary,
+                  color: primaryText,
+                  opacity: uploading ? 0.7 : 1
+                }}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Choose from Device
+              </button>
+
+              {/* Remove photo button if exists */}
+              {formData.pictureUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, pictureUrl: '' }))
+                    setShowQuickImageModal(false)
+                  }}
+                  className="w-full py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Remove Photo
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
