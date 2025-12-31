@@ -10,7 +10,6 @@ import { teamAbbreviations, getAbbreviationFromDisplayName, getTeamName } from '
 const STAT_CATEGORIES = {
   passing: {
     name: 'Passing',
-    icon: '🏈',
     minNote: 'Rate stats require minimum 150 pass attempts (career) / 50 attempts (season)',
     stats: [
       { key: 'completions', label: 'Completions', abbr: 'CMP', field: 'Completions' },
@@ -29,7 +28,6 @@ const STAT_CATEGORIES = {
   },
   rushing: {
     name: 'Rushing',
-    icon: '🏃',
     minNote: 'Rate stats require minimum 100 rush attempts (career) / 25 attempts (season)',
     stats: [
       { key: 'attempts', label: 'Rush Attempts', abbr: 'ATT', field: 'Carries' },
@@ -40,7 +38,6 @@ const STAT_CATEGORIES = {
   },
   receiving: {
     name: 'Receiving',
-    icon: '🙌',
     minNote: 'Rate stats require minimum 50 receptions (career) / 10 receptions (season)',
     stats: [
       { key: 'receptions', label: 'Receptions', abbr: 'REC', field: 'Receptions' },
@@ -51,7 +48,6 @@ const STAT_CATEGORIES = {
   },
   scrimmage: {
     name: 'Scrimmage',
-    icon: '⚡',
     minNote: 'Combined rushing and receiving stats',
     stats: [
       { key: 'plays', label: 'Scrimmage Plays', abbr: 'PLY', calculated: true },
@@ -61,7 +57,6 @@ const STAT_CATEGORIES = {
   },
   allPurpose: {
     name: 'All-Purpose',
-    icon: '🌟',
     minNote: 'Rate stats require minimum 1,500 yards (career) / 300 yards (season)',
     stats: [
       { key: 'plays', label: 'All-Purpose Plays', abbr: 'PLY', calculated: true },
@@ -72,7 +67,6 @@ const STAT_CATEGORIES = {
   },
   defensive: {
     name: 'Defense',
-    icon: '🛡️',
     stats: [
       { key: 'soloTackles', label: 'Solo Tackles', abbr: 'SOLO', field: 'Solo Tackles' },
       { key: 'astTackles', label: 'Assisted Tackles', abbr: 'AST', field: 'Assisted Tackles' },
@@ -90,7 +84,6 @@ const STAT_CATEGORIES = {
   },
   kicking: {
     name: 'Kicking',
-    icon: '🦵',
     minNote: 'FG% requires minimum 25 attempts (career) / 5 attempts (season)',
     stats: [
       { key: 'xpa', label: 'XP Attempted', abbr: 'XPA', field: 'XP Attempted' },
@@ -102,7 +95,6 @@ const STAT_CATEGORIES = {
   },
   punting: {
     name: 'Punting',
-    icon: '📐',
     minNote: 'Rate stats require minimum 50 punts (career) / 10 punts (season)',
     stats: [
       { key: 'punts', label: 'Punts', abbr: 'P', field: 'Punts' },
@@ -112,7 +104,6 @@ const STAT_CATEGORIES = {
   },
   kickReturn: {
     name: 'Kick Returns',
-    icon: '↩️',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
       { key: 'returns', label: 'Kick Returns', abbr: 'RET', field: 'Kickoff Returns' },
@@ -123,7 +114,6 @@ const STAT_CATEGORIES = {
   },
   puntReturn: {
     name: 'Punt Returns',
-    icon: '↪️',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
       { key: 'returns', label: 'Punt Returns', abbr: 'RET', field: 'Punt Returns' },
@@ -664,8 +654,7 @@ export default function DynastyRecords() {
                 }`}
                 style={isActive ? { backgroundColor: teamColors.primary } : {}}
               >
-                <span className="text-base">{cat.icon}</span>
-                <span>{cat.name}</span>
+                {cat.name}
               </button>
             )
           })}
@@ -679,10 +668,7 @@ export default function DynastyRecords() {
           className="px-4 py-3 border-b border-gray-700 flex items-center justify-between"
           style={{ backgroundColor: `${teamColors.primary}15` }}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{category.icon}</span>
-            <h2 className="text-lg font-bold text-white">{category.name}</h2>
-          </div>
+          <h2 className="text-lg font-bold text-white">{category.name}</h2>
           {category.minNote && (
             <p className="text-xs text-gray-400 hidden sm:block">
               {category.minNote}
@@ -701,7 +687,6 @@ export default function DynastyRecords() {
         <div className="p-4">
           {!hasData ? (
             <div className="text-center py-12">
-              <div className="text-4xl mb-3 opacity-50">{category.icon}</div>
               <p className="text-gray-400">
                 No {category.name.toLowerCase()} stats recorded yet
               </p>
