@@ -7714,6 +7714,9 @@ export default function Dashboard() {
             // Skip seniors (they can't redshirt)
             if (player.year === 'Sr' || player.year === 'RS Sr') return false
 
+            // Skip already redshirted players - they've already used their redshirt
+            if (player.year?.startsWith('RS ')) return false
+
             // Count total games this player appeared in this year
             let gameCount = 0
             const playerName = normalizePlayerName(player.name)
