@@ -6434,11 +6434,18 @@ export default function Dashboard() {
               )
             })()}
 
-            {/* Bowl Game - shows when user has a bowl game */}
+            {/* Bowl Game - shows when user has a bowl game (NOT CFP teams) */}
             {(() => {
+              // Don't show Bowl section if user has a CFP First Round game (CFP IS their bowl)
+              const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+              if (userCFPFirstRoundGame) return null
+
               const userBowlGameData = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
               const bowlData = currentDynasty.bowlEligibilityData
               const hasBowlEligibility = bowlData?.eligible === true && bowlData?.bowlGame && bowlData?.opponent
+
+              // Also skip if bowl eligibility data points to a CFP game
+              if (hasBowlEligibility && bowlData?.bowlGame?.startsWith('CFP')) return null
 
               // Only show if user has a bowl game (either played or scheduled via eligibility)
               if (!userBowlGameData && !hasBowlEligibility) return null

@@ -865,17 +865,17 @@ export default function TeamYear() {
   // Add round information AND slot ID to each game as we combine them
   // Use actual game data (seeds/bowl names) to determine slot ID, not array index
   const allCFPGames = [
-    ...(cfpResults.firstRound || []).map(g => ({
+    ...(cfpResults.firstRound || []).filter(g => g != null).map(g => ({
       ...g,
       round: 1,
       slotId: getFirstRoundSlotId(g.seed1, g.seed2) || 'cfpfr1'
     })),
-    ...(cfpResults.quarterfinals || []).map(g => ({
+    ...(cfpResults.quarterfinals || []).filter(g => g != null).map(g => ({
       ...g,
       round: 2,
       slotId: getSlotIdFromBowlName(g.bowlName) || 'cfpqf1'
     })),
-    ...(cfpResults.semifinals || []).map(g => ({
+    ...(cfpResults.semifinals || []).filter(g => g != null).map(g => ({
       ...g,
       round: 3,
       slotId: getSlotIdFromBowlName(g.bowlName) || 'cfpsf1'
