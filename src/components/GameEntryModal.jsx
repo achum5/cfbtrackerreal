@@ -1212,7 +1212,7 @@ export default function GameEntryModal({
         : (bowlName || effectiveGame?.isBowlGame) ? GAME_TYPES.BOWL
         : GAME_TYPES.REGULAR,
       // For postseason games (bowl, CFP, CC), also set unified team fields for history tracking
-      ...((bowlName || effectiveGame?.isBowlGame || effectiveGame?.isConferenceChampionship ||
+      ...((bowlName || effectiveGame?.isBowlGame || isConferenceChampionship || effectiveGame?.isConferenceChampionship ||
            effectiveGame?.isCFPFirstRound || effectiveGame?.isCFPQuarterfinal ||
            effectiveGame?.isCFPSemifinal || effectiveGame?.isCFPChampionship) && !isCPUGame && {
         team1: userTeamAbbr,
