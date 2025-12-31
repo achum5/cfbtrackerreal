@@ -12,7 +12,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
   // Upload image to ImgBB
   const uploadToImgBB = async (file) => {
-    const apiKey = import.meta.env.VITE_IMGBB_API_KEY
+    // Try env var first, fallback to hardcoded key for Replit compatibility
+    const apiKey = import.meta.env.VITE_IMGBB_API_KEY || '1369fa0365731b13c5330a26fedf569c'
     if (!apiKey) {
       alert('Image upload not configured. Please add VITE_IMGBB_API_KEY to environment variables.')
       return null

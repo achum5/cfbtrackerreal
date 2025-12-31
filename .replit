@@ -41,3 +41,8 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[userenv]
+
+[userenv.shared]
+VITE_IMGBB_API_KEY = "1369fa0365731b13c5330a26fedf569c"

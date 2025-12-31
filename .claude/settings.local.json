@@ -46,7 +46,8 @@
       "WebFetch(domain:1000logos.net)",
       "Bash(env)",
       "WebFetch(domain:47a3b22d-9730-4cdf-b8b0-6a012c6aeca3-00-9c674i7o7or4.riker.replit.dev)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []
