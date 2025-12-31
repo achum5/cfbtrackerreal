@@ -2621,10 +2621,17 @@ export function DynastyProvider({ children }) {
       if (existingPlayer) {
         // CRITICAL: Set teamsByYear[year] = teamAbbr to record this player was on this team this year
         // This is the IMMUTABLE record that determines roster membership for past seasons
-        const updatedTeamsByYear = {
-          ...(existingPlayer.teamsByYear || {}),
-          [year]: teamAbbr
-        }
+        // BUT: Skip adding the year if player is marked as leaving before this year
+        const isLeavingBeforeThisYear = existingPlayer.leavingYear && existingPlayer.leavingYear < year
+        const hasAlreadyLeft = existingPlayer.leftTeam === true
+        const shouldAddToTeamsByYear = !isLeavingBeforeThisYear && !hasAlreadyLeft
+
+        const updatedTeamsByYear = shouldAddToTeamsByYear
+          ? {
+              ...(existingPlayer.teamsByYear || {}),
+              [year]: teamAbbr
+            }
+          : existingPlayer.teamsByYear || {}
 
         return {
           // Start with ALL existing player data (preserves everything by default)
