@@ -7195,17 +7195,37 @@ export default function Dashboard() {
           const existingByYear = currentDynasty.cfpResultsByYear || {}
           const existingYearData = existingByYear[year] || {}
 
+          // Transform games from sheet format to standard format
+          // Sheet has: game, higherSeed, lowerSeed, higherSeedScore, lowerSeedScore
+          // We need: seed1, seed2, team1, team2, team1Score, team2Score, winner
+          // Higher seed = home team (team1), Lower seed = away team (team2)
+          const transformedGames = games.map(game => {
+            // Extract seed numbers from game name like "Game 1 (5 vs 12)"
+            const seedMatch = game.game?.match(/\((\d+) vs (\d+)\)/)
+            const seed1 = seedMatch ? parseInt(seedMatch[1]) : null
+            const seed2 = seedMatch ? parseInt(seedMatch[2]) : null
+            return {
+              seed1,
+              seed2,
+              team1: game.higherSeed || game.team1 || '',
+              team2: game.lowerSeed || game.team2 || '',
+              team1Score: game.higherSeedScore ?? game.team1Score ?? null,
+              team2Score: game.lowerSeedScore ?? game.team2Score ?? null,
+              winner: game.winner || null
+            }
+          }).filter(g => g.team1 && g.team2) // Only include games with teams
+
           // CRITICAL FIX: Preserve user's game that was entered separately
           const existingFirstRound = existingYearData.firstRound || []
           const userExistingGame = existingFirstRound.find(g =>
             g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
-          const userGameInSheet = games.some(g =>
+          const userGameInSheet = transformedGames.some(g =>
             g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
           )
           const mergedGames = userExistingGame && !userGameInSheet
-            ? [...games, userExistingGame]
-            : games
+            ? [...transformedGames, userExistingGame]
+            : transformedGames
 
           await updateDynasty(currentDynasty.id, {
             cfpResultsByYear: {
