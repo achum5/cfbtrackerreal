@@ -102,8 +102,8 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
           if (existingSheetId) {
             try {
               await deleteGoogleSheet(existingSheetId)
-            } catch (e) {
-              console.log('Old sheet cleanup:', e.message)
+            } catch {
+              // Ignore errors if sheet doesn't exist or already deleted
             }
           }
 

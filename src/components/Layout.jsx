@@ -218,7 +218,7 @@ export default function Layout({ children }) {
     if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 7) {
       // No more class confirmation needed here - it happens at Signing Day (week 5→6)
       // CRITICAL: Must await both to ensure players are processed before week advances
-      await advanceToNewSeason(currentDynasty.id, {})
+      await advanceToNewSeason(currentDynasty.id)
       await advanceWeek(currentDynasty.id)
       setShowWeekDropdown(false)
       return

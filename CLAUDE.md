@@ -153,6 +153,7 @@ player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
 - Roster filtering on TeamYear.jsx (PRIMARY check)
 - Stats table team display per year (Player.jsx)
 - Historical roster accuracy when coaches change teams
+- Box score stats filtering - Only aggregates stats for years player was on user's team (prevents opponent stats from showing)
 
 **Updated automatically in**:
 - `saveRoster()` - Sets teamsByYear[year] = teamAbbr
@@ -173,8 +174,8 @@ player.classByYear = { 2025: 'Fr', 2026: 'So', 2027: 'RS So' }
 
 **Updated automatically in**:
 - `saveRoster()` - Sets classByYear[year] = player.year
-- `advanceToNewSeason()` - Sets classByYear for recruit conversion and class progression
-- `advanceWeek()` - Sets classByYear during Signing Day/Training Camp class progression
+- `advanceWeek()` - Sets classByYear during Signing Day class progression (offseason week 5→6)
+- `advanceToNewSeason()` - Sets classByYear for recruit conversion and adds tracking for continuing players
 
 ### Player Transfer Fields
 

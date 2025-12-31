@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 import { getTeamAbbreviationsList } from '../data/teamAbbreviations'
@@ -7,6 +7,67 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const [formData, setFormData] = useState({})
   const [expandedSections, setExpandedSections] = useState([])
   const [selectedStatsYear, setSelectedStatsYear] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
+
+  // Upload image to ImgBB
+  const uploadToImgBB = async (file) => {
+    const apiKey = import.meta.env.VITE_IMGBB_API_KEY
+    if (!apiKey) {
+      alert('Image upload not configured. Please add VITE_IMGBB_API_KEY to environment variables.')
+      return null
+    }
+
+    const formDataUpload = new FormData()
+    formDataUpload.append('image', file)
+    formDataUpload.append('key', apiKey)
+
+    try {
+      setUploading(true)
+      const response = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formDataUpload
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        return data.data.url
+      } else {
+        alert('Failed to upload image: ' + (data.error?.message || 'Unknown error'))
+        return null
+      }
+    } catch (error) {
+      alert('Failed to upload image: ' + error.message)
+      return null
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 32MB for ImgBB)
+    if (file.size > 32 * 1024 * 1024) {
+      alert('Image must be less than 32MB')
+      return
+    }
+
+    const url = await uploadToImgBB(file)
+    if (url) {
+      setFormData(prev => ({ ...prev, pictureUrl: url }))
+    }
+
+    // Reset file input so same file can be selected again
+    e.target.value = ''
+  }
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
@@ -78,8 +139,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     const basicStats = playerStats[yearStr]?.find(p => p.pid === playerPid) || {}
 
     // Get aggregated box score stats for this player/year
+    // Pass player object to enable teamsByYear filtering (prevents showing opponent stats)
     const boxStats = player?.name && dynasty
-      ? aggregatePlayerBoxScoreStats(dynasty, player.name, year, player.team)
+      ? aggregatePlayerBoxScoreStats(dynasty, player.name, year, player.team, player)
       : null
 
     // Helper to get category stats from manual entry
@@ -765,15 +827,54 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                   {/* Picture URL */}
                   <div>
                     <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Picture URL</label>
-                    <input
-                      type="text"
-                      name="pictureUrl"
-                      value={formData.pictureUrl ?? ''}
-                      onChange={handleChange}
-                      placeholder="https://i.imgur.com/..."
-                      className="w-full px-3 py-2.5 rounded-lg border-2 text-sm"
-                      style={inputStyle}
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        name="pictureUrl"
+                        value={formData.pictureUrl ?? ''}
+                        onChange={handleChange}
+                        placeholder="https://i.imgur.com/..."
+                        className="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm"
+                        style={inputStyle}
+                      />
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="px-3 py-2.5 rounded-lg border-2 text-sm font-medium flex items-center gap-1.5 whitespace-nowrap"
+                        style={{
+                          backgroundColor: teamColors.primary,
+                          color: getContrastTextColor(teamColors.primary),
+                          borderColor: teamColors.primary,
+                          opacity: uploading ? 0.7 : 1,
+                          cursor: uploading ? 'wait' : 'pointer'
+                        }}
+                      >
+                        {uploading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Upload
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

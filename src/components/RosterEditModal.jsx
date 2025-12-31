@@ -99,9 +99,8 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
           if (existingSheetId) {
             try {
               await deleteGoogleSheet(existingSheetId)
-            } catch (e) {
+            } catch {
               // Ignore errors if sheet doesn't exist or already deleted
-              console.log('Old sheet cleanup:', e.message)
             }
           }
 

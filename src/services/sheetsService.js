@@ -51,7 +51,6 @@ async function shareSheetPublicly(spreadsheetId, accessToken) {
 
 // Create a new Google Sheet for a dynasty
 export async function createDynastySheet(dynastyName, coachName, year) {
-  console.log(`[SHEETS] CREATE: Starting sheet creation for "${dynastyName}" dynasty, coach "${coachName}", year ${year}`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -113,7 +112,6 @@ export async function createDynastySheet(dynastyName, coachName, year) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
-    console.log(`[SHEETS] CREATE SUCCESS: Sheet created with ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
@@ -928,7 +926,6 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
 
 // Create a Schedule-only Google Sheet
 export async function createScheduleSheet(dynastyName, year, userTeamName) {
-  console.log(`[SHEETS] CREATE SCHEDULE: Starting for "${dynastyName}", year ${year}, team "${userTeamName}"`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -976,20 +973,18 @@ export async function createScheduleSheet(dynastyName, year, userTeamName) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
-    console.log(`[SHEETS] CREATE SCHEDULE SUCCESS: Sheet ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
     }
   } catch (error) {
-    console.error('[SHEETS] CREATE SCHEDULE ERROR:', error)
+    console.error('Create schedule sheet error:', error)
     throw error
   }
 }
 
 // Create a Roster-only Google Sheet
 export async function createRosterSheet(dynastyName, year) {
-  console.log(`[SHEETS] CREATE ROSTER: Starting for "${dynastyName}", year ${year}`)
   try {
     const user = auth.currentUser
     if (!user) throw new Error('User not authenticated')
@@ -1037,13 +1032,12 @@ export async function createRosterSheet(dynastyName, year) {
     // Share sheet publicly so it can be embedded in iframe
     await shareSheetPublicly(sheet.spreadsheetId, accessToken)
 
-    console.log(`[SHEETS] CREATE ROSTER SUCCESS: Sheet ID "${sheet.spreadsheetId}"`)
     return {
       spreadsheetId: sheet.spreadsheetId,
       spreadsheetUrl: sheet.spreadsheetUrl
     }
   } catch (error) {
-    console.error('[SHEETS] CREATE ROSTER ERROR:', error)
+    console.error('Create roster sheet error:', error)
     throw error
   }
 }
@@ -1834,13 +1828,11 @@ export function getSheetEmbedUrl(spreadsheetId, sheetName) {
   // For single-tab sheets, always use 0
   const gid = sheetName === 'Roster' ? 1 : 0
   const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=${gid}`
-  console.log(`[SHEETS] EMBED: Generating embed URL for sheet "${spreadsheetId}", tab "${sheetName}"`)
   return url
 }
 
 // Get embed URL for a single-tab sheet (always gid=0)
 export function getSingleSheetEmbedUrl(spreadsheetId) {
-  console.log(`[SHEETS] EMBED: Generating single-tab embed URL for sheet "${spreadsheetId}"`)
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&rm=minimal&gid=0`
 }
 
@@ -1892,7 +1884,6 @@ export async function readScheduleFromSheet(spreadsheetId) {
 
 // Delete a Google Sheet (move to trash)
 export async function deleteGoogleSheet(spreadsheetId) {
-  console.log(`[SHEETS] TRASH: Attempting to move sheet "${spreadsheetId}" to trash`)
   try {
     if (!spreadsheetId) {
       throw new Error('No spreadsheet ID provided')
@@ -1926,22 +1917,19 @@ export async function deleteGoogleSheet(spreadsheetId) {
       } catch {
         errorMessage = errorText
       }
-      console.error(`[SHEETS] TRASH ERROR: Failed to trash sheet "${spreadsheetId}": ${errorMessage}`)
       throw new Error(`Failed to delete sheet: ${errorMessage}`)
     }
 
-    const result = await response.json()
-    console.log(`[SHEETS] TRASH SUCCESS: Sheet "${spreadsheetId}" moved to trash. Response trashed=${result.trashed}`)
+    await response.json()
     return true
   } catch (error) {
-    console.error('[SHEETS] TRASH ERROR:', error)
+    console.error('Delete sheet error:', error)
     throw error
   }
 }
 
 // Restore a Google Sheet from trash
 export async function restoreGoogleSheet(spreadsheetId) {
-  console.log(`[SHEETS] RESTORE: Attempting to restore sheet "${spreadsheetId}" from trash`)
   try {
     if (!spreadsheetId) {
       throw new Error('No spreadsheet ID provided')
@@ -1975,15 +1963,13 @@ export async function restoreGoogleSheet(spreadsheetId) {
       } catch {
         errorMessage = errorText
       }
-      console.error(`[SHEETS] RESTORE ERROR: Failed to restore sheet "${spreadsheetId}": ${errorMessage}`)
       throw new Error(`Failed to restore sheet: ${errorMessage}`)
     }
 
-    const result = await response.json()
-    console.log(`[SHEETS] RESTORE SUCCESS: Sheet "${spreadsheetId}" restored from trash. Response trashed=${result.trashed}`)
+    await response.json()
     return true
   } catch (error) {
-    console.error('[SHEETS] RESTORE ERROR:', error)
+    console.error('Restore sheet error:', error)
     throw error
   }
 }

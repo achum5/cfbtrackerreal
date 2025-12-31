@@ -1968,7 +1968,7 @@ export default function TeamYear() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {/* Player Image or Jersey Number */}
+                      {/* Player Image or Placeholder */}
                       {player.pictureUrl ? (
                         <div
                           className="w-11 h-11 rounded-full flex-shrink-0 overflow-hidden"
@@ -1982,18 +1982,20 @@ export default function TeamYear() {
                         </div>
                       ) : (
                         <div
-                          className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                          className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
                           style={{
                             backgroundColor: teamInfo.textColor,
                             color: teamPrimaryText
                           }}
                         >
-                          {player.jerseyNumber || '-'}
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                          </svg>
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold truncate" style={{ color: teamInfo.textColor }}>
-                          {player.pictureUrl && <span className="mr-1">#{player.jerseyNumber}</span>}
+                          {player.jerseyNumber && <span className="mr-1">#{player.jerseyNumber}</span>}
                           {player.name}
                         </div>
                         <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: teamBgText, opacity: 0.8 }}>

@@ -1183,7 +1183,6 @@ export default function Dashboard() {
       }
     })
 
-    console.log(`Updated ${updatedCount} player overalls from training results`)
   }
 
   // Handle recruiting class overalls save
@@ -1224,7 +1223,6 @@ export default function Dashboard() {
       }
     })
 
-    console.log(`Updated ${updatedCount} recruit overalls`)
   }
 
   // Handle portal transfer class assignment save
@@ -1265,7 +1263,6 @@ export default function Dashboard() {
       portalTransferClassSheetId: null // Clear sheet ID since task is complete
     })
 
-    console.log(`Updated ${updatedCount} portal transfer classes`)
   }
 
   // Handle fringe case class assignment save
@@ -1304,7 +1301,6 @@ export default function Dashboard() {
       fringeCaseClassSheetId: null // Clear sheet ID since task is complete
     })
 
-    console.log(`Updated ${updatedCount} fringe case classes`)
   }
 
   // Get the commitment key based on phase and week
@@ -1476,8 +1472,6 @@ export default function Dashboard() {
         }
         return p
       })
-      console.log(`[Recruiting] ${returningPlayerRecruits.length} player(s) returning via portal:`,
-        returningPlayerRecruits.map(r => r.name).join(', '))
     }
 
     // Store recruits for this phase/week AND add new players
@@ -6974,13 +6968,6 @@ export default function Dashboard() {
               ? [...cfpFirstRound, userExistingCFPGame]
               : cfpFirstRound
 
-            console.log('Bowl Week 1 - Saving data:', {
-              regularBowlGames: mergedBowlGames.length,
-              cfpFirstRound: mergedCFPFirstRound.length,
-              preservedUserBowlGame: userExistingBowlGame && !userGameInSheet,
-              preservedUserCFPGame: userExistingCFPGame && !userCFPGameInSheet
-            })
-
             await updateDynasty(currentDynasty.id, {
               bowlGamesByYear: {
                 ...existingBowlByYear,
@@ -7001,7 +6988,6 @@ export default function Dashboard() {
             // UNIFIED GAME STORAGE: Create proper game entries for all CPU bowl games
             // This ensures bowl games are stored the same way as user games
             await saveCPUBowlGames(currentDynasty.id, mergedBowlGames, year, 'week1')
-            console.log('Bowl Week 1 - Save successful (including unified game entries)')
           } catch (error) {
             console.error('Bowl Week 1 - Save failed:', error)
             throw error
@@ -7036,8 +7022,6 @@ export default function Dashboard() {
               g.team2Score !== null && g.team2Score !== undefined
             )
 
-            console.log('Bowl Week 2 - Games from sheet:', bowlGames.length)
-            console.log('Bowl Week 2 - Games with scores:', gamesWithScores.length)
 
             // Separate CFP Quarterfinal games from regular bowl games
             const cfpQuarterfinalGames = gamesWithScores.filter(game =>
@@ -7046,9 +7030,6 @@ export default function Dashboard() {
             const regularBowlGames = gamesWithScores.filter(game =>
               !game.bowlName?.includes('CFP QF') && !game.bowlName?.includes('CFP Quarterfinal')
             )
-
-            console.log('Bowl Week 2 - CFP QF games:', cfpQuarterfinalGames.length)
-            console.log('Bowl Week 2 - Regular bowl games:', regularBowlGames.length)
 
             // Map CFP Quarterfinal games to structured format with bowl info
             const cfpQuarterfinals = cfpQuarterfinalGames.map(game => {
@@ -7103,14 +7084,6 @@ export default function Dashboard() {
               ? [...cfpQuarterfinals, userExistingCFPGame]
               : cfpQuarterfinals
 
-            console.log('Bowl Week 2 - Saving:', {
-              regularBowlGames: mergedBowlGames.length,
-              cfpQuarterfinals: mergedCFPQuarterfinals.length,
-              cfpQuarterfinalsData: mergedCFPQuarterfinals,
-              preservedUserBowlGame: userExistingBowlGame && !userGameInSheet,
-              preservedUserCFPGame: userExistingCFPGame && !userCFPGameInSheet
-            })
-
             await updateDynasty(currentDynasty.id, {
               bowlGamesByYear: {
                 ...existingBowlByYear,
@@ -7130,7 +7103,6 @@ export default function Dashboard() {
 
             // UNIFIED GAME STORAGE: Create proper game entries for all CPU bowl games
             await saveCPUBowlGames(currentDynasty.id, mergedBowlGames, year, 'week2')
-            console.log('Bowl Week 2 - Save successful (including unified game entries)')
           } catch (error) {
             console.error('Bowl Week 2 - Save failed:', error)
             throw error

@@ -18,10 +18,23 @@ function normalizeName(name) {
  * @param {string} playerName - The player's name to search for
  * @param {number} year - The year to aggregate stats for
  * @param {string} teamAbbr - The player's team abbreviation
+ * @param {Object} player - Optional: The full player object (for teamsByYear filtering)
  * @returns {Object} Aggregated stats by category
  */
-export function aggregatePlayerBoxScoreStats(dynasty, playerName, year, teamAbbr) {
+export function aggregatePlayerBoxScoreStats(dynasty, playerName, year, teamAbbr, player = null) {
   if (!dynasty?.games || !playerName) return null
+
+  // Get user's team abbreviation for filtering
+  const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName || ''
+
+  // Check if player was on user's team this year (if player object provided)
+  if (player?.teamsByYear) {
+    const playerTeamThisYear = player.teamsByYear[year] || player.teamsByYear[String(year)]
+    // If player has teamsByYear data and wasn't on user's team this year, return null
+    if (playerTeamThisYear && playerTeamThisYear.toUpperCase() !== userTeamAbbr.toUpperCase()) {
+      return null
+    }
+  }
 
   // Find all games for this year where the user's team played
   // CPU games have team1/team2 but NO opponent field
@@ -179,6 +192,9 @@ export function getPlayerSeasonStatsFromBoxScores(dynasty, player) {
   const playerName = player.name
   const teamAbbr = player.team
 
+  // Get user's team abbreviation for filtering
+  const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName || ''
+
   // Find all years where this player appears in box scores
   // CPU games have team1/team2 but NO opponent field
   const years = new Set()
@@ -187,6 +203,25 @@ export function getPlayerSeasonStatsFromBoxScores(dynasty, player) {
     // CPU game detection: has team1/team2 but NO opponent field
     const isCPUGame = !game.opponent && game.team1 && game.team2
     if (isCPUGame) return
+
+    const gameYear = Number(game.year)
+
+    // CRITICAL: Check if the player was on the user's team for this year
+    // If not, skip this game (they were an opponent)
+    const playerTeamThisYear = player.teamsByYear?.[gameYear]
+      || player.teamsByYear?.[String(gameYear)]
+
+    // If player has teamsByYear data and wasn't on user's team this year, skip
+    if (playerTeamThisYear && playerTeamThisYear.toUpperCase() !== userTeamAbbr.toUpperCase()) {
+      return
+    }
+
+    // Also skip if player wasn't on user's team and has no teamsByYear for this year
+    // (meaning they weren't on the roster yet - they were an opponent)
+    if (!playerTeamThisYear && teamAbbr && teamAbbr.toUpperCase() !== userTeamAbbr.toUpperCase()) {
+      return
+    }
+
     const boxScore = game.boxScore
     const checkCategory = (side) => {
       if (!boxScore[side]) return false
@@ -197,14 +232,14 @@ export function getPlayerSeasonStatsFromBoxScores(dynasty, player) {
       )
     }
     if (checkCategory('home') || checkCategory('away')) {
-      years.add(Number(game.year))
+      years.add(gameYear)
     }
   })
 
   const result = []
 
   Array.from(years).sort((a, b) => a - b).forEach(year => {
-    const aggregated = aggregatePlayerBoxScoreStats(dynasty, playerName, year, teamAbbr)
+    const aggregated = aggregatePlayerBoxScoreStats(dynasty, playerName, year, teamAbbr, player)
     if (!aggregated) return
 
     // Convert to the format expected by Player.jsx

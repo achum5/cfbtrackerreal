@@ -204,18 +204,14 @@ export default function BoxScoreSheetModal({
     const initSheet = async () => {
       // Use ref for immediate check to prevent race conditions (state updates are async)
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        console.log(`[SHEETS] MODAL INIT: sheetType="${sheetType}", existingSheetId="${existingSheetId}", ignoreExisting=${ignoreExistingSheetId}, gameId="${game?.id}"`)
-
         // Check for existing sheet (unless we're regenerating and should ignore it)
         if (existingSheetId && !ignoreExistingSheetId) {
-          console.log(`[SHEETS] MODAL REUSE: Using existing sheet "${existingSheetId}" for ${sheetType}`)
           setSheetId(existingSheetId)
           return
         }
 
         // Create new sheet - set ref immediately to prevent concurrent calls
         creatingSheetRef.current = true
-        console.log(`[SHEETS] MODAL CREATE: Creating NEW sheet for ${sheetType} (existingSheetId was ${existingSheetId ? 'set but ignored' : 'null/undefined'})`)
         setCreatingSheet(true)
         try {
           const year = game?.year || currentDynasty?.currentYear
@@ -264,7 +260,6 @@ export default function BoxScoreSheetModal({
             )
           }
 
-          console.log(`[SHEETS] MODAL CREATED: New ${sheetType} sheet ID "${sheetInfo.spreadsheetId}"`)
           setSheetId(sheetInfo.spreadsheetId)
 
           // Reset the ignore flag now that we have a new sheet
@@ -272,12 +267,10 @@ export default function BoxScoreSheetModal({
 
           // Notify parent of new sheet ID
           if (onSheetCreated) {
-            console.log(`[SHEETS] MODAL CALLBACK: Calling onSheetCreated with "${sheetInfo.spreadsheetId}"`)
             onSheetCreated(sheetInfo.spreadsheetId)
           }
 
           // Also try to save to game in dynasty (for existing games)
-          console.log(`[SHEETS] MODAL SAVE: Saving sheet ID to game (gameId="${game?.id}")`)
           await saveSheetIdToGame(sheetInfo.spreadsheetId)
         } catch (error) {
           console.error('Failed to create sheet:', error)
@@ -307,25 +300,21 @@ export default function BoxScoreSheetModal({
   // Save sheet ID to game in dynasty (for existing games)
   const saveSheetIdToGame = async (newSheetId) => {
     if (!currentDynasty || !game?.id) {
-      console.log(`[SHEETS] SAVE SKIP: No dynasty or game.id (dynasty=${!!currentDynasty}, gameId=${game?.id})`)
       return
     }
 
     const games = [...(currentDynasty.games || [])]
     const gameIndex = games.findIndex(g => g.id === game.id)
     if (gameIndex === -1) {
-      console.log(`[SHEETS] SAVE SKIP: Game not found in dynasty games array (gameId=${game.id})`)
       return // Game doesn't exist yet, parent will handle
     }
 
-    console.log(`[SHEETS] SAVE: Saving ${config.sheetIdKey}="${newSheetId}" to game at index ${gameIndex}`)
     games[gameIndex] = {
       ...games[gameIndex],
       [config.sheetIdKey]: newSheetId
     }
 
     await updateDynasty(currentDynasty.id, { games })
-    console.log(`[SHEETS] SAVE SUCCESS: Sheet ID saved to game`)
   }
 
   // Sync data from sheet
