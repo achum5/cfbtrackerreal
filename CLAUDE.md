@@ -97,6 +97,9 @@ All implemented in `DynastyContext.jsx` with helper functions:
 - `playersLeavingByYear[year]` - Players graduating/transferring/declaring
 - `portalTransferClassByYear[year]` - Portal transfer class assignments
 - `fringeCaseClassByYear[year]` - Fringe case (5-9 games) class assignments
+- `conferenceChampionshipDataByYear[year]` - CC week answers (madeChampionship, opponent, pendingFiring)
+- `bowlEligibilityDataByYear[year]` - Bowl eligibility answers
+- `cfpResultsByYear[year]` - CFP game results (firstRound, quarterfinals, semifinals, championship)
 
 ### Phase System
 
@@ -278,6 +281,22 @@ All games stored in `games[]` array with `gameType` field:
 - Game types: `regular`, `conference_championship`, `bowl`, `cfp_first_round`, `cfp_quarterfinal`, `cfp_semifinal`, `cfp_championship`
 - **CPU games**: Have `team1`/`team2` but NO `opponent` field
 - **User games**: Have `opponent` field (and `userTeam`)
+
+### CFP First Round Data Format
+
+CFP First Round games in `cfpResultsByYear[year].firstRound[]`:
+```javascript
+{
+  seed1: 5,        // Higher seed (home team)
+  seed2: 12,       // Lower seed (away team)
+  team1: 'TEAM',   // Higher seed team (home)
+  team2: 'OPP',    // Lower seed team (away)
+  team1Score: 35,
+  team2Score: 28,
+  winner: 'TEAM'
+}
+```
+**IMPORTANT**: Higher seed = home team (team1). Sheet data must be transformed from `higherSeed`/`lowerSeed` format.
 
 ### Google Sheets OAuth
 
