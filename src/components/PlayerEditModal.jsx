@@ -69,6 +69,32 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     e.target.value = ''
   }
 
+  // Handle paste event for image upload
+  const handlePaste = async (e) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (!file) continue
+
+        // Validate file size (max 32MB for ImgBB)
+        if (file.size > 32 * 1024 * 1024) {
+          alert('Image must be less than 32MB')
+          return
+        }
+
+        const url = await uploadToImgBB(file)
+        if (url) {
+          setFormData(prev => ({ ...prev, pictureUrl: url }))
+        }
+        return
+      }
+    }
+  }
+
   // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -833,7 +859,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                         name="pictureUrl"
                         value={formData.pictureUrl ?? ''}
                         onChange={handleChange}
-                        placeholder="https://i.imgur.com/..."
+                        onPaste={handlePaste}
+                        placeholder="Paste image or enter URL..."
                         className="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm"
                         style={inputStyle}
                       />
