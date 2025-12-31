@@ -9,14 +9,22 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
-import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function DetailedStatsEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function DetailedStatsEntryModal({
+  isOpen,
+  onClose,
+  onSave,
+  currentYear,
+  teamColors,
+  // Optional props for team override (used by TeamStats page)
+  teamAbbr: overrideTeamAbbr,
+  teamName: overrideTeamName
+}) {
   const { currentDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
@@ -94,76 +102,103 @@ export default function DetailedStatsEntryModal({ isOpen, onClose, onSave, curre
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          // Get current team abbreviation
+          // Get current team abbreviation - use override if provided
           const { getAbbreviationFromDisplayName } = await import('../data/teamAbbreviations')
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const userTeamAbbr = overrideTeamAbbr || getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const dynastyTeamName = overrideTeamName || currentDynasty?.teamName
           const startYear = currentDynasty?.startYear || currentYear
 
-          // Get current roster for this team and year (same logic as TeamYear.jsx)
+          // Get the full roster for this team and year
           const allPlayers = currentDynasty?.players || []
           const currentRoster = allPlayers.filter(player => {
             // Exclude honor-only players
             if (player.isHonorOnly) return false
 
-            // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
+            // PRIMARY CHECK: If player has teamsByYear record for this year, use it
             const yearKey = String(currentYear)
             const numKey = Number(currentYear)
             const teamForYear = player.teamsByYear?.[yearKey] ?? player.teamsByYear?.[numKey]
 
             if (teamForYear !== undefined) {
-              // Player has explicit roster membership for this year - trust it completely
               return teamForYear === userTeamAbbr
             }
 
             // Exclude recruits who don't have explicit teamsByYear entry
             if (player.isRecruit) return false
 
-            // FALLBACK: Use old calculation logic for backwards compatibility
+            // FALLBACK: Legacy logic for backwards compatibility
             if (player.recruitYear && currentYear <= player.recruitYear) return false
-
-            // Check if player belongs to this team
             if (player.team !== userTeamAbbr) return false
 
-            // Check if player was on team during this year
             const playerStartYear = player.recruitYear ? (player.recruitYear + 1) : (player.yearStarted || startYear)
-            const playerEndYear = player.leftTeam ? (player.leftYear || currentYear) : (player.yearDeparted || currentYear)
             if (player.leftTeam && currentYear > player.leftYear) return false
 
-            return currentYear >= playerStartYear && currentYear <= playerEndYear
+            return currentYear >= playerStartYear
           })
 
-          // Get player stats from previous entry (snaps played)
-          const playerStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
+          // Get existing stats to pre-fill gamesPlayed/snapsPlayed
+          // Sources: 1) playerStatsByYear (legacy), 2) player.statsByYear (new)
+          const existingPlayerStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
 
-          // Merge current roster with stats data (use stats if available, otherwise roster)
           const playersWithSnaps = currentRoster.map(player => {
-            const existingStat = playerStats.find(s => s.pid === player.pid || s.name === player.name)
+            const existingStat = existingPlayerStats.find(s =>
+              s.pid === player.pid || s.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+            )
+            const playerYearStats = player.statsByYear?.[currentYear]
+
             return {
               ...player,
-              gamesPlayed: existingStat?.gamesPlayed || null,
-              snapsPlayed: existingStat?.snapsPlayed || null
+              gamesPlayed: existingStat?.gamesPlayed || playerYearStats?.gamesPlayed || null,
+              snapsPlayed: existingStat?.snapsPlayed || playerYearStats?.snapsPlayed || null
             }
           })
 
-          // Aggregate box score stats for each player
-          // This pre-fills the sheet with stats from games played during the season
-          const aggregatedStats = {}
+          // Get existing detailed stats to pre-fill the sheet
+          // Sources: 1) detailedStatsByYear (legacy), 2) player.statsByYear (new)
+          const legacyDetailedStats = currentDynasty?.detailedStatsByYear?.[currentYear] || {}
+          let aggregatedStats = {}
+
+          // Build aggregatedStats from existing stored data (NO box scores)
           playersWithSnaps.forEach(player => {
-            if (player.name) {
-              const playerBoxStats = aggregatePlayerBoxScoreStats(
-                currentDynasty,
-                player.name,
-                currentYear,
-                player.team || userTeamAbbr
-              )
-              if (playerBoxStats) {
-                aggregatedStats[player.name] = playerBoxStats
+            if (!player.name) return
+
+            const playerYearStats = player.statsByYear?.[currentYear]
+            const playerStats = {}
+
+            // Check player.statsByYear first (new architecture)
+            const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+            categories.forEach(cat => {
+              if (playerYearStats?.[cat]) {
+                playerStats[cat] = playerYearStats[cat]
               }
+            })
+
+            // Check legacy detailedStatsByYear
+            const legacyCategoryMap = {
+              'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
+              'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
+              'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
+            }
+
+            Object.entries(legacyCategoryMap).forEach(([legacyName, internalName]) => {
+              if (!playerStats[internalName]) {
+                const legacyCat = legacyDetailedStats[legacyName] || []
+                const playerLegacy = legacyCat.find(p =>
+                  p.name?.toLowerCase().trim() === player.name.toLowerCase().trim()
+                )
+                if (playerLegacy) {
+                  playerStats[internalName] = playerLegacy
+                }
+              }
+            })
+
+            if (Object.keys(playerStats).length > 0) {
+              aggregatedStats[player.name] = playerStats
             }
           })
 
           const sheetInfo = await createDetailedStatsSheet(
-            currentDynasty?.teamName || 'Dynasty',
+            dynastyTeamName || 'Dynasty',
             currentYear,
             playersWithSnaps,
             aggregatedStats
@@ -183,7 +218,7 @@ export default function DetailedStatsEntryModal({ isOpen, onClose, onSave, curre
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentYear, retryCount])
+  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentYear, retryCount, overrideTeamAbbr, overrideTeamName])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {

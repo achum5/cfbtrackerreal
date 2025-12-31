@@ -902,6 +902,14 @@ export default function TeamYear() {
     // Exclude honor-only players (players only in system for awards, not on actual roster)
     if (p.isHonorOnly) return false
 
+    // UNIVERSAL CHECK: If player has leftTeam=true, exclude from all future years
+    // Use Number() to handle string/number type mismatch
+    if (p.leftTeam && p.leftYear && Number(selectedYear) > Number(p.leftYear)) return false
+
+    // UNIVERSAL CHECK: If player has leavingYear/leavingReason set (pending departure),
+    // exclude from years AFTER the leaving year (handles case where advanceToNewSeason hasn't run yet)
+    if (p.leavingYear && p.leavingReason && Number(selectedYear) > Number(p.leavingYear)) return false
+
     // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
     // This check must come FIRST before isRecruit - teamsByYear is the source of truth
     // Check both numeric and string keys to handle any data format
@@ -920,7 +928,9 @@ export default function TeamYear() {
 
     // FALLBACK: Use old calculation logic for backwards compatibility with existing data
     // CRITICAL: If player has a recruitYear, they should NOT appear on rosters for that year or earlier
-    if (p.recruitYear && selectedYear <= p.recruitYear) return false
+    // Use Number() for all year comparisons to handle string/number type mismatch
+    const numSelectedYear = Number(selectedYear)
+    if (p.recruitYear && numSelectedYear <= Number(p.recruitYear)) return false
 
     // Check if player belongs to this team (by team field or legacy logic)
     const playerTeam = p.team
@@ -928,10 +938,10 @@ export default function TeamYear() {
       (!playerTeam && isUserTeam && getAbbreviationFromDisplayName(currentDynasty.teamName) === teamAbbr)
 
     if (belongsToThisTeam) {
-      const playerStartYear = p.recruitYear ? (p.recruitYear + 1) : (p.yearStarted || currentDynasty.startYear)
-      const playerEndYear = p.leftTeam ? (p.leftYear || currentDynasty.currentYear) : (p.yearDeparted || currentDynasty.currentYear)
-      if (p.leftTeam && selectedYear > p.leftYear) return false
-      return selectedYear >= playerStartYear && selectedYear <= playerEndYear
+      const playerStartYear = p.recruitYear ? (Number(p.recruitYear) + 1) : (Number(p.yearStarted) || Number(currentDynasty.startYear))
+      const playerEndYear = p.leftTeam ? (Number(p.leftYear) || Number(currentDynasty.currentYear)) : (Number(p.yearDeparted) || Number(currentDynasty.currentYear))
+      // leftTeam check already handled by universal check at top of filter
+      return numSelectedYear >= playerStartYear && numSelectedYear <= playerEndYear
     }
 
     // For other teams, also show players who transferred from this team

@@ -9,14 +9,22 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
-import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
+export default function StatsEntryModal({
+  isOpen,
+  onClose,
+  onSave,
+  currentYear,
+  teamColors,
+  // Optional props for team override (used by TeamStats page)
+  teamAbbr: overrideTeamAbbr,
+  teamName: overrideTeamName
+}) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user, signOut, refreshSession } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
@@ -94,75 +102,62 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          // Get current team abbreviation
+          // Get current team abbreviation - use override if provided
           const { getAbbreviationFromDisplayName } = await import('../data/teamAbbreviations')
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const userTeamAbbr = overrideTeamAbbr || getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const dynastyTeamName = overrideTeamName || currentDynasty?.teamName
           const startYear = currentDynasty?.startYear || currentYear
 
-          // Get current roster for this team and year (same logic as TeamYear.jsx)
+          // Get the full roster for this team and year
           const allPlayers = currentDynasty?.players || []
           const players = allPlayers.filter(player => {
             // Exclude honor-only players
             if (player.isHonorOnly) return false
 
-            // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
+            // PRIMARY CHECK: If player has teamsByYear record for this year, use it
             const yearKey = String(currentYear)
             const numKey = Number(currentYear)
             const teamForYear = player.teamsByYear?.[yearKey] ?? player.teamsByYear?.[numKey]
 
             if (teamForYear !== undefined) {
-              // Player has explicit roster membership for this year - trust it completely
               return teamForYear === userTeamAbbr
             }
 
             // Exclude recruits who don't have explicit teamsByYear entry
             if (player.isRecruit) return false
 
-            // FALLBACK: Use old calculation logic for backwards compatibility
+            // FALLBACK: Legacy logic for backwards compatibility
             if (player.recruitYear && currentYear <= player.recruitYear) return false
-
-            // Check if player belongs to this team
             if (player.team !== userTeamAbbr) return false
 
-            // Check if player was on team during this year
             const playerStartYear = player.recruitYear ? (player.recruitYear + 1) : (player.yearStarted || startYear)
-            const playerEndYear = player.leftTeam ? (player.leftYear || currentYear) : (player.yearDeparted || currentYear)
             if (player.leftTeam && currentYear > player.leftYear) return false
 
-            return currentYear >= playerStartYear && currentYear <= playerEndYear
+            return currentYear >= playerStartYear
           })
 
-          // Get existing stats data to pre-fill gamesPlayed/snapsPlayed
+          // Get existing stats to pre-fill gamesPlayed/snapsPlayed
+          // Sources: 1) playerStatsByYear (legacy), 2) player.statsByYear (new)
           const existingStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
 
-          // Merge roster with existing stats data AND box score games played
           const playersWithStats = players.map(player => {
-            const existingStat = existingStats.find(s => s.pid === player.pid)
+            // Check legacy storage first
+            const existingStat = existingStats.find(s =>
+              s.pid === player.pid || s.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+            )
 
-            // Get games played from box score aggregation if no existing stat
-            let gamesFromBoxScores = null
-            if (!existingStat?.gamesPlayed && currentDynasty) {
-              const boxScoreStats = aggregatePlayerBoxScoreStats(
-                currentDynasty,
-                player.name,
-                currentYear,
-                player.team
-              )
-              if (boxScoreStats?.gamesWithStats > 0) {
-                gamesFromBoxScores = boxScoreStats.gamesWithStats
-              }
-            }
+            // Then check player's own statsByYear
+            const playerYearStats = player.statsByYear?.[currentYear]
 
             return {
               ...player,
-              // Use existing stat if available, then box score data, then null (not 0)
-              gamesPlayed: existingStat?.gamesPlayed || gamesFromBoxScores || null,
-              snapsPlayed: existingStat?.snapsPlayed || null
+              gamesPlayed: existingStat?.gamesPlayed || playerYearStats?.gamesPlayed || null,
+              snapsPlayed: existingStat?.snapsPlayed || playerYearStats?.snapsPlayed || null
             }
           })
 
           const sheetInfo = await createStatsEntrySheet(
-            currentDynasty?.teamName || 'Dynasty',
+            dynastyTeamName || 'Dynasty',
             currentYear,
             playersWithStats
           )
@@ -179,7 +174,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, overrideTeamAbbr, overrideTeamName, currentYear])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {

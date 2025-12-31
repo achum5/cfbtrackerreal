@@ -7,6 +7,81 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import TeamStatsModal from '../../components/TeamStatsModal'
+import StatsEntryModal from '../../components/StatsEntryModal'
+import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
+
+// Mapping from detailedStatsByYear column names to box score field names
+const DETAILED_TO_BOXSCORE = {
+  // Passing
+  'Completions': 'comp',
+  'Attempts': 'attempts',
+  'Yards': 'yards',
+  'Touchdowns': 'tD',
+  'Interceptions': 'iNT',
+  'Passing Long': 'long',
+  'Sacks Taken': 'sacks',
+  // Rushing
+  'Carries': 'carries',
+  'Rushing Long': 'long',
+  'Fumbles': 'fumbles',
+  '20+ Yard Runs': '20+',
+  'Broken Tackles': 'brokenTackles',
+  'Yards After Contact': 'yAC',
+  // Receiving
+  'Receptions': 'receptions',
+  'Receiving Long': 'long',
+  'Run After Catch': 'rAC',
+  'Drops': 'drops',
+  // Blocking
+  'Sacks Allowed': 'sacksAllowed',
+  'Pancakes': 'pancakes',
+  // Defensive
+  'Solo Tackles': 'solo',
+  'Assisted Tackles': 'assists',
+  'Tackles for Loss': 'tFL',
+  'Sacks': 'sack',
+  'INT Return Yards': 'iNTYards',
+  'Deflections': 'deflections',
+  'Defensive TDs': 'tD',
+  'Forced Fumbles': 'fF',
+  'Fumble Recoveries': 'fR',
+  // Kicking
+  'FG Made': 'fGM',
+  'FG Attempted': 'fGA',
+  'XP Made': 'xPM',
+  'XP Attempted': 'xPA',
+  'Kickoffs': 'kickoffs',
+  'Touchbacks': 'touchbacks',
+  // Punting
+  'Punts': 'punts',
+  'Punting Yards': 'yards',
+  'Net Punting Yards': 'netYards',
+  'Punts Inside 20': 'in20',
+  'Punt Long': 'long',
+  // Kick Return
+  'Kickoff Returns': 'kR',
+  'KR Yardage': 'yards',
+  'KR Touchdowns': 'tD',
+  'KR Long': 'long',
+  // Punt Return
+  'Punt Returns': 'pR',
+  'PR Yardage': 'yards',
+  'PR Touchdowns': 'tD',
+  'PR Long': 'long'
+}
+
+// Map from detailedStatsByYear category names to internal category names
+const CATEGORY_MAP = {
+  'Passing': 'passing',
+  'Rushing': 'rushing',
+  'Receiving': 'receiving',
+  'Blocking': 'blocking',
+  'Defensive': 'defense',
+  'Kicking': 'kicking',
+  'Punting': 'punting',
+  'Kick Return': 'kickReturn',
+  'Punt Return': 'puntReturn'
+}
 
 // Map abbreviation to mascot name for logo lookup
 const mascotMap = {
@@ -81,6 +156,8 @@ export default function TeamStats() {
   // Modal state
   const [modalData, setModalData] = useState(null)
   const [showStatsModal, setShowStatsModal] = useState(false)
+  const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
+  const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
 
   // Sort state for player stats tables
   const [sortConfig, setSortConfig] = useState({})
@@ -286,70 +363,114 @@ export default function TeamStats() {
     return aggregated
   }, [currentDynasty, selectedTeam, selectedYear, stats.games])
 
-  // Aggregate player stats from all box scores
+  // Read player stats from player.statsByYear (PRIMARY) with legacy fallback
   const playerStats = useMemo(() => {
-    const aggregated = {
-      passing: {},
-      rushing: {},
-      receiving: {},
-      blocking: {},
-      defense: {},
-      kicking: {},
-      punting: {},
-      kickReturn: {},
-      puntReturn: {}
+    const allPlayers = currentDynasty?.players || []
+
+    // Legacy fallback data
+    const legacyDetailedStats = currentDynasty?.detailedStatsByYear?.[selectedYear] || {}
+    const legacyPlayerStats = currentDynasty?.playerStatsByYear?.[selectedYear] || []
+
+    // Category mapping for internal keys
+    const categoryInternalNames = {
+      'passing': 'passing',
+      'rushing': 'rushing',
+      'receiving': 'receiving',
+      'blocking': 'blocking',
+      'defense': 'defense',
+      'kicking': 'kicking',
+      'punting': 'punting',
+      'kickReturn': 'kickReturn',
+      'puntReturn': 'puntReturn'
     }
 
-    stats.games.forEach(game => {
-      if (!game.boxScore) return
-
-      const isHome = game.location === 'home' || game.location === 'Home'
-      const ourPlayerBoxScore = isHome ? game.boxScore.home : game.boxScore.away
-
-      if (!ourPlayerBoxScore) return
-
-      // Helper to aggregate stats for a category
-      const aggregateCategory = (category, statFields) => {
-        const players = ourPlayerBoxScore[category]
-        if (!Array.isArray(players)) return
-
-        players.forEach(player => {
-          if (!player.playerName) return
-          const name = player.playerName
-
-          if (!aggregated[category][name]) {
-            aggregated[category][name] = { playerName: name, games: 0 }
-            statFields.forEach(field => {
-              aggregated[category][name][field] = 0
-            })
-          }
-
-          aggregated[category][name].games++
-          statFields.forEach(field => {
-            const val = parseFloat(player[field]) || 0
-            aggregated[category][name][field] += val
-          })
-        })
+    // Helper to get stats from player.statsByYear or legacy
+    const getPlayerYearStats = (playerName) => {
+      const player = allPlayers.find(p =>
+        p.name?.toLowerCase().trim() === playerName?.toLowerCase().trim()
+      )
+      if (player?.statsByYear?.[selectedYear]) {
+        return player.statsByYear[selectedYear]
       }
+      // Legacy fallback
+      const legacyBasic = legacyPlayerStats.find(p =>
+        p.name?.toLowerCase().trim() === playerName?.toLowerCase().trim()
+      )
+      return { gamesPlayed: legacyBasic?.gamesPlayed || 0, snapsPlayed: legacyBasic?.snapsPlayed || 0 }
+    }
 
-      // Aggregate each category
-      aggregateCategory('passing', ['comp', 'attempts', 'yards', 'tD', 'iNT', 'long', 'sacks'])
-      aggregateCategory('rushing', ['carries', 'yards', 'tD', 'fumbles', 'brokenTackles', 'yAC', 'long', '20+'])
-      aggregateCategory('receiving', ['receptions', 'yards', 'tD', 'rAC', 'drops', 'long'])
-      aggregateCategory('blocking', ['sacksAllowed', 'pancakes'])
-      aggregateCategory('defense', ['solo', 'assists', 'tFL', 'sack', 'iNT', 'iNTYards', 'deflections', 'fF', 'fR', 'tD'])
-      aggregateCategory('kicking', ['fGM', 'fGA', 'xPM', 'xPA', 'kickoffs', 'touchbacks'])
-      aggregateCategory('punting', ['punts', 'yards', 'netYards', 'in20', 'tB', 'long'])
-      aggregateCategory('kickReturn', ['kR', 'yards', 'tD', 'long'])
-      aggregateCategory('puntReturn', ['pR', 'yards', 'tD', 'long'])
-    })
+    // Helper to convert stat keys from sheet format to internal format
+    const convertPlayerStats = (playerName, categoryStats, gamesPlayed) => {
+      const result = { playerName, games: gamesPlayed }
+      Object.entries(categoryStats || {}).forEach(([key, value]) => {
+        if (key === 'gamesPlayed' || key === 'snapsPlayed') return
+        const internalKey = DETAILED_TO_BOXSCORE[key]
+        if (internalKey) {
+          result[internalKey] = parseFloat(value) || 0
+        } else {
+          // Already internal key format
+          result[key] = parseFloat(value) || 0
+        }
+      })
+      return result
+    }
 
-    // Convert to arrays and compute derived stats
-    const toArray = (obj) => Object.values(obj)
+    // Process category - prefer player.statsByYear, fallback to legacy
+    const processCategory = (internalCatName, legacyCatName) => {
+      const playersWithStats = []
+      const seenPlayers = new Set()
 
-    // Passing: add comp %, TD%, INT%, TD:INT ratio, yards/game
-    const passing = toArray(aggregated.passing).map(p => ({
+      // First, get from player.statsByYear (PRIMARY source)
+      allPlayers.forEach(player => {
+        const yearStats = player.statsByYear?.[selectedYear]
+        if (yearStats?.[internalCatName]) {
+          const gamesPlayed = yearStats.gamesPlayed || 0
+          const stats = convertPlayerStats(player.name, yearStats[internalCatName], gamesPlayed)
+          // Only include if has meaningful stats
+          const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
+          if (statKeys.some(k => stats[k] > 0)) {
+            playersWithStats.push(stats)
+            seenPlayers.add(player.name?.toLowerCase().trim())
+          }
+        }
+      })
+
+      // Then, add from legacy if not already included
+      const legacyPlayers = legacyDetailedStats[legacyCatName] || []
+      legacyPlayers.forEach(p => {
+        if (!p.name || seenPlayers.has(p.name.toLowerCase().trim())) return
+        const yearStats = getPlayerYearStats(p.name)
+        const stats = convertPlayerStats(p.name, p, yearStats.gamesPlayed || 0)
+        const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
+        if (statKeys.some(k => stats[k] > 0)) {
+          playersWithStats.push(stats)
+        }
+      })
+
+      return playersWithStats
+    }
+
+    // Get raw data from each category
+    const rawPassing = processCategory('passing', 'Passing')
+    const rawRushing = processCategory('rushing', 'Rushing')
+    const rawReceiving = processCategory('receiving', 'Receiving')
+    const rawBlocking = processCategory('blocking', 'Blocking')
+    const rawDefense = processCategory('defense', 'Defensive')
+    const rawKicking = processCategory('kicking', 'Kicking')
+    const rawPunting = processCategory('punting', 'Punting')
+    const rawKickReturn = processCategory('kickReturn', 'Kick Return')
+    const rawPuntReturn = processCategory('puntReturn', 'Punt Return')
+
+    // Compute derived stats for each category
+    const passing = rawPassing.map(p => ({
       ...p,
+      comp: p.comp || 0,
+      attempts: p.attempts || 0,
+      yards: p.yards || 0,
+      tD: p.tD || 0,
+      iNT: p.iNT || 0,
+      long: p.long || 0,
+      sacks: p.sacks || 0,
       compPct: p.attempts > 0 ? ((p.comp / p.attempts) * 100).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0',
       tdPct: p.attempts > 0 ? ((p.tD / p.attempts) * 100).toFixed(1) : '0.0',
@@ -357,47 +478,88 @@ export default function TeamStats() {
       tdIntRatio: p.iNT > 0 ? (p.tD / p.iNT).toFixed(2).replace('.', ':') : (p.tD > 0 ? '∞' : '0:00')
     }))
 
-    // Rushing: add YPC and YDS/G
-    const rushing = toArray(aggregated.rushing).map(p => ({
+    const rushing = rawRushing.map(p => ({
       ...p,
+      carries: p.carries || 0,
+      yards: p.yards || 0,
+      tD: p.tD || 0,
+      fumbles: p.fumbles || 0,
+      long: p.long || 0,
+      '20+': p['20+'] || 0,
       ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0'
     }))
 
-    // Receiving: add Y/R, YDS/G, RAC AVG
-    const receiving = toArray(aggregated.receiving).map(p => ({
+    const receiving = rawReceiving.map(p => ({
       ...p,
+      receptions: p.receptions || 0,
+      yards: p.yards || 0,
+      tD: p.tD || 0,
+      rAC: p.rAC || 0,
+      drops: p.drops || 0,
+      long: p.long || 0,
       ypr: p.receptions > 0 ? (p.yards / p.receptions).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0',
-      racAvg: p.receptions > 0 ? (p.rAC / p.receptions).toFixed(1) : '0.0'
+      racAvg: p.receptions > 0 ? ((p.rAC || 0) / p.receptions).toFixed(1) : '0.0'
     }))
 
-    // Defense: add total tackles
-    const defense = toArray(aggregated.defense).map(p => ({
+    const blocking = rawBlocking.map(p => ({
       ...p,
-      totalTackles: p.solo + p.assists
+      pancakes: p.pancakes || 0,
+      sacksAllowed: p.sacksAllowed || 0
     }))
 
-    // Kicking: add FG%
-    const kicking = toArray(aggregated.kicking).map(p => ({
+    const defense = rawDefense.map(p => ({
       ...p,
+      solo: p.solo || 0,
+      assists: p.assists || 0,
+      tFL: p.tFL || 0,
+      sack: p.sack || 0,
+      iNT: p.iNT || 0,
+      iNTYards: p.iNTYards || 0,
+      deflections: p.deflections || 0,
+      fF: p.fF || 0,
+      fR: p.fR || 0,
+      tD: p.tD || 0,
+      totalTackles: (p.solo || 0) + (p.assists || 0)
+    }))
+
+    const kicking = rawKicking.map(p => ({
+      ...p,
+      fGM: p.fGM || 0,
+      fGA: p.fGA || 0,
+      xPM: p.xPM || 0,
+      xPA: p.xPA || 0,
+      kickoffs: p.kickoffs || 0,
+      touchbacks: p.touchbacks || 0,
       fgPct: p.fGA > 0 ? ((p.fGM / p.fGA) * 100).toFixed(1) : '0.0'
     }))
 
-    // Punting: add avg
-    const punting = toArray(aggregated.punting).map(p => ({
+    const punting = rawPunting.map(p => ({
       ...p,
+      punts: p.punts || 0,
+      yards: p.yards || 0,
+      netYards: p.netYards || 0,
+      in20: p.in20 || 0,
+      long: p.long || 0,
       avg: p.punts > 0 ? (p.yards / p.punts).toFixed(1) : '0.0'
     }))
 
-    // Returns: add avg
-    const kickReturn = toArray(aggregated.kickReturn).map(p => ({
+    const kickReturn = rawKickReturn.map(p => ({
       ...p,
+      kR: p.kR || 0,
+      yards: p.yards || 0,
+      tD: p.tD || 0,
+      long: p.long || 0,
       avg: p.kR > 0 ? (p.yards / p.kR).toFixed(1) : '0.0'
     }))
 
-    const puntReturn = toArray(aggregated.puntReturn).map(p => ({
+    const puntReturn = rawPuntReturn.map(p => ({
       ...p,
+      pR: p.pR || 0,
+      yards: p.yards || 0,
+      tD: p.tD || 0,
+      long: p.long || 0,
       avg: p.pR > 0 ? (p.yards / p.pR).toFixed(1) : '0.0'
     }))
 
@@ -405,14 +567,14 @@ export default function TeamStats() {
       passing,
       rushing,
       receiving,
-      blocking: toArray(aggregated.blocking),
+      blocking,
       defense,
       kicking,
       punting,
       kickReturn,
       puntReturn
     }
-  }, [stats.games])
+  }, [currentDynasty?.players, currentDynasty?.detailedStatsByYear, currentDynasty?.playerStatsByYear, selectedYear])
 
   // Helper to find player PID by name
   const getPlayerPID = useCallback((playerName) => {
@@ -479,6 +641,118 @@ export default function TeamStats() {
       teamStatsByYear: {
         ...existingStats,
         [selectedYear]: stats
+      }
+    })
+  }
+
+  // Handler for saving player stats (games/snaps)
+  // Saves to both playerStatsByYear (legacy) AND each player's statsByYear field
+  const handleSavePlayerStats = async (stats) => {
+    if (!currentDynasty?.id) return
+
+    // Update each player's statsByYear field with their games/snaps
+    const updatedPlayers = (currentDynasty.players || []).map(player => {
+      const playerStat = stats.find(s =>
+        s.pid === player.pid || s.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+      )
+      if (playerStat) {
+        const existingStatsByYear = player.statsByYear || {}
+        const existingYearStats = existingStatsByYear[selectedYear] || {}
+        return {
+          ...player,
+          statsByYear: {
+            ...existingStatsByYear,
+            [selectedYear]: {
+              ...existingYearStats,
+              gamesPlayed: playerStat.gamesPlayed || existingYearStats.gamesPlayed || 0,
+              snapsPlayed: playerStat.snapsPlayed || existingYearStats.snapsPlayed || 0
+            }
+          }
+        }
+      }
+      return player
+    })
+
+    const existingByYear = currentDynasty.playerStatsByYear || {}
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      playerStatsByYear: {
+        ...existingByYear,
+        [selectedYear]: stats
+      }
+    })
+  }
+
+  // Handler for saving detailed stats (passing, rushing, etc.)
+  // Saves to detailedStatsByYear AND each player's statsByYear field
+  const handleSaveDetailedStats = async (detailedStats) => {
+    if (!currentDynasty?.id) return
+
+    // Build detailed stats map by player name for easy lookup
+    const detailedStatsMap = new Map()
+    const categoryMapping = {
+      'Passing': 'passing',
+      'Rushing': 'rushing',
+      'Receiving': 'receiving',
+      'Blocking': 'blocking',
+      'Defensive': 'defense',
+      'Kicking': 'kicking',
+      'Punting': 'punting',
+      'Kick Return': 'kickReturn',
+      'Punt Return': 'puntReturn'
+    }
+
+    Object.entries(detailedStats).forEach(([categoryName, players]) => {
+      const internalCat = categoryMapping[categoryName] || categoryName.toLowerCase()
+      if (Array.isArray(players)) {
+        players.forEach(player => {
+          if (!player.name) return
+          const key = player.name.toLowerCase().trim()
+          if (!detailedStatsMap.has(key)) {
+            detailedStatsMap.set(key, {})
+          }
+          const playerStats = detailedStatsMap.get(key)
+          // Copy all stats except name/pid
+          const statsOnly = { ...player }
+          delete statsOnly.name
+          delete statsOnly.pid
+          playerStats[internalCat] = statsOnly
+        })
+      }
+    })
+
+    // Update each player's statsByYear field with detailed stats (preserve games/snaps)
+    const updatedPlayers = (currentDynasty.players || []).map(player => {
+      const playerNameLower = player.name?.toLowerCase().trim()
+      const detailedPlayerStats = detailedStatsMap.get(playerNameLower) || {}
+
+      // Only update if player has new detailed stats
+      if (Object.keys(detailedPlayerStats).length > 0) {
+        const existingStatsByYear = player.statsByYear || {}
+        const existingYearStats = existingStatsByYear[selectedYear] || {}
+        return {
+          ...player,
+          statsByYear: {
+            ...existingStatsByYear,
+            [selectedYear]: {
+              ...existingYearStats,
+              ...detailedPlayerStats
+              // Preserve existing gamesPlayed/snapsPlayed - don't overwrite
+            }
+          }
+        }
+      }
+      return player
+    })
+
+    // Save to both locations
+    const existingDetailedByYear = currentDynasty.detailedStatsByYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      detailedStatsByYear: {
+        ...existingDetailedByYear,
+        [selectedYear]: detailedStats
       }
     })
   }
@@ -917,6 +1191,40 @@ export default function TeamStats() {
       {/* Player Stats Sections */}
       {hasPlayerStats && (
         <div className="space-y-4">
+          {/* Player Stats Header with Edit Buttons */}
+          <div
+            className="rounded-xl shadow-lg p-4"
+            style={{ backgroundColor: teamColors.primary }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h3 className="text-lg font-bold" style={{ color: primaryText }}>
+                Player Statistics
+              </h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowPlayerStatsModal(true)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
+                  style={{ color: primaryText }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Games/Snaps
+                </button>
+                <button
+                  onClick={() => setShowDetailedStatsModal(true)}
+                  className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
+                  style={{ color: primaryText }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Detailed Stats
+                </button>
+              </div>
+            </div>
+          </div>
+
           <PlayerStatsTable
             category="passing"
             title="Passing"
@@ -1202,6 +1510,28 @@ export default function TeamStats() {
         teamName={teamFullName}
         teamColors={teamColors}
         aggregatedStats={teamStats}
+      />
+
+      {/* Player Stats Entry Modal (Games/Snaps) */}
+      <StatsEntryModal
+        isOpen={showPlayerStatsModal}
+        onClose={() => setShowPlayerStatsModal(false)}
+        onSave={handleSavePlayerStats}
+        currentYear={selectedYear}
+        teamColors={teamColors}
+        teamAbbr={selectedTeam}
+        teamName={teamFullName}
+      />
+
+      {/* Detailed Stats Entry Modal (Passing, Rushing, etc.) */}
+      <DetailedStatsEntryModal
+        isOpen={showDetailedStatsModal}
+        onClose={() => setShowDetailedStatsModal(false)}
+        onSave={handleSaveDetailedStats}
+        currentYear={selectedYear}
+        teamColors={teamColors}
+        teamAbbr={selectedTeam}
+        teamName={teamFullName}
       />
     </div>
   )

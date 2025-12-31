@@ -90,13 +90,13 @@ All implemented in `DynastyContext.jsx` with helper functions:
 | Recruits | `recruitsByTeamYear[team][year]` | `getCurrentRecruits()` |
 | Games | `games[]` with `userTeam` field | Filter by `userTeam` |
 | Commitments | `recruitingCommitmentsByTeamYear[team][year][key]` | See Dashboard.jsx |
-| PortalTransferClass | `portalTransferClassByYear[year]` | Array of { playerName, selectedClass } |
-| FringeCaseClass | `fringeCaseClassByYear[year]` | Array of { playerName, selectedClass } |
 
 **Special structures:**
 - `coachTeamByYear[year]` - Locked at Week 1 of regular season
 - `lockedCoachingStaffByYear[team][year]` - Locked at end of regular season (Week 12)
 - `playersLeavingByYear[year]` - Players graduating/transferring/declaring
+- `portalTransferClassByYear[year]` - Portal transfer class assignments
+- `fringeCaseClassByYear[year]` - Fringe case (5-9 games) class assignments
 
 ### Phase System
 
@@ -117,24 +117,15 @@ All implemented in `DynastyContext.jsx` with helper functions:
    - Week 7: Training Camp (Training Results, Recruit Overalls, Encourage Transfers)
    - Week 8: Offseason Complete (triggers `advanceToNewSeason()`)
 
-### Recruiting Commitment Keys
-
-- `preseason`: Early commitments
-- `regular_1` through `regular_12`: Regular season weeks
-- `conf_champ`: Conference Championship week
-- `bowl_1` through `bowl_4`: Bowl weeks
-- `signing_1` through `signing_4`: Recruiting weeks (offseason weeks 2-5)
-- `signing_5`: National Signing Day (offseason week 6)
-
 ### Key Files
 
 - `src/context/DynastyContext.jsx` - All data operations and helpers
 - `src/pages/dynasty/Dashboard.jsx` - Main dashboard with phase-specific tasks
 - `src/pages/dynasty/TeamYear.jsx` - Team season page with Stats modal
+- `src/pages/dynasty/Player.jsx` - Player profile with stats tables
 - `src/pages/dynasty/CoachCareer.jsx` - Coach career page with team links and season tiles
 - `src/data/teamAbbreviations.js` - Team abbreviations and colors
-- `src/data/cfpConstants.js` - CFP slot ID system
-- `src/data/boxScoreConstants.js` - Box score stat categories and keys
+- `src/services/sheetsService.js` - Google Sheets integration
 
 ### Modal Pattern
 
@@ -149,6 +140,100 @@ All implemented in `DynastyContext.jsx` with helper functions:
 </div>
 ```
 
+## Player Data Architecture
+
+### Player teamsByYear (Roster Membership Tracking)
+
+Each player has a `teamsByYear` object tracking which team they were on each season:
+```javascript
+player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
+```
+
+**Used for**:
+- Roster filtering on TeamYear.jsx (PRIMARY check)
+- Stats table team display per year (Player.jsx)
+- Historical roster accuracy when coaches change teams
+
+**Updated automatically in**:
+- `saveRoster()` - Sets teamsByYear[year] = teamAbbr
+- `advanceToNewSeason()` - Adds next year for continuing players
+- `handleTransferDestinationsSave()` - Sets teamsByYear[nextYear] = destination team
+- Recruit creation - Sets teamsByYear for enrollment year
+
+### Player Transfer Fields
+
+**Incoming portal transfers** (players coming TO your team):
+- `previousTeam` - Where they transferred from (e.g., Syracuse)
+- `isPortal` - true
+
+**Outgoing transfers** (players leaving your team):
+- `transferredTo` - Destination team (e.g., Arizona)
+- `transferredFrom` - Team they left (set when saving transfer destinations)
+- `leftTeam` - true (finalized after advanceToNewSeason)
+- `leftYear` - Year they left
+- `leftReason` - Transfer reason
+- `leavingYear` / `leavingReason` - Pending departure (before advanceToNewSeason)
+
+**IMPORTANT**: `previousTeam` and `transferredFrom` are DIFFERENT:
+- `previousTeam` = incoming portal recruit origin
+- `transferredFrom` = outgoing transfer origin (where they just left)
+
+### Player Departure Tracking
+
+Players can be marked as leaving via two mechanisms:
+1. `playersLeavingByYear[year]` - Array from Players Leaving task
+2. `player.leavingYear` + `player.leavingReason` - Direct fields on player
+
+Roster filtering checks BOTH:
+```javascript
+// Exclude if leftTeam is set and year is past leftYear
+if (p.leftTeam && p.leftYear && Number(year) > Number(p.leftYear)) return false
+// Exclude if pending departure and year is past leavingYear
+if (p.leavingYear && p.leavingReason && Number(year) > Number(p.leavingYear)) return false
+```
+
+### Class Progression
+
+**CLASS_PROGRESSION mapping** (in DynastyContext.jsx):
+```javascript
+{
+  'HS': 'Fr',
+  'JUCO Fr': 'Fr',   // Drop JUCO prefix, keep class
+  'JUCO So': 'So',
+  'JUCO Jr': 'Jr',
+  'JUCO Sr': 'Sr',
+  'Fr': 'So',
+  'RS Fr': 'RS So',
+  'So': 'Jr',
+  'RS So': 'RS Jr',
+  'Jr': 'Sr',
+  'RS Jr': 'RS Sr',
+  'Sr': 'RS Sr',
+  'RS Sr': 'RS Sr'
+}
+```
+
+**Redshirt rules**: Players with ≤4 games get RS prefix added (unless already RS)
+
+### Player statsByYear (Stats Storage)
+
+Stats stored within each player's `statsByYear` field:
+```javascript
+player.statsByYear = {
+  2025: {
+    gamesPlayed: 13,
+    snapsPlayed: 850,
+    passing: { Completions: 250, Yards: 3000, ... },
+    rushing: { Carries: 50, Yards: 200, ... },
+    // ... other categories
+  }
+}
+```
+
+**Reading stats** (priority order in Player.jsx):
+1. `player.statsByYear[year]` - PRIMARY
+2. Legacy: `dynasty.detailedStatsByYear[year]` - Fallback
+
 ## Important Notes
 
 ### Firestore Updates
@@ -162,194 +247,30 @@ Use dot notation for nested fields in production:
 { preseasonSetup: { scheduleEntered: true } }
 ```
 
-### Google Sheets Integration
-
-**Service File**: `src/services/sheetsService.js`
-
-**Sheet Structure**:
-- **Schedule Tab** (4 columns): Week, User Team, CPU Team, Site
-  - Week pre-filled 1-12, User Team pre-filled with user's team abbreviation
-  - Header row protected and frozen
-  - STRICT dropdown validation for teams and site (Home/Road/Neutral)
-  - Conditional formatting applies team colors to abbreviations
-
-- **Roster Tab** (13 columns): First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL
-  - 85 rows for players
-  - STRICT dropdowns for Position, Class, Dev Trait, Archetype, Height, State
-  - Auto-filter enabled on header row for sorting/filtering
-
-**Data Sync Process** (in `ScheduleEntryModal.jsx`):
-1. `readScheduleFromSheet()` - Reads schedule data, auto-converts team abbreviations to uppercase
-2. `readRosterFromSheet()` - Reads roster data, parses First Name + Last Name into `name`, `firstName`, `lastName` fields
-3. `onSave(schedule)` → `saveSchedule()` in DynastyContext:
-   - Stores in `schedulesByTeamYear[teamAbbr][year]`
-   - Sets `preseasonSetup.scheduleEntered = true` (dot notation in Firestore)
-4. `onRosterSave(roster)` → `saveRoster()` in DynastyContext:
-   - During preseason: Replaces entire roster, assigns PIDs starting from 1
-   - After preseason: Merges with existing, continues PID sequence from `nextPID`
-   - Tags each player with `team: teamAbbr`
-   - Sets `preseasonSetup.rosterEntered = true`
-   - **IMPORTANT**: Preserves player metadata when matching by name (isPortal, isRecruit, stars, nationalRank, stateRank, positionRank, previousTeam, gemBust, yearStarted, recruitYear)
-
-**Player Fields**:
-- `name` - Full name (combined from firstName + lastName)
-- `firstName`, `lastName` - Separate name fields for sorting
-- `pictureUrl` - Player image URL (synced from Image URL column)
-
-**Key Functions**:
-- `createDynastySheet()` - Creates new Sheet with Schedule/Roster tabs
-- `initializeSheetHeaders()` - Sets up headers, protection, validation, formatting
-- `initializeTeamStatsSheet()` - Creates Team Stats tab with team-colored headers
-- `restoreGoogleSheet()` - Restores trashed sheets via Drive API (used before creating new)
-- `getSheetEmbedUrl()` - Generates iframe embed URL
-- `getAccessToken()` - Retrieves OAuth token from localStorage (throws if expired)
-
-**OAuth Requirements**:
-- Requires OAuth access token (not Firebase ID token)
-- Token stored in localStorage with 1-hour expiry
-- If expired, user must sign out and back in
-- Scopes: `spreadsheets` (create/edit) and `drive.file` (manage files)
-
 ### Team Colors
 
 Use `useTeamColors(teamName)` hook for dynamic theming.
 
 ### View-Only Mode
 
-When `isViewOnly` is true from `useDynasty()`, hide all edit/add functionality:
-- Edit buttons (roster, player, game, schedule)
-- Add sections (roster entry, game entry)
-- Use invisible placeholder divs to maintain layout when hiding buttons
+When `isViewOnly` is true from `useDynasty()`, hide all edit/add functionality.
 
-### Box Score Stat Keys
+### Unified Game System
 
-Stats from `boxScoreConstants.js` use camelCase keys. Important mappings:
-- **Defense**: `solo`, `assists`, `sack`, `iNT`, `pD`, `fF`, `fR`
-- **Kicking**: `fGM`, `fGA`, `xPM`, `xPA`
-- **Punting**: `punts`, `puntYards`, `puntLong`, `puntIn20`
-- **Returns**: `kickReturns`, `kickReturnYards`, `puntReturns`, `puntReturnYards`
+All games stored in `games[]` array with `gameType` field:
+- Game types: `regular`, `conference_championship`, `bowl`, `cfp_first_round`, `cfp_quarterfinal`, `cfp_semifinal`, `cfp_championship`
+- **CPU games**: Have `team1`/`team2` but NO `opponent` field
+- **User games**: Have `opponent` field (and `userTeam`)
 
-### Player teamsByYear (Roster Membership Tracking)
+### Google Sheets OAuth
 
-Each player can have a `teamsByYear` object that explicitly tracks which team they were on for each season:
-```javascript
-player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
-```
+- Requires OAuth access token (not Firebase ID token)
+- Token stored in localStorage with 1-hour expiry
+- If expired, user must sign out and back in
+- Scopes: `spreadsheets` and `drive.file`
 
-**Used for**:
-- Roster filtering on TeamYear.jsx (PRIMARY check, with fallback to old logic)
-- Roster prefill in RosterEditModal.jsx
-- Historical roster accuracy when coaches change teams
+## Hidden Dev Tools
 
-**Updated automatically in**:
-- `saveRoster()` - Sets teamsByYear[year] = teamAbbr when saving
-- `advanceToNewSeason()` - Adds next year to teamsByYear for continuing players
-- Recruit creation (Dashboard.jsx, Recruiting.jsx) - Sets teamsByYear for enrollment year
-
-**Manual editing**: Player Edit Modal has "Roster History" section for manual corrections
-
-### Hidden Dev Tools
-
-Some features are hidden with `{false && (...)}` for future use:
+Features hidden with `{false && (...)}` for future use:
 - **Roster History button** - All Players page (`Players.jsx:240`)
 - **Random Fill button** - Game Entry modal (`GameEntryModal.jsx:1395`)
-- **RosterHistoryModal** - Bulk edit teamsByYear via Google Sheets (kept, just hidden trigger)
-
-## Recent Completions
-
-**Player Name Change Propagation**:
-- When a player's name is changed via `updatePlayer()`, it now updates:
-  - All box scores in all games (`playerName` field in all stat categories)
-  - Scoring summary (`scorer`, `passer`, `patNotes` fields)
-  - `playerStatsByYear` and `detailedStatsByYear` entries
-- Fixes issue where renaming a player broke their game log connection
-
-**Team Page Clickable Modals** (Team.jsx):
-- All Team Accomplishments stats are now clickable with detailed modals:
-  - AP Top 25 Finishes, Conference Titles, Bowl Games, CFP Appearances, National Titles, All-Americans
-- Your History section: "As {team}" and "Vs {team}" tiles show games modals
-- Result handling supports both 'W'/'L' and 'win'/'loss' formats
-
-**Coach Career Page Clickable Modals** (CoachCareer.jsx):
-- All stat tiles are clickable: Overall Record, As Favorite, As Underdog, Bowl Record, Conf Championships, CFP Appearances
-- Season-by-Season section now shows newest years first
-- Games in modals sorted by most recent first within each year
-- CFP games tracked separately from bowl games
-
-**CFP/CC/Bowl Games on Team Pages** (TeamYear.jsx):
-- All teams now properly display postseason games from legacy data structures:
-  - `cfpResultsByYear` - CFP first round, quarterfinals, semifinals, championship
-  - `conferenceChampionshipsByYear` - Conference championship games
-  - `bowlGamesByYear` - Bowl games
-- Games only linkable if they have actual entries in the games array (prevents "Game not found" errors)
-
-**Conference Standings Mobile Support** (ConferenceStandings.jsx):
-- All columns (W, L, PF, PA, +/-) now visible on mobile (removed `hidden sm:table-cell`)
-- Compact column widths and smaller logos for mobile
-- W/L columns no longer use green/red text (point differential still colored)
-- Team abbreviations shown instead of full names on mobile
-
-**Defense Box Score Total Column**:
-- Added "Total" column to defense stats (auto-calculated as Solo + Assists)
-- Display-only calculation, not stored in Google Sheets
-- Column is sortable like other stat columns
-
-**Recruiting "All Seasons" View** (Recruiting.jsx):
-- Dropdown option to view all recruits ever made by the team
-- Shows year badge on each recruit card when viewing all seasons
-- Edit button hidden in all-seasons view
-- Stats section shows totals instead of ranks
-
-**Player Page Team Logo Links** (Player.jsx):
-- All team logos in player stats tables are now clickable
-- Links to the team's page for that specific year
-
-**ScrollToTop Component**:
-- New component: `src/components/ScrollToTop.jsx`
-- Added to App.jsx router - pages now scroll to top on navigation
-
-**Coaching Staff Team Isolation**:
-- Fixed `getLockedCoachingStaff()` to only fall back to `dynasty.coachingStaff` for user's current team
-- Other teams no longer incorrectly show user's coordinators
-
-**Unified Game System** (DynastyContext.jsx, GameEntryModal.jsx):
-- All games stored in unified `games[]` array with `gameType` field
-- Game types: `regular`, `conference_championship`, `bowl`, `cfp_first_round`, `cfp_quarterfinal`, `cfp_semifinal`, `cfp_championship`
-- **CPU games identified by**: Having `team1`/`team2` but NO `opponent` field
-- **User games identified by**: Having `opponent` field (and optionally `userTeam`)
-- User games now also set `userTeam` field for explicit identification
-- Helper functions: `detectGameType(game)`, `getGamesByType(dynasty, type, year)`, `getCFPGames(dynasty, year)`
-- Migration function runs on dynasty load to consolidate legacy structures
-- No more `isCPUGame` flag - detection is based on presence/absence of `opponent`
-
-**Box Score Stats Aggregation** (boxScoreAggregator.js):
-- `aggregatePlayerBoxScoreStats()` - Aggregates season totals from game box scores
-- `getPlayerSeasonStatsFromBoxScores()` - Returns year-by-year stats for Player.jsx
-- `getPlayerGameLog()` - Returns per-game breakdown for game log display
-- All functions search BOTH `home` and `away` sides of box scores (robust to location field)
-- Player name matching uses `normalizeName()` helper (handles case, extra whitespace)
-- CPU game detection: `!game.opponent && game.team1 && game.team2`
-
-**Class Progression System Overhaul**:
-- Year flip now happens when entering Signing Day (Week 6), not after Training Camp
-- Removed Transfer Redshirt Status task from Training Camp (no longer needed)
-- Removed Transfer Class Check task from Preseason (moved to Signing Day)
-- New **Portal Transfer Class Assignment** task on Signing Day:
-  - Creates Google Sheet with portal transfers and per-row dropdown validation
-  - Class options based on incoming class (Fr→RS Fr/So/RS So, So→RS So/Jr/RS Jr, Jr→RS Jr/Sr/RS Sr)
-  - Stored in `portalTransferClassByYear[year]` for use in `advanceToNewSeason()`
-- New **Fringe Case Class Assignment** task on Signing Day:
-  - Players with 5-9 games who might have redshirted (if ≤4 regular season games)
-  - Sheet pre-fills with progressed class, user can select redshirt version if applicable
-  - Stored in `fringeCaseClassByYear[year]` for use in `advanceToNewSeason()`
-- Tasks 5 and 6 are blocked until Task 1 (Signing Day) is completed
-- `advanceToNewSeason()` now uses stored class selections instead of automatic progression for:
-  - Portal transfers (checks `portalTransferClassByYear`)
-  - Fringe case players (checks `fringeCaseClassByYear`)
-- **Components**: `PortalTransferClassModal.jsx`, `FringeCaseClassModal.jsx`
-- **Sheet Functions**: `createPortalTransferClassSheet()`, `readPortalTransferClassFromSheet()`, `createFringeCaseClassSheet()`, `readFringeCaseClassFromSheet()`
-
-## TODO / Future Work
-
-- User's games as/against each team with win percentages
-- Convert recruits to active roster players at season start

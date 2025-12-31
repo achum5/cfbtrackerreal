@@ -273,7 +273,7 @@ export default function PortalTransferClassModal({ isOpen, onClose, onSave, curr
             {!isMobile && useEmbedded && (
               <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: `${teamColors.primary}15` }}>
                 <p className="text-sm" style={{ color: teamColors.primary }}>
-                  <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't track whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
+                  <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't show during recruitment whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
                 </p>
               </div>
             )}
@@ -353,7 +353,7 @@ export default function PortalTransferClassModal({ isOpen, onClose, onSave, curr
                 <div className="text-left mb-6 max-w-md">
                   <div className="p-3 rounded-lg mb-4" style={{ backgroundColor: `${teamColors.primary}15` }}>
                     <p className="text-sm" style={{ color: teamColors.primary }}>
-                      <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't track whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
+                      <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't show during recruitment whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
                     </p>
                   </div>
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>

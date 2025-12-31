@@ -396,7 +396,8 @@ export function getCurrentRoster(dynasty) {
     // CRITICAL: If player has a recruitYear, they don't play until the NEXT year
     // (recruitYear = their recruiting class year, they start playing recruitYear + 1)
     // So if currentYear <= recruitYear, don't show them yet
-    if (p.recruitYear && currentYear <= p.recruitYear) return false
+    // Use Number() to handle string/number type mismatch
+    if (p.recruitYear && Number(currentYear) <= Number(p.recruitYear)) return false
 
     // If player has team field, check it matches current team
     if (p.team) {
@@ -600,8 +601,12 @@ export function getCurrentRecruits(dynasty) {
  */
 const CLASS_PROGRESSION = {
   'HS': 'Fr',
-  'JUCO Fr': 'So',
-  'JUCO So': 'Jr',
+  // JUCO players: drop the JUCO prefix, keep the class level
+  // Their first season on team they play as that class (Fr, So, Jr, Sr)
+  'JUCO Fr': 'Fr',
+  'JUCO So': 'So',
+  'JUCO Jr': 'Jr',
+  'JUCO Sr': 'Sr',
   'Fr': 'So',
   'RS Fr': 'RS So',
   'So': 'Jr',
@@ -958,8 +963,9 @@ export function DynastyProvider({ children }) {
     }
   }
 
-  const updateDynasty = async (dynastyId, updates) => {
+  const updateDynasty = async (dynastyId, updates, options = {}) => {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    const { skipLastModified = false } = options
 
     // Helper to recursively remove undefined values (Firestore doesn't accept undefined)
     const removeUndefined = (obj) => {
@@ -1008,10 +1014,10 @@ export function DynastyProvider({ children }) {
       })
     }
 
-    // Add lastModified timestamp to all updates and sanitize
+    // Add lastModified timestamp to updates (unless skipLastModified is true)
     const updatesWithTimestamp = removeUndefined({
       ...sanitizedUpdates,
-      lastModified: Date.now()
+      ...(skipLastModified ? {} : { lastModified: Date.now() })
     })
 
     if (isDev || !user) {
@@ -1855,8 +1861,110 @@ export function DynastyProvider({ children }) {
     } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 5 && nextWeek === 6) {
       // YEAR FLIP - Happens when entering Signing Day (week 6)
       // The year changes here so that team pages for the new year become available
-      // Class progression will happen during Signing Day tasks, not here
       nextYear = dynasty.currentYear + 1
+
+      // CLASS PROGRESSION - Also happens at year flip
+      // Progress all players' classes based on games played in the previous season
+      const previousSeasonYear = dynasty.currentYear // The year that just ended
+      const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+
+      // Helper to get data by year (handles both string and numeric keys)
+      const getByYearLocal = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
+
+      const playerStats = getByYearLocal(dynasty.playerStatsByYear, previousSeasonYear) || []
+      const players = dynasty.players || []
+
+      // Progress each player's class
+      const progressedPlayers = players.map(player => {
+        // Skip honor-only players
+        if (player.isHonorOnly) return player
+
+        // Skip players from other teams
+        if (player.team && player.team !== teamAbbr) return player
+
+        // Skip players already marked as left
+        if (player.leftTeam) return player
+
+        // Skip recruits (they get converted when advanceToNewSeason runs)
+        if (player.isRecruit) return player
+
+        // Get games played for this player
+        const stats = playerStats.find(s => s.pid === player.pid)
+        const gamesPlayed = stats?.gamesPlayed ?? player.statsByYear?.[previousSeasonYear]?.gamesPlayed
+
+        const isAlreadyRS = player.year?.startsWith('RS ')
+        let newYear = player.year
+
+        // Apply class progression based on games played
+        if (gamesPlayed !== null && gamesPlayed !== undefined) {
+          if (gamesPlayed <= 4 && !isAlreadyRS) {
+            // Redshirt: add RS prefix (played 4 or fewer games)
+            newYear = 'RS ' + player.year
+          } else {
+            // Normal progression
+            newYear = CLASS_PROGRESSION[player.year] || player.year
+          }
+        } else {
+          // No games data - default to normal progression
+          newYear = CLASS_PROGRESSION[player.year] || player.year
+        }
+
+        // Return updated player if class changed
+        if (newYear !== player.year) {
+          return { ...player, year: newYear }
+        }
+        return player
+      })
+
+      additionalUpdates.players = progressedPlayers
+      // Mark that class progression has been done for this year
+      additionalUpdates.classProgressionDoneForYear = nextYear
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 6 && nextWeek === 7) {
+      // Advancing FROM Signing Day TO Training Camp
+      // Run class progression if it hasn't been done (for dynasties that upgraded mid-offseason)
+      const previousSeasonYear = dynasty.currentYear - 1
+      const currentYear = dynasty.currentYear
+
+      // Skip if class progression was already done for this year
+      if (dynasty.classProgressionDoneForYear === currentYear) {
+        // Already done, skip
+      } else {
+        const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+        const getByYearLocal = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
+        const playerStats = getByYearLocal(dynasty.playerStatsByYear, previousSeasonYear) || []
+        const players = dynasty.players || []
+
+        const progressedPlayers = players.map(player => {
+          if (player.isHonorOnly) return player
+          if (player.team && player.team !== teamAbbr) return player
+          if (player.leftTeam) return player
+          if (player.isRecruit) return player
+
+          const stats = playerStats.find(s => s.pid === player.pid)
+          const gamesPlayed = stats?.gamesPlayed ?? player.statsByYear?.[previousSeasonYear]?.gamesPlayed
+
+          const isAlreadyRS = player.year?.startsWith('RS ')
+          let newYear = player.year
+
+          if (gamesPlayed !== null && gamesPlayed !== undefined) {
+            if (gamesPlayed <= 4 && !isAlreadyRS) {
+              newYear = 'RS ' + player.year
+            } else {
+              newYear = CLASS_PROGRESSION[player.year] || player.year
+            }
+          } else {
+            newYear = CLASS_PROGRESSION[player.year] || player.year
+          }
+
+          if (newYear !== player.year) {
+            return { ...player, year: newYear }
+          }
+          return player
+        })
+
+        additionalUpdates.players = progressedPlayers
+        additionalUpdates.classProgressionDoneForYear = currentYear
+      }
     } else if (dynasty.currentPhase === 'offseason' && nextWeek > 7) {
       // SEASON ADVANCEMENT to preseason - year already flipped when entering Signing Day
       // Just transition to preseason phase, no year change needed
@@ -1904,22 +2012,28 @@ export function DynastyProvider({ children }) {
     // IMPORTANT: Year flip happened when entering Signing Day (week 6).
     // At this point, dynasty.currentYear is already the NEW season year (e.g., 2027).
     // All offseason data (playersLeaving, playerStats, recruits, etc.) is stored under the PREVIOUS year (2026).
-    const previousSeasonYear = dynasty.currentYear - 1  // The season that just ended (e.g., 2026)
-    const currentSeasonYear = dynasty.currentYear       // The upcoming season (e.g., 2027)
+    const previousSeasonYear = Number(dynasty.currentYear) - 1  // The season that just ended (e.g., 2026)
+    const currentSeasonYear = Number(dynasty.currentYear)       // The upcoming season (e.g., 2027)
     const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
     const players = [...(dynasty.players || [])]
-    const playerStats = dynasty.playerStatsByYear?.[previousSeasonYear] || []
+
+    // Helper to get data by year (handles both string and numeric keys)
+    const getByYear = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
+
+    const playerStats = getByYear(dynasty.playerStatsByYear, previousSeasonYear) || []
 
     // Get players leaving data (stored under previous season year)
-    const playersLeavingThisYear = dynasty.playersLeavingByYear?.[previousSeasonYear] || []
-    const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
+    // CRITICAL: Check both string and numeric keys to handle any data format
+    const playersLeavingThisYear = getByYear(dynasty.playersLeavingByYear, previousSeasonYear) || []
+    const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid).filter(Boolean))
 
     // Get encouraged transfers data (stored under previous season year)
-    const encouragedTransfers = dynasty.encourageTransfersByTeamYear?.[teamAbbr]?.[previousSeasonYear] || []
+    const encouragedTransfersForTeam = dynasty.encourageTransfersByTeamYear?.[teamAbbr]
+    const encouragedTransfers = getByYear(encouragedTransfersForTeam, previousSeasonYear) || []
     const encouragedNames = new Set(encouragedTransfers.map(t => t.name?.toLowerCase().trim()))
 
     // Get draft results for draft round info (stored under previous season year)
-    const draftResults = dynasty.draftResultsByYear?.[previousSeasonYear] || []
+    const draftResults = getByYear(dynasty.draftResultsByYear, previousSeasonYear) || []
     const draftByPid = {}
     draftResults.forEach(d => {
       if (d.pid) draftByPid[d.pid] = d
@@ -1975,7 +2089,8 @@ export function DynastyProvider({ children }) {
       }
 
       // Check if player has leavingYear set on their record (retroactive marking)
-      if (player.leavingYear === previousSeasonYear && player.leavingReason) {
+      // Use Number() to handle string/number type mismatch
+      if (Number(player.leavingYear) === previousSeasonYear && player.leavingReason) {
         const draftInfo = draftByPid[player.pid]
 
         // If player transferred to another team, update their team
@@ -2033,12 +2148,13 @@ export function DynastyProvider({ children }) {
       }
 
       // Convert recruits to active players (recruits have recruitYear from the previous season's recruiting cycle)
-      if (player.isRecruit && player.recruitYear === previousSeasonYear) {
+      // Use Number() to handle string/number type mismatch
+      if (player.isRecruit && Number(player.recruitYear) === previousSeasonYear) {
         let newYear
 
         // Check if this is a portal transfer with a manually assigned class
         if (player.isPortal) {
-          const portalClassSelections = dynasty.portalTransferClassByYear?.[previousSeasonYear] || []
+          const portalClassSelections = getByYear(dynasty.portalTransferClassByYear, previousSeasonYear) || []
           const classSelection = portalClassSelections.find(s =>
             s.playerName?.toLowerCase().trim() === player.name?.toLowerCase().trim()
           )
@@ -2078,7 +2194,7 @@ export function DynastyProvider({ children }) {
       let newYear = player.year
 
       // Check if this player has a fringe case class assignment (5-9 games - might have redshirted)
-      const fringeCaseSelections = dynasty.fringeCaseClassByYear?.[previousSeasonYear] || []
+      const fringeCaseSelections = getByYear(dynasty.fringeCaseClassByYear, previousSeasonYear) || []
       const fringeCaseSelection = fringeCaseSelections.find(s =>
         s.playerName?.toLowerCase().trim() === player.name?.toLowerCase().trim()
       )

@@ -211,11 +211,23 @@ export default function Player() {
   const player = dynasty?.players?.find(p => p.pid === parseInt(pid))
 
   // Determine the player's team from their team field
+  // For players who transferred out, use their destination team (transferredTo)
+  // Check both leftTeam (finalized) and leavingReason (pending departure) for transfer status
   // Falls back to dynasty.teamName only for legacy players without a team field
-  const playerTeamAbbr = player?.team
-    || player?.teams?.[0]
-    || getAbbreviationFromDisplayName(dynasty?.teamName)
-    || ''
+  const hasTransferredOut = player?.transferredTo && (player?.leftTeam || player?.leavingReason)
+  const playerTeamAbbr = hasTransferredOut
+    ? player.transferredTo  // Player transferred to a new team - show their new team
+    : (player?.team
+      || player?.teams?.[0]
+      || getAbbreviationFromDisplayName(dynasty?.teamName)
+      || '')
+
+  // For outgoing transfers, get the team they transferred FROM
+  // Use transferredFrom (new field) first, then fall back to player.team (legacy)
+  // Do NOT use previousTeam - that's for incoming portal recruits (where they originally came from)
+  const transferredFromTeam = hasTransferredOut
+    ? (player?.transferredFrom || player?.team)
+    : null
 
   // Get the full team name from the abbreviation
   const playerTeamName = getMascotName(playerTeamAbbr)
@@ -355,14 +367,16 @@ export default function Player() {
   }
 
   // Get year-by-year stats for this player
-  // Combines stats from box scores (game-by-game) with manually entered season stats
-  // Box score stats take priority when available
+  // Priority: player.statsByYear (PRIMARY) > legacy structures > box scores
   const yearByYearStats = useMemo(() => {
-    const playerStatsByYear = dynasty.playerStatsByYear || {}
-    const detailedStatsByYear = dynasty.detailedStatsByYear || {}
+    const playerStatsByYearLegacy = dynasty.playerStatsByYear || {}
+    const detailedStatsByYearLegacy = dynasty.detailedStatsByYear || {}
     const playerPid = player.pid
 
-    // Get stats aggregated from box scores
+    // PRIMARY source: player's own statsByYear field
+    const playerOwnStats = player.statsByYear || {}
+
+    // Get stats aggregated from box scores (fallback)
     const boxScoreStats = getPlayerSeasonStatsFromBoxScores(dynasty, player)
     const boxScoreByYear = {}
     boxScoreStats.forEach(bs => {
@@ -371,8 +385,9 @@ export default function Player() {
 
     // Get all years that have any data for this player (from any source)
     const allYears = new Set([
-      ...Object.keys(playerStatsByYear),
-      ...Object.keys(detailedStatsByYear),
+      ...Object.keys(playerOwnStats),
+      ...Object.keys(playerStatsByYearLegacy),
+      ...Object.keys(detailedStatsByYearLegacy),
       ...Object.keys(boxScoreByYear)
     ])
 
@@ -383,14 +398,38 @@ export default function Player() {
 
     sortedYears.forEach(yearStr => {
       const year = parseInt(yearStr)
-      const basicStats = playerStatsByYear[yearStr]?.find(p => p.pid === playerPid)
-      const detailedYear = detailedStatsByYear[yearStr] || {}
+
+      // PRIMARY: Check player's own statsByYear first
+      const ownYearStats = playerOwnStats[yearStr] || playerOwnStats[year]
+
+      // LEGACY fallback
+      const legacyBasicStats = playerStatsByYearLegacy[yearStr]?.find(p => p.pid === playerPid)
+      const legacyDetailedYear = detailedStatsByYearLegacy[yearStr] || {}
       const boxStats = boxScoreByYear[year]
 
-      // Find player in each stat category (manual entry)
-      const findInTab = (tabName) => detailedYear[tabName]?.find(p =>
-        p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-      )
+      // Combine: prefer own stats, fall back to legacy
+      const basicStats = ownYearStats ? {
+        gamesPlayed: ownYearStats.gamesPlayed,
+        snapsPlayed: ownYearStats.snapsPlayed,
+        year: legacyBasicStats?.year
+      } : legacyBasicStats
+
+      // For detailed stats, check ownYearStats first (internal format), then legacy (sheet format)
+      const findInTab = (tabName) => {
+        // First check player's own statsByYear (uses internal category names)
+        const internalName = {
+          'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
+          'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
+          'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
+        }[tabName]
+        if (ownYearStats?.[internalName]) {
+          return ownYearStats[internalName]
+        }
+        // Fall back to legacy detailedStatsByYear
+        return legacyDetailedYear[tabName]?.find(p =>
+          p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+        )
+      }
 
       // Helper to check if manual stats have any real values entered (not blank/null)
       // Only override box score data if user actually entered something
@@ -449,9 +488,18 @@ export default function Player() {
         }
       }
 
+      // Determine the team for this specific year
+      // Priority: teamsByYear[year] > player.team > dynasty team
+      const yearTeam = player.teamsByYear?.[year]
+        || player.teamsByYear?.[String(year)]
+        || player.team
+        || getAbbreviationFromDisplayName(dynasty?.teamName)
+        || ''
+
       // Build year stats object - prefer detailed stats (manual entry) ONLY if real values entered, otherwise box score
       const yearData = {
         year,
+        team: yearTeam,  // Team the player was on for this specific year
         class: playerClass,
         // Use manual games played if available, otherwise box score
         gamesPlayed: basicStats?.gamesPlayed || boxStats?.gamesPlayed || 0,
@@ -829,23 +877,24 @@ export default function Player() {
                   : `Left Team (${player.leftYear})`}
               </span>
             )}
-            {player.transferredTo && (() => {
-              const newTeamName = getMascotName(player.transferredTo) || teamAbbreviations[player.transferredTo]?.name || player.transferredTo
-              const newTeamColors = getTeamColors(newTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
-              const newTeamTextColor = getContrastTextColor(newTeamColors.primary)
+            {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
+              // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
+              const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
+              const prevTeamColors = getTeamColors(prevTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
+              const prevTeamTextColor = getContrastTextColor(prevTeamColors.primary)
               return (
                 <Link
-                  to={`${pathPrefix}/team/${player.transferredTo}`}
+                  to={`${pathPrefix}/team/${transferredFromTeam}`}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity"
-                  style={{ backgroundColor: newTeamColors.primary, color: newTeamTextColor }}
+                  style={{ backgroundColor: prevTeamColors.primary, color: prevTeamTextColor }}
                 >
-                  <span>→</span>
-                  {getTeamLogo(newTeamName) && (
+                  <span>←</span>
+                  {getTeamLogo(prevTeamName) && (
                     <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
-                      <img src={getTeamLogo(newTeamName)} alt="" className="w-full h-full object-contain" />
+                      <img src={getTeamLogo(prevTeamName)} alt="" className="w-full h-full object-contain" />
                     </div>
                   )}
-                  <span>{player.transferredTo}</span>
+                  <span>{transferredFromTeam}</span>
                 </Link>
               )
             })()}
@@ -1000,23 +1049,24 @@ export default function Player() {
                       : `Left Team (${player.leftYear})`}
                   </span>
                 )}
-                {player.transferredTo && (() => {
-                  const newTeamName = getMascotName(player.transferredTo) || teamAbbreviations[player.transferredTo]?.name || player.transferredTo
-                  const newTeamColors = getTeamColors(newTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
-                  const newTeamTextColor = getContrastTextColor(newTeamColors.primary)
+                {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
+                  // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
+                  const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
+                  const prevTeamColors = getTeamColors(prevTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
+                  const prevTeamTextColor = getContrastTextColor(prevTeamColors.primary)
                   return (
                     <Link
-                      to={`${pathPrefix}/team/${player.transferredTo}`}
+                      to={`${pathPrefix}/team/${transferredFromTeam}`}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold hover:opacity-80 transition-opacity"
-                      style={{ backgroundColor: newTeamColors.primary, color: newTeamTextColor }}
+                      style={{ backgroundColor: prevTeamColors.primary, color: prevTeamTextColor }}
                     >
-                      <span>→</span>
-                      {getTeamLogo(newTeamName) && (
+                      <span>←</span>
+                      {getTeamLogo(prevTeamName) && (
                         <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
-                          <img src={getTeamLogo(newTeamName)} alt="" className="w-full h-full object-contain" />
+                          <img src={getTeamLogo(prevTeamName)} alt="" className="w-full h-full object-contain" />
                         </div>
                       )}
-                      <span>{player.transferredTo}</span>
+                      <span>{transferredFromTeam}</span>
                     </Link>
                   )
                 })()}
@@ -1339,7 +1389,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {passingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 15 + (primaryStat === 'passing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1355,8 +1406,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -1448,7 +1499,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {rushingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 11 + (primaryStat === 'rushing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1464,8 +1516,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -1549,7 +1601,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {receivingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 10 + (primaryStat === 'receiving' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1565,8 +1618,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -1639,7 +1692,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {blockingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 4 + (primaryStat === 'blocking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1655,8 +1709,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'blocking' && <td className="px-2 py-2 text-right">{y.gamesPlayed || 0}</td>}
@@ -1729,7 +1783,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {defenseYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 14 + (primaryStat === 'defense' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1745,8 +1800,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'defense' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -1836,7 +1891,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {kickingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 10 + (primaryStat === 'kicking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1852,8 +1908,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'kicking' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -1933,7 +1989,8 @@ export default function Player() {
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {puntingYears.map((y, idx) => {
-                          const mascot = getMascotName(teamAbbr)
+                          const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                           const logo = mascot ? getTeamLogo(mascot) : null
                           const colSpan = 9 + (primaryStat === 'punting' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -1949,8 +2006,8 @@ export default function Player() {
                                 </td>
                                 <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                                 {primaryStat === 'punting' && <td className="px-2 py-2 text-right">{y.gamesPlayed}</td>}
@@ -2023,7 +2080,8 @@ export default function Player() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {kickReturnYears.map((y, idx) => {
-                      const mascot = getMascotName(teamAbbr)
+                      const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       const colSpan = 8
                       return (
@@ -2039,8 +2097,8 @@ export default function Player() {
                             </td>
                             <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                             <td className="px-2 py-2 text-right">{y.kickReturn.ret}</td>
@@ -2107,7 +2165,8 @@ export default function Player() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {puntReturnYears.map((y, idx) => {
-                      const mascot = getMascotName(teamAbbr)
+                      const rowTeam = y.team || teamAbbr
+                          const mascot = getMascotName(rowTeam)
                       const logo = mascot ? getTeamLogo(mascot) : null
                       const colSpan = 8
                       return (
@@ -2123,8 +2182,8 @@ export default function Player() {
                             </td>
                             <td className="px-2 py-2 text-gray-600 w-16">{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${teamAbbr}/${y.year}`} className="hover:opacity-70 transition-opacity">
-                                    {logo ? <img src={logo} alt={teamAbbr} className="w-5 h-5 object-contain inline-block" /> : teamAbbr}
+                                  <Link to={`${pathPrefix}/team/${rowTeam}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                    {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
                             <td className="px-2 py-2 text-right">{y.puntReturn.ret}</td>

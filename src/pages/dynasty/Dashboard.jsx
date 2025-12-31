@@ -1051,6 +1051,7 @@ export default function Dashboard() {
     // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
     const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+    const nextYear = year + 1
     const existingByYear = currentDynasty.transferDestinationsByYear || {}
 
     // Update player records with their new team
@@ -1060,11 +1061,21 @@ export default function Dashboard() {
       const playerIndex = updatedPlayers.findIndex(p =>
         p.name?.toLowerCase().trim() === dest.playerName?.toLowerCase().trim()
       )
-      if (playerIndex !== -1) {
-        // Update the player's transferredTo field (keeps stats with original team)
+      if (playerIndex !== -1 && dest.newTeam) {
+        const player = updatedPlayers[playerIndex]
+        // Save where they transferred FROM (distinct from previousTeam which is for incoming portal recruits)
+        const oldTeam = player.team || getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+        // DON'T update player.team - that would break historical stats
+        // Just set transferredTo and transferredFrom for display purposes
+        // teamsByYear[nextYear] records their new team for roster filtering
         updatedPlayers[playerIndex] = {
-          ...updatedPlayers[playerIndex],
-          transferredTo: dest.newTeam
+          ...player,
+          transferredFrom: oldTeam,  // Use transferredFrom, NOT previousTeam (which is for portal recruit origin)
+          transferredTo: dest.newTeam,
+          teamsByYear: {
+            ...(player.teamsByYear || {}),
+            [nextYear]: dest.newTeam
+          }
         }
       }
     })
@@ -5682,79 +5693,33 @@ export default function Dashboard() {
                     {/* Task 6: Fringe Case Class Assignment (only on National Signing Day) */}
                     {recruitingWeekNum === 5 && (() => {
                       // Get players with 5-9 games who might be fringe cases for redshirting
+                      // ONLY non-redshirt classes (Fr, So, Jr) who played 5-9 games
                       const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
                       const year = offseasonDataYear
 
-                      // Count games for each non-senior player on the roster
-                      const fringeCasePlayers = teamRoster.filter(player => {
-                        // Skip seniors (they can't redshirt)
-                        if (player.year === 'Sr' || player.year === 'RS Sr') return false
+                      // Get all players and filter for fringe cases
+                      const allPlayers = currentDynasty?.players || []
+                      const fringeCasePlayers = allPlayers.filter(player => {
+                        // Must have been on the team for this year
+                        const playerTeamThisYear = player.teamsByYear?.[year] || player.team
+                        if (playerTeamThisYear !== teamAbbr) return false
 
-                        // Skip already redshirted players - they've already used their redshirt
-                        if (player.year?.startsWith('RS ')) return false
+                        // ONLY non-redshirt underclassmen (Fr, So, Jr) - NOT RS classes or seniors
+                        const validClasses = ['Fr', 'So', 'Jr']
+                        if (!validClasses.includes(player.year)) return false
 
-                        // Count total games this player appeared in this year
-                        let gameCount = 0
-                        const playerName = normalizePlayerName(player.name)
-
-                        currentDynasty.games?.forEach(game => {
-                          // Skip CPU games
-                          if (!game.userTeam && game.team1 && game.team2) return
-                          if (parseInt(game.year) !== year) return
-                          if (game.userTeam !== teamAbbr) return
-
-                          // Check if player appeared in box score
-                          if (game.boxScore) {
-                            const checkSide = (side) => {
-                              if (!side) return false
-                              const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
-                              for (const cat of categories) {
-                                if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
-                                  return true
-                                }
-                              }
-                              return false
-                            }
-                            if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
-                              gameCount++
-                            }
-                          }
-                        })
+                        // Get games from player.statsByYear (the correct source)
+                        const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
 
                         // Fringe case: 5-9 games (might have used redshirt if ≤4 reg season games)
-                        return gameCount >= 5 && gameCount <= 9
+                        return gamesPlayed >= 5 && gamesPlayed <= 9
                       }).map(player => {
-                        // Count games for display
-                        let gameCount = 0
-                        const playerName = normalizePlayerName(player.name)
-
-                        currentDynasty.games?.forEach(game => {
-                          if (!game.userTeam && game.team1 && game.team2) return
-                          if (parseInt(game.year) !== year) return
-                          if (game.userTeam !== teamAbbr) return
-
-                          if (game.boxScore) {
-                            const checkSide = (side) => {
-                              if (!side) return false
-                              const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
-                              for (const cat of categories) {
-                                if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
-                                  return true
-                                }
-                              }
-                              return false
-                            }
-                            if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
-                              gameCount++
-                            }
-                          }
-                        })
-
+                        const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
                         return {
                           name: player.name,
                           position: player.position,
                           currentClass: player.year,
-                          gameCount
+                          gameCount: gamesPlayed
                         }
                       })
 
@@ -7706,80 +7671,33 @@ export default function Dashboard() {
         teamColors={teamColors}
         fringeCasePlayers={(() => {
           // Get players with 5-9 games who might be fringe cases for redshirting
+          // ONLY non-redshirt classes (Fr, So, Jr) who played 5-9 games
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
           const year = offseasonDataYear
 
-          // Count games for each non-senior player on the roster
-          return teamRoster.filter(player => {
-            // Skip seniors (they can't redshirt)
-            if (player.year === 'Sr' || player.year === 'RS Sr') return false
+          // Get all players and filter for fringe cases
+          const allPlayers = currentDynasty?.players || []
+          return allPlayers.filter(player => {
+            // Must have been on the team for this year
+            const playerTeamThisYear = player.teamsByYear?.[year] || player.team
+            if (playerTeamThisYear !== teamAbbr) return false
 
-            // Skip already redshirted players - they've already used their redshirt
-            if (player.year?.startsWith('RS ')) return false
+            // ONLY non-redshirt underclassmen (Fr, So, Jr) - NOT RS classes or seniors
+            const validClasses = ['Fr', 'So', 'Jr']
+            if (!validClasses.includes(player.year)) return false
 
-            // Count total games this player appeared in this year
-            let gameCount = 0
-            const playerName = normalizePlayerName(player.name)
-
-            currentDynasty?.games?.forEach(game => {
-              // Skip CPU games
-              if (!game.userTeam && game.team1 && game.team2) return
-              if (parseInt(game.year) !== year) return
-              if (game.userTeam !== teamAbbr) return
-
-              // Check if player appeared in box score
-              if (game.boxScore) {
-                const checkSide = (side) => {
-                  if (!side) return false
-                  const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
-                  for (const cat of categories) {
-                    if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
-                      return true
-                    }
-                  }
-                  return false
-                }
-                if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
-                  gameCount++
-                }
-              }
-            })
+            // Get games from player.statsByYear (the correct source)
+            const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
 
             // Fringe case: 5-9 games (might have used redshirt if ≤4 reg season games)
-            return gameCount >= 5 && gameCount <= 9
+            return gamesPlayed >= 5 && gamesPlayed <= 9
           }).map(player => {
-            // Count games for display
-            let gameCount = 0
-            const playerName = normalizePlayerName(player.name)
-
-            currentDynasty?.games?.forEach(game => {
-              if (!game.userTeam && game.team1 && game.team2) return
-              if (parseInt(game.year) !== offseasonDataYear) return
-              const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
-              if (game.userTeam !== teamAbbr) return
-
-              if (game.boxScore) {
-                const checkSide = (side) => {
-                  if (!side) return false
-                  const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
-                  for (const cat of categories) {
-                    if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
-                      return true
-                    }
-                  }
-                  return false
-                }
-                if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
-                  gameCount++
-                }
-              }
-            })
-
+            const gamesPlayed = player.statsByYear?.[year]?.gamesPlayed || 0
             return {
               name: player.name,
               position: player.position,
               currentClass: player.year,
-              gameCount
+              gameCount: gamesPlayed
             }
           })
         })()}

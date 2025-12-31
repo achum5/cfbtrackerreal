@@ -186,7 +186,8 @@ export default function Home() {
   const handleFavoriteClick = async (e, dynasty) => {
     e.preventDefault()
     e.stopPropagation()
-    await updateDynasty(dynasty.id, { favorite: !dynasty.favorite })
+    // Skip updating lastModified so starring doesn't change the sort order
+    await updateDynasty(dynasty.id, { favorite: !dynasty.favorite }, { skipLastModified: true })
   }
 
   const handleShareClick = (e, dynasty) => {

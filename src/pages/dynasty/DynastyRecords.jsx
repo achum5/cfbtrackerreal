@@ -2,14 +2,15 @@ import { useState, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { useTeamColors } from '../../hooks/useTeamColors'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName, getTeamName } from '../../data/teamAbbreviations'
-import { getPlayerSeasonStatsFromBoxScores } from '../../utils/boxScoreAggregator'
 
 // Stat category definitions with all 51 stats
 const STAT_CATEGORIES = {
   passing: {
     name: 'Passing',
+    icon: '🏈',
     minNote: 'Rate stats require minimum 150 pass attempts (career) / 50 attempts (season)',
     stats: [
       { key: 'completions', label: 'Completions', abbr: 'CMP', field: 'Completions' },
@@ -28,6 +29,7 @@ const STAT_CATEGORIES = {
   },
   rushing: {
     name: 'Rushing',
+    icon: '🏃',
     minNote: 'Rate stats require minimum 100 rush attempts (career) / 25 attempts (season)',
     stats: [
       { key: 'attempts', label: 'Rush Attempts', abbr: 'ATT', field: 'Carries' },
@@ -38,6 +40,7 @@ const STAT_CATEGORIES = {
   },
   receiving: {
     name: 'Receiving',
+    icon: '🙌',
     minNote: 'Rate stats require minimum 50 receptions (career) / 10 receptions (season)',
     stats: [
       { key: 'receptions', label: 'Receptions', abbr: 'REC', field: 'Receptions' },
@@ -48,6 +51,7 @@ const STAT_CATEGORIES = {
   },
   scrimmage: {
     name: 'Scrimmage',
+    icon: '⚡',
     minNote: 'Combined rushing and receiving stats',
     stats: [
       { key: 'plays', label: 'Scrimmage Plays', abbr: 'PLY', calculated: true },
@@ -57,6 +61,7 @@ const STAT_CATEGORIES = {
   },
   allPurpose: {
     name: 'All-Purpose',
+    icon: '🌟',
     minNote: 'Rate stats require minimum 1,500 yards (career) / 300 yards (season)',
     stats: [
       { key: 'plays', label: 'All-Purpose Plays', abbr: 'PLY', calculated: true },
@@ -66,7 +71,8 @@ const STAT_CATEGORIES = {
     ]
   },
   defensive: {
-    name: 'Defensive',
+    name: 'Defense',
+    icon: '🛡️',
     stats: [
       { key: 'soloTackles', label: 'Solo Tackles', abbr: 'SOLO', field: 'Solo Tackles' },
       { key: 'astTackles', label: 'Assisted Tackles', abbr: 'AST', field: 'Assisted Tackles' },
@@ -84,6 +90,7 @@ const STAT_CATEGORIES = {
   },
   kicking: {
     name: 'Kicking',
+    icon: '🦵',
     minNote: 'FG% requires minimum 25 attempts (career) / 5 attempts (season)',
     stats: [
       { key: 'xpa', label: 'XP Attempted', abbr: 'XPA', field: 'XP Attempted' },
@@ -95,6 +102,7 @@ const STAT_CATEGORIES = {
   },
   punting: {
     name: 'Punting',
+    icon: '📐',
     minNote: 'Rate stats require minimum 50 punts (career) / 10 punts (season)',
     stats: [
       { key: 'punts', label: 'Punts', abbr: 'P', field: 'Punts' },
@@ -104,6 +112,7 @@ const STAT_CATEGORIES = {
   },
   kickReturn: {
     name: 'Kick Returns',
+    icon: '↩️',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
       { key: 'returns', label: 'Kick Returns', abbr: 'RET', field: 'Kickoff Returns' },
@@ -114,6 +123,7 @@ const STAT_CATEGORIES = {
   },
   puntReturn: {
     name: 'Punt Returns',
+    icon: '↪️',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
       { key: 'returns', label: 'Punt Returns', abbr: 'RET', field: 'Punt Returns' },
@@ -124,18 +134,20 @@ const STAT_CATEGORIES = {
   }
 }
 
+// Category order for tabs
+const CATEGORY_ORDER = ['passing', 'rushing', 'receiving', 'scrimmage', 'allPurpose', 'defensive', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+
 export default function DynastyRecords() {
   const { id: dynastyId } = useParams()
   const { currentDynasty } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const teamColors = useTeamColors(currentDynasty?.teamName)
+
   const [mode, setMode] = useState(() => {
-    // Restore mode from localStorage
     return localStorage.getItem('leaderboard-mode') || 'career'
   })
-  const [expandedCategories, setExpandedCategories] = useState(() => {
-    // Restore expanded categories from localStorage
-    const saved = localStorage.getItem('leaderboard-expanded')
-    return saved ? JSON.parse(saved) : ['passing']
+  const [activeCategory, setActiveCategory] = useState(() => {
+    return localStorage.getItem('leaderboard-category') || 'passing'
   })
 
   // Get user's roster players (not honor-only)
@@ -147,57 +159,128 @@ export default function DynastyRecords() {
   // Get player info by PID
   const getPlayerInfo = (pid) => {
     const player = currentDynasty?.players?.find(p => p.pid === pid)
-    // Get the team - use player's team if set, otherwise current dynasty team
     const playerTeamRaw = player?.team || currentDynasty?.teamName
-    // player.team is usually an abbreviation, so convert to full name for logo lookup
     const teamAbbr = getAbbreviationFromDisplayName(playerTeamRaw) || playerTeamRaw
     const teamFullName = getTeamName(teamAbbr) || playerTeamRaw
     const teamLogo = getTeamLogo(teamFullName)
     return {
       name: player?.name || `Player ${pid}`,
+      position: player?.position || '',
       team: teamFullName,
       teamAbbr,
       teamLogo
     }
   }
 
-  // Get player name by PID (legacy helper)
-  const getPlayerName = (pid) => getPlayerInfo(pid).name
+  // Mapping from sheet/legacy field names to internal short keys
+  const FIELD_TO_INTERNAL = {
+    'Completions': 'comp', 'Attempts': 'attempts', 'Yards': 'yards', 'Touchdowns': 'td',
+    'Interceptions': 'int', 'Carries': 'carries', 'Receptions': 'rec',
+    'Solo Tackles': 'solo', 'Assisted Tackles': 'ast', 'Tackles for Loss': 'tfl',
+    'Sacks': 'sacks', 'Deflections': 'pdef', 'Forced Fumbles': 'ff', 'INT Return Yards': 'intYds',
+    'Defensive TDs': 'defTd', 'Blocks': 'blocks', 'Safeties': 'safeties',
+    'XP Attempted': 'xpa', 'XP Made': 'xpm', 'FG Attempted': 'fga', 'FG Made': 'fgm',
+    'Punts': 'punts', 'Punting Yards': 'puntYds',
+    'Kickoff Returns': 'krRet', 'KR Yardage': 'krYds', 'KR Touchdowns': 'krTd',
+    'Punt Returns': 'prRet', 'PR Yardage': 'prYds', 'PR Touchdowns': 'prTd'
+  }
 
-  // Calculate leaderboards - uses same data source as Player page
+  // Calculate leaderboards
   const leaderboards = useMemo(() => {
     const rosterPlayers = getRosterPlayers()
     if (rosterPlayers.length === 0) return {}
 
-    // Get stats for each player using the same utility as Player page
-    const allPlayerStats = []
+    const playerStatsByYearLegacy = currentDynasty?.playerStatsByYear || {}
+    const detailedStatsByYearLegacy = currentDynasty?.detailedStatsByYear || {}
+
+    const allYears = new Set()
     rosterPlayers.forEach(player => {
-      const seasonStats = getPlayerSeasonStatsFromBoxScores(currentDynasty, player)
-      seasonStats.forEach(yearStats => {
+      Object.keys(player.statsByYear || {}).forEach(y => allYears.add(y))
+    })
+    Object.keys(playerStatsByYearLegacy).forEach(y => allYears.add(y))
+    Object.keys(detailedStatsByYearLegacy).forEach(y => allYears.add(y))
+
+    const allPlayerStats = []
+
+    rosterPlayers.forEach(player => {
+      const playerOwnStats = player.statsByYear || {}
+
+      allYears.forEach(yearStr => {
+        const year = parseInt(yearStr)
+        const ownYearStats = playerOwnStats[yearStr] || playerOwnStats[year]
+        const legacyBasic = playerStatsByYearLegacy[yearStr]?.find(p =>
+          p.pid === player.pid || p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+        )
+        const legacyDetailed = detailedStatsByYearLegacy[yearStr] || {}
+
+        const getCategoryStats = (internalName, legacyName) => {
+          if (ownYearStats?.[internalName]) {
+            return ownYearStats[internalName]
+          }
+          const legacyPlayers = legacyDetailed[legacyName] || []
+          return legacyPlayers.find(p =>
+            p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
+          )
+        }
+
+        const passing = getCategoryStats('passing', 'Passing')
+        const rushing = getCategoryStats('rushing', 'Rushing')
+        const receiving = getCategoryStats('receiving', 'Receiving')
+        const defense = getCategoryStats('defense', 'Defensive')
+        const kicking = getCategoryStats('kicking', 'Kicking')
+        const punting = getCategoryStats('punting', 'Punting')
+        const kickReturn = getCategoryStats('kickReturn', 'Kick Return')
+        const puntReturn = getCategoryStats('puntReturn', 'Punt Return')
+
+        const hasAnyStats = passing || rushing || receiving || defense ||
+          kicking || punting || kickReturn || puntReturn || ownYearStats?.gamesPlayed || legacyBasic
+
+        if (!hasAnyStats) return
+
+        const normalizeStats = (stats) => {
+          if (!stats) return null
+          const normalized = {}
+          Object.entries(stats).forEach(([key, value]) => {
+            if (key === 'name' || key === 'pid') return
+            const internalKey = FIELD_TO_INTERNAL[key] || key
+            if (typeof value === 'number' || !isNaN(parseFloat(value))) {
+              normalized[internalKey] = parseFloat(value) || 0
+            }
+          })
+          return Object.keys(normalized).length > 0 ? normalized : null
+        }
+
         allPlayerStats.push({
           pid: player.pid,
           name: player.name,
-          ...yearStats
+          year,
+          gamesPlayed: ownYearStats?.gamesPlayed || legacyBasic?.gamesPlayed || 0,
+          passing: normalizeStats(passing),
+          rushing: normalizeStats(rushing),
+          receiving: normalizeStats(receiving),
+          defensive: normalizeStats(defense),
+          kicking: normalizeStats(kicking),
+          punting: normalizeStats(punting),
+          kickReturn: normalizeStats(kickReturn),
+          puntReturn: normalizeStats(puntReturn)
         })
       })
     })
 
     if (allPlayerStats.length === 0) return {}
 
-    // Aggregate stats by player (career) or by player/year (season)
     const aggregateStats = (category) => {
       const playerTotals = {}
 
-      // Field mappings from boxScoreAggregator format to leaderboard format
       const fieldMaps = {
-        passing: { cmp: 'Completions', att: 'Attempts', yds: 'Yards', td: 'Touchdowns', int: 'Interceptions' },
-        rushing: { car: 'Carries', yds: 'Yards', td: 'Touchdowns' },
-        receiving: { rec: 'Receptions', yds: 'Yards', td: 'Touchdowns' },
-        defensive: { solo: 'Solo Tackles', ast: 'Assisted Tackles', tfl: 'Tackles for Loss', sacks: 'Sacks', int: 'Interceptions', intYds: 'INT Return Yards', intTd: 'Defensive TDs', pdef: 'Deflections', ff: 'Forced Fumbles' },
+        passing: { comp: 'Completions', attempts: 'Attempts', yards: 'Yards', td: 'Touchdowns', int: 'Interceptions' },
+        rushing: { carries: 'Carries', yards: 'Yards', td: 'Touchdowns' },
+        receiving: { rec: 'Receptions', yards: 'Yards', td: 'Touchdowns' },
+        defensive: { solo: 'Solo Tackles', ast: 'Assisted Tackles', tfl: 'Tackles for Loss', sacks: 'Sacks', int: 'Interceptions', intYds: 'INT Return Yards', defTd: 'Defensive TDs', pdef: 'Deflections', ff: 'Forced Fumbles', blocks: 'Blocks', safeties: 'Safeties' },
         kicking: { xpa: 'XP Attempted', xpm: 'XP Made', fga: 'FG Attempted', fgm: 'FG Made' },
-        punting: { punts: 'Punts', yds: 'Punting Yards' },
-        kickReturn: { ret: 'Kickoff Returns', yds: 'KR Yardage', td: 'KR Touchdowns' },
-        puntReturn: { ret: 'Punt Returns', yds: 'PR Yardage', td: 'PR Touchdowns' }
+        punting: { punts: 'Punts', puntYds: 'Punting Yards' },
+        kickReturn: { krRet: 'Kickoff Returns', krYds: 'KR Yardage', krTd: 'KR Touchdowns' },
+        puntReturn: { prRet: 'Punt Returns', prYds: 'PR Yardage', prTd: 'PR Touchdowns' }
       }
 
       allPlayerStats.forEach(ps => {
@@ -223,7 +306,6 @@ export default function DynastyRecords() {
           playerTotals[key].gamesPlayed += ps.gamesPlayed
         }
 
-        // Map stats to expected field names
         const fieldMap = fieldMaps[category] || {}
         Object.entries(catStats).forEach(([shortKey, value]) => {
           const longKey = fieldMap[shortKey] || shortKey
@@ -240,7 +322,6 @@ export default function DynastyRecords() {
       return Object.values(playerTotals)
     }
 
-    // Calculate scrimmage stats (combined rush + receiving)
     const calcScrimmageStats = () => {
       const playerTotals = {}
 
@@ -256,13 +337,13 @@ export default function DynastyRecords() {
         }
 
         if (ps.rushing) {
-          playerTotals[key].plays += ps.rushing.car || 0
-          playerTotals[key].yards += ps.rushing.yds || 0
+          playerTotals[key].plays += ps.rushing.carries || 0
+          playerTotals[key].yards += ps.rushing.yards || 0
           playerTotals[key].tds += ps.rushing.td || 0
         }
         if (ps.receiving) {
           playerTotals[key].plays += ps.receiving.rec || 0
-          playerTotals[key].yards += ps.receiving.yds || 0
+          playerTotals[key].yards += ps.receiving.yards || 0
           playerTotals[key].tds += ps.receiving.td || 0
         }
       })
@@ -270,7 +351,6 @@ export default function DynastyRecords() {
       return Object.values(playerTotals).filter(p => p.plays > 0 || p.yards > 0)
     }
 
-    // Calculate all-purpose stats
     const calcAllPurposeStats = () => {
       const playerTotals = {}
 
@@ -286,31 +366,30 @@ export default function DynastyRecords() {
         }
 
         if (ps.rushing) {
-          playerTotals[key].plays += ps.rushing.car || 0
-          playerTotals[key].yards += ps.rushing.yds || 0
+          playerTotals[key].plays += ps.rushing.carries || 0
+          playerTotals[key].yards += ps.rushing.yards || 0
           playerTotals[key].tds += ps.rushing.td || 0
         }
         if (ps.receiving) {
           playerTotals[key].plays += ps.receiving.rec || 0
-          playerTotals[key].yards += ps.receiving.yds || 0
+          playerTotals[key].yards += ps.receiving.yards || 0
           playerTotals[key].tds += ps.receiving.td || 0
         }
         if (ps.kickReturn) {
-          playerTotals[key].plays += ps.kickReturn.ret || 0
-          playerTotals[key].yards += ps.kickReturn.yds || 0
-          playerTotals[key].tds += ps.kickReturn.td || 0
+          playerTotals[key].plays += ps.kickReturn.krRet || 0
+          playerTotals[key].yards += ps.kickReturn.krYds || 0
+          playerTotals[key].tds += ps.kickReturn.krTd || 0
         }
         if (ps.puntReturn) {
-          playerTotals[key].plays += ps.puntReturn.ret || 0
-          playerTotals[key].yards += ps.puntReturn.yds || 0
-          playerTotals[key].tds += ps.puntReturn.td || 0
+          playerTotals[key].plays += ps.puntReturn.prRet || 0
+          playerTotals[key].yards += ps.puntReturn.prYds || 0
+          playerTotals[key].tds += ps.puntReturn.prTd || 0
         }
       })
 
       return Object.values(playerTotals).filter(p => p.plays > 0 || p.yards > 0)
     }
 
-    // Build leaderboards for each category
     const result = {}
 
     Object.entries(STAT_CATEGORIES).forEach(([catKey, category]) => {
@@ -331,7 +410,6 @@ export default function DynastyRecords() {
           let value
 
           if (stat.calculated) {
-            // Calculate derived stats
             switch (catKey) {
               case 'passing':
                 const att = p['Attempts'] || 0
@@ -344,7 +422,6 @@ export default function DynastyRecords() {
                 else if (stat.key === 'ypa') value = att > 0 ? (yds / att) : 0
                 else if (stat.key === 'aypa') value = att > 0 ? ((yds + 20 * tds - 45 * ints) / att) : 0
                 else if (stat.key === 'rating') {
-                  // NCAA passer rating formula
                   if (att > 0) {
                     const a = Math.max(0, Math.min(((cmp / att) - 0.3) * 20, 2.375))
                     const b = Math.max(0, Math.min(((yds / att) - 3) * 0.25, 2.375))
@@ -357,7 +434,6 @@ export default function DynastyRecords() {
                 else if (stat.key === 'tdPct') value = att > 0 ? (tds / att * 100) : 0
                 else if (stat.key === 'intPct') value = att > 0 ? (ints / att * 100) : 0
 
-                // Apply minimum attempts filter
                 if (stat.minAtt) {
                   const minReq = mode === 'career' ? stat.minAtt.career : stat.minAtt.season
                   if (att < minReq) value = null
@@ -462,7 +538,6 @@ export default function DynastyRecords() {
                 break
             }
           } else {
-            // Direct field lookup
             value = p[stat.field] || 0
           }
 
@@ -470,30 +545,28 @@ export default function DynastyRecords() {
           return {
             pid: p.pid,
             name: playerInfo.name,
+            position: playerInfo.position,
             team: playerInfo.team,
             teamAbbr: playerInfo.teamAbbr,
             teamLogo: playerInfo.teamLogo,
             value,
-            year: p.year, // Single year for season mode
+            year: p.year,
             years: p.years?.sort((a, b) => a - b) || []
           }
         })
 
-        // Filter out null/undefined values and 0s for counting stats (not rate stats)
         const isRateStat = stat.format === 'pct' || stat.format === 'avg' || stat.format === 'rating'
         leaderboard = leaderboard
           .filter(p => {
             if (p.value === null || p.value === undefined) return false
-            // For counting stats (not rate stats), exclude 0 values from leaderboards
             if (!isRateStat && p.value === 0) return false
             return true
           })
           .sort((a, b) => {
-            // Explicit check: lowerIsBetter === true means ascending, otherwise descending
             if (stat.lowerIsBetter === true) {
-              return a.value - b.value  // Ascending (lower is better)
+              return a.value - b.value
             }
-            return b.value - a.value  // Descending (higher is better)
+            return b.value - a.value
           })
           .slice(0, 10)
 
@@ -504,15 +577,9 @@ export default function DynastyRecords() {
     return result
   }, [currentDynasty, mode])
 
-  const toggleCategory = (catKey) => {
-    setExpandedCategories(prev => {
-      const newCategories = prev.includes(catKey)
-        ? prev.filter(c => c !== catKey)
-        : [...prev, catKey]
-      // Save to localStorage for persistence
-      localStorage.setItem('leaderboard-expanded', JSON.stringify(newCategories))
-      return newCategories
-    })
+  const handleCategoryChange = (catKey) => {
+    setActiveCategory(catKey)
+    localStorage.setItem('leaderboard-category', catKey)
   }
 
   const formatValue = (value, format) => {
@@ -533,162 +600,233 @@ export default function DynastyRecords() {
 
   if (!currentDynasty) return null
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-lg shadow-lg p-6 bg-gray-800 border-2 border-gray-600">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl font-bold text-white">
-            Dynasty Leaderboard
-          </h1>
+  const category = STAT_CATEGORIES[activeCategory]
+  const catLeaderboards = leaderboards[activeCategory] || {}
+  const hasData = Object.values(catLeaderboards).some(lb => lb && lb.length > 0)
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Mode Toggle */}
-            <div className="flex rounded-lg overflow-hidden border-2 border-gray-500">
-              <button
-                onClick={() => { setMode('career'); localStorage.setItem('leaderboard-mode', 'career') }}
-                className={`px-4 py-2 font-semibold text-sm transition-colors ${
-                  mode === 'career' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                Career
-              </button>
-              <button
-                onClick={() => { setMode('season'); localStorage.setItem('leaderboard-mode', 'season') }}
-                className={`px-4 py-2 font-semibold text-sm transition-colors ${
-                  mode === 'season' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-300 hover:bg-gray-700'
-                }`}
-              >
-                Season
-              </button>
-            </div>
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div
+        className="rounded-xl p-4 sm:p-6"
+        style={{ backgroundColor: teamColors.primary }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
+              Dynasty Leaderboards
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              All-time records and season bests
+            </p>
+          </div>
+
+          {/* Mode Toggle */}
+          <div className="flex rounded-lg overflow-hidden bg-black/20 p-1">
+            <button
+              onClick={() => { setMode('career'); localStorage.setItem('leaderboard-mode', 'career') }}
+              className={`px-4 py-2 font-semibold text-sm rounded-md transition-all ${
+                mode === 'career'
+                  ? 'bg-white text-gray-900 shadow-md'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Career
+            </button>
+            <button
+              onClick={() => { setMode('season'); localStorage.setItem('leaderboard-mode', 'season') }}
+              className={`px-4 py-2 font-semibold text-sm rounded-md transition-all ${
+                mode === 'season'
+                  ? 'bg-white text-gray-900 shadow-md'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Season
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Stat Categories */}
-      {Object.entries(STAT_CATEGORIES).map(([catKey, category]) => {
-        const isExpanded = expandedCategories.includes(catKey)
-        const catLeaderboards = leaderboards[catKey] || {}
-
-        // Check if category has any data
-        const hasData = Object.values(catLeaderboards).some(lb => lb && lb.length > 0)
-
-        return (
-          <div
-            key={catKey}
-            className="rounded-lg shadow-lg overflow-hidden bg-gray-800 border-2 border-gray-600"
-          >
-            {/* Category Header */}
-            <button
-              onClick={() => toggleCategory(catKey)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-600 transition-colors bg-gray-700"
-            >
-              <h2 className="text-lg font-bold text-white">
-                {category.name}
-              </h2>
-              <svg
-                className={`w-6 h-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="white"
-                viewBox="0 0 24 24"
+      {/* Category Tabs - Scrollable on mobile */}
+      <div className="overflow-x-auto -mx-4 px-4 pb-2">
+        <div className="flex gap-2 min-w-max">
+          {CATEGORY_ORDER.map(catKey => {
+            const cat = STAT_CATEGORIES[catKey]
+            const isActive = activeCategory === catKey
+            return (
+              <button
+                key={catKey}
+                onClick={() => handleCategoryChange(catKey)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'text-white shadow-lg'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                }`}
+                style={isActive ? { backgroundColor: teamColors.primary } : {}}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+                <span className="text-base">{cat.icon}</span>
+                <span>{cat.name}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-            {/* Category Content */}
-            {isExpanded && (
-              <div className="p-4">
-                {category.minNote && (
-                  <p className="text-xs mb-4 italic text-gray-400">
-                    {category.minNote}
-                  </p>
-                )}
-
-                {!hasData ? (
-                  <p className="text-center py-8 text-gray-500">
-                    No {category.name.toLowerCase()} stats recorded yet
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {category.stats.map(stat => {
-                      const statLeaderboard = catLeaderboards[stat.key] || []
-
-                      return (
-                        <div
-                          key={stat.key}
-                          className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden"
-                        >
-                          <div className="px-3 py-2 border-b bg-gray-100 border-gray-200">
-                            <h3 className="text-sm font-bold text-gray-800">
-                              {stat.label}
-                            </h3>
-                          </div>
-
-                          {statLeaderboard.length === 0 ? (
-                            <div className="p-3 text-center text-xs text-gray-400">
-                              No qualifying players
-                            </div>
-                          ) : (
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-gray-50 border-b">
-                                  <th className="px-2 py-1.5 text-left text-gray-500 font-semibold w-8">#</th>
-                                  <th className="px-2 py-1.5 text-left text-gray-500 font-semibold">Player</th>
-                                  <th className="px-2 py-1.5 text-right text-gray-500 font-semibold">{stat.abbr}</th>
-                                  <th className="px-2 py-1.5 text-right text-gray-500 font-semibold">
-                                    {mode === 'career' ? 'Years' : 'Year'}
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {statLeaderboard.map((entry, idx) => (
-                                  <tr
-                                    key={mode === 'career' ? entry.pid : `${entry.pid}-${entry.year}`}
-                                    className={`border-b last:border-b-0 ${idx % 2 === 1 ? 'bg-gray-50/50' : ''}`}
-                                  >
-                                    <td className="px-2 py-1.5 text-gray-400 font-medium">{idx + 1}</td>
-                                    <td className="px-2 py-1.5">
-                                      <div className="flex items-center gap-1.5">
-                                        {entry.teamLogo && (
-                                          <img
-                                            src={entry.teamLogo}
-                                            alt={entry.teamAbbr}
-                                            className="w-5 h-5 object-contain flex-shrink-0"
-                                            title={entry.team}
-                                          />
-                                        )}
-                                        <Link
-                                          to={`${pathPrefix}/player/${entry.pid}`}
-                                          className="font-medium hover:underline truncate max-w-[100px] text-blue-600"
-                                          title={entry.name}
-                                        >
-                                          {entry.name}
-                                        </Link>
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right font-bold text-gray-900">
-                                      {formatValue(entry.value, stat.format)}
-                                    </td>
-                                    <td className="px-2 py-1.5 text-right text-gray-500 text-[10px]">
-                                      {mode === 'career' ? formatYears(entry.years) : entry.year}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+      {/* Active Category Content */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        {/* Category Header */}
+        <div
+          className="px-4 py-3 border-b border-gray-700 flex items-center justify-between"
+          style={{ backgroundColor: `${teamColors.primary}15` }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{category.icon}</span>
+            <h2 className="text-lg font-bold text-white">{category.name}</h2>
           </div>
-        )
-      })}
+          {category.minNote && (
+            <p className="text-xs text-gray-400 hidden sm:block">
+              {category.minNote}
+            </p>
+          )}
+        </div>
+
+        {/* Mobile min note */}
+        {category.minNote && (
+          <p className="text-xs text-gray-400 px-4 py-2 border-b border-gray-700 sm:hidden">
+            {category.minNote}
+          </p>
+        )}
+
+        {/* Stats Grid */}
+        <div className="p-4">
+          {!hasData ? (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3 opacity-50">{category.icon}</div>
+              <p className="text-gray-400">
+                No {category.name.toLowerCase()} stats recorded yet
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {category.stats.map(stat => {
+                const statLeaderboard = catLeaderboards[stat.key] || []
+                const leader = statLeaderboard[0]
+
+                return (
+                  <div
+                    key={stat.key}
+                    className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden"
+                  >
+                    {/* Stat Header with Leader Highlight */}
+                    <div className="p-3 border-b border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-300">
+                          {stat.label}
+                        </h3>
+                        <span
+                          className="text-xs font-bold px-2 py-0.5 rounded"
+                          style={{ backgroundColor: `${teamColors.primary}30`, color: teamColors.primary }}
+                        >
+                          {stat.abbr}
+                        </span>
+                      </div>
+
+                      {/* Leader Card */}
+                      {leader ? (
+                        <div
+                          className="rounded-lg p-3 flex items-center gap-3"
+                          style={{ backgroundColor: `${teamColors.primary}15` }}
+                        >
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
+                            style={{ backgroundColor: teamColors.primary }}
+                          >
+                            1
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              {leader.teamLogo && (
+                                <img
+                                  src={leader.teamLogo}
+                                  alt={leader.teamAbbr}
+                                  className="w-5 h-5 object-contain flex-shrink-0"
+                                />
+                              )}
+                              <Link
+                                to={`${pathPrefix}/player/${leader.pid}`}
+                                className="font-semibold text-white hover:underline truncate"
+                              >
+                                {leader.name}
+                              </Link>
+                            </div>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {mode === 'career' ? formatYears(leader.years) : leader.year}
+                              {leader.position && ` • ${leader.position}`}
+                            </div>
+                          </div>
+                          <div
+                            className="text-xl font-bold flex-shrink-0"
+                            style={{ color: teamColors.primary }}
+                          >
+                            {formatValue(leader.value, stat.format)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-3 text-gray-500 text-sm">
+                          No qualifying players
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Rest of Leaderboard */}
+                    {statLeaderboard.length > 1 && (
+                      <div className="divide-y divide-gray-700/50">
+                        {statLeaderboard.slice(1, 5).map((entry, idx) => (
+                          <div
+                            key={mode === 'career' ? entry.pid : `${entry.pid}-${entry.year}`}
+                            className="px-3 py-2 flex items-center gap-3 hover:bg-gray-800/50 transition-colors"
+                          >
+                            <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-gray-400 text-xs font-medium flex-shrink-0">
+                              {idx + 2}
+                            </div>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {entry.teamLogo && (
+                                <img
+                                  src={entry.teamLogo}
+                                  alt={entry.teamAbbr}
+                                  className="w-4 h-4 object-contain flex-shrink-0"
+                                />
+                              )}
+                              <Link
+                                to={`${pathPrefix}/player/${entry.pid}`}
+                                className="text-sm text-gray-300 hover:text-white hover:underline truncate"
+                              >
+                                {entry.name}
+                              </Link>
+                            </div>
+                            <div className="text-sm font-semibold text-gray-300 flex-shrink-0">
+                              {formatValue(entry.value, stat.format)}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Show more indicator if there are more entries */}
+                        {statLeaderboard.length > 5 && (
+                          <div className="px-3 py-2 text-center">
+                            <span className="text-xs text-gray-500">
+                              +{statLeaderboard.length - 5} more
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

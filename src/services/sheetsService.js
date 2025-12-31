@@ -11386,8 +11386,8 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
             { userEnteredValue: { stringValue: 'Position' } },
-            { userEnteredValue: { stringValue: 'Current Class' } },
-            { userEnteredValue: { stringValue: 'New Class' } }
+            { userEnteredValue: { stringValue: `${year} Recruitment Class` } },
+            { userEnteredValue: { stringValue: `Updated ${year + 1} Class` } }
           ]
         }],
         fields: 'userEnteredValue'
@@ -11486,18 +11486,18 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
     {
       updateDimensionProperties: {
         range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
-        properties: { pixelSize: 120 },
+        properties: { pixelSize: 180 },
         fields: 'pixelSize'
       }
     },
     {
       updateDimensionProperties: {
         range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
-        properties: { pixelSize: 120 },
+        properties: { pixelSize: 160 },
         fields: 'pixelSize'
       }
     },
-    // Highlight New Class column with light background
+    // Highlight Updated Class column with light background
     {
       repeatCell: {
         range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
@@ -11718,9 +11718,9 @@ async function initializeFringeCaseClassSheet(spreadsheetId, accessToken, sheetI
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
             { userEnteredValue: { stringValue: 'Position' } },
-            { userEnteredValue: { stringValue: 'Current Class' } },
+            { userEnteredValue: { stringValue: `${year} Recruitment Class` } },
             { userEnteredValue: { stringValue: 'Games' } },
-            { userEnteredValue: { stringValue: 'New Class' } }
+            { userEnteredValue: { stringValue: `Updated ${year + 1} Class` } }
           ]
         }],
         fields: 'userEnteredValue'
@@ -11829,7 +11829,7 @@ async function initializeFringeCaseClassSheet(spreadsheetId, accessToken, sheetI
     {
       updateDimensionProperties: {
         range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
-        properties: { pixelSize: 120 },
+        properties: { pixelSize: 180 },
         fields: 'pixelSize'
       }
     },
@@ -11843,11 +11843,11 @@ async function initializeFringeCaseClassSheet(spreadsheetId, accessToken, sheetI
     {
       updateDimensionProperties: {
         range: { sheetId, dimension: 'COLUMNS', startIndex: 4, endIndex: 5 },
-        properties: { pixelSize: 120 },
+        properties: { pixelSize: 160 },
         fields: 'pixelSize'
       }
     },
-    // Highlight New Class column with light background
+    // Highlight Updated Class column with light background
     {
       repeatCell: {
         range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
