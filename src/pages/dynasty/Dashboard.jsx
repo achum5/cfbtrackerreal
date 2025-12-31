@@ -1787,16 +1787,18 @@ export default function Dashboard() {
                 {newJobPosition === 'HC' ? 'Head Coach' : newJobPosition === 'OC' ? 'Offensive Coordinator' : 'Defensive Coordinator'} - {teamAbbreviations[newJobTeam]?.name || newJobTeam}
               </div>
             </div>
-            <button
-              onClick={() => setShowNewJobEditModal(true)}
-              className="p-2 rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
-              style={{ backgroundColor: newTeamColors.secondary, color: getContrastTextColor(newTeamColors.secondary) }}
-              title="Edit new job selection"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowNewJobEditModal(true)}
+                className="p-2 rounded-lg hover:opacity-80 transition-opacity flex-shrink-0"
+                style={{ backgroundColor: newTeamColors.secondary, color: getContrastTextColor(newTeamColors.secondary) }}
+                title="Edit new job selection"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
           </div>
         )
       })()}
@@ -5272,13 +5274,17 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowPlayersLeavingModal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        {hasPlayersLeavingData ? 'Edit' : 'Enter'}
-                      </button>
+                      {!isViewOnly ? (
+                        <button
+                          onClick={() => setShowPlayersLeavingModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasPlayersLeavingData ? 'Edit' : 'Enter'}
+                        </button>
+                      ) : (
+                        <ViewOnlyBadge />
+                      )}
                     </div>
                   </div>
                 </>
@@ -5421,13 +5427,17 @@ export default function Dashboard() {
                           </div>
                         </div>
                         {hasDraftDeclarees && (
-                          <button
-                            onClick={() => setShowDraftResultsModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            {hasDraftResultsData ? 'Edit' : 'Enter'}
-                          </button>
+                          !isViewOnly ? (
+                            <button
+                              onClick={() => setShowDraftResultsModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              {hasDraftResultsData ? 'Edit' : 'Enter'}
+                            </button>
+                          ) : (
+                            <ViewOnlyBadge />
+                          )
                         )}
                       </div>
                     )}
@@ -5496,13 +5506,17 @@ export default function Dashboard() {
                             </div>
                           </div>
                           {hasTransfers && (
-                            <button
-                              onClick={() => setShowTransferDestinationsModal(true)}
-                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                            >
-                              {hasTransferDestinationsData ? 'Edit' : 'Enter'}
-                            </button>
+                            !isViewOnly ? (
+                              <button
+                                onClick={() => setShowTransferDestinationsModal(true)}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              >
+                                {hasTransferDestinationsData ? 'Edit' : 'Enter'}
+                              </button>
+                            ) : (
+                              <ViewOnlyBadge />
+                            )
                           )}
                         </div>
                       )
@@ -5545,13 +5559,17 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setShowRecruitingClassRankModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            {hasClassRank ? 'Edit' : 'Enter'}
-                          </button>
+                          {!isViewOnly ? (
+                            <button
+                              onClick={() => setShowRecruitingClassRankModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              {hasClassRank ? 'Edit' : 'Enter'}
+                            </button>
+                          ) : (
+                            <ViewOnlyBadge />
+                          )}
                         </div>
                       )
                     })()}
@@ -5592,13 +5610,17 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setShowPositionChangesModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            {hasPositionChanges ? 'Edit' : 'Open'}
-                          </button>
+                          {!isViewOnly ? (
+                            <button
+                              onClick={() => setShowPositionChangesModal(true)}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            >
+                              {hasPositionChanges ? 'Edit' : 'Open'}
+                            </button>
+                          ) : (
+                            <ViewOnlyBadge />
+                          )}
                         </div>
                       )
                     })()}
@@ -5669,17 +5691,21 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setShowPortalTransferClassModal(true)}
-                            disabled={isBlocked || !hasPortalTransfers}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
-                            style={{
-                              backgroundColor: (isBlocked || !hasPortalTransfers) ? '#9ca3af' : teamColors.primary,
-                              color: (isBlocked || !hasPortalTransfers) ? '#ffffff' : primaryBgText
-                            }}
-                          >
-                            {isComplete ? 'Done' : 'Open'}
-                          </button>
+                          {!isViewOnly ? (
+                            <button
+                              onClick={() => setShowPortalTransferClassModal(true)}
+                              disabled={isBlocked || !hasPortalTransfers}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
+                              style={{
+                                backgroundColor: (isBlocked || !hasPortalTransfers) ? '#9ca3af' : teamColors.primary,
+                                color: (isBlocked || !hasPortalTransfers) ? '#ffffff' : primaryBgText
+                              }}
+                            >
+                              {isComplete ? 'Done' : 'Open'}
+                            </button>
+                          ) : (
+                            <ViewOnlyBadge />
+                          )}
                         </div>
                       )
                     })()}
@@ -5758,17 +5784,21 @@ export default function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setShowFringeCaseClassModal(true)}
-                            disabled={isBlocked || !hasFringeCases}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
-                            style={{
-                              backgroundColor: (isBlocked || !hasFringeCases) ? '#9ca3af' : teamColors.primary,
-                              color: (isBlocked || !hasFringeCases) ? '#ffffff' : primaryBgText
-                            }}
-                          >
-                            {isComplete ? 'Done' : 'Open'}
-                          </button>
+                          {!isViewOnly ? (
+                            <button
+                              onClick={() => setShowFringeCaseClassModal(true)}
+                              disabled={isBlocked || !hasFringeCases}
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
+                              style={{
+                                backgroundColor: (isBlocked || !hasFringeCases) ? '#9ca3af' : teamColors.primary,
+                                color: (isBlocked || !hasFringeCases) ? '#ffffff' : primaryBgText
+                              }}
+                            >
+                              {isComplete ? 'Done' : 'Open'}
+                            </button>
+                          ) : (
+                            <ViewOnlyBadge />
+                          )}
                         </div>
                       )
                     })()}
@@ -5907,13 +5937,17 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowTrainingResultsModal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        {hasTrainingResultsData ? 'Edit' : 'Enter'}
-                      </button>
+                      {!isViewOnly ? (
+                        <button
+                          onClick={() => setShowTrainingResultsModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasTrainingResultsData ? 'Edit' : 'Enter'}
+                        </button>
+                      ) : (
+                        <ViewOnlyBadge />
+                      )}
                     </div>
 
                     {/* Task 2: Recruiting Class Overalls */}
@@ -5948,13 +5982,17 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => setShowRecruitOverallsModal(true)}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                        >
-                          {hasRecruitOverallsData ? 'Edit' : 'Enter'}
-                        </button>
+                        {!isViewOnly ? (
+                          <button
+                            onClick={() => setShowRecruitOverallsModal(true)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          >
+                            {hasRecruitOverallsData ? 'Edit' : 'Enter'}
+                          </button>
+                        ) : (
+                          <ViewOnlyBadge />
+                        )}
                       </div>
                     )}
                   </div>
@@ -6011,13 +6049,17 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowOffseasonConferencesModal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        {hasNextYearConferences ? 'Edit' : 'Set'}
-                      </button>
+                      {!isViewOnly ? (
+                        <button
+                          onClick={() => setShowOffseasonConferencesModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasNextYearConferences ? 'Edit' : 'Set'}
+                        </button>
+                      ) : (
+                        <ViewOnlyBadge />
+                      )}
                     </div>
 
                     {/* Task 2: Encourage Transfers */}
@@ -6051,13 +6093,17 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => setShowEncourageTransfersModal(true)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                        style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                      >
-                        {hasEncourageTransfers ? 'Edit' : 'Enter'}
-                      </button>
+                      {!isViewOnly ? (
+                        <button
+                          onClick={() => setShowEncourageTransfersModal(true)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                        >
+                          {hasEncourageTransfers ? 'Edit' : 'Enter'}
+                        </button>
+                      ) : (
+                        <ViewOnlyBadge />
+                      )}
                     </div>
                   </div>
                 </>
@@ -6106,16 +6152,18 @@ export default function Dashboard() {
           <h2 className="text-lg sm:text-2xl font-bold" style={{ color: secondaryBgText }}>
             {currentDynasty.currentYear} Schedule
           </h2>
-          <button
-            onClick={() => setShowScheduleModal(true)}
-            className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-            style={{ color: secondaryBgText }}
-            title="Edit Schedule"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowScheduleModal(true)}
+              className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: secondaryBgText }}
+              title="Edit Schedule"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
         </div>
 
 {teamSchedule && teamSchedule.length > 0 ? (

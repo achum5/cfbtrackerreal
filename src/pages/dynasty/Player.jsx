@@ -926,13 +926,13 @@ export default function Player() {
           {playerGameLog.length > 0 && (
             <button
               onClick={() => setShowGameLogModal(true)}
-              className="p-2 rounded-lg hover:opacity-70 transition-opacity"
-              style={{ color: primaryText }}
-              title="Game Log"
+              className="px-3 py-1.5 rounded-lg hover:opacity-80 transition-opacity flex items-center gap-1.5 text-sm font-medium"
+              style={{ backgroundColor: teamColors.primary, color: getContrastTextColor(teamColors.primary) }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
+              Game Log ({playerGameLog.length})
             </button>
           )}
           {!isViewOnly && (
@@ -987,13 +987,13 @@ export default function Player() {
                 {playerGameLog.length > 0 && (
                   <button
                     onClick={() => setShowGameLogModal(true)}
-                    className="p-1.5 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
-                    style={{ color: primaryText }}
-                    title="Game Log"
+                    className="px-2.5 py-1 rounded-lg hover:opacity-80 transition-opacity flex items-center gap-1.5 text-xs font-medium flex-shrink-0"
+                    style={{ backgroundColor: teamColors.primary, color: getContrastTextColor(teamColors.primary) }}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
+                    Game Log ({playerGameLog.length})
                   </button>
                 )}
                 {!isViewOnly && (
