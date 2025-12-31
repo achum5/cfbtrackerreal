@@ -1999,7 +1999,7 @@ export default function TeamYear() {
                         <div className="text-xs flex items-center gap-2 flex-wrap" style={{ color: teamBgText, opacity: 0.8 }}>
                           <span>{player.position}</span>
                           <span>•</span>
-                          <span>{player.year}</span>
+                          <span>{player.classByYear?.[year] || player.year}</span>
                           {player.devTrait && player.devTrait !== 'Normal' && (
                             <>
                               <span>•</span>
@@ -2123,7 +2123,7 @@ export default function TeamYear() {
                         </span>
                       </td>
                       <td className="py-2 px-2 text-center" style={{ color: teamBgText, opacity: 0.9 }}>
-                        {player.year}
+                        {player.classByYear?.[year] || player.year}
                       </td>
                       <td className="py-2 px-2 text-center font-bold" style={{ color: teamBgText }}>
                         {player.overall}

@@ -47,9 +47,10 @@ export default function Layout({ children }) {
   const viewedPlayer = viewedPlayerPid && currentDynasty?.players
     ? currentDynasty.players.find(p => p.pid === viewedPlayerPid)
     : null
-  // For honor-only players or players with a different team, use their team
-  const playerTeamAbbr = viewedPlayer?.isHonorOnly
-    ? (viewedPlayer.team || viewedPlayer.teams?.[0])
+  // For honor-only players, transferred players, or players with a different team, use their team
+  // If player has transferredTo, use that as their current team
+  const playerTeamAbbr = viewedPlayer
+    ? (viewedPlayer.transferredTo || (viewedPlayer.isHonorOnly ? (viewedPlayer.team || viewedPlayer.teams?.[0]) : null))
     : null
   const playerTeamInfo = playerTeamAbbr ? teamAbbreviations[playerTeamAbbr] : null
   const isPlayerPageWithDifferentTeam = !!playerTeamInfo
@@ -199,9 +200,9 @@ export default function Layout({ children }) {
       }
     }
 
-    // Check if advancing from offseason week 7 (season advancement)
-    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 7) {
-      // Check for players needing class confirmation
+    // Check if advancing from offseason week 5 to week 6 (Signing Day - year flip and class progression)
+    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 5) {
+      // Check for players needing class confirmation BEFORE class progression happens
       const playersNeeding = getPlayersNeedingClassConfirmation(currentDynasty)
 
       if (playersNeeding.length > 0) {
@@ -210,14 +211,17 @@ export default function Layout({ children }) {
         setShowClassAdvancementModal(true)
         setShowWeekDropdown(false)
         return
-      } else {
-        // No players need confirmation, advance directly
-        // CRITICAL: Must await both to ensure players are processed before week advances
-        await advanceToNewSeason(currentDynasty.id, {})
-        await advanceWeek(currentDynasty.id)
-        setShowWeekDropdown(false)
-        return
       }
+    }
+
+    // Check if advancing from offseason week 7 (season advancement)
+    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 7) {
+      // No more class confirmation needed here - it happens at Signing Day (week 5→6)
+      // CRITICAL: Must await both to ensure players are processed before week advances
+      await advanceToNewSeason(currentDynasty.id, {})
+      await advanceWeek(currentDynasty.id)
+      setShowWeekDropdown(false)
+      return
     }
 
     await advanceWeek(currentDynasty.id)
@@ -228,10 +232,8 @@ export default function Layout({ children }) {
   const handleClassAdvancementConfirm = async (confirmations) => {
     if (!currentDynasty) return
 
-    // First apply the season advancement with confirmations
-    await advanceToNewSeason(currentDynasty.id, confirmations)
-    // Then advance the week
-    await advanceWeek(currentDynasty.id)
+    // Advance week with class confirmations (class progression happens at week 5→6)
+    await advanceWeek(currentDynasty.id, confirmations)
   }
 
   const handleRevertWeek = () => {

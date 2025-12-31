@@ -160,6 +160,22 @@ player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
 - `handleTransferDestinationsSave()` - Sets teamsByYear[nextYear] = destination team
 - Recruit creation - Sets teamsByYear for enrollment year
 
+### Player classByYear (Class History Tracking)
+
+Each player has a `classByYear` object tracking what class they were each season:
+```javascript
+player.classByYear = { 2025: 'Fr', 2026: 'So', 2027: 'RS So' }
+```
+
+**Used for**:
+- TeamYear.jsx roster display - Shows class for the specific season being viewed
+- PlayerEditModal Roster History - Edit class alongside team for each year
+
+**Updated automatically in**:
+- `saveRoster()` - Sets classByYear[year] = player.year
+- `advanceToNewSeason()` - Sets classByYear for recruit conversion and class progression
+- `advanceWeek()` - Sets classByYear during Signing Day/Training Camp class progression
+
 ### Player Transfer Fields
 
 **Incoming portal transfers** (players coming TO your team):

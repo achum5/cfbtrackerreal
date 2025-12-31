@@ -11330,7 +11330,8 @@ export async function createPortalTransferClassSheet(dynastyName, year, portalTr
       accessToken,
       sheetId,
       sortedTransfers,
-      totalRows
+      totalRows,
+      year
     )
 
     // Share sheet publicly so it can be embedded in iframe
@@ -11365,7 +11366,7 @@ function getPortalTransferClassOptions(incomingClass) {
 }
 
 // Initialize the Portal Transfer Class sheet with headers, validation, and pre-filled data
-async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sheetId, transfers, totalRows) {
+async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sheetId, transfers, totalRows, year) {
   // Build pre-filled rows for transfers
   // Support both 'year' and 'incomingClass' field names for flexibility
   const dataRows = transfers.map(transfer => ({

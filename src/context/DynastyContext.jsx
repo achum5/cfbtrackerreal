@@ -1574,7 +1574,7 @@ export function DynastyProvider({ children }) {
     return newGames
   }
 
-  const advanceWeek = async (dynastyId) => {
+  const advanceWeek = async (dynastyId, classConfirmations = {}) => {
     const dynasty = dynasties.find(d => d.id === dynastyId)
     if (!dynasty) return
 
@@ -1890,7 +1890,12 @@ export function DynastyProvider({ children }) {
 
         // Get games played for this player
         const stats = playerStats.find(s => s.pid === player.pid)
-        const gamesPlayed = stats?.gamesPlayed ?? player.statsByYear?.[previousSeasonYear]?.gamesPlayed
+        let gamesPlayed = stats?.gamesPlayed ?? player.statsByYear?.[previousSeasonYear]?.gamesPlayed
+
+        // Use confirmation if provided (for null gamesPlayed cases)
+        if ((gamesPlayed === null || gamesPlayed === undefined) && classConfirmations[player.pid] !== undefined) {
+          gamesPlayed = classConfirmations[player.pid] ? 5 : 0 // Treat as 5+ or 0
+        }
 
         const isAlreadyRS = player.year?.startsWith('RS ')
         let newYear = player.year
@@ -1911,7 +1916,14 @@ export function DynastyProvider({ children }) {
 
         // Return updated player if class changed
         if (newYear !== player.year) {
-          return { ...player, year: newYear }
+          return {
+            ...player,
+            year: newYear,
+            classByYear: {
+              ...(player.classByYear || {}),
+              [nextYear]: newYear
+            }
+          }
         }
         return player
       })
@@ -1957,7 +1969,14 @@ export function DynastyProvider({ children }) {
           }
 
           if (newYear !== player.year) {
-            return { ...player, year: newYear }
+            return {
+              ...player,
+              year: newYear,
+              classByYear: {
+                ...(player.classByYear || {}),
+                [nextYear]: newYear
+              }
+            }
           }
           return player
         })
@@ -2174,7 +2193,12 @@ export function DynastyProvider({ children }) {
         return {
           ...player,
           isRecruit: false,
-          year: newYear
+          year: newYear,
+          // Track class for this season
+          classByYear: {
+            ...(player.classByYear || {}),
+            [currentSeasonYear]: newYear
+          }
         }
       }
 
@@ -2222,10 +2246,17 @@ export function DynastyProvider({ children }) {
         [currentSeasonYear]: teamAbbr
       }
 
+      // Track class for this season
+      const updatedClassByYear = {
+        ...(player.classByYear || {}),
+        [currentSeasonYear]: newYear
+      }
+
       return {
         ...player,
         year: newYear,
-        teamsByYear: updatedTeamsByYear
+        teamsByYear: updatedTeamsByYear,
+        classByYear: updatedClassByYear
       }
     })
 
@@ -2277,7 +2308,7 @@ export function DynastyProvider({ children }) {
         ...existingCoachingStaffByTeamYear,
         [teamAbbr]: {
           ...teamCoachingStaff,
-          [nextYear]: currentCoachingStaff
+          [currentSeasonYear]: currentCoachingStaff
         }
       },
       // Initialize preseason setup for new year using team-centric pattern
@@ -2285,14 +2316,14 @@ export function DynastyProvider({ children }) {
         ...existingPreseasonSetup,
         [teamAbbr]: {
           ...teamPreseasonSetup,
-          [nextYear]: newYearPreseasonSetup
+          [currentSeasonYear]: newYearPreseasonSetup
         }
       }
     }
 
     // Apply custom conferences for next year if set
-    if (dynasty.customConferencesByYear?.[nextYear]) {
-      updates.customConferences = dynasty.customConferencesByYear[nextYear]
+    if (dynasty.customConferencesByYear?.[currentSeasonYear]) {
+      updates.customConferences = dynasty.customConferencesByYear[currentSeasonYear]
     }
 
     await updateDynasty(dynastyId, updates)
@@ -2749,6 +2780,13 @@ export function DynastyProvider({ children }) {
             }
           : existingPlayer.teamsByYear || {}
 
+        // Track player class for this season
+        const playerClass = player.year || existingPlayer.year
+        const updatedClassByYear = {
+          ...(existingPlayer.classByYear || {}),
+          [year]: playerClass
+        }
+
         return {
           // Start with ALL existing player data (preserves everything by default)
           ...existingPlayer,
@@ -2773,7 +2811,9 @@ export function DynastyProvider({ children }) {
           id,
           team: teamAbbr,
           // IMMUTABLE roster history - records which team player was on each year
-          teamsByYear: updatedTeamsByYear
+          teamsByYear: updatedTeamsByYear,
+          // IMMUTABLE class history - records what class player was each year
+          classByYear: updatedClassByYear
           // ALL other fields (recruitYear, yearStarted, isRecruit, isPortal, stars, etc.)
           // are automatically preserved from ...existingPlayer and NOT overwritten
         }
@@ -2787,7 +2827,9 @@ export function DynastyProvider({ children }) {
         team: teamAbbr,
         yearStarted: player.yearStarted || year,
         // IMMUTABLE roster history - this player is on this team this year
-        teamsByYear: { [year]: teamAbbr }
+        teamsByYear: { [year]: teamAbbr },
+        // IMMUTABLE class history - record this player's class for this year
+        classByYear: { [year]: player.year }
       }
     })
 
@@ -3470,8 +3512,21 @@ export function DynastyProvider({ children }) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
 
-    // Create filename with dynasty name and date
-    const filename = `${dynasty.teamName.replace(/\s+/g, '_')}_Dynasty_${dynasty.startYear}-${dynasty.currentYear}.json`
+    // Get team abbreviation
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName.replace(/\s+/g, '')
+
+    // Format phase for filename
+    const phaseNames = {
+      'preseason': 'Preseason',
+      'regular_season': 'Week' + dynasty.currentWeek,
+      'conference_championship': 'ConfChamp',
+      'postseason': 'Bowl' + dynasty.currentWeek,
+      'offseason': 'Offseason' + dynasty.currentWeek
+    }
+    const phasePart = phaseNames[dynasty.currentPhase] || dynasty.currentPhase
+
+    // Create filename with team, year, and phase
+    const filename = `${teamAbbr}_${dynasty.currentYear}_${phasePart}.json`
 
     link.href = url
     link.download = filename

@@ -390,7 +390,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         links: player.links || [],
 
         // Roster History - which team this player was on each year
-        teamsByYear: player.teamsByYear || {}
+        teamsByYear: player.teamsByYear || {},
+        // Class History - what class this player was each year
+        classByYear: player.classByYear || {}
       })
 
       // Start with all sections collapsed
@@ -604,6 +606,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       links: formData.links,
       // Roster History - which team this player was on each year
       teamsByYear: formData.teamsByYear,
+      // Class History - what class this player was each year
+      classByYear: formData.classByYear,
       // Status flags
       isRecruit: formData.isRecruit,
       isPortal: formData.isPortal
@@ -1126,13 +1130,13 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               {isExpanded('rosterHistory') && (
                 <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
                   <p className="text-xs mb-3" style={{ color: secondaryText, opacity: 0.7 }}>
-                    Edit which team this player was on for each season. This determines roster membership.
+                    Edit which team and class this player was for each season. This determines roster membership and class history.
                   </p>
                   <div className="space-y-2">
                     {/* Show existing years */}
                     {Object.entries(formData.teamsByYear || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([year, team]) => (
                       <div key={year} className="flex items-center gap-2">
-                        <span className="text-sm font-medium w-16" style={{ color: secondaryText }}>{year}</span>
+                        <span className="text-sm font-medium w-12" style={{ color: secondaryText }}>{year}</span>
                         <select
                           value={team || ''}
                           onChange={(e) => {
@@ -1144,7 +1148,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                             }
                             setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear }))
                           }}
-                          className="flex-1 px-3 py-2 rounded-lg border-2 text-sm"
+                          className="flex-1 px-2 py-2 rounded-lg border-2 text-sm"
                           style={inputStyle}
                         >
                           <option value="">(Not on roster)</option>
@@ -1152,12 +1156,33 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                             <option key={abbr} value={abbr}>{abbr}</option>
                           ))}
                         </select>
+                        <select
+                          value={formData.classByYear?.[year] || ''}
+                          onChange={(e) => {
+                            const newClassByYear = { ...formData.classByYear }
+                            if (e.target.value) {
+                              newClassByYear[year] = e.target.value
+                            } else {
+                              delete newClassByYear[year]
+                            }
+                            setFormData(prev => ({ ...prev, classByYear: newClassByYear }))
+                          }}
+                          className="w-20 px-2 py-2 rounded-lg border-2 text-sm"
+                          style={inputStyle}
+                        >
+                          <option value="">Class</option>
+                          {classes.map(cls => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           onClick={() => {
                             const newTeamsByYear = { ...formData.teamsByYear }
+                            const newClassByYear = { ...formData.classByYear }
                             delete newTeamsByYear[year]
-                            setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear }))
+                            delete newClassByYear[year]
+                            setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear, classByYear: newClassByYear }))
                           }}
                           className="px-2 py-1 rounded text-xs"
                           style={{ backgroundColor: '#EF4444', color: '#fff' }}
@@ -1171,18 +1196,28 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                       <input
                         type="number"
                         placeholder="Year"
-                        className="w-20 px-3 py-2 rounded-lg border-2 text-sm"
+                        className="w-16 px-2 py-2 rounded-lg border-2 text-sm"
                         style={inputStyle}
                         id="newRosterYear"
                       />
                       <select
-                        className="flex-1 px-3 py-2 rounded-lg border-2 text-sm"
+                        className="flex-1 px-2 py-2 rounded-lg border-2 text-sm"
                         style={inputStyle}
                         id="newRosterTeam"
                       >
-                        <option value="">Select team...</option>
+                        <option value="">Team...</option>
                         {getTeamAbbreviationsList().map(abbr => (
                           <option key={abbr} value={abbr}>{abbr}</option>
+                        ))}
+                      </select>
+                      <select
+                        className="w-20 px-2 py-2 rounded-lg border-2 text-sm"
+                        style={inputStyle}
+                        id="newRosterClass"
+                      >
+                        <option value="">Class</option>
+                        {classes.map(cls => (
+                          <option key={cls} value={cls}>{cls}</option>
                         ))}
                       </select>
                       <button
@@ -1190,15 +1225,19 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                         onClick={() => {
                           const yearInput = document.getElementById('newRosterYear')
                           const teamSelect = document.getElementById('newRosterTeam')
+                          const classSelect = document.getElementById('newRosterClass')
                           const year = yearInput?.value
                           const team = teamSelect?.value
+                          const playerClass = classSelect?.value
                           if (year && team) {
                             setFormData(prev => ({
                               ...prev,
-                              teamsByYear: { ...prev.teamsByYear, [year]: team }
+                              teamsByYear: { ...prev.teamsByYear, [year]: team },
+                              classByYear: playerClass ? { ...prev.classByYear, [year]: playerClass } : prev.classByYear
                             }))
                             yearInput.value = ''
                             teamSelect.value = ''
+                            classSelect.value = ''
                           }
                         }}
                         className="px-3 py-2 rounded-lg text-sm font-medium"

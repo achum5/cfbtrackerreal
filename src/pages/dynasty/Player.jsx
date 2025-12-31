@@ -212,9 +212,9 @@ export default function Player() {
 
   // Determine the player's team from their team field
   // For players who transferred out, use their destination team (transferredTo)
-  // Check both leftTeam (finalized) and leavingReason (pending departure) for transfer status
+  // If transferredTo is set, they've transferred - show their new team
   // Falls back to dynasty.teamName only for legacy players without a team field
-  const hasTransferredOut = player?.transferredTo && (player?.leftTeam || player?.leavingReason)
+  const hasTransferredOut = !!player?.transferredTo
   const playerTeamAbbr = hasTransferredOut
     ? player.transferredTo  // Player transferred to a new team - show their new team
     : (player?.team
@@ -877,6 +877,23 @@ export default function Player() {
                   : `Left Team (${player.leftYear})`}
               </span>
             )}
+            {/* Pending departure - player marked as leaving but advanceToNewSeason hasn't run yet */}
+            {/* Don't show for transferred players - they're on their new team now */}
+            {!player.leftTeam && player.leavingYear && player.leavingReason && !player.transferredTo && (() => {
+              const isPastLeavingYear = Number(dynasty.currentYear) > Number(player.leavingYear)
+              return (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-bold"
+                  style={{ backgroundColor: isPastLeavingYear ? '#6b7280' : '#f59e0b', color: '#ffffff' }}
+                >
+                  {player.leavingReason === 'Graduating'
+                    ? (isPastLeavingYear ? `Graduated (${player.leavingYear})` : `Graduating (${player.leavingYear})`)
+                    : player.leavingReason === 'Pro Draft'
+                    ? (isPastLeavingYear ? `Drafted (${player.leavingYear})` : `Declaring for Draft (${player.leavingYear})`)
+                    : (isPastLeavingYear ? `Left: ${player.leavingReason} (${player.leavingYear})` : `Leaving: ${player.leavingReason} (${player.leavingYear})`)}
+                </span>
+              )
+            })()}
             {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
               // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
               const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
@@ -1049,6 +1066,23 @@ export default function Player() {
                       : `Left Team (${player.leftYear})`}
                   </span>
                 )}
+                {/* Pending departure - player marked as leaving but advanceToNewSeason hasn't run yet */}
+                {/* Don't show for transferred players - they're on their new team now */}
+                {!player.leftTeam && player.leavingYear && player.leavingReason && !player.transferredTo && (() => {
+                  const isPastLeavingYear = Number(dynasty.currentYear) > Number(player.leavingYear)
+                  return (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-bold"
+                      style={{ backgroundColor: isPastLeavingYear ? '#6b7280' : '#f59e0b', color: '#ffffff' }}
+                    >
+                      {player.leavingReason === 'Graduating'
+                        ? (isPastLeavingYear ? `Graduated (${player.leavingYear})` : `Graduating (${player.leavingYear})`)
+                        : player.leavingReason === 'Pro Draft'
+                        ? (isPastLeavingYear ? `Drafted (${player.leavingYear})` : `Declaring for Draft (${player.leavingYear})`)
+                        : (isPastLeavingYear ? `Left: ${player.leavingReason} (${player.leavingYear})` : `Leaving: ${player.leavingReason} (${player.leavingYear})`)}
+                    </span>
+                  )
+                })()}
                 {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
                   // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
                   const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
