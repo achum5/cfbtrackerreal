@@ -46,7 +46,7 @@ const positionTabs = [
 ]
 
 export default function Roster() {
-  const { currentDynasty, saveRoster } = useDynasty()
+  const { currentDynasty, saveRoster, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [selectedPosition, setSelectedPosition] = useState('All')
@@ -95,16 +95,18 @@ export default function Roster() {
           <h2 className="text-xl sm:text-2xl font-bold" style={{ color: secondaryBgText }}>
             {currentDynasty.currentYear} Roster
           </h2>
-          <button
-            onClick={() => setShowRosterModal(true)}
-            className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-            style={{ color: secondaryBgText }}
-            title="Edit Roster"
-          >
-            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowRosterModal(true)}
+              className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
+              style={{ color: secondaryBgText }}
+              title="Edit Roster"
+            >
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 

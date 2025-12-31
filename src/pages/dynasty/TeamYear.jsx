@@ -2049,16 +2049,18 @@ export default function TeamYear() {
                               </svg>
                             </div>
                           )}
-                          {/* Camera icon overlay */}
-                          <div
-                            className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: teamInfo.textColor }}
-                          >
-                            <svg className="w-2.5 h-2.5" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-                            </svg>
-                          </div>
+                          {/* Camera icon overlay - only show when no image */}
+                          {!player.pictureUrl && (
+                            <div
+                              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: teamInfo.textColor }}
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                              </svg>
+                            </div>
+                          )}
                         </button>
                       ) : player.pictureUrl ? (
                         <div
@@ -2214,16 +2216,18 @@ export default function TeamYear() {
                                   </svg>
                                 </div>
                               )}
-                              {/* Camera icon overlay */}
-                              <div
-                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                                style={{ backgroundColor: teamInfo.textColor }}
-                              >
-                                <svg className="w-2 h-2" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-                                </svg>
-                              </div>
+                              {/* Camera icon overlay - only show when no image */}
+                              {!player.pictureUrl && (
+                                <div
+                                  className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                                  style={{ backgroundColor: teamInfo.textColor }}
+                                >
+                                  <svg className="w-2 h-2" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                                  </svg>
+                                </div>
+                              )}
                             </button>
                           ) : player.pictureUrl ? (
                             <Link
@@ -3095,7 +3099,7 @@ export default function TeamYear() {
         >
           <div
             className="rounded-xl max-w-sm w-full overflow-hidden shadow-2xl"
-            style={{ backgroundColor: teamSecondaryBg }}
+            style={{ backgroundColor: viewedTeamColors.secondary }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4" style={{ backgroundColor: teamInfo.textColor }}>
@@ -3132,48 +3136,55 @@ export default function TeamYear() {
                 </div>
               )}
 
-              {/* Paste area */}
-              <div
-                className="border-2 border-dashed rounded-lg p-6 text-center cursor-text"
-                style={{ borderColor: teamInfo.textColor }}
-                tabIndex={0}
-                onPaste={async (e) => {
-                  const items = e.clipboardData?.items
-                  if (!items) return
-                  for (const item of items) {
-                    if (item.type.startsWith('image/')) {
-                      e.preventDefault()
-                      const file = item.getAsFile()
-                      if (file) {
+              {/* Paste button for mobile */}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const clipboardItems = await navigator.clipboard.read()
+                    for (const item of clipboardItems) {
+                      const imageType = item.types.find(type => type.startsWith('image/'))
+                      if (imageType) {
+                        const blob = await item.getType(imageType)
+                        const file = new File([blob], 'pasted-image.png', { type: imageType })
                         await handleQuickImageUpload(file)
+                        return
                       }
-                      return
                     }
+                    alert('No image found in clipboard')
+                  } catch (err) {
+                    console.error('Clipboard read failed:', err)
+                    alert('Could not read clipboard. Try using the file picker instead.')
                   }
+                }}
+                disabled={imageUploading}
+                className="w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-opacity"
+                style={{
+                  backgroundColor: teamInfo.textColor,
+                  color: teamPrimaryText,
+                  opacity: imageUploading ? 0.5 : 1
                 }}
               >
                 {imageUploading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="animate-spin h-8 w-8" style={{ color: teamInfo.textColor }} viewBox="0 0 24 24">
+                  <>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <p className="text-sm font-medium" style={{ color: teamBgText }}>Uploading...</p>
-                  </div>
+                    Uploading...
+                  </>
                 ) : (
                   <>
-                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke={teamInfo.textColor} viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15" />
                     </svg>
-                    <p className="text-sm font-medium mb-1" style={{ color: teamBgText }}>
-                      Click here and paste image (Ctrl+V)
-                    </p>
-                    <p className="text-xs" style={{ color: teamBgText, opacity: 0.7 }}>
-                      Works with screenshots & copied images
-                    </p>
+                    Paste from Clipboard
                   </>
                 )}
-              </div>
+              </button>
+              <p className="text-xs text-center" style={{ color: teamBgText, opacity: 0.7 }}>
+                Copy an image first, then tap to paste
+              </p>
 
               {/* Or divider */}
               <div className="flex items-center gap-3">

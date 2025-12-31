@@ -69,6 +69,12 @@ export function ViewDynastyProvider({ shareCode, children }) {
     loadDynasty()
   }, [shareCode])
 
+  // No-op function that logs a warning - used for all mutation operations
+  const viewOnlyNoOp = (fnName) => async () => {
+    console.warn(`Cannot ${fnName} in view-only mode`)
+    return null
+  }
+
   // Read-only context value
   const value = {
     // Dynasty data (read-only)
@@ -77,24 +83,54 @@ export function ViewDynastyProvider({ shareCode, children }) {
     loading,
     error,
 
-    // View-only flag - components can check this to hide edit buttons
+    // View-only flag - components MUST check this to hide edit buttons
     isViewOnly: true,
 
-    // No-op functions for compatibility (these do nothing in view mode)
-    updateDynasty: async () => {
-      console.warn('Cannot update dynasty in view-only mode')
-    },
-    addGame: async () => {
-      console.warn('Cannot add game in view-only mode')
-    },
-    saveSchedule: async () => {
-      console.warn('Cannot save schedule in view-only mode')
-    },
-    saveRoster: async () => {
-      console.warn('Cannot save roster in view-only mode')
-    },
+    // ============================================
+    // NO-OP FUNCTIONS FOR ALL MUTATIONS
+    // These do nothing in view mode to prevent any data modification
+    // ============================================
 
-    // Helper functions that work in view mode
+    // Core CRUD operations
+    createDynasty: viewOnlyNoOp('create dynasty'),
+    updateDynasty: viewOnlyNoOp('update dynasty'),
+    deleteDynasty: viewOnlyNoOp('delete dynasty'),
+    importDynasty: viewOnlyNoOp('import dynasty'),
+
+    // Game operations
+    addGame: viewOnlyNoOp('add game'),
+    saveCPUBowlGames: viewOnlyNoOp('save CPU bowl games'),
+    saveCPUConferenceChampionships: viewOnlyNoOp('save CPU conference championships'),
+
+    // Week/Season progression
+    advanceWeek: viewOnlyNoOp('advance week'),
+    advanceToNewSeason: viewOnlyNoOp('advance to new season'),
+    revertWeek: viewOnlyNoOp('revert week'),
+
+    // Schedule/Roster operations
+    saveSchedule: viewOnlyNoOp('save schedule'),
+    saveRoster: viewOnlyNoOp('save roster'),
+
+    // Team data operations
+    saveTeamRatings: viewOnlyNoOp('save team ratings'),
+    saveTeamYearInfo: viewOnlyNoOp('save team year info'),
+    saveCoachingStaff: viewOnlyNoOp('save coaching staff'),
+
+    // Player operations
+    updatePlayer: viewOnlyNoOp('update player'),
+    deletePlayer: viewOnlyNoOp('delete player'),
+
+    // Google Sheets operations
+    createGoogleSheetForDynasty: viewOnlyNoOp('create Google sheet'),
+    createTempSheetWithData: viewOnlyNoOp('create temp sheet'),
+    deleteSheetAndClearRefs: viewOnlyNoOp('delete sheet'),
+    createConferencesSheetForDynasty: viewOnlyNoOp('create conferences sheet'),
+    saveConferences: viewOnlyNoOp('save conferences'),
+
+    // Honor/Awards operations
+    processHonorPlayers: viewOnlyNoOp('process honor players'),
+
+    // Helper functions that work in view mode (read-only)
     getCurrentSchedule: () => {
       if (!dynasty) return []
       const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName

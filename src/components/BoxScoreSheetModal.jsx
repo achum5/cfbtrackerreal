@@ -68,6 +68,7 @@ export default function BoxScoreSheetModal({
 
   // For CPU games: team1 = home, team2 = away
   // For user games: based on location (home/neutral = user is home)
+  const isUserHome = !isCPUGame && (game?.location === 'home' || game?.location === 'neutral')
   let homeTeamAbbr, awayTeamAbbr, homeTeamName, awayTeamName
   if (isCPUGame) {
     homeTeamAbbr = game?.team1 || 'Team 1'
@@ -75,7 +76,6 @@ export default function BoxScoreSheetModal({
     homeTeamName = homeTeamAbbr
     awayTeamName = awayTeamAbbr
   } else {
-    const isUserHome = game?.location === 'home' || game?.location === 'neutral'
     homeTeamAbbr = isUserHome ? userTeamAbbr : opponentAbbr
     awayTeamAbbr = isUserHome ? opponentAbbr : userTeamAbbr
     homeTeamName = isUserHome ? currentDynasty?.teamName : opponentAbbr

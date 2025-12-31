@@ -388,6 +388,16 @@ export default function GameEntryModal({
     name.toLowerCase().includes(natlDefPOWSearch.toLowerCase())
   )
 
+  // Reset sheet modal states when main modal opens/closes to prevent flash on reopen
+  useEffect(() => {
+    if (!isOpen) {
+      setShowHomeStatsModal(false)
+      setShowAwayStatsModal(false)
+      setShowScoringModal(false)
+      setShowTeamStatsModal(false)
+    }
+  }, [isOpen])
+
   // Handle click outside for dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {

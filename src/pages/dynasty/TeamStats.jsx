@@ -150,7 +150,7 @@ const getTeamColorsFromAbbr = (abbr) => {
 export default function TeamStats() {
   const { team: urlTeam, year: urlYear } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
 
   // Modal state
@@ -1061,16 +1061,18 @@ export default function TeamStats() {
                 <option key={year} value={year} className="text-gray-900">{year}</option>
               ))}
             </select>
-            <button
-              onClick={() => setShowStatsModal(true)}
-              className="p-1.5 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0"
-              style={{ color: primaryText }}
-              title="Edit Stats"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowStatsModal(true)}
+                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0"
+                style={{ color: primaryText }}
+                title="Edit Stats"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1102,16 +1104,18 @@ export default function TeamStats() {
 
             {/* Edit Button and Dropdowns */}
             <div className="flex gap-2 items-center">
-              <button
-                onClick={() => setShowStatsModal(true)}
-                className="p-2 rounded-lg hover:bg-white/20 transition-colors"
-                style={{ color: primaryText }}
-                title="Edit Stats"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
+              {!isViewOnly && (
+                <button
+                  onClick={() => setShowStatsModal(true)}
+                  className="p-2 rounded-lg hover:bg-white/20 transition-colors"
+                  style={{ color: primaryText }}
+                  title="Edit Stats"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
               <select
                 value={selectedTeam}
                 onChange={(e) => handleTeamChange(e.target.value)}
@@ -1200,28 +1204,30 @@ export default function TeamStats() {
               <h3 className="text-lg font-bold" style={{ color: primaryText }}>
                 Player Statistics
               </h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowPlayerStatsModal(true)}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
-                  style={{ color: primaryText }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Games/Snaps
-                </button>
-                <button
-                  onClick={() => setShowDetailedStatsModal(true)}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
-                  style={{ color: primaryText }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Detailed Stats
-                </button>
-              </div>
+              {!isViewOnly && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPlayerStatsModal(true)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
+                    style={{ color: primaryText }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Games/Snaps
+                  </button>
+                  <button
+                    onClick={() => setShowDetailedStatsModal(true)}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 transition-colors flex items-center gap-1.5 bg-white/20"
+                    style={{ color: primaryText }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Detailed Stats
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

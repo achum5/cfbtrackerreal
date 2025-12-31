@@ -254,6 +254,18 @@ export default function Game() {
     })
   }
 
+  // Get display headers for a stat tab - adds computed "Total" column for defense
+  const getDisplayHeaders = (tabKey) => {
+    const baseHeaders = STAT_TABS[tabKey].headers
+    if (tabKey === 'defense') {
+      // Insert "Total" after "Assists" (index 2)
+      const headers = [...baseHeaders]
+      headers.splice(3, 0, 'Total')
+      return headers
+    }
+    return baseHeaders
+  }
+
   // Scroll to top when page loads
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -1013,7 +1025,7 @@ export default function Game() {
                         <table className="text-sm border-collapse">
                           <thead>
                             <tr className="text-gray-400 text-left">
-                              {STAT_TABS[activeStatTab].headers.map((header, idx) => {
+                              {getDisplayHeaders(activeStatTab).map((header, idx) => {
                                 const columnKey = idx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
                                 const isSorted = homeSortConfig.column === columnKey
                                 const sortArrow = isSorted ? (homeSortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''
@@ -1032,7 +1044,7 @@ export default function Game() {
                           <tbody>
                             {sortBoxScoreData(game.boxScore.home[activeStatTab], homeSortConfig).map((row, rowIdx) => (
                               <tr key={rowIdx} className="border-t border-gray-800">
-                                {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                {getDisplayHeaders(activeStatTab).map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
                                   let rawValue = row[key]
                                   // Compute total tackles for defense (solo + assists)
@@ -1088,7 +1100,7 @@ export default function Game() {
                         <table className="text-sm border-collapse">
                           <thead>
                             <tr className="text-gray-400 text-left">
-                              {STAT_TABS[activeStatTab].headers.map((header, idx) => {
+                              {getDisplayHeaders(activeStatTab).map((header, idx) => {
                                 const columnKey = idx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
                                 const isSorted = awaySortConfig.column === columnKey
                                 const sortArrow = isSorted ? (awaySortConfig.direction === 'asc' ? ' ▲' : ' ▼') : ''
@@ -1107,7 +1119,7 @@ export default function Game() {
                           <tbody>
                             {sortBoxScoreData(game.boxScore.away[activeStatTab], awaySortConfig).map((row, rowIdx) => (
                               <tr key={rowIdx} className="border-t border-gray-800">
-                                {STAT_TABS[activeStatTab].headers.map((header, colIdx) => {
+                                {getDisplayHeaders(activeStatTab).map((header, colIdx) => {
                                   const key = colIdx === 0 ? 'playerName' : header.replace(/\s+/g, '').replace(/^./, c => c.toLowerCase())
                                   let rawValue = row[key]
                                   // Compute total tackles for defense (solo + assists)
