@@ -5607,14 +5607,16 @@ export default function Dashboard() {
                       Object.values(recruitingCommitmentsAll).forEach(weekCommitments => {
                         if (Array.isArray(weekCommitments)) {
                           weekCommitments.forEach(c => {
-                            if (c.isPortal && c.year) {
+                            // Check isPortal flag and class field (commitments use 'class', not 'year')
+                            const playerClass = c.class || c.year
+                            if (c.isPortal && playerClass) {
                               // Only include Fr, So, Jr (not Sr) as they need class assignment
-                              const baseClass = c.year.replace('RS ', '')
+                              const baseClass = playerClass.replace('RS ', '')
                               if (['Fr', 'So', 'Jr'].includes(baseClass)) {
                                 portalTransfersForClass.push({
                                   name: c.name,
                                   position: c.position,
-                                  incomingClass: c.year
+                                  incomingClass: playerClass
                                 })
                               }
                             }
@@ -7668,14 +7670,16 @@ export default function Dashboard() {
           Object.values(recruitingCommitmentsAll).forEach(weekCommitments => {
             if (Array.isArray(weekCommitments)) {
               weekCommitments.forEach(c => {
-                if (c.isPortal && c.year) {
+                // Check isPortal flag and class field (commitments use 'class', not 'year')
+                const playerClass = c.class || c.year
+                if (c.isPortal && playerClass) {
                   // Only include Fr, So, Jr (not Sr) as they need class assignment
-                  const baseClass = c.year.replace('RS ', '')
+                  const baseClass = playerClass.replace('RS ', '')
                   if (['Fr', 'So', 'Jr'].includes(baseClass)) {
                     transfers.push({
                       name: c.name,
                       position: c.position,
-                      incomingClass: c.year
+                      incomingClass: playerClass
                     })
                   }
                 }
