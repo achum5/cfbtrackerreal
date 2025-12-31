@@ -2,10 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
-import SheetToolbar from './SheetToolbar'
 import {
-  createEncourageTransfersSheet,
-  readEncourageTransfersFromSheet,
+  createPortalTransferClassSheet,
+  readPortalTransferClassFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
@@ -15,10 +14,9 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function EncourageTransfersModal({ isOpen, onClose, onSave, currentYear, teamColors, players }) {
+export default function PortalTransferClassModal({ isOpen, onClose, onSave, currentYear, teamColors, portalTransfers }) {
   const { currentDynasty, updateDynasty } = useDynasty()
-  const { user, signOut, refreshSession } = useAuth()
-  const [refreshing, setRefreshing] = useState(false)
+  const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -81,12 +79,12 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
     }
   }, [isOpen])
 
-  // Create encourage transfers sheet when modal opens
+  // Create portal transfer class sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // Check if we have an existing sheet for this year
-        const existingSheetId = currentDynasty?.encourageTransfersSheetId
+        const existingSheetId = currentDynasty?.portalTransferClassSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -96,19 +94,19 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createEncourageTransfersSheet(
+          const sheetInfo = await createPortalTransferClassSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            players || []
+            portalTransfers || []
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            encourageTransfersSheetId: sheetInfo.spreadsheetId
+            portalTransferClassSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create encourage transfers sheet:', error)
+          console.error('Failed to create portal transfer class sheet:', error)
           if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
             setShowAuthError(true)
           }
@@ -120,7 +118,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, portalTransfers, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -135,15 +133,15 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
 
     setSyncing(true)
     try {
-      const transferPlayers = await readEncourageTransfersFromSheet(sheetId)
-      await onSave(transferPlayers)
+      const classSelections = await readPortalTransferClassFromSheet(sheetId)
+      await onSave(classSelections)
       onClose()
     } catch (error) {
       console.error(error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+        alert('Failed to sync from Google Sheets. Make sure all players have a class selected.')
       }
     } finally {
       setSyncing(false)
@@ -155,10 +153,10 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
 
     setDeletingSheet(true)
     try {
-      const transferPlayers = await readEncourageTransfersFromSheet(sheetId)
-      await onSave(transferPlayers)
+      const classSelections = await readPortalTransferClassFromSheet(sheetId)
+      await onSave(classSelections)
 
-      // Move sheet to trash (keep sheet ID stored so user can restore if needed)
+      // Move sheet to trash
       await deleteGoogleSheet(sheetId)
 
       setSheetId(null)
@@ -187,7 +185,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { encourageTransfersSheetId: null })
+      await updateDynasty(currentDynasty.id, { portalTransferClassSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -208,7 +206,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Encourage Transfers') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Portal Transfers') : null
   const isLoading = creatingSheet
 
   return (
@@ -224,7 +222,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Encourage Transfers
+            Portal Transfer Class Assignment
           </h2>
           <button
             onClick={handleClose}
@@ -248,10 +246,10 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Encourage Transfers Sheet...
+                Creating Portal Transfer Class Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Loading roster for transfer selection
+                Pre-filling portal transfers with class options
               </p>
             </div>
           </div>
@@ -265,7 +263,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Players marked for transfer have been recorded.
+                Portal transfer classes have been assigned.
               </p>
             </div>
           </div>
@@ -284,7 +282,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -310,11 +308,6 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                   >
                     {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
-                  {highlightSave && (
-                    <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
-
-                    </span>
-                  )}
                 </div>
               </div>
             )}
@@ -340,56 +333,29 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
               </div>
             )}
 
-            {/* Mobile View - Open in Google Sheets button */}
             {isMobile || !useEmbedded ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-                <div
-                  className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
-                  style={{ backgroundColor: teamColors.primary }}
-                >
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-
-                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>
-                  Mark Players to Transfer
-                </h3>
-
-                {/* Step-by-step instructions */}
-                <div className="text-left mb-6 max-w-xs">
-                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>
-                    Instructions:
-                  </p>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Assign Classes to Portal Transfers</h3>
+                <div className="text-left mb-6 max-w-sm">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
-                    <li className="flex gap-2">
-                      <span className="font-bold">1.</span>
-                      <span>Tap the button below to open Google Sheets</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="font-bold">2.</span>
-                      <span>Check the "Encourage Transfer" box for players you want to leave</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="font-bold">3.</span>
-                      <span>Return to this app when done</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="font-bold">4.</span>
-                      <span>Tap "Save" below to record transfers</span>
-                    </li>
+                    <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Each transfer has a dropdown with class options</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Select the appropriate class for each player</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to apply classes</span></li>
                   </ol>
                 </div>
-
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-6 py-3 rounded-lg font-bold text-lg hover:opacity-90 transition-colors flex items-center gap-2 mb-6"
-                  style={{
-                    backgroundColor: '#0F9D58',
-                    color: '#FFFFFF'
-                  }}
+                  style={{ backgroundColor: '#0F9D58', color: '#FFFFFF' }}
                 >
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
@@ -409,7 +375,7 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                       color: teamColors.secondary
                     }}
                   >
-                    {deletingSheet ? 'Saving...' : 'Save & Move to Trash'}
+                    {deletingSheet ? 'Saving...' : '✓ Save & Move to Trash'}
                   </button>
                   <button
                     onClick={handleSyncFromSheet}
@@ -424,93 +390,33 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                 </div>
-                {/* Start Over Button */}
                 <button
                   onClick={handleRegenerateSheet}
                   disabled={syncing || deletingSheet || regenerating}
-                  className="text-xs px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-colors border mb-4"
+                  className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-xs border-2"
                   style={{
                     backgroundColor: 'transparent',
                     borderColor: '#EF4444',
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
+                  {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                 </button>
-                {highlightSave && (
-                  <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>
-
-                  </span>
-                )}
-
-                <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
-                  <p className="font-semibold mb-1">Note:</p>
-                  <p className="opacity-80">Players you encourage to transfer will be removed from next season's roster. They will still appear in your historical records.</p>
-                </div>
               </div>
             ) : (
-              /* Desktop View - Embedded iframe with toolbar */
-              <>
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                  <SheetToolbar
-                    sheetId={sheetId}
-                    embedUrl={embedUrl}
-                    teamColors={teamColors}
-                    title="Encourage Transfers Google Sheet"
-                    onSessionError={() => setShowAuthError(true)}
-                  />
-                </div>
-
-                <div className="text-xs mt-2 space-y-1" style={{ color: teamColors.primary, opacity: 0.6 }}>
-                  <p><strong>Columns:</strong> Name, Position, Overall, Encourage Transfer (checkbox)</p>
-                  <p>Check the "Encourage Transfer" box for players you want to remove from next season's roster.</p>
-                </div>
-              </>
+              /* Embedded iframe view */
+              <div className="flex-1 rounded-lg overflow-hidden border-2" style={{ borderColor: teamColors.primary }}>
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  title="Portal Transfer Class Sheet"
+                />
+              </div>
             )}
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-lg mb-4" style={{ color: teamColors.primary }}>
-                Your session has expired. Click below to refresh.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={async () => {
-                    setRefreshing(true)
-                    try {
-                      const success = await refreshSession()
-                      if (success) {
-                        setRetryCount(c => c + 1)
-                      }
-                    } catch (e) {
-                      console.error('Refresh failed:', e)
-                    }
-                    setRefreshing(false)
-                  }}
-                  disabled={refreshing}
-                  className="px-4 py-2 rounded font-semibold transition-colors"
-                  style={{
-                    backgroundColor: teamColors.primary,
-                    color: teamColors.primaryText || '#fff',
-                    opacity: refreshing ? 0.7 : 1
-                  }}
-                >
-                  {refreshing ? 'Refreshing...' : 'Refresh Session'}
-                </button>
-                <button
-                  onClick={signOut}
-                  className="px-4 py-2 rounded font-semibold transition-colors border"
-                  style={{
-                    borderColor: teamColors.primary,
-                    color: teamColors.primary,
-                    backgroundColor: 'transparent'
-                  }}
-                >
-                  Sign Out
-                </button>
-              </div>
-            </div>
+            <p style={{ color: teamColors.primary }}>Failed to create sheet. Please try again.</p>
           </div>
         )}
       </div>

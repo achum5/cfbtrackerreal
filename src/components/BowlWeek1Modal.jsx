@@ -116,7 +116,54 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
           }
 
           // Get existing bowl week 1 data for pre-filling
-          const existingBowlWeek1 = currentDynasty?.bowlGamesByYear?.[currentYear]?.week1 || []
+          // First get legacy bowlGamesByYear data
+          const legacyBowlWeek1 = currentDynasty?.bowlGamesByYear?.[currentYear]?.week1 || []
+
+          // Also check unified games[] array for bowl games
+          const unifiedBowlGames = (currentDynasty?.games || [])
+            .filter(g => {
+              // Check if it's a bowl game from this year
+              if (Number(g.year) !== currentYear) return false
+              // Check game type - could be 'bowl' or detected by bowlName
+              const isBowl = g.gameType === 'bowl' || (g.bowlName && !g.bowlName.includes('CFP'))
+              if (!isBowl) return false
+              // Only include week 1 bowls
+              return isBowlInWeek1(g.bowlName)
+            })
+            .map(g => {
+              // Convert to the format expected by the sheet (team1/team2 style)
+              if (g.opponent) {
+                // User game - convert from opponent format
+                return {
+                  bowlName: g.bowlName,
+                  team1: g.userTeam || userTeamAbbr,
+                  team2: g.opponent,
+                  team1Score: g.teamScore,
+                  team2Score: g.opponentScore
+                }
+              } else {
+                // CPU game format
+                return {
+                  bowlName: g.bowlName,
+                  team1: g.team1,
+                  team2: g.team2,
+                  team1Score: g.team1Score,
+                  team2Score: g.team2Score
+                }
+              }
+            })
+
+          // Merge legacy and unified, preferring unified (newer) data
+          const existingBowlWeek1 = [...legacyBowlWeek1]
+          unifiedBowlGames.forEach(ug => {
+            const existingIndex = existingBowlWeek1.findIndex(eb => eb.bowlName === ug.bowlName)
+            if (existingIndex >= 0) {
+              existingBowlWeek1[existingIndex] = ug // Replace with unified data
+            } else {
+              existingBowlWeek1.push(ug)
+            }
+          })
+
           const existingCFPFirstRound = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
 
           const sheetInfo = await createBowlWeek1Sheet(
@@ -326,7 +373,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
@@ -417,7 +464,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
                 {highlightSave && (
                   <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>

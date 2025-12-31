@@ -306,7 +306,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                     opacity: 0.7
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Start Over'}
+                  {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                 </button>
                 {highlightSave && (
                   <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
@@ -397,7 +397,7 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
                   className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
                   style={{ color: teamColors.primary }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
               </div>
             ) : (

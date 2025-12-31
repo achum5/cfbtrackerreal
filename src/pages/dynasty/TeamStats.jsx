@@ -347,23 +347,29 @@ export default function TeamStats() {
     // Convert to arrays and compute derived stats
     const toArray = (obj) => Object.values(obj)
 
-    // Passing: add comp %, yards/game
+    // Passing: add comp %, TD%, INT%, TD:INT ratio, yards/game
     const passing = toArray(aggregated.passing).map(p => ({
       ...p,
       compPct: p.attempts > 0 ? ((p.comp / p.attempts) * 100).toFixed(1) : '0.0',
+      yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0',
+      tdPct: p.attempts > 0 ? ((p.tD / p.attempts) * 100).toFixed(1) : '0.0',
+      intPct: p.attempts > 0 ? ((p.iNT / p.attempts) * 100).toFixed(1) : '0.0',
+      tdIntRatio: p.iNT > 0 ? (p.tD / p.iNT).toFixed(2).replace('.', ':') : (p.tD > 0 ? '∞' : '0:00')
+    }))
+
+    // Rushing: add YPC and YDS/G
+    const rushing = toArray(aggregated.rushing).map(p => ({
+      ...p,
+      ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0'
     }))
 
-    // Rushing: add YPC
-    const rushing = toArray(aggregated.rushing).map(p => ({
-      ...p,
-      ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0'
-    }))
-
-    // Receiving: add Y/R (yards per reception)
+    // Receiving: add Y/R, YDS/G, RAC AVG
     const receiving = toArray(aggregated.receiving).map(p => ({
       ...p,
-      ypr: p.receptions > 0 ? (p.yards / p.receptions).toFixed(1) : '0.0'
+      ypr: p.receptions > 0 ? (p.yards / p.receptions).toFixed(1) : '0.0',
+      yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0',
+      racAvg: p.receptions > 0 ? (p.rAC / p.receptions).toFixed(1) : '0.0'
     }))
 
     // Defense: add total tackles
@@ -629,7 +635,10 @@ export default function TeamStats() {
       { key: 'yards', label: 'YDS' },
       { key: 'yardsPerGame', label: 'YDS/G' },
       { key: 'tD', label: 'TD' },
+      { key: 'tdPct', label: 'TD%' },
       { key: 'iNT', label: 'INT' },
+      { key: 'intPct', label: 'INT%' },
+      { key: 'tdIntRatio', label: 'TD:INT' },
       { key: 'sacks', label: 'SCK' }
     ],
     rushing: [
@@ -637,8 +646,9 @@ export default function TeamStats() {
       { key: 'games', label: 'G' },
       { key: 'carries', label: 'CAR' },
       { key: 'yards', label: 'YDS' },
-      { key: 'ypc', label: 'YPC' },
+      { key: 'ypc', label: 'AVG' },
       { key: 'tD', label: 'TD' },
+      { key: 'yardsPerGame', label: 'YDS/G' },
       { key: 'fumbles', label: 'FUM' },
       { key: '20+', label: '20+' },
       { key: 'long', label: 'LNG' }
@@ -648,9 +658,11 @@ export default function TeamStats() {
       { key: 'games', label: 'G' },
       { key: 'receptions', label: 'REC' },
       { key: 'yards', label: 'YDS' },
-      { key: 'ypr', label: 'Y/R' },
+      { key: 'ypr', label: 'AVG' },
       { key: 'tD', label: 'TD' },
+      { key: 'yardsPerGame', label: 'YDS/G' },
       { key: 'rAC', label: 'RAC' },
+      { key: 'racAvg', label: 'RAC AVG' },
       { key: 'drops', label: 'DROP' },
       { key: 'long', label: 'LNG' }
     ],

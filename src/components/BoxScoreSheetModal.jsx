@@ -549,7 +549,7 @@ export default function BoxScoreSheetModal({
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -704,7 +704,7 @@ export default function BoxScoreSheetModal({
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
 
                 <div className="text-xs p-3 rounded-lg max-w-sm" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>

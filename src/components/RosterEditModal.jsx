@@ -349,7 +349,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                       color: '#FFFFFF'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
@@ -441,7 +441,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
                   className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
                   style={{ color: teamColors.primary }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
               </div>
             ) : (

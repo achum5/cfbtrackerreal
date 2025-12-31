@@ -3,8 +3,8 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import {
-  createTransferRedshirtSheet,
-  readTransferRedshirtFromSheet,
+  createFringeCaseClassSheet,
+  readFringeCaseClassFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
@@ -14,14 +14,7 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function TransferRedshirtModal({
-  isOpen,
-  onClose,
-  onSave,
-  currentYear,
-  portalTransfers = [],
-  teamColors
-}) {
+export default function FringeCaseClassModal({ isOpen, onClose, onSave, currentYear, teamColors, fringeCasePlayers }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const [syncing, setSyncing] = useState(false)
@@ -86,13 +79,12 @@ export default function TransferRedshirtModal({
     }
   }, [isOpen])
 
-  // Create sheet when modal opens
+  // Create fringe case class sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && portalTransfers.length > 0) {
-        // Check for existing sheet for this year
-        const sheetKey = `transferRedshirtSheet_${currentYear}`
-        const existingSheetId = currentDynasty?.[sheetKey]
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Check if we have an existing sheet for this year
+        const existingSheetId = currentDynasty?.fringeCaseClassSheetId
         if (existingSheetId) {
           setSheetId(existingSheetId)
           return
@@ -102,19 +94,19 @@ export default function TransferRedshirtModal({
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createTransferRedshirtSheet(
+          const sheetInfo = await createFringeCaseClassSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            portalTransfers
+            fringeCasePlayers || []
           )
           setSheetId(sheetInfo.spreadsheetId)
 
           // Save sheet ID to dynasty
           await updateDynasty(currentDynasty.id, {
-            [sheetKey]: sheetInfo.spreadsheetId
+            fringeCaseClassSheetId: sheetInfo.spreadsheetId
           })
         } catch (error) {
-          console.error('Failed to create transfer redshirt sheet:', error)
+          console.error('Failed to create fringe case class sheet:', error)
           if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
             setShowAuthError(true)
           }
@@ -126,7 +118,7 @@ export default function TransferRedshirtModal({
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, currentYear, portalTransfers])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, fringeCasePlayers, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -141,15 +133,15 @@ export default function TransferRedshirtModal({
 
     setSyncing(true)
     try {
-      const transfers = await readTransferRedshirtFromSheet(sheetId)
-      await onSave(transfers)
+      const classSelections = await readFringeCaseClassFromSheet(sheetId)
+      await onSave(classSelections)
       onClose()
     } catch (error) {
       console.error(error)
       if (error.message?.includes('OAuth') || error.message?.includes('access token')) {
         setShowAuthError(true)
       } else {
-        alert('Failed to sync from Google Sheets. Make sure data is properly formatted.')
+        alert('Failed to sync from Google Sheets. Make sure all players have a class selected.')
       }
     } finally {
       setSyncing(false)
@@ -161,8 +153,8 @@ export default function TransferRedshirtModal({
 
     setDeletingSheet(true)
     try {
-      const transfers = await readTransferRedshirtFromSheet(sheetId)
-      await onSave(transfers)
+      const classSelections = await readFringeCaseClassFromSheet(sheetId)
+      await onSave(classSelections)
 
       // Move sheet to trash
       await deleteGoogleSheet(sheetId)
@@ -193,8 +185,7 @@ export default function TransferRedshirtModal({
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      const sheetKey = `transferRedshirtSheet_${currentYear}`
-      await updateDynasty(currentDynasty.id, { [sheetKey]: null })
+      await updateDynasty(currentDynasty.id, { fringeCaseClassSheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -215,7 +206,7 @@ export default function TransferRedshirtModal({
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Transfer Redshirts') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Fringe Cases') : null
   const isLoading = creatingSheet
 
   return (
@@ -229,9 +220,9 @@ export default function TransferRedshirtModal({
         style={{ backgroundColor: teamColors.secondary }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Transfer Redshirt Status
+            Fringe Case Class Assignment
           </h2>
           <button
             onClick={handleClose}
@@ -242,11 +233,6 @@ export default function TransferRedshirtModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-        </div>
-
-        {/* Explanation */}
-        <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
-          <strong>About This Task:</strong> The transfer portal shows players' current class (Fr, So, Jr) but doesn't indicate if they've previously used a redshirt year. Mark "Yes" for any transfers who were redshirted at their previous school so their class displays correctly (e.g., "RS Fr" instead of "Fr").
         </div>
 
         {isLoading ? (
@@ -260,10 +246,10 @@ export default function TransferRedshirtModal({
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Transfer Redshirt Sheet...
+                Creating Fringe Case Class Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up your incoming transfers
+                Players with 5-9 games who might have redshirted
               </p>
             </div>
           </div>
@@ -277,21 +263,7 @@ export default function TransferRedshirtModal({
                 Saved & Moved to Trash!
               </p>
               <p className="text-sm" style={{ color: teamColors.secondary, opacity: 0.9 }}>
-                Transfer redshirt status saved. Player classes have been updated.
-              </p>
-            </div>
-          </div>
-        ) : portalTransfers.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center p-8">
-              <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke={teamColors.primary} viewBox="0 0 24 24" style={{ opacity: 0.5 }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-              <p className="text-xl font-bold mb-2" style={{ color: teamColors.primary }}>
-                No Transfer Portal Players
-              </p>
-              <p className="text-sm" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                You haven't added any transfer portal players to your recruiting class yet.
+                Fringe case classes have been assigned.
               </p>
             </div>
           </div>
@@ -334,7 +306,7 @@ export default function TransferRedshirtModal({
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -356,7 +328,7 @@ export default function TransferRedshirtModal({
                     backgroundColor: 'transparent'
                   }}
                 >
-                  {useEmbedded ? '← Back to default view' : 'Try embedded view (beta)'}
+                  {useEmbedded ? '<- Back to default view' : 'Try embedded view (beta)'}
                 </button>
               </div>
             )}
@@ -365,16 +337,21 @@ export default function TransferRedshirtModal({
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                 <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: teamColors.primary }}>
                   <svg className="w-10 h-10" fill="none" stroke={teamColors.secondary} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Edit in Google Sheets</h3>
+                <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Resolve Fringe Case Classes</h3>
                 <div className="text-left mb-6 max-w-sm">
+                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>About Fringe Cases:</p>
+                  <p className="text-sm mb-3" style={{ color: teamColors.primary, opacity: 0.8 }}>
+                    Players with 5-9 games might have used a redshirt if they only played 4 or fewer <strong>regular season</strong> games.
+                  </p>
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
-                    <li className="flex gap-2"><span className="font-bold">2.</span><span>For each transfer, select "Yes" or "No" in the "Redshirted in Past?" column</span></li>
-                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Return here and tap "Save" to sync</span></li>
+                    <li className="flex gap-2"><span className="font-bold">2.</span><span>Review each player's game count and assumed class</span></li>
+                    <li className="flex gap-2"><span className="font-bold">3.</span><span>Select redshirt version if they used a redshirt</span></li>
+                    <li className="flex gap-2"><span className="font-bold">4.</span><span>Return here and tap "Save" to apply classes</span></li>
                   </ol>
                 </div>
                 <a
@@ -427,7 +404,7 @@ export default function TransferRedshirtModal({
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Start Over'}
+                  {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                 </button>
               </div>
             ) : (
@@ -436,7 +413,7 @@ export default function TransferRedshirtModal({
                 <iframe
                   src={embedUrl}
                   className="w-full h-full"
-                  title="Transfer Redshirt Status Sheet"
+                  title="Fringe Case Class Sheet"
                 />
               </div>
             )}

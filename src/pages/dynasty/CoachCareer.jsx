@@ -64,10 +64,25 @@ const mascotMap = {
   'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
 }
 
-const getMascotName = (abbr) => mascotMap[abbr] || null
+const getMascotName = (opponent) => {
+  // Try direct lookup first (for abbreviations)
+  if (mascotMap[opponent]) return mascotMap[opponent]
+  // If opponent is already a full name, return it if it exists in reverse lookup
+  const abbr = getAbbreviationFromDisplayName(opponent)
+  if (abbr) return mascotMap[abbr] || opponent
+  return null
+}
 
-const getOpponentColors = (abbr) => {
-  const team = teamAbbreviations[abbr]
+const getOpponentColors = (opponent) => {
+  // Try direct lookup first (for abbreviations)
+  let team = teamAbbreviations[opponent]
+  // If not found, try to get abbreviation from display name
+  if (!team) {
+    const abbr = getAbbreviationFromDisplayName(opponent)
+    if (abbr) {
+      team = teamAbbreviations[abbr]
+    }
+  }
   return {
     backgroundColor: team?.backgroundColor || '#4B5563',
     textColor: team?.textColor || '#FFFFFF'

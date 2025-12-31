@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -166,7 +166,12 @@ const getMascotName = (abbr) => {
     'FCSN': 'FCS Northwest Stallions',
     'FCSW': 'FCS West Titans'
   }
-  return mascotMap[abbr] || null
+  // Try direct lookup first (for abbreviations)
+  if (mascotMap[abbr]) return mascotMap[abbr]
+  // If abbr is already a full name, try to get abbreviation and return the full name
+  const actualAbbr = getAbbreviationFromDisplayName(abbr)
+  if (actualAbbr) return mascotMap[actualAbbr] || abbr
+  return null
 }
 
 // Extract just the school name from full mascot name
@@ -211,6 +216,7 @@ export default function Team() {
   const [showAsTeamModal, setShowAsTeamModal] = useState(false)
   const [showSeasonsModal, setShowSeasonsModal] = useState(false)
   const [showStreakModal, setShowStreakModal] = useState(false)
+  const [showAllTimeModal, setShowAllTimeModal] = useState(false)
 
   // Scroll to top when navigating to this page
   useEffect(() => {
@@ -332,11 +338,63 @@ export default function Team() {
 
   const apTop25Finishes = getApTop25Finishes()
 
-  // Calculate all bowl games for this team from bowlGamesByYear
+  // Calculate all bowl games for this team from both games[] array and bowlGamesByYear
   const getBowlGamesForTeam = () => {
     const bowlGames = []
-    const bowlGamesByYear = currentDynasty.bowlGamesByYear || {}
+    const seenGames = new Set() // Prevent duplicates
 
+    // 1. Check unified games[] array for bowl games where this team played
+    const allGames = currentDynasty.games || []
+    allGames.forEach(game => {
+      // Check for bowl games in the unified system
+      const gameType = detectGameType(game)
+      if (gameType !== GAME_TYPES.BOWL) return
+
+      // Check if this team played in this game
+      const isUserTeam = game.userTeam === teamAbbr
+      const isCpuTeam1 = !game.opponent && game.team1 === teamAbbr
+      const isCpuTeam2 = !game.opponent && game.team2 === teamAbbr
+
+      if (!isUserTeam && !isCpuTeam1 && !isCpuTeam2) return
+
+      const gameKey = `${game.year}-${game.bowlName || game.week}`
+      if (seenGames.has(gameKey)) return
+      seenGames.add(gameKey)
+
+      if (isUserTeam) {
+        // User game
+        const isWin = game.result === 'W' || game.result === 'win'
+        bowlGames.push({
+          year: parseInt(game.year),
+          bowlName: game.bowlName || 'Bowl Game',
+          opponent: game.opponent,
+          teamScore: game.teamScore,
+          opponentScore: game.opponentScore,
+          won: isWin,
+          hasScore: game.teamScore !== null && game.opponentScore !== null
+        })
+      } else {
+        // CPU game where this team participated
+        const isTeam1 = game.team1 === teamAbbr
+        const hasScore = game.team1Score !== null && game.team2Score !== null
+        const teamWon = hasScore && (
+          (isTeam1 && game.team1Score > game.team2Score) ||
+          (!isTeam1 && game.team2Score > game.team1Score)
+        )
+        bowlGames.push({
+          year: parseInt(game.year),
+          bowlName: game.bowlName || 'Bowl Game',
+          opponent: isTeam1 ? game.team2 : game.team1,
+          teamScore: isTeam1 ? game.team1Score : game.team2Score,
+          opponentScore: isTeam1 ? game.team2Score : game.team1Score,
+          won: teamWon,
+          hasScore
+        })
+      }
+    })
+
+    // 2. Also check legacy bowlGamesByYear for CPU bowl games
+    const bowlGamesByYear = currentDynasty.bowlGamesByYear || {}
     Object.entries(bowlGamesByYear).forEach(([year, yearData]) => {
       const allBowls = [...(yearData?.week1 || []), ...(yearData?.week2 || [])]
       allBowls.forEach(bowl => {
@@ -345,6 +403,10 @@ export default function Team() {
         const isTeam1 = bowl.team1 === teamAbbr
         const isTeam2 = bowl.team2 === teamAbbr
         if (!isTeam1 && !isTeam2) return
+
+        const gameKey = `${year}-${bowl.bowlName}`
+        if (seenGames.has(gameKey)) return
+        seenGames.add(gameKey)
 
         const hasScore = bowl.team1Score !== null && bowl.team2Score !== null
         const teamWon = hasScore && (
@@ -1015,27 +1077,28 @@ export default function Team() {
 
         <div className="p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {/* All-Time Record - not clickable */}
-            <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${teamBgText}10` }}>
+            {/* All-Time Record - Clickable */}
+            <button
+              onClick={() => setShowAllTimeModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
+              style={{ backgroundColor: `${teamBgText}10` }}
+            >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 All-Time
               </div>
               <div className="text-xl font-bold" style={{ color: teamBgText }}>
                 {`${allTimeTeamWins}-${allTimeTeamLosses}`}
               </div>
-              {allTimeTeamWinPct && (
-                <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
-                  {allTimeTeamWinPct}%
-                </div>
-              )}
-            </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                {allTimeTeamWinPct ? `${allTimeTeamWinPct}%` : 'Click to view'}
+              </div>
+            </button>
 
             {/* AP Top 25 */}
             <button
-              onClick={() => apTop25Finishes.length > 0 && setShowApTop25Modal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${apTop25Finishes.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowApTop25Modal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={apTop25Finishes.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 AP Top 25
@@ -1050,10 +1113,9 @@ export default function Team() {
 
             {/* Conf Titles */}
             <button
-              onClick={() => conferenceTitlesDetails.length > 0 && setShowConfTitlesModal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${conferenceTitlesDetails.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowConfTitlesModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={conferenceTitlesDetails.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Conf Titles
@@ -1061,14 +1123,16 @@ export default function Team() {
               <div className="text-xl font-bold" style={{ color: conferenceTitlesDetails.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {conferenceTitlesDetails.length || 0}
               </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                Click to view
+              </div>
             </button>
 
             {/* Bowl Games */}
             <button
-              onClick={() => bowlGames.length > 0 && setShowBowlGamesModal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${bowlGames.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowBowlGamesModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={bowlGames.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Bowl Games
@@ -1076,14 +1140,16 @@ export default function Team() {
               <div className="text-xl font-bold" style={{ color: bowlGames.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {bowlWins.length}-{bowlLosses.length}
               </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                Click to view
+              </div>
             </button>
 
             {/* CFP Apps */}
             <button
-              onClick={() => cfpAppearances.length > 0 && setShowCfpAppsModal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${cfpAppearances.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowCfpAppsModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={cfpAppearances.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 CFP Apps
@@ -1091,14 +1157,16 @@ export default function Team() {
               <div className="text-xl font-bold" style={{ color: cfpAppearances.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {cfpAppearances.length || 0}
               </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                Click to view
+              </div>
             </button>
 
             {/* Natl Titles */}
             <button
-              onClick={() => nationalTitles.length > 0 && setShowNatlTitlesModal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${nationalTitles.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowNatlTitlesModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={nationalTitles.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 Natl Titles
@@ -1106,20 +1174,25 @@ export default function Team() {
               <div className="text-xl font-bold" style={{ color: nationalTitles.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {nationalTitles.length || 0}
               </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                Click to view
+              </div>
             </button>
 
             {/* All-Americans */}
             <button
-              onClick={() => allAmericans.length > 0 && setShowAllAmericansModal(true)}
-              className={`text-center p-3 rounded-lg transition-all ${allAmericans.length > 0 ? 'cursor-pointer hover:scale-[1.02]' : 'cursor-default'}`}
+              onClick={() => setShowAllAmericansModal(true)}
+              className="text-center p-3 rounded-lg transition-all cursor-pointer hover:scale-[1.02]"
               style={{ backgroundColor: `${teamBgText}10` }}
-              disabled={allAmericans.length === 0}
             >
               <div className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.7 }}>
                 All-Americans
               </div>
               <div className="text-xl font-bold" style={{ color: allAmericans.length > 0 ? teamBgText : `${teamBgText}50` }}>
                 {allAmericans.length || 0}
+              </div>
+              <div className="text-xs mt-1" style={{ color: teamBgText, opacity: 0.6 }}>
+                Click to view
               </div>
             </button>
           </div>
@@ -1255,6 +1328,13 @@ export default function Team() {
                   })
                   .map((game, idx) => {
                     const isWin = game.result === 'W' || game.result === 'win'
+                    // Get user's team for this game (they may have coached different teams)
+                    const userTeamForGame = game.userTeam || userTeamAbbr
+                    const userTeamInfo = teamAbbreviations[userTeamForGame] || {}
+                    const userTeamBgColor = userTeamInfo.backgroundColor || '#4B5563'
+                    const userTeamTextColor = getContrastTextColor(userTeamBgColor)
+                    const userTeamMascotName = getMascotName(userTeamForGame)
+                    const userTeamLogo = userTeamMascotName ? getTeamLogo(userTeamMascotName) : null
 
                     return (
                       <Link
@@ -1262,15 +1342,15 @@ export default function Team() {
                         to={`${pathPrefix}/game/${game.id}`}
                         className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
                         style={{
-                          backgroundColor: isWin ? '#16a34a15' : '#dc262615',
-                          border: `2px solid ${isWin ? '#16a34a40' : '#dc262640'}`
+                          backgroundColor: userTeamBgColor,
+                          border: `3px solid ${isWin ? '#16a34a' : '#dc2626'}`
                         }}
                         onClick={() => setShowGamesModal(false)}
                       >
                         <div className="flex items-center gap-3">
                           {/* W/L Badge */}
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
                             style={{
                               backgroundColor: isWin ? '#16a34a' : '#dc2626',
                               color: '#FFFFFF'
@@ -1278,17 +1358,29 @@ export default function Team() {
                           >
                             {isWin ? 'W' : 'L'}
                           </div>
+                          {/* User's Team Logo */}
+                          {userTeamLogo && (
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: '#FFFFFF', border: `2px solid ${userTeamInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                            >
+                              <img src={userTeamLogo} alt={userTeamForGame} className="w-full h-full object-contain" />
+                            </div>
+                          )}
                           <div>
-                            <div className="font-semibold" style={{ color: teamBgText }}>
+                            <div className="font-semibold" style={{ color: userTeamTextColor }}>
                               {game.year} {game.week ? `Week ${game.week}` : game.bowlName || ''}
                             </div>
-                            <div className="text-sm" style={{ color: teamBgText, opacity: 0.7 }}>
+                            <div className="text-sm" style={{ color: userTeamTextColor, opacity: 0.8 }}>
                               {game.location === 'home' ? 'vs' : game.location === 'away' ? '@' : 'vs'} {teamAbbr}
+                              {userTeamForGame !== userTeamAbbr && (
+                                <span className="ml-1 opacity-70">(as {userTeamForGame})</span>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-lg" style={{ color: teamBgText }}>
+                          <div className="font-bold text-lg" style={{ color: userTeamTextColor }}>
                             {game.teamScore}-{game.opponentScore}
                           </div>
                         </div>
@@ -1296,6 +1388,130 @@ export default function Team() {
                     )
                   })}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All-Time Record Modal */}
+      {showAllTimeModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowAllTimeModal(false)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: teamInfo.backgroundColor,
+              border: `3px solid ${teamInfo.textColor}`
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="px-4 py-3 flex items-center justify-between flex-shrink-0"
+              style={{ backgroundColor: teamInfo.textColor }}
+            >
+              <div className="flex items-center gap-3">
+                {teamLogo && (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                    <img src={teamLogo} alt={`${teamAbbr} logo`} className="w-full h-full object-contain" />
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>All-Time Record</h2>
+                  <p className="text-sm opacity-80" style={{ color: teamPrimaryText }}>
+                    {allTimeTeamWins}-{allTimeTeamLosses} ({allTimeTeamWinPct}%)
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowAllTimeModal(false)} className="p-1 rounded hover:bg-black/10 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {yearsWithRecords.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No games yet</p>
+                  <p className="text-sm mt-1">Games will appear here as you play them</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {[...yearsWithRecords].reverse().map((yr) => {
+                    const yearGames = gamesAsTeam.filter(g => Number(g.year) === yr.year)
+                    if (yearGames.length === 0) return null
+
+                    return (
+                      <div key={yr.year}>
+                        <div
+                          className="px-3 py-2 rounded-lg mb-2 font-bold text-sm flex items-center justify-between"
+                          style={{ backgroundColor: teamInfo.textColor, color: teamPrimaryText }}
+                        >
+                          <span>{yr.year} Season</span>
+                          <span>{yr.wins}-{yr.losses}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {yearGames
+                            .sort((a, b) => (b.week || 0) - (a.week || 0))
+                            .map((game, idx) => {
+                              const isWin = game.result === 'W' || game.result === 'win'
+                              const oppAbbr = teamAbbreviations[game.opponent] ? game.opponent : getAbbreviationFromDisplayName(game.opponent)
+                              const oppInfo = teamAbbreviations[oppAbbr] || {}
+                              const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                              const oppTextColor = getContrastTextColor(oppBgColor)
+                              const oppMascotName = getMascotName(game.opponent)
+                              const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
+
+                              return (
+                                <Link
+                                  key={game.id || idx}
+                                  to={`${pathPrefix}/game/${game.id}`}
+                                  className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
+                                  style={{
+                                    backgroundColor: oppBgColor,
+                                    border: `3px solid ${isWin ? '#16a34a' : '#dc2626'}`
+                                  }}
+                                  onClick={() => setShowAllTimeModal(false)}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                                      style={{ backgroundColor: isWin ? '#16a34a' : '#dc2626', color: '#FFFFFF' }}
+                                    >
+                                      {isWin ? 'W' : 'L'}
+                                    </div>
+                                    {oppLogo && (
+                                      <div
+                                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                                      >
+                                        <img src={oppLogo} alt={game.opponent} className="w-full h-full object-contain" />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="font-semibold" style={{ color: oppTextColor }}>
+                                        {game.week ? `Week ${game.week}` : game.bowlName || 'Game'}
+                                      </div>
+                                      <div className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}>
+                                        {game.location === 'home' ? 'vs' : game.location === 'away' ? '@' : 'vs'} {getSchoolName(oppMascotName) || getSchoolName(game.opponent) || game.opponent}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="font-bold text-lg" style={{ color: oppTextColor }}>
+                                      {game.teamScore}-{game.opponentScore}
+                                    </div>
+                                  </div>
+                                </Link>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1334,6 +1550,11 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {apTop25Finishes.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No AP Top 25 finishes yet</p>
+                </div>
+              ) : (
               <div className="space-y-2">
                 {apTop25Finishes.map((finish, idx) => (
                   <Link
@@ -1348,6 +1569,7 @@ export default function Team() {
                   </Link>
                 ))}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1386,30 +1608,59 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {conferenceTitlesDetails.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No conference championships yet</p>
+                </div>
+              ) : (
               <div className="space-y-2">
-                {conferenceTitlesDetails.map((title, idx) => (
+                {conferenceTitlesDetails.map((title, idx) => {
+                  const oppAbbr = teamAbbreviations[title.opponent] ? title.opponent : getAbbreviationFromDisplayName(title.opponent)
+                  const oppInfo = teamAbbreviations[oppAbbr] || {}
+                  const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                  const oppTextColor = getContrastTextColor(oppBgColor)
+                  const oppMascotName = getMascotName(title.opponent)
+                  const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
+
+                  return (
                   <Link
                     key={idx}
                     to={`${pathPrefix}/team/${teamAbbr}/${title.year}`}
-                    className="block p-3 rounded-lg hover:scale-[1.01] transition-transform"
-                    style={{ backgroundColor: `${teamBgText}10`, border: `2px solid ${teamBgText}20` }}
+                    className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.01] transition-transform"
+                    style={{ backgroundColor: oppBgColor, border: `3px solid #16a34a` }}
                     onClick={() => setShowConfTitlesModal(false)}
                   >
-                    <div className="flex items-center gap-3">
+                      {/* W Badge */}
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
+                        style={{ backgroundColor: '#16a34a', color: '#FFFFFF' }}
+                      >
+                        W
+                      </div>
+                      {/* Opponent Logo */}
+                      {oppLogo && (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                        >
+                          <img src={oppLogo} alt={title.opponent} className="w-full h-full object-contain" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate" style={{ color: teamBgText }}>{title.conference} Champions</div>
-                        <div className="text-sm flex flex-wrap items-center gap-x-2" style={{ color: teamBgText, opacity: 0.7 }}>
+                        <div className="font-semibold truncate" style={{ color: oppTextColor }}>{title.conference} Champions</div>
+                        <div className="text-sm flex flex-wrap items-center gap-x-2" style={{ color: oppTextColor, opacity: 0.8 }}>
                           <span>{title.year}</span>
-                          <span>vs {title.opponent}</span>
+                          <span>vs {getSchoolName(oppMascotName) || getSchoolName(title.opponent) || title.opponent}</span>
                         </div>
                       </div>
                       {title.teamScore !== null && (
-                        <div className="text-xl font-bold flex-shrink-0" style={{ color: teamBgText }}>{title.teamScore}-{title.opponentScore}</div>
+                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{title.teamScore}-{title.opponentScore}</div>
                       )}
-                    </div>
                   </Link>
-                ))}
+                  )
+                })}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1448,19 +1699,33 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {bowlGames.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No bowl games yet</p>
+                </div>
+              ) : (
               <div className="space-y-2">
-                {bowlGames.map((game, idx) => (
+                {bowlGames.map((game, idx) => {
+                  // Handle both abbreviation and full team name for opponent lookup
+                  const oppAbbr = teamAbbreviations[game.opponent] ? game.opponent : getAbbreviationFromDisplayName(game.opponent)
+                  const oppInfo = teamAbbreviations[oppAbbr] || teamAbbreviations[game.opponent] || {}
+                  const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                  const oppTextColor = getContrastTextColor(oppBgColor)
+                  // Try mascot name from abbreviation first, then from full name, then use opponent as-is
+                  const oppMascotName = getMascotName(oppAbbr) || getMascotName(game.opponent) || (game.opponent?.includes(' ') ? game.opponent : null)
+                  const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
+
+                  return (
                   <Link
                     key={idx}
                     to={`${pathPrefix}/team/${teamAbbr}/${game.year}`}
-                    className="block p-3 rounded-lg hover:scale-[1.01] transition-transform"
+                    className="flex items-center p-3 rounded-lg hover:scale-[1.01] transition-transform gap-3"
                     style={{
-                      backgroundColor: game.won ? '#16a34a15' : game.hasScore ? '#dc262615' : `${teamBgText}10`,
-                      border: `2px solid ${game.won ? '#16a34a40' : game.hasScore ? '#dc262640' : `${teamBgText}20`}`
+                      backgroundColor: oppBgColor,
+                      border: `3px solid ${game.won ? '#16a34a' : game.hasScore ? '#dc2626' : `${oppInfo.textColor || '#FFFFFF'}40`}`
                     }}
                     onClick={() => setShowBowlGamesModal(false)}
                   >
-                    <div className="flex items-center gap-3">
                       {game.hasScore && (
                         <div
                           className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
@@ -1469,20 +1734,30 @@ export default function Team() {
                           {game.won ? 'W' : 'L'}
                         </div>
                       )}
+                      {/* Opponent Logo */}
+                      {oppLogo && (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                        >
+                          <img src={oppLogo} alt={game.opponent} className="w-full h-full object-contain" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold truncate" style={{ color: teamBgText }}>{game.bowlName}</div>
-                        <div className="text-sm flex flex-wrap items-center gap-x-2" style={{ color: teamBgText, opacity: 0.7 }}>
+                        <div className="font-semibold truncate" style={{ color: oppTextColor }}>{game.bowlName}</div>
+                        <div className="text-sm flex flex-wrap items-center gap-x-2" style={{ color: oppTextColor, opacity: 0.8 }}>
                           <span>{game.year}</span>
-                          <span>vs {game.opponent}</span>
+                          <span>vs {getSchoolName(oppMascotName) || getSchoolName(game.opponent) || game.opponent}</span>
                         </div>
                       </div>
                       {game.hasScore && (
-                        <div className="text-xl font-bold flex-shrink-0" style={{ color: teamBgText }}>{game.teamScore}-{game.opponentScore}</div>
+                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{game.teamScore}-{game.opponentScore}</div>
                       )}
-                    </div>
                   </Link>
-                ))}
+                  )
+                })}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1521,6 +1796,11 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {cfpAppearances.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No CFP appearances yet</p>
+                </div>
+              ) : (
               <div className="space-y-4">
                 {cfpAppearances.map((app, idx) => (
                   <div key={idx} className="rounded-lg overflow-hidden" style={{ backgroundColor: `${teamBgText}10`, border: `2px solid ${teamBgText}20` }}>
@@ -1541,27 +1821,53 @@ export default function Team() {
                       </div>
                     </Link>
                     {app.games.length > 0 && (
-                      <div className="px-3 pb-3 space-y-1">
-                        {app.games.map((game, gIdx) => (
+                      <div className="px-3 pb-3 space-y-2">
+                        {app.games.map((game, gIdx) => {
+                          const oppAbbr = teamAbbreviations[game.opponent] ? game.opponent : getAbbreviationFromDisplayName(game.opponent)
+                          const oppInfo = teamAbbreviations[oppAbbr] || {}
+                          const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                          const oppTextColor = getContrastTextColor(oppBgColor)
+                          const oppMascotName = getMascotName(game.opponent)
+                          const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
+
+                          return (
                           <div
                             key={gIdx}
-                            className="flex items-center justify-between py-2 px-2 rounded text-sm"
-                            style={{ backgroundColor: game.won ? '#16a34a15' : '#dc262615' }}
+                            className="flex items-center gap-2 p-2 rounded"
+                            style={{ backgroundColor: oppBgColor, border: `2px solid ${game.won ? '#16a34a' : '#dc2626'}` }}
                           >
-                            <div style={{ color: teamBgText }}>
-                              <span className="font-medium">{game.round}</span>
-                              <span style={{ opacity: 0.7 }}> vs {game.opponent}</span>
+                            {/* W/L Badge */}
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
+                              style={{ backgroundColor: game.won ? '#16a34a' : '#dc2626', color: '#FFFFFF' }}
+                            >
+                              {game.won ? 'W' : 'L'}
                             </div>
-                            <div className="font-semibold" style={{ color: game.won ? '#16a34a' : '#dc2626' }}>
+                            {/* Opponent Logo */}
+                            {oppLogo && (
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                              >
+                                <img src={oppLogo} alt={game.opponent} className="w-full h-full object-contain" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-sm" style={{ color: oppTextColor }}>{game.round}</span>
+                              <span className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}> vs {getSchoolName(oppMascotName) || getSchoolName(game.opponent) || game.opponent}</span>
+                            </div>
+                            <div className="font-semibold text-sm" style={{ color: oppTextColor }}>
                               {game.teamScore !== null ? `${game.teamScore}-${game.opponentScore}` : '-'}
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1600,26 +1906,48 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {nationalTitles.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No national championships yet</p>
+                </div>
+              ) : (
               <div className="space-y-2">
-                {nationalTitles.map((title, idx) => (
+                {nationalTitles.map((title, idx) => {
+                  const oppAbbr = teamAbbreviations[title.opponent] ? title.opponent : getAbbreviationFromDisplayName(title.opponent)
+                  const oppInfo = teamAbbreviations[oppAbbr] || {}
+                  const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                  const oppTextColor = getContrastTextColor(oppBgColor)
+                  const oppMascotName = getMascotName(title.opponent)
+                  const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
+
+                  return (
                   <Link
                     key={idx}
                     to={`${pathPrefix}/team/${teamAbbr}/${title.year}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
-                    style={{ backgroundColor: '#16a34a15', border: '2px solid #16a34a40' }}
+                    className="flex items-center gap-3 p-3 rounded-lg hover:scale-[1.01] transition-transform"
+                    style={{ backgroundColor: oppBgColor, border: '3px solid #fbbf24' }}
                     onClick={() => setShowNatlTitlesModal(false)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">🏆</div>
-                      <div>
-                        <div className="font-semibold" style={{ color: teamBgText }}>{title.year} National Champions</div>
-                        <div className="text-sm" style={{ color: teamBgText, opacity: 0.7 }}>vs {title.opponent}</div>
+                      <div className="text-2xl flex-shrink-0">🏆</div>
+                      {/* Opponent Logo */}
+                      {oppLogo && (
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                        >
+                          <img src={oppLogo} alt={title.opponent} className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold" style={{ color: oppTextColor }}>{title.year} National Champions</div>
+                        <div className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}>vs {getSchoolName(oppMascotName) || getSchoolName(title.opponent) || title.opponent}</div>
                       </div>
-                    </div>
-                    <div className="text-xl font-bold" style={{ color: '#16a34a' }}>{title.teamScore}-{title.opponentScore}</div>
+                    <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{title.teamScore}-{title.opponentScore}</div>
                   </Link>
-                ))}
+                  )
+                })}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1658,6 +1986,11 @@ export default function Team() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {allAmericans.length === 0 ? (
+                <div className="text-center py-12 opacity-60" style={{ color: teamBgText }}>
+                  <p className="text-lg font-semibold">No All-Americans yet</p>
+                </div>
+              ) : (
               <div className="space-y-2">
                 {allAmericans.map((aa, idx) => (
                   <Link
@@ -1683,6 +2016,7 @@ export default function Team() {
                   </Link>
                 ))}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1743,6 +2077,12 @@ export default function Team() {
                   })
                   .map((game, idx) => {
                     const isWin = game.result === 'W' || game.result === 'win'
+                    const oppAbbr = teamAbbreviations[game.opponent] ? game.opponent : getAbbreviationFromDisplayName(game.opponent)
+                    const oppInfo = teamAbbreviations[oppAbbr] || {}
+                    const oppBgColor = oppInfo.backgroundColor || '#4B5563'
+                    const oppTextColor = getContrastTextColor(oppBgColor)
+                    const oppMascotName = getMascotName(game.opponent)
+                    const oppLogo = oppMascotName ? getTeamLogo(oppMascotName) : null
 
                     return (
                       <Link
@@ -1750,29 +2090,39 @@ export default function Team() {
                         to={`${pathPrefix}/game/${game.id}`}
                         className="flex items-center justify-between p-3 rounded-lg hover:scale-[1.01] transition-transform"
                         style={{
-                          backgroundColor: isWin ? '#16a34a15' : '#dc262615',
-                          border: `2px solid ${isWin ? '#16a34a40' : '#dc262640'}`
+                          backgroundColor: oppBgColor,
+                          border: `3px solid ${isWin ? '#16a34a' : '#dc2626'}`
                         }}
                         onClick={() => setShowAsTeamModal(false)}
                       >
                         <div className="flex items-center gap-3">
+                          {/* W/L Badge */}
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
                             style={{ backgroundColor: isWin ? '#16a34a' : '#dc2626', color: '#FFFFFF' }}
                           >
                             {isWin ? 'W' : 'L'}
                           </div>
+                          {/* Opponent Logo */}
+                          {oppLogo && (
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: '#FFFFFF', border: `2px solid ${oppInfo.textColor || '#FFFFFF'}`, padding: '2px' }}
+                            >
+                              <img src={oppLogo} alt={game.opponent} className="w-full h-full object-contain" />
+                            </div>
+                          )}
                           <div>
-                            <div className="font-semibold" style={{ color: teamBgText }}>
+                            <div className="font-semibold" style={{ color: oppTextColor }}>
                               {game.year} {game.week ? `Week ${game.week}` : game.bowlName || ''}
                             </div>
-                            <div className="text-sm" style={{ color: teamBgText, opacity: 0.7 }}>
-                              {game.location === 'home' ? 'vs' : game.location === 'away' ? '@' : 'vs'} {game.opponent}
+                            <div className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}>
+                              {game.location === 'home' ? 'vs' : game.location === 'away' ? '@' : 'vs'} {getSchoolName(oppMascotName) || getSchoolName(game.opponent) || game.opponent}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-lg" style={{ color: teamBgText }}>
+                          <div className="font-bold text-lg" style={{ color: oppTextColor }}>
                             {game.teamScore}-{game.opponentScore}
                           </div>
                         </div>

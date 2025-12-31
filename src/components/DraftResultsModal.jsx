@@ -349,7 +349,7 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -443,7 +443,7 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Start Over'}
+                  {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                 </button>
               </div>
             ) : (

@@ -90,7 +90,8 @@ All implemented in `DynastyContext.jsx` with helper functions:
 | Recruits | `recruitsByTeamYear[team][year]` | `getCurrentRecruits()` |
 | Games | `games[]` with `userTeam` field | Filter by `userTeam` |
 | Commitments | `recruitingCommitmentsByTeamYear[team][year][key]` | See Dashboard.jsx |
-| TransferRedshirt | `transferRedshirtByTeamYear[team][year]` | Array of redshirted player names |
+| PortalTransferClass | `portalTransferClassByYear[year]` | Array of { playerName, selectedClass } |
+| FringeCaseClass | `fringeCaseClassByYear[year]` | Array of { playerName, selectedClass } |
 
 **Special structures:**
 - `coachTeamByYear[year]` - Locked at Week 1 of regular season
@@ -103,10 +104,18 @@ All implemented in `DynastyContext.jsx` with helper functions:
 2. **Regular Season** - Weeks 1-12
 3. **Conference Championship** - Separate phase (NOT postseason week 1)
 4. **Postseason** - Weeks 1-5 (Bowl Weeks)
-5. **Offseason** - Weeks 1-6:
+5. **Offseason** - Weeks 1-8:
    - Week 1: Players Leaving
-   - Weeks 2-5: Recruiting Weeks 1-4 (Week 5 = National Signing Day with Transfer Redshirt Status + Position Changes)
-   - Week 6: Training Camp
+   - Weeks 2-5: Recruiting Weeks 1-4
+   - Week 6: National Signing Day (YEAR FLIP happens here) - Tasks:
+     1. Signing Day (final recruiting commitments) - MUST complete first
+     2. Transfer Destinations
+     3. Recruiting Class Rank
+     4. Position Changes
+     5. Portal Transfer Class Assignment (if portal transfers exist)
+     6. Fringe Case Class Assignment (if players with 5-9 games exist)
+   - Week 7: Training Camp (Training Results, Recruit Overalls, Encourage Transfers)
+   - Week 8: Offseason Complete (triggers `advanceToNewSeason()`)
 
 ### Recruiting Commitment Keys
 
@@ -115,6 +124,7 @@ All implemented in `DynastyContext.jsx` with helper functions:
 - `conf_champ`: Conference Championship week
 - `bowl_1` through `bowl_4`: Bowl weeks
 - `signing_1` through `signing_4`: Recruiting weeks (offseason weeks 2-5)
+- `signing_5`: National Signing Day (offseason week 6)
 
 ### Key Files
 
@@ -319,6 +329,25 @@ Some features are hidden with `{false && (...)}` for future use:
 - All functions search BOTH `home` and `away` sides of box scores (robust to location field)
 - Player name matching uses `normalizeName()` helper (handles case, extra whitespace)
 - CPU game detection: `!game.opponent && game.team1 && game.team2`
+
+**Class Progression System Overhaul**:
+- Year flip now happens when entering Signing Day (Week 6), not after Training Camp
+- Removed Transfer Redshirt Status task from Training Camp (no longer needed)
+- Removed Transfer Class Check task from Preseason (moved to Signing Day)
+- New **Portal Transfer Class Assignment** task on Signing Day:
+  - Creates Google Sheet with portal transfers and per-row dropdown validation
+  - Class options based on incoming class (Fr→RS Fr/So/RS So, So→RS So/Jr/RS Jr, Jr→RS Jr/Sr/RS Sr)
+  - Stored in `portalTransferClassByYear[year]` for use in `advanceToNewSeason()`
+- New **Fringe Case Class Assignment** task on Signing Day:
+  - Players with 5-9 games who might have redshirted (if ≤4 regular season games)
+  - Sheet pre-fills with progressed class, user can select redshirt version if applicable
+  - Stored in `fringeCaseClassByYear[year]` for use in `advanceToNewSeason()`
+- Tasks 5 and 6 are blocked until Task 1 (Signing Day) is completed
+- `advanceToNewSeason()` now uses stored class selections instead of automatic progression for:
+  - Portal transfers (checks `portalTransferClassByYear`)
+  - Fringe case players (checks `fringeCaseClassByYear`)
+- **Components**: `PortalTransferClassModal.jsx`, `FringeCaseClassModal.jsx`
+- **Sheet Functions**: `createPortalTransferClassSheet()`, `readPortalTransferClassFromSheet()`, `createFringeCaseClassSheet()`, `readFringeCaseClassFromSheet()`
 
 ## TODO / Future Work
 

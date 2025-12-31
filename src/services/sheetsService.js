@@ -7763,14 +7763,19 @@ export async function createPlayersLeavingSheet(dynastyName, year, players, play
   try {
     const accessToken = await getAccessToken()
 
-    // Get player names for dropdown
-    const playerNames = players.map(p => p.name).sort()
+    // Filter to only current roster players (exclude already-left, honor-only, recruits)
+    const currentRosterPlayers = players.filter(p =>
+      !p.leftTeam && !p.isHonorOnly && !p.isRecruit
+    )
+
+    // Get player names for dropdown (only current roster)
+    const playerNames = currentRosterPlayers.map(p => p.name).sort()
 
     // Find seniors who are graduating:
     // - RS Sr: Always graduating (exhausted eligibility, no games requirement)
     // - Sr: Only if 5+ games played (the 5+ games rule applies)
     const currentYearStats = playerStatsByYear?.[year] || []
-    const seniorsGraduating = players.filter(player => {
+    const seniorsGraduating = currentRosterPlayers.filter(player => {
       // RS Sr always graduates - they've exhausted eligibility
       if (player.year === 'RS Sr') return true
 
@@ -8305,7 +8310,7 @@ const RECRUIT_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr', 'Fr', 'RS Fr', '
 
 const RECRUIT_POSITIONS = [
   'QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT',
-  'EDGE', 'DT', 'OLB', 'MIKE', 'CB', 'FS', 'SS', 'K', 'P', 'ATH'
+  'LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS', 'K', 'P', 'ATH'
 ]
 
 const RECRUIT_ARCHETYPES = [
@@ -8526,13 +8531,13 @@ export async function createRecruitingSheet(dynastyName, year, teamAbbreviations
       }
     })
 
-    // Column O: Previous Team dropdown with team abbreviations
+    // Column O: Previous Team dropdown with team abbreviations (strict validation)
     requests.push({
       setDataValidation: {
         range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 14, endColumnIndex: 15 },
         rule: {
           condition: { type: 'ONE_OF_LIST', values: ['', ...teamAbbrs].map(v => ({ userEnteredValue: v })) },
-          showCustomUi: true, strict: false // Allow empty for non-transfers
+          showCustomUi: true, strict: true // Only allow dropdown values (empty for non-transfers)
         }
       }
     })
@@ -8790,7 +8795,8 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
     values: [
       { userEnteredValue: { stringValue: player.name || '' } },
       { userEnteredValue: { stringValue: player.position || '' } },
-      { userEnteredValue: { numberValue: player.overall || 0 } },
+      // Show blank if overall is 0 or undefined, otherwise show the number
+      player.overall ? { userEnteredValue: { numberValue: player.overall } } : { userEnteredValue: { stringValue: '' } },
       { userEnteredValue: { stringValue: '' } } // New Overall - user enters this
     ]
   }))
@@ -8804,7 +8810,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
           values: [
             { userEnteredValue: { stringValue: 'Player' } },
             { userEnteredValue: { stringValue: 'Position' } },
-            { userEnteredValue: { stringValue: 'Current OVR' } },
+            { userEnteredValue: { stringValue: 'Past OVR' } },
             { userEnteredValue: { stringValue: 'New OVR' } }
           ]
         }],
@@ -8849,12 +8855,12 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
         }
       }
     },
-    // Protect Current OVR column (column C)
+    // Protect Past OVR column (column C)
     {
       addProtectedRange: {
         protectedRange: {
           range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 2, endColumnIndex: 3 },
-          description: 'Current OVR',
+          description: 'Past OVR',
           warningOnly: false
         }
       }
@@ -8969,7 +8975,7 @@ async function initializeTrainingResultsSheet(spreadsheetId, accessToken, sheetI
 /**
  * Read training results from sheet
  * @param {string} spreadsheetId - The Google Sheet ID
- * @returns {Array} Array of { playerName, position, currentOverall, newOverall }
+ * @returns {Array} Array of { playerName, position, pastOverall, newOverall }
  */
 export async function readTrainingResultsFromSheet(spreadsheetId) {
   try {
@@ -8997,7 +9003,7 @@ export async function readTrainingResultsFromSheet(spreadsheetId) {
       .map(row => ({
         playerName: row[0]?.trim() || '',
         position: row[1]?.trim() || '',
-        currentOverall: parseInt(row[2], 10) || 0,
+        pastOverall: row[2]?.trim() ? parseInt(row[2], 10) : null, // null if blank
         newOverall: parseInt(row[3], 10) || 0
       }))
       .filter(r => r.newOverall >= 40 && r.newOverall <= 99) // Valid overall range
@@ -11014,222 +11020,6 @@ export async function readTransferDestinationsFromSheet(spreadsheetId) {
   }
 }
 
-// ==================== TRANSFER REDSHIRT SHEET ====================
-
-/**
- * Create a Transfer Redshirt sheet for marking incoming portal transfers' redshirt status
- * @param {string} dynastyName - Name of the dynasty
- * @param {number} year - Current year
- * @param {Array} portalTransfers - Incoming portal transfer players to list
- * @returns {Object} { spreadsheetId, spreadsheetUrl }
- */
-export async function createTransferRedshirtSheet(dynastyName, year, portalTransfers) {
-  try {
-    const accessToken = await getAccessToken()
-
-    const totalRows = Math.max(portalTransfers.length, 10) + 1 // +1 for header
-
-    // Create the spreadsheet
-    const response = await fetch(SHEETS_API_BASE, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        properties: {
-          title: `${dynastyName} - ${year} Transfer Redshirt Status`
-        },
-        sheets: [
-          {
-            properties: {
-              title: 'Transfer Redshirts',
-              gridProperties: {
-                rowCount: totalRows,
-                columnCount: 4,
-                frozenRowCount: 1
-              }
-            }
-          }
-        ]
-      })
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to create transfer redshirt sheet: ${error.error?.message || 'Unknown error'}`)
-    }
-
-    const spreadsheet = await response.json()
-    const spreadsheetId = spreadsheet.spreadsheetId
-    const sheetId = spreadsheet.sheets[0].properties.sheetId
-
-    // Build batch update requests
-    const requests = []
-
-    // Set header row with dark background
-    const headerStyle = {
-      textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
-      backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
-      horizontalAlignment: 'CENTER'
-    }
-    requests.push({
-      updateCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
-        rows: [{
-          values: [
-            { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerStyle },
-            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: headerStyle },
-            { userEnteredValue: { stringValue: 'Class' }, userEnteredFormat: headerStyle },
-            { userEnteredValue: { stringValue: 'Redshirted in Past?' }, userEnteredFormat: headerStyle }
-          ]
-        }],
-        fields: 'userEnteredValue,userEnteredFormat'
-      }
-    })
-
-    // Set column widths
-    const columnWidths = [180, 80, 80, 140]
-    columnWidths.forEach((width, idx) => {
-      requests.push({
-        updateDimensionProperties: {
-          range: { sheetId, dimension: 'COLUMNS', startIndex: idx, endIndex: idx + 1 },
-          properties: { pixelSize: width },
-          fields: 'pixelSize'
-        }
-      })
-    })
-
-    // Pre-fill with portal transfer data (read-only columns A-C, editable column D)
-    if (portalTransfers.length > 0) {
-      const dataRows = portalTransfers.map(transfer => ({
-        values: [
-          { userEnteredValue: { stringValue: transfer.name || '' } },
-          { userEnteredValue: { stringValue: transfer.position || '' } },
-          { userEnteredValue: { stringValue: transfer.year || '' } },
-          { userEnteredValue: { stringValue: '' } } // Redshirted column - user fills this
-        ]
-      }))
-
-      requests.push({
-        updateCells: {
-          range: { sheetId, startRowIndex: 1, endRowIndex: 1 + portalTransfers.length, startColumnIndex: 0, endColumnIndex: 4 },
-          rows: dataRows,
-          fields: 'userEnteredValue'
-        }
-      })
-    }
-
-    // Column D: Checkbox dropdown (Yes/No)
-    requests.push({
-      setDataValidation: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 3, endColumnIndex: 4 },
-        rule: {
-          condition: { type: 'ONE_OF_LIST', values: [{ userEnteredValue: 'Yes' }, { userEnteredValue: 'No' }, { userEnteredValue: '' }] },
-          showCustomUi: true,
-          strict: false
-        }
-      }
-    })
-
-    // Center align all data columns
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 1, endColumnIndex: 4 },
-        cell: {
-          userEnteredFormat: { horizontalAlignment: 'CENTER' }
-        },
-        fields: 'userEnteredFormat(horizontalAlignment)'
-      }
-    })
-
-    // Protect columns A-C (read-only)
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows, startColumnIndex: 0, endColumnIndex: 3 },
-          description: 'Player info - read only. Only edit the Redshirted column.',
-          warningOnly: true
-        }
-      }
-    })
-
-    // Protect header row
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
-          description: 'Header row - do not edit',
-          warningOnly: true
-        }
-      }
-    })
-
-    // Execute all requests
-    await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ requests })
-    })
-
-    // Share sheet publicly for embedding
-    await shareSheetPublicly(spreadsheetId, accessToken)
-
-    return {
-      spreadsheetId,
-      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
-    }
-  } catch (error) {
-    console.error('Error creating transfer redshirt sheet:', error)
-    throw error
-  }
-}
-
-/**
- * Read transfer redshirt status from sheet
- * @param {string} spreadsheetId - The Google Sheet ID
- * @returns {Array} Array of { playerName, position, class, wasRedshirted }
- */
-export async function readTransferRedshirtFromSheet(spreadsheetId) {
-  try {
-    const accessToken = await getAccessToken()
-
-    const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Transfer Redshirts!A2:D`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      }
-    )
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read transfer redshirt data: ${error.error?.message || 'Unknown error'}`)
-    }
-
-    const data = await response.json()
-    const rows = data.values || []
-
-    const transfers = rows
-      .filter(row => row[0]) // Must have player name
-      .map(row => ({
-        playerName: row[0]?.trim() || '',
-        position: row[1]?.trim() || '',
-        playerClass: row[2]?.trim() || '',
-        wasRedshirted: row[3]?.trim().toLowerCase() === 'yes'
-      }))
-
-    return transfers
-  } catch (error) {
-    console.error('Error reading transfer redshirt data:', error)
-    throw error
-  }
-}
-
 /**
  * Create a Roster History sheet for bulk-updating teamsByYear
  * Columns: Player Name | PID | 2025 Team | 2026 Team
@@ -11472,6 +11262,680 @@ export async function readRosterHistoryFromSheet(spreadsheetId, years = [2025, 2
       })
   } catch (error) {
     console.error('Error reading roster history:', error)
+    throw error
+  }
+}
+
+/**
+ * Create Portal Transfer Class Assignment sheet
+ * For assigning classes to incoming portal transfers on Signing Day
+ * @param {string} dynastyName - Dynasty name
+ * @param {number} year - The offseason year (e.g., 2026 for the 2026 recruiting cycle)
+ * @param {Array} portalTransfers - Array of { name, position, pid, year (current class) }
+ */
+export async function createPortalTransferClassSheet(dynastyName, year, portalTransfers) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Sort transfers by last name
+    const sortedTransfers = [...portalTransfers].sort((a, b) => {
+      const getLastName = (name) => {
+        if (!name) return ''
+        const parts = name.trim().split(' ')
+        return parts[parts.length - 1].toLowerCase()
+      }
+      return getLastName(a.name).localeCompare(getLastName(b.name))
+    })
+
+    const totalRows = Math.max(sortedTransfers.length, 10)
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Portal Transfer Class Assignment ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Portal Transfers',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 4,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create portal transfer class sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize the sheet with headers and data
+    await initializePortalTransferClassSheet(
+      sheet.spreadsheetId,
+      accessToken,
+      sheetId,
+      sortedTransfers,
+      totalRows
+    )
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating portal transfer class sheet:', error)
+    throw error
+  }
+}
+
+// Get class progression options for a given incoming class
+function getPortalTransferClassOptions(incomingClass) {
+  // Portal transfers can come in as Fr, So, or Jr
+  // Each has options: stay same (with RS prefix), progress, or progress with RS
+  const baseClass = incomingClass?.replace('RS ', '') || 'Fr'
+
+  switch (baseClass) {
+    case 'Fr':
+      return ['RS Fr', 'So', 'RS So']
+    case 'So':
+      return ['RS So', 'Jr', 'RS Jr']
+    case 'Jr':
+      return ['RS Jr', 'Sr', 'RS Sr']
+    default:
+      return ['RS Fr', 'So', 'RS So'] // Default to Fr options
+  }
+}
+
+// Initialize the Portal Transfer Class sheet with headers, validation, and pre-filled data
+async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sheetId, transfers, totalRows) {
+  // Build pre-filled rows for transfers
+  // Support both 'year' and 'incomingClass' field names for flexibility
+  const dataRows = transfers.map(transfer => ({
+    values: [
+      { userEnteredValue: { stringValue: transfer.name || '' } },
+      { userEnteredValue: { stringValue: transfer.position || '' } },
+      { userEnteredValue: { stringValue: transfer.incomingClass || transfer.year || 'Fr' } }, // Current class they came in as
+      { userEnteredValue: { stringValue: '' } } // New Class - user selects from dropdown
+    ]
+  }))
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' } },
+            { userEnteredValue: { stringValue: 'Position' } },
+            { userEnteredValue: { stringValue: 'Current Class' } },
+            { userEnteredValue: { stringValue: 'New Class' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill transfer data
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: transfers.length + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        rows: dataRows,
+        fields: 'userEnteredValue'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Player column (column A)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Player names',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Position column (column B)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 },
+          description: 'Positions',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Current Class column (column C)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 2, endColumnIndex: 3 },
+          description: 'Current Class',
+          warningOnly: false
+        }
+      }
+    },
+    // Format header row - bold, background color
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+      }
+    },
+    // Format all data cells - center aligned
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    },
+    // Highlight New Class column with light background
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 1, blue: 0.8 },
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
+      }
+    }
+  ]
+
+  // Add per-row data validation based on each transfer's current class
+  transfers.forEach((transfer, index) => {
+    const rowIndex = index + 1 // 1-based (skip header)
+    const transferClass = transfer.incomingClass || transfer.year || 'Fr'
+    const options = getPortalTransferClassOptions(transferClass)
+
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: rowIndex, endRowIndex: rowIndex + 1, startColumnIndex: 3, endColumnIndex: 4 },
+        rule: {
+          condition: {
+            type: 'ONE_OF_LIST',
+            values: options.map(opt => ({ userEnteredValue: opt }))
+          },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    })
+  })
+
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+/**
+ * Read portal transfer class selections from sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @returns {Array} Array of { playerName, position, currentClass, newClass, pid }
+ */
+export async function readPortalTransferClassFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Portal Transfers!A2:D100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read portal transfer class: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    const results = rows
+      .filter(row => row[0] && row[3]) // Must have player name and new class
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        currentClass: row[2]?.trim() || '',
+        selectedClass: row[3]?.trim() || ''  // Use selectedClass to match handler expectations
+      }))
+      .filter(r => r.selectedClass) // Must have a class selected
+
+    return results
+  } catch (error) {
+    console.error('Error reading portal transfer class:', error)
+    throw error
+  }
+}
+
+/**
+ * Create Fringe Case Class Assignment sheet
+ * For players who played 5-9 games and might have redshirted if they played fewer
+ * @param {string} dynastyName - Dynasty name
+ * @param {number} year - The offseason year
+ * @param {Array} fringeCasePlayers - Array of { name, position, pid, year (current class), gamesPlayed }
+ */
+export async function createFringeCaseClassSheet(dynastyName, year, fringeCasePlayers) {
+  try {
+    const accessToken = await getAccessToken()
+
+    // Sort players by last name
+    const sortedPlayers = [...fringeCasePlayers].sort((a, b) => {
+      const getLastName = (name) => {
+        if (!name) return ''
+        const parts = name.trim().split(' ')
+        return parts[parts.length - 1].toLowerCase()
+      }
+      return getLastName(a.name).localeCompare(getLastName(b.name))
+    })
+
+    const totalRows = Math.max(sortedPlayers.length, 10)
+
+    // Create the spreadsheet
+    const response = await fetch(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: {
+          title: `${dynastyName} - Fringe Case Class Assignment ${year}`
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Fringe Cases',
+              gridProperties: {
+                rowCount: totalRows + 1,
+                columnCount: 5,
+                frozenRowCount: 1
+              }
+            }
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create fringe case class sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const sheet = await response.json()
+    const sheetId = sheet.sheets[0].properties.sheetId
+
+    // Initialize the sheet with headers and data
+    await initializeFringeCaseClassSheet(
+      sheet.spreadsheetId,
+      accessToken,
+      sheetId,
+      sortedPlayers,
+      totalRows
+    )
+
+    // Share sheet publicly so it can be embedded in iframe
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+
+    return {
+      spreadsheetId: sheet.spreadsheetId,
+      spreadsheetUrl: sheet.spreadsheetUrl
+    }
+  } catch (error) {
+    console.error('Error creating fringe case class sheet:', error)
+    throw error
+  }
+}
+
+// Get class options for fringe case players (progressed class vs redshirt version)
+function getFringeCaseClassOptions(currentClass) {
+  const isRS = currentClass?.startsWith('RS ') || false
+  const baseClass = currentClass?.replace('RS ', '') || 'Fr'
+
+  // Map current class to progressed options
+  const progressionMap = {
+    'Fr': ['So', 'RS Fr'], // Progressed to So, or redshirt to RS Fr
+    'So': ['Jr', 'RS So'],
+    'Jr': ['Sr', 'RS Jr'],
+    'Sr': ['RS Sr'], // Can only redshirt
+    'RS Fr': ['RS So'], // Already RS, just progresses
+    'RS So': ['RS Jr'],
+    'RS Jr': ['RS Sr'],
+    'RS Sr': [] // No progression possible
+  }
+
+  return progressionMap[currentClass] || [baseClass]
+}
+
+// Initialize the Fringe Case Class sheet with headers, validation, and pre-filled data
+async function initializeFringeCaseClassSheet(spreadsheetId, accessToken, sheetId, players, totalRows) {
+  // Build pre-filled rows for players
+  // Support both 'year'/'currentClass' and 'gamesPlayed'/'gameCount' field names for flexibility
+  const dataRows = players.map(player => {
+    // Default to progressed class (first option)
+    const playerClass = player.currentClass || player.year || 'Fr'
+    const games = player.gameCount || player.gamesPlayed || 0
+    const options = getFringeCaseClassOptions(playerClass)
+    const defaultClass = options[0] || playerClass
+
+    return {
+      values: [
+        { userEnteredValue: { stringValue: player.name || '' } },
+        { userEnteredValue: { stringValue: player.position || '' } },
+        { userEnteredValue: { stringValue: playerClass } }, // Current class
+        { userEnteredValue: { numberValue: games } }, // Games played
+        { userEnteredValue: { stringValue: defaultClass } } // New Class - pre-filled with progressed class
+      ]
+    }
+  })
+
+  const requests = [
+    // Set headers
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 5 },
+        rows: [{
+          values: [
+            { userEnteredValue: { stringValue: 'Player' } },
+            { userEnteredValue: { stringValue: 'Position' } },
+            { userEnteredValue: { stringValue: 'Current Class' } },
+            { userEnteredValue: { stringValue: 'Games' } },
+            { userEnteredValue: { stringValue: 'New Class' } }
+          ]
+        }],
+        fields: 'userEnteredValue'
+      }
+    },
+    // Pre-fill player data
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: players.length + 1, startColumnIndex: 0, endColumnIndex: 5 },
+        rows: dataRows,
+        fields: 'userEnteredValue'
+      }
+    },
+    // Protect header row
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          description: 'Header row',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Player column (column A)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 1 },
+          description: 'Player names',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Position column (column B)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 1, endColumnIndex: 2 },
+          description: 'Positions',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Current Class column (column C)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 2, endColumnIndex: 3 },
+          description: 'Current Class',
+          warningOnly: false
+        }
+      }
+    },
+    // Protect Games column (column D)
+    {
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 3, endColumnIndex: 4 },
+          description: 'Games Played',
+          warningOnly: false
+        }
+      }
+    },
+    // Format header row - bold, background color
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 5 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+            horizontalAlignment: 'CENTER'
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
+      }
+    },
+    // Format all data cells - center aligned
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 0, endColumnIndex: 5 },
+        cell: {
+          userEnteredFormat: {
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(horizontalAlignment,textFormat)'
+      }
+    },
+    // Set column widths
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
+        properties: { pixelSize: 200 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
+        properties: { pixelSize: 80 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
+        properties: { pixelSize: 70 },
+        fields: 'pixelSize'
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: 4, endIndex: 5 },
+        properties: { pixelSize: 120 },
+        fields: 'pixelSize'
+      }
+    },
+    // Highlight New Class column with light background
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 4, endColumnIndex: 5 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 1, blue: 0.8 },
+            horizontalAlignment: 'CENTER',
+            textFormat: { bold: true }
+          }
+        },
+        fields: 'userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)'
+      }
+    }
+  ]
+
+  // Add per-row data validation based on each player's current class
+  players.forEach((player, index) => {
+    const rowIndex = index + 1 // 1-based (skip header)
+    const playerClass = player.currentClass || player.year || 'Fr'
+    const options = getFringeCaseClassOptions(playerClass)
+
+    if (options.length > 0) {
+      requests.push({
+        setDataValidation: {
+          range: { sheetId, startRowIndex: rowIndex, endRowIndex: rowIndex + 1, startColumnIndex: 4, endColumnIndex: 5 },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: options.map(opt => ({ userEnteredValue: opt }))
+            },
+            showCustomUi: true,
+            strict: true
+          }
+        }
+      })
+    }
+  })
+
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ requests })
+  })
+}
+
+/**
+ * Read fringe case class selections from sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @returns {Array} Array of { playerName, position, currentClass, gamesPlayed, newClass }
+ */
+export async function readFringeCaseClassFromSheet(spreadsheetId) {
+  try {
+    const accessToken = await getAccessToken()
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Fringe Cases!A2:E100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to read fringe case class: ${error.error?.message || 'Unknown error'}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values || []
+
+    const results = rows
+      .filter(row => row[0] && row[4]) // Must have player name and new class
+      .map(row => ({
+        playerName: row[0]?.trim() || '',
+        position: row[1]?.trim() || '',
+        currentClass: row[2]?.trim() || '',
+        gamesPlayed: parseInt(row[3]) || 0,
+        selectedClass: row[4]?.trim() || ''  // Use selectedClass to match handler expectations
+      }))
+      .filter(r => r.selectedClass) // Must have a class selected
+
+    return results
+  } catch (error) {
+    console.error('Error reading fringe case class:', error)
     throw error
   }
 }

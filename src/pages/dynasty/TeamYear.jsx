@@ -211,7 +211,7 @@ const AWARD_ORDER = [
 export default function TeamYear() {
   const { id, teamAbbr, year } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty, updateDynasty, addGame, saveRoster, isViewOnly } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame, saveRoster, isViewOnly, saveTeamYearInfo } = useDynasty()
   const pathPrefix = usePathPrefix()
   // Note: We use the viewed team's colors, not the user's team colors
   const selectedYear = parseInt(year)
@@ -229,6 +229,10 @@ export default function TeamYear() {
   const [rosterSortDir, setRosterSortDir] = useState('asc') // 'asc', 'desc'
   const [showRosterModal, setShowRosterModal] = useState(false)
   const [showRecordTooltip, setShowRecordTooltip] = useState(false)
+  const [showTeamEditModal, setShowTeamEditModal] = useState(false)
+  const [editWins, setEditWins] = useState('')
+  const [editLosses, setEditLosses] = useState('')
+  const [editConference, setEditConference] = useState('')
 
   if (!currentDynasty) return null
 
@@ -283,7 +287,10 @@ export default function TeamYear() {
     secondary: teamInfo.backgroundColor || '#f3f4f6'
   }
 
-  const conference = getTeamConference(teamAbbr)
+  // Conference with manual override support
+  const baseConference = getTeamConference(teamAbbr)
+  const manualConference = currentDynasty.conferenceByTeamYear?.[teamAbbr]?.[selectedYear]
+  const conference = manualConference || baseConference
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
   const mascotName = getMascotName(teamAbbr)
   const teamLogo = mascotName ? getTeamLogo(mascotName) : null
@@ -718,15 +725,17 @@ export default function TeamYear() {
   const seasonStats = getSeasonTeamStats()
 
   // Determine which record to display
-  // Priority: 1. Conference standings (end of year), 2. Last known opponent record, 3. Calculated from games
+  // Priority: 1. Manual override, 2. Conference standings (end of year), 3. Calculated from games
+  // Note: We NO LONGER use lastKnownRecord as it's misleading (shows record at time of game, not full season)
+  const manualRecord = currentDynasty.teamRecordsByTeamYear?.[teamAbbr]?.[selectedYear]
   const displayRecord = (() => {
+    // Manual override takes priority
+    if (manualRecord) {
+      return { wins: manualRecord.wins, losses: manualRecord.losses, pointsFor: null, pointsAgainst: null }
+    }
     // Conference standings are the most authoritative (end of year data)
     if (standingsRecord) {
       return standingsRecord
-    }
-    // For opponent teams, use the last known record entered during game input
-    if (lastKnownRecord) {
-      return lastKnownRecord
     }
     // Fall back to calculating from games (for user's own team pages)
     if (teamYearGames.length > 0) {
@@ -1302,6 +1311,29 @@ export default function TeamYear() {
               </option>
             ))}
           </select>
+
+          {/* Edit Team Info Button */}
+          {!isViewOnly && (
+            <button
+              onClick={() => {
+                setEditWins(displayRecord?.wins?.toString() || '')
+                setEditLosses(displayRecord?.losses?.toString() || '')
+                setEditConference(currentDynasty.conferenceByTeamYear?.[teamAbbr]?.[selectedYear] || conference || '')
+                setShowTeamEditModal(true)
+              }}
+              className="p-2 rounded-lg transition-colors hover:scale-105"
+              style={{
+                backgroundColor: teamInfo.backgroundColor,
+                color: teamBgText,
+                border: `2px solid ${teamBgText}40`
+              }}
+              title="Edit Team Info"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -2743,6 +2775,156 @@ export default function TeamYear() {
         teamAbbr={teamAbbr}
         teamName={mascotName || teamAbbr}
       />
+
+      {/* Team Edit Modal */}
+      {showTeamEditModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowTeamEditModal(false)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-md w-full overflow-hidden"
+            style={{
+              backgroundColor: teamInfo.backgroundColor,
+              border: `3px solid ${teamInfo.textColor}`
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="px-4 py-3 flex items-center justify-between"
+              style={{ backgroundColor: teamInfo.textColor }}
+            >
+              <div className="flex items-center gap-3">
+                {teamLogo && (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#FFFFFF', padding: '2px' }}>
+                    <img src={teamLogo} alt={`${teamAbbr} logo`} className="w-full h-full object-contain" />
+                  </div>
+                )}
+                <h2 className="text-lg font-bold" style={{ color: teamPrimaryText }}>Edit Team Info</h2>
+              </div>
+              <button onClick={() => setShowTeamEditModal(false)} className="p-1 rounded hover:bg-black/10 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="text-center mb-4">
+                <div className="text-lg font-bold" style={{ color: teamBgText }}>{mascotName || teamAbbr}</div>
+                <div className="text-sm opacity-70" style={{ color: teamBgText }}>{selectedYear} Season</div>
+              </div>
+
+              {/* Record Section */}
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: teamBgText }}>
+                  Season Record
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    value={editWins}
+                    onChange={(e) => setEditWins(e.target.value)}
+                    placeholder="W"
+                    className="w-20 px-3 py-2 rounded-lg text-center font-bold text-lg"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      color: '#1f2937',
+                      border: `2px solid ${teamInfo.textColor}40`
+                    }}
+                  />
+                  <span className="text-2xl font-bold" style={{ color: teamBgText }}>-</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    value={editLosses}
+                    onChange={(e) => setEditLosses(e.target.value)}
+                    placeholder="L"
+                    className="w-20 px-3 py-2 rounded-lg text-center font-bold text-lg"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      color: '#1f2937',
+                      border: `2px solid ${teamInfo.textColor}40`
+                    }}
+                  />
+                </div>
+                <p className="text-xs mt-1 opacity-60" style={{ color: teamBgText }}>
+                  Leave blank to use calculated record
+                </p>
+              </div>
+
+              {/* Conference Section */}
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: teamBgText }}>
+                  Conference
+                </label>
+                <select
+                  value={editConference}
+                  onChange={(e) => setEditConference(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg font-semibold"
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    color: '#1f2937',
+                    border: `2px solid ${teamInfo.textColor}40`
+                  }}
+                >
+                  <option value="">-- Select Conference --</option>
+                  <option value="ACC">ACC</option>
+                  <option value="Big Ten">Big Ten</option>
+                  <option value="Big 12">Big 12</option>
+                  <option value="SEC">SEC</option>
+                  <option value="Pac-12">Pac-12</option>
+                  <option value="American">American</option>
+                  <option value="Conference USA">Conference USA</option>
+                  <option value="MAC">MAC</option>
+                  <option value="Mountain West">Mountain West</option>
+                  <option value="Sun Belt">Sun Belt</option>
+                  <option value="Independent">Independent</option>
+                </select>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowTeamEditModal(false)}
+                  className="px-4 py-2 rounded-lg font-semibold transition-colors"
+                  style={{
+                    backgroundColor: `${teamBgText}20`,
+                    color: teamBgText
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    const info = {}
+                    if (editWins !== '' && editLosses !== '') {
+                      info.wins = parseInt(editWins)
+                      info.losses = parseInt(editLosses)
+                    }
+                    if (editConference) {
+                      info.conference = editConference
+                    }
+                    if (Object.keys(info).length > 0) {
+                      await saveTeamYearInfo(currentDynasty.id, teamAbbr, selectedYear, info)
+                    }
+                    setShowTeamEditModal(false)
+                  }}
+                  className="px-4 py-2 rounded-lg font-semibold transition-colors hover:opacity-90"
+                  style={{
+                    backgroundColor: teamInfo.textColor,
+                    color: teamPrimaryText
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

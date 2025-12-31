@@ -230,7 +230,7 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
                     {syncing ? 'Syncing...' : 'Save & Keep Sheet'}
                   </button>
                   <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors text-sm border-2" style={{ backgroundColor: 'transparent', borderColor: teamColors.primary, color: teamColors.primary, opacity: 0.7 }}>
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -274,7 +274,7 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
                   </button>
                 </div>
                 <button onClick={handleRegenerateSheet} disabled={syncing || deletingSheet || regenerating} className="text-sm underline opacity-70 hover:opacity-100 transition-opacity" style={{ color: teamColors.primary }}>
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
               </div>
             ) : (

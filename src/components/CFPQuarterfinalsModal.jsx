@@ -301,7 +301,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
                       opacity: 0.7
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
@@ -393,7 +393,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
                   className="text-sm underline opacity-70 hover:opacity-100 transition-opacity mb-4"
                   style={{ color: teamColors.primary }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
 
                 <div className="text-xs p-3 rounded-lg max-w-xs" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>

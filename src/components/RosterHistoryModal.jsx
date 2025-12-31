@@ -362,7 +362,7 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
                       color: '#FFFFFF'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -447,7 +447,7 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
                   className="text-sm underline opacity-70 hover:opacity-100 transition-opacity"
                   style={{ color: teamColors.primary }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
               </div>
             ) : (

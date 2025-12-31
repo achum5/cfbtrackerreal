@@ -83,23 +83,54 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
     }
   }, [isOpen])
 
-  // Create stats sheet when modal opens
+  // Create stats sheet when modal opens - ALWAYS create fresh to reflect current player data
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        // Check if we have an existing stats sheet for this year
-        const existingSheetId = currentDynasty?.statsEntrySheetId
-        if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
-        }
+        // ALWAYS create a fresh sheet - never reuse old sheets
+        // This ensures the sheet reflects current player data (user may have edited players directly)
 
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          // Get current roster for pre-filling
-          const players = currentDynasty?.players || []
+          // Get current team abbreviation
+          const { getAbbreviationFromDisplayName } = await import('../data/teamAbbreviations')
+          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const startYear = currentDynasty?.startYear || currentYear
+
+          // Get current roster for this team and year (same logic as TeamYear.jsx)
+          const allPlayers = currentDynasty?.players || []
+          const players = allPlayers.filter(player => {
+            // Exclude honor-only players
+            if (player.isHonorOnly) return false
+
+            // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
+            const yearKey = String(currentYear)
+            const numKey = Number(currentYear)
+            const teamForYear = player.teamsByYear?.[yearKey] ?? player.teamsByYear?.[numKey]
+
+            if (teamForYear !== undefined) {
+              // Player has explicit roster membership for this year - trust it completely
+              return teamForYear === userTeamAbbr
+            }
+
+            // Exclude recruits who don't have explicit teamsByYear entry
+            if (player.isRecruit) return false
+
+            // FALLBACK: Use old calculation logic for backwards compatibility
+            if (player.recruitYear && currentYear <= player.recruitYear) return false
+
+            // Check if player belongs to this team
+            if (player.team !== userTeamAbbr) return false
+
+            // Check if player was on team during this year
+            const playerStartYear = player.recruitYear ? (player.recruitYear + 1) : (player.yearStarted || startYear)
+            const playerEndYear = player.leftTeam ? (player.leftYear || currentYear) : (player.yearDeparted || currentYear)
+            if (player.leftTeam && currentYear > player.leftYear) return false
+
+            return currentYear >= playerStartYear && currentYear <= playerEndYear
+          })
 
           // Get existing stats data to pre-fill gamesPlayed/snapsPlayed
           const existingStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
@@ -137,11 +168,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
           )
 
           setSheetId(sheetInfo.spreadsheetId)
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            statsEntrySheetId: sheetInfo.spreadsheetId
-          })
+          // NOTE: We do NOT save the sheet ID to dynasty - each open creates a fresh sheet
         } catch (error) {
           console.error('Failed to create stats sheet:', error)
         } finally {
@@ -154,9 +181,10 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
     createSheet()
   }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote])
 
-  // Reset state when modal closes
+  // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
     if (!isOpen) {
+      setSheetId(null)
       setShowDeletedNote(false)
       creatingSheetRef.current = false
     }
@@ -217,7 +245,6 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
     setRegenerating(true)
     try {
       await deleteGoogleSheet(sheetId)
-      await updateDynasty(currentDynasty.id, { statsEntrySheetId: null })
       setSheetId(null)
       setRetryCount(c => c + 1)
     } catch (error) {
@@ -338,7 +365,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                   {highlightSave && (
                     <span className="text-xs font-medium animate-bounce" style={{ color: teamColors.primary }}>
@@ -432,7 +459,7 @@ export default function StatsEntryModal({ isOpen, onClose, onSave, currentYear, 
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Messed up? Start Over with Fresh Sheet'}
+                  {regenerating ? 'Regenerating...' : 'Messed up? Regenerate sheet'}
                 </button>
                 {highlightSave && (
                   <span className="text-sm font-medium animate-bounce mb-4" style={{ color: teamColors.primary }}>

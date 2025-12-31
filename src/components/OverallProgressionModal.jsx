@@ -68,7 +68,7 @@ export default function OverallProgressionModal({ isOpen, onClose, player, train
     }
 
     // Check training results for each year
-    // Training happens in offseason: currentOverall is for that year, newOverall is for next year
+    // Training happens in offseason: pastOverall is for that year, newOverall is for next year
     if (trainingResultsByYear) {
       const sortedYears = Object.keys(trainingResultsByYear).sort((a, b) => parseInt(a) - parseInt(b))
       for (const year of sortedYears) {
@@ -79,12 +79,12 @@ export default function OverallProgressionModal({ isOpen, onClose, player, train
         if (match) {
           const yearNum = parseInt(year)
 
-          // The currentOverall is what they were during that year
-          if (match.currentOverall && history.length === 0) {
+          // The pastOverall is what they were during that year
+          if (match.pastOverall && history.length === 0) {
             history.push({
               year: yearNum,
               playerClass: getClassForYear(yearNum) || player.year,
-              overall: match.currentOverall,
+              overall: match.pastOverall,
               type: 'season'
             })
           }

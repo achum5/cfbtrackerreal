@@ -80,17 +80,15 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
     }
   }, [isOpen])
 
-  // Get transferring players (those leaving via transfer)
+  // Get transferring players (those leaving via transfer - NOT graduating or pro draft)
+  // Reads from BOTH playersLeavingByYear AND player.leavingYear/leavingReason
   const getTransferringPlayers = () => {
     const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
-    const transferReasons = [
-      'Playing Style', 'Proximity to Home', 'Championship Contender',
-      'Program Tradition', 'Campus Lifestyle', 'Stadium Atmosphere',
-      'Pro Potential', 'Academics', 'Playing Time', 'Scheme Fit'
-    ]
+    const nonTransferReasons = ['Graduating', 'Pro Draft']
 
-    return playersLeavingThisYear
-      .filter(p => transferReasons.some(reason => p.reason?.includes(reason) || p.reason?.includes('Transfer')))
+    // Source 1: Players from playersLeavingByYear
+    const transfersFromList = playersLeavingThisYear
+      .filter(p => p.reason && !nonTransferReasons.includes(p.reason))
       .map(leaving => {
         const player = (currentDynasty?.players || []).find(p => p.name === leaving.playerName || p.pid === leaving.pid)
         return {
@@ -99,6 +97,30 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
           position: player?.position || ''
         }
       })
+
+    // Source 2: Players with leavingYear set on their player record
+    const transfersFromPlayerRecord = (currentDynasty?.players || [])
+      .filter(p =>
+        p.leavingYear === currentYear &&
+        p.leavingReason &&
+        !nonTransferReasons.includes(p.leavingReason)
+      )
+      .map(player => ({
+        name: player.name,
+        pid: player.pid,
+        position: player.position || ''
+      }))
+
+    // Combine both sources
+    const allTransfers = [...transfersFromList, ...transfersFromPlayerRecord]
+
+    // Deduplicate by player name (in case same player appears in both sources)
+    const seen = new Set()
+    return allTransfers.filter(p => {
+      if (seen.has(p.name)) return false
+      seen.add(p.name)
+      return true
+    })
   }
 
   // Create sheet when modal opens
@@ -359,7 +381,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
                       color: '#EF4444'
                     }}
                   >
-                    {regenerating ? 'Regenerating...' : 'Start Over'}
+                    {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                   </button>
                 </div>
               </div>
@@ -453,7 +475,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
                     color: '#EF4444'
                   }}
                 >
-                  {regenerating ? 'Regenerating...' : 'Start Over'}
+                  {regenerating ? 'Regenerating...' : 'Regenerate sheet'}
                 </button>
               </div>
             ) : (

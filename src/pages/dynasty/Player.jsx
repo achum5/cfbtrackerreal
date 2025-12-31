@@ -1307,6 +1307,9 @@ export default function Player() {
                   const statMap = { cmp: y.passing?.cmp, att: y.passing?.att, yds: y.passing?.yds, td: y.passing?.td, int: y.passing?.int, lng: y.passing?.lng, sck: y.passing?.sacks }
                   if (col === 'pct') return y.passing?.att ? (y.passing.cmp / y.passing.att) * 100 : 0
                   if (col === 'ypa') return y.passing?.att ? y.passing.yds / y.passing.att : 0
+                  if (col === 'tdPct') return y.passing?.att ? (y.passing.td / y.passing.att) * 100 : 0
+                  if (col === 'intPct') return y.passing?.att ? (y.passing.int / y.passing.att) * 100 : 0
+                  if (col === 'tdInt') return y.passing?.int ? y.passing.td / y.passing.int : (y.passing?.td || 0)
                   return statMap[col] ?? 0
                 })
 
@@ -1326,7 +1329,10 @@ export default function Player() {
                           {renderSortableHeader('passing', 'yds', 'Yds', 'right')}
                           {renderSortableHeader('passing', 'ypa', 'Y/A', 'right')}
                           {renderSortableHeader('passing', 'td', 'TD', 'right')}
+                          {renderSortableHeader('passing', 'tdPct', 'TD%', 'right')}
                           {renderSortableHeader('passing', 'int', 'Int', 'right')}
+                          {renderSortableHeader('passing', 'intPct', 'INT%', 'right')}
+                          {renderSortableHeader('passing', 'tdInt', 'TD:INT', 'right')}
                           {renderSortableHeader('passing', 'lng', 'Lng', 'right')}
                           {renderSortableHeader('passing', 'sck', 'Sck', 'right')}
                         </tr>
@@ -1335,7 +1341,7 @@ export default function Player() {
                         {passingYears.map((y, idx) => {
                           const mascot = getMascotName(teamAbbr)
                           const logo = mascot ? getTeamLogo(mascot) : null
-                          const colSpan = 12 + (primaryStat === 'passing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
+                          const colSpan = 15 + (primaryStat === 'passing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
                               <tr className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} ${expandedGameLogYear === y.year ? 'bg-blue-50' : ''}`}>
@@ -1361,7 +1367,10 @@ export default function Player() {
                                 <td className="px-2 py-2 text-right font-medium">{y.passing.yds.toLocaleString()}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.passing.yds, y.passing.att)}</td>
                                 <td className="px-2 py-2 text-right font-medium">{y.passing.td}</td>
+                                <td className="px-2 py-2 text-right text-gray-500">{calcPct(y.passing.td, y.passing.att)}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.passing.int}</td>
+                                <td className="px-2 py-2 text-right text-gray-500">{calcPct(y.passing.int, y.passing.att)}</td>
+                                <td className="px-2 py-2 text-right text-gray-500">{y.passing.int > 0 ? (y.passing.td / y.passing.int).toFixed(2).replace('.', ':') : (y.passing.td > 0 ? '∞' : '0:00')}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.passing.lng}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.passing.sacks}</td>
                               </tr>
@@ -1383,7 +1392,10 @@ export default function Player() {
                           <td className="px-2 py-2 text-right">{careerPassing.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerPassing.yds, careerPassing.att)}</td>
                           <td className="px-2 py-2 text-right">{careerPassing.td}</td>
+                          <td className="px-2 py-2 text-right">{calcPct(careerPassing.td, careerPassing.att)}</td>
                           <td className="px-2 py-2 text-right">{careerPassing.int}</td>
+                          <td className="px-2 py-2 text-right">{calcPct(careerPassing.int, careerPassing.att)}</td>
+                          <td className="px-2 py-2 text-right">{careerPassing.int > 0 ? (careerPassing.td / careerPassing.int).toFixed(2).replace('.', ':') : (careerPassing.td > 0 ? '∞' : '0:00')}</td>
                           <td className="px-2 py-2 text-right">{careerPassing.lng}</td>
                           <td className="px-2 py-2 text-right">{careerPassing.sacks}</td>
                         </tr>
@@ -1410,6 +1422,7 @@ export default function Player() {
                 const rushingYears = sortStatYears(rushingYearsUnsorted, 'rushing', (y, col) => {
                   const statMap = { car: y.rushing?.car, yds: y.rushing?.yds, td: y.rushing?.td, lng: y.rushing?.lng, fum: y.rushing?.fum, bt: y.rushing?.bt }
                   if (col === 'ypc') return y.rushing?.car ? y.rushing.yds / y.rushing.car : 0
+                  if (col === 'ypg') return y.gamesPlayed ? y.rushing?.yds / y.gamesPlayed : 0
                   return statMap[col] ?? 0
                 })
 
@@ -1425,8 +1438,9 @@ export default function Player() {
                           {showSnapsCol && renderSortableHeader('rushing', 'snapsPlayed', 'Snaps', 'right')}
                           {renderSortableHeader('rushing', 'car', 'Car', 'right')}
                           {renderSortableHeader('rushing', 'yds', 'Yds', 'right')}
-                          {renderSortableHeader('rushing', 'ypc', 'Y/C', 'right')}
+                          {renderSortableHeader('rushing', 'ypc', 'AVG', 'right')}
                           {renderSortableHeader('rushing', 'td', 'TD', 'right')}
+                          {renderSortableHeader('rushing', 'ypg', 'YDS/G', 'right')}
                           {renderSortableHeader('rushing', 'lng', 'Lng', 'right')}
                           {renderSortableHeader('rushing', 'fum', 'Fum', 'right')}
                           {renderSortableHeader('rushing', 'bt', 'BTkl', 'right')}
@@ -1436,7 +1450,7 @@ export default function Player() {
                         {rushingYears.map((y, idx) => {
                           const mascot = getMascotName(teamAbbr)
                           const logo = mascot ? getTeamLogo(mascot) : null
-                          const colSpan = 10 + (primaryStat === 'rushing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
+                          const colSpan = 11 + (primaryStat === 'rushing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
                               <tr className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} ${expandedGameLogYear === y.year ? 'bg-blue-50' : ''}`}>
@@ -1460,6 +1474,7 @@ export default function Player() {
                                 <td className="px-2 py-2 text-right font-medium">{y.rushing.yds.toLocaleString()}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.rushing.yds, y.rushing.car)}</td>
                                 <td className="px-2 py-2 text-right font-medium">{y.rushing.td}</td>
+                                <td className="px-2 py-2 text-right text-gray-500">{y.gamesPlayed > 0 ? calcAvg(y.rushing.yds, y.gamesPlayed) : '0.0'}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.rushing.lng}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.rushing.fum}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.rushing.bt}</td>
@@ -1480,6 +1495,7 @@ export default function Player() {
                           <td className="px-2 py-2 text-right">{careerRushing.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerRushing.yds, careerRushing.car)}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.td}</td>
+                          <td className="px-2 py-2 text-right">{careerGames > 0 ? calcAvg(careerRushing.yds, careerGames) : '0.0'}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.lng}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.fum}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.bt}</td>
@@ -1508,6 +1524,7 @@ export default function Player() {
                 const receivingYears = sortStatYears(receivingYearsUnsorted, 'receiving', (y, col) => {
                   const statMap = { rec: y.receiving?.rec, yds: y.receiving?.yds, td: y.receiving?.td, lng: y.receiving?.lng, drops: y.receiving?.drops }
                   if (col === 'ypr') return y.receiving?.rec ? y.receiving.yds / y.receiving.rec : 0
+                  if (col === 'ypg') return y.gamesPlayed ? y.receiving?.yds / y.gamesPlayed : 0
                   return statMap[col] ?? 0
                 })
 
@@ -1523,8 +1540,9 @@ export default function Player() {
                           {showSnapsCol && renderSortableHeader('receiving', 'snapsPlayed', 'Snaps', 'right')}
                           {renderSortableHeader('receiving', 'rec', 'Rec', 'right')}
                           {renderSortableHeader('receiving', 'yds', 'Yds', 'right')}
-                          {renderSortableHeader('receiving', 'ypr', 'Y/R', 'right')}
+                          {renderSortableHeader('receiving', 'ypr', 'AVG', 'right')}
                           {renderSortableHeader('receiving', 'td', 'TD', 'right')}
+                          {renderSortableHeader('receiving', 'ypg', 'YDS/G', 'right')}
                           {renderSortableHeader('receiving', 'lng', 'Lng', 'right')}
                           {renderSortableHeader('receiving', 'drops', 'Drops', 'right')}
                         </tr>
@@ -1533,7 +1551,7 @@ export default function Player() {
                         {receivingYears.map((y, idx) => {
                           const mascot = getMascotName(teamAbbr)
                           const logo = mascot ? getTeamLogo(mascot) : null
-                          const colSpan = 9 + (primaryStat === 'receiving' ? 1 : 0) + (showSnapsCol ? 1 : 0)
+                          const colSpan = 10 + (primaryStat === 'receiving' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
                             <React.Fragment key={y.year}>
                               <tr className={`${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} ${expandedGameLogYear === y.year ? 'bg-blue-50' : ''}`}>
@@ -1557,6 +1575,7 @@ export default function Player() {
                                 <td className="px-2 py-2 text-right font-medium">{y.receiving.yds.toLocaleString()}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{calcAvg(y.receiving.yds, y.receiving.rec)}</td>
                                 <td className="px-2 py-2 text-right font-medium">{y.receiving.td}</td>
+                                <td className="px-2 py-2 text-right text-gray-500">{y.gamesPlayed > 0 ? calcAvg(y.receiving.yds, y.gamesPlayed) : '0.0'}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.receiving.lng}</td>
                                 <td className="px-2 py-2 text-right text-gray-500">{y.receiving.drops}</td>
                               </tr>
@@ -1576,6 +1595,7 @@ export default function Player() {
                           <td className="px-2 py-2 text-right">{careerReceiving.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerReceiving.yds, careerReceiving.rec)}</td>
                           <td className="px-2 py-2 text-right">{careerReceiving.td}</td>
+                          <td className="px-2 py-2 text-right">{careerGames > 0 ? calcAvg(careerReceiving.yds, careerGames) : '0.0'}</td>
                           <td className="px-2 py-2 text-right">{careerReceiving.lng}</td>
                           <td className="px-2 py-2 text-right">{careerReceiving.drops}</td>
                         </tr>

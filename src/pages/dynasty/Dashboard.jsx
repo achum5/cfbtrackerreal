@@ -45,7 +45,8 @@ import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
 import EncourageTransfersModal from '../../components/EncourageTransfersModal'
 import RecruitOverallsModal from '../../components/RecruitOverallsModal'
-import TransferRedshirtModal from '../../components/TransferRedshirtModal'
+import PortalTransferClassModal from '../../components/PortalTransferClassModal'
+import FringeCaseClassModal from '../../components/FringeCaseClassModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 
 // Helper function to normalize player names for consistent lookup
@@ -72,6 +73,13 @@ export default function Dashboard() {
   const teamRatings = getCurrentTeamRatings(currentDynasty)
   const teamCoachingStaff = getCurrentCoachingStaff(currentDynasty)
   const teamGoogleSheet = getCurrentGoogleSheet(currentDynasty)
+
+  // IMPORTANT: On Signing Day (week 6) and Training Camp (week 7), the year has already flipped.
+  // Use offseasonDataYear for data that was entered during weeks 1-5 (playersLeaving, recruiting, etc.)
+  const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 6
+  const offseasonDataYear = isAfterYearFlip
+    ? currentDynasty?.currentYear - 1
+    : currentDynasty?.currentYear
 
   // Aggregate team stats from box scores for pre-filling the Team Stats sheet
   const aggregatedTeamStats = useMemo(() => {
@@ -244,7 +252,8 @@ export default function Dashboard() {
   const [showEncourageTransfersModal, setShowEncourageTransfersModal] = useState(false)
   const [showOffseasonConferencesModal, setShowOffseasonConferencesModal] = useState(false)
   const [showRecruitOverallsModal, setShowRecruitOverallsModal] = useState(false)
-  const [showTransferRedshirtModal, setShowTransferRedshirtModal] = useState(false)
+  const [showPortalTransferClassModal, setShowPortalTransferClassModal] = useState(false)
+  const [showFringeCaseClassModal, setShowFringeCaseClassModal] = useState(false)
 
   // Player match confirmation states
   const [showPlayerMatchConfirm, setShowPlayerMatchConfirm] = useState(false)
@@ -977,11 +986,38 @@ export default function Dashboard() {
       }
     })
 
+    // Also update leavingYear/leavingReason on the player records
+    const leavingPids = new Set(playersWithPids.map(p => p.pid).filter(Boolean))
+    const reasonByPid = {}
+    playersWithPids.forEach(p => {
+      if (p.pid) reasonByPid[p.pid] = p.reason
+    })
+
+    const updatedPlayers = (currentDynasty.players || []).map(player => {
+      if (leavingPids.has(player.pid)) {
+        // Mark player as leaving
+        return {
+          ...player,
+          leavingYear: year,
+          leavingReason: reasonByPid[player.pid] || null
+        }
+      } else if (player.leavingYear === year) {
+        // Player was previously marked as leaving this year but is no longer in the list - clear it
+        return {
+          ...player,
+          leavingYear: null,
+          leavingReason: null
+        }
+      }
+      return player
+    })
+
     await updateDynasty(currentDynasty.id, {
       playersLeavingByYear: {
         ...existingByYear,
         [year]: playersWithPids
-      }
+      },
+      players: updatedPlayers
     })
   }
 
@@ -1010,9 +1046,11 @@ export default function Dashboard() {
     })
   }
 
-  // Handle transfer destinations save (Offseason - Recruiting Week 1)
+  // Handle transfer destinations save (Offseason - National Signing Day)
   const handleTransferDestinationsSave = async (destinations) => {
-    const year = currentDynasty.currentYear
+    // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const existingByYear = currentDynasty.transferDestinationsByYear || {}
 
     // Update player records with their new team
@@ -1042,7 +1080,9 @@ export default function Dashboard() {
 
   // Handle recruiting class rank save (National Signing Day)
   const handleRecruitingClassRankSave = async (rank) => {
-    const year = currentDynasty.currentYear
+    // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
     const existingRanks = currentDynasty.recruitingClassRankByTeamYear || {}
 
@@ -1059,7 +1099,9 @@ export default function Dashboard() {
 
   // Handle position changes save (National Signing Day)
   const handlePositionChangesSave = async (changes) => {
-    const year = currentDynasty.currentYear
+    // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const existingChangesAll = currentDynasty.positionChangesByYear || {}
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
 
@@ -1093,62 +1135,6 @@ export default function Dashboard() {
       positionChangesByYear: {
         ...existingChangesAll,
         [year]: changesRecord // Replace, don't append
-      }
-    })
-  }
-
-  // Handle transfer redshirt status save (National Signing Day)
-  const handleTransferRedshirtSave = async (transfers) => {
-    const year = currentDynasty.currentYear
-    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
-
-    // Update player classes for those marked as redshirted
-    // e.g., Fr -> RS Fr, So -> RS So, Jr -> RS Jr
-    const updatedPlayers = [...(currentDynasty.players || [])]
-    const classUpgrade = {
-      'Fr': 'RS Fr',
-      'So': 'RS So',
-      'Jr': 'RS Jr',
-      'Sr': 'RS Sr'
-    }
-
-    let updatedCount = 0
-    transfers.forEach(transfer => {
-      if (!transfer.wasRedshirted) return // Skip if not redshirted
-
-      // Find player by name (case-insensitive match) and team
-      const playerIndex = updatedPlayers.findIndex(p =>
-        normalizePlayerName(p.name) === normalizePlayerName(transfer.playerName) &&
-        p.team === teamAbbr &&
-        p.isPortal // Only update portal transfers
-      )
-
-      if (playerIndex !== -1) {
-        const player = updatedPlayers[playerIndex]
-        const currentClass = player.year
-        // Only upgrade if current class is non-RS
-        if (classUpgrade[currentClass]) {
-          updatedPlayers[playerIndex] = {
-            ...player,
-            year: classUpgrade[currentClass]
-          }
-          updatedCount++
-        }
-      }
-    })
-
-    // Store the transfer redshirt data for this year (team-centric)
-    const existingByTeamYear = currentDynasty.transferRedshirtByTeamYear || {}
-    const existingForTeam = existingByTeamYear[teamAbbr] || {}
-
-    await updateDynasty(currentDynasty.id, {
-      players: updatedPlayers,
-      transferRedshirtByTeamYear: {
-        ...existingByTeamYear,
-        [teamAbbr]: {
-          ...existingForTeam,
-          [year]: transfers.filter(t => t.wasRedshirted).map(t => t.playerName)
-        }
       }
     })
   }
@@ -1191,7 +1177,9 @@ export default function Dashboard() {
 
   // Handle recruiting class overalls save
   const handleRecruitOverallsSave = async (results) => {
-    const year = currentDynasty.currentYear
+    // On Training Camp (week 7), the year has flipped, but recruits have recruitYear from before the flip
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
 
     // Update recruit overalls and jersey numbers in the players array
     const updatedPlayers = [...(currentDynasty.players || [])]
@@ -1228,6 +1216,86 @@ export default function Dashboard() {
     console.log(`Updated ${updatedCount} recruit overalls`)
   }
 
+  // Handle portal transfer class assignment save
+  const handlePortalTransferClassSave = async (classSelections) => {
+    // On Signing Day (week 6), the year has already flipped
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+
+    // Update player classes in the players array
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    let updatedCount = 0
+
+    classSelections.forEach(selection => {
+      // Find player by name (case-insensitive match) among portal transfers
+      const playerIndex = updatedPlayers.findIndex(p =>
+        p.isPortal &&
+        p.recruitYear === year &&
+        normalizePlayerName(p.name) === normalizePlayerName(selection.playerName)
+      )
+      if (playerIndex !== -1 && selection.selectedClass) {
+        updatedPlayers[playerIndex] = {
+          ...updatedPlayers[playerIndex],
+          year: selection.selectedClass
+        }
+        updatedCount++
+      }
+    })
+
+    // Store selections for tracking (in case we need to regenerate)
+    const existingSelections = currentDynasty.portalTransferClassByYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      portalTransferClassByYear: {
+        ...existingSelections,
+        [year]: classSelections
+      },
+      portalTransferClassSheetId: null // Clear sheet ID since task is complete
+    })
+
+    console.log(`Updated ${updatedCount} portal transfer classes`)
+  }
+
+  // Handle fringe case class assignment save
+  const handleFringeCaseClassSave = async (classSelections) => {
+    // On Signing Day (week 6), the year has already flipped
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+
+    // Update player classes in the players array
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    let updatedCount = 0
+
+    classSelections.forEach(selection => {
+      // Find player by name (case-insensitive match)
+      const playerIndex = updatedPlayers.findIndex(p =>
+        normalizePlayerName(p.name) === normalizePlayerName(selection.playerName)
+      )
+      if (playerIndex !== -1 && selection.selectedClass) {
+        updatedPlayers[playerIndex] = {
+          ...updatedPlayers[playerIndex],
+          year: selection.selectedClass
+        }
+        updatedCount++
+      }
+    })
+
+    // Store selections for tracking
+    const existingSelections = currentDynasty.fringeCaseClassByYear || {}
+
+    await updateDynasty(currentDynasty.id, {
+      players: updatedPlayers,
+      fringeCaseClassByYear: {
+        ...existingSelections,
+        [year]: classSelections
+      },
+      fringeCaseClassSheetId: null // Clear sheet ID since task is complete
+    })
+
+    console.log(`Updated ${updatedCount} fringe case classes`)
+  }
+
   // Get the commitment key based on phase and week
   const getCommitmentKey = () => {
     const phase = currentDynasty.currentPhase
@@ -1242,15 +1310,17 @@ export default function Dashboard() {
     } else if (phase === 'postseason') {
       // Postseason weeks 1-4 = Bowl weeks 1-4
       return `bowl_${week}`
-    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
-      return `signing_${week - 1}` // Week 2 = Recruiting Week 1, etc.
+    } else if (phase === 'offseason' && week >= 2 && week <= 6) {
+      return `signing_${week - 1}` // Week 2 = Recruiting Week 1, Week 6 = Signing Day
     }
     return null
   }
 
   // Handle recruiting commitments save - TEAM-CENTRIC
   const handleRecruitingCommitmentsSave = async (recruits) => {
-    const year = currentDynasty.currentYear
+    // On Signing Day (week 6), year has already flipped, so use previous year for recruiting data
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const commitmentKey = getCommitmentKey()
     if (!commitmentKey) return
 
@@ -1485,8 +1555,8 @@ export default function Dashboard() {
       if (week === 4) return 'National Championship Week'
       if (week === 5) return 'End of Season'
       return `Bowl Week ${week}`
-    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
-      if (week === 5) return 'National Signing Day'
+    } else if (phase === 'offseason' && week >= 2 && week <= 6) {
+      if (week === 6) return 'National Signing Day'
       return `Recruiting Week ${week - 1}`
     }
     return 'Recruiting'
@@ -1650,10 +1720,10 @@ export default function Dashboard() {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week === 5) return 'National Signing Day'
-      if (week === 6) return 'Training Camp'
-      if (week === 7) return 'Offseason'
-      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
+      if (week === 6) return 'National Signing Day'
+      if (week === 7) return 'Training Camp'
+      if (week === 8) return 'Offseason'
+      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
     const phases = {
@@ -5210,20 +5280,24 @@ export default function Dashboard() {
               )
             }
 
-            // Offseason Weeks 2-5: Recruiting Weeks
-            if (week >= 2 && week <= 5) {
-              const recruitingWeekNum = week - 1 // Week 2 = Recruiting Week 1, Week 3 = Recruiting Week 2, etc.
+            // Offseason Weeks 2-6: Recruiting Weeks (Week 6 = National Signing Day)
+            if (week >= 2 && week <= 6) {
+              const recruitingWeekNum = week - 1 // Week 2 = Recruiting Week 1, Week 6 = Signing Day (5)
+
+              // IMPORTANT: On week 6 (Signing Day), the year has already flipped (e.g., 2026 → 2027).
+              // All data from weeks 1-5 was stored under the old year (2026), so we need to look back.
+              const offseasonDataYear = week === 6 ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
 
               // Check for draft declarees (only relevant in Recruiting Week 1)
-              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear] || []
+              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[offseasonDataYear] || []
               const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
               const hasDraftDeclarees = draftDeclarees.length > 0
-              const hasDraftResultsData = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length > 0
-              const draftResultsCount = currentDynasty?.draftResultsByYear?.[currentDynasty.currentYear]?.length || 0
+              const hasDraftResultsData = currentDynasty?.draftResultsByYear?.[offseasonDataYear]?.length > 0
+              const draftResultsCount = currentDynasty?.draftResultsByYear?.[offseasonDataYear]?.length || 0
 
               // Check recruiting commitments for this week - TEAM-CENTRIC with signing_ key
               const teamAbbrForCommitments = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
-              const recruitingCommitmentsForTeamYear = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbrForCommitments]?.[currentDynasty.currentYear] || {}
+              const recruitingCommitmentsForTeamYear = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbrForCommitments]?.[offseasonDataYear] || {}
               const commitmentsForWeek = recruitingCommitmentsForTeamYear[`signing_${recruitingWeekNum}`]
               const hasCommitmentsData = commitmentsForWeek !== undefined // undefined = not answered, [] = no commitments, array with items = has commitments
               const commitmentsCount = commitmentsForWeek?.length || 0
@@ -5231,7 +5305,7 @@ export default function Dashboard() {
               return (
                 <>
                   <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
-                    {recruitingWeekNum === 4 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
+                    {recruitingWeekNum === 5 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
                   </h3>
                   <div className="space-y-3 sm:space-y-4">
                     {/* Task 1: Recruiting Commitments */}
@@ -5257,20 +5331,20 @@ export default function Dashboard() {
                         <div className="min-w-0">
                           <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
                             {hasCommitmentsData
-                              ? (recruitingWeekNum === 4 ? 'Signing Day' : 'Recruiting Commitments')
-                              : (recruitingWeekNum === 4 ? 'Signing Day' : 'Any commitments this week?')}
+                              ? (recruitingWeekNum === 5 ? 'Signing Day' : 'Recruiting Commitments')
+                              : (recruitingWeekNum === 5 ? 'Signing Day' : 'Any commitments this week?')}
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {hasCommitmentsData
                               ? commitmentsCount > 0
                                 ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
                                 : '✓ No commitments this week'
-                              : (recruitingWeekNum === 4 ? 'Enter your final recruiting class' : 'Record any recruiting commitments for this week')}
+                              : (recruitingWeekNum === 5 ? 'Enter your final recruiting class' : 'Record any recruiting commitments for this week')}
                           </div>
                         </div>
                       </div>
                       {!hasCommitmentsData ? (
-                        recruitingWeekNum === 4 ? (
+                        recruitingWeekNum === 5 ? (
                           <button
                             onClick={() => setShowRecruitingModal(true)}
                             className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
@@ -5353,20 +5427,35 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* Task 3: Transfer Destinations (only in Recruiting Week 1) */}
-                    {recruitingWeekNum === 1 && (() => {
-                      // Get transferring players
-                      const transferReasons = [
-                        'Playing Style', 'Proximity to Home', 'Championship Contender',
-                        'Program Tradition', 'Campus Lifestyle', 'Stadium Atmosphere',
-                        'Pro Potential', 'Academics', 'Playing Time', 'Scheme Fit'
-                      ]
-                      const transfers = playersLeavingThisYear.filter(p =>
-                        transferReasons.some(reason => p.reason?.includes(reason) || p.reason?.includes('Transfer'))
-                      )
+                    {/* Task 3: Transfer Destinations (only on National Signing Day) */}
+                    {recruitingWeekNum === 5 && (() => {
+                      // Get transferring players (NOT graduating or pro draft), deduplicated by name
+                      // Source 1: playersLeavingByYear
+                      const nonTransferReasons = ['Graduating', 'Pro Draft']
+                      const transfersFromList = playersLeavingThisYear.filter(p =>
+                        p.reason && !nonTransferReasons.includes(p.reason)
+                      ).map(p => ({ name: p.playerName }))
+
+                      // Source 2: Players with leavingYear on their record
+                      const transfersFromPlayerRecord = (currentDynasty?.players || [])
+                        .filter(p =>
+                          p.leavingYear === offseasonDataYear &&
+                          p.leavingReason &&
+                          !nonTransferReasons.includes(p.leavingReason)
+                        )
+                        .map(p => ({ name: p.name }))
+
+                      // Combine and deduplicate
+                      const allTransfers = [...transfersFromList, ...transfersFromPlayerRecord]
+                      const seenNames = new Set()
+                      const transfers = allTransfers.filter(p => {
+                        if (seenNames.has(p.name)) return false
+                        seenNames.add(p.name)
+                        return true
+                      })
                       const hasTransfers = transfers.length > 0
-                      const hasTransferDestinationsData = currentDynasty?.transferDestinationsByYear?.[currentDynasty.currentYear]?.length > 0
-                      const transferDestinationsCount = currentDynasty?.transferDestinationsByYear?.[currentDynasty.currentYear]?.length || 0
+                      const hasTransferDestinationsData = currentDynasty?.transferDestinationsByYear?.[offseasonDataYear]?.length > 0
+                      const transferDestinationsCount = currentDynasty?.transferDestinationsByYear?.[offseasonDataYear]?.length || 0
 
                       return (
                         <div
@@ -5415,9 +5504,9 @@ export default function Dashboard() {
                     })()}
 
                     {/* Task 2: Recruiting Class Rank (only on National Signing Day) */}
-                    {recruitingWeekNum === 4 && (() => {
+                    {recruitingWeekNum === 5 && (() => {
                       const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-                      const classRank = currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear]
+                      const classRank = currentDynasty.recruitingClassRankByTeamYear?.[teamAbbr]?.[offseasonDataYear]
                       const hasClassRank = !!classRank
 
                       return (
@@ -5462,132 +5551,9 @@ export default function Dashboard() {
                       )
                     })()}
 
-                    {/* Task 3: Transfer Redshirt Status (only on National Signing Day) */}
-                    {recruitingWeekNum === 4 && (() => {
-                      // Check if user switched teams this offseason
-                      const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
-                      const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-                      const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
-
-                      // Get portal transfers from this year's recruiting class
-                      const year = currentDynasty.currentYear
-                      const portalTransfers = (currentDynasty.players || []).filter(p =>
-                        p.team === currentTeamAbbr &&
-                        p.recruitYear === year &&
-                        p.isPortal &&
-                        // Only show non-RS classes (Fr, So, Jr, Sr) - already RS classes don't need this
-                        ['Fr', 'So', 'Jr', 'Sr'].includes(p.year)
-                      )
-                      const hasPortalTransfers = portalTransfers.length > 0
-
-                      // Check if transfer redshirt data has been entered
-                      const transferRedshirtData = currentDynasty.transferRedshirtByTeamYear?.[currentTeamAbbr]?.[year]
-                      const hasTransferRedshirtData = transferRedshirtData !== undefined
-
-                      // If user switched teams or no portal transfers, show skipped state
-                      if (switchedTeams || !hasPortalTransfers) {
-                        return (
-                          <div
-                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
-                          >
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
-                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                              <div className="min-w-0">
-                                <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
-                                  Transfer Redshirt Status - Skipped
-                                </div>
-                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
-                                  {switchedTeams ? 'New team - no transfers to update' : 'No portal transfers this class'}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      const redshirtedCount = transferRedshirtData?.length || 0
-
-                      return (
-                        <div
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasTransferRedshirtData ? 'border-green-200 bg-green-50' : ''
-                          }`}
-                          style={!hasTransferRedshirtData ? { borderColor: `${teamColors.primary}30` } : {}}
-                        >
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div
-                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                hasTransferRedshirtData ? 'bg-green-500 text-white' : ''
-                              }`}
-                              style={!hasTransferRedshirtData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
-                            >
-                              {hasTransferRedshirtData ? (
-                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : <span className="font-bold text-sm sm:text-base">3</span>}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasTransferRedshirtData ? '#16a34a' : secondaryBgText }}>
-                                Transfer Redshirt Status
-                              </div>
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasTransferRedshirtData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                                {hasTransferRedshirtData
-                                  ? redshirtedCount > 0
-                                    ? `✓ ${redshirtedCount} transfer${redshirtedCount !== 1 ? 's' : ''} marked as previously redshirted`
-                                    : '✓ No transfers were previously redshirted'
-                                  : `Mark which of ${portalTransfers.length} portal transfer${portalTransfers.length !== 1 ? 's' : ''} were redshirted`}
-                              </div>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setShowTransferRedshirtModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
-                          >
-                            {hasTransferRedshirtData ? 'Edit' : 'Open'}
-                          </button>
-                        </div>
-                      )
-                    })()}
-
                     {/* Task 4: Position Changes (only on National Signing Day) */}
-                    {recruitingWeekNum === 4 && (() => {
-                      // Check if user switched teams this offseason
-                      const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
-                      const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-                      const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
-
-                      // If user switched teams, show skipped state
-                      if (switchedTeams) {
-                        return (
-                          <div
-                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 border-green-200 bg-green-50"
-                          >
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-green-500 text-white">
-                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                              <div className="min-w-0">
-                                <div className="text-sm sm:text-base font-semibold" style={{ color: '#16a34a' }}>
-                                  Position Changes - Skipped
-                                </div>
-                                <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
-                                  Will enter new roster during preseason
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      }
-
-                      const positionChangesThisYear = currentDynasty.positionChangesByYear?.[currentDynasty.currentYear] || []
+                    {recruitingWeekNum === 5 && (() => {
+                      const positionChangesThisYear = currentDynasty.positionChangesByYear?.[offseasonDataYear] || []
                       const hasPositionChanges = positionChangesThisYear.length > 0
 
                       return (
@@ -5631,15 +5597,228 @@ export default function Dashboard() {
                         </div>
                       )
                     })()}
+
+                    {/* Task 5: Portal Transfer Class Assignment (only on National Signing Day) */}
+                    {recruitingWeekNum === 5 && (() => {
+                      // Get portal transfers from recruiting commitments for this year
+                      const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+                      const recruitingCommitmentsAll = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[offseasonDataYear] || {}
+                      const portalTransfersForClass = []
+                      Object.values(recruitingCommitmentsAll).forEach(weekCommitments => {
+                        if (Array.isArray(weekCommitments)) {
+                          weekCommitments.forEach(c => {
+                            if (c.isPortal && c.year) {
+                              // Only include Fr, So, Jr (not Sr) as they need class assignment
+                              const baseClass = c.year.replace('RS ', '')
+                              if (['Fr', 'So', 'Jr'].includes(baseClass)) {
+                                portalTransfersForClass.push({
+                                  name: c.name,
+                                  position: c.position,
+                                  incomingClass: c.year
+                                })
+                              }
+                            }
+                          })
+                        }
+                      })
+                      const hasPortalTransfers = portalTransfersForClass.length > 0
+                      const hasPortalTransferClassData = currentDynasty?.portalTransferClassByYear?.[offseasonDataYear]?.length > 0
+                      const isBlocked = !hasCommitmentsData // Blocked until Signing Day (Task 1) is complete
+
+                      if (!hasPortalTransfers) return null
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasPortalTransferClassData ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
+                          }`}
+                          style={!hasPortalTransferClassData && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !hasPortalTransferClassData ? { borderColor: '#9ca3af' } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasPortalTransferClassData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasPortalTransferClassData ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
+                            >
+                              {hasPortalTransferClassData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">5</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasPortalTransferClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
+                                Portal Transfer Class Assignment
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasPortalTransferClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
+                                {isBlocked
+                                  ? 'Complete Signing Day first'
+                                  : hasPortalTransferClassData
+                                    ? `✓ ${portalTransfersForClass.length} transfer class${portalTransfersForClass.length !== 1 ? 'es' : ''} assigned`
+                                    : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowPortalTransferClassModal(true)}
+                            disabled={isBlocked}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
+                            style={{
+                              backgroundColor: isBlocked ? '#9ca3af' : teamColors.primary,
+                              color: isBlocked ? '#ffffff' : primaryBgText
+                            }}
+                          >
+                            {hasPortalTransferClassData ? 'Edit' : 'Open'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Task 6: Fringe Case Class Assignment (only on National Signing Day) */}
+                    {recruitingWeekNum === 5 && (() => {
+                      // Get players with 5-9 games who might be fringe cases for redshirting
+                      const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
+                      const year = offseasonDataYear
+
+                      // Count games for each non-senior player on the roster
+                      const fringeCasePlayers = teamRoster.filter(player => {
+                        // Skip seniors (they can't redshirt)
+                        if (player.year === 'Sr' || player.year === 'RS Sr') return false
+
+                        // Count total games this player appeared in this year
+                        let gameCount = 0
+                        const playerName = normalizePlayerName(player.name)
+
+                        currentDynasty.games?.forEach(game => {
+                          // Skip CPU games
+                          if (!game.userTeam && game.team1 && game.team2) return
+                          if (parseInt(game.year) !== year) return
+                          if (game.userTeam !== teamAbbr) return
+
+                          // Check if player appeared in box score
+                          if (game.boxScore) {
+                            const checkSide = (side) => {
+                              if (!side) return false
+                              const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
+                              for (const cat of categories) {
+                                if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
+                                  return true
+                                }
+                              }
+                              return false
+                            }
+                            if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
+                              gameCount++
+                            }
+                          }
+                        })
+
+                        // Fringe case: 5-9 games (might have used redshirt if ≤4 reg season games)
+                        return gameCount >= 5 && gameCount <= 9
+                      }).map(player => {
+                        // Count games for display
+                        let gameCount = 0
+                        const playerName = normalizePlayerName(player.name)
+
+                        currentDynasty.games?.forEach(game => {
+                          if (!game.userTeam && game.team1 && game.team2) return
+                          if (parseInt(game.year) !== year) return
+                          if (game.userTeam !== teamAbbr) return
+
+                          if (game.boxScore) {
+                            const checkSide = (side) => {
+                              if (!side) return false
+                              const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
+                              for (const cat of categories) {
+                                if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
+                                  return true
+                                }
+                              }
+                              return false
+                            }
+                            if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
+                              gameCount++
+                            }
+                          }
+                        })
+
+                        return {
+                          name: player.name,
+                          position: player.position,
+                          currentClass: player.year,
+                          gameCount
+                        }
+                      })
+
+                      const hasFringeCases = fringeCasePlayers.length > 0
+                      const hasFringeCaseClassData = currentDynasty?.fringeCaseClassByYear?.[offseasonDataYear]?.length > 0
+                      const isBlocked = !hasCommitmentsData // Blocked until Signing Day (Task 1) is complete
+
+                      if (!hasFringeCases) return null
+
+                      return (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
+                            hasFringeCaseClassData ? 'border-green-200 bg-green-50' : isBlocked ? 'opacity-50' : ''
+                          }`}
+                          style={!hasFringeCaseClassData && !isBlocked ? { borderColor: `${teamColors.primary}30` } : isBlocked && !hasFringeCaseClassData ? { borderColor: '#9ca3af' } : {}}
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div
+                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                hasFringeCaseClassData ? 'bg-green-500 text-white' : ''
+                              }`}
+                              style={!hasFringeCaseClassData ? { backgroundColor: isBlocked ? '#d1d5db' : `${teamColors.primary}20`, color: isBlocked ? '#6b7280' : teamColors.primary } : {}}
+                            >
+                              {hasFringeCaseClassData ? (
+                                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : <span className="font-bold text-sm sm:text-base">6</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm sm:text-base font-semibold" style={{ color: hasFringeCaseClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText }}>
+                                Fringe Case Class Assignment
+                              </div>
+                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasFringeCaseClassData ? '#16a34a' : isBlocked ? '#6b7280' : secondaryBgText, opacity: 0.7 }}>
+                                {isBlocked
+                                  ? 'Complete Signing Day first'
+                                  : hasFringeCaseClassData
+                                    ? `✓ ${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} resolved`
+                                    : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowFringeCaseClassModal(true)}
+                            disabled={isBlocked}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto disabled:cursor-not-allowed"
+                            style={{
+                              backgroundColor: isBlocked ? '#9ca3af' : teamColors.primary,
+                              color: isBlocked ? '#ffffff' : primaryBgText
+                            }}
+                          >
+                            {hasFringeCaseClassData ? 'Edit' : 'Open'}
+                          </button>
+                        </div>
+                      )
+                    })()}
+
                   </div>
                 </>
               )
             }
 
-            // Offseason Week 6: Training Camp
-            if (week === 6) {
+            // Offseason Week 7: Training Camp
+            if (week === 7) {
+              // IMPORTANT: Year has already flipped (e.g., 2027). Data from weeks 1-5 was stored under old year (2026).
+              // - offseasonDataYear (2026): playersLeaving, recruitingCommitments, recruitYear
+              // - currentYear (2027): trainingResults (for the new season)
+              const offseasonDataYear = currentDynasty.currentYear - 1
+
               // Check if user switched teams this offseason
-              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
+              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[offseasonDataYear]?.team
               const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
               const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
 
@@ -5679,14 +5858,14 @@ export default function Dashboard() {
               // - Current roster players who are NOT in playersLeavingByYear
               // - PLUS any portal transfers from recruiting commitments
               const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear] || []
+              const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[offseasonDataYear] || []
               const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
 
               // Get returning players (not leaving) - use teamRoster which filters by team and excludes recruits
               const returningPlayers = teamRoster.filter(p => !leavingPids.has(p.pid))
 
-              // Get portal transfers from recruiting commitments
-              const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty.currentYear] || {}
+              // Get portal transfers from recruiting commitments (from the old year's recruiting)
+              const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[offseasonDataYear] || {}
               const portalTransfers = []
               Object.values(recruitingCommitments).forEach(weekCommitments => {
                 if (Array.isArray(weekCommitments)) {
@@ -5706,20 +5885,22 @@ export default function Dashboard() {
               // Combine returning players and portal transfers
               const trainingPlayers = [...returningPlayers, ...portalTransfers]
 
+              // Training results are stored under the NEW year (the upcoming season)
               const hasTrainingResultsData = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length > 0
               const trainingResultsCount = currentDynasty?.trainingResultsByYear?.[currentDynasty.currentYear]?.length || 0
 
               // Get recruits for Recruiting Class Overalls task
-              // These are HS and JUCO players from this recruiting year (exclude portal)
+              // These are HS and JUCO players from the recruiting cycle (stored under old year)
               const allPlayers = currentDynasty?.players || []
               const recruitingClassPlayers = allPlayers.filter(p =>
                 p.isRecruit &&
-                p.recruitYear === currentDynasty.currentYear &&
+                p.recruitYear === offseasonDataYear &&
                 (!p.team || p.team === teamAbbr) &&
                 !p.isPortal && !p.previousTeam // Exclude transfer portal players
               )
-              const hasRecruitOverallsData = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length > 0
-              const recruitOverallsCount = currentDynasty?.recruitOverallsByYear?.[currentDynasty.currentYear]?.length || 0
+              // Recruit overalls are stored under the old year (same as recruitYear)
+              const hasRecruitOverallsData = currentDynasty?.recruitOverallsByYear?.[offseasonDataYear]?.length > 0
+              const recruitOverallsCount = currentDynasty?.recruitOverallsByYear?.[offseasonDataYear]?.length || 0
 
               return (
                 <>
@@ -5813,8 +5994,8 @@ export default function Dashboard() {
               )
             }
 
-            // Offseason Week 7: Offseason (Custom Conferences & Encourage Transfers)
-            if (week === 7) {
+            // Offseason Week 8: Offseason (Custom Conferences & Encourage Transfers)
+            if (week === 8) {
               const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
               const nextYear = currentDynasty.currentYear + 1
 
@@ -7362,16 +7543,16 @@ export default function Dashboard() {
         isOpen={showDraftResultsModal}
         onClose={() => setShowDraftResultsModal(false)}
         onSave={handleDraftResultsSave}
-        currentYear={currentDynasty.currentYear}
+        currentYear={offseasonDataYear}
         teamColors={teamColors}
       />
 
-      {/* Transfer Destinations Modal (Recruiting Week 1) */}
+      {/* Transfer Destinations Modal (National Signing Day) */}
       <TransferDestinationsModal
         isOpen={showTransferDestinationsModal}
         onClose={() => setShowTransferDestinationsModal(false)}
         onSave={handleTransferDestinationsSave}
-        currentYear={currentDynasty.currentYear}
+        currentYear={offseasonDataYear}
         teamColors={teamColors}
       />
 
@@ -7380,7 +7561,7 @@ export default function Dashboard() {
         isOpen={showRecruitingModal}
         onClose={() => setShowRecruitingModal(false)}
         onSave={handleRecruitingCommitmentsSave}
-        currentYear={currentDynasty.currentYear}
+        currentYear={offseasonDataYear}
         currentPhase={currentDynasty.currentPhase}
         currentWeek={currentDynasty.currentWeek}
         commitmentKey={getCommitmentKey()}
@@ -7395,28 +7576,7 @@ export default function Dashboard() {
         onClose={() => setShowPositionChangesModal(false)}
         onSave={handlePositionChangesSave}
         players={currentDynasty?.players || []}
-        existingChanges={currentDynasty?.positionChangesByYear?.[currentDynasty?.currentYear] || []}
-        teamColors={teamColors}
-      />
-
-      {/* Transfer Redshirt Status Modal (National Signing Day) */}
-      <TransferRedshirtModal
-        isOpen={showTransferRedshirtModal}
-        onClose={() => setShowTransferRedshirtModal(false)}
-        onSave={handleTransferRedshirtSave}
-        currentYear={currentDynasty?.currentYear}
-        portalTransfers={(() => {
-          // Get portal transfers from this year's recruiting class
-          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
-          const year = currentDynasty?.currentYear
-          return (currentDynasty?.players || []).filter(p =>
-            p.team === teamAbbr &&
-            p.recruitYear === year &&
-            p.isPortal &&
-            // Only show non-RS classes (Fr, So, Jr, Sr) - already RS classes don't need this
-            ['Fr', 'So', 'Jr', 'Sr'].includes(p.year)
-          )
-        })()}
+        existingChanges={currentDynasty?.positionChangesByYear?.[offseasonDataYear] || []}
         teamColors={teamColors}
       />
 
@@ -7425,11 +7585,11 @@ export default function Dashboard() {
         isOpen={showRecruitingClassRankModal}
         onClose={() => setShowRecruitingClassRankModal(false)}
         onSave={handleRecruitingClassRankSave}
-        currentRank={currentDynasty?.recruitingClassRankByTeamYear?.[getAbbreviationFromDisplayName(currentDynasty?.teamName)]?.[currentDynasty?.currentYear]}
+        currentRank={currentDynasty?.recruitingClassRankByTeamYear?.[getAbbreviationFromDisplayName(currentDynasty?.teamName)]?.[offseasonDataYear]}
         teamColors={teamColors}
       />
 
-      {/* Training Results Modal (Training Camp - Offseason Week 6) */}
+      {/* Training Results Modal (Training Camp - Offseason Week 7) */}
       <TrainingResultsModal
         isOpen={showTrainingResultsModal}
         onClose={() => setShowTrainingResultsModal(false)}
@@ -7438,15 +7598,20 @@ export default function Dashboard() {
         teamColors={teamColors}
         players={(() => {
           // Calculate training players: returning players + portal transfers
+          // Note: playersLeaving and recruitingCommitments use offseasonDataYear (data from before year flip)
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
-          const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentDynasty?.currentYear] || []
+          const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[offseasonDataYear] || []
           const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid))
 
           // Get returning players (not leaving) - use teamRoster which filters by team and excludes recruits
-          const returningPlayers = teamRoster.filter(p => !leavingPids.has(p.pid))
+          // Also exclude players with leavingYear set to offseason data year
+          const returningPlayers = teamRoster.filter(p =>
+            !leavingPids.has(p.pid) &&
+            p.leavingYear !== offseasonDataYear
+          )
 
-          // Get portal transfers from recruiting commitments
-          const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[currentDynasty?.currentYear] || {}
+          // Get portal transfers from recruiting commitments (stored under old year)
+          const recruitingCommitments = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[offseasonDataYear] || {}
           const portalTransfers = []
           Object.values(recruitingCommitments).forEach(weekCommitments => {
             if (Array.isArray(weekCommitments)) {
@@ -7467,23 +7632,142 @@ export default function Dashboard() {
         })()}
       />
 
-      {/* Recruit Overalls Modal (Training Camp - Offseason Week 6) */}
+      {/* Recruit Overalls Modal (Training Camp - Offseason Week 7) */}
       <RecruitOverallsModal
         isOpen={showRecruitOverallsModal}
         onClose={() => setShowRecruitOverallsModal(false)}
         onSave={handleRecruitOverallsSave}
-        currentYear={currentDynasty?.currentYear}
+        currentYear={offseasonDataYear}
         teamColors={teamColors}
         recruits={(() => {
-          // Get recruits for current year (HS and JUCO only - exclude transfer portal)
+          // Get recruits from this recruiting cycle (HS and JUCO only - exclude transfer portal)
+          // Recruits have recruitYear from when they committed (before year flip)
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
           const allPlayers = currentDynasty?.players || []
           return allPlayers.filter(p =>
             p.isRecruit &&
-            p.recruitYear === currentDynasty?.currentYear &&
+            p.recruitYear === offseasonDataYear &&
             (!p.team || p.team === teamAbbr) &&
             !p.isPortal && !p.previousTeam // Exclude transfer portal players
           )
+        })()}
+      />
+
+      {/* Portal Transfer Class Modal (National Signing Day - Offseason Week 6) */}
+      <PortalTransferClassModal
+        isOpen={showPortalTransferClassModal}
+        onClose={() => setShowPortalTransferClassModal(false)}
+        onSave={handlePortalTransferClassSave}
+        currentYear={offseasonDataYear}
+        teamColors={teamColors}
+        portalTransfers={(() => {
+          // Get portal transfers from recruiting commitments for this year
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const recruitingCommitmentsAll = currentDynasty?.recruitingCommitmentsByTeamYear?.[teamAbbr]?.[offseasonDataYear] || {}
+          const transfers = []
+          Object.values(recruitingCommitmentsAll).forEach(weekCommitments => {
+            if (Array.isArray(weekCommitments)) {
+              weekCommitments.forEach(c => {
+                if (c.isPortal && c.year) {
+                  // Only include Fr, So, Jr (not Sr) as they need class assignment
+                  const baseClass = c.year.replace('RS ', '')
+                  if (['Fr', 'So', 'Jr'].includes(baseClass)) {
+                    transfers.push({
+                      name: c.name,
+                      position: c.position,
+                      incomingClass: c.year
+                    })
+                  }
+                }
+              })
+            }
+          })
+          return transfers
+        })()}
+      />
+
+      {/* Fringe Case Class Modal (National Signing Day - Offseason Week 6) */}
+      <FringeCaseClassModal
+        isOpen={showFringeCaseClassModal}
+        onClose={() => setShowFringeCaseClassModal(false)}
+        onSave={handleFringeCaseClassSave}
+        currentYear={offseasonDataYear}
+        teamColors={teamColors}
+        fringeCasePlayers={(() => {
+          // Get players with 5-9 games who might be fringe cases for redshirting
+          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+          const year = offseasonDataYear
+
+          // Count games for each non-senior player on the roster
+          return teamRoster.filter(player => {
+            // Skip seniors (they can't redshirt)
+            if (player.year === 'Sr' || player.year === 'RS Sr') return false
+
+            // Count total games this player appeared in this year
+            let gameCount = 0
+            const playerName = normalizePlayerName(player.name)
+
+            currentDynasty?.games?.forEach(game => {
+              // Skip CPU games
+              if (!game.userTeam && game.team1 && game.team2) return
+              if (parseInt(game.year) !== year) return
+              if (game.userTeam !== teamAbbr) return
+
+              // Check if player appeared in box score
+              if (game.boxScore) {
+                const checkSide = (side) => {
+                  if (!side) return false
+                  const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
+                  for (const cat of categories) {
+                    if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
+                      return true
+                    }
+                  }
+                  return false
+                }
+                if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
+                  gameCount++
+                }
+              }
+            })
+
+            // Fringe case: 5-9 games (might have used redshirt if ≤4 reg season games)
+            return gameCount >= 5 && gameCount <= 9
+          }).map(player => {
+            // Count games for display
+            let gameCount = 0
+            const playerName = normalizePlayerName(player.name)
+
+            currentDynasty?.games?.forEach(game => {
+              if (!game.userTeam && game.team1 && game.team2) return
+              if (parseInt(game.year) !== offseasonDataYear) return
+              const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+              if (game.userTeam !== teamAbbr) return
+
+              if (game.boxScore) {
+                const checkSide = (side) => {
+                  if (!side) return false
+                  const categories = ['passing', 'rushing', 'receiving', 'defense', 'kicking', 'punting', 'kickReturns', 'puntReturns']
+                  for (const cat of categories) {
+                    if (side[cat]?.some(p => normalizePlayerName(p.playerName) === playerName)) {
+                      return true
+                    }
+                  }
+                  return false
+                }
+                if (checkSide(game.boxScore.home) || checkSide(game.boxScore.away)) {
+                  gameCount++
+                }
+              }
+            })
+
+            return {
+              name: player.name,
+              position: player.position,
+              currentClass: player.year,
+              gameCount
+            }
+          })
         })()}
       />
 
