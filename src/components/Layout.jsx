@@ -125,7 +125,8 @@ export default function Layout({ children }) {
 
     // In conference championship phase, check if user has answered the question
     if (currentDynasty.currentPhase === 'conference_championship') {
-      const ccData = currentDynasty.conferenceChampionshipData
+      // Use year-specific CC data
+      const ccData = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear]
       // If they haven't answered whether they made the championship yet
       if (ccData?.madeChampionship === undefined || ccData?.madeChampionship === null) {
         alert('Please answer whether you made the conference championship before advancing.')
@@ -148,7 +149,7 @@ export default function Layout({ children }) {
     if (currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek === 1) {
       const ccResults = currentDynasty.conferenceChampionships?.filter(cc => cc.team1 && cc.team2) || []
       const enteredCount = ccResults.length
-      const userMadeCC = currentDynasty.conferenceChampionshipData?.madeChampionship === true
+      const userMadeCC = currentDynasty.conferenceChampionshipDataByYear?.[currentDynasty.currentYear]?.madeChampionship === true
       const expectedCount = userMadeCC ? 9 : 10
 
       if (enteredCount < expectedCount) {
