@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty, getCurrentTeamRatings, GAME_TYPES } from '../context/DynastyContext'
+import { useDynasty, getCurrentTeamRatings, getCurrentRoster, GAME_TYPES } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
@@ -369,8 +369,8 @@ export default function GameEntryModal({
     return currentOrder > gameOrder + 1
   })()
 
-  // Get list of player names for selection
-  const playerNames = (currentDynasty?.players || [])
+  // Get list of player names for selection (current roster only)
+  const playerNames = getCurrentRoster(currentDynasty)
     .map(p => p.name)
     .sort()
 
