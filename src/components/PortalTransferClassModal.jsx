@@ -269,6 +269,15 @@ export default function PortalTransferClassModal({ isOpen, onClose, onSave, curr
           </div>
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Explanation for embedded view */}
+            {!isMobile && useEmbedded && (
+              <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: `${teamColors.primary}15` }}>
+                <p className="text-sm" style={{ color: teamColors.primary }}>
+                  <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't track whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
+                </p>
+              </div>
+            )}
+
             {/* Action Buttons - only show at top for embedded view */}
             {!isMobile && useEmbedded && (
               <div className="mb-3">
@@ -341,7 +350,12 @@ export default function PortalTransferClassModal({ isOpen, onClose, onSave, curr
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Assign Classes to Portal Transfers</h3>
-                <div className="text-left mb-6 max-w-sm">
+                <div className="text-left mb-6 max-w-md">
+                  <div className="p-3 rounded-lg mb-4" style={{ backgroundColor: `${teamColors.primary}15` }}>
+                    <p className="text-sm" style={{ color: teamColors.primary }}>
+                      <strong>Why is this needed?</strong> Portal transfers enter with a class (Fr, So, Jr), but the game doesn't track whether they used a redshirt at their previous school. Select whether each transfer should be a redshirt (RS) or regular class for the upcoming season.
+                    </p>
+                  </div>
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>

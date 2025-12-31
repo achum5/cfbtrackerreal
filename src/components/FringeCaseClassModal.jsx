@@ -269,6 +269,15 @@ export default function FringeCaseClassModal({ isOpen, onClose, onSave, currentY
           </div>
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Explanation for embedded view */}
+            {!isMobile && useEmbedded && (
+              <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: `${teamColors.primary}15` }}>
+                <p className="text-sm" style={{ color: teamColors.primary }}>
+                  <strong>Why is this needed?</strong> Players with 5-9 total games might have used a redshirt if they played 4 or fewer <em>regular season</em> games (bowl/CFP games don't count against redshirt eligibility). Review each player and select the redshirt version if applicable.
+                </p>
+              </div>
+            )}
+
             {/* Action Buttons - only show at top for embedded view */}
             {!isMobile && useEmbedded && (
               <div className="mb-3">
@@ -341,11 +350,12 @@ export default function FringeCaseClassModal({ isOpen, onClose, onSave, currentY
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: teamColors.primary }}>Resolve Fringe Case Classes</h3>
-                <div className="text-left mb-6 max-w-sm">
-                  <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>About Fringe Cases:</p>
-                  <p className="text-sm mb-3" style={{ color: teamColors.primary, opacity: 0.8 }}>
-                    Players with 5-9 games might have used a redshirt if they only played 4 or fewer <strong>regular season</strong> games.
-                  </p>
+                <div className="text-left mb-6 max-w-md">
+                  <div className="p-3 rounded-lg mb-4" style={{ backgroundColor: `${teamColors.primary}15` }}>
+                    <p className="text-sm" style={{ color: teamColors.primary }}>
+                      <strong>Why is this needed?</strong> Players with 5-9 total games might have used a redshirt if they played 4 or fewer <em>regular season</em> games (bowl/CFP games don't count against redshirt eligibility). Review each player and select the redshirt version if applicable.
+                    </p>
+                  </div>
                   <p className="text-sm font-semibold mb-2" style={{ color: teamColors.primary }}>Instructions:</p>
                   <ol className="text-sm space-y-1.5" style={{ color: teamColors.primary, opacity: 0.8 }}>
                     <li className="flex gap-2"><span className="font-bold">1.</span><span>Tap the button below to open Google Sheets</span></li>
