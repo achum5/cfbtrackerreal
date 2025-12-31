@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -233,6 +233,51 @@ export default function TeamYear() {
   const [editWins, setEditWins] = useState('')
   const [editLosses, setEditLosses] = useState('')
   const [editConference, setEditConference] = useState('')
+
+  // Quick image upload state
+  const [quickImagePlayer, setQuickImagePlayer] = useState(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const quickImageInputRef = useRef(null)
+
+  // Upload image to ImgBB
+  const uploadToImgBB = async (file) => {
+    const apiKey = import.meta.env.VITE_IMGBB_API_KEY || '1369fa0365731b13c5330a26fedf569c'
+    if (!apiKey) return null
+
+    const formDataUpload = new FormData()
+    formDataUpload.append('image', file)
+    formDataUpload.append('key', apiKey)
+
+    try {
+      setImageUploading(true)
+      const response = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formDataUpload
+      })
+      const data = await response.json()
+      return data.success ? data.data.url : null
+    } catch (error) {
+      console.error('Upload failed:', error)
+      return null
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  // Handle quick image upload for a player
+  const handleQuickImageUpload = async (file) => {
+    if (!file || !quickImagePlayer) return
+
+    const url = await uploadToImgBB(file)
+    if (url) {
+      // Update the player's pictureUrl
+      const updatedPlayers = currentDynasty.players.map(p =>
+        p.pid === quickImagePlayer.pid ? { ...p, pictureUrl: url } : p
+      )
+      await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+      setQuickImagePlayer(null)
+    }
+  }
 
   if (!currentDynasty) return null
 
@@ -1968,8 +2013,54 @@ export default function TeamYear() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {/* Player Image or Placeholder */}
-                      {player.pictureUrl ? (
+                      {/* Player Image or Placeholder - Clickable for upload */}
+                      {!isViewOnly ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setQuickImagePlayer(player)
+                          }}
+                          className="relative group flex-shrink-0"
+                          title="Click to add/change photo"
+                        >
+                          {player.pictureUrl ? (
+                            <div
+                              className="w-11 h-11 rounded-full overflow-hidden group-hover:opacity-80 transition-opacity"
+                              style={{ border: `2px solid ${teamInfo.textColor}` }}
+                            >
+                              <img
+                                src={player.pictureUrl}
+                                alt={player.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="w-11 h-11 rounded-full flex items-center justify-center group-hover:opacity-80 transition-opacity"
+                              style={{
+                                backgroundColor: teamInfo.textColor,
+                                color: teamPrimaryText
+                              }}
+                            >
+                              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                              </svg>
+                            </div>
+                          )}
+                          {/* Camera icon overlay */}
+                          <div
+                            className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: teamInfo.textColor }}
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                            </svg>
+                          </div>
+                        </button>
+                      ) : player.pictureUrl ? (
                         <div
                           className="w-11 h-11 rounded-full flex-shrink-0 overflow-hidden"
                           style={{ border: `2px solid ${teamInfo.textColor}` }}
@@ -2088,8 +2179,53 @@ export default function TeamYear() {
                       </td>
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-2">
-                          {/* Player Image */}
-                          {player.pictureUrl && (
+                          {/* Player Image or Placeholder - Clickable for upload */}
+                          {!isViewOnly ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setQuickImagePlayer(player)
+                              }}
+                              className="relative group flex-shrink-0"
+                              title="Click to add/change photo"
+                            >
+                              {player.pictureUrl ? (
+                                <div
+                                  className="w-8 h-8 rounded-full overflow-hidden group-hover:opacity-80 transition-opacity"
+                                  style={{ border: `2px solid ${teamInfo.textColor}` }}
+                                >
+                                  <img
+                                    src={player.pictureUrl}
+                                    alt={player.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-8 h-8 rounded-full flex items-center justify-center group-hover:opacity-80 transition-opacity"
+                                  style={{
+                                    backgroundColor: teamInfo.textColor,
+                                    color: teamPrimaryText
+                                  }}
+                                >
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                                  </svg>
+                                </div>
+                              )}
+                              {/* Camera icon overlay */}
+                              <div
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: teamInfo.textColor }}
+                              >
+                                <svg className="w-2 h-2" fill="none" stroke={teamPrimaryText} viewBox="0 0 24 24" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                                </svg>
+                              </div>
+                            </button>
+                          ) : player.pictureUrl ? (
                             <Link
                               to={`${pathPrefix}/player/${player.pid}`}
                               className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden block"
@@ -2102,6 +2238,18 @@ export default function TeamYear() {
                                 className="w-full h-full object-cover"
                               />
                             </Link>
+                          ) : (
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                              style={{
+                                backgroundColor: teamInfo.textColor,
+                                color: teamPrimaryText
+                              }}
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                              </svg>
+                            </div>
                           )}
                           <Link
                             to={`${pathPrefix}/player/${player.pid}`}
@@ -2933,6 +3081,161 @@ export default function TeamYear() {
                   Save Changes
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Image Upload Modal */}
+      {quickImagePlayer && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setQuickImagePlayer(null)}
+        >
+          <div
+            className="rounded-xl max-w-sm w-full overflow-hidden shadow-2xl"
+            style={{ backgroundColor: teamSecondaryBg }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4" style={{ backgroundColor: teamInfo.textColor }}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold" style={{ color: teamPrimaryText }}>
+                  {quickImagePlayer.pictureUrl ? 'Change Photo' : 'Add Photo'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setQuickImagePlayer(null)}
+                  className="p-1 rounded-lg hover:bg-white/10"
+                  style={{ color: teamPrimaryText }}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm mt-1 opacity-80" style={{ color: teamPrimaryText }}>
+                {quickImagePlayer.name}
+              </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Current image preview */}
+              {quickImagePlayer.pictureUrl && (
+                <div className="flex justify-center">
+                  <img
+                    src={quickImagePlayer.pictureUrl}
+                    alt=""
+                    className="w-24 h-24 rounded-full object-cover border-4"
+                    style={{ borderColor: teamInfo.textColor }}
+                  />
+                </div>
+              )}
+
+              {/* Paste area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-text"
+                style={{ borderColor: teamInfo.textColor }}
+                tabIndex={0}
+                onPaste={async (e) => {
+                  const items = e.clipboardData?.items
+                  if (!items) return
+                  for (const item of items) {
+                    if (item.type.startsWith('image/')) {
+                      e.preventDefault()
+                      const file = item.getAsFile()
+                      if (file) {
+                        await handleQuickImageUpload(file)
+                      }
+                      return
+                    }
+                  }
+                }}
+              >
+                {imageUploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <svg className="animate-spin h-8 w-8" style={{ color: teamInfo.textColor }} viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <p className="text-sm font-medium" style={{ color: teamBgText }}>Uploading...</p>
+                  </div>
+                ) : (
+                  <>
+                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke={teamInfo.textColor} viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15m0-3l-3-3m0 0l-3 3m3-3V15" />
+                    </svg>
+                    <p className="text-sm font-medium mb-1" style={{ color: teamBgText }}>
+                      Click here and paste image (Ctrl+V)
+                    </p>
+                    <p className="text-xs" style={{ color: teamBgText, opacity: 0.7 }}>
+                      Works with screenshots & copied images
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Or divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: `${teamInfo.textColor}30` }} />
+                <span className="text-xs font-medium" style={{ color: teamBgText, opacity: 0.7 }}>or</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: `${teamInfo.textColor}30` }} />
+              </div>
+
+              {/* File upload button */}
+              <input
+                type="file"
+                ref={quickImageInputRef}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file')
+                    return
+                  }
+                  if (file.size > 32 * 1024 * 1024) {
+                    alert('Image must be less than 32MB')
+                    return
+                  }
+                  await handleQuickImageUpload(file)
+                  e.target.value = ''
+                }}
+                accept="image/*"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => quickImageInputRef.current?.click()}
+                disabled={imageUploading}
+                className="w-full py-3 rounded-lg font-medium text-sm flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: teamInfo.textColor,
+                  color: teamPrimaryText,
+                  opacity: imageUploading ? 0.7 : 1
+                }}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Choose from Device
+              </button>
+
+              {/* Remove photo button if exists */}
+              {quickImagePlayer.pictureUrl && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const updatedPlayers = currentDynasty.players.map(p =>
+                      p.pid === quickImagePlayer.pid ? { ...p, pictureUrl: '' } : p
+                    )
+                    await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+                    setQuickImagePlayer(null)
+                  }}
+                  className="w-full py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Remove Photo
+                </button>
+              )}
             </div>
           </div>
         </div>
