@@ -1609,6 +1609,10 @@ export function DynastyProvider({ children }) {
           additionalUpdates.googleSheetUrl = null
         }
       }
+      // Clear other preseason sheet IDs
+      additionalUpdates.scheduleSheetId = null
+      additionalUpdates.rosterSheetId = null
+      additionalUpdates.rosterEditSheetId = null
     } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 12) {
       // After week 12, move to conference championship week
       nextPhase = 'conference_championship'
@@ -1864,12 +1868,16 @@ export function DynastyProvider({ children }) {
       // Clear CC firing data for the new season
       additionalUpdates.conferenceChampionshipData = null
 
-      // Clear temporary sheet IDs
+      // Clear temporary sheet IDs from offseason
       additionalUpdates.trainingResultsSheetId = null
       additionalUpdates.playersLeavingSheetId = null
       additionalUpdates.encourageTransfersSheetId = null
       additionalUpdates.recruitOverallsSheetId = null
       additionalUpdates.conferencesSheetId = null
+      additionalUpdates.portalTransferClassSheetId = null
+      additionalUpdates.fringeCaseClassSheetId = null
+      additionalUpdates.transferDestinationsSheetId = null
+      additionalUpdates.draftResultsSheetId = null
     }
 
     await updateDynasty(dynastyId, {
