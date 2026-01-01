@@ -6218,10 +6218,10 @@ export default function Dashboard() {
                 const isLoss = playedGame?.result === 'loss' || (playedGame && playedGame.result !== 'win')
 
                 const gameContent = (
-                  <div className="flex items-center w-full">
+                  <div className="flex items-center w-full overflow-hidden">
                     {/* Week Badge */}
                     <div
-                      className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                      className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                       style={{
                         backgroundColor: playedGame
                           ? (isWin ? '#22c55e' : '#ef4444')
@@ -6236,13 +6236,13 @@ export default function Dashboard() {
 
                     {/* Game Info */}
                     <div
-                      className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                      className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                       style={{ backgroundColor: opponentColors.backgroundColor }}
                     >
-                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
                         {/* Location Badge */}
                         <span
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                           style={{
                             backgroundColor: `${opponentColors.textColor}15`,
                             color: opponentColors.textColor
@@ -6254,8 +6254,8 @@ export default function Dashboard() {
                         {/* Team Logo */}
                         {opponentLogo && (
                           <div
-                            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
-                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                            className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                           >
                             <img
                               src={opponentLogo}
@@ -6267,13 +6267,13 @@ export default function Dashboard() {
 
                         {/* Team Name */}
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1">
                             {playedGame?.opponentRank && (
-                              <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${opponentColors.textColor}15`, color: opponentColors.textColor }}>
+                              <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${opponentColors.textColor}15`, color: opponentColors.textColor }}>
                                 #{playedGame.opponentRank}
                               </span>
                             )}
-                            <span className="text-sm sm:text-base font-semibold truncate" style={{ color: opponentColors.textColor }}>
+                            <span className="text-xs sm:text-base font-semibold truncate" style={{ color: opponentColors.textColor }}>
                               {opponentName}
                             </span>
                           </div>
@@ -6281,19 +6281,19 @@ export default function Dashboard() {
                       </div>
 
                       {/* Score / Status */}
-                      <div className="flex-shrink-0 text-right">
+                      <div className="flex-shrink-0 text-right ml-1">
                         {playedGame ? (
-                          <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: opponentColors.textColor }}>
-                            {playedGame.teamScore} - {playedGame.opponentScore}
+                          <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: opponentColors.textColor }}>
+                            {playedGame.teamScore}-{playedGame.opponentScore}
                             {playedGame.overtimes && playedGame.overtimes.length > 0 && (
-                              <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
+                              <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                                 {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
                               </span>
                             )}
                           </div>
                         ) : isCurrentWeek ? (
                           <span
-                            className="inline-block text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                            className="inline-block text-[8px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full animate-pulse"
                             style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
                           >
                             GAMEDAY
@@ -6355,10 +6355,10 @@ export default function Dashboard() {
               const isLoss = ccGame && ccGame.result !== 'win'
 
               const ccContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   {/* Week Badge */}
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{
                       backgroundColor: ccGame
                         ? (isWin ? '#22c55e' : '#ef4444')
@@ -6373,13 +6373,13 @@ export default function Dashboard() {
 
                   {/* Game Info */}
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
                       {/* Location Badge */}
                       <span
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                         style={{
                           backgroundColor: `${hasOpponent ? ccOpponentColors.textColor : '#fff'}15`,
                           color: hasOpponent ? ccOpponentColors.textColor : '#fff'
@@ -6391,8 +6391,8 @@ export default function Dashboard() {
                       {/* Team Logo */}
                       {ccOpponentLogo && (
                         <div
-                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
-                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                         >
                           <img
                             src={ccOpponentLogo}
@@ -6404,13 +6404,13 @@ export default function Dashboard() {
 
                       {/* Team Name */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           {ccGame?.opponentRank && (
-                            <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${ccOpponentColors.textColor}15`, color: ccOpponentColors.textColor }}>
+                            <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${ccOpponentColors.textColor}15`, color: ccOpponentColors.textColor }}>
                               #{ccGame.opponentRank}
                             </span>
                           )}
-                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#fff' }}>
+                          <span className="text-xs sm:text-base font-semibold truncate" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#fff' }}>
                             {ccOpponentName}
                           </span>
                         </div>
@@ -6418,19 +6418,19 @@ export default function Dashboard() {
                     </div>
 
                     {/* Score / Status */}
-                    <div className="flex-shrink-0 text-right">
+                    <div className="flex-shrink-0 text-right ml-1">
                       {ccGame ? (
-                        <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: ccOpponentColors.textColor }}>
-                          {ccGame.teamScore} - {ccGame.opponentScore}
+                        <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: ccOpponentColors.textColor }}>
+                          {ccGame.teamScore}-{ccGame.opponentScore}
                           {ccGame.overtimes && ccGame.overtimes.length > 0 && (
-                            <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
+                            <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                               {ccGame.overtimes.length > 1 ? `${ccGame.overtimes.length}OT` : 'OT'}
                             </span>
                           )}
                         </div>
                       ) : isCurrentCCWeek ? (
                         <span
-                          className="inline-block text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                          className="inline-block text-[8px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full animate-pulse"
                           style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
                         >
                           GAMEDAY
@@ -6502,10 +6502,10 @@ export default function Dashboard() {
               const isWin = userBowlGameData?.result === 'win'
 
               const bowlContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   {/* Week Badge */}
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{
                       backgroundColor: userBowlGameData
                         ? (isWin ? '#22c55e' : '#ef4444')
@@ -6518,13 +6518,13 @@ export default function Dashboard() {
 
                   {/* Game Info */}
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
                       {/* Location Badge */}
                       <span
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                         style={{
                           backgroundColor: `${hasOpponent ? bowlOpponentColors.textColor : '#fff'}15`,
                           color: hasOpponent ? bowlOpponentColors.textColor : '#fff'
@@ -6536,8 +6536,8 @@ export default function Dashboard() {
                       {/* Team Logo */}
                       {bowlOpponentLogo && (
                         <div
-                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
-                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                         >
                           <img
                             src={bowlOpponentLogo}
@@ -6549,29 +6549,29 @@ export default function Dashboard() {
 
                       {/* Team Name */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1">
                           {userBowlGameData?.opponentRank && (
-                            <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${bowlOpponentColors.textColor}15`, color: bowlOpponentColors.textColor }}>
+                            <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: `${bowlOpponentColors.textColor}15`, color: bowlOpponentColors.textColor }}>
                               #{userBowlGameData.opponentRank}
                             </span>
                           )}
-                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
+                          <span className="text-xs sm:text-base font-semibold truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
                             {bowlOpponentName}
                           </span>
                         </div>
-                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
                           {bowlGameName}
                         </span>
                       </div>
                     </div>
 
                     {/* Score / Status */}
-                    <div className="flex-shrink-0 text-right">
+                    <div className="flex-shrink-0 text-right ml-1">
                       {userBowlGameData ? (
-                        <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: bowlOpponentColors.textColor }}>
-                          {userBowlGameData.teamScore} - {userBowlGameData.opponentScore}
+                        <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: bowlOpponentColors.textColor }}>
+                          {userBowlGameData.teamScore}-{userBowlGameData.opponentScore}
                           {userBowlGameData.overtimes && userBowlGameData.overtimes.length > 0 && (
-                            <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
+                            <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                               {userBowlGameData.overtimes.length > 1 ? `${userBowlGameData.overtimes.length}OT` : 'OT'}
                             </span>
                           )}
@@ -6623,10 +6623,10 @@ export default function Dashboard() {
               const isWin = cfpFirstRoundGame.result === 'win' || cfpFirstRoundGame.result === 'W'
 
               const cfpContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   {/* Week Badge */}
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{
                       backgroundColor: isWin ? '#22c55e' : '#ef4444',
                       color: '#fff'
@@ -6637,13 +6637,13 @@ export default function Dashboard() {
 
                   {/* Game Info */}
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
                       {/* Location Badge */}
                       <span
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                         style={{
                           backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`,
                           color: hasOpponent ? cfpOpponentColors.textColor : '#fff'
@@ -6655,8 +6655,8 @@ export default function Dashboard() {
                       {/* Team Logo */}
                       {cfpOpponentLogo && (
                         <div
-                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
-                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                         >
                           <img
                             src={cfpOpponentLogo}
@@ -6669,20 +6669,20 @@ export default function Dashboard() {
                       {/* Team Name */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
+                          <span className="text-xs sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
                             {cfpOpponentName}
                           </span>
                         </div>
-                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
                           CFP First Round
                         </span>
                       </div>
                     </div>
 
                     {/* Score */}
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>
-                        {cfpFirstRoundGame.teamScore} - {cfpFirstRoundGame.opponentScore}
+                    <div className="flex-shrink-0 text-right ml-1">
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>
+                        {cfpFirstRoundGame.teamScore}-{cfpFirstRoundGame.opponentScore}
                       </div>
                     </div>
                   </div>
@@ -6716,31 +6716,31 @@ export default function Dashboard() {
               const isWin = cfpQFGame.result === 'win' || cfpQFGame.result === 'W'
 
               const cfpContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
                   >
                     {isWin ? 'W' : 'L'}
                   </div>
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
+                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
-                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
+                        <span className="text-xs sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
                       </div>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpQFGame.teamScore} - {cfpQFGame.opponentScore}</div>
+                    <div className="flex-shrink-0 text-right ml-1">
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpQFGame.teamScore}-{cfpQFGame.opponentScore}</div>
                     </div>
                   </div>
                 </div>
@@ -6769,31 +6769,31 @@ export default function Dashboard() {
               const isWin = cfpSFGame.result === 'win' || cfpSFGame.result === 'W'
 
               const cfpContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
                   >
                     {isWin ? 'W' : 'L'}
                   </div>
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
+                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
-                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
+                        <span className="text-xs sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
                       </div>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpSFGame.teamScore} - {cfpSFGame.opponentScore}</div>
+                    <div className="flex-shrink-0 text-right ml-1">
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpSFGame.teamScore}-{cfpSFGame.opponentScore}</div>
                     </div>
                   </div>
                 </div>
@@ -6821,31 +6821,31 @@ export default function Dashboard() {
               const isWin = cfpChampGame.result === 'win' || cfpChampGame.result === 'W'
 
               const cfpContent = (
-                <div className="flex items-center w-full">
+                <div className="flex items-center w-full overflow-hidden">
                   <div
-                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
                     style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
                   >
                     {isWin ? 'W' : 'L'}
                   </div>
                   <div
-                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
                     style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
+                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
-                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>National Championship</span>
+                        <span className="text-xs sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>National Championship</span>
                       </div>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpChampGame.teamScore} - {cfpChampGame.opponentScore}</div>
+                    <div className="flex-shrink-0 text-right ml-1">
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpChampGame.teamScore}-{cfpChampGame.opponentScore}</div>
                     </div>
                   </div>
                 </div>

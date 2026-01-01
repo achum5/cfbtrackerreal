@@ -305,6 +305,38 @@ CFP First Round games in `cfpResultsByYear[year].firstRound[]`:
 - If expired, user must sign out and back in
 - Scopes: `spreadsheets` and `drive.file`
 
+### Schedule Card Design Pattern
+
+Both Dashboard.jsx and TeamYear.jsx use a consistent schedule card design:
+
+```jsx
+<div className="flex items-center w-full overflow-hidden">
+  {/* W/L or Week Badge - left side */}
+  <div className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
+    style={{ backgroundColor: hasResult ? (isWin ? '#22c55e' : '#ef4444') : oppColors.textColor, color: ... }}>
+    {hasResult ? (isWin ? 'W' : 'L') : weekLabel}
+  </div>
+
+  {/* Game Info - right side */}
+  <div className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
+    style={{ backgroundColor: oppColors.backgroundColor }}>
+    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+      {/* Location badge: w-6 h-6 sm:w-8 sm:h-8 */}
+      {/* Logo: w-7 h-7 sm:w-10 sm:h-10 */}
+      {/* Team name + week subtitle */}
+    </div>
+    {/* Score: text-sm sm:text-lg */}
+  </div>
+</div>
+```
+
+**Mobile-responsive sizing**:
+- Week badge: `w-10 sm:w-14`
+- Location badge: `w-6 h-6 sm:w-8 sm:h-8`
+- Logo: `w-7 h-7 sm:w-10 sm:h-10`
+- Gaps: `gap-1.5 sm:gap-3`
+- Text: `text-xs sm:text-base` for names, `text-[9px] sm:text-xs` for subtitles
+
 ## Hidden Dev Tools
 
 Features hidden with `{false && (...)}` for future use:

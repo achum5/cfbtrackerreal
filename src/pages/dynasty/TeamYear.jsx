@@ -2400,39 +2400,53 @@ export default function TeamYear() {
                 properGameId = getCFPGameId('cfpnc', selectedYear)
               }
 
-              // Content for the game display
-              const gameContent = (
-                <>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
-                      {game.isCFPChampionship ? 'Natty' :
+              // Get the week/game type label
+              const weekLabel = game.isCFPChampionship ? 'Natty' :
                        game.isCFPSemifinal ? 'CFP SF' :
                        game.isCFPQuarterfinal ? 'CFP QF' :
                        game.isCFPFirstRound ? 'CFP R1' :
                        game.isBowlGame ? 'Bowl' :
                        game.isPlayoff ? 'CFP' :
                        game.isConferenceChampionship ? 'CCG' :
-                       `Wk ${game.week}`}
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                       `Wk ${game.week}`
+
+              // Content for the game display - new design with W/L badge on left
+              const gameContent = (
+                <div className="flex items-center w-full overflow-hidden">
+                  {/* Week/Result Badge */}
+                  <div
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
+                    style={{
+                      backgroundColor: hasResult ? (isWin ? '#22c55e' : '#ef4444') : oppColors.textColor,
+                      color: hasResult ? '#fff' : oppColors.backgroundColor
+                    }}
+                  >
+                    {hasResult ? (isWin ? 'W' : 'L') : weekLabel}
+                  </div>
+
+                  {/* Game Info */}
+                  <div
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
+                    style={{ backgroundColor: oppColors.backgroundColor }}
+                  >
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                      {/* Location Badge */}
                       <span
-                        className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                         style={{
-                          backgroundColor: oppColors.textColor,
-                          color: oppColors.backgroundColor
+                          backgroundColor: `${oppColors.textColor}15`,
+                          color: oppColors.textColor
                         }}
                       >
                         {displayLocation === 'away' ? '@' : 'vs'}
                       </span>
+
+                      {/* Team Logo */}
                       {oppLogo && (
                         <Link
                           to={`${pathPrefix}/team/${displayOpponent}/${selectedYear}`}
-                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform"
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${oppColors.textColor}`,
-                            padding: '2px'
-                          }}
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 hover:scale-110 transition-transform bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <img
@@ -2442,51 +2456,51 @@ export default function TeamYear() {
                           />
                         </Link>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                        {game.opponentRank && (
-                          <span className="text-xs font-bold flex-shrink-0" style={{ color: oppColors.textColor, opacity: 0.7 }}>
-                            #{game.opponentRank}
+
+                      {/* Team Name */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          {game.opponentRank && (
+                            <span className="text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ color: oppColors.textColor, opacity: 0.7 }}>
+                              #{game.opponentRank}
+                            </span>
+                          )}
+                          <Link
+                            to={`${pathPrefix}/team/${displayOpponent}/${selectedYear}`}
+                            className="font-semibold hover:underline text-xs sm:text-base truncate"
+                            style={{ color: oppColors.textColor }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {oppMascot || displayOpponent}
+                          </Link>
+                        </div>
+                        {hasResult && (
+                          <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: oppColors.textColor }}>
+                            {weekLabel}
                           </span>
                         )}
-                        <Link
-                          to={`${pathPrefix}/team/${displayOpponent}/${selectedYear}`}
-                          className="font-semibold hover:underline text-sm sm:text-base truncate"
-                          style={{ color: oppColors.textColor }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {oppMascot || displayOpponent}
-                        </Link>
                       </div>
                     </div>
-                  </div>
-                  {hasResult ? (
-                    <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
-                      <div
-                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                        style={{
-                          backgroundColor: isWin ? '#22c55e' : '#ef4444',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {isWin ? 'W' : 'L'}
-                      </div>
-                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
-                        <div className="font-bold text-sm sm:text-base" style={{ color: oppColors.textColor }}>
-                          {Math.max(displayTeamScore, displayOpponentScore)} - {Math.min(displayTeamScore, displayOpponentScore)}
+
+                    {/* Score or Status */}
+                    <div className="flex-shrink-0 text-right ml-1">
+                      {hasResult ? (
+                        <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: oppColors.textColor }}>
+                          {Math.max(displayTeamScore, displayOpponentScore)}-{Math.min(displayTeamScore, displayOpponentScore)}
                           {game.overtimes && game.overtimes.length > 0 && (
-                            <span className="ml-1 text-xs opacity-80">
+                            <span className="ml-1 text-[9px] sm:text-xs opacity-80">
                               {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
                             </span>
                           )}
                         </div>
-                      </div>
+                      ) : (
+                        <span className="text-[10px] sm:text-xs font-medium opacity-70" style={{ color: oppColors.textColor }}>
+                          Scheduled
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: oppColors.textColor, opacity: 0.7 }}>
-                      Scheduled
-                    </div>
-                  )}
-                </>
+                  </div>
+                </div>
               )
 
               // Return the wrapped content
@@ -2495,11 +2509,8 @@ export default function TeamYear() {
                   <Link
                     key={index}
                     to={`${pathPrefix}/game/${properGameId}`}
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 block ${hasResult ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
-                    style={{
-                      backgroundColor: oppColors.backgroundColor,
-                      borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : oppColors.backgroundColor
-                    }}
+                    className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                   >
                     {gameContent}
                   </Link>
@@ -2509,11 +2520,8 @@ export default function TeamYear() {
               return (
                 <div
                   key={index}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                  style={{
-                    backgroundColor: oppColors.backgroundColor,
-                    borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : oppColors.backgroundColor
-                  }}
+                  className="rounded-xl overflow-hidden"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                 >
                   {gameContent}
                 </div>
@@ -2562,48 +2570,42 @@ export default function TeamYear() {
               const thisTeamScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team1Score : teamCCGame.team2Score) : null
               const oppScore = teamCCGame ? (teamCCGame.team1 === teamAbbr ? teamCCGame.team2Score : teamCCGame.team1Score) : null
 
-              // Use Link for CC games with results
-              const ccGameId = teamCCGame?.id || `cc-${selectedYear}`
-              const WrapperComponent = hasResult ? Link : 'div'
-              const wrapperProps = hasResult ? {
-                to: `${pathPrefix}/game/${ccGameId}`,
-                className: 'flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block',
-                style: {
-                  backgroundColor: ccOppColors.backgroundColor,
-                  borderColor: isWin ? '#86efac' : isLoss ? '#fca5a5' : ccOppColors.backgroundColor
-                }
-              } : {
-                className: 'flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0',
-                style: {
-                  backgroundColor: ccOppColors.backgroundColor,
-                  borderColor: ccOppColors.backgroundColor
-                }
-              }
+              // CC game content with new design
+              const ccGameContent = (
+                <div className="flex items-center w-full overflow-hidden">
+                  {/* Week/Result Badge */}
+                  <div
+                    className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
+                    style={{
+                      backgroundColor: hasResult ? (isWin ? '#22c55e' : '#ef4444') : ccOppColors.textColor,
+                      color: hasResult ? '#fff' : ccOppColors.backgroundColor
+                    }}
+                  >
+                    {hasResult ? (isWin ? 'W' : 'L') : 'CCG'}
+                  </div>
 
-              return (
-                <WrapperComponent {...wrapperProps}>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: ccOppColors.textColor, opacity: 0.9 }}>
-                      CCG
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                  {/* Game Info */}
+                  <div
+                    className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
+                    style={{ backgroundColor: ccOppColors.backgroundColor }}
+                  >
+                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                      {/* Location Badge */}
                       <span
-                        className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
+                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                         style={{
-                          backgroundColor: ccOppColors.textColor,
-                          color: ccOppColors.backgroundColor
+                          backgroundColor: `${ccOppColors.textColor}15`,
+                          color: ccOppColors.textColor
                         }}
                       >
                         vs
                       </span>
+
+                      {/* Team Logo */}
                       {ccOppLogo && (
                         <div
-                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${ccOppColors.textColor}`,
-                            padding: '2px'
-                          }}
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
                         >
                           <img
                             src={ccOppLogo}
@@ -2612,41 +2614,55 @@ export default function TeamYear() {
                           />
                         </div>
                       )}
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="font-semibold text-sm sm:text-base truncate" style={{ color: ccOppColors.textColor }}>
+
+                      {/* Team Name */}
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-xs sm:text-base truncate block" style={{ color: ccOppColors.textColor }}>
                           {ccOpponentDisplayName}
                         </span>
-                        {teamCCGame?.conference && (
-                          <span className="text-xs opacity-70 truncate" style={{ color: ccOppColors.textColor }}>
-                            {teamCCGame.conference} Championship
-                          </span>
-                        )}
+                        <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: ccOppColors.textColor }}>
+                          {teamCCGame?.conference ? `${teamCCGame.conference} Championship` : 'Conference Championship'}
+                        </span>
                       </div>
+                    </div>
+
+                    {/* Score or Status */}
+                    <div className="flex-shrink-0 text-right ml-1">
+                      {hasResult ? (
+                        <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: ccOppColors.textColor }}>
+                          {Math.max(thisTeamScore, oppScore)}-{Math.min(thisTeamScore, oppScore)}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] sm:text-xs font-medium opacity-70" style={{ color: ccOppColors.textColor }}>
+                          Scheduled
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {hasResult ? (
-                    <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
-                      <div
-                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                        style={{
-                          backgroundColor: isWin ? '#22c55e' : '#ef4444',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {isWin ? 'W' : 'L'}
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-sm sm:text-base" style={{ color: ccOppColors.textColor }}>
-                          {Math.max(thisTeamScore, oppScore)} - {Math.min(thisTeamScore, oppScore)}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: ccOppColors.textColor, opacity: 0.7 }}>
-                      Scheduled
-                    </div>
-                  )}
-                </WrapperComponent>
+                </div>
+              )
+
+              const ccGameId = teamCCGame?.id || `cc-${selectedYear}`
+
+              if (hasResult) {
+                return (
+                  <Link
+                    to={`${pathPrefix}/game/${ccGameId}`}
+                    className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+                  >
+                    {ccGameContent}
+                  </Link>
+                )
+              }
+
+              return (
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+                >
+                  {ccGameContent}
+                </div>
               )
             })()}
 
@@ -2677,54 +2693,70 @@ export default function TeamYear() {
 
               return (
                 <div
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                  style={{
-                    backgroundColor: oppColors.backgroundColor,
-                    borderColor: oppColors.backgroundColor
-                  }}
+                  className="rounded-xl overflow-hidden"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                 >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16" style={{ color: oppColors.textColor, opacity: 0.9 }}>
+                  <div className="flex items-center w-full overflow-hidden">
+                    {/* Week Badge */}
+                    <div
+                      className="w-10 sm:w-14 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-[10px] sm:text-sm"
+                      style={{
+                        backgroundColor: oppColors.textColor,
+                        color: oppColors.backgroundColor
+                      }}
+                    >
                       Bowl
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                      <span
-                        className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0"
-                        style={{
-                          backgroundColor: oppColors.textColor,
-                          color: oppColors.backgroundColor
-                        }}
-                      >
-                        vs
-                      </span>
-                      {oppLogo && (
-                        <div
-                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+
+                    {/* Game Info */}
+                    <div
+                      className="flex-1 flex items-center justify-between py-2 sm:py-3 px-2 sm:px-4 rounded-r-xl min-w-0"
+                      style={{ backgroundColor: oppColors.backgroundColor }}
+                    >
+                      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+                        {/* Location Badge */}
+                        <span
+                          className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[9px] sm:text-xs font-bold flex-shrink-0"
                           style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${oppColors.textColor}`,
-                            padding: '2px'
+                            backgroundColor: `${oppColors.textColor}15`,
+                            color: oppColors.textColor
                           }}
                         >
-                          <img
-                            src={oppLogo}
-                            alt={`${opponentDisplayName} logo`}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                      )}
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="font-semibold text-sm sm:text-base truncate" style={{ color: oppColors.textColor }}>
-                          {opponentDisplayName}
+                          vs
                         </span>
-                        <span className="text-xs opacity-70 truncate" style={{ color: oppColors.textColor }}>
-                          {bowlData.bowlGame}
+
+                        {/* Team Logo */}
+                        {oppLogo && (
+                          <div
+                            className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '3px' }}
+                          >
+                            <img
+                              src={oppLogo}
+                              alt={`${opponentDisplayName} logo`}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+
+                        {/* Team Name */}
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-xs sm:text-base truncate block" style={{ color: oppColors.textColor }}>
+                            {opponentDisplayName}
+                          </span>
+                          <span className="text-[9px] sm:text-xs opacity-70 truncate block" style={{ color: oppColors.textColor }}>
+                            {bowlData.bowlGame}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex-shrink-0 text-right ml-1">
+                        <span className="text-[10px] sm:text-xs font-medium opacity-70" style={{ color: oppColors.textColor }}>
+                          Scheduled
                         </span>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: oppColors.textColor, opacity: 0.7 }}>
-                    Scheduled
                   </div>
                 </div>
               )
