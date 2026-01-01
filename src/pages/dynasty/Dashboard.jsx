@@ -74,9 +74,11 @@ export default function Dashboard() {
   const teamCoachingStaff = getCurrentCoachingStaff(currentDynasty)
   const teamGoogleSheet = getCurrentGoogleSheet(currentDynasty)
 
-  // Calculate wins/losses for schedule section header
-  const wins = teamSchedule?.filter(g => g.result === 'win').length || 0
-  const losses = teamSchedule?.filter(g => g.result === 'loss').length || 0
+  // Calculate wins/losses for schedule section header from actual game results
+  const allUserGamesThisYear = (currentDynasty?.games || [])
+    .filter(g => Number(g.year) === Number(currentDynasty?.currentYear) && g.userTeam)
+  const wins = allUserGamesThisYear.filter(g => g.result === 'win').length
+  const losses = allUserGamesThisYear.filter(g => g.result === 'loss').length
 
   // IMPORTANT: On Signing Day (week 6) and Training Camp (week 7), the year has already flipped.
   // Use offseasonDataYear for data that was entered during weeks 1-5 (playersLeaving, recruiting, etc.)
@@ -6344,47 +6346,53 @@ export default function Dashboard() {
               const ccOpponentAbbr = ccGame?.opponent || ccOpponent || ccDataForYear.opponent
               const hasOpponent = !!ccOpponentAbbr
               const ccOpponentColors = hasOpponent ? getOpponentColors(ccOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              // ccOpponentAbbr could be an abbreviation OR a mascot name
-              // If getMascotName returns null, check if the input itself is a mascot name (has a logo)
               const ccMascotFromAbbr = hasOpponent ? getMascotName(ccOpponentAbbr) : null
               const ccMascotName = ccMascotFromAbbr || (hasOpponent && getTeamLogo(ccOpponentAbbr) ? ccOpponentAbbr : null)
               const ccOpponentName = ccMascotName || (hasOpponent ? getTeamNameFromAbbr(ccOpponentAbbr) : 'Opponent Unknown')
               const ccOpponentLogo = ccMascotName ? getTeamLogo(ccMascotName) : null
               const isCurrentCCWeek = currentDynasty.currentPhase === 'conference_championship' && !ccGame
-
-              const ccWrapperStyle = {
-                backgroundColor: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280',
-                borderColor: ccGame
-                  ? ccGame.result === 'win'
-                    ? '#86efac'
-                    : '#fca5a5'
-                  : isCurrentCCWeek
-                    ? teamColors.primary
-                    : hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280',
-                boxShadow: isCurrentCCWeek ? `0 0 0 3px ${teamColors.primary}40, 0 4px 12px ${teamColors.primary}30` : 'none'
-              }
+              const isWin = ccGame?.result === 'win'
+              const isLoss = ccGame && ccGame.result !== 'win'
 
               const ccContent = (
-                <>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      {currentDynasty.conference} CC
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? ccOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280'
-                      }}>
+                <div className="flex items-center w-full">
+                  {/* Week Badge */}
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{
+                      backgroundColor: ccGame
+                        ? (isWin ? '#22c55e' : '#ef4444')
+                        : isCurrentCCWeek
+                          ? teamColors.primary
+                          : `${secondaryBgText}15`,
+                      color: ccGame || isCurrentCCWeek ? '#fff' : secondaryBgText
+                    }}
+                  >
+                    {ccGame ? (isWin ? 'W' : 'L') : 'CC'}
+                  </div>
+
+                  {/* Game Info */}
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? ccOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      {/* Location Badge */}
+                      <span
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        style={{
+                          backgroundColor: `${hasOpponent ? ccOpponentColors.textColor : '#fff'}15`,
+                          color: hasOpponent ? ccOpponentColors.textColor : '#fff'
+                        }}
+                      >
                         vs
                       </span>
+
+                      {/* Team Logo */}
                       {ccOpponentLogo && (
                         <div
-                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${ccOpponentColors.textColor}`,
-                            padding: '2px'
-                          }}
+                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
                         >
                           <img
                             src={ccOpponentLogo}
@@ -6393,69 +6401,60 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        {/* Opponent ranking if ranked */}
-                        {ccGame?.opponentRank && (
-                          <span className="text-xs font-bold flex-shrink-0" style={{ color: ccOpponentColors.textColor, opacity: 0.7 }}>
-                            #{ccGame.opponentRank}
+
+                      {/* Team Name */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {ccGame?.opponentRank && (
+                            <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${ccOpponentColors.textColor}15`, color: ccOpponentColors.textColor }}>
+                              #{ccGame.opponentRank}
+                            </span>
+                          )}
+                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#fff' }}>
+                            {ccOpponentName}
                           </span>
-                        )}
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', fontStyle: hasOpponent ? 'normal' : 'italic' }}>
-                          {ccOpponentName}
-                        </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {ccGame ? (
-                    <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                      <div
-                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                        style={{
-                          backgroundColor: ccGame.result === 'win' ? '#22c55e' : '#ef4444',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {ccGame.result === 'win' ? 'W' : 'L'}
-                      </div>
-                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
-                        <div className="text-sm sm:text-base font-bold" style={{ color: ccOpponentColors.textColor }}>
-                          {Math.max(ccGame.teamScore, ccGame.opponentScore)} - {Math.min(ccGame.teamScore, ccGame.opponentScore)}
-                          {/* OT indicator if game went to overtime */}
+
+                    {/* Score / Status */}
+                    <div className="flex-shrink-0 text-right">
+                      {ccGame ? (
+                        <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: ccOpponentColors.textColor }}>
+                          {ccGame.teamScore} - {ccGame.opponentScore}
                           {ccGame.overtimes && ccGame.overtimes.length > 0 && (
-                            <span className="ml-1 text-xs opacity-80">
+                            <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
                               {ccGame.overtimes.length > 1 ? `${ccGame.overtimes.length}OT` : 'OT'}
                             </span>
                           )}
                         </div>
-                      </div>
+                      ) : isCurrentCCWeek ? (
+                        <span
+                          className="inline-block text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                          style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                        >
+                          GAMEDAY
+                        </span>
+                      ) : (
+                        <span className="text-xs sm:text-sm font-medium" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#fff', opacity: 0.5 }}>
+                          —
+                        </span>
+                      )}
                     </div>
-                  ) : isCurrentCCWeek ? (
-                    <div
-                      className="text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded self-end sm:self-auto"
-                      style={{
-                        backgroundColor: teamColors.primary,
-                        color: getContrastTextColor(teamColors.primary)
-                      }}
-                    >
-                      This Week
-                    </div>
-                  ) : (
-                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
-                      Scheduled
-                    </div>
-                  )}
-                </>
+                  </div>
+                </div>
               )
 
-              // Link to game page for played CC games
-              if (ccGame) {
-                // Use game ID or generate a fallback based on type and year
-                const gameId = ccGame.id || `cc-${currentDynasty.currentYear}`
+              if (ccGame?.id) {
                 return (
                   <Link
-                    to={`${pathPrefix}/game/${gameId}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                    style={ccWrapperStyle}
+                    to={`${pathPrefix}/game/${ccGame.id}`}
+                    className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                    style={{
+                      boxShadow: isCurrentCCWeek
+                        ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
+                        : '0 2px 8px rgba(0,0,0,0.06)'
+                    }}
                   >
                     {ccContent}
                   </Link>
@@ -6464,8 +6463,12 @@ export default function Dashboard() {
 
               return (
                 <div
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                  style={ccWrapperStyle}
+                  className="rounded-xl overflow-hidden"
+                  style={{
+                    boxShadow: isCurrentCCWeek
+                      ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
+                      : '0 2px 8px rgba(0,0,0,0.06)'
+                  }}
                 >
                   {ccContent}
                 </div>
@@ -6492,43 +6495,49 @@ export default function Dashboard() {
               const bowlGameName = userBowlGameData?.bowlName || bowlData?.bowlGame
               const hasOpponent = !!bowlOpponentAbbr
               const bowlOpponentColors = hasOpponent ? getOpponentColors(bowlOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              // bowlOpponentAbbr could be an abbreviation OR a mascot name
-              // If getMascotName returns null, check if the input itself is a mascot name (has a logo)
               const mascotFromAbbr = hasOpponent ? getMascotName(bowlOpponentAbbr) : null
               const bowlMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(bowlOpponentAbbr) ? bowlOpponentAbbr : null)
               const bowlOpponentName = bowlMascotName || (hasOpponent ? getTeamNameFromAbbr(bowlOpponentAbbr) : 'Opponent Unknown')
               const bowlOpponentLogo = bowlMascotName ? getTeamLogo(bowlMascotName) : null
-
-              const bowlWrapperStyle = {
-                backgroundColor: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280',
-                borderColor: userBowlGameData
-                  ? userBowlGameData.result === 'win'
-                    ? '#86efac'
-                    : '#fca5a5'
-                  : hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280'
-              }
+              const isWin = userBowlGameData?.result === 'win'
 
               const bowlContent = (
-                <>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      Bowl
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? bowlOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280'
-                      }}>
+                <div className="flex items-center w-full">
+                  {/* Week Badge */}
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{
+                      backgroundColor: userBowlGameData
+                        ? (isWin ? '#22c55e' : '#ef4444')
+                        : `${secondaryBgText}15`,
+                      color: userBowlGameData ? '#fff' : secondaryBgText
+                    }}
+                  >
+                    {userBowlGameData ? (isWin ? 'W' : 'L') : 'Bowl'}
+                  </div>
+
+                  {/* Game Info */}
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? bowlOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      {/* Location Badge */}
+                      <span
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        style={{
+                          backgroundColor: `${hasOpponent ? bowlOpponentColors.textColor : '#fff'}15`,
+                          color: hasOpponent ? bowlOpponentColors.textColor : '#fff'
+                        }}
+                      >
                         vs
                       </span>
+
+                      {/* Team Logo */}
                       {bowlOpponentLogo && (
                         <div
-                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${bowlOpponentColors.textColor}`,
-                            padding: '2px'
-                          }}
+                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
                         >
                           <img
                             src={bowlOpponentLogo}
@@ -6537,63 +6546,52 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1 sm:gap-2">
+
+                      {/* Team Name */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
                           {userBowlGameData?.opponentRank && (
-                            <span className="text-xs font-bold flex-shrink-0" style={{ color: bowlOpponentColors.textColor, opacity: 0.7 }}>
+                            <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${bowlOpponentColors.textColor}15`, color: bowlOpponentColors.textColor }}>
                               #{userBowlGameData.opponentRank}
                             </span>
                           )}
-                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff' }}>
+                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
                             {bowlOpponentName}
                           </span>
                         </div>
-                        <span className="text-xs opacity-70 truncate" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff' }}>
+                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff' }}>
                           {bowlGameName}
                         </span>
                       </div>
                     </div>
-                  </div>
-                  {userBowlGameData ? (
-                    <div className="flex items-center gap-2 sm:gap-4 self-end sm:self-auto">
-                      <div
-                        className="text-xs sm:text-sm font-bold px-2 py-1 rounded"
-                        style={{
-                          backgroundColor: userBowlGameData.result === 'win' ? '#22c55e' : '#ef4444',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {userBowlGameData.result === 'win' ? 'W' : 'L'}
-                      </div>
-                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
-                        <div className="text-sm sm:text-base font-bold" style={{ color: bowlOpponentColors.textColor }}>
-                          {Math.max(userBowlGameData.teamScore, userBowlGameData.opponentScore)} - {Math.min(userBowlGameData.teamScore, userBowlGameData.opponentScore)}
+
+                    {/* Score / Status */}
+                    <div className="flex-shrink-0 text-right">
+                      {userBowlGameData ? (
+                        <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: bowlOpponentColors.textColor }}>
+                          {userBowlGameData.teamScore} - {userBowlGameData.opponentScore}
                           {userBowlGameData.overtimes && userBowlGameData.overtimes.length > 0 && (
-                            <span className="ml-1 text-xs opacity-80">
+                            <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
                               {userBowlGameData.overtimes.length > 1 ? `${userBowlGameData.overtimes.length}OT` : 'OT'}
                             </span>
                           )}
                         </div>
-                      </div>
+                      ) : (
+                        <span className="text-xs sm:text-sm font-medium" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#fff', opacity: 0.5 }}>
+                          —
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: hasOpponent ? bowlOpponentColors.textColor : '#ffffff', opacity: 0.7 }}>
-                      Scheduled
-                    </div>
-                  )}
-                </>
+                  </div>
+                </div>
               )
 
-              // Link to game page for played bowl games
-              if (userBowlGameData) {
-                // Use game ID or generate a fallback based on bowl name and year
-                const bowlSlug = userBowlGameData.bowlName?.replace(/\s+/g, '-').toLowerCase() || 'bowl'
-                const gameId = userBowlGameData.id || `bowl-${currentDynasty.currentYear}-${bowlSlug}`
+              if (userBowlGameData?.id) {
                 return (
                   <Link
-                    to={`${pathPrefix}/game/${gameId}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                    style={bowlWrapperStyle}
+                    to={`${pathPrefix}/game/${userBowlGameData.id}`}
+                    className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                   >
                     {bowlContent}
                   </Link>
@@ -6602,8 +6600,8 @@ export default function Dashboard() {
 
               return (
                 <div
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                  style={bowlWrapperStyle}
+                  className="rounded-xl overflow-hidden"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                 >
                   {bowlContent}
                 </div>
@@ -6622,50 +6620,82 @@ export default function Dashboard() {
               const cfpMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(cfpOpponentAbbr) ? cfpOpponentAbbr : null)
               const cfpOpponentName = cfpMascotName || (hasOpponent ? getTeamNameFromAbbr(cfpOpponentAbbr) : 'Opponent Unknown')
               const cfpOpponentLogo = cfpMascotName ? getTeamLogo(cfpMascotName) : null
+              const isWin = cfpFirstRoundGame.result === 'win' || cfpFirstRoundGame.result === 'W'
 
-              // Link to game page for CFP First Round
-              return (
-                <Link
-                  to={`${pathPrefix}/game/${cfpFirstRoundGame.id}`}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                  style={{
-                    backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
-                    borderColor: cfpFirstRoundGame.result === 'W' || cfpFirstRoundGame.result === 'win' ? '#86efac' : '#fca5a5'
-                  }}
-                >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      CFP R1
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? cfpOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280'
-                      }}>
+              const cfpContent = (
+                <div className="flex items-center w-full">
+                  {/* Week Badge */}
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{
+                      backgroundColor: isWin ? '#22c55e' : '#ef4444',
+                      color: '#fff'
+                    }}
+                  >
+                    {isWin ? 'W' : 'L'}
+                  </div>
+
+                  {/* Game Info */}
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      {/* Location Badge */}
+                      <span
+                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
+                        style={{
+                          backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`,
+                          color: hasOpponent ? cfpOpponentColors.textColor : '#fff'
+                        }}
+                      >
                         vs
                       </span>
+
+                      {/* Team Logo */}
                       {cfpOpponentLogo && (
-                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', border: `2px solid ${cfpOpponentColors.textColor}`, padding: '2px' }}>
-                          <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
+                        <div
+                          className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                          style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                        >
+                          <img
+                            src={cfpOpponentLogo}
+                            alt={`${cfpOpponentName} logo`}
+                            className="w-full h-full object-contain"
+                          />
                         </div>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                          {cfpOpponentName}
+
+                      {/* Team Name */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
+                            {cfpOpponentName}
+                          </span>
+                        </div>
+                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>
+                          CFP First Round
                         </span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                    <div className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded" style={{ backgroundColor: cfpFirstRoundGame.result === 'W' || cfpFirstRoundGame.result === 'win' ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
-                      {cfpFirstRoundGame.result === 'W' || cfpFirstRoundGame.result === 'win' ? 'W' : 'L'}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm sm:text-base font-bold" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                        {Math.max(cfpFirstRoundGame.teamScore, cfpFirstRoundGame.opponentScore)} - {Math.min(cfpFirstRoundGame.teamScore, cfpFirstRoundGame.opponentScore)}
+
+                    {/* Score */}
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>
+                        {cfpFirstRoundGame.teamScore} - {cfpFirstRoundGame.opponentScore}
                       </div>
                     </div>
                   </div>
+                </div>
+              )
+
+              return (
+                <Link
+                  to={`${pathPrefix}/game/${cfpFirstRoundGame.id}`}
+                  className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+                >
+                  {cfpContent}
                 </Link>
               )
             })()}
@@ -6682,51 +6712,43 @@ export default function Dashboard() {
               const cfpMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(cfpOpponentAbbr) ? cfpOpponentAbbr : null)
               const cfpOpponentName = cfpMascotName || (hasOpponent ? getTeamNameFromAbbr(cfpOpponentAbbr) : 'Opponent Unknown')
               const cfpOpponentLogo = cfpMascotName ? getTeamLogo(cfpMascotName) : null
-              const bowlName = cfpQFGame.bowlName || 'CFP QF'
+              const bowlName = cfpQFGame.bowlName || 'CFP Quarterfinal'
+              const isWin = cfpQFGame.result === 'win' || cfpQFGame.result === 'W'
 
-              // Link to game page for CFP Quarterfinal
-              return (
-                <Link
-                  to={`${pathPrefix}/game/${cfpQFGame.id}`}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                  style={{
-                    backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
-                    borderColor: cfpQFGame.result === 'W' || cfpQFGame.result === 'win' ? '#86efac' : '#fca5a5'
-                  }}
-                >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      CFP QF
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? cfpOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280'
-                      }}>
-                        vs
-                      </span>
+              const cfpContent = (
+                <div className="flex items-center w-full">
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
+                  >
+                    {isWin ? 'W' : 'L'}
+                  </div>
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', border: `2px solid ${cfpOpponentColors.textColor}`, padding: '2px' }}>
+                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                          {cfpOpponentName}
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                    <div className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded" style={{ backgroundColor: cfpQFGame.result === 'W' || cfpQFGame.result === 'win' ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
-                      {cfpQFGame.result === 'W' || cfpQFGame.result === 'win' ? 'W' : 'L'}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm sm:text-base font-bold" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                        {Math.max(cfpQFGame.teamScore, cfpQFGame.opponentScore)} - {Math.min(cfpQFGame.teamScore, cfpQFGame.opponentScore)}
-                      </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpQFGame.teamScore} - {cfpQFGame.opponentScore}</div>
                     </div>
                   </div>
+                </div>
+              )
+
+              return (
+                <Link to={`${pathPrefix}/game/${cfpQFGame.id}`} className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  {cfpContent}
                 </Link>
               )
             })()}
@@ -6743,50 +6765,43 @@ export default function Dashboard() {
               const cfpMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(cfpOpponentAbbr) ? cfpOpponentAbbr : null)
               const cfpOpponentName = cfpMascotName || (hasOpponent ? getTeamNameFromAbbr(cfpOpponentAbbr) : 'Opponent Unknown')
               const cfpOpponentLogo = cfpMascotName ? getTeamLogo(cfpMascotName) : null
+              const bowlName = cfpSFGame.bowlName || 'CFP Semifinal'
+              const isWin = cfpSFGame.result === 'win' || cfpSFGame.result === 'W'
 
-              // Link to game page for CFP Semifinal
-              return (
-                <Link
-                  to={`${pathPrefix}/game/${cfpSFGame.id}`}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                  style={{
-                    backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
-                    borderColor: cfpSFGame.result === 'W' || cfpSFGame.result === 'win' ? '#86efac' : '#fca5a5'
-                  }}
-                >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      CFP SF
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? cfpOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280'
-                      }}>
-                        vs
-                      </span>
+              const cfpContent = (
+                <div className="flex items-center w-full">
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
+                  >
+                    {isWin ? 'W' : 'L'}
+                  </div>
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', border: `2px solid ${cfpOpponentColors.textColor}`, padding: '2px' }}>
+                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                          {cfpOpponentName}
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{bowlName}</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                    <div className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded" style={{ backgroundColor: cfpSFGame.result === 'W' || cfpSFGame.result === 'win' ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
-                      {cfpSFGame.result === 'W' || cfpSFGame.result === 'win' ? 'W' : 'L'}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm sm:text-base font-bold" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                        {Math.max(cfpSFGame.teamScore, cfpSFGame.opponentScore)} - {Math.min(cfpSFGame.teamScore, cfpSFGame.opponentScore)}
-                      </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpSFGame.teamScore} - {cfpSFGame.opponentScore}</div>
                     </div>
                   </div>
+                </div>
+              )
+
+              return (
+                <Link to={`${pathPrefix}/game/${cfpSFGame.id}`} className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  {cfpContent}
                 </Link>
               )
             })()}
@@ -6803,50 +6818,42 @@ export default function Dashboard() {
               const cfpMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(cfpOpponentAbbr) ? cfpOpponentAbbr : null)
               const cfpOpponentName = cfpMascotName || (hasOpponent ? getTeamNameFromAbbr(cfpOpponentAbbr) : 'Opponent Unknown')
               const cfpOpponentLogo = cfpMascotName ? getTeamLogo(cfpMascotName) : null
+              const isWin = cfpChampGame.result === 'win' || cfpChampGame.result === 'W'
 
-              // Link to game page for CFP Championship
-              return (
-                <Link
-                  to={`${pathPrefix}/game/${cfpChampGame.id}`}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                  style={{
-                    backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280',
-                    borderColor: cfpChampGame.result === 'W' || cfpChampGame.result === 'win' ? '#86efac' : '#fca5a5'
-                  }}
-                >
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff', opacity: 0.9 }}>
-                      Natl
-                    </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: hasOpponent ? cfpOpponentColors.textColor : '#ffffff',
-                        color: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280'
-                      }}>
-                        vs
-                      </span>
+              const cfpContent = (
+                <div className="flex items-center w-full">
+                  <div
+                    className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                    style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#fff' }}
+                  >
+                    {isWin ? 'W' : 'L'}
+                  </div>
+                  <div
+                    className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                    style={{ backgroundColor: hasOpponent ? cfpOpponentColors.backgroundColor : '#6b7280' }}
+                  >
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0" style={{ backgroundColor: `${hasOpponent ? cfpOpponentColors.textColor : '#fff'}15`, color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>vs</span>
                       {cfpOpponentLogo && (
-                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#FFFFFF', border: `2px solid ${cfpOpponentColors.textColor}`, padding: '2px' }}>
+                        <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}>
                           <img src={cfpOpponentLogo} alt={`${cfpOpponentName} logo`} className="w-full h-full object-contain" />
                         </div>
                       )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                          {cfpOpponentName}
-                        </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm sm:text-base font-semibold truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>{cfpOpponentName}</span>
+                        <span className="text-[10px] sm:text-xs opacity-70 truncate block" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#fff' }}>National Championship</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                    <div className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded" style={{ backgroundColor: cfpChampGame.result === 'W' || cfpChampGame.result === 'win' ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
-                      {cfpChampGame.result === 'W' || cfpChampGame.result === 'win' ? 'W' : 'L'}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm sm:text-base font-bold" style={{ color: hasOpponent ? cfpOpponentColors.textColor : '#ffffff' }}>
-                        {Math.max(cfpChampGame.teamScore, cfpChampGame.opponentScore)} - {Math.min(cfpChampGame.teamScore, cfpChampGame.opponentScore)}
-                      </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpChampGame.teamScore} - {cfpChampGame.opponentScore}</div>
                     </div>
                   </div>
+                </div>
+              )
+
+              return (
+                <Link to={`${pathPrefix}/game/${cfpChampGame.id}`} className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  {cfpContent}
                 </Link>
               )
             })()}
