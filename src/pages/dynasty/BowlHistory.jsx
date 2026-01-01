@@ -447,19 +447,20 @@ export default function BowlHistory() {
                       const team1Colors = team1Mascot ? getTeamColors(team1Mascot) : { primary: '#666', secondary: '#fff' }
                       const team2Colors = team2Mascot ? getTeamColors(team2Mascot) : { primary: '#666', secondary: '#fff' }
 
-                      // Generate game ID for navigation
+                      // Generate game ID for navigation - ALWAYS include year to handle multiple years
                       const gameBowlName = game.bowlName || bowlName
                       const bowlSlug = gameBowlName.toLowerCase().replace(/\s+/g, '-')
                       // Use slot ID system for CFP bowls, bowl- prefix for regular bowl games
-                      let gameId = game.gameRef?.id
-                      if (!gameId) {
-                        if (game.isCFP) {
-                          // CFP games use slot IDs (cfpqf1, cfpsf1, cfpnc)
-                          const slotId = getSlotIdFromBowlName(gameBowlName)
-                          gameId = slotId ? getCFPGameId(slotId, game.year) : `bowl-${game.year}-${bowlSlug}`
-                        } else {
-                          gameId = `bowl-${game.year}-${bowlSlug}`
-                        }
+                      // NOTE: We always generate a proper ID with year, even if gameRef.id exists,
+                      // because older games may have IDs without years (e.g., "fiesta" instead of "cfpsf2-2025")
+                      let gameId
+                      if (game.isCFP) {
+                        // CFP games use slot IDs (cfpqf1, cfpsf1, cfpnc)
+                        const slotId = getSlotIdFromBowlName(gameBowlName)
+                        gameId = slotId ? getCFPGameId(slotId, game.year) : `bowl-${game.year}-${bowlSlug}`
+                      } else {
+                        // Regular bowl games use bowl-{year}-{slug} format
+                        gameId = `bowl-${game.year}-${bowlSlug}`
                       }
 
                       return (

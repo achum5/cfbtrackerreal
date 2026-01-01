@@ -694,6 +694,7 @@ export default function CoachCareer() {
                   for (const round of rounds) {
                     const roundGames = cfpResults[round] || []
                     for (const game of roundGames) {
+                      if (!game) continue // Skip null/undefined entries
                       if (game.team1 === stint.teamAbbr || game.team2 === stint.teamAbbr) {
                         if (game.winner === stint.teamAbbr) {
                           if (round === 'championship') {

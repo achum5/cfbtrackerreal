@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getGamesByType, GAME_TYPES } from '../context/DynastyContext'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo } from '../data/teams'
 
@@ -100,21 +100,31 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
   // Initialize game with teams from semifinal results
   useEffect(() => {
     if (isOpen) {
-      const sfResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
-      const existingChamp = currentDynasty?.cfpResultsByYear?.[currentYear]?.championship?.[0]
+      // Read from games[] array (unified source of truth)
+      const sfResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, currentYear)
+      const existingChampGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_CHAMPIONSHIP, currentYear)
+      const existingChamp = existingChampGames[0]
+
+      // Fallback to cfpResultsByYear for backwards compatibility with old data
+      const legacySFResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
+      const legacyChamp = currentDynasty?.cfpResultsByYear?.[currentYear]?.championship?.[0]
 
       if (existingChamp) {
         setGame(existingChamp)
+      } else if (legacyChamp) {
+        setGame(legacyChamp)
       } else {
-        // Get winners from semifinals
-        const peachWinner = sfResults.find(g => g && g.bowlName === 'Peach Bowl')?.winner || ''
-        const fiestaWinner = sfResults.find(g => g && g.bowlName === 'Fiesta Bowl')?.winner || ''
+        // Get winners from semifinals - try unified format first, then legacy
+        const peachGame = sfResults.find(g => g && g.bowlName === 'Peach Bowl') ||
+                          legacySFResults.find(g => g && g.bowlName === 'Peach Bowl')
+        const fiestaGame = sfResults.find(g => g && g.bowlName === 'Fiesta Bowl') ||
+                           legacySFResults.find(g => g && g.bowlName === 'Fiesta Bowl')
 
         setGame({
           id: 'championship',
           bowlName: 'National Championship',
-          team1: peachWinner,
-          team2: fiestaWinner,
+          team1: peachGame?.winner || '',
+          team2: fiestaGame?.winner || '',
           team1Score: '',
           team2Score: ''
         })

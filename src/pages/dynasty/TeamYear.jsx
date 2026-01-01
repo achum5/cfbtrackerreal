@@ -651,7 +651,7 @@ export default function TeamYear() {
         // Sort by week/game order to get the most recent
         const getOrder = (g) => {
           if (g.isConferenceChampionship) return 15
-          if (g.isBowlGame) return 16 + (g.bowlWeek || 0)
+          if (g.isBowlGame) return 16 + (parseInt(String(g.bowlWeek).replace('week', '') || '0'))
           if (g.isCFPFirstRound) return 20
           if (g.isCFPQuarterfinal) return 21
           if (g.isCFPSemifinal) return 22
@@ -893,18 +893,16 @@ export default function TeamYear() {
   const getCFPResult = () => {
     if (teamCFPGamesFromResults.length === 0) return null
 
-    // Check championship first
-    const champGame = (cfpResults.championship || []).find(g =>
-      g.team1 === teamAbbr || g.team2 === teamAbbr
-    )
-    if (champGame) {
+    // Check championship first (championship is an object, not array)
+    const champGame = cfpResults.championship
+    if (champGame && (champGame.team1 === teamAbbr || champGame.team2 === teamAbbr)) {
       const wonChamp = champGame.winner === teamAbbr
       return wonChamp ? 'champion' : 'lost-championship'
     }
 
     // Check semifinals
     const sfGame = (cfpResults.semifinals || []).find(g =>
-      g.team1 === teamAbbr || g.team2 === teamAbbr
+      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
     )
     if (sfGame) {
       const wonSF = sfGame.winner === teamAbbr
@@ -913,7 +911,7 @@ export default function TeamYear() {
 
     // Check quarterfinals
     const qfGame = (cfpResults.quarterfinals || []).find(g =>
-      g.team1 === teamAbbr || g.team2 === teamAbbr
+      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
     )
     if (qfGame) {
       const wonQF = qfGame.winner === teamAbbr
@@ -922,7 +920,7 @@ export default function TeamYear() {
 
     // Check first round
     const frGame = (cfpResults.firstRound || []).find(g =>
-      g.team1 === teamAbbr || g.team2 === teamAbbr
+      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
     )
     if (frGame) {
       const wonFR = frGame.winner === teamAbbr

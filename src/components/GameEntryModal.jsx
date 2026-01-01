@@ -1193,28 +1193,30 @@ export default function GameEntryModal({
       isConferenceGame: isConferenceGame,
       // Set userTeam for user games (non-CPU games) - identifies this as a user game
       ...(!isCPUGame && { userTeam: userTeamAbbr }),
-      // Preserve special game type flags from existing game or set from props
+      // Preserve special game type flags from existing game OR set from weekNumber prop
       ...(effectiveGame?.bowlName && { bowlName: effectiveGame.bowlName }),
-      ...(effectiveGame?.isConferenceChampionship && { isConferenceChampionship: true }),
-      ...(effectiveGame?.isCFPFirstRound && { isCFPFirstRound: true }),
-      ...(effectiveGame?.isCFPQuarterfinal && { isCFPQuarterfinal: true }),
-      ...(effectiveGame?.isCFPSemifinal && { isCFPSemifinal: true }),
-      ...(effectiveGame?.isCFPChampionship && { isCFPChampionship: true }),
+      ...((effectiveGame?.isConferenceChampionship || isConferenceChampionship) && { isConferenceChampionship: true }),
+      ...((effectiveGame?.isCFPFirstRound || weekNumber === 'CFP First Round') && { isCFPFirstRound: true }),
+      ...((effectiveGame?.isCFPQuarterfinal || weekNumber === 'CFP Quarterfinal') && { isCFPQuarterfinal: true }),
+      ...((effectiveGame?.isCFPSemifinal || weekNumber === 'CFP Semifinal') && { isCFPSemifinal: true }),
+      ...((effectiveGame?.isCFPChampionship || weekNumber === 'CFP Championship') && { isCFPChampionship: true }),
       // Set isBowlGame if existing game has it OR if a bowlName is provided
       ...((effectiveGame?.isBowlGame || bowlName) && { isBowlGame: true }),
       ...(bowlName && !effectiveGame?.bowlName && { bowlName: bowlName }),
-      // UNIFIED: Set gameType for the unified game system
-      gameType: effectiveGame?.isCFPChampionship ? GAME_TYPES.CFP_CHAMPIONSHIP
-        : effectiveGame?.isCFPSemifinal ? GAME_TYPES.CFP_SEMIFINAL
-        : effectiveGame?.isCFPQuarterfinal ? GAME_TYPES.CFP_QUARTERFINAL
-        : effectiveGame?.isCFPFirstRound ? GAME_TYPES.CFP_FIRST_ROUND
+      // UNIFIED: Set gameType for the unified game system - check both existingGame AND weekNumber
+      gameType: (effectiveGame?.isCFPChampionship || weekNumber === 'CFP Championship') ? GAME_TYPES.CFP_CHAMPIONSHIP
+        : (effectiveGame?.isCFPSemifinal || weekNumber === 'CFP Semifinal') ? GAME_TYPES.CFP_SEMIFINAL
+        : (effectiveGame?.isCFPQuarterfinal || weekNumber === 'CFP Quarterfinal') ? GAME_TYPES.CFP_QUARTERFINAL
+        : (effectiveGame?.isCFPFirstRound || weekNumber === 'CFP First Round') ? GAME_TYPES.CFP_FIRST_ROUND
         : (isConferenceChampionship || effectiveGame?.isConferenceChampionship) ? GAME_TYPES.CONFERENCE_CHAMPIONSHIP
         : (bowlName || effectiveGame?.isBowlGame) ? GAME_TYPES.BOWL
         : GAME_TYPES.REGULAR,
       // For postseason games (bowl, CFP, CC), also set unified team fields for history tracking
       ...((bowlName || effectiveGame?.isBowlGame || isConferenceChampionship || effectiveGame?.isConferenceChampionship ||
            effectiveGame?.isCFPFirstRound || effectiveGame?.isCFPQuarterfinal ||
-           effectiveGame?.isCFPSemifinal || effectiveGame?.isCFPChampionship) && !isCPUGame && {
+           effectiveGame?.isCFPSemifinal || effectiveGame?.isCFPChampionship ||
+           weekNumber === 'CFP First Round' || weekNumber === 'CFP Quarterfinal' ||
+           weekNumber === 'CFP Semifinal' || weekNumber === 'CFP Championship') && !isCPUGame && {
         team1: userTeamAbbr,
         team2: opponentAbbr,
         team1Score: teamScore,

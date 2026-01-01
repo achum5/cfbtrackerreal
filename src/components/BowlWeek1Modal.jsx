@@ -110,7 +110,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
           }
 
           // Check if user has a Week 1 bowl game
-          const userBowlGame = currentDynasty?.bowlEligibilityData?.bowlGame
+          const userBowlGame = currentDynasty?.bowlEligibilityDataByYear?.[currentYear]?.bowlGame
           if (userBowlGame && isBowlInWeek1(userBowlGame)) {
             excludeGames.push(userBowlGame)
           }
@@ -164,7 +164,21 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
             }
           })
 
-          const existingCFPFirstRound = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
+          // Read existing CFP First Round results from unified games[] array
+          const allGames = currentDynasty?.games || []
+          const existingCFPFirstRound = allGames
+            .filter(g => g &&
+              (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) &&
+              Number(g.year) === Number(currentYear))
+            .map(g => ({
+              seed1: g.seed1,
+              seed2: g.seed2,
+              team1: g.team1,
+              team2: g.team2,
+              team1Score: g.team1Score,
+              team2Score: g.team2Score,
+              winner: g.winner
+            }))
 
           const sheetInfo = await createBowlWeek1Sheet(
             currentDynasty?.teamName || 'Dynasty',

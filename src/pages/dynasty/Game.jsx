@@ -542,7 +542,7 @@ export default function Game() {
       }
       if (g.isConferenceChampionship) return 15
       if (g.isBowlGame && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship) {
-        return 16 + (g.bowlWeek || 0)
+        return 16 + (parseInt(String(g.bowlWeek).replace('week', '') || '0'))
       }
       if (g.isCFPFirstRound) return 20
       if (g.isCFPQuarterfinal) return 21

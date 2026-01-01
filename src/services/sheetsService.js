@@ -2354,9 +2354,9 @@ async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken,
   const teamAbbrs = getTeamAbbreviationsList()
   const rowCount = conferences.length
 
-  // Get existing data for a conference
+  // Get existing data for a conference (guard against null entries)
   const getExistingCC = (conferenceName) => {
-    return existingData.find(cc => cc.conference === conferenceName) || {}
+    return existingData.find(cc => cc && cc.conference === conferenceName) || {}
   }
 
   const requests = [
@@ -2789,14 +2789,16 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
 
   // Helper to get existing bowl data by bowl name
   const getExistingBowlData = (bowlName) => {
-    // Check in regular bowl games
-    const bowlData = existingBowlWeek1.find(b => b.bowlName === bowlName)
+    // Check in regular bowl games (guard against null entries)
+    const bowlData = existingBowlWeek1.find(b => b && b.bowlName === bowlName)
     if (bowlData) return bowlData
 
     // Check in CFP First Round results (different data structure)
     const cfpMatch = CFP_FIRST_ROUND_MATCHUPS.find(m => m.game === bowlName)
     if (cfpMatch) {
       const cfpData = existingCFPFirstRound.find(g => {
+        // Guard against null/undefined entries
+        if (!g) return false
         // Match by seeds or by teams
         return (g.seed1 === cfpMatch.seed1 && g.seed2 === cfpMatch.seed2)
       })
@@ -3220,23 +3222,24 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
   // Helper to get First Round winner
   const getFirstRoundWinner = (seedA, seedB) => {
     if (!firstRoundResults || firstRoundResults.length === 0) return ''
-    const game = firstRoundResults.find(g =>
-      (g.seed1 === seedA && g.seed2 === seedB) ||
-      (g.seed1 === seedB && g.seed2 === seedA)
-    )
+    const game = firstRoundResults.find(g => {
+      if (!g) return false
+      return (g.seed1 === seedA && g.seed2 === seedB) ||
+             (g.seed1 === seedB && g.seed2 === seedA)
+    })
     return game?.winner || ''
   }
 
   // Helper to get existing bowl data by bowl name
   const getExistingBowlData = (bowlName) => {
-    // Check in regular bowl games
-    const bowlData = existingBowlWeek2.find(b => b.bowlName === bowlName)
+    // Check in regular bowl games (guard against null entries)
+    const bowlData = existingBowlWeek2.find(b => b && b.bowlName === bowlName)
     if (bowlData) return bowlData
 
-    // Check in CFP Quarterfinals results
+    // Check in CFP Quarterfinals results (guard against null entries)
     const cfpMatch = CFP_QF_MATCHUPS[bowlName]
     if (cfpMatch) {
-      const cfpData = existingCFPQuarterfinals.find(g => g.bowl === bowlName)
+      const cfpData = existingCFPQuarterfinals.find(g => g && g.bowl === bowlName)
       if (cfpData) {
         return {
           bowlName,
@@ -3894,9 +3897,9 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId,
     'Game 4 (8 vs 9)'
   ]
 
-  // Get existing data for pre-filling (match by game name)
+  // Get existing data for pre-filling (match by game name, guard against null entries)
   const getExistingGame = (gameName) => {
-    return existingData.find(g => g.game === gameName) || {}
+    return existingData.find(g => g && g.game === gameName) || {}
   }
 
   const requests = [
@@ -4183,16 +4186,17 @@ async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheet
   // Get First Round winner by seed numbers
   const getFirstRoundWinner = (seedA, seedB) => {
     if (!firstRoundResults || firstRoundResults.length === 0) return ''
-    const game = firstRoundResults.find(g =>
-      (g.seed1 === seedA && g.seed2 === seedB) ||
-      (g.seed1 === seedB && g.seed2 === seedA)
-    )
+    const game = firstRoundResults.find(g => {
+      if (!g) return false
+      return (g.seed1 === seedA && g.seed2 === seedB) ||
+             (g.seed1 === seedB && g.seed2 === seedA)
+    })
     return game?.winner || ''
   }
 
-  // Get existing quarterfinal data by bowl name
+  // Get existing quarterfinal data by bowl name (guard against null entries)
   const getExistingQF = (bowlName) => {
-    return existingQuarterfinals.find(g => g.bowlName === bowlName) || {}
+    return existingQuarterfinals.find(g => g && g.bowlName === bowlName) || {}
   }
 
   // Quarterfinal matchups with bowl games

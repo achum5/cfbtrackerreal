@@ -164,32 +164,50 @@ export default function Layout({ children }) {
 
     // In postseason weeks 2+, check bowl game entries (including CFP games)
     if (currentDynasty.currentPhase === 'postseason' && currentDynasty.currentWeek >= 2) {
-      // Count regular bowl games
-      const bowlGames = currentDynasty.bowlResults?.[currentDynasty.currentYear] || []
-      const enteredBowlGames = bowlGames.filter(b => b.team1Score !== undefined && b.team2Score !== undefined).length
+      const year = currentDynasty.currentYear
+      const allGames = currentDynasty.games || []
+      const cfpResults = currentDynasty.cfpResultsByYear?.[year] || {}
 
-      // Count CFP games (first round, quarterfinals, semifinals, championship)
-      const cfpResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear] || {}
-      let enteredCFPGames = 0
+      // Count Week 1 bowl games (19 regular bowls + 4 CFP first round = 23)
+      // Check games[] first, then legacy bowlGamesByYear
+      const bowlWeek1FromGames = allGames.filter(g => g && g.isBowlGame && g.bowlWeek === 'week1' && Number(g.year) === Number(year))
+      const bowlWeek1Legacy = currentDynasty.bowlGamesByYear?.[year]?.week1 || []
+      const cfpFirstRoundFromGames = allGames.filter(g => g && g.isCFPFirstRound && Number(g.year) === Number(year))
+      const cfpFirstRoundLegacy = cfpResults.firstRound || []
 
-      // First round (4 games)
-      const firstRound = cfpResults.firstRound || []
-      enteredCFPGames += firstRound.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+      const bowlWeek1Games = bowlWeek1FromGames.length > 0 ? bowlWeek1FromGames : bowlWeek1Legacy
+      const cfpFirstRoundGames = cfpFirstRoundFromGames.length > 0 ? cfpFirstRoundFromGames : cfpFirstRoundLegacy
 
-      // Quarterfinals (4 games)
-      const quarterfinals = cfpResults.quarterfinals || []
-      enteredCFPGames += quarterfinals.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+      const enteredBowlWeek1 = bowlWeek1Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
+      const enteredCFPFirstRound = cfpFirstRoundGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
 
-      // Semifinals (2 games)
-      const semifinals = cfpResults.semifinals || []
-      enteredCFPGames += semifinals.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+      // Count Week 2 bowl games (11 regular bowls)
+      const bowlWeek2FromGames = allGames.filter(g => g && g.isBowlGame && g.bowlWeek === 'week2' && Number(g.year) === Number(year))
+      const bowlWeek2Legacy = currentDynasty.bowlGamesByYear?.[year]?.week2 || []
+      const bowlWeek2Games = bowlWeek2FromGames.length > 0 ? bowlWeek2FromGames : bowlWeek2Legacy
+      const enteredBowlWeek2 = bowlWeek2Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
 
-      // Championship (1 game)
-      const championship = cfpResults.championship || []
-      enteredCFPGames += championship.filter(g => g && g.team1Score !== undefined && g.team2Score !== undefined).length
+      // Count CFP Quarterfinals (4 games)
+      const cfpQuartersFromGames = allGames.filter(g => g && g.isCFPQuarterfinal && Number(g.year) === Number(year))
+      const cfpQuartersLegacy = cfpResults.quarterfinals || []
+      const cfpQuarterGames = cfpQuartersFromGames.length > 0 ? cfpQuartersFromGames : cfpQuartersLegacy
+      const enteredCFPQuarters = cfpQuarterGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
 
-      const totalEnteredGames = enteredBowlGames + enteredCFPGames
-      const expectedBowlGames = 30 // 19 regular bowls + 4 first round + 4 quarters + 2 semis + 1 champ = 30
+      // Count CFP Semifinals (2 games)
+      const cfpSemisFromGames = allGames.filter(g => g && g.isCFPSemifinal && Number(g.year) === Number(year))
+      const cfpSemisLegacy = cfpResults.semifinals || []
+      const cfpSemiGames = cfpSemisFromGames.length > 0 ? cfpSemisFromGames : cfpSemisLegacy
+      const enteredCFPSemis = cfpSemiGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
+
+      // Count CFP Championship (1 game)
+      const cfpChampFromGames = allGames.filter(g => g && g.isCFPChampionship && Number(g.year) === Number(year))
+      const cfpChampLegacy = cfpResults.championship || []
+      const cfpChampGames = cfpChampFromGames.length > 0 ? cfpChampFromGames : cfpChampLegacy
+      const enteredCFPChamp = cfpChampGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
+
+      const totalEnteredGames = enteredBowlWeek1 + enteredCFPFirstRound + enteredBowlWeek2 + enteredCFPQuarters + enteredCFPSemis + enteredCFPChamp
+      // 19 Week1 bowls + 4 CFP R1 + 11 Week2 bowls + 4 CFP QF + 2 CFP SF + 1 CFP Champ = 41 total
+      const expectedBowlGames = 41
 
       if (totalEnteredGames < expectedBowlGames) {
         const confirmAdvance = window.confirm(

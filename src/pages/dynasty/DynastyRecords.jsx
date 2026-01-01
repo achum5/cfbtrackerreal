@@ -745,7 +745,7 @@ export default function DynastyRecords() {
                               </Link>
                             </div>
                             <div className="text-xs text-gray-400 mt-0.5">
-                              {mode === 'career' ? formatYears(leader.years) : leader.year}
+                              {mode === 'career' ? formatYears(leader.years) : (leader.year || 'N/A')}
                               {leader.position && ` • ${leader.position}`}
                             </div>
                           </div>
@@ -782,12 +782,17 @@ export default function DynastyRecords() {
                                   className="w-4 h-4 object-contain flex-shrink-0"
                                 />
                               )}
-                              <Link
-                                to={`${pathPrefix}/player/${entry.pid}`}
-                                className="text-sm text-gray-300 hover:text-white hover:underline truncate"
-                              >
-                                {entry.name}
-                              </Link>
+                              <div className="min-w-0">
+                                <Link
+                                  to={`${pathPrefix}/player/${entry.pid}`}
+                                  className="text-sm text-gray-300 hover:text-white hover:underline truncate block"
+                                >
+                                  {entry.name}
+                                </Link>
+                                {mode === 'season' && (
+                                  <span className="text-xs text-gray-500">{entry.year || 'N/A'}</span>
+                                )}
+                              </div>
                             </div>
                             <div className="text-sm font-semibold text-gray-300 flex-shrink-0">
                               {formatValue(entry.value, stat.format)}

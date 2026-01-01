@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -56,7 +56,7 @@ const normalizePlayerName = (name) => {
 }
 
 export default function Dashboard() {
-  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers, isViewOnly } = useDynasty()
+  const { currentDynasty, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, addGame, saveCPUBowlGames, saveCFPGames, saveCPUConferenceChampionships, updateDynasty, processHonorPlayers, isViewOnly } = useDynasty()
   const { user } = useAuth()
   const { id: dynastyId, shareCode } = useParams()
   const teamColors = useTeamColors(currentDynasty?.teamName)
@@ -73,6 +73,10 @@ export default function Dashboard() {
   const teamRatings = getCurrentTeamRatings(currentDynasty)
   const teamCoachingStaff = getCurrentCoachingStaff(currentDynasty)
   const teamGoogleSheet = getCurrentGoogleSheet(currentDynasty)
+
+  // Calculate wins/losses for schedule section header
+  const wins = teamSchedule?.filter(g => g.result === 'win').length || 0
+  const losses = teamSchedule?.filter(g => g.result === 'loss').length || 0
 
   // IMPORTANT: On Signing Day (week 6) and Training Camp (week 7), the year has already flipped.
   // Use offseasonDataYear for data that was entered during weeks 1-5 (playersLeaving, recruiting, etc.)
@@ -751,10 +755,10 @@ export default function Dashboard() {
       // Get bowl data from year-specific storage
       const year = currentDynasty.currentYear
       const bowlData = currentDynasty.bowlEligibilityDataByYear?.[year] || {}
-      // Get the bowl week from the selected bowl
+      // Get the bowl week from the selected bowl (use string format for consistency)
       const bowlWeek = bowlData.bowlGame
-        ? (isBowlInWeek1(bowlData.bowlGame) ? 1 : 2)
-        : 1
+        ? (isBowlInWeek1(bowlData.bowlGame) ? 'week1' : 'week2')
+        : 'week1'
       // Add the game with special flag for bowl game
       await addGame(currentDynasty.id, {
         ...gameData,
@@ -778,7 +782,7 @@ export default function Dashboard() {
       ccComplete = true
     } else if (ccMadeChampionship === true) {
       const ccGame = findCurrentTeamGame(currentDynasty,
-        g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
+        g => (g.isConferenceChampionship || g.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) && g.year === currentDynasty.currentYear
       )
       ccComplete = !!ccGame
     }
@@ -1676,7 +1680,7 @@ export default function Dashboard() {
   // Get CC game if played
   const getCCGame = () => {
     return findCurrentTeamGame(currentDynasty,
-      g => g.isConferenceChampionship && g.year === currentDynasty.currentYear
+      g => (g.isConferenceChampionship || g.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) && g.year === currentDynasty.currentYear
     )
   }
 
@@ -1814,23 +1818,23 @@ export default function Dashboard() {
 
         return (
           <div
-            className="rounded-lg shadow-lg p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+            className="rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
             style={{
               backgroundColor: teamColors.primary,
-              border: `3px solid ${teamColors.secondary}`
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.1)'
             }}
           >
             <Link
               to={`${pathPrefix}/team/${getAbbreviationFromDisplayName(currentDynasty.teamName)}/${currentDynasty.currentYear}`}
-              className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0"
+              className="flex items-center gap-4 hover:opacity-90 transition-all min-w-0"
             >
               {getTeamLogo(currentDynasty.teamName) && (
                 <div
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{
                     backgroundColor: '#FFFFFF',
-                    border: `2px solid ${teamColors.secondary}`,
-                    padding: '3px'
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    padding: '4px'
                   }}
                 >
                   <img
@@ -1841,28 +1845,28 @@ export default function Dashboard() {
                 </div>
               )}
               <div className="min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate" style={{ color: primaryBgText }}>
-                  {currentRank && <span className="mr-1 sm:mr-2">#{currentRank}</span>}
+                <h2 className="text-lg sm:text-2xl font-bold truncate tracking-tight" style={{ color: primaryBgText }}>
+                  {currentRank && <span className="mr-1.5 sm:mr-2 opacity-90">#{currentRank}</span>}
                   {currentDynasty.teamName}
                 </h2>
-                <p className="text-xs sm:text-sm font-semibold" style={{ color: primaryBgText, opacity: 0.8 }}>
+                <p className="text-sm sm:text-base font-medium mt-0.5" style={{ color: primaryBgText, opacity: 0.85 }}>
                   {wins}-{losses}{currentDynasty.currentPhase !== 'preseason' && currentDynasty.conference && ` • ${currentDynasty.conference}`}
                 </p>
               </div>
             </Link>
             {teamRatings && (
               <div className="flex items-center gap-2 sm:gap-3 justify-end sm:justify-start">
-                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
-                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OVR</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.overall}</div>
+                <div className="text-center px-3 sm:px-4 py-2 rounded-lg" style={{ backgroundColor: teamColors.secondary, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                  <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider" style={{ color: secondaryBgText, opacity: 0.6 }}>OVR</div>
+                  <div className="text-lg sm:text-xl font-bold" style={{ color: secondaryBgText }}>{teamRatings.overall}</div>
                 </div>
-                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
-                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>OFF</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.offense}</div>
+                <div className="text-center px-3 sm:px-4 py-2 rounded-lg" style={{ backgroundColor: teamColors.secondary, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                  <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider" style={{ color: secondaryBgText, opacity: 0.6 }}>OFF</div>
+                  <div className="text-lg sm:text-xl font-bold" style={{ color: secondaryBgText }}>{teamRatings.offense}</div>
                 </div>
-                <div className="text-center px-2 sm:px-3 py-1 rounded" style={{ backgroundColor: teamColors.secondary }}>
-                  <div className="text-xs font-medium" style={{ color: secondaryBgText, opacity: 0.7 }}>DEF</div>
-                  <div className="text-sm sm:text-lg font-bold" style={{ color: secondaryBgText }}>{teamRatings.defense}</div>
+                <div className="text-center px-3 sm:px-4 py-2 rounded-lg" style={{ backgroundColor: teamColors.secondary, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                  <div className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider" style={{ color: secondaryBgText, opacity: 0.6 }}>DEF</div>
+                  <div className="text-lg sm:text-xl font-bold" style={{ color: secondaryBgText }}>{teamRatings.defense}</div>
                 </div>
                 {!isViewOnly && (
                   <button
@@ -2732,27 +2736,46 @@ export default function Dashboard() {
             const totalCCGames = ccData.madeChampionship === true ? 9 : 10
 
             const hasCFPSeedsData = currentDynasty.cfpSeedsByYear?.[currentDynasty.currentYear]?.length > 0
-            const hasCFPFirstRoundData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound?.length > 0
-            const hasBowlWeek1Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week1?.length > 0
-            // Bowl Week 2 sheet saves regular bowl games to week2 - check only this
-            // (User's QF game from game modal goes to cfpResultsByYear.quarterfinals but that's separate)
-            const hasBowlWeek2Data = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2?.length > 0
+
+            // UNIFIED STORAGE: Read from games[] array with fallback to legacy structures
+            const allGames = currentDynasty.games || []
+            const year = currentDynasty.currentYear
+
+            // CFP First Round - check games[] then fallback to legacy cfpResultsByYear
+            const cfpFirstRoundFromGames = allGames.filter(g => g && (g.isCFPFirstRound || g.gameType === GAME_TYPES.CFP_FIRST_ROUND) && Number(g.year) === Number(year))
+            const cfpFirstRoundLegacy = currentDynasty.cfpResultsByYear?.[year]?.firstRound || []
+            const hasCFPFirstRoundData = cfpFirstRoundFromGames.length > 0 || cfpFirstRoundLegacy.length > 0
+
+            // Bowl Week 1 - check games[] then fallback to legacy bowlGamesByYear
+            const bowlWeek1FromGames = allGames.filter(g => g && g.isBowlGame && g.bowlWeek === 'week1' && Number(g.year) === Number(year))
+            const bowlWeek1Legacy = currentDynasty.bowlGamesByYear?.[year]?.week1 || []
+            const hasBowlWeek1Data = bowlWeek1FromGames.length > 0 || bowlWeek1Legacy.length > 0
+
+            // Bowl Week 2 - check games[] then fallback to legacy bowlGamesByYear
+            const bowlWeek2FromGames = allGames.filter(g => g && g.isBowlGame && g.bowlWeek === 'week2' && Number(g.year) === Number(year))
+            const bowlWeek2Legacy = currentDynasty.bowlGamesByYear?.[year]?.week2 || []
+            const hasBowlWeek2Data = bowlWeek2FromGames.length > 0 || bowlWeek2Legacy.length > 0
 
             // Count entered games for Week 1 (26 regular bowls + 4 CFP First Round = 30 total)
-            const bowlWeek1Games = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week1 || []
-            const cfpFirstRoundGames = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound || []
+            // Use games[] as primary source, fallback to legacy for older data
+            const bowlWeek1Games = bowlWeek1FromGames.length > 0 ? bowlWeek1FromGames : bowlWeek1Legacy
+            const cfpFirstRoundGames = cfpFirstRoundFromGames.length > 0 ? cfpFirstRoundFromGames : cfpFirstRoundLegacy
             const enteredBowlWeek1 = bowlWeek1Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
             const enteredCFPFirstRound = cfpFirstRoundGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
             const totalEnteredWeek1 = enteredBowlWeek1 + enteredCFPFirstRound
 
+            // CFP Quarterfinals - check games[] then fallback to legacy
+            const cfpQuarterfinalsFromGames = allGames.filter(g => g && (g.isCFPQuarterfinal || g.gameType === GAME_TYPES.CFP_QUARTERFINAL) && Number(g.year) === Number(year))
+            const cfpQuarterfinalsLegacy = currentDynasty.cfpResultsByYear?.[year]?.quarterfinals || []
+
             // Count entered games for Week 2 (8 regular bowls + 4 CFP Quarterfinals = 12 total)
-            const bowlWeek2Games = currentDynasty.bowlGamesByYear?.[currentDynasty.currentYear]?.week2 || []
-            const cfpQuarterfinalGames = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.quarterfinals || []
+            const bowlWeek2Games = bowlWeek2FromGames.length > 0 ? bowlWeek2FromGames : bowlWeek2Legacy
+            const cfpQuarterfinalGames = cfpQuarterfinalsFromGames.length > 0 ? cfpQuarterfinalsFromGames : cfpQuarterfinalsLegacy
             const enteredBowlWeek2 = bowlWeek2Games.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
             const enteredCFPQuarterfinals = cfpQuarterfinalGames.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
             const totalEnteredWeek2 = enteredBowlWeek2 + enteredCFPQuarterfinals
             const userBowlGame = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
-            const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+            const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPFirstRound || g.gameType === GAME_TYPES.CFP_FIRST_ROUND) && g.year === currentDynasty.currentYear)
             const userBowlIsWeek1 = selectedBowl && isBowlInWeek1(selectedBowl)
             const userBowlIsWeek2 = selectedBowl && isBowlInWeek2(selectedBowl)
 
@@ -2786,7 +2809,7 @@ export default function Dashboard() {
             const userInCFPFirstRound = userCFPSeed && userCFPSeed >= 5 && userCFPSeed <= 12
 
             // CFP Quarterfinals tracking
-            const userCFPQuarterfinalGame = findCurrentTeamGame(currentDynasty, g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
+            const userCFPQuarterfinalGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPQuarterfinal || g.gameType === GAME_TYPES.CFP_QUARTERFINAL) && g.year === currentDynasty.currentYear)
             const firstRoundResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.firstRound || []
 
             // User is in QF if they have a bye (seed 1-4) OR won their First Round game (seed 5-12)
@@ -3435,21 +3458,21 @@ export default function Dashboard() {
 
                       return (
                         <div
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl gap-3 sm:gap-0 transition-all ${
+                            hasCommitmentsData ? 'bg-green-50' : ''
                           }`}
-                          style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                          style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                         >
-                          <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="flex items-center gap-3 sm:gap-4">
                             <div
-                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                              className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
                                 hasCommitmentsData ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                             >
                               {hasCommitmentsData ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : taskNum}
                             </div>
@@ -3457,7 +3480,7 @@ export default function Dashboard() {
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
                                 {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                                 {hasCommitmentsData
                                   ? commitmentsCount > 0
                                     ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
@@ -3470,15 +3493,15 @@ export default function Dashboard() {
                             <div className="flex gap-2 self-end sm:self-auto">
                               <button
                                 onClick={handleNoCommitments}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm transition-all hover:shadow-md active:scale-[0.98]"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                               >
                                 No
                               </button>
                               <button
                                 onClick={() => setShowRecruitingModal(true)}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm transition-all hover:shadow-md active:scale-[0.98]"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                               >
                                 Yes
                               </button>
@@ -3486,8 +3509,8 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setShowRecruitingModal(true)}
-                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             >
                               Edit
                             </button>
@@ -3505,27 +3528,27 @@ export default function Dashboard() {
             if (week === 2) {
               return (
                 <>
-                  <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4" style={{ color: secondaryBgText }}>
+                  <h3 className="text-lg sm:text-xl font-bold mb-4 sm:mb-5" style={{ color: secondaryBgText }}>
                     Bowl Week 2
                   </h3>
-                  <div className="space-y-3 sm:space-y-4">
+                  <div className="space-y-3">
                     {/* Task 1: Enter Week 1 Bowl Results (includes CFP First Round) */}
                     <div
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                        hasBowlWeek1Data ? 'border-green-200 bg-green-50' : ''
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl gap-3 sm:gap-0 transition-all ${
+                        hasBowlWeek1Data ? 'bg-green-50' : ''
                       }`}
-                      style={!hasBowlWeek1Data ? { borderColor: `${teamColors.primary}30` } : {}}
+                      style={!hasBowlWeek1Data ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                     >
-                      <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="flex items-center gap-3 sm:gap-4">
                         <div
-                          className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
                             hasBowlWeek1Data ? 'bg-green-500 text-white' : ''
                           }`}
-                          style={!hasBowlWeek1Data ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                          style={!hasBowlWeek1Data ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                         >
                           {hasBowlWeek1Data ? (
                             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                             </svg>
                           ) : <span className="font-bold text-sm sm:text-base">1</span>}
                         </div>
@@ -3533,7 +3556,7 @@ export default function Dashboard() {
                           <div className="text-sm sm:text-base font-semibold" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText }}>
                             Week 1 Bowl Results
                           </div>
-                          <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                          <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasBowlWeek1Data ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                             {totalEnteredWeek1 === 30 ? '✓ All 30 games entered' : `${totalEnteredWeek1}/30 games entered (incl. CFP First Round)`}
                           </div>
                         </div>
@@ -3541,8 +3564,8 @@ export default function Dashboard() {
                       {isViewOnly ? <ViewOnlyBadge /> : (
                         <button
                           onClick={() => setShowBowlWeek1Modal(true)}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                         >
                           {hasBowlWeek1Data ? 'Edit' : 'Enter'}
                         </button>
@@ -3552,21 +3575,21 @@ export default function Dashboard() {
                     {/* Task 2: Enter YOUR Bowl Game (if Week 2 bowl) */}
                     {bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2 && (
                       <div
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                          userBowlGame ? 'border-green-200 bg-green-50' : ''
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl gap-3 sm:gap-0 transition-all ${
+                          userBowlGame ? 'bg-green-50' : ''
                         }`}
-                        style={!userBowlGame ? { borderColor: `${teamColors.primary}30` } : {}}
+                        style={!userBowlGame ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                       >
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4">
                           <div
-                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
                               userBowlGame ? 'bg-green-500 text-white' : ''
                             }`}
-                            style={!userBowlGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            style={!userBowlGame ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                           >
                             {userBowlGame ? (
                               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                               </svg>
                             ) : <span className="font-bold text-sm sm:text-base">2</span>}
                           </div>
@@ -3574,7 +3597,7 @@ export default function Dashboard() {
                             <div className="text-sm sm:text-base font-semibold" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText }}>
                               Enter Your {selectedBowl} Game
                             </div>
-                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            <div className="text-xs sm:text-sm mt-0.5" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                               {userBowlGame ? `✓ ${userBowlGame.result === 'W' || userBowlGame.result === 'win' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
                             </div>
                           </div>
@@ -3582,8 +3605,8 @@ export default function Dashboard() {
                         {isViewOnly ? <ViewOnlyBadge /> : (
                           <button
                             onClick={() => setShowBowlGameModal(true)}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                           >
                             {userBowlGame ? 'Edit' : 'Enter'}
                           </button>
@@ -3594,21 +3617,21 @@ export default function Dashboard() {
                     {/* Task: Enter YOUR CFP Quarterfinal Game (if in CFP and advancing to QF) */}
                     {userInCFPQuarterfinal && hasBowlWeek1Data && (
                       <div
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                          userCFPQuarterfinalGame ? 'border-green-200 bg-green-50' : ''
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl gap-3 sm:gap-0 transition-all ${
+                          userCFPQuarterfinalGame ? 'bg-green-50' : ''
                         }`}
-                        style={!userCFPQuarterfinalGame ? { borderColor: `${teamColors.primary}30` } : {}}
+                        style={!userCFPQuarterfinalGame ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                       >
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4">
                           <div
-                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
                               userCFPQuarterfinalGame ? 'bg-green-500 text-white' : ''
                             }`}
-                            style={!userCFPQuarterfinalGame ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            style={!userCFPQuarterfinalGame ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                           >
                             {userCFPQuarterfinalGame ? (
                               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                               </svg>
                             ) : <span className="font-bold text-sm sm:text-base">{(bowlEligible && selectedBowl && bowlOpponent && userBowlIsWeek2) ? 3 : 2}</span>}
                           </div>
@@ -3616,7 +3639,7 @@ export default function Dashboard() {
                             <div className="text-sm sm:text-base font-semibold" style={{ color: userCFPQuarterfinalGame ? '#16a34a' : secondaryBgText }}>
                               Enter Your {userQFBowlName} Game (CFP QF)
                             </div>
-                            <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userCFPQuarterfinalGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                            <div className="text-xs sm:text-sm mt-0.5" style={{ color: userCFPQuarterfinalGame ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                               {userCFPQuarterfinalGame
                                 ? `✓ ${userCFPQuarterfinalGame.result === 'W' || userCFPQuarterfinalGame.result === 'win' ? 'Won' : 'Lost'} ${userCFPQuarterfinalGame.teamScore}-${userCFPQuarterfinalGame.opponentScore}`
                                 : `#${userCFPSeed} vs ${userQFOpponent ? getMascotName(userQFOpponent) : 'TBD'}`}
@@ -3632,8 +3655,8 @@ export default function Dashboard() {
                             setEditingGame(userCFPQuarterfinalGame)
                             setShowGameModal(true)
                           }}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                          style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                          className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                          style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                         >
                           {userCFPQuarterfinalGame ? 'Edit' : 'Enter'}
                         </button>
@@ -3648,22 +3671,22 @@ export default function Dashboard() {
                       if (userInCFPQuarterfinal && hasBowlWeek1Data) newJobTaskNum++
                       return (
                     <div
-                      className={`p-3 sm:p-4 rounded-lg border-2 ${
-                        takingNewJob !== null ? 'border-green-200 bg-green-50' : ''
+                      className={`p-4 rounded-xl transition-all ${
+                        takingNewJob !== null ? 'bg-green-50' : ''
                       }`}
-                      style={takingNewJob === null ? { borderColor: `${teamColors.primary}30` } : {}}
+                      style={takingNewJob === null ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                     >
                       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 ${takingNewJob === null || (takingNewJob === true && (!newJobTeam || !newJobPosition)) ? 'mb-3' : ''}`}>
-                        <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex items-center gap-3 sm:gap-4">
                           <div
-                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
                               takingNewJob !== null ? 'bg-green-500 text-white' : ''
                             }`}
-                            style={takingNewJob === null ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                            style={takingNewJob === null ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                           >
                             {takingNewJob !== null ? (
                               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                               </svg>
                             ) : <span className="font-bold text-sm sm:text-base">{newJobTaskNum}</span>}
                           </div>
@@ -3672,12 +3695,12 @@ export default function Dashboard() {
                               Taking a New Job? (Bowl Week 2)
                             </div>
                             {takingNewJob === true && newJobTeam && newJobPosition && (
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: '#16a34a', opacity: 0.85 }}>
                                 ✓ {newJobPosition} at {teamAbbreviations[newJobTeam]?.name || newJobTeam}
                               </div>
                             )}
                             {takingNewJob === false && (
-                              <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.9 }}>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: '#16a34a', opacity: 0.85 }}>
                                 ✓ Staying with current team
                               </div>
                             )}
@@ -3693,8 +3716,8 @@ export default function Dashboard() {
                                 newJobData: null
                               })
                             }}
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                            style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                            className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                            style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                           >
                             Edit
                           </button>
@@ -3711,8 +3734,8 @@ export default function Dashboard() {
                                   newJobData: { takingNewJob: true, team: '', position: '' }
                                 })
                               }}
-                              className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
-                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              className="px-6 py-2.5 rounded-lg font-semibold transition-all hover:shadow-md active:scale-[0.98]"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             >
                               Yes
                             </button>
@@ -3723,8 +3746,8 @@ export default function Dashboard() {
                                   newJobData: { takingNewJob: false, team: null, position: null, declinedInWeek: currentDynasty.currentWeek }
                                 })
                               }}
-                              className="px-6 py-2 rounded-lg font-semibold hover:opacity-90"
-                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              className="px-6 py-2.5 rounded-lg font-semibold transition-all hover:shadow-md active:scale-[0.98]"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             >
                               No
                             </button>
@@ -4039,21 +4062,21 @@ export default function Dashboard() {
 
                       return (
                         <div
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg border-2 gap-3 sm:gap-0 ${
-                            hasCommitmentsData ? 'border-green-200 bg-green-50' : ''
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl gap-3 sm:gap-0 transition-all ${
+                            hasCommitmentsData ? 'bg-green-50' : ''
                           }`}
-                          style={!hasCommitmentsData ? { borderColor: `${teamColors.primary}30` } : {}}
+                          style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}08`, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
                         >
-                          <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="flex items-center gap-3 sm:gap-4">
                             <div
-                              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
+                              className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 font-bold ${
                                 hasCommitmentsData ? 'bg-green-500 text-white' : ''
                               }`}
-                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}20`, color: teamColors.primary } : {}}
+                              style={!hasCommitmentsData ? { backgroundColor: `${teamColors.primary}15`, color: teamColors.primary, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' } : { boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}
                             >
                               {hasCommitmentsData ? (
                                 <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : taskNum}
                             </div>
@@ -4061,7 +4084,7 @@ export default function Dashboard() {
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText }}>
                                 {hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?'}
                               </div>
-                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
+                              <div className="text-xs sm:text-sm mt-0.5" style={{ color: hasCommitmentsData ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                                 {hasCommitmentsData
                                   ? commitmentsCount > 0
                                     ? `✓ ${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
@@ -4074,15 +4097,15 @@ export default function Dashboard() {
                             <div className="flex gap-2 self-end sm:self-auto">
                               <button
                                 onClick={handleNoCommitments}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm transition-all hover:shadow-md active:scale-[0.98]"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                               >
                                 No
                               </button>
                               <button
                                 onClick={() => setShowRecruitingModal(true)}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm"
-                                style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                                className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm transition-all hover:shadow-md active:scale-[0.98]"
+                                style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                               >
                                 Yes
                               </button>
@@ -4090,8 +4113,8 @@ export default function Dashboard() {
                           ) : (
                             <button
                               onClick={() => setShowRecruitingModal(true)}
-                              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold hover:opacity-90 text-sm self-end sm:self-auto"
-                              style={{ backgroundColor: teamColors.primary, color: primaryBgText }}
+                              className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg font-semibold text-sm self-end sm:self-auto transition-all hover:shadow-md active:scale-[0.98]"
+                              style={{ backgroundColor: teamColors.primary, color: primaryBgText, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             >
                               Edit
                             </button>
@@ -6141,160 +6164,175 @@ export default function Dashboard() {
       )}
 
       {/* Schedule Section */}
-      <div
-        className="rounded-lg shadow-lg p-4 sm:p-6"
-        style={{
-          backgroundColor: teamColors.secondary,
-          border: `3px solid ${teamColors.primary}`
-        }}
-      >
-        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-2xl font-bold" style={{ color: secondaryBgText }}>
-            {currentDynasty.currentYear} Schedule
-          </h2>
-          {!isViewOnly && (
-            <button
-              onClick={() => setShowScheduleModal(true)}
-              className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
-              style={{ color: secondaryBgText }}
-              title="Edit Schedule"
-            >
-              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </button>
-          )}
+      <div className="rounded-2xl overflow-hidden" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.12)' }}>
+        {/* Schedule Header */}
+        <div
+          className="px-5 py-4 sm:px-6 sm:py-5"
+          style={{ backgroundColor: teamColors.primary }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-white">
+                  {currentDynasty.currentYear} Schedule
+                </h2>
+                <p className="text-xs sm:text-sm text-white/70">
+                  {wins}-{losses} Record
+                </p>
+              </div>
+            </div>
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowScheduleModal(true)}
+                className="p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
+                title="Edit Schedule"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
-{teamSchedule && teamSchedule.length > 0 ? (
-          <div className="space-y-2">
-            {teamSchedule.map((game, index) => {
-              const playedGame = currentYearGames.find(g => Number(g.week) === Number(game.week))
-              const opponentColors = getOpponentColors(game.opponent)
-              const mascotName = getMascotName(game.opponent)
-              const opponentName = mascotName || getTeamNameFromAbbr(game.opponent) // Use mascot name if available
-              const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
-              const isCurrentWeek = currentDynasty.currentPhase === 'regular_season' &&
-                Number(game.week) === Number(currentDynasty.currentWeek) && !playedGame
+        {/* Schedule Body */}
+        <div className="p-3 sm:p-4" style={{ backgroundColor: teamColors.secondary }}>
+          {teamSchedule && teamSchedule.length > 0 ? (
+            <div className="space-y-2">
+              {teamSchedule.map((game, index) => {
+                const playedGame = currentYearGames.find(g => Number(g.week) === Number(game.week))
+                const opponentColors = getOpponentColors(game.opponent)
+                const mascotName = getMascotName(game.opponent)
+                const opponentName = mascotName || getTeamNameFromAbbr(game.opponent)
+                const opponentLogo = mascotName ? getTeamLogo(mascotName) : null
+                const isCurrentWeek = currentDynasty.currentPhase === 'regular_season' &&
+                  Number(game.week) === Number(currentDynasty.currentWeek) && !playedGame
+                const isWin = playedGame?.result === 'win'
+                const isLoss = playedGame?.result === 'loss' || (playedGame && playedGame.result !== 'win')
 
-              // Use Link for played games, div for scheduled games
-              const gameContent = (
-                <>
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="text-xs sm:text-sm font-medium w-12 sm:w-16 flex-shrink-0" style={{ color: opponentColors.textColor, opacity: 0.9 }}>
-                      Wk {game.week}
+                const gameContent = (
+                  <div className="flex items-center w-full">
+                    {/* Week Badge */}
+                    <div
+                      className="w-14 sm:w-16 flex-shrink-0 text-center py-2 sm:py-3 rounded-l-xl font-bold text-xs sm:text-sm"
+                      style={{
+                        backgroundColor: playedGame
+                          ? (isWin ? '#22c55e' : '#ef4444')
+                          : isCurrentWeek
+                            ? teamColors.primary
+                            : `${secondaryBgText}15`,
+                        color: playedGame || isCurrentWeek ? '#fff' : secondaryBgText
+                      }}
+                    >
+                      {playedGame ? (isWin ? 'W' : 'L') : `Wk ${game.week}`}
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                      <span className="text-xs sm:text-sm font-bold px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0" style={{
-                        backgroundColor: opponentColors.textColor,
-                        color: opponentColors.backgroundColor
-                      }}>
-                        {game.location === 'away' ? '@' : 'vs'}
-                      </span>
-                      {opponentLogo && (
-                        <div
-                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0"
+
+                    {/* Game Info */}
+                    <div
+                      className="flex-1 flex items-center justify-between py-2.5 sm:py-3 px-3 sm:px-4 rounded-r-xl"
+                      style={{ backgroundColor: opponentColors.backgroundColor }}
+                    >
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                        {/* Location Badge */}
+                        <span
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
                           style={{
-                            backgroundColor: '#FFFFFF',
-                            border: `2px solid ${opponentColors.textColor}`,
-                            padding: '2px'
+                            backgroundColor: `${opponentColors.textColor}15`,
+                            color: opponentColors.textColor
                           }}
                         >
-                          <img
-                            src={opponentLogo}
-                            alt={`${opponentName} logo`}
-                            className="w-full h-full object-contain"
-                          />
+                          {game.location === 'away' ? '@' : 'vs'}
+                        </span>
+
+                        {/* Team Logo */}
+                        {opponentLogo && (
+                          <div
+                            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
+                            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', padding: '4px' }}
+                          >
+                            <img
+                              src={opponentLogo}
+                              alt={`${opponentName} logo`}
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                        )}
+
+                        {/* Team Name */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            {playedGame?.opponentRank && (
+                              <span className="text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: `${opponentColors.textColor}15`, color: opponentColors.textColor }}>
+                                #{playedGame.opponentRank}
+                              </span>
+                            )}
+                            <span className="text-sm sm:text-base font-semibold truncate" style={{ color: opponentColors.textColor }}>
+                              {opponentName}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        {playedGame?.opponentRank && (
-                          <span className="text-xs font-bold flex-shrink-0" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
-                            #{playedGame.opponentRank}
+                      </div>
+
+                      {/* Score / Status */}
+                      <div className="flex-shrink-0 text-right">
+                        {playedGame ? (
+                          <div className="text-base sm:text-lg font-bold tabular-nums" style={{ color: opponentColors.textColor }}>
+                            {playedGame.teamScore} - {playedGame.opponentScore}
+                            {playedGame.overtimes && playedGame.overtimes.length > 0 && (
+                              <span className="ml-1 text-[10px] sm:text-xs font-medium opacity-60">
+                                {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
+                              </span>
+                            )}
+                          </div>
+                        ) : isCurrentWeek ? (
+                          <span
+                            className="inline-block text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full animate-pulse"
+                            style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                          >
+                            GAMEDAY
+                          </span>
+                        ) : (
+                          <span className="text-xs sm:text-sm font-medium" style={{ color: opponentColors.textColor, opacity: 0.5 }}>
+                            —
                           </span>
                         )}
-                        <span className="text-sm sm:text-base font-semibold truncate" style={{ color: opponentColors.textColor }}>
-                          {opponentName}
-                        </span>
                       </div>
                     </div>
                   </div>
-                  {playedGame ? (
-                    <div className="flex items-center gap-2 sm:gap-4 justify-end sm:justify-start">
-                      <div
-                        className="text-sm sm:text-lg font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded"
-                        style={{
-                          backgroundColor: playedGame.result === 'win' ? '#22c55e' : '#ef4444',
-                          color: '#ffffff'
-                        }}
-                      >
-                        {playedGame.result === 'win' ? 'W' : 'L'}
-                      </div>
-                      <div className="text-right min-w-[85px] sm:min-w-[95px]">
-                        <div className="text-sm sm:text-base font-bold" style={{ color: opponentColors.textColor }}>
-                          {Math.max(playedGame.teamScore, playedGame.opponentScore)} - {Math.min(playedGame.teamScore, playedGame.opponentScore)}
-                          {playedGame.overtimes && playedGame.overtimes.length > 0 && (
-                            <span className="ml-1 text-xs opacity-80">
-                              {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : isCurrentWeek ? (
-                    <div
-                      className="text-xs sm:text-sm font-bold px-2 sm:px-3 py-1 rounded self-end sm:self-auto"
-                      style={{
-                        backgroundColor: teamColors.primary,
-                        color: getContrastTextColor(teamColors.primary)
-                      }}
+                )
+
+                if (playedGame?.id) {
+                  return (
+                    <Link
+                      key={index}
+                      to={`${pathPrefix}/game/${playedGame.id}`}
+                      className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
+                      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                     >
-                      This Week
-                    </div>
-                  ) : (
-                    <div className="text-xs sm:text-sm font-medium self-end sm:self-auto" style={{ color: opponentColors.textColor, opacity: 0.7 }}>
-                      Scheduled
-                    </div>
-                  )}
-                </>
-              )
+                      {gameContent}
+                    </Link>
+                  )
+                }
 
-              const wrapperStyle = {
-                backgroundColor: opponentColors.backgroundColor,
-                borderColor: playedGame
-                  ? playedGame.result === 'win'
-                    ? '#86efac'
-                    : '#fca5a5'
-                  : isCurrentWeek
-                    ? teamColors.primary
-                    : opponentColors.backgroundColor,
-                boxShadow: isCurrentWeek ? `0 0 0 3px ${teamColors.primary}40, 0 4px 12px ${teamColors.primary}30` : 'none'
-              }
-
-              // Link to game page for played games, div for scheduled games
-              if (playedGame?.id) {
                 return (
-                  <Link
+                  <div
                     key={index}
-                    to={`${pathPrefix}/game/${playedGame.id}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0 cursor-pointer hover:opacity-90 transition-opacity block"
-                    style={wrapperStyle}
+                    className="rounded-xl overflow-hidden"
+                    style={{
+                      boxShadow: isCurrentWeek
+                        ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
+                        : '0 2px 8px rgba(0,0,0,0.06)'
+                    }}
                   >
                     {gameContent}
-                  </Link>
+                  </div>
                 )
-              }
-
-              return (
-                <div
-                  key={index}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-4 rounded-lg border-2 gap-2 sm:gap-0"
-                  style={wrapperStyle}
-                >
-                  {gameContent}
-                </div>
-              )
-            })}
+              })}
 
             {/* Conference Championship Game - shows when user made the championship */}
             {(() => {
@@ -6437,7 +6475,7 @@ export default function Dashboard() {
             {/* Bowl Game - shows when user has a bowl game (NOT CFP teams) */}
             {(() => {
               // Don't show Bowl section if user has a CFP First Round game (CFP IS their bowl)
-              const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+              const userCFPFirstRoundGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPFirstRound || g.gameType === GAME_TYPES.CFP_FIRST_ROUND) && g.year === currentDynasty.currentYear)
               if (userCFPFirstRoundGame) return null
 
               const userBowlGameData = findCurrentTeamGame(currentDynasty, g => g.isBowlGame && g.year === currentDynasty.currentYear)
@@ -6574,7 +6612,7 @@ export default function Dashboard() {
 
             {/* CFP First Round Game - shows when user played in First Round */}
             {(() => {
-              const cfpFirstRoundGame = findCurrentTeamGame(currentDynasty, g => g.isCFPFirstRound && g.year === currentDynasty.currentYear)
+              const cfpFirstRoundGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPFirstRound || g.gameType === GAME_TYPES.CFP_FIRST_ROUND) && g.year === currentDynasty.currentYear)
               if (!cfpFirstRoundGame) return null
 
               const cfpOpponentAbbr = cfpFirstRoundGame.opponent
@@ -6634,7 +6672,7 @@ export default function Dashboard() {
 
             {/* CFP Quarterfinal Game - shows when user played in Quarterfinal */}
             {(() => {
-              const cfpQFGame = findCurrentTeamGame(currentDynasty, g => g.isCFPQuarterfinal && g.year === currentDynasty.currentYear)
+              const cfpQFGame = findCurrentTeamGame(currentDynasty, g => (g.isCFPQuarterfinal || g.gameType === GAME_TYPES.CFP_QUARTERFINAL) && g.year === currentDynasty.currentYear)
               if (!cfpQFGame) return null
 
               const cfpOpponentAbbr = cfpQFGame.opponent
@@ -6828,6 +6866,7 @@ export default function Dashboard() {
             </p>
           </div>
         )}
+        </div>
       </div>
 
       {/* Modals */}
@@ -6968,7 +7007,7 @@ export default function Dashboard() {
             const cfpFirstRoundGames = gamesWithScores.filter(g => g.bowlName?.startsWith('CFP First Round'))
             const regularBowlGames = gamesWithScores.filter(g => !g.bowlName?.startsWith('CFP First Round'))
 
-            // Transform CFP First Round games to match expected format
+            // Transform CFP First Round games to unified format
             const cfpFirstRound = cfpFirstRoundGames.map(game => {
               const sanitized = sanitizeGame(game)
               // Extract seed numbers from bowl name like "CFP First Round (#5 vs #12)"
@@ -6989,60 +7028,15 @@ export default function Dashboard() {
             // Sanitize regular bowl games
             const sanitizedBowlGames = regularBowlGames.map(sanitizeGame)
 
-            const existingBowlByYear = currentDynasty.bowlGamesByYear || {}
-            const existingBowlYearData = existingBowlByYear[year] || {}
-            const existingCFPByYear = currentDynasty.cfpResultsByYear || {}
-            const existingCFPYearData = existingCFPByYear[year] || {}
+            // UNIFIED STORAGE: Save bowl games to games[] array only
+            // saveCPUBowlGames handles user game preservation internally
+            await saveCPUBowlGames(currentDynasty.id, sanitizedBowlGames, year, 'week1')
 
-            // CRITICAL FIX: Preserve user's games that were entered separately and excluded from the sheet
-            // Find user's existing Week 1 bowl game (if any)
-            const existingWeek1Games = existingBowlYearData.week1 || []
-            const userExistingBowlGame = existingWeek1Games.find(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-            )
-            // Check if user's game is already in the new data from the sheet
-            const userGameInSheet = sanitizedBowlGames.some(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-            )
-            // Merge: keep user's game if it exists and wasn't in the sheet
-            const mergedBowlGames = userExistingBowlGame && !userGameInSheet
-              ? [...sanitizedBowlGames, userExistingBowlGame]
-              : sanitizedBowlGames
-
-            // Find user's existing CFP First Round game (if any)
-            const existingFirstRound = existingCFPYearData.firstRound || []
-            const userExistingCFPGame = existingFirstRound.find(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-            )
-            // Check if user's CFP game is already in the new data from the sheet
-            const userCFPGameInSheet = cfpFirstRound.some(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-            )
-            // Merge: keep user's CFP game if it exists and wasn't in the sheet
-            const mergedCFPFirstRound = userExistingCFPGame && !userCFPGameInSheet
-              ? [...cfpFirstRound, userExistingCFPGame]
-              : cfpFirstRound
-
-            await updateDynasty(currentDynasty.id, {
-              bowlGamesByYear: {
-                ...existingBowlByYear,
-                [year]: {
-                  ...existingBowlYearData,
-                  week1: mergedBowlGames
-                }
-              },
-              cfpResultsByYear: {
-                ...existingCFPByYear,
-                [year]: {
-                  ...existingCFPYearData,
-                  firstRound: mergedCFPFirstRound
-                }
-              }
-            })
-
-            // UNIFIED GAME STORAGE: Create proper game entries for all CPU bowl games
-            // This ensures bowl games are stored the same way as user games
-            await saveCPUBowlGames(currentDynasty.id, mergedBowlGames, year, 'week1')
+            // UNIFIED STORAGE: Save CFP First Round games to games[] array only
+            // saveCFPGames handles user game preservation internally
+            if (cfpFirstRound.length > 0) {
+              await saveCFPGames(currentDynasty.id, cfpFirstRound, year, GAME_TYPES.CFP_FIRST_ROUND)
+            }
           } catch (error) {
             console.error('Bowl Week 1 - Save failed:', error)
             throw error
@@ -7105,16 +7099,13 @@ export default function Dashboard() {
             // Sanitize regular bowl games
             const sanitizedBowlGames = regularBowlGames.map(sanitizeGame)
 
-            const existingBowlByYear = currentDynasty.bowlGamesByYear || {}
-            const existingBowlYearData = existingBowlByYear[year] || {}
-            const existingCFPByYear = currentDynasty.cfpResultsByYear || {}
-            const existingCFPYearData = existingCFPByYear[year] || {}
+            // UNIFIED STORAGE: Read user's existing games from games[] array
+            const existingGames = currentDynasty.games || []
 
-            // CRITICAL FIX: Preserve user's games that were entered separately and excluded from the sheet
-            // Find user's existing Week 2 bowl game (if any)
-            const existingWeek2Games = existingBowlYearData.week2 || []
-            const userExistingBowlGame = existingWeek2Games.find(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+            // Find user's existing Week 2 bowl game (if any) from games[]
+            const userExistingBowlGame = existingGames.find(g =>
+              g && g.isBowlGame && g.bowlWeek === 'week2' && Number(g.year) === Number(year) &&
+              (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr || g.userTeam === userTeamAbbr)
             )
             // Check if user's game is already in the new data from the sheet
             const userGameInSheet = sanitizedBowlGames.some(g =>
@@ -7125,10 +7116,11 @@ export default function Dashboard() {
               ? [...sanitizedBowlGames, userExistingBowlGame]
               : sanitizedBowlGames
 
-            // Find user's existing CFP Quarterfinal game (if any)
-            const existingQuarterfinals = existingCFPYearData.quarterfinals || []
-            const userExistingCFPGame = existingQuarterfinals.find(g =>
-              g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
+            // Find user's existing CFP Quarterfinal game (if any) from games[]
+            const userExistingCFPGame = existingGames.find(g =>
+              g && (g.gameType === GAME_TYPES.CFP_QUARTERFINAL || g.isCFPQuarterfinal) &&
+              Number(g.year) === Number(year) &&
+              (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr || g.userTeam === userTeamAbbr)
             )
             // Check if user's CFP game is already in the new data from the sheet
             const userCFPGameInSheet = cfpQuarterfinals.some(g =>
@@ -7139,25 +7131,13 @@ export default function Dashboard() {
               ? [...cfpQuarterfinals, userExistingCFPGame]
               : cfpQuarterfinals
 
-            await updateDynasty(currentDynasty.id, {
-              bowlGamesByYear: {
-                ...existingBowlByYear,
-                [year]: {
-                  ...existingBowlYearData,
-                  week2: mergedBowlGames
-                }
-              },
-              cfpResultsByYear: {
-                ...existingCFPByYear,
-                [year]: {
-                  ...existingCFPYearData,
-                  quarterfinals: mergedCFPQuarterfinals
-                }
-              }
-            })
-
-            // UNIFIED GAME STORAGE: Create proper game entries for all CPU bowl games
+            // UNIFIED STORAGE: Save bowl games to games[] array only
             await saveCPUBowlGames(currentDynasty.id, mergedBowlGames, year, 'week2')
+
+            // UNIFIED STORAGE: Save CFP Quarterfinal games to games[] array only
+            if (mergedCFPQuarterfinals.length > 0) {
+              await saveCFPGames(currentDynasty.id, mergedCFPQuarterfinals, year, GAME_TYPES.CFP_QUARTERFINAL)
+            }
           } catch (error) {
             console.error('Bowl Week 2 - Save failed:', error)
             throw error
@@ -7191,51 +7171,35 @@ export default function Dashboard() {
         onClose={() => setShowCFPFirstRoundModal(false)}
         onSave={async (games) => {
           const year = currentDynasty.currentYear
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-          const existingByYear = currentDynasty.cfpResultsByYear || {}
-          const existingYearData = existingByYear[year] || {}
 
-          // Transform games from sheet format to standard format
+          // Transform games from sheet format to unified format
           // Sheet has: game, higherSeed, lowerSeed, higherSeedScore, lowerSeedScore
           // We need: seed1, seed2, team1, team2, team1Score, team2Score, winner
-          // Higher seed = home team (team1), Lower seed = away team (team2)
+          // Higher seed (lower number) = home team (team1), Lower seed = away team (team2)
           const transformedGames = games.map(game => {
             // Extract seed numbers from game name like "Game 1 (5 vs 12)"
             const seedMatch = game.game?.match(/\((\d+) vs (\d+)\)/)
             const seed1 = seedMatch ? parseInt(seedMatch[1]) : null
             const seed2 = seedMatch ? parseInt(seedMatch[2]) : null
+            const team1Score = game.higherSeedScore ?? game.team1Score ?? null
+            const team2Score = game.lowerSeedScore ?? game.team2Score ?? null
+            const team1 = game.higherSeed || game.team1 || ''
+            const team2 = game.lowerSeed || game.team2 || ''
             return {
               seed1,
               seed2,
-              team1: game.higherSeed || game.team1 || '',
-              team2: game.lowerSeed || game.team2 || '',
-              team1Score: game.higherSeedScore ?? game.team1Score ?? null,
-              team2Score: game.lowerSeedScore ?? game.team2Score ?? null,
-              winner: game.winner || null
+              team1,
+              team2,
+              team1Score,
+              team2Score,
+              winner: game.winner || (team1Score !== null && team2Score !== null
+                ? (parseInt(team1Score) > parseInt(team2Score) ? team1 : team2)
+                : null)
             }
           }).filter(g => g.team1 && g.team2) // Only include games with teams
 
-          // CRITICAL FIX: Preserve user's game that was entered separately
-          const existingFirstRound = existingYearData.firstRound || []
-          const userExistingGame = existingFirstRound.find(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const userGameInSheet = transformedGames.some(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const mergedGames = userExistingGame && !userGameInSheet
-            ? [...transformedGames, userExistingGame]
-            : transformedGames
-
-          await updateDynasty(currentDynasty.id, {
-            cfpResultsByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                firstRound: mergedGames
-              }
-            }
-          })
+          // Use unified saveCFPGames - it handles user game preservation internally
+          await saveCFPGames(currentDynasty.id, transformedGames, year, GAME_TYPES.CFP_FIRST_ROUND)
         }}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
@@ -7285,31 +7249,21 @@ export default function Dashboard() {
         onClose={() => setShowCFPQuarterfinalsModal(false)}
         onSave={async (cfpGames) => {
           const year = currentDynasty.currentYear
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-          const existingByYear = currentDynasty.cfpResultsByYear || {}
-          const existingYearData = existingByYear[year] || {}
 
-          // CRITICAL FIX: Preserve user's game that was entered separately
-          const existingQuarterfinals = existingYearData.quarterfinals || []
-          const userExistingGame = existingQuarterfinals.find(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const userGameInSheet = cfpGames.some(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const mergedCFPGames = userExistingGame && !userGameInSheet
-            ? [...cfpGames, userExistingGame]
-            : cfpGames
+          // Transform games to unified format with bowlName
+          const transformedGames = cfpGames.map(game => ({
+            team1: game.team1,
+            team2: game.team2,
+            team1Score: game.team1Score,
+            team2Score: game.team2Score,
+            winner: game.winner || (game.team1Score !== null && game.team2Score !== null
+              ? (parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2)
+              : null),
+            bowlName: game.bowlName || game.bowl
+          })).filter(g => g.team1 && g.team2)
 
-          await updateDynasty(currentDynasty.id, {
-            cfpResultsByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                quarterfinals: mergedCFPGames
-              }
-            }
-          })
+          // Use unified saveCFPGames - it handles user game preservation internally
+          await saveCFPGames(currentDynasty.id, transformedGames, year, GAME_TYPES.CFP_QUARTERFINAL)
         }}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
@@ -7322,31 +7276,21 @@ export default function Dashboard() {
         userTeamAbbr={getAbbreviationFromDisplayName(currentDynasty.teamName)}
         onSave={async (cfpGames) => {
           const year = currentDynasty.currentYear
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-          const existingByYear = currentDynasty.cfpResultsByYear || {}
-          const existingYearData = existingByYear[year] || {}
 
-          // CRITICAL FIX: Preserve user's game that was entered separately
-          const existingSemifinals = existingYearData.semifinals || []
-          const userExistingGame = existingSemifinals.find(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const userGameInSheet = cfpGames.some(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const mergedCFPGames = userExistingGame && !userGameInSheet
-            ? [...cfpGames, userExistingGame]
-            : cfpGames
+          // Transform games to unified format with bowlName
+          const transformedGames = cfpGames.map(game => ({
+            team1: game.team1,
+            team2: game.team2,
+            team1Score: game.team1Score,
+            team2Score: game.team2Score,
+            winner: game.winner || (game.team1Score !== null && game.team2Score !== null
+              ? (parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2)
+              : null),
+            bowlName: game.bowlName || game.bowl
+          })).filter(g => g.team1 && g.team2)
 
-          await updateDynasty(currentDynasty.id, {
-            cfpResultsByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                semifinals: mergedCFPGames
-              }
-            }
-          })
+          // Use unified saveCFPGames - it handles user game preservation internally
+          await saveCFPGames(currentDynasty.id, transformedGames, year, GAME_TYPES.CFP_SEMIFINAL)
         }}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
@@ -7358,31 +7302,21 @@ export default function Dashboard() {
         onClose={() => setShowCFPChampionshipModal(false)}
         onSave={async (cfpGames) => {
           const year = currentDynasty.currentYear
-          const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
-          const existingByYear = currentDynasty.cfpResultsByYear || {}
-          const existingYearData = existingByYear[year] || {}
 
-          // CRITICAL FIX: Preserve user's game that was entered separately
-          const existingChampionship = existingYearData.championship || []
-          const userExistingGame = existingChampionship.find(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const userGameInSheet = cfpGames.some(g =>
-            g && (g.team1 === userTeamAbbr || g.team2 === userTeamAbbr)
-          )
-          const mergedCFPGames = userExistingGame && !userGameInSheet
-            ? [...cfpGames, userExistingGame]
-            : cfpGames
+          // Transform games to unified format
+          const transformedGames = cfpGames.map(game => ({
+            team1: game.team1,
+            team2: game.team2,
+            team1Score: game.team1Score,
+            team2Score: game.team2Score,
+            winner: game.winner || (game.team1Score !== null && game.team2Score !== null
+              ? (parseInt(game.team1Score) > parseInt(game.team2Score) ? game.team1 : game.team2)
+              : null),
+            bowlName: game.bowlName || 'National Championship'
+          })).filter(g => g.team1 && g.team2)
 
-          await updateDynasty(currentDynasty.id, {
-            cfpResultsByYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                championship: mergedCFPGames
-              }
-            }
-          })
+          // Use unified saveCFPGames - it handles user game preservation internally
+          await saveCFPGames(currentDynasty.id, transformedGames, year, GAME_TYPES.CFP_CHAMPIONSHIP)
         }}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}

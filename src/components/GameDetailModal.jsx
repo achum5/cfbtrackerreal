@@ -74,7 +74,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
       if (g.isConferenceChampionship) return 15
       // Bowl games (non-CFP)
       if (g.isBowlGame && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship) {
-        return 16 + (g.bowlWeek || 0)
+        return 16 + (parseInt(String(g.bowlWeek).replace('week', '') || '0'))
       }
       // CFP First Round
       if (g.isCFPFirstRound) return 20

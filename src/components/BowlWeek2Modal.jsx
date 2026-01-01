@@ -95,7 +95,23 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
         try {
           // Get CFP data to pre-fill quarterfinal teams
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
-          const firstRoundResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.firstRound || []
+
+          // Read CFP First Round results from unified games[] array
+          // Transform to format expected by the sheet: { seed1, seed2, team1, team2, winner }
+          const allGames = currentDynasty?.games || []
+          const firstRoundResults = allGames
+            .filter(g => g &&
+              (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) &&
+              Number(g.year) === Number(currentYear))
+            .map(g => ({
+              seed1: g.seed1,
+              seed2: g.seed2,
+              team1: g.team1,
+              team2: g.team2,
+              team1Score: g.team1Score,
+              team2Score: g.team2Score,
+              winner: g.winner
+            }))
 
           // Calculate which games to exclude (user's CFP QF game + user's Week 2 bowl game)
           const excludeGames = []
@@ -126,7 +142,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
           }
 
           // Check if user has a Week 2 bowl game
-          const userBowlGame = currentDynasty?.bowlEligibilityData?.bowlGame
+          const userBowlGame = currentDynasty?.bowlEligibilityDataByYear?.[currentYear]?.bowlGame
           if (userBowlGame && isBowlInWeek2(userBowlGame)) {
             excludeGames.push(userBowlGame)
           }
@@ -180,7 +196,19 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
             }
           })
 
-          const existingCFPQuarterfinals = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
+          // Read existing CFP Quarterfinal results from unified games[] array
+          const existingCFPQuarterfinals = allGames
+            .filter(g => g &&
+              (g.gameType === 'cfp_quarterfinal' || g.isCFPQuarterfinal) &&
+              Number(g.year) === Number(currentYear))
+            .map(g => ({
+              bowl: g.bowlName,
+              team1: g.team1,
+              team2: g.team2,
+              score1: g.team1Score,
+              score2: g.team2Score,
+              winner: g.winner
+            }))
 
           const sheetInfo = await createBowlWeek2Sheet(
             currentDynasty?.teamName || 'Dynasty',

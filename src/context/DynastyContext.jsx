@@ -335,6 +335,188 @@ export function migrateToUnifiedGames(dynasty) {
 }
 
 // ============================================================================
+// BOX SCORE STATS AGGREGATION
+// Aggregate player stats from game box scores into player.statsByYear
+// ============================================================================
+
+/**
+ * Box score category definitions
+ * Maps box score field names to aggregation strategy
+ * 'sum' = add values across games, 'max' = take max (for long plays)
+ */
+const BOX_SCORE_STATS = {
+  passing: {
+    sum: ['comp', 'attempts', 'yards', 'tD', 'iNT', 'sacks'],
+    max: ['long']
+  },
+  rushing: {
+    sum: ['carries', 'yards', 'tD', 'fumbles', '20+', 'brokenTackles', 'yAC'],
+    max: ['long']
+  },
+  receiving: {
+    sum: ['receptions', 'yards', 'tD', 'rAC', 'drops'],
+    max: ['long']
+  },
+  blocking: {
+    sum: ['pancakes', 'sacksAllowed']
+  },
+  defense: {
+    sum: ['solo', 'assists', 'tFL', 'sack', 'iNT', 'iNTYards', 'deflections', 'tD', 'fF', 'fR']
+  },
+  kicking: {
+    sum: ['fGM', 'fGA', 'xPM', 'xPA', 'kickoffs', 'touchbacks']
+  },
+  punting: {
+    sum: ['punts', 'yards', 'netYards', 'in20', 'touchbacks'],
+    max: ['long']
+  },
+  kickReturn: {
+    sum: ['kR', 'yards', 'tD'],
+    max: ['long']
+  },
+  puntReturn: {
+    sum: ['pR', 'yards', 'tD'],
+    max: ['long']
+  }
+}
+
+/**
+ * Aggregate box score stats from all games for a specific year into player.statsByYear
+ * @param {Object} dynasty - The dynasty object
+ * @param {number|string} year - The year to aggregate stats for
+ * @param {string} userTeamAbbr - The user's team abbreviation
+ * @returns {Array} Updated players array with aggregated stats
+ */
+export function aggregateBoxScoreStats(dynasty, year, userTeamAbbr) {
+  if (!dynasty) return dynasty.players || []
+
+  const yearNum = Number(year)
+  const players = dynasty.players || []
+  const games = dynasty.games || []
+
+  // Get all user's games with box scores for this year
+  const gamesWithBoxScores = games.filter(g => {
+    if (Number(g.year) !== yearNum) return false
+    if (!g.boxScore) return false
+    // Only process games where user was playing (has userTeam or opponent matches)
+    return g.userTeam === userTeamAbbr || g.opponent
+  })
+
+  // Map to aggregate stats by player name (lowercase for matching)
+  const playerStatsMap = new Map()
+
+  gamesWithBoxScores.forEach(game => {
+    // Determine which side of box score is user's team
+    const isHome = game.location === 'home' || game.location === 'Home' || game.location === 'neutral'
+    const userBoxScore = isHome ? game.boxScore.home : game.boxScore.away
+
+    if (!userBoxScore) return
+
+    // Process each stat category
+    Object.keys(BOX_SCORE_STATS).forEach(category => {
+      const categoryStats = userBoxScore[category]
+      if (!Array.isArray(categoryStats)) return
+
+      const aggregationRules = BOX_SCORE_STATS[category]
+
+      categoryStats.forEach(playerRow => {
+        const playerName = playerRow.playerName?.toLowerCase().trim()
+        if (!playerName) return
+
+        // Initialize player stats if not exists
+        if (!playerStatsMap.has(playerName)) {
+          playerStatsMap.set(playerName, {
+            gamesPlayed: 0,
+            snapsPlayed: 0
+          })
+        }
+
+        const aggStats = playerStatsMap.get(playerName)
+
+        // Initialize category if not exists
+        if (!aggStats[category]) {
+          aggStats[category] = {}
+        }
+
+        // Aggregate sum fields
+        if (aggregationRules.sum) {
+          aggregationRules.sum.forEach(field => {
+            const value = parseFloat(playerRow[field]) || 0
+            aggStats[category][field] = (aggStats[category][field] || 0) + value
+          })
+        }
+
+        // Aggregate max fields (for long plays)
+        if (aggregationRules.max) {
+          aggregationRules.max.forEach(field => {
+            const value = parseFloat(playerRow[field]) || 0
+            aggStats[category][field] = Math.max(aggStats[category][field] || 0, value)
+          })
+        }
+      })
+    })
+
+    // Track games played for each player who had stats in this game
+    const allPlayerNames = new Set()
+    Object.values(userBoxScore).forEach(categoryData => {
+      if (Array.isArray(categoryData)) {
+        categoryData.forEach(row => {
+          if (row.playerName) {
+            allPlayerNames.add(row.playerName.toLowerCase().trim())
+          }
+        })
+      }
+    })
+
+    allPlayerNames.forEach(name => {
+      if (playerStatsMap.has(name)) {
+        playerStatsMap.get(name).gamesPlayed = (playerStatsMap.get(name).gamesPlayed || 0) + 1
+      }
+    })
+  })
+
+  // Update each player's statsByYear with aggregated stats
+  const updatedPlayers = players.map(player => {
+    const playerNameLower = player.name?.toLowerCase().trim()
+    const aggStats = playerStatsMap.get(playerNameLower)
+
+    if (!aggStats) return player
+
+    const existingStatsByYear = player.statsByYear || {}
+    const existingYearStats = existingStatsByYear[yearNum] || {}
+
+    // Merge aggregated stats into existing stats
+    // (preserves manually entered stats from DetailedStatsEntryModal)
+    const mergedYearStats = { ...existingYearStats }
+
+    // Update gamesPlayed from box scores if available
+    if (aggStats.gamesPlayed > 0) {
+      mergedYearStats.gamesPlayed = aggStats.gamesPlayed
+    }
+
+    // Merge each category's stats
+    Object.keys(BOX_SCORE_STATS).forEach(category => {
+      if (aggStats[category] && Object.keys(aggStats[category]).length > 0) {
+        mergedYearStats[category] = {
+          ...(mergedYearStats[category] || {}),
+          ...aggStats[category]
+        }
+      }
+    })
+
+    return {
+      ...player,
+      statsByYear: {
+        ...existingStatsByYear,
+        [yearNum]: mergedYearStats
+      }
+    }
+  })
+
+  return updatedPlayers
+}
+
+// ============================================================================
 // TEAM-CENTRIC HELPER FUNCTIONS
 // These functions get/set data specific to the current team and year
 // ============================================================================
@@ -1146,6 +1328,74 @@ export function DynastyProvider({ children }) {
       cleanGameData.userTeam = currentUserTeam
     }
 
+    // UNIFIED GAME TYPES: Set gameType field based on game flags
+    // This ensures all games (user and CPU) have consistent gameType for filtering
+    if (!cleanGameData.gameType) {
+      if (cleanGameData.isCFPChampionship) {
+        cleanGameData.gameType = GAME_TYPES.CFP_CHAMPIONSHIP
+      } else if (cleanGameData.isCFPSemifinal) {
+        cleanGameData.gameType = GAME_TYPES.CFP_SEMIFINAL
+      } else if (cleanGameData.isCFPQuarterfinal) {
+        cleanGameData.gameType = GAME_TYPES.CFP_QUARTERFINAL
+      } else if (cleanGameData.isCFPFirstRound) {
+        cleanGameData.gameType = GAME_TYPES.CFP_FIRST_ROUND
+      } else if (cleanGameData.isBowlGame) {
+        cleanGameData.gameType = GAME_TYPES.BOWL
+      } else if (cleanGameData.isConferenceChampionship) {
+        cleanGameData.gameType = GAME_TYPES.CONFERENCE_CHAMPIONSHIP
+      } else {
+        cleanGameData.gameType = GAME_TYPES.REGULAR
+      }
+    }
+
+    // UNIFIED CFP FORMAT: For CFP games, always set unified team1/team2/winner fields
+    // This ensures bracket reads games[] directly without needing to normalize user vs CPU formats
+    const isCFPGame = cleanGameData.isCFPFirstRound || cleanGameData.isCFPQuarterfinal ||
+                      cleanGameData.isCFPSemifinal || cleanGameData.isCFPChampionship
+
+    if (isCFPGame && !isCPUGame) {
+      const userTeamAbbr = cleanGameData.userTeam || currentUserTeam
+      const opponentAbbr = cleanGameData.opponent
+      const userScore = parseInt(cleanGameData.teamScore)
+      const oppScore = parseInt(cleanGameData.opponentScore)
+      const userWon = cleanGameData.result === 'win' || cleanGameData.result === 'W'
+
+      // For First Round, determine seeds and ensure higher seed is team1
+      if (cleanGameData.isCFPFirstRound) {
+        const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year] || []
+        const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
+        const oppSeed = cfpSeeds.find(s => s.team === opponentAbbr)?.seed || (userSeed ? 17 - userSeed : null)
+
+        // Higher seed (lower number) should be team1 (home team)
+        if (userSeed && oppSeed && userSeed > oppSeed) {
+          // Opponent has higher seed - they are team1 (home)
+          cleanGameData.team1 = opponentAbbr
+          cleanGameData.team2 = userTeamAbbr
+          cleanGameData.team1Score = oppScore
+          cleanGameData.team2Score = userScore
+          cleanGameData.seed1 = oppSeed
+          cleanGameData.seed2 = userSeed
+          cleanGameData.winner = userWon ? userTeamAbbr : opponentAbbr
+        } else {
+          // User has higher seed - they are team1 (home)
+          cleanGameData.team1 = userTeamAbbr
+          cleanGameData.team2 = opponentAbbr
+          cleanGameData.team1Score = userScore
+          cleanGameData.team2Score = oppScore
+          cleanGameData.seed1 = userSeed
+          cleanGameData.seed2 = oppSeed
+          cleanGameData.winner = userWon ? userTeamAbbr : opponentAbbr
+        }
+      } else {
+        // For QF/SF/Championship, user is always team1
+        cleanGameData.team1 = userTeamAbbr
+        cleanGameData.team2 = opponentAbbr
+        cleanGameData.team1Score = userScore
+        cleanGameData.team2Score = oppScore
+        cleanGameData.winner = userWon ? userTeamAbbr : opponentAbbr
+      }
+    }
+
     // Check if game already exists for this week/year
     // Special handling for CC games, bowl games, and CFP games
     let existingGameIndex
@@ -1257,113 +1507,20 @@ export function DynastyProvider({ children }) {
       updatedGames = [...(dynasty.games || []), game]
     }
 
-    // Build updates object
-    let updates = { games: updatedGames }
+    // Build updates object - games[] is the single source of truth for CFP games
+    // cfpResultsByYear is deprecated and only kept for reading legacy data
+    const updates = { games: updatedGames }
 
-    // If this is a CFP game, also update cfpResultsByYear so the bracket updates
-    if (cleanGameData.isCFPFirstRound || cleanGameData.isCFPQuarterfinal ||
-        cleanGameData.isCFPSemifinal || cleanGameData.isCFPChampionship) {
-      const year = cleanGameData.year
-      const existingCFPResults = dynasty.cfpResultsByYear || {}
-      const yearResults = existingCFPResults[year] || {}
-
-      // Get user's team abbreviation
-      const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
-
-      // Determine winner based on scores
-      const userScore = parseInt(cleanGameData.teamScore)
-      const oppScore = parseInt(cleanGameData.opponentScore)
-      const winner = userScore > oppScore ? userTeamAbbr : cleanGameData.opponent
-
-      // Create the result entry
-      const resultEntry = {
-        team1: userTeamAbbr,
-        team2: cleanGameData.opponent,
-        team1Score: userScore,
-        team2Score: oppScore,
-        winner: winner
-      }
-
-      if (cleanGameData.isCFPFirstRound) {
-        // Get user's seed to add seed info
-        const cfpSeeds = dynasty.cfpSeedsByYear?.[year] || []
-        const userSeed = cfpSeeds.find(s => s.team === userTeamAbbr)?.seed
-        const oppSeed = userSeed ? 17 - userSeed : null
-
-        resultEntry.seed1 = userSeed
-        resultEntry.seed2 = oppSeed
-
-        // Determine slot index based on seed matchup
-        // cfpfr1: 5v12 (index 0), cfpfr2: 8v9 (index 1), cfpfr3: 6v11 (index 2), cfpfr4: 7v10 (index 3)
-        const slotId = getFirstRoundSlotId(userSeed, oppSeed)
-        const slotIndex = slotId ? parseInt(slotId.replace('cfpfr', '')) - 1 : -1
-
-        // Initialize array with 4 slots if needed
-        const existingFirstRound = yearResults.firstRound || [null, null, null, null]
-        const newFirstRound = [...existingFirstRound]
-        // Ensure array has 4 slots
-        while (newFirstRound.length < 4) newFirstRound.push(null)
-        // Place at correct slot
-        if (slotIndex >= 0 && slotIndex < 4) {
-          newFirstRound[slotIndex] = resultEntry
-        }
-        updates.cfpResultsByYear = {
-          ...existingCFPResults,
-          [year]: { ...yearResults, firstRound: newFirstRound }
-        }
-      } else if (cleanGameData.isCFPQuarterfinal) {
-        // Add bowl name for quarterfinal games (e.g., "Orange Bowl", "Rose Bowl")
-        if (cleanGameData.bowlName) {
-          resultEntry.bowlName = cleanGameData.bowlName
-        }
-        // Determine slot index based on bowl name
-        // cfpqf1: Sugar (index 0), cfpqf2: Orange (index 1), cfpqf3: Rose (index 2), cfpqf4: Cotton (index 3)
-        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
-        const slotIndex = slotId ? parseInt(slotId.replace('cfpqf', '')) - 1 : -1
-
-        // Initialize array with 4 slots if needed
-        const existingQF = yearResults.quarterfinals || [null, null, null, null]
-        const newQF = [...existingQF]
-        while (newQF.length < 4) newQF.push(null)
-        if (slotIndex >= 0 && slotIndex < 4) {
-          newQF[slotIndex] = resultEntry
-        }
-        updates.cfpResultsByYear = {
-          ...existingCFPResults,
-          [year]: { ...yearResults, quarterfinals: newQF }
-        }
-      } else if (cleanGameData.isCFPSemifinal) {
-        // Add bowl name for semifinal games (Peach Bowl or Fiesta Bowl)
-        if (cleanGameData.bowlName) {
-          resultEntry.bowlName = cleanGameData.bowlName
-        }
-        // Determine slot index based on bowl name
-        // cfpsf1: Peach (index 0), cfpsf2: Fiesta (index 1)
-        const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
-        const slotIndex = slotId ? parseInt(slotId.replace('cfpsf', '')) - 1 : -1
-
-        // Initialize array with 2 slots if needed
-        const existingSF = yearResults.semifinals || [null, null]
-        const newSF = [...existingSF]
-        while (newSF.length < 2) newSF.push(null)
-        if (slotIndex >= 0 && slotIndex < 2) {
-          newSF[slotIndex] = resultEntry
-        }
-        updates.cfpResultsByYear = {
-          ...existingCFPResults,
-          [year]: { ...yearResults, semifinals: newSF }
-        }
-      } else if (cleanGameData.isCFPChampionship) {
-        // Add game name for championship
-        if (cleanGameData.bowlName) {
-          resultEntry.bowlName = cleanGameData.bowlName
-        }
-        // Championship is a single game (cfpnc), stored as array with one element for compatibility
-        updates.cfpResultsByYear = {
-          ...existingCFPResults,
-          [year]: { ...yearResults, championship: [resultEntry] }
-        }
-      }
+    // If game has box score, aggregate stats to player.statsByYear
+    // This ensures TeamStats page can read player stats from a single source
+    if (cleanGameData.boxScore) {
+      const updatedDynasty = { ...dynasty, games: updatedGames }
+      const updatedPlayers = aggregateBoxScoreStats(
+        updatedDynasty,
+        cleanGameData.year || dynasty.currentYear,
+        currentUserTeam
+      )
+      updates.players = updatedPlayers
     }
 
     await updateDynasty(dynastyId, updates)
@@ -1465,6 +1622,122 @@ export function DynastyProvider({ children }) {
           createdAt: new Date().toISOString()
         }
       })
+
+    const updatedGames = [...filteredGames, ...newGames]
+
+    await updateDynasty(dynastyId, { games: updatedGames })
+
+    return newGames
+  }
+
+  // Save CFP games in unified format to games[] array
+  // Handles all rounds: First Round, Quarterfinals, Semifinals, Championship
+  // This is the single source of truth for CFP games - does NOT write to cfpResultsByYear
+  const saveCFPGames = async (dynastyId, gamesData, year, roundType) => {
+    const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+    let dynasty
+
+    if (isDev || !user) {
+      const currentData = localStorage.getItem('cfb-dynasties')
+      const currentDynasties = currentData ? JSON.parse(currentData) : dynasties
+      dynasty = currentDynasties.find(d => String(d.id) === String(dynastyId))
+    } else {
+      dynasty = String(currentDynasty?.id) === String(dynastyId)
+        ? currentDynasty
+        : dynasties.find(d => String(d.id) === String(dynastyId))
+    }
+
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+
+    const userTeamAbbr = getAbbreviationFromDisplayName(dynasty.teamName)
+    const existingGames = dynasty.games || []
+
+    // Determine which legacy flag to check based on round type
+    const legacyFlagMap = {
+      [GAME_TYPES.CFP_FIRST_ROUND]: 'isCFPFirstRound',
+      [GAME_TYPES.CFP_QUARTERFINAL]: 'isCFPQuarterfinal',
+      [GAME_TYPES.CFP_SEMIFINAL]: 'isCFPSemifinal',
+      [GAME_TYPES.CFP_CHAMPIONSHIP]: 'isCFPChampionship'
+    }
+    const legacyFlag = legacyFlagMap[roundType]
+
+    // Filter out existing games of this type for this year
+    // BUT preserve user's game if it was entered separately (has userTeam field)
+    const filteredGames = existingGames.filter(g => {
+      const isThisRoundType = g.gameType === roundType || g[legacyFlag]
+      const isThisYear = Number(g.year) === Number(year)
+      if (isThisRoundType && isThisYear) {
+        // Keep user's game - it will be merged/updated below if also in gamesData
+        return g.userTeam === userTeamAbbr
+      }
+      return true
+    })
+
+    // Build new games array
+    const newGames = []
+
+    for (const gameData of gamesData) {
+      // Skip incomplete games
+      if (!gameData.team1 || !gameData.team2) continue
+      if (gameData.team1Score === null || gameData.team1Score === undefined) continue
+      if (gameData.team2Score === null || gameData.team2Score === undefined) continue
+
+      // Determine slot ID based on round type
+      let slotId
+      if (roundType === GAME_TYPES.CFP_FIRST_ROUND) {
+        slotId = getFirstRoundSlotId(gameData.seed1, gameData.seed2)
+      } else {
+        slotId = getSlotIdFromBowlName(gameData.bowlName)
+      }
+
+      const gameId = slotId ? getCFPGameId(slotId, year) : `cfp-${roundType}-${year}-${Date.now()}`
+
+      // Check if this is user's game
+      const isUserGame = gameData.team1 === userTeamAbbr || gameData.team2 === userTeamAbbr
+
+      // Determine winner
+      const team1Score = parseInt(gameData.team1Score)
+      const team2Score = parseInt(gameData.team2Score)
+      const winner = gameData.winner || (team1Score > team2Score ? gameData.team1 : gameData.team2)
+
+      const unifiedGame = {
+        id: gameId,
+        year: Number(year),
+        gameType: roundType,
+        team1: gameData.team1,
+        team2: gameData.team2,
+        team1Score: team1Score,
+        team2Score: team2Score,
+        winner: winner,
+        seed1: gameData.seed1,
+        seed2: gameData.seed2,
+        bowlName: gameData.bowlName,
+        // User team identification
+        ...(isUserGame && { userTeam: userTeamAbbr }),
+        // Legacy compatibility fields
+        ...(isUserGame && {
+          opponent: gameData.team1 === userTeamAbbr ? gameData.team2 : gameData.team1,
+          teamScore: gameData.team1 === userTeamAbbr ? team1Score : team2Score,
+          opponentScore: gameData.team1 === userTeamAbbr ? team2Score : team1Score,
+          result: winner === userTeamAbbr ? 'win' : 'loss'
+        }),
+        // Legacy flags
+        [legacyFlag]: true,
+        createdAt: new Date().toISOString()
+      }
+
+      // Check if this game already exists (user's game preserved above)
+      const existingIndex = filteredGames.findIndex(g => g.id === gameId)
+      if (existingIndex >= 0) {
+        // Update existing game
+        filteredGames[existingIndex] = { ...filteredGames[existingIndex], ...unifiedGame }
+      } else {
+        newGames.push(unifiedGame)
+      }
+    }
 
     const updatedGames = [...filteredGames, ...newGames]
 
@@ -2368,7 +2641,7 @@ export function DynastyProvider({ children }) {
         // Remove user's CFP First Round game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPFirstRound && g.year === year) &&
-          !(g.isBowlGame && g.year === year && g.bowlWeek === 1)
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 'week1')
         )
 
         // Clear conference championships data
@@ -2410,7 +2683,7 @@ export function DynastyProvider({ children }) {
         // Remove user's CFP Quarterfinal game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPQuarterfinal && g.year === year) &&
-          !(g.isBowlGame && g.year === year && g.bowlWeek === 2)
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 'week2')
         )
 
         // Clear Bowl Week 2 results
@@ -2436,7 +2709,7 @@ export function DynastyProvider({ children }) {
         // Remove user's CFP Semifinal game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPSemifinal && g.year === year) &&
-          !(g.isBowlGame && g.year === year && g.bowlWeek === 3)
+          !(g.isBowlGame && g.year === year && g.bowlWeek === 'week3')
         )
 
         // Clear Bowl Week 3 results (if exists)
@@ -3806,6 +4079,7 @@ export function DynastyProvider({ children }) {
     selectDynasty,
     addGame,
     saveCPUBowlGames,
+    saveCFPGames,
     saveCPUConferenceChampionships,
     advanceWeek,
     advanceToNewSeason,

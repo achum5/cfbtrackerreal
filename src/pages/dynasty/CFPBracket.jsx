@@ -166,7 +166,7 @@ export default function CFPBracket() {
       team2Score = game.team2Score
       winner = game.winner
     } else if (game.teamScore !== undefined) {
-      // User game format
+      // User game format (legacy)
       const userWon = game.result === 'W' || game.result === 'win'
       if (game.userTeam === team1) {
         team1Score = parseInt(game.teamScore)
@@ -179,6 +179,18 @@ export default function CFPBracket() {
       }
     }
 
+    // Get seeds - prefer stored seeds, then look up from cfpSeeds
+    let seed1 = game.cfpSeed1 || game.seed1
+    let seed2 = game.cfpSeed2 || game.seed2
+
+    // For First Round games without stored seeds, derive from cfpSeeds
+    if ((seed1 === undefined || seed2 === undefined) && (game.isCFPFirstRound || game.gameType === GAME_TYPES.CFP_FIRST_ROUND)) {
+      const team1Seed = cfpSeeds.find(s => s.team === team1)?.seed
+      const team2Seed = cfpSeeds.find(s => s.team === team2)?.seed
+      if (team1Seed !== undefined) seed1 = team1Seed
+      if (team2Seed !== undefined) seed2 = team2Seed
+    }
+
     return {
       ...game,
       team1,
@@ -186,8 +198,8 @@ export default function CFPBracket() {
       team1Score,
       team2Score,
       winner,
-      seed1: game.cfpSeed1 || game.seed1,
-      seed2: game.cfpSeed2 || game.seed2
+      seed1,
+      seed2
     }
   }
 

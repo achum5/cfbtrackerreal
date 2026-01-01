@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getGamesByType, GAME_TYPES } from '../context/DynastyContext'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo } from '../data/teams'
 import { getBowlLogo } from '../data/bowlGames'
@@ -135,26 +135,35 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
   // Initialize games with auto-filled teams from quarterfinal results
   useEffect(() => {
     if (isOpen) {
-      const qfResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
-      const existingSemis = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
+      // Read from games[] array (unified source of truth)
+      const qfResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_QUARTERFINAL, currentYear)
+      const existingSemis = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, currentYear)
 
-      // Find user's CFP Semifinal game from their games[] array (source of truth)
-      const userSFGame = currentDynasty?.games?.find(g => {
-        if (Number(g.year) !== Number(currentYear)) return false
-        if (g.teamScore === undefined || g.teamScore === null || g.teamScore === '') return false
-        // Check if it's a CFP semifinal
-        if (g.isCFPSemifinal) return true
-        if (g.bowlName === 'Peach Bowl' || g.bowlName === 'Fiesta Bowl') return true
-        return false
-      })
+      // Fallback to cfpResultsByYear for backwards compatibility with old data
+      const legacyQFResults = currentDynasty?.cfpResultsByYear?.[currentYear]?.quarterfinals || []
+      const legacySemis = currentDynasty?.cfpResultsByYear?.[currentYear]?.semifinals || []
+
+      // Find user's CFP Semifinal game from games[] (unified format has team1Score)
+      const userSFGame = existingSemis.find(g => g.userTeam === userTeamAbbr) ||
+        currentDynasty?.games?.find(g => {
+          if (Number(g.year) !== Number(currentYear)) return false
+          if (g.teamScore === undefined || g.teamScore === null || g.teamScore === '') return false
+          // Check if it's a CFP semifinal
+          if (g.isCFPSemifinal) return true
+          if (g.bowlName === 'Peach Bowl' || g.bowlName === 'Fiesta Bowl') return true
+          return false
+        })
 
       const initialGames = SEMIFINAL_GAMES.map((sf, index) => {
-        // Get winners from quarterfinals
-        const qf1 = qfResults.find(g => g && g.bowlName === sf.qfBowl1)
-        const qf2 = qfResults.find(g => g && g.bowlName === sf.qfBowl2)
+        // Get winners from quarterfinals - try unified format first, then legacy
+        const qf1 = qfResults.find(g => g && g.bowlName === sf.qfBowl1) ||
+                    legacyQFResults.find(g => g && g.bowlName === sf.qfBowl1)
+        const qf2 = qfResults.find(g => g && g.bowlName === sf.qfBowl2) ||
+                    legacyQFResults.find(g => g && g.bowlName === sf.qfBowl2)
 
-        // Check if we have existing semifinal data
-        const existing = existingSemis.find(g => g && g.bowlName === sf.bowlName)
+        // Check if we have existing semifinal data - try unified format first, then legacy
+        const existing = existingSemis.find(g => g && g.bowlName === sf.bowlName) ||
+                         legacySemis.find(g => g && g.bowlName === sf.bowlName)
 
         // Determine teams - from existing data or quarterfinal winners
         const team1 = existing?.team1 || qf1?.winner || ''
@@ -167,23 +176,36 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         if (userInThisGame) {
           const userIsTeam1 = team1 === userTeamAbbr
 
-          // PRIORITY: Check user's games[] array first (source of truth)
-          if (userSFGame && userSFGame.teamScore !== undefined && userSFGame.teamScore !== '') {
-            // User's game from games[] array - this is the live/updated score
-            return {
-              id: sf.id,
-              bowlName: sf.bowlName,
-              team1,
-              team2,
-              team1Score: userIsTeam1 ? userSFGame.teamScore : userSFGame.opponentScore,
-              team2Score: userIsTeam1 ? userSFGame.opponentScore : userSFGame.teamScore,
-              qfBowl1: sf.qfBowl1,
-              qfBowl2: sf.qfBowl2,
-              userGame: true // Flag to indicate this is user's game - NOT EDITABLE
+          // PRIORITY: Check user's game from games[] array (source of truth)
+          // Handle both unified format (team1Score) and legacy format (teamScore)
+          if (userSFGame) {
+            let userScore, oppScore
+            if (userSFGame.team1Score !== undefined && userSFGame.team1Score !== '') {
+              // Unified format - scores are in team1Score/team2Score
+              userScore = userSFGame.userTeam === userSFGame.team1 ? userSFGame.team1Score : userSFGame.team2Score
+              oppScore = userSFGame.userTeam === userSFGame.team1 ? userSFGame.team2Score : userSFGame.team1Score
+            } else if (userSFGame.teamScore !== undefined && userSFGame.teamScore !== '') {
+              // Legacy format - scores are in teamScore/opponentScore
+              userScore = userSFGame.teamScore
+              oppScore = userSFGame.opponentScore
+            }
+
+            if (userScore !== undefined) {
+              return {
+                id: sf.id,
+                bowlName: sf.bowlName,
+                team1,
+                team2,
+                team1Score: userIsTeam1 ? userScore : oppScore,
+                team2Score: userIsTeam1 ? oppScore : userScore,
+                qfBowl1: sf.qfBowl1,
+                qfBowl2: sf.qfBowl2,
+                userGame: true // Flag to indicate this is user's game - NOT EDITABLE
+              }
             }
           }
 
-          // Fallback: Check cfpResultsByYear.semifinals (might be stale but better than nothing)
+          // Fallback: Check existing semifinal data from games[] or cfpResultsByYear
           const hasExistingScores = existing?.team1Score !== undefined && existing?.team1Score !== '' &&
                                     existing?.team2Score !== undefined && existing?.team2Score !== ''
           if (hasExistingScores) {
