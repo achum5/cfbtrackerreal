@@ -96,6 +96,9 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
           // Get CFP data to pre-fill quarterfinal teams
           const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
 
+          // Helper to get seed by team abbreviation
+          const getSeedByTeam = (teamAbbr) => cfpSeeds.find(s => s.team === teamAbbr)?.seed
+
           // Read CFP First Round results from unified games[] array
           // Transform to format expected by the sheet: { seed1, seed2, team1, team2, winner }
           const allGames = currentDynasty?.games || []
@@ -103,15 +106,56 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
             .filter(g => g &&
               (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) &&
               Number(g.year) === Number(currentYear))
-            .map(g => ({
-              seed1: g.seed1,
-              seed2: g.seed2,
-              team1: g.team1,
-              team2: g.team2,
-              team1Score: g.team1Score,
-              team2Score: g.team2Score,
-              winner: g.winner
-            }))
+            .map(g => {
+              // For user games, compute team1/team2/winner if not set
+              let team1 = g.team1
+              let team2 = g.team2
+              let winner = g.winner
+              let seed1 = g.seed1
+              let seed2 = g.seed2
+
+              // If this is a user game (has opponent field), derive unified format
+              if (g.opponent && !winner) {
+                const userTeam = g.userTeam || getAbbreviationFromDisplayName(currentDynasty?.teamName)
+                const oppTeam = g.opponent
+                const userWon = g.result === 'win' || g.result === 'W'
+                winner = userWon ? userTeam : oppTeam
+
+                // Set team1/team2 if not already set
+                if (!team1 || !team2) {
+                  team1 = userTeam
+                  team2 = oppTeam
+                }
+              }
+
+              // Compute seeds from cfpSeeds if not set on the game
+              if ((!seed1 || !seed2) && team1 && team2) {
+                const computedSeed1 = getSeedByTeam(team1)
+                const computedSeed2 = getSeedByTeam(team2)
+                // For first round, seeds are paired: 5v12, 6v11, 7v10, 8v9
+                // If we only have one seed, compute the other
+                if (computedSeed1 && !computedSeed2) {
+                  seed1 = computedSeed1
+                  seed2 = 17 - computedSeed1
+                } else if (!computedSeed1 && computedSeed2) {
+                  seed2 = computedSeed2
+                  seed1 = 17 - computedSeed2
+                } else {
+                  seed1 = computedSeed1
+                  seed2 = computedSeed2
+                }
+              }
+
+              return {
+                seed1,
+                seed2,
+                team1,
+                team2,
+                team1Score: g.team1Score,
+                team2Score: g.team2Score,
+                winner
+              }
+            })
 
           // Calculate which games to exclude (user's CFP QF game + user's Week 2 bowl game)
           const excludeGames = []
