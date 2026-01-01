@@ -179,16 +179,34 @@ export default function CFPBracket() {
       }
     }
 
-    // Get seeds - prefer stored seeds, then look up from cfpSeeds
+    // Calculate seeds if not stored - for user CFP First Round games
     let seed1 = game.cfpSeed1 || game.seed1
     let seed2 = game.cfpSeed2 || game.seed2
 
-    // For First Round games without stored seeds, derive from cfpSeeds
-    if ((seed1 === undefined || seed2 === undefined) && (game.isCFPFirstRound || game.gameType === GAME_TYPES.CFP_FIRST_ROUND)) {
-      const team1Seed = cfpSeeds.find(s => s.team === team1)?.seed
-      const team2Seed = cfpSeeds.find(s => s.team === team2)?.seed
-      if (team1Seed !== undefined) seed1 = team1Seed
-      if (team2Seed !== undefined) seed2 = team2Seed
+    // If seeds are missing, try to calculate them from CFP seeds data
+    if (!seed1 || !seed2) {
+      const gameYear = game.year || displayYear
+      const yearCfpSeeds = currentDynasty.cfpSeedsByYear?.[gameYear] || []
+
+      // For user games, find their seed
+      if (game.userTeam || game.isCFPFirstRound) {
+        const userTeam = game.userTeam || team1
+        const userSeedEntry = yearCfpSeeds.find(s => s.team === userTeam)
+        if (userSeedEntry) {
+          const userSeed = userSeedEntry.seed
+          const oppSeed = 17 - userSeed // CFP First Round matchups: 5v12, 6v11, 7v10, 8v9
+          seed1 = userSeed
+          seed2 = oppSeed
+        }
+      }
+
+      // For CPU games, look up both teams
+      if ((!seed1 || !seed2) && team1 && team2) {
+        const team1Entry = yearCfpSeeds.find(s => s.team === team1)
+        const team2Entry = yearCfpSeeds.find(s => s.team === team2)
+        if (team1Entry) seed1 = team1Entry.seed
+        if (team2Entry) seed2 = team2Entry.seed
+      }
     }
 
     return {
