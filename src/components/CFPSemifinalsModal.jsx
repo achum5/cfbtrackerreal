@@ -335,23 +335,23 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
       >
         {/* Header */}
         <div
-          className="sticky top-0 z-10 px-6 py-5 rounded-t-xl"
+          className="sticky top-0 z-10 px-4 py-3 sm:px-6 sm:py-5 rounded-t-xl"
           style={{
             background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)'
           }}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                <svg className="w-5 h-5 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">
+                <h2 className="text-lg sm:text-2xl font-bold text-white">
                   CFP Semifinals
                 </h2>
-                <p className="text-white/80 text-sm mt-0.5">
+                <p className="text-white/80 text-xs sm:text-sm mt-0.5">
                   {currentYear} College Football Playoff
                 </p>
               </div>
@@ -360,7 +360,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
               onClick={onClose}
               className="text-white/80 hover:text-white hover:bg-white/20 rounded-full p-2 transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -368,7 +368,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         </div>
 
         {/* Games */}
-        <div className="p-6 space-y-6">
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           {games.map((game, index) => {
             const team1Info = getTeamInfo(game.team1)
             const team2Info = getTeamInfo(game.team2)
@@ -385,7 +385,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
               >
                 {/* Bowl Header */}
                 <div
-                  className="px-5 py-4 flex items-center gap-4"
+                  className="px-3 py-3 sm:px-5 sm:py-4 flex items-center gap-2 sm:gap-4"
                   style={{
                     background: game.userGame
                       ? 'linear-gradient(90deg, rgba(34,197,94,0.2) 0%, rgba(22,163,74,0.2) 100%)'
@@ -394,7 +394,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                   }}
                 >
                   {bowlLogo && (
-                    <div className="w-12 h-12 bg-white rounded-lg p-1.5 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-white rounded-lg p-1 sm:p-1.5 flex items-center justify-center flex-shrink-0">
                       <img
                         src={bowlLogo}
                         alt={game.bowlName}
@@ -402,42 +402,44 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                       />
                     </div>
                   )}
-                  <h3 className="text-lg font-bold text-white flex-1">
+                  <h3 className="text-sm sm:text-lg font-bold text-white flex-1">
                     {game.bowlName}
                   </h3>
                   {game.userGame && (
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                    <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1 ${
                       game.userGamePending ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
                     }`}>
                       {game.userGamePending ? (
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       ) : (
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
-                      {game.userGamePending ? 'PENDING' : 'YOUR GAME'}
+                      <span className="hidden sm:inline">{game.userGamePending ? 'PENDING' : 'YOUR GAME'}</span>
+                      <span className="sm:hidden">{game.userGamePending ? 'PEND' : 'YOU'}</span>
                     </span>
                   )}
                 </div>
 
                 {/* Teams */}
-                <div className="p-5">
-                  <div className="flex items-center gap-4">
+                <div className="p-3 sm:p-5">
+                  {/* Mobile: stacked layout, Desktop: horizontal */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                     {/* Team 1 */}
-                    <div className="flex-1">
+                    <div className="sm:flex-1">
                       {team1Info ? (
                         <div
-                          className="rounded-xl p-4 flex items-center gap-3"
+                          className="rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3"
                           style={{
                             backgroundColor: team1Info.backgroundColor,
                             boxShadow: `0 4px 20px ${team1Info.backgroundColor}40`
                           }}
                         >
                           {team1Info.logo && (
-                            <div className="w-14 h-14 bg-white rounded-full p-1.5 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full p-1 sm:p-1.5 flex items-center justify-center flex-shrink-0">
                               <img
                                 src={team1Info.logo}
                                 alt={team1Info.fullMascot}
@@ -446,24 +448,28 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-semibold opacity-70" style={{ color: team1Info.textColor }}>
+                            <div className="text-[10px] sm:text-xs font-semibold opacity-70" style={{ color: team1Info.textColor }}>
                               #{team1Info.seed} Seed
                             </div>
-                            <div className="text-lg font-bold truncate" style={{ color: team1Info.textColor }}>
+                            <div className="text-sm sm:text-lg font-bold truncate" style={{ color: team1Info.textColor }}>
                               {team1Info.name}
                             </div>
                           </div>
+                          {/* Mobile inline score for Team 1 */}
+                          <div className="sm:hidden text-xl font-bold px-2" style={{ color: team1Info.textColor }}>
+                            {game.team1Score !== '' ? game.team1Score : '-'}
+                          </div>
                         </div>
                       ) : (
-                        <div className="rounded-xl p-4 bg-gray-700 text-gray-400 text-center">
-                          <span className="text-lg font-semibold">TBD</span>
-                          <p className="text-xs mt-1">Awaiting {game.qfBowl1} result</p>
+                        <div className="rounded-xl p-2.5 sm:p-4 bg-gray-700 text-gray-400 text-center">
+                          <span className="text-base sm:text-lg font-semibold">TBD</span>
+                          <p className="text-[10px] sm:text-xs mt-1">Awaiting {game.qfBowl1} result</p>
                         </div>
                       )}
                     </div>
 
-                    {/* Scores */}
-                    <div className="flex items-center gap-2">
+                    {/* Scores - Hidden on mobile (shown inline with teams), visible on desktop */}
+                    <div className="hidden sm:flex items-center gap-2">
                       {game.userGame && game.userGamePending ? (
                         /* User game not yet entered - show pending message */
                         <div className="px-4 py-3 rounded-xl bg-amber-500/20 border-2 border-amber-500/50 text-center">
@@ -532,17 +538,17 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                     </div>
 
                     {/* Team 2 */}
-                    <div className="flex-1">
+                    <div className="sm:flex-1">
                       {team2Info ? (
                         <div
-                          className="rounded-xl p-4 flex items-center gap-3 flex-row-reverse"
+                          className="rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 sm:flex-row-reverse"
                           style={{
                             backgroundColor: team2Info.backgroundColor,
                             boxShadow: `0 4px 20px ${team2Info.backgroundColor}40`
                           }}
                         >
                           {team2Info.logo && (
-                            <div className="w-14 h-14 bg-white rounded-full p-1.5 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full p-1 sm:p-1.5 flex items-center justify-center flex-shrink-0">
                               <img
                                 src={team2Info.logo}
                                 alt={team2Info.fullMascot}
@@ -550,23 +556,77 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                               />
                             </div>
                           )}
-                          <div className="flex-1 min-w-0 text-right">
-                            <div className="text-xs font-semibold opacity-70" style={{ color: team2Info.textColor }}>
+                          <div className="flex-1 min-w-0 sm:text-right">
+                            <div className="text-[10px] sm:text-xs font-semibold opacity-70" style={{ color: team2Info.textColor }}>
                               #{team2Info.seed} Seed
                             </div>
-                            <div className="text-lg font-bold truncate" style={{ color: team2Info.textColor }}>
+                            <div className="text-sm sm:text-lg font-bold truncate" style={{ color: team2Info.textColor }}>
                               {team2Info.name}
                             </div>
                           </div>
+                          {/* Mobile inline score for Team 2 */}
+                          <div className="sm:hidden text-xl font-bold px-2" style={{ color: team2Info.textColor }}>
+                            {game.team2Score !== '' ? game.team2Score : '-'}
+                          </div>
                         </div>
                       ) : (
-                        <div className="rounded-xl p-4 bg-gray-700 text-gray-400 text-center">
-                          <span className="text-lg font-semibold">TBD</span>
-                          <p className="text-xs mt-1">Awaiting {game.qfBowl2} result</p>
+                        <div className="rounded-xl p-2.5 sm:p-4 bg-gray-700 text-gray-400 text-center">
+                          <span className="text-base sm:text-lg font-semibold">TBD</span>
+                          <p className="text-[10px] sm:text-xs mt-1">Awaiting {game.qfBowl2} result</p>
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Mobile: Score input row for CPU games */}
+                  {!game.userGame && (
+                    <div className="flex sm:hidden items-center justify-center gap-3 mt-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/60 text-xs">{team1Info?.abbr || 'TBD'}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={game.team1Score}
+                          onChange={(e) => handleScoreChange(index, 'team1Score', e.target.value)}
+                          className="w-14 h-10 text-center text-lg font-bold rounded-lg border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                          style={{
+                            backgroundColor: team1Info?.backgroundColor || '#374151',
+                            color: team1Info?.textColor || '#fff',
+                            borderColor: 'rgba(255,255,255,0.2)'
+                          }}
+                          placeholder="0"
+                          disabled={!game.team1}
+                        />
+                      </div>
+                      <div className="text-white/40 text-lg font-bold">-</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          value={game.team2Score}
+                          onChange={(e) => handleScoreChange(index, 'team2Score', e.target.value)}
+                          className="w-14 h-10 text-center text-lg font-bold rounded-lg border-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                          style={{
+                            backgroundColor: team2Info?.backgroundColor || '#374151',
+                            color: team2Info?.textColor || '#fff',
+                            borderColor: 'rgba(255,255,255,0.2)'
+                          }}
+                          placeholder="0"
+                          disabled={!game.team2}
+                        />
+                        <span className="text-white/60 text-xs">{team2Info?.abbr || 'TBD'}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mobile: Pending message for user games */}
+                  {game.userGame && game.userGamePending && (
+                    <div className="flex sm:hidden justify-center mt-3">
+                      <div className="px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-500/50 text-center">
+                        <div className="text-amber-400 text-xs font-semibold">Enter via Game Entry</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -574,12 +634,12 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 px-6 py-4 bg-[#1a1a2e] border-t border-white/10">
-          <div className="flex gap-3">
+        <div className="sticky bottom-0 px-3 py-3 sm:px-6 sm:py-4 bg-[#1a1a2e] border-t border-white/10">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={handleSave}
               disabled={saving || games.some(g => !g.team1 || !g.team2)}
-              className="flex-1 px-6 py-3 rounded-xl font-bold text-white transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+              className="flex-1 px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl font-bold text-white text-sm sm:text-base transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
               style={{
                 background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)',
                 boxShadow: '0 4px 15px rgba(30,58,95,0.4)'
@@ -589,7 +649,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
             </button>
             <button
               onClick={onClose}
-              className="px-6 py-3 rounded-xl font-bold text-white/80 hover:text-white transition-colors border border-white/20 hover:border-white/40"
+              className="px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl font-bold text-white/80 hover:text-white text-sm sm:text-base transition-colors border border-white/20 hover:border-white/40"
             >
               Cancel
             </button>

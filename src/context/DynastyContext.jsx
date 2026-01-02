@@ -1438,6 +1438,7 @@ export function DynastyProvider({ children }) {
 
       // For CFP games, ensure proper slot ID format
       let gameId = existingGame.id || Date.now().toString()
+      let cfpSeedData = {} // To store seed info for CFP First Round games
 
       // Check if this is a CFP game that needs ID correction
       if (cleanGameData.isCFPFirstRound || existingGame.isCFPFirstRound) {
@@ -1448,6 +1449,16 @@ export function DynastyProvider({ children }) {
         const slotId = getFirstRoundSlotId(userSeed, oppSeed)
         if (slotId) {
           gameId = getCFPGameId(slotId, cleanGameData.year || existingGame.year)
+        }
+        // CRITICAL: Add seed data so bracket can find this game
+        if (userSeed && oppSeed) {
+          cfpSeedData = {
+            cfpSeed1: userSeed,
+            cfpSeed2: oppSeed,
+            seed1: userSeed,
+            seed2: oppSeed,
+            gameType: 'cfp_first_round'
+          }
         }
       } else if ((cleanGameData.isCFPQuarterfinal || existingGame.isCFPQuarterfinal) && (cleanGameData.bowlName || existingGame.bowlName)) {
         const slotId = getSlotIdFromBowlName(cleanGameData.bowlName || existingGame.bowlName)
@@ -1466,6 +1477,7 @@ export function DynastyProvider({ children }) {
       game = {
         ...existingGame,
         ...cleanGameData,
+        ...cfpSeedData, // Include CFP seed data for bracket matching
         id: gameId,
         updatedAt: new Date().toISOString()
       }
@@ -1475,6 +1487,7 @@ export function DynastyProvider({ children }) {
       // Add new game
       // For CFP games, generate proper slot ID based on game type
       let gameId = Date.now().toString()
+      let cfpSeedData = {} // To store seed info for CFP First Round games
 
       if (cleanGameData.isCFPFirstRound) {
         const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year] || []
@@ -1484,6 +1497,16 @@ export function DynastyProvider({ children }) {
         const slotId = getFirstRoundSlotId(userSeed, oppSeed)
         if (slotId) {
           gameId = getCFPGameId(slotId, cleanGameData.year)
+        }
+        // CRITICAL: Add seed data so bracket can find this game
+        if (userSeed && oppSeed) {
+          cfpSeedData = {
+            cfpSeed1: userSeed,
+            cfpSeed2: oppSeed,
+            seed1: userSeed,
+            seed2: oppSeed,
+            gameType: 'cfp_first_round'
+          }
         }
       } else if (cleanGameData.isCFPQuarterfinal && cleanGameData.bowlName) {
         const slotId = getSlotIdFromBowlName(cleanGameData.bowlName)
@@ -1502,6 +1525,7 @@ export function DynastyProvider({ children }) {
       game = {
         id: gameId,
         ...cleanGameData,
+        ...cfpSeedData, // Include CFP seed data for bracket matching
         createdAt: new Date().toISOString()
       }
       updatedGames = [...(dynasty.games || []), game]
