@@ -2941,7 +2941,10 @@ export default function Dashboard() {
             const userInCFPChampionship = userInCFPSemifinal && userWonSemifinal
 
             // Get semifinal results to calculate Championship opponent
-            const semifinalResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
+            // Use unified games[] array (source of truth) with fallback to legacy cfpResultsByYear
+            const unifiedSemifinalResults = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, currentDynasty.currentYear)
+            const legacySemifinalResults = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
+            const semifinalResults = unifiedSemifinalResults.length > 0 ? unifiedSemifinalResults : legacySemifinalResults
 
             // Calculate Championship opponent from SF results
             const getCFPChampionshipOpponent = () => {
@@ -4645,7 +4648,10 @@ export default function Dashboard() {
 
                   {/* CFP Semifinals - FIRST task in Week 4 to determine Championship matchup */}
                   {week === 4 && (() => {
-                    const sfData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
+                    // Use unified games[] array (source of truth) with fallback to legacy cfpResultsByYear
+                    const unifiedSFData = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, currentDynasty.currentYear)
+                    const legacySFData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
+                    const sfData = unifiedSFData.length > 0 ? unifiedSFData : legacySFData
                     // Need BOTH SF games (2 total) to determine Championship matchup
                     // Count games that actually have scores entered
                     const sfGamesWithScores = sfData.filter(g => g && g.team1Score !== undefined && g.team1Score !== null && g.team2Score !== undefined && g.team2Score !== null).length
@@ -4694,9 +4700,13 @@ export default function Dashboard() {
                   {/* Task: Enter YOUR CFP Championship Game (Week 4 only, if user is in Championship) */}
                   {/* This comes AFTER the SF results so we know the opponent */}
                   {week === 4 && userInCFPChampionship && (() => {
-                    const sfData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
-                    // Need BOTH SF games to determine Championship opponent
-                    const allSFComplete = sfData.length >= 2
+                    // Use unified games[] array (source of truth) with fallback to legacy cfpResultsByYear
+                    const unifiedSFData = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, currentDynasty.currentYear)
+                    const legacySFData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.semifinals || []
+                    const sfData = unifiedSFData.length > 0 ? unifiedSFData : legacySFData
+                    // Need BOTH SF games with scores to determine Championship opponent
+                    const sfGamesWithScores = sfData.filter(g => g && g.team1Score !== undefined && g.team1Score !== null).length
+                    const allSFComplete = sfGamesWithScores >= 2
 
                     return (
                     <div
