@@ -93,7 +93,6 @@ export const teamAbbreviations = {
   "SCAR": { name: "South Carolina Gamecocks", backgroundColor: "#73000A", textColor: "#FFFFFF" },
   "SDSU": { name: "San Diego State Aztecs", backgroundColor: "#C41230", textColor: "#000000" },
   "SHSU": { name: "Sam Houston State Bearkats", backgroundColor: "#FE5100", textColor: "#FFFFFF" },
-  "SAM": { name: "Sam Houston State Bearkats", backgroundColor: "#FE5100", textColor: "#FFFFFF" },
   "SJSU": { name: "San Jose State Spartans", backgroundColor: "#0055A2", textColor: "#FFFFFF" },
   "SMU": { name: "SMU Mustangs", backgroundColor: "#354ca1", textColor: "#cd2027" },
   "STAN": { name: "Stanford Cardinal", backgroundColor: "#8C1515", textColor: "#FFFFFF" },

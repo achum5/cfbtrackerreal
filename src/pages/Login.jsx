@@ -1,8 +1,12 @@
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import logo from '../assets/logo.png'
 import { teams, getTeamLogo } from '../data/teams'
+
+// FCS teams to include with FBS teams
+const fcsTeams = ['FCSE', 'FCSM', 'FCSN', 'FCSW']
+const allTeams = [...teams, ...fcsTeams]
 
 // Fisher-Yates shuffle
 const shuffleArray = (array) => {
@@ -14,16 +18,114 @@ const shuffleArray = (array) => {
   return shuffled
 }
 
+// Bouncing logo component - all 140 teams (136 FBS + 4 FCS, optimized with direct DOM manipulation)
+const BouncingLogos = () => {
+  const containerRef = useRef(null)
+  const logosDataRef = useRef([])
+  const logoElementsRef = useRef([])
+  const animationRef = useRef(null)
+  const [initialLogos] = useState(() => {
+    // Initialize once on mount - all 136 FBS + 4 FCS teams
+    return shuffleArray(allTeams).map((team, i) => ({
+      id: i,
+      team,
+      x: Math.random() * (window.innerWidth - 50),
+      y: Math.random() * (window.innerHeight - 50),
+      vx: (Math.random() - 0.5) * 8 + (Math.random() > 0.5 ? 3 : -3),
+      vy: (Math.random() - 0.5) * 8 + (Math.random() > 0.5 ? 3 : -3),
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10,
+      size: 30 + Math.random() * 20,
+      opacity: 0.5 + Math.random() * 0.5,
+    }))
+  })
+
+  useEffect(() => {
+    logosDataRef.current = initialLogos.map(l => ({ ...l }))
+  }, [initialLogos])
+
+  // Animation loop - directly updates DOM, no React re-renders
+  useEffect(() => {
+    const animate = () => {
+      const container = containerRef.current
+      if (!container) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+
+      const width = container.offsetWidth
+      const height = container.offsetHeight
+
+      logosDataRef.current.forEach((logo, i) => {
+        // Update position
+        logo.x += logo.vx
+        logo.y += logo.vy
+        logo.rotation += logo.rotationSpeed
+
+        // Bounce off edges
+        if (logo.x <= 0 || logo.x >= width - logo.size) {
+          logo.vx = -logo.vx * (0.9 + Math.random() * 0.2)
+          logo.x = logo.x <= 0 ? 0 : width - logo.size
+          logo.vy += (Math.random() - 0.5) * 2
+        }
+        if (logo.y <= 0 || logo.y >= height - logo.size) {
+          logo.vy = -logo.vy * (0.9 + Math.random() * 0.2)
+          logo.y = logo.y <= 0 ? 0 : height - logo.size
+          logo.vx += (Math.random() - 0.5) * 2
+        }
+
+        // Keep velocities in reasonable range
+        const maxSpeed = 10
+        logo.vx = Math.max(-maxSpeed, Math.min(maxSpeed, logo.vx))
+        logo.vy = Math.max(-maxSpeed, Math.min(maxSpeed, logo.vy))
+
+        // Ensure minimum speed
+        if (Math.abs(logo.vx) < 2) logo.vx = logo.vx > 0 ? 2 : -2
+        if (Math.abs(logo.vy) < 2) logo.vy = logo.vy > 0 ? 2 : -2
+
+        // Directly update DOM element
+        const el = logoElementsRef.current[i]
+        if (el) {
+          el.style.transform = `translate3d(${logo.x}px, ${logo.y}px, 0) rotate(${logo.rotation}deg)`
+        }
+      })
+
+      animationRef.current = requestAnimationFrame(animate)
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden pointer-events-none">
+      {initialLogos.map((logo, i) => (
+        <img
+          key={logo.id}
+          ref={el => logoElementsRef.current[i] = el}
+          src={getTeamLogo(logo.team)}
+          alt=""
+          className="absolute top-0 left-0"
+          style={{
+            width: logo.size,
+            height: logo.size,
+            opacity: logo.opacity,
+            transform: `translate3d(${logo.x}px, ${logo.y}px, 0) rotate(${logo.rotation}deg)`,
+            willChange: 'transform',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function Login() {
   const { user, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
-
-  // Shuffle teams once on mount for random ticker order
-  const shuffledTeams = useMemo(() => {
-    const shuffled = shuffleArray(teams)
-    // Duplicate for seamless loop animation
-    return [...shuffled, ...shuffled]
-  }, [])
 
   useEffect(() => {
     if (user) {
@@ -44,34 +146,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col overflow-hidden">
-      {/* Top Logo Ticker */}
-      <div className="relative h-20 overflow-hidden border-b border-gray-800/50 bg-black/30 flex-shrink-0">
-        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10" />
-        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-gray-900 via-gray-900/80 to-transparent z-10" />
-        <div className="flex items-center h-full animate-scroll-left">
-          {shuffledTeams.map((teamName, idx) => (
-            <div key={`top-${idx}`} className="flex-shrink-0 w-14 h-14 mx-5 hover:scale-110 transition-transform duration-200">
-              <img
-                src={getTeamLogo(teamName)}
-                alt=""
-                className="w-full h-full object-contain drop-shadow-lg"
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-900 flex flex-col overflow-hidden relative">
+      {/* Bouncing Logos Background - all 140 teams (136 FBS + 4 FCS) */}
+      <BouncingLogos />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 relative">
-        {/* Background effects */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse-slow" />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse-slow delay-1000" />
-        </div>
-
-        <div className="relative z-10 w-full max-w-sm">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 relative z-10">
+        <div className="w-full max-w-sm">
           {/* Logo with glow */}
           <div className="flex justify-center mb-6">
             <div className="relative">
@@ -132,49 +213,14 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Bottom Logo Ticker - scrolls opposite direction */}
-      <div className="relative h-20 overflow-hidden border-t border-gray-800/50 bg-black/30 flex-shrink-0">
-        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10" />
-        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-gray-900 via-gray-900/80 to-transparent z-10" />
-        <div className="flex items-center h-full animate-scroll-right">
-          {shuffledTeams.map((teamName, idx) => (
-            <div key={`bottom-${idx}`} className="flex-shrink-0 w-14 h-14 mx-5 hover:scale-110 transition-transform duration-200">
-              <img
-                src={getTeamLogo(teamName)}
-                alt=""
-                className="w-full h-full object-contain drop-shadow-lg"
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* CSS for animations */}
       <style>{`
-        @keyframes scroll-left {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes scroll-right {
-          0% { transform: translateX(-50%); }
-          100% { transform: translateX(0); }
-        }
         @keyframes pulse-slow {
           0%, 100% { opacity: 0.5; }
           50% { opacity: 1; }
         }
-        .animate-scroll-left {
-          animation: scroll-left 30s linear infinite;
-        }
-        .animate-scroll-right {
-          animation: scroll-right 30s linear infinite;
-        }
         .animate-pulse-slow {
           animation: pulse-slow 4s ease-in-out infinite;
-        }
-        .delay-1000 {
-          animation-delay: 1s;
         }
       `}</style>
     </div>
