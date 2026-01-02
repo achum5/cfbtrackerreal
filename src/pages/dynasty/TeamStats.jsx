@@ -9,6 +9,7 @@ import { getTeamLogo } from '../../data/teams'
 import TeamStatsModal from '../../components/TeamStatsModal'
 import StatsEntryModal from '../../components/StatsEntryModal'
 import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
+import { aggregatePlayerBoxScoreStats } from '../../utils/boxScoreAggregator'
 
 // Mapping from detailedStatsByYear column names to box score field names
 const DETAILED_TO_BOXSCORE = {
@@ -415,12 +416,37 @@ export default function TeamStats() {
       return result
     }
 
-    // Process category - prefer player.statsByYear, fallback to legacy
+    // Process category - prefer box scores (most up-to-date), then statsByYear, then legacy
     const processCategory = (internalCatName, legacyCatName) => {
       const playerStatsMap = new Map() // Use Map to deduplicate by normalized name
+      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
 
-      // First, get from player.statsByYear (PRIMARY source)
+      // First, get from BOX SCORES (most up-to-date source - aggregated from game entries)
       allPlayers.forEach(player => {
+        if (!player.name) return
+        const normalizedName = player.name.toLowerCase().trim()
+        if (playerStatsMap.has(normalizedName)) return
+
+        // Aggregate box score stats for this player
+        const boxScoreAgg = aggregatePlayerBoxScoreStats(currentDynasty, player.name, selectedYear, userTeamAbbr, player)
+        if (boxScoreAgg?.[internalCatName]) {
+          const categoryStats = boxScoreAgg[internalCatName]
+          const gamesWithStats = boxScoreAgg.gamesWithStats || 0
+          const stats = { playerName: player.name, games: gamesWithStats, ...categoryStats }
+          // Only include if has meaningful stats
+          const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
+          if (statKeys.some(k => stats[k] > 0)) {
+            playerStatsMap.set(normalizedName, stats)
+          }
+        }
+      })
+
+      // Second, add from player.statsByYear if not already included from box scores
+      allPlayers.forEach(player => {
+        if (!player.name) return
+        const normalizedName = player.name.toLowerCase().trim()
+        if (playerStatsMap.has(normalizedName)) return // Skip if already have stats from box scores
+
         const yearStats = player.statsByYear?.[selectedYear]
         if (yearStats?.[internalCatName]) {
           const gamesPlayed = yearStats.gamesPlayed || 0
@@ -428,21 +454,17 @@ export default function TeamStats() {
           // Only include if has meaningful stats
           const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
           if (statKeys.some(k => stats[k] > 0)) {
-            const normalizedName = player.name?.toLowerCase().trim()
-            // Only add if not already seen (first occurrence wins)
-            if (!playerStatsMap.has(normalizedName)) {
-              playerStatsMap.set(normalizedName, stats)
-            }
+            playerStatsMap.set(normalizedName, stats)
           }
         }
       })
 
-      // Then, add from legacy if not already included
+      // Third, add from legacy detailedStatsByYear if not already included
       const legacyPlayers = legacyDetailedStats[legacyCatName] || []
       legacyPlayers.forEach(p => {
         if (!p.name) return
         const normalizedName = p.name.toLowerCase().trim()
-        if (playerStatsMap.has(normalizedName)) return // Skip if already have stats from primary source
+        if (playerStatsMap.has(normalizedName)) return // Skip if already have stats
         const yearStats = getPlayerYearStats(p.name)
         const stats = convertPlayerStats(p.name, p, yearStats.gamesPlayed || 0)
         const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
@@ -578,7 +600,7 @@ export default function TeamStats() {
       kickReturn,
       puntReturn
     }
-  }, [currentDynasty?.players, currentDynasty?.detailedStatsByYear, currentDynasty?.playerStatsByYear, selectedYear])
+  }, [currentDynasty?.players, currentDynasty?.games, currentDynasty?.teamName, currentDynasty?.detailedStatsByYear, currentDynasty?.playerStatsByYear, selectedYear])
 
   // Helper to find player PID by name
   const getPlayerPID = useCallback((playerName) => {
