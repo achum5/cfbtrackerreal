@@ -4407,20 +4407,42 @@ export function getDefaultConferences() {
   return DEFAULT_CONFERENCES
 }
 
-// Create Custom Conferences sheet
-export async function createConferencesSheet(dynastyName, year) {
+// Create Custom Conferences sheet with multiple year tabs
+export async function createConferencesSheet(dynastyName, currentYear, conferencesByYear = null) {
   try {
     const accessToken = await getAccessToken()
 
-    // Sort conferences alphabetically
-    const sortedConferences = Object.keys(DEFAULT_CONFERENCES).sort()
-    const columnCount = sortedConferences.length
+    // Determine which years to create tabs for
+    // If conferencesByYear provided, use those years; otherwise just use currentYear
+    const years = conferencesByYear
+      ? Object.keys(conferencesByYear).map(Number).sort((a, b) => b - a) // Descending order (newest first)
+      : [currentYear]
+
+    // Ensure current year is included
+    if (!years.includes(currentYear)) {
+      years.unshift(currentYear)
+      years.sort((a, b) => b - a)
+    }
 
     // Fixed 20 slots per conference (21 rows total with header)
     const maxTeams = 20
     const rowCount = maxTeams + 1 // +1 for header
+    const columnCount = Object.keys(DEFAULT_CONFERENCES).length
 
-    // Create the spreadsheet
+    // Create sheet definitions for each year
+    const sheetDefinitions = years.map((year, index) => ({
+      properties: {
+        title: String(year),
+        index: index,
+        gridProperties: {
+          rowCount: rowCount,
+          columnCount: columnCount,
+          frozenRowCount: 1
+        }
+      }
+    }))
+
+    // Create the spreadsheet with multiple year tabs
     const response = await fetch(SHEETS_API_BASE, {
       method: 'POST',
       headers: {
@@ -4429,20 +4451,9 @@ export async function createConferencesSheet(dynastyName, year) {
       },
       body: JSON.stringify({
         properties: {
-          title: `${dynastyName} - Conference Alignment ${year}`
+          title: `${dynastyName} - Conference Alignment`
         },
-        sheets: [
-          {
-            properties: {
-              title: 'Conferences',
-              gridProperties: {
-                rowCount: rowCount,
-                columnCount: columnCount,
-                frozenRowCount: 1
-              }
-            }
-          }
-        ]
+        sheets: sheetDefinitions
       })
     })
 
@@ -4452,18 +4463,24 @@ export async function createConferencesSheet(dynastyName, year) {
       throw new Error(`Failed to create conferences sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const sheet = await response.json()
-    const conferencesSheetId = sheet.sheets[0].properties.sheetId
+    const spreadsheet = await response.json()
 
-    // Initialize headers and data
-    await initializeConferencesSheet(sheet.spreadsheetId, accessToken, conferencesSheetId, sortedConferences, maxTeams)
+    // Initialize each year's tab with its conference data
+    for (let i = 0; i < years.length; i++) {
+      const year = years[i]
+      const sheetId = spreadsheet.sheets[i].properties.sheetId
+      const conferencesData = conferencesByYear?.[year] || DEFAULT_CONFERENCES
+      const sortedConferences = Object.keys(conferencesData).sort()
+
+      await initializeConferencesSheet(spreadsheet.spreadsheetId, accessToken, sheetId, sortedConferences, maxTeams, conferencesData)
+    }
 
     // Share sheet publicly so it can be embedded in iframe
-    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+    await shareSheetPublicly(spreadsheet.spreadsheetId, accessToken)
 
     return {
-      spreadsheetId: sheet.spreadsheetId,
-      spreadsheetUrl: sheet.spreadsheetUrl
+      spreadsheetId: spreadsheet.spreadsheetId,
+      spreadsheetUrl: spreadsheet.spreadsheetUrl
     }
   } catch (error) {
     console.error('Error creating conferences sheet:', error)
@@ -4540,8 +4557,8 @@ function generateConferencesTeamFormattingRules(sheetId, columnIndex, rowCount) 
   return rules
 }
 
-// Initialize the Conferences sheet with headers and default team data
-async function initializeConferencesSheet(spreadsheetId, accessToken, sheetId, sortedConferences, maxTeams) {
+// Initialize the Conferences sheet with headers and team data
+async function initializeConferencesSheet(spreadsheetId, accessToken, sheetId, sortedConferences, maxTeams, conferencesData) {
   const teamAbbrs = getTeamAbbreviationsList()
 
   const requests = [
@@ -4563,9 +4580,9 @@ async function initializeConferencesSheet(spreadsheetId, accessToken, sheetId, s
         fields: 'userEnteredValue'
       }
     },
-    // Pre-fill default teams for each conference
+    // Pre-fill teams for each conference
     ...sortedConferences.map((conf, colIndex) => {
-      const teams = DEFAULT_CONFERENCES[conf]
+      const teams = conferencesData[conf] || []
       return {
         updateCells: {
           range: {
@@ -4705,13 +4722,73 @@ function getAllExpectedTeams() {
   return allTeams
 }
 
+// Helper to parse a single sheet tab's conference data
+function parseConferenceSheetData(rows) {
+  if (!rows || rows.length === 0) return {}
+
+  // First row is headers (conference names)
+  const headers = rows[0]
+  const conferences = {}
+
+  // Build conference object
+  headers.forEach((confName, colIndex) => {
+    if (!confName) return
+
+    const teams = []
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+      const team = rows[rowIndex]?.[colIndex]
+      if (team && team.trim()) {
+        teams.push(team.toUpperCase())
+      }
+    }
+    conferences[confName] = teams
+  })
+
+  return conferences
+}
+
+// Validate conference data for a single year
+function validateConferenceData(conferences, yearLabel = '') {
+  const allTeamsInSheet = []
+  const teamToConference = {}
+
+  Object.entries(conferences).forEach(([confName, teams]) => {
+    teams.forEach(team => {
+      allTeamsInSheet.push(team)
+      if (teamToConference[team]) {
+        teamToConference[team].push(confName)
+      } else {
+        teamToConference[team] = [confName]
+      }
+    })
+  })
+
+  // Check for duplicates
+  const duplicates = Object.entries(teamToConference)
+    .filter(([team, confs]) => confs.length > 1)
+    .map(([team, confs]) => `${team} (in ${confs.join(', ')})`)
+
+  if (duplicates.length > 0) {
+    throw new Error(`${yearLabel ? `[${yearLabel}] ` : ''}Duplicate teams found: ${duplicates.join('; ')}. Each team can only be in one conference.`)
+  }
+
+  // Check for missing teams
+  const expectedTeams = getAllExpectedTeams()
+  const teamsInSheet = new Set(allTeamsInSheet)
+  const missingTeams = [...expectedTeams].filter(team => !teamsInSheet.has(team))
+
+  if (missingTeams.length > 0) {
+    throw new Error(`${yearLabel ? `[${yearLabel}] ` : ''}Missing teams: ${missingTeams.join(', ')}. All FBS teams must be assigned to a conference.`)
+  }
+}
+
 export async function readConferencesFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    // Get all data from the Conferences sheet
-    const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Conferences!A1:K19`,
+    // First, get spreadsheet metadata to find all sheet tabs
+    const metaResponse = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties.title`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -4719,68 +4796,68 @@ export async function readConferencesFromSheet(spreadsheetId) {
       }
     )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read conferences: ${error.error?.message || 'Unknown error'}`)
+    if (!metaResponse.ok) {
+      const error = await metaResponse.json()
+      throw new Error(`Failed to read spreadsheet metadata: ${error.error?.message || 'Unknown error'}`)
     }
 
-    const data = await response.json()
-    const rows = data.values || []
+    const metaData = await metaResponse.json()
+    const sheetTitles = metaData.sheets?.map(s => s.properties.title) || []
 
-    if (rows.length === 0) return {}
+    // Filter to only year tabs (numeric titles like "2025", "2026")
+    const yearTabs = sheetTitles.filter(title => /^\d{4}$/.test(title))
 
-    // First row is headers (conference names)
-    const headers = rows[0]
-    const conferences = {}
+    // If no year tabs found, try legacy "Conferences" tab
+    if (yearTabs.length === 0) {
+      if (sheetTitles.includes('Conferences')) {
+        // Legacy single-tab format - read it and return without year key
+        const response = await fetch(
+          `${SHEETS_API_BASE}/${spreadsheetId}/values/Conferences!A1:K21`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            }
+          }
+        )
 
-    // Build conference object
-    headers.forEach((confName, colIndex) => {
-      if (!confName) return
-
-      const teams = []
-      for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-        const team = rows[rowIndex]?.[colIndex]
-        if (team && team.trim()) {
-          teams.push(team.toUpperCase())
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(`Failed to read conferences: ${error.error?.message || 'Unknown error'}`)
         }
+
+        const data = await response.json()
+        const conferences = parseConferenceSheetData(data.values)
+        validateConferenceData(conferences)
+        return conferences
       }
-      conferences[confName] = teams
-    })
+      return {}
+    }
 
-    // Validation: Check for duplicates and missing teams
-    const allTeamsInSheet = []
-    const teamToConference = {}
+    // Read all year tabs and return data keyed by year
+    const conferencesByYear = {}
 
-    Object.entries(conferences).forEach(([confName, teams]) => {
-      teams.forEach(team => {
-        allTeamsInSheet.push(team)
-        if (teamToConference[team]) {
-          teamToConference[team].push(confName)
-        } else {
-          teamToConference[team] = [confName]
+    for (const yearTab of yearTabs) {
+      const response = await fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${yearTab}'!A1:K21`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
-      })
-    })
+      )
 
-    // Check for duplicates
-    const duplicates = Object.entries(teamToConference)
-      .filter(([team, confs]) => confs.length > 1)
-      .map(([team, confs]) => `${team} (in ${confs.join(', ')})`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read ${yearTab} conferences: ${error.error?.message || 'Unknown error'}`)
+      }
 
-    if (duplicates.length > 0) {
-      throw new Error(`Duplicate teams found: ${duplicates.join('; ')}. Each team can only be in one conference.`)
+      const data = await response.json()
+      const conferences = parseConferenceSheetData(data.values)
+      validateConferenceData(conferences, yearTab)
+      conferencesByYear[yearTab] = conferences
     }
 
-    // Check for missing teams
-    const expectedTeams = getAllExpectedTeams()
-    const teamsInSheet = new Set(allTeamsInSheet)
-    const missingTeams = [...expectedTeams].filter(team => !teamsInSheet.has(team))
-
-    if (missingTeams.length > 0) {
-      throw new Error(`Missing teams: ${missingTeams.join(', ')}. All FBS teams must be assigned to a conference.`)
-    }
-
-    return conferences
+    return conferencesByYear
   } catch (error) {
     console.error('Error reading conferences:', error)
     throw error
@@ -4812,12 +4889,12 @@ export async function createStatsEntrySheet(dynastyName, year, players = []) {
       },
       body: JSON.stringify({
         properties: {
-          title: `${dynastyName} Dynasty - ${year} Season Stats`
+          title: `${dynastyName} Dynasty - ${year} GP/Snaps`
         },
         sheets: [
           {
             properties: {
-              title: 'Player Stats',
+              title: 'GP/Snaps',
               gridProperties: {
                 rowCount: Math.max(players.length + 1, 86),
                 columnCount: 8, // PID + Player + Position + Class + Dev Trait + Overall + GP + Snaps
@@ -5126,9 +5203,9 @@ export async function readStatsFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
-    // Read all data from the Player Stats sheet (A-H: PID, Player, Position, Class, Dev Trait, Overall, GP, Snaps)
+    // Read all data from the GP/Snaps sheet (A-H: PID, Player, Position, Class, Dev Trait, Overall, GP, Snaps)
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'Player Stats'!A2:H200`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'GP/Snaps'!A2:H200`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -5236,7 +5313,7 @@ export async function createDetailedStatsSheet(dynastyName, year, playerStats = 
             index: index,
             gridProperties: {
               rowCount: rowCount,
-              columnCount: DETAILED_STATS_TABS[tabName].length + 1, // +1 for Name column only
+              columnCount: DETAILED_STATS_TABS[tabName].length + 2, // +2 for Name and Snaps columns
               frozenRowCount: 1
             }
           }
@@ -5377,7 +5454,7 @@ const COLUMN_TO_BOXSCORE_FIELD = {
 // Initialize a single tab of the detailed stats sheet
 async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, tabName, playerStats, aggregatedStats = {}) {
   const statColumns = DETAILED_STATS_TABS[tabName]
-  const totalColumns = statColumns.length + 1 // Name + stat columns (removed PID, Pos, Snaps)
+  const totalColumns = statColumns.length + 2 // Name + Snaps + stat columns
   const boxScoreCategory = TAB_TO_BOXSCORE_CATEGORY[tabName]
 
   // Filter players by positions relevant to this tab
@@ -5409,6 +5486,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Name' } },
+            { userEnteredValue: { stringValue: 'Snaps' } },
             ...statColumns.map(col => ({ userEnteredValue: { stringValue: col } }))
           ]
         }],
@@ -5447,13 +5525,26 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
         fields: 'pixelSize'
       }
     },
-    // Set stat columns width
+    // Set Snaps column width
     {
       updateDimensionProperties: {
         range: {
           sheetId: sheetId,
           dimension: 'COLUMNS',
           startIndex: 1,
+          endIndex: 2
+        },
+        properties: { pixelSize: 60 },
+        fields: 'pixelSize'
+      }
+    },
+    // Set stat columns width
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'COLUMNS',
+          startIndex: 2,
           endIndex: totalColumns
         },
         properties: { pixelSize: 85 },
@@ -5526,9 +5617,10 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
           endColumnIndex: totalColumns
         },
         rows: sortedPlayers.map(player => {
-          // Name column
+          // Name and Snaps columns
           const baseValues = [
-            { userEnteredValue: { stringValue: player.name || '' } }
+            { userEnteredValue: { stringValue: player.name || '' } },
+            { userEnteredValue: { numberValue: player.snapsPlayed || 0 } }
           ]
 
           // Stat columns - pre-fill from aggregated box scores if available
@@ -5551,14 +5643,14 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
       }
     })
 
-    // Center stat columns (not Name column)
+    // Center Snaps and stat columns (not Name column)
     requests.push({
       repeatCell: {
         range: {
           sheetId: sheetId,
           startRowIndex: 1,
           endRowIndex: sortedPlayers.length + 1,
-          startColumnIndex: 1,
+          startColumnIndex: 1, // Start at Snaps column
           endColumnIndex: totalColumns
         },
         cell: {
@@ -5570,7 +5662,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
       }
     })
 
-    // Add auto-filter to header row
+    // Add auto-filter to header row with default sort by Snaps (descending)
     requests.push({
       setBasicFilter: {
         filter: {
@@ -5580,7 +5672,11 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
             endRowIndex: sortedPlayers.length + 1,
             startColumnIndex: 0,
             endColumnIndex: totalColumns
-          }
+          },
+          sortSpecs: [{
+            dimensionIndex: 1, // Snaps column (column B)
+            sortOrder: 'DESCENDING'
+          }]
         }
       }
     })
@@ -5608,6 +5704,7 @@ async function initializeDetailedStatsTab(spreadsheetId, accessToken, sheetId, t
 
 /**
  * Read detailed stats data from all tabs
+ * Columns: Name (A), Snaps (B), then stat columns (C+)
  */
 export async function readDetailedStatsFromSheet(spreadsheetId) {
   try {
@@ -5616,7 +5713,7 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
 
     for (const tabName of Object.keys(DETAILED_STATS_TABS)) {
       const statColumns = DETAILED_STATS_TABS[tabName]
-      const lastColumn = String.fromCharCode(65 + statColumns.length) // A=65, +1 for Name column
+      const lastColumn = String.fromCharCode(65 + statColumns.length + 1) // A=65, +1 for Name, +1 for Snaps
 
       const response = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A2:${lastColumn}200`,
@@ -5639,10 +5736,11 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
       result[tabName] = rows.map(row => {
         const player = {
           name: row[0]?.trim() || ''
+          // Snaps column (row[1]) is read-only for display/sorting, not returned
         }
-        // Map stat columns (starting at column index 1)
+        // Map stat columns (starting at column index 2, after Name and Snaps)
         statColumns.forEach((col, i) => {
-          const value = row[i + 1]
+          const value = row[i + 2]
           // Try to parse as number, otherwise keep as string
           player[col] = value !== undefined && value !== '' ? (isNaN(parseFloat(value)) ? value : parseFloat(value)) : null
         })
@@ -7749,7 +7847,7 @@ const LEAVING_REASONS = [
 
 // Create Players Leaving sheet for offseason
 // Auto-fills RS Sr (exhausted eligibility) and Sr with 5+ games as "Graduating"
-export async function createPlayersLeavingSheet(dynastyName, year, players, playerStatsByYear) {
+export async function createPlayersLeavingSheet(dynastyName, year, players) {
   try {
     const accessToken = await getAccessToken()
 
@@ -7764,15 +7862,15 @@ export async function createPlayersLeavingSheet(dynastyName, year, players, play
     // Find seniors who are graduating:
     // - RS Sr: Always graduating (exhausted eligibility, no games requirement)
     // - Sr: Only if 5+ games played (the 5+ games rule applies)
-    const currentYearStats = playerStatsByYear?.[year] || []
     const seniorsGraduating = currentRosterPlayers.filter(player => {
       // RS Sr always graduates - they've exhausted eligibility
       if (player.year === 'RS Sr') return true
 
       // Sr needs 5+ games to auto-graduate
       if (player.year === 'Sr') {
-        const stats = currentYearStats.find(s => s.pid === player.pid)
-        const gamesPlayed = stats?.gamesPlayed || 0
+        // Read from player's own statsByYear (check both number and string keys)
+        const yearStats = player.statsByYear?.[year] || player.statsByYear?.[String(year)]
+        const gamesPlayed = yearStats?.gamesPlayed || 0
         return gamesPlayed >= 5
       }
 

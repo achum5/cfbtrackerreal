@@ -1339,33 +1339,29 @@ export function calculatePlayerPWAR(player, betas, qReps) {
  * @returns {Object} - Unified stats object
  */
 function buildPlayerStats(dynasty, year, pid, playerPosition) {
-  const playerStatsByYear = dynasty.playerStatsByYear || {}
-  const detailedStatsByYear = dynasty.detailedStatsByYear || {}
+  // Find the player
+  const player = dynasty.players?.find(p => p.pid === pid || String(p.pid) === String(pid))
+  if (!player) return null
 
-  // Use loose comparison for pid to handle string/number mismatches
-  const pidMatch = (p) => p.pid == pid || String(p.pid) === String(pid)
+  // Get stats from player.statsByYear (check both number and string keys)
+  const yearStats = player.statsByYear?.[year] || player.statsByYear?.[String(year)] || {}
 
-  const basicStats = playerStatsByYear[year]?.find(pidMatch)
-  const detailedYear = detailedStatsByYear[year] || {}
-
-  // Find player in each stat category
-  const findInTab = (tabName) => detailedYear[tabName]?.find(pidMatch)
-
-  const passing = findInTab('Passing')
-  const rushing = findInTab('Rushing')
-  const receiving = findInTab('Receiving')
-  const blocking = findInTab('Blocking')
-  const defensive = findInTab('Defensive')
-  const kicking = findInTab('Kicking')
-  const punting = findInTab('Punting')
-  const kickReturn = findInTab('Kick Return')
-  const puntReturn = findInTab('Punt Return')
+  // Extract category stats (internal format)
+  const passing = yearStats.passing || {}
+  const rushing = yearStats.rushing || {}
+  const receiving = yearStats.receiving || {}
+  const blocking = yearStats.blocking || {}
+  const defensive = yearStats.defense || {}
+  const kicking = yearStats.kicking || {}
+  const punting = yearStats.punting || {}
+  const kickReturn = yearStats.kickReturn || {}
+  const puntReturn = yearStats.puntReturn || {}
 
   // Build unified stats object - snaps are always recorded in the game
-  const snapsPlayed = basicStats?.snapsPlayed || 0
+  const snapsPlayed = yearStats.snapsPlayed || 0
 
   // Determine if this player is offense or defense based on their position
-  const position = playerPosition || basicStats?.position || ''
+  const position = playerPosition || player.position || ''
   const offensivePositions = ['QB', 'HB', 'FB', 'WR', 'TE', 'LT', 'LG', 'C', 'RG', 'RT']
   const defensivePositions = ['LEDG', 'REDG', 'DT', 'SAM', 'MIKE', 'WILL', 'CB', 'FS', 'SS']
   const isOffense = offensivePositions.includes(position)
@@ -1373,66 +1369,65 @@ function buildPlayerStats(dynasty, year, pid, playerPosition) {
 
   const stats = {
     // Basic stats
-    gamesPlayed: basicStats?.gamesPlayed || 0,
+    gamesPlayed: yearStats.gamesPlayed || 0,
     offSnaps: isOffense ? snapsPlayed : 0, // Only count offense snaps for offensive players
     defSnaps: isDefense ? snapsPlayed : 0, // Only count defense snaps for defensive players
 
-    // Passing stats
-    completions: passing?.['Completions'] || 0,
-    attempts: passing?.['Attempts'] || 0,
-    passingYards: passing?.['Yards'] || 0,
-    passingTd: passing?.['Touchdowns'] || 0,
-    interceptions: passing?.['Interceptions'] || 0,
-    sacksTaken: passing?.['Sacks Taken'] || 0,
+    // Passing stats (internal format: cmp, att, yds, td, int, sacks)
+    completions: passing.cmp || 0,
+    attempts: passing.att || 0,
+    passingYards: passing.yds || 0,
+    passingTd: passing.td || 0,
+    interceptions: passing.int || 0,
+    sacksTaken: passing.sacks || 0,
     // Compute ANY/A: (pass yards + 20*pass TD - 45*INT - sack yards) / (attempts + sacks)
-    // We don't have sack yards, so approximate with just yards
     anyA: (() => {
-      const att = passing?.['Attempts'] || 0
-      const sacks = passing?.['Sacks Taken'] || 0
+      const att = passing.att || 0
+      const sacks = passing.sacks || 0
       if (att + sacks === 0) return 0
-      const yds = passing?.['Yards'] || 0
-      const td = passing?.['Touchdowns'] || 0
-      const ints = passing?.['Interceptions'] || 0
+      const yds = passing.yds || 0
+      const td = passing.td || 0
+      const ints = passing.int || 0
       return (yds + 20 * td - 45 * ints) / (att + sacks)
     })(),
 
-    // Rushing stats
-    carries: rushing?.['Carries'] || 0,
-    rushYards: rushing?.['Yards'] || 0,
-    rushTd: rushing?.['Touchdowns'] || 0,
-    brokenTackles: rushing?.['Broken Tackles'] || 0,
-    fumbles: rushing?.['Fumbles'] || 0,
+    // Rushing stats (internal format: car, yds, td, fum)
+    carries: rushing.car || 0,
+    rushYards: rushing.yds || 0,
+    rushTd: rushing.td || 0,
+    brokenTackles: 0, // Not tracked in internal format
+    fumbles: rushing.fum || 0,
     runs20Plus: 0, // Not tracked in current stats
     yardsAfterContact: 0, // Not tracked in current stats
 
-    // Receiving stats
-    receptions: receiving?.['Receptions'] || 0,
-    recYards: receiving?.['Yards'] || 0,
-    recTd: receiving?.['Touchdowns'] || 0,
-    drops: receiving?.['Drops'] || 0,
+    // Receiving stats (internal format: rec, yds, td, drops)
+    receptions: receiving.rec || 0,
+    recYards: receiving.yds || 0,
+    recTd: receiving.td || 0,
+    drops: receiving.drops || 0,
     runAfterCatch: 0, // Not tracked
 
-    // Blocking stats
-    sacksAllowed: blocking?.['Sacks Allowed'] || 0,
+    // Blocking stats (internal format: sacksAllowed)
+    sacksAllowed: blocking.sacksAllowed || 0,
 
-    // Defensive stats
-    soloTackles: defensive?.['Solo Tackles'] || 0,
-    assistedTackles: defensive?.['Assisted Tackles'] || 0,
-    tacklesForLoss: defensive?.['Tackles for Loss'] || 0,
-    sacks: defensive?.['Sacks'] || 0,
-    deflections: defensive?.['Deflections'] || 0,
-    forcedFumbles: defensive?.['Forced Fumbles'] || 0,
-    fumbleRecoveries: defensive?.['Fumble Recoveries'] || 0,
-    defInterceptions: defensive?.['Interceptions'] || 0,
+    // Defensive stats (internal format: soloTkl, astTkl, tfl, sacks, int, pd, ff, fr, td, sfty)
+    soloTackles: defensive.soloTkl || 0,
+    assistedTackles: defensive.astTkl || 0,
+    tacklesForLoss: defensive.tfl || 0,
+    sacks: defensive.sacks || 0,
+    deflections: defensive.pd || 0,
+    forcedFumbles: defensive.ff || 0,
+    fumbleRecoveries: defensive.fr || 0,
+    defInterceptions: defensive.int || 0,
     catchesAllowed: 0, // Not tracked
     blocks: 0, // Not tracked
-    safeties: 0, // Not tracked
+    safeties: defensive.sfty || 0,
 
-    // Kicking stats
-    fgMade: kicking?.['FG Made'] || 0,
-    fgAttempts: kicking?.['FG Attempted'] || 0,
-    xpMade: kicking?.['XP Made'] || 0,
-    xpAttempts: kicking?.['XP Attempted'] || 0,
+    // Kicking stats (internal format: fgm, fga, xpm, xpa, lng)
+    fgMade: kicking.fgm || 0,
+    fgAttempts: kicking.fga || 0,
+    xpMade: kicking.xpm || 0,
+    xpAttempts: kicking.xpa || 0,
     fgBlocked: 0, // Not tracked
     xpBlocked: 0, // Not tracked
     // Distance buckets not tracked, so estimate based on total
@@ -1445,21 +1440,21 @@ function buildPlayerStats(dynasty, year, pid, playerPosition) {
     fgMade50p: 0,
     fgAtt50p: 0,
 
-    // Punting stats
-    punts: punting?.['Punts'] || 0,
-    puntYards: punting?.['Punting Yards'] || 0,
-    netPuntYds: punting?.['Punting Yards'] || 0, // Approximate with gross
-    puntsI20: punting?.['Punts Inside 20'] || 0,
-    puntTouchbacks: punting?.['Touchbacks'] || 0,
+    // Punting stats (internal format: punts, yds, lng, in20, tb)
+    punts: punting.punts || 0,
+    puntYards: punting.yds || 0,
+    netPuntYds: punting.yds || 0, // Approximate with gross
+    puntsI20: punting.in20 || 0,
+    puntTouchbacks: punting.tb || 0,
     puntsBlocked: 0, // Not tracked
 
-    // Return stats
-    kickReturns: kickReturn?.['Kickoff Returns'] || 0,
-    krYards: kickReturn?.['KR Yardage'] || 0,
-    krTd: kickReturn?.['KR Touchdowns'] || 0,
-    puntReturns: puntReturn?.['Punt Returns'] || 0,
-    prYards: puntReturn?.['PR Yardage'] || 0,
-    prTd: puntReturn?.['PR Touchdowns'] || 0
+    // Return stats (internal format: ret, yds, td, lng)
+    kickReturns: kickReturn.ret || 0,
+    krYards: kickReturn.yds || 0,
+    krTd: kickReturn.td || 0,
+    puntReturns: puntReturn.ret || 0,
+    prYards: puntReturn.yds || 0,
+    prTd: puntReturn.td || 0
   }
 
   return stats
@@ -1469,20 +1464,20 @@ function buildPlayerStats(dynasty, year, pid, playerPosition) {
  * Check if player has any meaningful stats for the year
  */
 function playerHasStats(dynasty, year, pid) {
-  const playerStatsByYear = dynasty.playerStatsByYear || {}
-  const detailedStatsByYear = dynasty.detailedStatsByYear || {}
+  // Find the player
+  const player = dynasty.players?.find(p => p.pid === pid || String(p.pid) === String(pid))
+  if (!player) return false
 
-  // Use loose comparison for pid to handle string/number mismatches
-  const pidMatch = (p) => p.pid == pid || String(p.pid) === String(pid)
+  // Check player.statsByYear (check both number and string keys)
+  const yearStats = player.statsByYear?.[year] || player.statsByYear?.[String(year)]
+  if (!yearStats) return false
 
-  const basicStats = playerStatsByYear[year]?.find(pidMatch)
-  const detailedYear = detailedStatsByYear[year] || {}
+  // Check if there's any actual data
+  const hasBasicStats = yearStats.gamesPlayed > 0 || yearStats.snapsPlayed > 0
+  const hasCategories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+    .some(cat => yearStats[cat] && Object.keys(yearStats[cat]).length > 0)
 
-  // Check if player exists in any stat tab
-  const tabs = ['Passing', 'Rushing', 'Receiving', 'Blocking', 'Defensive', 'Kicking', 'Punting', 'Kick Return', 'Punt Return']
-  const hasDetailed = tabs.some(tab => detailedYear[tab]?.some(pidMatch))
-
-  return basicStats || hasDetailed
+  return hasBasicStats || hasCategories
 }
 
 /**

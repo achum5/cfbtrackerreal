@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getCurrentCustomConferences } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -173,6 +173,9 @@ export default function Teams() {
 
   if (!currentDynasty) return null
 
+  // Get custom conferences for current year
+  const customConferences = getCurrentCustomConferences(currentDynasty)
+
   // Get all FBS teams with their info, sorted alphabetically by mascot name
   // Filter out FCS teams (abbreviations starting with 'FCS')
   const allTeams = Object.entries(teamAbbreviations)
@@ -182,7 +185,7 @@ export default function Teams() {
       name: team.name,
       backgroundColor: team.backgroundColor,
       textColor: team.textColor,
-      conference: getTeamConference(abbr),
+      conference: getTeamConference(abbr, customConferences),
       mascotName: getMascotName(abbr)
     })).sort((a, b) => {
       const nameA = a.mascotName || a.name

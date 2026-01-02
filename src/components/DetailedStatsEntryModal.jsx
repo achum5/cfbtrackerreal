@@ -9,6 +9,7 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
+import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -36,6 +37,9 @@ export default function DetailedStatsEntryModal({
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
+  const [authErrorOccurred, setAuthErrorOccurred] = useState(false) // Prevents retry loops on auth errors
+  const [createAttempts, setCreateAttempts] = useState(0) // Tracks creation attempts
+  const MAX_CREATE_ATTEMPTS = 2 // Maximum retries for sheet creation
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -94,6 +98,9 @@ export default function DetailedStatsEntryModal({
   // Create detailed stats sheet when modal opens - ALWAYS create fresh to reflect current player data
   useEffect(() => {
     const createSheet = async () => {
+      // Don't retry if auth error occurred or max attempts reached
+      if (authErrorOccurred || createAttempts >= MAX_CREATE_ATTEMPTS) return
+
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // ALWAYS create a fresh sheet - never reuse old sheets
         // This ensures the sheet reflects current player data (user may have edited players directly)
@@ -137,58 +144,59 @@ export default function DetailedStatsEntryModal({
           })
 
           // Get existing stats to pre-fill gamesPlayed/snapsPlayed
-          // Sources: 1) playerStatsByYear (legacy), 2) player.statsByYear (new)
-          const existingPlayerStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
-
+          // Check player.statsByYear first, then fall back to box score aggregation
           const playersWithSnaps = currentRoster.map(player => {
-            const existingStat = existingPlayerStats.find(s =>
-              s.pid === player.pid || s.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-            )
             const playerYearStats = player.statsByYear?.[currentYear]
+              || player.statsByYear?.[String(currentYear)]
+              || player.statsByYear?.[Number(currentYear)]
+
+            // If no manual stats, try to get games from box score aggregation
+            let gamesPlayed = playerYearStats?.gamesPlayed
+            let snapsPlayed = playerYearStats?.snapsPlayed
+
+            // Fall back to box scores if no manual gamesPlayed set
+            if (gamesPlayed == null && player.name && currentDynasty) {
+              const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
+              if (boxScoreStats?.gamesWithStats > 0) {
+                gamesPlayed = boxScoreStats.gamesWithStats
+              }
+            }
 
             return {
               ...player,
-              gamesPlayed: existingStat?.gamesPlayed || playerYearStats?.gamesPlayed || null,
-              snapsPlayed: existingStat?.snapsPlayed || playerYearStats?.snapsPlayed || null
+              gamesPlayed: gamesPlayed ?? null,
+              snapsPlayed: snapsPlayed ?? null
             }
           })
 
           // Get existing detailed stats to pre-fill the sheet
-          // Sources: 1) detailedStatsByYear (legacy), 2) player.statsByYear (new)
-          const legacyDetailedStats = currentDynasty?.detailedStatsByYear?.[currentYear] || {}
+          // Reads from player.statsByYear first, then merges with box score data
           let aggregatedStats = {}
 
-          // Build aggregatedStats from existing stored data (NO box scores)
+          // Build aggregatedStats from stored data AND box scores
           playersWithSnaps.forEach(player => {
             if (!player.name) return
 
             const playerYearStats = player.statsByYear?.[currentYear]
+              || player.statsByYear?.[String(currentYear)]
+              || player.statsByYear?.[Number(currentYear)]
+
+            // Get box score aggregated stats
+            const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
+
             const playerStats = {}
 
-            // Check player.statsByYear first (new architecture)
+            // Categories mapping: internal name -> box score category name
             const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+
             categories.forEach(cat => {
+              // First check player.statsByYear (manual/saved stats)
               if (playerYearStats?.[cat]) {
                 playerStats[cat] = playerYearStats[cat]
               }
-            })
-
-            // Check legacy detailedStatsByYear
-            const legacyCategoryMap = {
-              'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
-              'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
-              'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
-            }
-
-            Object.entries(legacyCategoryMap).forEach(([legacyName, internalName]) => {
-              if (!playerStats[internalName]) {
-                const legacyCat = legacyDetailedStats[legacyName] || []
-                const playerLegacy = legacyCat.find(p =>
-                  p.name?.toLowerCase().trim() === player.name.toLowerCase().trim()
-                )
-                if (playerLegacy) {
-                  playerStats[internalName] = playerLegacy
-                }
+              // Fall back to box score aggregated stats if no manual stats
+              else if (boxScoreStats?.[cat]) {
+                playerStats[cat] = boxScoreStats[cat]
               }
             })
 
@@ -208,7 +216,11 @@ export default function DetailedStatsEntryModal({
           // NOTE: We do NOT save the sheet ID to dynasty - each open creates a fresh sheet
         } catch (error) {
           console.error('Error creating detailed stats sheet:', error)
-          if (error.message?.includes('authentication') || error.message?.includes('token')) {
+          setCreateAttempts(prev => prev + 1)
+
+          // Check for OAuth/auth errors - stop retrying and show error modal
+          if (error.message?.includes('OAuth') || error.message?.includes('access token') || error.message?.includes('expired') || error.message?.includes('authentication') || error.message?.includes('token')) {
+            setAuthErrorOccurred(true)
             setShowAuthError(true)
           }
         } finally {
@@ -218,7 +230,7 @@ export default function DetailedStatsEntryModal({
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentYear, retryCount, overrideTeamAbbr, overrideTeamName])
+  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentYear, retryCount, overrideTeamAbbr, overrideTeamName, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
@@ -226,6 +238,9 @@ export default function DetailedStatsEntryModal({
       setSheetId(null)
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      setAuthErrorOccurred(false)
+      setCreateAttempts(0)
+      setShowAuthError(false)
     }
   }, [isOpen])
 
@@ -318,7 +333,7 @@ export default function DetailedStatsEntryModal({
         style={{ backgroundColor: teamColors.secondary }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
             {currentYear} Detailed Stats Entry
           </h2>
@@ -331,6 +346,11 @@ export default function DetailedStatsEntryModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        </div>
+
+        {/* Helper tip */}
+        <div className="mb-4 p-3 rounded-lg text-sm" style={{ backgroundColor: `${teamColors.primary}15`, color: teamColors.primary }}>
+          <span className="font-semibold">Tip:</span> Make sure you've completed GP/Snaps Entry first. In CFB 26, sort your stats by Snaps Played, then go through each category tab - the order will match and make entry quick!
         </div>
 
         {isLoading ? (

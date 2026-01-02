@@ -84,6 +84,21 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
     }
   }, [isOpen, sheetId, useEmbedded])
 
+  // Get all years' custom conferences data
+  const getAllConferencesByYear = () => {
+    const byYear = currentDynasty?.customConferencesByYear
+    if (byYear && Object.keys(byYear).length > 0) {
+      return byYear
+    }
+    // Legacy: if only customConferences exists, use it for current year
+    if (currentDynasty?.customConferences) {
+      return { [currentDynasty.currentYear]: currentDynasty.customConferences }
+    }
+    return null
+  }
+
+  const hasExistingConferences = !!getAllConferencesByYear()
+
   // Create Conferences sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
@@ -99,9 +114,12 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Pass all years' custom conferences if available
+          const conferencesByYear = getAllConferencesByYear()
           const sheetInfo = await createConferencesSheet(
             currentDynasty?.teamName || 'Dynasty',
-            currentDynasty?.currentYear || new Date().getFullYear()
+            currentDynasty?.currentYear || new Date().getFullYear(),
+            conferencesByYear
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -206,7 +224,8 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Conferences') : null
+  // Don't specify sheet name - let user see all year tabs
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId) : null
   const isLoading = creatingSheet
 
   return (
@@ -221,9 +240,14 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            Custom Conferences
-          </h2>
+          <div>
+            <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
+              Custom Conferences
+            </h2>
+            <p className="text-sm mt-1" style={{ color: teamColors.primary, opacity: 0.7 }}>
+              Each year has its own tab in the sheet
+            </p>
+          </div>
           <button
             onClick={handleClose}
             className="hover:opacity-70"
@@ -249,7 +273,9 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
                 Creating Conferences Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
-                Setting up default EA CFB 26 conference alignment
+                {hasExistingConferences
+                  ? 'Loading your saved conference alignment'
+                  : 'Setting up default EA CFB 26 conference alignment'}
               </p>
             </div>
           </div>

@@ -9,6 +9,7 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
+import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -36,6 +37,9 @@ export default function StatsEntryModal({
   const [retryCount, setRetryCount] = useState(0)
   const [isMobile, setIsMobile] = useState(false)
   const [showAuthError, setShowAuthError] = useState(false)
+  const [authErrorOccurred, setAuthErrorOccurred] = useState(false) // Prevents retry loops on auth errors
+  const [createAttempts, setCreateAttempts] = useState(0) // Tracks creation attempts
+  const MAX_CREATE_ATTEMPTS = 2 // Maximum retries for sheet creation
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -94,6 +98,9 @@ export default function StatsEntryModal({
   // Create stats sheet when modal opens - ALWAYS create fresh to reflect current player data
   useEffect(() => {
     const createSheet = async () => {
+      // Don't retry if auth error occurred or max attempts reached
+      if (authErrorOccurred || createAttempts >= MAX_CREATE_ATTEMPTS) return
+
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // ALWAYS create a fresh sheet - never reuse old sheets
         // This ensures the sheet reflects current player data (user may have edited players directly)
@@ -137,22 +144,31 @@ export default function StatsEntryModal({
           })
 
           // Get existing stats to pre-fill gamesPlayed/snapsPlayed
-          // Sources: 1) playerStatsByYear (legacy), 2) player.statsByYear (new)
-          const existingStats = currentDynasty?.playerStatsByYear?.[currentYear] || []
-
+          // Prioritize box scores (most accurate count of games played), then fall back to saved stats
           const playersWithStats = players.map(player => {
-            // Check legacy storage first
-            const existingStat = existingStats.find(s =>
-              s.pid === player.pid || s.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-            )
-
-            // Then check player's own statsByYear
+            // Check player's own statsByYear (check both string and number keys)
             const playerYearStats = player.statsByYear?.[currentYear]
+              || player.statsByYear?.[String(currentYear)]
+              || player.statsByYear?.[Number(currentYear)]
+
+            // Get box score aggregation first (most accurate for games played)
+            let boxScoreGames = null
+            if (player.name && currentDynasty) {
+              const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
+              if (boxScoreStats?.gamesWithStats > 0) {
+                boxScoreGames = boxScoreStats.gamesWithStats
+              }
+            }
+
+            // Prioritize box scores for games played (matches PlayerEditModal behavior)
+            // This ensures accurate game counts even if old saved stats had different values
+            const gamesPlayed = boxScoreGames ?? playerYearStats?.gamesPlayed ?? null
+            const snapsPlayed = playerYearStats?.snapsPlayed ?? null
 
             return {
               ...player,
-              gamesPlayed: existingStat?.gamesPlayed || playerYearStats?.gamesPlayed || null,
-              snapsPlayed: existingStat?.snapsPlayed || playerYearStats?.snapsPlayed || null
+              gamesPlayed,
+              snapsPlayed
             }
           })
 
@@ -166,6 +182,13 @@ export default function StatsEntryModal({
           // NOTE: We do NOT save the sheet ID to dynasty - each open creates a fresh sheet
         } catch (error) {
           console.error('Failed to create stats sheet:', error)
+          setCreateAttempts(prev => prev + 1)
+
+          // Check for OAuth/auth errors - stop retrying and show error modal
+          if (error.message?.includes('OAuth') || error.message?.includes('access token') || error.message?.includes('expired')) {
+            setAuthErrorOccurred(true)
+            setShowAuthError(true)
+          }
         } finally {
           setCreatingSheet(false)
           creatingSheetRef.current = false
@@ -174,7 +197,7 @@ export default function StatsEntryModal({
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, overrideTeamAbbr, overrideTeamName, currentYear])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, retryCount, showDeletedNote, overrideTeamAbbr, overrideTeamName, currentYear, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
@@ -182,6 +205,9 @@ export default function StatsEntryModal({
       setSheetId(null)
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      setAuthErrorOccurred(false)
+      setCreateAttempts(0)
+      setShowAuthError(false)
     }
   }, [isOpen])
 
@@ -260,7 +286,7 @@ export default function StatsEntryModal({
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Player Stats') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'GP/Snaps') : null
   const isLoading = creatingSheet
 
   return (
@@ -274,9 +300,9 @@ export default function StatsEntryModal({
         style={{ backgroundColor: teamColors.secondary }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold" style={{ color: teamColors.primary }}>
-            {currentYear} Player Stats Entry
+            {currentYear} GP/Snaps Entry
           </h2>
           <button
             onClick={handleClose}
@@ -288,6 +314,9 @@ export default function StatsEntryModal({
             </svg>
           </button>
         </div>
+        <p className="text-sm mb-4 opacity-70" style={{ color: teamColors.primary }}>
+          Enter this first! Detailed Stats entry sorts players by snaps, so entering snaps here lets you quickly go down the list when entering passing, rushing, and other stats.
+        </p>
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -300,7 +329,7 @@ export default function StatsEntryModal({
                 }}
               />
               <p className="text-lg font-semibold" style={{ color: teamColors.primary }}>
-                Creating Player Stats Sheet...
+                Creating GP/Snaps Sheet...
               </p>
               <p className="text-sm mt-2" style={{ color: teamColors.primary, opacity: 0.7 }}>
                 Pre-filling roster data
@@ -469,7 +498,7 @@ export default function StatsEntryModal({
                     sheetId={sheetId}
                     embedUrl={embedUrl}
                     teamColors={teamColors}
-                    title="Player Stats Google Sheet"
+                    title="GP/Snaps Google Sheet"
                     onSessionError={() => setShowAuthError(true)}
                   />
                 </div>

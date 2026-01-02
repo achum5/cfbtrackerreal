@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
+import { useDynasty, detectGameType, GAME_TYPES, getTeamConferenceForDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -263,7 +263,7 @@ export default function Team() {
     )
   }
 
-  const conference = getTeamConference(teamAbbr)
+  const conference = getTeamConferenceForDynasty(currentDynasty, teamAbbr)
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
   const mascotName = getMascotName(teamAbbr)
   const teamLogo = mascotName ? getTeamLogo(mascotName) : null
@@ -1381,7 +1381,7 @@ export default function Team() {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-lg" style={{ color: userTeamTextColor }}>
-                            {game.teamScore}-{game.opponentScore}
+                            {Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}
                           </div>
                         </div>
                       </Link>
@@ -1500,7 +1500,7 @@ export default function Team() {
                                   </div>
                                   <div className="text-right">
                                     <div className="font-bold text-lg" style={{ color: oppTextColor }}>
-                                      {game.teamScore}-{game.opponentScore}
+                                      {Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}
                                     </div>
                                   </div>
                                 </Link>
@@ -1654,7 +1654,7 @@ export default function Team() {
                         </div>
                       </div>
                       {title.teamScore !== null && (
-                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{title.teamScore}-{title.opponentScore}</div>
+                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{Math.max(title.teamScore, title.opponentScore)}-{Math.min(title.teamScore, title.opponentScore)}</div>
                       )}
                   </Link>
                   )
@@ -1751,7 +1751,7 @@ export default function Team() {
                         </div>
                       </div>
                       {game.hasScore && (
-                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{game.teamScore}-{game.opponentScore}</div>
+                        <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}</div>
                       )}
                   </Link>
                   )
@@ -1857,7 +1857,7 @@ export default function Team() {
                               <span className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}> vs {getSchoolName(oppMascotName) || getSchoolName(game.opponent) || game.opponent}</span>
                             </div>
                             <div className="font-semibold text-sm" style={{ color: oppTextColor }}>
-                              {game.teamScore !== null ? `${game.teamScore}-${game.opponentScore}` : '-'}
+                              {game.teamScore !== null ? `${Math.max(game.teamScore, game.opponentScore)}-${Math.min(game.teamScore, game.opponentScore)}` : '-'}
                             </div>
                           </div>
                           )
@@ -1942,7 +1942,7 @@ export default function Team() {
                         <div className="font-semibold" style={{ color: oppTextColor }}>{title.year} National Champions</div>
                         <div className="text-sm" style={{ color: oppTextColor, opacity: 0.8 }}>vs {getSchoolName(oppMascotName) || getSchoolName(title.opponent) || title.opponent}</div>
                       </div>
-                    <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{title.teamScore}-{title.opponentScore}</div>
+                    <div className="text-xl font-bold flex-shrink-0" style={{ color: oppTextColor }}>{Math.max(title.teamScore, title.opponentScore)}-{Math.min(title.teamScore, title.opponentScore)}</div>
                   </Link>
                   )
                 })}
@@ -2123,7 +2123,7 @@ export default function Team() {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-lg" style={{ color: oppTextColor }}>
-                            {game.teamScore}-{game.opponentScore}
+                            {Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}
                           </div>
                         </div>
                       </Link>

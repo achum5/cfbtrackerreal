@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getCurrentCustomConferences } from '../context/DynastyContext'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
 import ShareDynastyModal from './ShareDynastyModal'
@@ -29,8 +29,9 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   // Get current team abbreviation for recruiting link
   const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || currentDynasty?.teamName || ''
 
-  // Get user's conference for all-conference link
-  const userConference = getTeamConference(teamAbbr) || 'SEC'
+  // Get user's conference for all-conference link (using custom conferences if available)
+  const customConferences = getCurrentCustomConferences(currentDynasty)
+  const userConference = getTeamConference(teamAbbr, customConferences) || 'SEC'
   const conferenceUrlParam = encodeURIComponent(userConference.replace(/\s+/g, '-'))
 
   const handleExport = () => {

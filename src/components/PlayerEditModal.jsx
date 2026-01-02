@@ -118,22 +118,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     // Add current dynasty year
     if (dynasty.currentYear) yearsSet.add(dynasty.currentYear)
 
-    // Add years from playerStatsByYear where this player has data
-    const playerStats = dynasty.playerStatsByYear || {}
-    Object.keys(playerStats).forEach(year => {
-      const hasPlayer = playerStats[year]?.some(p => p.pid === player?.pid)
-      if (hasPlayer) yearsSet.add(parseInt(year))
-    })
-
-    // Add years from detailedStatsByYear where this player has data
-    const detailedStats = dynasty.detailedStatsByYear || {}
-    Object.keys(detailedStats).forEach(year => {
-      const yearData = detailedStats[year] || {}
-      const hasData = Object.values(yearData).some(category =>
-        Array.isArray(category) && category.some(p => p.pid === player?.pid)
-      )
-      if (hasData) yearsSet.add(parseInt(year))
-    })
+    // Add years from player's own statsByYear
+    if (player?.statsByYear) {
+      Object.keys(player.statsByYear).forEach(year => {
+        yearsSet.add(parseInt(year))
+      })
+    }
 
     // Add years from box scores where this player appears
     if (dynasty.games && player?.name) {
@@ -157,15 +147,12 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   }
 
   // Helper to get stats for a specific year
-  // Combines box score aggregated stats with manual entry, preferring box score data
+  // Combines box score aggregated stats with player.statsByYear, preferring box score data
   const getYearStats = (year) => {
-    const detailedStats = dynasty?.detailedStatsByYear || {}
-    const playerStats = dynasty?.playerStatsByYear || {}
-    const playerPid = player?.pid
     const yearStr = year?.toString()
 
-    // Get basic stats (games, snaps)
-    const basicStats = playerStats[yearStr]?.find(p => p.pid === playerPid) || {}
+    // Get player's stored stats for this year (internal format)
+    const playerYearStats = player?.statsByYear?.[year] || player?.statsByYear?.[yearStr] || {}
 
     // Get aggregated box score stats for this player/year
     // Pass player object to enable teamsByYear filtering (prevents showing opponent stats)
@@ -173,57 +160,56 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       ? aggregatePlayerBoxScoreStats(dynasty, player.name, year, player.team, player)
       : null
 
-    // Helper to get category stats from manual entry
-    const getCategoryStats = (tabName, fieldMap) => {
+    // Helper to get category stats from player.statsByYear (internal format)
+    const getCategoryStats = (internalCatName, fieldMap) => {
       const result = {}
       Object.keys(fieldMap).forEach(key => result[key] = 0)
 
-      const yearData = detailedStats[yearStr]?.[tabName] || []
-      const playerData = yearData.find(p => p.pid === playerPid)
-      if (playerData) {
-        Object.entries(fieldMap).forEach(([key, sheetField]) => {
-          result[key] = playerData[sheetField] || 0
+      const categoryData = playerYearStats[internalCatName]
+      if (categoryData) {
+        Object.entries(fieldMap).forEach(([formKey, internalKey]) => {
+          result[formKey] = categoryData[internalKey] || 0
         })
       }
       return result
     }
 
-    // Get manual entry stats
-    const manualPassing = getCategoryStats('Passing', {
-      completions: 'Completions', attempts: 'Attempts', yards: 'Yards',
-      touchdowns: 'Touchdowns', interceptions: 'Interceptions',
-      passingLong: 'Passing Long', sacksTaken: 'Sacks Taken'
+    // Get stats from player.statsByYear (internal format keys)
+    const manualPassing = getCategoryStats('passing', {
+      completions: 'cmp', attempts: 'att', yards: 'yds',
+      touchdowns: 'td', interceptions: 'int',
+      passingLong: 'lng', sacksTaken: 'sacks'
     })
-    const manualRushing = getCategoryStats('Rushing', {
-      carries: 'Carries', yards: 'Yards', touchdowns: 'Touchdowns',
-      rushingLong: 'Rushing Long', fumbles: 'Fumbles', brokenTackles: 'Broken Tackles'
+    const manualRushing = getCategoryStats('rushing', {
+      carries: 'car', yards: 'yds', touchdowns: 'td',
+      rushingLong: 'lng', fumbles: 'fum', brokenTackles: 'bt'
     })
-    const manualReceiving = getCategoryStats('Receiving', {
-      receptions: 'Receptions', yards: 'Yards', touchdowns: 'Touchdowns',
-      receivingLong: 'Receiving Long', drops: 'Drops'
+    const manualReceiving = getCategoryStats('receiving', {
+      receptions: 'rec', yards: 'yds', touchdowns: 'td',
+      receivingLong: 'lng', drops: 'drops'
     })
-    const manualBlocking = getCategoryStats('Blocking', { sacksAllowed: 'Sacks Allowed', pancakes: 'Pancakes' })
-    const manualDefensive = getCategoryStats('Defensive', {
-      soloTackles: 'Solo Tackles', assistedTackles: 'Assisted Tackles',
-      tacklesForLoss: 'Tackles for Loss', sacks: 'Sacks', interceptions: 'Interceptions',
-      intReturnYards: 'INT Return Yards', defensiveTDs: 'Defensive TDs',
-      deflections: 'Deflections', forcedFumbles: 'Forced Fumbles', fumbleRecoveries: 'Fumble Recoveries'
+    const manualBlocking = getCategoryStats('blocking', { sacksAllowed: 'sacksAllowed', pancakes: 'pancakes' })
+    const manualDefensive = getCategoryStats('defense', {
+      soloTackles: 'soloTkl', assistedTackles: 'astTkl',
+      tacklesForLoss: 'tfl', sacks: 'sacks', interceptions: 'int',
+      intReturnYards: 'intYds', defensiveTDs: 'td',
+      deflections: 'pd', forcedFumbles: 'ff', fumbleRecoveries: 'fr'
     })
-    const manualKicking = getCategoryStats('Kicking', {
-      fgMade: 'FG Made', fgAttempted: 'FG Attempted', fgLong: 'FG Long',
-      xpMade: 'XP Made', xpAttempted: 'XP Attempted'
+    const manualKicking = getCategoryStats('kicking', {
+      fgMade: 'fgm', fgAttempted: 'fga', fgLong: 'lng',
+      xpMade: 'xpm', xpAttempted: 'xpa'
     })
-    const manualPunting = getCategoryStats('Punting', {
-      punts: 'Punts', puntingYards: 'Punting Yards',
-      puntsInside20: 'Punts Inside 20', puntLong: 'Punt Long'
+    const manualPunting = getCategoryStats('punting', {
+      punts: 'punts', puntingYards: 'yds',
+      puntsInside20: 'in20', puntLong: 'lng'
     })
-    const manualKickReturn = getCategoryStats('Kick Return', {
-      returns: 'Kickoff Returns', returnYardage: 'KR Yardage',
-      touchdowns: 'KR Touchdowns', returnLong: 'KR Long'
+    const manualKickReturn = getCategoryStats('kickReturn', {
+      returns: 'ret', returnYardage: 'yds',
+      touchdowns: 'td', returnLong: 'lng'
     })
-    const manualPuntReturn = getCategoryStats('Punt Return', {
-      returns: 'Punt Returns', returnYardage: 'PR Yardage',
-      touchdowns: 'PR Touchdowns', returnLong: 'PR Long'
+    const manualPuntReturn = getCategoryStats('puntReturn', {
+      returns: 'ret', returnYardage: 'yds',
+      touchdowns: 'td', returnLong: 'lng'
     })
 
     // Merge box score stats with manual stats (box score takes priority)
@@ -303,8 +289,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     } : manualPuntReturn
 
     return {
-      gamesPlayed: boxStats?.gamesWithStats || basicStats.gamesPlayed || 0,
-      snapsPlayed: basicStats.snapsPlayed || 0,
+      gamesPlayed: boxStats?.gamesWithStats || playerYearStats.gamesPlayed || 0,
+      snapsPlayed: playerYearStats.snapsPlayed || 0,
       fromBoxScores: !!boxStats,
       passing, rushing, receiving, blocking, defensive, kicking, punting, kickReturn, puntReturn
     }
@@ -579,74 +565,75 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
     e.preventDefault()
     const num = (val) => parseFloat(val) || 0
 
-    // Build stats for the selected year
+    // Build stats for the selected year (using INTERNAL format keys)
     const yearStats = {
       year: selectedStatsYear,
       gamesPlayed: num(formData.gamesPlayed),
       snapsPlayed: num(formData.snapsPlayed),
       passing: {
-        'Completions': num(formData.passing_completions),
-        'Attempts': num(formData.passing_attempts),
-        'Yards': num(formData.passing_yards),
-        'Touchdowns': num(formData.passing_touchdowns),
-        'Interceptions': num(formData.passing_interceptions),
-        'Passing Long': num(formData.passing_passingLong),
-        'Sacks Taken': num(formData.passing_sacksTaken)
+        cmp: num(formData.passing_completions),
+        att: num(formData.passing_attempts),
+        yds: num(formData.passing_yards),
+        td: num(formData.passing_touchdowns),
+        int: num(formData.passing_interceptions),
+        lng: num(formData.passing_passingLong),
+        sacks: num(formData.passing_sacksTaken)
       },
       rushing: {
-        'Carries': num(formData.rushing_carries),
-        'Yards': num(formData.rushing_yards),
-        'Touchdowns': num(formData.rushing_touchdowns),
-        'Rushing Long': num(formData.rushing_rushingLong),
-        'Fumbles': num(formData.rushing_fumbles),
-        'Broken Tackles': num(formData.rushing_brokenTackles)
+        car: num(formData.rushing_carries),
+        yds: num(formData.rushing_yards),
+        td: num(formData.rushing_touchdowns),
+        lng: num(formData.rushing_rushingLong),
+        fum: num(formData.rushing_fumbles),
+        bt: num(formData.rushing_brokenTackles)
       },
       receiving: {
-        'Receptions': num(formData.receiving_receptions),
-        'Yards': num(formData.receiving_yards),
-        'Touchdowns': num(formData.receiving_touchdowns),
-        'Receiving Long': num(formData.receiving_receivingLong),
-        'Drops': num(formData.receiving_drops)
+        rec: num(formData.receiving_receptions),
+        yds: num(formData.receiving_yards),
+        td: num(formData.receiving_touchdowns),
+        lng: num(formData.receiving_receivingLong),
+        drops: num(formData.receiving_drops)
       },
       blocking: {
-        'Sacks Allowed': num(formData.blocking_sacksAllowed)
+        sacksAllowed: num(formData.blocking_sacksAllowed),
+        pancakes: num(formData.blocking_pancakes)
       },
-      defensive: {
-        'Solo Tackles': num(formData.defensive_soloTackles),
-        'Assisted Tackles': num(formData.defensive_assistedTackles),
-        'Tackles for Loss': num(formData.defensive_tacklesForLoss),
-        'Sacks': num(formData.defensive_sacks),
-        'Interceptions': num(formData.defensive_interceptions),
-        'INT Return Yards': num(formData.defensive_intReturnYards),
-        'Defensive TDs': num(formData.defensive_defensiveTDs),
-        'Deflections': num(formData.defensive_deflections),
-        'Forced Fumbles': num(formData.defensive_forcedFumbles),
-        'Fumble Recoveries': num(formData.defensive_fumbleRecoveries)
+      defense: {
+        soloTkl: num(formData.defensive_soloTackles),
+        astTkl: num(formData.defensive_assistedTackles),
+        tfl: num(formData.defensive_tacklesForLoss),
+        sacks: num(formData.defensive_sacks),
+        int: num(formData.defensive_interceptions),
+        intYds: num(formData.defensive_intReturnYards),
+        td: num(formData.defensive_defensiveTDs),
+        pd: num(formData.defensive_deflections),
+        ff: num(formData.defensive_forcedFumbles),
+        fr: num(formData.defensive_fumbleRecoveries)
       },
       kicking: {
-        'FG Made': num(formData.kicking_fgMade),
-        'FG Attempted': num(formData.kicking_fgAttempted),
-        'FG Long': num(formData.kicking_fgLong),
-        'XP Made': num(formData.kicking_xpMade),
-        'XP Attempted': num(formData.kicking_xpAttempted)
+        fgm: num(formData.kicking_fgMade),
+        fga: num(formData.kicking_fgAttempted),
+        lng: num(formData.kicking_fgLong),
+        xpm: num(formData.kicking_xpMade),
+        xpa: num(formData.kicking_xpAttempted)
       },
       punting: {
-        'Punts': num(formData.punting_punts),
-        'Punting Yards': num(formData.punting_puntingYards),
-        'Punts Inside 20': num(formData.punting_puntsInside20),
-        'Punt Long': num(formData.punting_puntLong)
+        punts: num(formData.punting_punts),
+        yds: num(formData.punting_puntingYards),
+        in20: num(formData.punting_puntsInside20),
+        lng: num(formData.punting_puntLong)
       },
       kickReturn: {
-        'Kickoff Returns': num(formData.kickReturn_returns),
-        'KR Yardage': num(formData.kickReturn_returnYardage),
-        'KR Touchdowns': num(formData.kickReturn_touchdowns),
-        'KR Long': num(formData.kickReturn_returnLong)
+        ret: num(formData.kickReturn_returns),
+        yds: num(formData.kickReturn_returnYardage),
+        td: num(formData.kickReturn_touchdowns),
+        lng: num(formData.kickReturn_returnLong)
       },
       puntReturn: {
-        'Punt Returns': num(formData.puntReturn_returns),
-        'PR Yardage': num(formData.puntReturn_returnYardage),
-        'PR Touchdowns': num(formData.puntReturn_touchdowns),
-        'PR Long': num(formData.puntReturn_returnLong)
+        ret: num(formData.puntReturn_returns),
+        yds: num(formData.puntReturn_returnYardage),
+        td: num(formData.puntReturn_touchdowns),
+        lng: num(formData.puntReturn_returnLong)
       }
     }
 

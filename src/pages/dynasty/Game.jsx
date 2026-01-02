@@ -798,6 +798,14 @@ export default function Game() {
                 <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
                 <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
               </Link>
+            ) : game.isConferenceChampionship ? (
+              <Link
+                to={`${pathPrefix}/conference-championship-history/${game.year}`}
+                className="text-white text-center hover:underline"
+              >
+                <div className="text-sm sm:text-base font-bold">{gameTitle}</div>
+                <div className="text-[10px] sm:text-xs opacity-80">{gameSubtitle}</div>
+              </Link>
             ) : (
               <div className="text-white text-center">
                 <div className="text-sm sm:text-base font-bold">{gameTitle}</div>

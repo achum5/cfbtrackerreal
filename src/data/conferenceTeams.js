@@ -38,7 +38,17 @@ export const conferenceTeams = {
 }
 
 // Get conference for a team abbreviation
-export function getTeamConference(abbr) {
+// If customConferences is provided, it will be checked first before falling back to defaults
+export function getTeamConference(abbr, customConferences = null) {
+  // Check custom conferences first if provided
+  if (customConferences) {
+    for (const [conference, teams] of Object.entries(customConferences)) {
+      if (teams && teams.includes(abbr)) {
+        return conference
+      }
+    }
+  }
+  // Fall back to default conferences
   for (const [conference, teams] of Object.entries(conferenceTeams)) {
     if (teams.includes(abbr)) {
       return conference

@@ -6,20 +6,20 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { getTeamLogo } from '../../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName, getTeamName } from '../../data/teamAbbreviations'
 
-// Stat category definitions with all 51 stats
+// Stat category definitions using internal field names
 const STAT_CATEGORIES = {
   passing: {
     name: 'Passing',
     minNote: 'Rate stats require minimum 150 pass attempts (career) / 50 attempts (season)',
     stats: [
-      { key: 'completions', label: 'Completions', abbr: 'CMP', field: 'Completions' },
-      { key: 'attempts', label: 'Pass Attempts', abbr: 'ATT', field: 'Attempts' },
+      { key: 'completions', label: 'Completions', abbr: 'CMP', field: 'cmp' },
+      { key: 'attempts', label: 'Pass Attempts', abbr: 'ATT', field: 'att' },
       { key: 'compPct', label: 'Completion %', abbr: 'CMP%', calculated: true, minAtt: { career: 150, season: 50 }, format: 'pct' },
-      { key: 'yards', label: 'Passing Yards', abbr: 'YDS', field: 'Yards' },
+      { key: 'yards', label: 'Passing Yards', abbr: 'YDS', field: 'yds' },
       { key: 'ypa', label: 'Yards/Attempt', abbr: 'Y/A', calculated: true, minAtt: { career: 150, season: 50 }, format: 'avg' },
       { key: 'aypa', label: 'Adj. Yards/Attempt', abbr: 'AY/A', calculated: true, minAtt: { career: 150, season: 50 }, format: 'avg' },
-      { key: 'tds', label: 'Passing TDs', abbr: 'TD', field: 'Touchdowns' },
-      { key: 'ints', label: 'Interceptions', abbr: 'INT', field: 'Interceptions', lowerIsBetter: true },
+      { key: 'tds', label: 'Passing TDs', abbr: 'TD', field: 'td' },
+      { key: 'ints', label: 'Interceptions', abbr: 'INT', field: 'int', lowerIsBetter: true },
       { key: 'rating', label: 'Passer Rating', abbr: 'RTG', calculated: true, minAtt: { career: 150, season: 50 }, format: 'rating' },
       { key: 'ypg', label: 'Yards/Game', abbr: 'Y/G', calculated: true, minAtt: { career: 150, season: 50 }, format: 'avg' },
       { key: 'tdPct', label: 'TD %', abbr: 'TD%', calculated: true, minAtt: { career: 150, season: 50 }, format: 'pct' },
@@ -30,20 +30,20 @@ const STAT_CATEGORIES = {
     name: 'Rushing',
     minNote: 'Rate stats require minimum 100 rush attempts (career) / 25 attempts (season)',
     stats: [
-      { key: 'attempts', label: 'Rush Attempts', abbr: 'ATT', field: 'Carries' },
-      { key: 'yards', label: 'Rush Yards', abbr: 'YDS', field: 'Yards' },
+      { key: 'attempts', label: 'Rush Attempts', abbr: 'ATT', field: 'car' },
+      { key: 'yards', label: 'Rush Yards', abbr: 'YDS', field: 'yds' },
       { key: 'ypc', label: 'Yards/Carry', abbr: 'Y/C', calculated: true, minAtt: { career: 100, season: 25 }, format: 'avg' },
-      { key: 'tds', label: 'Rush TDs', abbr: 'TD', field: 'Touchdowns' }
+      { key: 'tds', label: 'Rush TDs', abbr: 'TD', field: 'td' }
     ]
   },
   receiving: {
     name: 'Receiving',
     minNote: 'Rate stats require minimum 50 receptions (career) / 10 receptions (season)',
     stats: [
-      { key: 'receptions', label: 'Receptions', abbr: 'REC', field: 'Receptions' },
-      { key: 'yards', label: 'Receiving Yards', abbr: 'YDS', field: 'Yards' },
+      { key: 'receptions', label: 'Receptions', abbr: 'REC', field: 'rec' },
+      { key: 'yards', label: 'Receiving Yards', abbr: 'YDS', field: 'yds' },
       { key: 'ypr', label: 'Yards/Reception', abbr: 'Y/R', calculated: true, minAtt: { career: 50, season: 10 }, format: 'avg' },
-      { key: 'tds', label: 'Receiving TDs', abbr: 'TD', field: 'Touchdowns' }
+      { key: 'tds', label: 'Receiving TDs', abbr: 'TD', field: 'td' }
     ]
   },
   scrimmage: {
@@ -68,28 +68,28 @@ const STAT_CATEGORIES = {
   defensive: {
     name: 'Defense',
     stats: [
-      { key: 'soloTackles', label: 'Solo Tackles', abbr: 'SOLO', field: 'Solo Tackles' },
-      { key: 'astTackles', label: 'Assisted Tackles', abbr: 'AST', field: 'Assisted Tackles' },
+      { key: 'soloTackles', label: 'Solo Tackles', abbr: 'SOLO', field: 'soloTkl' },
+      { key: 'astTackles', label: 'Assisted Tackles', abbr: 'AST', field: 'astTkl' },
       { key: 'totalTackles', label: 'Total Tackles', abbr: 'TOT', calculated: true },
-      { key: 'tfl', label: 'Tackles for Loss', abbr: 'TFL', field: 'Tackles for Loss' },
-      { key: 'sacks', label: 'Sacks', abbr: 'SCK', field: 'Sacks' },
-      { key: 'ints', label: 'Interceptions', abbr: 'INT', field: 'Interceptions' },
-      { key: 'intYards', label: 'INT Return Yards', abbr: 'YDS', field: 'INT Return Yards' },
-      { key: 'defTds', label: 'Defensive TDs', abbr: 'TD', field: 'Defensive TDs' },
-      { key: 'pdef', label: 'Passes Defensed', abbr: 'PD', field: 'Deflections' },
-      { key: 'ff', label: 'Forced Fumbles', abbr: 'FF', field: 'Forced Fumbles' },
-      { key: 'blocks', label: 'Blocks', abbr: 'BLK', field: 'Blocks' },
-      { key: 'safeties', label: 'Safeties', abbr: 'SAF', field: 'Safeties' }
+      { key: 'tfl', label: 'Tackles for Loss', abbr: 'TFL', field: 'tfl' },
+      { key: 'sacks', label: 'Sacks', abbr: 'SCK', field: 'sacks' },
+      { key: 'ints', label: 'Interceptions', abbr: 'INT', field: 'int' },
+      { key: 'intYards', label: 'INT Return Yards', abbr: 'YDS', field: 'intYds' },
+      { key: 'defTds', label: 'Defensive TDs', abbr: 'TD', field: 'td' },
+      { key: 'pdef', label: 'Passes Defensed', abbr: 'PD', field: 'pd' },
+      { key: 'ff', label: 'Forced Fumbles', abbr: 'FF', field: 'ff' },
+      { key: 'fr', label: 'Fumble Recoveries', abbr: 'FR', field: 'fr' },
+      { key: 'safeties', label: 'Safeties', abbr: 'SAF', field: 'sfty' }
     ]
   },
   kicking: {
     name: 'Kicking',
     minNote: 'FG% requires minimum 25 attempts (career) / 5 attempts (season)',
     stats: [
-      { key: 'xpa', label: 'XP Attempted', abbr: 'XPA', field: 'XP Attempted' },
-      { key: 'xpm', label: 'XP Made', abbr: 'XPM', field: 'XP Made' },
-      { key: 'fga', label: 'FG Attempted', abbr: 'FGA', field: 'FG Attempted' },
-      { key: 'fgm', label: 'FG Made', abbr: 'FGM', field: 'FG Made' },
+      { key: 'xpa', label: 'XP Attempted', abbr: 'XPA', field: 'xpa' },
+      { key: 'xpm', label: 'XP Made', abbr: 'XPM', field: 'xpm' },
+      { key: 'fga', label: 'FG Attempted', abbr: 'FGA', field: 'fga' },
+      { key: 'fgm', label: 'FG Made', abbr: 'FGM', field: 'fgm' },
       { key: 'fgPct', label: 'FG %', abbr: 'FG%', calculated: true, minAtt: { career: 25, season: 5 }, format: 'pct' }
     ]
   },
@@ -97,8 +97,8 @@ const STAT_CATEGORIES = {
     name: 'Punting',
     minNote: 'Rate stats require minimum 50 punts (career) / 10 punts (season)',
     stats: [
-      { key: 'punts', label: 'Punts', abbr: 'P', field: 'Punts' },
-      { key: 'yards', label: 'Punt Yards', abbr: 'YDS', field: 'Punting Yards' },
+      { key: 'punts', label: 'Punts', abbr: 'P', field: 'punts' },
+      { key: 'yards', label: 'Punt Yards', abbr: 'YDS', field: 'yds' },
       { key: 'ypp', label: 'Yards/Punt', abbr: 'Y/P', calculated: true, minAtt: { career: 50, season: 10 }, format: 'avg' }
     ]
   },
@@ -106,20 +106,20 @@ const STAT_CATEGORIES = {
     name: 'Kick Returns',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
-      { key: 'returns', label: 'Kick Returns', abbr: 'RET', field: 'Kickoff Returns' },
-      { key: 'yards', label: 'KR Yards', abbr: 'YDS', field: 'KR Yardage' },
+      { key: 'returns', label: 'Kick Returns', abbr: 'RET', field: 'ret' },
+      { key: 'yards', label: 'KR Yards', abbr: 'YDS', field: 'yds' },
       { key: 'avg', label: 'Yards/Return', abbr: 'AVG', calculated: true, minAtt: { career: 20, season: 5 }, format: 'avg' },
-      { key: 'tds', label: 'KR TDs', abbr: 'TD', field: 'KR Touchdowns' }
+      { key: 'tds', label: 'KR TDs', abbr: 'TD', field: 'td' }
     ]
   },
   puntReturn: {
     name: 'Punt Returns',
     minNote: 'Rate stats require minimum 20 returns (career) / 5 returns (season)',
     stats: [
-      { key: 'returns', label: 'Punt Returns', abbr: 'RET', field: 'Punt Returns' },
-      { key: 'yards', label: 'PR Yards', abbr: 'YDS', field: 'PR Yardage' },
+      { key: 'returns', label: 'Punt Returns', abbr: 'RET', field: 'ret' },
+      { key: 'yards', label: 'PR Yards', abbr: 'YDS', field: 'yds' },
       { key: 'avg', label: 'Yards/Return', abbr: 'AVG', calculated: true, minAtt: { career: 20, season: 5 }, format: 'avg' },
-      { key: 'tds', label: 'PR TDs', abbr: 'TD', field: 'PR Touchdowns' }
+      { key: 'tds', label: 'PR TDs', abbr: 'TD', field: 'td' }
     ]
   }
 }
@@ -162,125 +162,68 @@ export default function DynastyRecords() {
     }
   }
 
-  // Mapping from sheet/legacy field names to internal short keys
-  const FIELD_TO_INTERNAL = {
-    'Completions': 'comp', 'Attempts': 'attempts', 'Yards': 'yards', 'Touchdowns': 'td',
-    'Interceptions': 'int', 'Carries': 'carries', 'Receptions': 'rec',
-    'Solo Tackles': 'solo', 'Assisted Tackles': 'ast', 'Tackles for Loss': 'tfl',
-    'Sacks': 'sacks', 'Deflections': 'pdef', 'Forced Fumbles': 'ff', 'INT Return Yards': 'intYds',
-    'Defensive TDs': 'defTd', 'Blocks': 'blocks', 'Safeties': 'safeties',
-    'XP Attempted': 'xpa', 'XP Made': 'xpm', 'FG Attempted': 'fga', 'FG Made': 'fgm',
-    'Punts': 'punts', 'Punting Yards': 'puntYds',
-    'Kickoff Returns': 'krRet', 'KR Yardage': 'krYds', 'KR Touchdowns': 'krTd',
-    'Punt Returns': 'prRet', 'PR Yardage': 'prYds', 'PR Touchdowns': 'prTd'
-  }
-
-  // Calculate leaderboards
+  // Calculate leaderboards - reads only from player.statsByYear (internal format)
   const leaderboards = useMemo(() => {
     const rosterPlayers = getRosterPlayers()
     if (rosterPlayers.length === 0) return {}
 
-    const playerStatsByYearLegacy = currentDynasty?.playerStatsByYear || {}
-    const detailedStatsByYearLegacy = currentDynasty?.detailedStatsByYear || {}
-
-    const allYears = new Set()
-    rosterPlayers.forEach(player => {
-      Object.keys(player.statsByYear || {}).forEach(y => allYears.add(y))
-    })
-    Object.keys(playerStatsByYearLegacy).forEach(y => allYears.add(y))
-    Object.keys(detailedStatsByYearLegacy).forEach(y => allYears.add(y))
-
+    // Collect all player stats from player.statsByYear
     const allPlayerStats = []
 
     rosterPlayers.forEach(player => {
       const playerOwnStats = player.statsByYear || {}
 
-      allYears.forEach(yearStr => {
+      Object.keys(playerOwnStats).forEach(yearStr => {
         const year = parseInt(yearStr)
-        const ownYearStats = playerOwnStats[yearStr] || playerOwnStats[year]
-        const legacyBasic = playerStatsByYearLegacy[yearStr]?.find(p =>
-          p.pid === player.pid || p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-        )
-        const legacyDetailed = detailedStatsByYearLegacy[yearStr] || {}
+        const yearStats = playerOwnStats[yearStr] || playerOwnStats[year]
+        if (!yearStats) return
 
-        const getCategoryStats = (internalName, legacyName) => {
-          if (ownYearStats?.[internalName]) {
-            return ownYearStats[internalName]
-          }
-          const legacyPlayers = legacyDetailed[legacyName] || []
-          return legacyPlayers.find(p =>
-            p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-          )
-        }
-
-        const passing = getCategoryStats('passing', 'Passing')
-        const rushing = getCategoryStats('rushing', 'Rushing')
-        const receiving = getCategoryStats('receiving', 'Receiving')
-        const defense = getCategoryStats('defense', 'Defensive')
-        const kicking = getCategoryStats('kicking', 'Kicking')
-        const punting = getCategoryStats('punting', 'Punting')
-        const kickReturn = getCategoryStats('kickReturn', 'Kick Return')
-        const puntReturn = getCategoryStats('puntReturn', 'Punt Return')
-
-        const hasAnyStats = passing || rushing || receiving || defense ||
-          kicking || punting || kickReturn || puntReturn || ownYearStats?.gamesPlayed || legacyBasic
+        const hasAnyStats = yearStats.gamesPlayed ||
+          yearStats.passing || yearStats.rushing || yearStats.receiving ||
+          yearStats.defense || yearStats.kicking || yearStats.punting ||
+          yearStats.kickReturn || yearStats.puntReturn
 
         if (!hasAnyStats) return
-
-        const normalizeStats = (stats) => {
-          if (!stats) return null
-          const normalized = {}
-          Object.entries(stats).forEach(([key, value]) => {
-            if (key === 'name' || key === 'pid') return
-            const internalKey = FIELD_TO_INTERNAL[key] || key
-            if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-              normalized[internalKey] = parseFloat(value) || 0
-            }
-          })
-          return Object.keys(normalized).length > 0 ? normalized : null
-        }
 
         allPlayerStats.push({
           pid: player.pid,
           name: player.name,
           year,
-          gamesPlayed: ownYearStats?.gamesPlayed || legacyBasic?.gamesPlayed || 0,
-          passing: normalizeStats(passing),
-          rushing: normalizeStats(rushing),
-          receiving: normalizeStats(receiving),
-          defensive: normalizeStats(defense),
-          kicking: normalizeStats(kicking),
-          punting: normalizeStats(punting),
-          kickReturn: normalizeStats(kickReturn),
-          puntReturn: normalizeStats(puntReturn)
+          gamesPlayed: yearStats.gamesPlayed || 0,
+          // Internal format keys: cmp, att, yds, td, int, lng, sacks
+          passing: yearStats.passing || null,
+          // Internal format keys: car, yds, td, lng, fum
+          rushing: yearStats.rushing || null,
+          // Internal format keys: rec, yds, td, lng, drops
+          receiving: yearStats.receiving || null,
+          // Internal format keys: soloTkl, astTkl, sacks, tfl, int, pd, ff, fr, td, sfty
+          defensive: yearStats.defense || null,
+          // Internal format keys: fgm, fga, xpm, xpa, lng
+          kicking: yearStats.kicking || null,
+          // Internal format keys: punts, yds, lng, in20, tb
+          punting: yearStats.punting || null,
+          // Internal format keys: ret, yds, td, lng
+          kickReturn: yearStats.kickReturn || null,
+          // Internal format keys: ret, yds, td, lng
+          puntReturn: yearStats.puntReturn || null
         })
       })
     })
 
     if (allPlayerStats.length === 0) return {}
 
+    // Aggregate stats for leaderboards
     const aggregateStats = (category) => {
       const playerTotals = {}
-
-      const fieldMaps = {
-        passing: { comp: 'Completions', attempts: 'Attempts', yards: 'Yards', td: 'Touchdowns', int: 'Interceptions' },
-        rushing: { carries: 'Carries', yards: 'Yards', td: 'Touchdowns' },
-        receiving: { rec: 'Receptions', yards: 'Yards', td: 'Touchdowns' },
-        defensive: { solo: 'Solo Tackles', ast: 'Assisted Tackles', tfl: 'Tackles for Loss', sacks: 'Sacks', int: 'Interceptions', intYds: 'INT Return Yards', defTd: 'Defensive TDs', pdef: 'Deflections', ff: 'Forced Fumbles', blocks: 'Blocks', safeties: 'Safeties' },
-        kicking: { xpa: 'XP Attempted', xpm: 'XP Made', fga: 'FG Attempted', fgm: 'FG Made' },
-        punting: { punts: 'Punts', puntYds: 'Punting Yards' },
-        kickReturn: { krRet: 'Kickoff Returns', krYds: 'KR Yardage', krTd: 'KR Touchdowns' },
-        puntReturn: { prRet: 'Punt Returns', prYds: 'PR Yardage', prTd: 'PR Touchdowns' }
-      }
 
       allPlayerStats.forEach(ps => {
         const catStats = ps[category]
         if (!catStats) return
 
-        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
+        const playerKey = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
 
-        if (!playerTotals[key]) {
-          playerTotals[key] = {
+        if (!playerTotals[playerKey]) {
+          playerTotals[playerKey] = {
             pid: ps.pid,
             year: ps.year,
             years: [],
@@ -288,22 +231,21 @@ export default function DynastyRecords() {
           }
         }
 
-        if (!playerTotals[key].years.includes(ps.year)) {
-          playerTotals[key].years.push(ps.year)
+        if (!playerTotals[playerKey].years.includes(ps.year)) {
+          playerTotals[playerKey].years.push(ps.year)
         }
 
         if (ps.gamesPlayed) {
-          playerTotals[key].gamesPlayed += ps.gamesPlayed
+          playerTotals[playerKey].gamesPlayed += ps.gamesPlayed
         }
 
-        const fieldMap = fieldMaps[category] || {}
-        Object.entries(catStats).forEach(([shortKey, value]) => {
-          const longKey = fieldMap[shortKey] || shortKey
+        // Copy all numeric stats from catStats using internal field names
+        Object.entries(catStats).forEach(([statKey, value]) => {
           if (typeof value === 'number') {
             if (mode === 'career') {
-              playerTotals[key][longKey] = (playerTotals[key][longKey] || 0) + value
+              playerTotals[playerKey][statKey] = (playerTotals[playerKey][statKey] || 0) + value
             } else {
-              playerTotals[key][longKey] = value
+              playerTotals[playerKey][statKey] = value
             }
           }
         })
@@ -316,25 +258,27 @@ export default function DynastyRecords() {
       const playerTotals = {}
 
       allPlayerStats.forEach(ps => {
-        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
+        const playerKey = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
 
-        if (!playerTotals[key]) {
-          playerTotals[key] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
+        if (!playerTotals[playerKey]) {
+          playerTotals[playerKey] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
         }
 
-        if (!playerTotals[key].years.includes(ps.year)) {
-          playerTotals[key].years.push(ps.year)
+        if (!playerTotals[playerKey].years.includes(ps.year)) {
+          playerTotals[playerKey].years.push(ps.year)
         }
 
+        // Internal format: rushing uses car, yds, td
         if (ps.rushing) {
-          playerTotals[key].plays += ps.rushing.carries || 0
-          playerTotals[key].yards += ps.rushing.yards || 0
-          playerTotals[key].tds += ps.rushing.td || 0
+          playerTotals[playerKey].plays += ps.rushing.car || 0
+          playerTotals[playerKey].yards += ps.rushing.yds || 0
+          playerTotals[playerKey].tds += ps.rushing.td || 0
         }
+        // Internal format: receiving uses rec, yds, td
         if (ps.receiving) {
-          playerTotals[key].plays += ps.receiving.rec || 0
-          playerTotals[key].yards += ps.receiving.yards || 0
-          playerTotals[key].tds += ps.receiving.td || 0
+          playerTotals[playerKey].plays += ps.receiving.rec || 0
+          playerTotals[playerKey].yards += ps.receiving.yds || 0
+          playerTotals[playerKey].tds += ps.receiving.td || 0
         }
       })
 
@@ -345,35 +289,39 @@ export default function DynastyRecords() {
       const playerTotals = {}
 
       allPlayerStats.forEach(ps => {
-        const key = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
+        const playerKey = mode === 'career' ? ps.pid : `${ps.pid}-${ps.year}`
 
-        if (!playerTotals[key]) {
-          playerTotals[key] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
+        if (!playerTotals[playerKey]) {
+          playerTotals[playerKey] = { pid: ps.pid, year: ps.year, years: [], plays: 0, yards: 0, tds: 0 }
         }
 
-        if (!playerTotals[key].years.includes(ps.year)) {
-          playerTotals[key].years.push(ps.year)
+        if (!playerTotals[playerKey].years.includes(ps.year)) {
+          playerTotals[playerKey].years.push(ps.year)
         }
 
+        // Internal format: rushing uses car, yds, td
         if (ps.rushing) {
-          playerTotals[key].plays += ps.rushing.carries || 0
-          playerTotals[key].yards += ps.rushing.yards || 0
-          playerTotals[key].tds += ps.rushing.td || 0
+          playerTotals[playerKey].plays += ps.rushing.car || 0
+          playerTotals[playerKey].yards += ps.rushing.yds || 0
+          playerTotals[playerKey].tds += ps.rushing.td || 0
         }
+        // Internal format: receiving uses rec, yds, td
         if (ps.receiving) {
-          playerTotals[key].plays += ps.receiving.rec || 0
-          playerTotals[key].yards += ps.receiving.yards || 0
-          playerTotals[key].tds += ps.receiving.td || 0
+          playerTotals[playerKey].plays += ps.receiving.rec || 0
+          playerTotals[playerKey].yards += ps.receiving.yds || 0
+          playerTotals[playerKey].tds += ps.receiving.td || 0
         }
+        // Internal format: kickReturn uses ret, yds, td
         if (ps.kickReturn) {
-          playerTotals[key].plays += ps.kickReturn.krRet || 0
-          playerTotals[key].yards += ps.kickReturn.krYds || 0
-          playerTotals[key].tds += ps.kickReturn.krTd || 0
+          playerTotals[playerKey].plays += ps.kickReturn.ret || 0
+          playerTotals[playerKey].yards += ps.kickReturn.yds || 0
+          playerTotals[playerKey].tds += ps.kickReturn.td || 0
         }
+        // Internal format: puntReturn uses ret, yds, td
         if (ps.puntReturn) {
-          playerTotals[key].plays += ps.puntReturn.prRet || 0
-          playerTotals[key].yards += ps.puntReturn.prYds || 0
-          playerTotals[key].tds += ps.puntReturn.prTd || 0
+          playerTotals[playerKey].plays += ps.puntReturn.ret || 0
+          playerTotals[playerKey].yards += ps.puntReturn.yds || 0
+          playerTotals[playerKey].tds += ps.puntReturn.td || 0
         }
       })
 
@@ -402,11 +350,12 @@ export default function DynastyRecords() {
           if (stat.calculated) {
             switch (catKey) {
               case 'passing':
-                const att = p['Attempts'] || 0
-                const cmp = p['Completions'] || 0
-                const yds = p['Yards'] || 0
-                const tds = p['Touchdowns'] || 0
-                const ints = p['Interceptions'] || 0
+                // Internal format: cmp, att, yds, td, int
+                const att = p.att || 0
+                const cmp = p.cmp || 0
+                const yds = p.yds || 0
+                const tds = p.td || 0
+                const ints = p.int || 0
 
                 if (stat.key === 'compPct') value = att > 0 ? (cmp / att * 100) : 0
                 else if (stat.key === 'ypa') value = att > 0 ? (yds / att) : 0
@@ -431,8 +380,9 @@ export default function DynastyRecords() {
                 break
 
               case 'rushing':
-                const rushAtt = p['Carries'] || 0
-                const rushYds = p['Yards'] || 0
+                // Internal format: car, yds, td
+                const rushAtt = p.car || 0
+                const rushYds = p.yds || 0
                 if (stat.key === 'ypc') {
                   value = rushAtt > 0 ? (rushYds / rushAtt) : 0
                   if (stat.minAtt) {
@@ -443,8 +393,9 @@ export default function DynastyRecords() {
                 break
 
               case 'receiving':
-                const rec = p['Receptions'] || 0
-                const recYds = p['Yards'] || 0
+                // Internal format: rec, yds, td
+                const rec = p.rec || 0
+                const recYds = p.yds || 0
                 if (stat.key === 'ypr') {
                   value = rec > 0 ? (recYds / rec) : 0
                   if (stat.minAtt) {
@@ -474,14 +425,16 @@ export default function DynastyRecords() {
                 break
 
               case 'defensive':
+                // Internal format: soloTkl, astTkl
                 if (stat.key === 'totalTackles') {
-                  value = (p['Solo Tackles'] || 0) + (p['Assisted Tackles'] || 0)
+                  value = (p.soloTkl || 0) + (p.astTkl || 0)
                 }
                 break
 
               case 'kicking':
-                const fga = p['FG Attempted'] || 0
-                const fgm = p['FG Made'] || 0
+                // Internal format: fga, fgm
+                const fga = p.fga || 0
+                const fgm = p.fgm || 0
                 if (stat.key === 'fgPct') {
                   value = fga > 0 ? (fgm / fga * 100) : 0
                   if (stat.minAtt) {
@@ -492,8 +445,9 @@ export default function DynastyRecords() {
                 break
 
               case 'punting':
-                const punts = p['Punts'] || 0
-                const puntYds = p['Punting Yards'] || 0
+                // Internal format: punts, yds
+                const punts = p.punts || 0
+                const puntYds = p.yds || 0
                 if (stat.key === 'ypp') {
                   value = punts > 0 ? (puntYds / punts) : 0
                   if (stat.minAtt) {
@@ -504,8 +458,9 @@ export default function DynastyRecords() {
                 break
 
               case 'kickReturn':
-                const krRet = p['Kickoff Returns'] || 0
-                const krYds = p['KR Yardage'] || 0
+                // Internal format: ret, yds
+                const krRet = p.ret || 0
+                const krYds = p.yds || 0
                 if (stat.key === 'avg') {
                   value = krRet > 0 ? (krYds / krRet) : 0
                   if (stat.minAtt) {
@@ -516,8 +471,9 @@ export default function DynastyRecords() {
                 break
 
               case 'puntReturn':
-                const prRet = p['Punt Returns'] || 0
-                const prYds = p['PR Yardage'] || 0
+                // Internal format: ret, yds
+                const prRet = p.ret || 0
+                const prYds = p.yds || 0
                 if (stat.key === 'avg') {
                   value = prRet > 0 ? (prYds / prRet) : 0
                   if (stat.minAtt) {
@@ -528,6 +484,7 @@ export default function DynastyRecords() {
                 break
             }
           } else {
+            // Use the internal field name directly
             value = p[stat.field] || 0
           }
 

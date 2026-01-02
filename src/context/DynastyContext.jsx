@@ -809,7 +809,6 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
   const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
   const year = dynasty.currentYear
   const players = dynasty.players || []
-  const playerStats = dynasty.playerStatsByYear?.[year] || []
 
   // Get active players for current team (not left, not recruits, not honor-only)
   const activePlayers = players.filter(p => {
@@ -824,10 +823,10 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
     return true
   })
 
-  // Find players with null/undefined gamesPlayed
+  // Find players with null/undefined gamesPlayed (read from player.statsByYear)
   const needsConfirmation = activePlayers.filter(player => {
-    const stats = playerStats.find(s => s.pid === player.pid)
-    const gamesPlayed = stats?.gamesPlayed
+    const yearStats = player.statsByYear?.[year] || player.statsByYear?.[String(year)]
+    const gamesPlayed = yearStats?.gamesPlayed
     return gamesPlayed === null || gamesPlayed === undefined
   })
 
@@ -975,6 +974,232 @@ export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
   return staff
 }
 
+/**
+ * Get custom conferences for a specific year
+ * Falls back to legacy customConferences, then to null (use defaults)
+ */
+export function getCustomConferencesForYear(dynasty, year) {
+  if (!dynasty) return null
+
+  // Check year-specific first
+  const byYear = dynasty.customConferencesByYear?.[year]
+  if (byYear && Object.keys(byYear).length > 0) {
+    return byYear
+  }
+
+  // Fall back to legacy customConferences
+  if (dynasty.customConferences && Object.keys(dynasty.customConferences).length > 0) {
+    return dynasty.customConferences
+  }
+
+  return null
+}
+
+/**
+ * Get current custom conferences (for current year)
+ */
+export function getCurrentCustomConferences(dynasty) {
+  if (!dynasty) return null
+  return getCustomConferencesForYear(dynasty, dynasty.currentYear)
+}
+
+/**
+ * Get conference for a team, using dynasty's custom conferences if available
+ * @param {Object} dynasty - The dynasty object
+ * @param {string} teamAbbr - Team abbreviation
+ * @param {number} [year] - Optional year (defaults to current year)
+ * @returns {string|null} Conference name
+ */
+export function getTeamConferenceForDynasty(dynasty, teamAbbr, year = null) {
+  const targetYear = year || dynasty?.currentYear
+  const customConferences = dynasty ? getCustomConferencesForYear(dynasty, targetYear) : null
+  return getTeamConference(teamAbbr, customConferences)
+}
+
+// ============================================================================
+// PLAYER STATS HELPERS - Unified stats access
+// ============================================================================
+
+/**
+ * Get player stats for a specific year
+ * Handles both string and number year keys
+ * @param {Object} player - The player object
+ * @param {number|string} year - The year to get stats for
+ * @returns {Object|null} Stats for that year or null
+ */
+export function getPlayerStatsForYear(player, year) {
+  if (!player) return null
+  const numYear = Number(year)
+  const strYear = String(year)
+  return player.statsByYear?.[numYear] || player.statsByYear?.[strYear] || null
+}
+
+/**
+ * Convert sheet category stats to internal format
+ * @param {Object} sheetStats - Stats from sheet format (e.g., { Completions: 250, Yards: 3000 })
+ * @param {string} category - Sheet category name (e.g., 'Passing')
+ * @returns {Object} Internal format stats
+ */
+function convertSheetStatsToInternal(sheetStats, category) {
+  if (!sheetStats) return null
+
+  const mappings = {
+    'Passing': {
+      'Completions': 'cmp', 'Attempts': 'att', 'Yards': 'yds', 'Touchdowns': 'td',
+      'Interceptions': 'int', 'Passing Long': 'lng', 'Sacks Taken': 'sacks'
+    },
+    'Rushing': {
+      'Carries': 'car', 'Yards': 'yds', 'Touchdowns': 'td', 'Rushing Long': 'lng', 'Fumbles': 'fum'
+    },
+    'Receiving': {
+      'Receptions': 'rec', 'Yards': 'yds', 'Touchdowns': 'td', 'Receiving Long': 'lng', 'Drops': 'drops'
+    },
+    'Blocking': {
+      'Pancakes': 'pancakes', 'Sacks Allowed': 'sacksAllowed'
+    },
+    'Defensive': {
+      'Solo Tackles': 'soloTkl', 'Assisted Tackles': 'astTkl', 'Sacks': 'sacks', 'TFLs': 'tfl',
+      'Interceptions': 'int', 'Pass Deflections': 'pd', 'Forced Fumbles': 'ff',
+      'Fumble Recoveries': 'fr', 'Touchdowns': 'td', 'Safeties': 'sfty'
+    },
+    'Kicking': {
+      'FG Made': 'fgm', 'FG Attempted': 'fga', 'XP Made': 'xpm', 'XP Attempted': 'xpa', 'FG Long': 'lng'
+    },
+    'Punting': {
+      'Punts': 'punts', 'Punting Yards': 'yds', 'Punting Long': 'lng', 'Inside 20': 'in20', 'Touchbacks': 'tb'
+    },
+    'Kick Return': {
+      'Kickoff Returns': 'ret', 'KR Yardage': 'yds', 'KR Touchdowns': 'td', 'KR Long': 'lng'
+    },
+    'Punt Return': {
+      'Punt Returns': 'ret', 'PR Yardage': 'yds', 'PR Touchdowns': 'td', 'PR Long': 'lng'
+    }
+  }
+
+  const categoryMap = mappings[category]
+  if (!categoryMap) return null
+
+  const result = {}
+  let hasAnyValue = false
+
+  Object.entries(categoryMap).forEach(([sheetKey, internalKey]) => {
+    const value = sheetStats[sheetKey]
+    if (value !== undefined && value !== null && value !== '') {
+      result[internalKey] = typeof value === 'number' ? value : parseInt(value) || 0
+      hasAnyValue = true
+    }
+  })
+
+  return hasAnyValue ? result : null
+}
+
+/**
+ * Migrate legacy stats structures to player.statsByYear
+ * Called once per dynasty on load if not already migrated
+ * @param {Object} dynasty - The dynasty object
+ * @returns {Object} Dynasty with migrated stats
+ */
+export function migrateStatsToPlayers(dynasty) {
+  if (!dynasty) return dynasty
+  if (dynasty._statsMigrated) return dynasty
+  if (!dynasty.players || dynasty.players.length === 0) return dynasty
+
+  // Get legacy data
+  const playerStatsByYear = dynasty.playerStatsByYear || {}
+  const detailedStatsByYear = dynasty.detailedStatsByYear || {}
+
+  // Check if there's any legacy data to migrate
+  const hasLegacyData = Object.keys(playerStatsByYear).length > 0 ||
+                        Object.keys(detailedStatsByYear).length > 0
+  if (!hasLegacyData) {
+    // No legacy data, just mark as migrated
+    return { ...dynasty, _statsMigrated: true }
+  }
+
+  // Category mapping from sheet names to internal names
+  const categoryMap = {
+    'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
+    'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
+    'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
+  }
+
+  // Get all years from both legacy structures
+  const allYears = new Set([
+    ...Object.keys(playerStatsByYear),
+    ...Object.keys(detailedStatsByYear)
+  ])
+
+  // Migrate each player's stats
+  const migratedPlayers = dynasty.players.map(player => {
+    const newStatsByYear = { ...(player.statsByYear || {}) }
+
+    allYears.forEach(yearKey => {
+      const year = Number(yearKey)
+
+      // Find basic stats for this player in legacy structure
+      const yearBasicStats = playerStatsByYear[yearKey] || playerStatsByYear[year] || []
+      const basicStats = yearBasicStats.find(s =>
+        s.pid === player.pid ||
+        (s.name && player.name && s.name.toLowerCase().trim() === player.name.toLowerCase().trim())
+      )
+
+      // Find detailed stats for this player in legacy structure
+      const detailedYear = detailedStatsByYear[yearKey] || detailedStatsByYear[year] || {}
+
+      // Initialize year stats if needed (only if we have data to migrate)
+      if (!newStatsByYear[year]) {
+        newStatsByYear[year] = {}
+      }
+
+      // Merge basic stats (only if not already set in new format)
+      if (basicStats) {
+        if (newStatsByYear[year].gamesPlayed === undefined && basicStats.gamesPlayed !== undefined) {
+          newStatsByYear[year].gamesPlayed = basicStats.gamesPlayed
+        }
+        if (newStatsByYear[year].snapsPlayed === undefined && basicStats.snapsPlayed !== undefined) {
+          newStatsByYear[year].snapsPlayed = basicStats.snapsPlayed
+        }
+      }
+
+      // Merge detailed stats from each category
+      Object.entries(categoryMap).forEach(([sheetName, internalName]) => {
+        // Skip if already has data in new format
+        if (newStatsByYear[year][internalName]) return
+
+        const categoryArray = detailedYear[sheetName] || []
+        const categoryStats = categoryArray.find(s =>
+          s.pid === player.pid ||
+          (s.name && player.name && s.name.toLowerCase().trim() === player.name.toLowerCase().trim())
+        )
+
+        if (categoryStats) {
+          const converted = convertSheetStatsToInternal(categoryStats, sheetName)
+          if (converted) {
+            newStatsByYear[year][internalName] = converted
+          }
+        }
+      })
+
+      // Clean up empty year objects
+      if (Object.keys(newStatsByYear[year]).length === 0) {
+        delete newStatsByYear[year]
+      }
+    })
+
+    // Only update if we have stats
+    if (Object.keys(newStatsByYear).length > 0) {
+      return { ...player, statsByYear: newStatsByYear }
+    }
+    return player
+  })
+
+  return {
+    ...dynasty,
+    players: migratedPlayers,
+    _statsMigrated: true
+  }
+}
+
 export function useDynasty() {
   const context = useContext(DynastyContext)
   if (!context) {
@@ -990,12 +1215,22 @@ export function DynastyProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [migrated, setMigrated] = useState(false)
 
-  // Helper to apply game migration to dynasties
-  const applyGameMigration = (dynastyList) => {
+  // Helper to apply migrations to dynasties (games + stats)
+  const applyMigrations = (dynastyList) => {
     return dynastyList.map(dynasty => {
-      // Skip if already migrated
-      if (dynasty._gamesMigrated) return dynasty
-      return migrateToUnifiedGames(dynasty)
+      let migrated = dynasty
+
+      // Apply game migration if needed
+      if (!migrated._gamesMigrated) {
+        migrated = migrateToUnifiedGames(migrated)
+      }
+
+      // Apply stats migration if needed
+      if (!migrated._statsMigrated) {
+        migrated = migrateStatsToPlayers(migrated)
+      }
+
+      return migrated
     })
   }
 
@@ -1009,8 +1244,8 @@ export function DynastyProvider({ children }) {
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
-          // Apply game migration to all dynasties
-          const migratedDynasties = applyGameMigration(parsed)
+          // Apply all migrations to dynasties
+          const migratedDynasties = applyMigrations(parsed)
           setDynasties(migratedDynasties)
         } catch (error) {
           console.error('Error loading dynasties:', error)
@@ -1043,8 +1278,8 @@ export function DynastyProvider({ children }) {
 
     // Subscribe to real-time updates
     const unsubscribe = subscribeToDynasties(user.uid, (firestoreDynasties) => {
-      // Apply game migration to all dynasties from Firestore
-      const migratedDynasties = applyGameMigration(firestoreDynasties)
+      // Apply all migrations to dynasties from Firestore
+      const migratedDynasties = applyMigrations(firestoreDynasties)
       setDynasties(migratedDynasties)
       setLoading(false)
 
@@ -2163,10 +2398,6 @@ export function DynastyProvider({ children }) {
       const previousSeasonYear = dynasty.currentYear // The year that just ended
       const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
 
-      // Helper to get data by year (handles both string and numeric keys)
-      const getByYearLocal = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
-
-      const playerStats = getByYearLocal(dynasty.playerStatsByYear, previousSeasonYear) || []
       const players = dynasty.players || []
 
       // Progress each player's class
@@ -2183,9 +2414,9 @@ export function DynastyProvider({ children }) {
         // Skip recruits (they get converted when advanceToNewSeason runs)
         if (player.isRecruit) return player
 
-        // Get games played for this player
-        const stats = playerStats.find(s => s.pid === player.pid)
-        let gamesPlayed = stats?.gamesPlayed ?? player.statsByYear?.[previousSeasonYear]?.gamesPlayed
+        // Get games played from player.statsByYear
+        const yearStats = player.statsByYear?.[previousSeasonYear] || player.statsByYear?.[String(previousSeasonYear)]
+        let gamesPlayed = yearStats?.gamesPlayed
 
         // Use confirmation if provided (for null gamesPlayed cases)
         if ((gamesPlayed === null || gamesPlayed === undefined) && classConfirmations[player.pid] !== undefined) {
@@ -2281,8 +2512,6 @@ export function DynastyProvider({ children }) {
 
     // Helper to get data by year (handles both string and numeric keys)
     const getByYear = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
-
-    const playerStats = getByYear(dynasty.playerStatsByYear, previousSeasonYear) || []
 
     // Get players leaving data (stored under previous season year)
     // CRITICAL: Check both string and numeric keys to handle any data format
@@ -3383,106 +3612,42 @@ export function DynastyProvider({ children }) {
       })
 
       updateData.games = updatedGames
-
-      // Also update player name in playerStatsByYear and detailedStatsByYear
-      if (dynasty.playerStatsByYear) {
-        const updatedPlayerStatsByYear = JSON.parse(JSON.stringify(dynasty.playerStatsByYear))
-        Object.keys(updatedPlayerStatsByYear).forEach(year => {
-          if (Array.isArray(updatedPlayerStatsByYear[year])) {
-            updatedPlayerStatsByYear[year] = updatedPlayerStatsByYear[year].map(entry => {
-              if (entry.name === oldName || entry.pid === updatedPlayer.pid) {
-                return { ...entry, name: newName }
-              }
-              return entry
-            })
-          }
-        })
-        updateData.playerStatsByYear = updatedPlayerStatsByYear
-      }
-
-      if (dynasty.detailedStatsByYear) {
-        const updatedDetailedStatsByYear = JSON.parse(JSON.stringify(dynasty.detailedStatsByYear))
-        Object.keys(updatedDetailedStatsByYear).forEach(year => {
-          const yearData = updatedDetailedStatsByYear[year]
-          if (yearData && typeof yearData === 'object') {
-            Object.keys(yearData).forEach(category => {
-              if (Array.isArray(yearData[category])) {
-                yearData[category] = yearData[category].map(entry => {
-                  if (entry.name === oldName || entry.pid === updatedPlayer.pid) {
-                    return { ...entry, name: newName }
-                  }
-                  return entry
-                })
-              }
-            })
-          }
-        })
-        updateData.detailedStatsByYear = updatedDetailedStatsByYear
-      }
+      // Note: Legacy playerStatsByYear and detailedStatsByYear updates removed
+      // Stats are now stored in player.statsByYear only
     }
 
-    // If yearStats is provided, update playerStatsByYear and detailedStatsByYear
+    // If yearStats is provided, update player.statsByYear directly
     if (yearStats && yearStats.year) {
-      const year = yearStats.year.toString()
-      const pid = updatedPlayer.pid
+      const year = Number(yearStats.year)
 
-      // Update playerStatsByYear (games/snaps)
-      const playerStatsByYear = JSON.parse(JSON.stringify(dynasty.playerStatsByYear || {}))
-      if (!playerStatsByYear[year]) playerStatsByYear[year] = []
+      // Update player.statsByYear in the players array
+      // Use updateData.players (which already has the updatedPlayer changes) as the base
+      const playersBase = updateData.players || dynasty.players
+      const updatedPlayersWithStats = playersBase.map(p => {
+        if (p.pid !== updatedPlayer.pid) return p
 
-      // Find or create entry for this player
-      const existingIdx = playerStatsByYear[year].findIndex(p => p.pid === pid)
-      const playerEntry = {
-        pid,
-        name: updatedPlayer.name,
-        position: updatedPlayer.position,
-        year: updatedPlayer.year,
-        gamesPlayed: yearStats.gamesPlayed || 0,
-        snapsPlayed: yearStats.snapsPlayed || 0
-      }
-
-      if (existingIdx >= 0) {
-        playerStatsByYear[year][existingIdx] = { ...playerStatsByYear[year][existingIdx], ...playerEntry }
-      } else {
-        playerStatsByYear[year].push(playerEntry)
-      }
-      updateData.playerStatsByYear = playerStatsByYear
-
-      // Update detailedStatsByYear
-      const detailedStatsByYear = JSON.parse(JSON.stringify(dynasty.detailedStatsByYear || {}))
-      if (!detailedStatsByYear[year]) detailedStatsByYear[year] = {}
-
-      // Helper to update a category
-      const updateCategory = (stats, sheetCategoryName) => {
-        if (!detailedStatsByYear[year][sheetCategoryName]) {
-          detailedStatsByYear[year][sheetCategoryName] = []
+        // Start from the updated player (which has the form changes) to preserve all edits
+        const existingStatsByYear = { ...(p.statsByYear || {}) }
+        existingStatsByYear[year] = {
+          ...(existingStatsByYear[year] || {}),
+          gamesPlayed: yearStats.gamesPlayed,
+          snapsPlayed: yearStats.snapsPlayed,
+          ...(yearStats.passing && { passing: yearStats.passing }),
+          ...(yearStats.rushing && { rushing: yearStats.rushing }),
+          ...(yearStats.receiving && { receiving: yearStats.receiving }),
+          ...(yearStats.blocking && { blocking: yearStats.blocking }),
+          ...(yearStats.defense && { defense: yearStats.defense }),
+          ...(yearStats.defensive && { defense: yearStats.defensive }), // Handle both names
+          ...(yearStats.kicking && { kicking: yearStats.kicking }),
+          ...(yearStats.punting && { punting: yearStats.punting }),
+          ...(yearStats.kickReturn && { kickReturn: yearStats.kickReturn }),
+          ...(yearStats.puntReturn && { puntReturn: yearStats.puntReturn })
         }
 
-        const catData = detailedStatsByYear[year][sheetCategoryName]
-        const existingCatIdx = catData.findIndex(p => p.pid === pid)
+        return { ...p, statsByYear: existingStatsByYear }
+      })
 
-        // Build entry with pid and name
-        const entry = { pid, name: updatedPlayer.name, ...stats }
-
-        if (existingCatIdx >= 0) {
-          catData[existingCatIdx] = { ...catData[existingCatIdx], ...entry }
-        } else {
-          catData.push(entry)
-        }
-      }
-
-      // Update each category if it has data
-      if (yearStats.passing) updateCategory(yearStats.passing, 'Passing')
-      if (yearStats.rushing) updateCategory(yearStats.rushing, 'Rushing')
-      if (yearStats.receiving) updateCategory(yearStats.receiving, 'Receiving')
-      if (yearStats.blocking) updateCategory(yearStats.blocking, 'Blocking')
-      if (yearStats.defensive) updateCategory(yearStats.defensive, 'Defensive')
-      if (yearStats.kicking) updateCategory(yearStats.kicking, 'Kicking')
-      if (yearStats.punting) updateCategory(yearStats.punting, 'Punting')
-      if (yearStats.kickReturn) updateCategory(yearStats.kickReturn, 'Kick Return')
-      if (yearStats.puntReturn) updateCategory(yearStats.puntReturn, 'Punt Return')
-
-      updateData.detailedStatsByYear = detailedStatsByYear
+      updateData.players = updatedPlayersWithStats
     }
 
     await updateDynasty(dynastyId, updateData)

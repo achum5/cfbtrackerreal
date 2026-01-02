@@ -367,12 +367,8 @@ export default function Player() {
   }
 
   // Get year-by-year stats for this player
-  // Priority: player.statsByYear (PRIMARY) > legacy structures > box scores
+  // Only reads from player.statsByYear (internal format) and box scores
   const yearByYearStats = useMemo(() => {
-    const playerStatsByYearLegacy = dynasty.playerStatsByYear || {}
-    const detailedStatsByYearLegacy = dynasty.detailedStatsByYear || {}
-    const playerPid = player.pid
-
     // PRIMARY source: player's own statsByYear field
     const playerOwnStats = player.statsByYear || {}
 
@@ -383,11 +379,9 @@ export default function Player() {
       boxScoreByYear[bs.year] = bs
     })
 
-    // Get all years that have any data for this player (from any source)
+    // Get all years that have any data for this player
     const allYears = new Set([
       ...Object.keys(playerOwnStats),
-      ...Object.keys(playerStatsByYearLegacy),
-      ...Object.keys(detailedStatsByYearLegacy),
       ...Object.keys(boxScoreByYear)
     ])
 
@@ -399,71 +393,43 @@ export default function Player() {
     sortedYears.forEach(yearStr => {
       const year = parseInt(yearStr)
 
-      // PRIMARY: Check player's own statsByYear first
+      // Check player's own statsByYear (check both string and number keys)
       const ownYearStats = playerOwnStats[yearStr] || playerOwnStats[year]
-
-      // LEGACY fallback
-      const legacyBasicStats = playerStatsByYearLegacy[yearStr]?.find(p => p.pid === playerPid)
-      const legacyDetailedYear = detailedStatsByYearLegacy[yearStr] || {}
       const boxStats = boxScoreByYear[year]
 
-      // Combine: prefer own stats, fall back to legacy
-      const basicStats = ownYearStats ? {
-        gamesPlayed: ownYearStats.gamesPlayed,
-        snapsPlayed: ownYearStats.snapsPlayed,
-        year: legacyBasicStats?.year
-      } : legacyBasicStats
-
-      // For detailed stats, check ownYearStats first (internal format), then legacy (sheet format)
-      const findInTab = (tabName) => {
-        // First check player's own statsByYear (uses internal category names)
-        const internalName = {
-          'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
-          'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
-          'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
-        }[tabName]
-        if (ownYearStats?.[internalName]) {
-          return ownYearStats[internalName]
-        }
-        // Fall back to legacy detailedStatsByYear
-        return legacyDetailedYear[tabName]?.find(p =>
-          p.name?.toLowerCase().trim() === player.name?.toLowerCase().trim()
-        )
-      }
-
-      // Helper to check if manual stats have any real values entered (not blank/null)
-      // Only override box score data if user actually entered something
-      const hasRealValues = (manualStats, fields) => {
-        if (!manualStats) return false
+      // Helper to check if stats have any real values entered (not blank/null/0)
+      const hasRealValues = (statsObj, fields) => {
+        if (!statsObj) return false
         return fields.some(field => {
-          const val = manualStats[field]
+          const val = statsObj[field]
           return val !== null && val !== undefined && val !== '' && val !== 0
         })
       }
 
-      const manualPassing = findInTab('Passing')
-      const manualRushing = findInTab('Rushing')
-      const manualReceiving = findInTab('Receiving')
-      const manualBlocking = findInTab('Blocking')
-      const manualDefensive = findInTab('Defensive')
-      const manualKicking = findInTab('Kicking')
-      const manualPunting = findInTab('Punting')
-      const manualKickReturn = findInTab('Kick Return')
-      const manualPuntReturn = findInTab('Punt Return')
+      // Get category stats from player.statsByYear (internal format)
+      const manualPassing = ownYearStats?.passing
+      const manualRushing = ownYearStats?.rushing
+      const manualReceiving = ownYearStats?.receiving
+      const manualBlocking = ownYearStats?.blocking
+      const manualDefensive = ownYearStats?.defense
+      const manualKicking = ownYearStats?.kicking
+      const manualPunting = ownYearStats?.punting
+      const manualKickReturn = ownYearStats?.kickReturn
+      const manualPuntReturn = ownYearStats?.puntReturn
 
-      // Check if each category has real entered values (not just blank cells)
-      const useManualPassing = hasRealValues(manualPassing, ['Completions', 'Attempts', 'Yards', 'Touchdowns'])
-      const useManualRushing = hasRealValues(manualRushing, ['Carries', 'Yards', 'Touchdowns'])
-      const useManualReceiving = hasRealValues(manualReceiving, ['Receptions', 'Yards', 'Touchdowns'])
-      const useManualBlocking = hasRealValues(manualBlocking, ['Sacks Allowed'])
-      const useManualDefensive = hasRealValues(manualDefensive, ['Solo Tackles', 'Assisted Tackles', 'Sacks', 'Interceptions'])
-      const useManualKicking = hasRealValues(manualKicking, ['FG Made', 'FG Attempted', 'XP Made', 'XP Attempted'])
-      const useManualPunting = hasRealValues(manualPunting, ['Punts', 'Punting Yards'])
-      const useManualKickReturn = hasRealValues(manualKickReturn, ['Kickoff Returns', 'KR Yardage'])
-      const useManualPuntReturn = hasRealValues(manualPuntReturn, ['Punt Returns', 'PR Yardage'])
+      // Check if each category has real entered values (using internal field names)
+      const useManualPassing = hasRealValues(manualPassing, ['cmp', 'att', 'yds', 'td'])
+      const useManualRushing = hasRealValues(manualRushing, ['car', 'yds', 'td'])
+      const useManualReceiving = hasRealValues(manualReceiving, ['rec', 'yds', 'td'])
+      const useManualBlocking = hasRealValues(manualBlocking, ['sacksAllowed', 'pancakes'])
+      const useManualDefensive = hasRealValues(manualDefensive, ['soloTkl', 'astTkl', 'sacks', 'int'])
+      const useManualKicking = hasRealValues(manualKicking, ['fgm', 'fga', 'xpm', 'xpa'])
+      const useManualPunting = hasRealValues(manualPunting, ['punts', 'yds'])
+      const useManualKickReturn = hasRealValues(manualKickReturn, ['ret', 'yds'])
+      const useManualPuntReturn = hasRealValues(manualPuntReturn, ['ret', 'yds'])
 
       // Check if we have any data for this year
-      const hasManualStats = basicStats || manualPassing || manualRushing || manualReceiving ||
+      const hasManualStats = ownYearStats || manualPassing || manualRushing || manualReceiving ||
         manualBlocking || manualDefensive || manualKicking || manualPunting || manualKickReturn || manualPuntReturn
       const hasBoxStats = boxStats && Object.keys(boxStats).some(k =>
         k !== 'year' && k !== 'gamesPlayed' && k !== 'fromBoxScores' && boxStats[k]
@@ -471,9 +437,8 @@ export default function Player() {
 
       if (!hasManualStats && !hasBoxStats) return
 
-      // Determine player's class for this year
-      // Use basicStats if available, otherwise calculate from current class
-      let playerClass = basicStats?.year || '-'
+      // Determine player's class for this year from classByYear or calculate
+      let playerClass = player.classByYear?.[year] || player.classByYear?.[String(year)] || '-'
       if (playerClass === '-' && player.year) {
         // If this is the current dynasty year, use current class
         if (year === dynasty.currentYear) {
@@ -496,91 +461,91 @@ export default function Player() {
         || getAbbreviationFromDisplayName(dynasty?.teamName)
         || ''
 
-      // Build year stats object - prefer detailed stats (manual entry) ONLY if real values entered, otherwise box score
+      // Build year stats object - prefer manual entry stats ONLY if real values entered, otherwise box score
       const yearData = {
         year,
         team: yearTeam,  // Team the player was on for this specific year
         class: playerClass,
         // Use manual games played if available, otherwise box score
-        gamesPlayed: basicStats?.gamesPlayed || boxStats?.gamesPlayed || 0,
-        snapsPlayed: basicStats?.snapsPlayed || 0,
-        fromBoxScores: !!boxStats && !basicStats,
-        // Passing - only use detailed stats if user entered real values
+        gamesPlayed: ownYearStats?.gamesPlayed || boxStats?.gamesPlayed || 0,
+        snapsPlayed: ownYearStats?.snapsPlayed || 0,
+        fromBoxScores: !!boxStats && !ownYearStats,
+        // Passing - only use manual stats if user entered real values
         passing: useManualPassing ? {
-          cmp: manualPassing['Completions'] || 0,
-          att: manualPassing['Attempts'] || 0,
-          yds: manualPassing['Yards'] || 0,
-          td: manualPassing['Touchdowns'] || 0,
-          int: manualPassing['Interceptions'] || 0,
-          lng: manualPassing['Passing Long'] || 0,
-          sacks: manualPassing['Sacks Taken'] || 0
+          cmp: manualPassing.cmp || 0,
+          att: manualPassing.att || 0,
+          yds: manualPassing.yds || 0,
+          td: manualPassing.td || 0,
+          int: manualPassing.int || 0,
+          lng: manualPassing.lng || 0,
+          sacks: manualPassing.sacks || 0
         } : boxStats?.passing || null,
-        // Rushing - only use detailed stats if user entered real values
+        // Rushing - only use manual stats if user entered real values
         rushing: useManualRushing ? {
-          car: manualRushing['Carries'] || 0,
-          yds: manualRushing['Yards'] || 0,
-          td: manualRushing['Touchdowns'] || 0,
-          lng: manualRushing['Rushing Long'] || 0,
-          fum: manualRushing['Fumbles'] || 0,
-          bt: manualRushing['Broken Tackles'] || 0
+          car: manualRushing.car || 0,
+          yds: manualRushing.yds || 0,
+          td: manualRushing.td || 0,
+          lng: manualRushing.lng || 0,
+          fum: manualRushing.fum || 0,
+          bt: manualRushing.bt || 0
         } : boxStats?.rushing || null,
-        // Receiving - only use detailed stats if user entered real values
+        // Receiving - only use manual stats if user entered real values
         receiving: useManualReceiving ? {
-          rec: manualReceiving['Receptions'] || 0,
-          yds: manualReceiving['Yards'] || 0,
-          td: manualReceiving['Touchdowns'] || 0,
-          lng: manualReceiving['Receiving Long'] || 0,
-          drops: manualReceiving['Drops'] || 0
+          rec: manualReceiving.rec || 0,
+          yds: manualReceiving.yds || 0,
+          td: manualReceiving.td || 0,
+          lng: manualReceiving.lng || 0,
+          drops: manualReceiving.drops || 0
         } : boxStats?.receiving || null,
-        // Blocking - only use detailed stats if user entered real values
+        // Blocking - only use manual stats if user entered real values
         blocking: useManualBlocking ? {
-          sacksAllowed: manualBlocking['Sacks Allowed'] || 0,
-          pancakes: manualBlocking['Pancakes'] || 0
-        } : (boxStats?.blocking || (basicStats && basicStats.snapsPlayed > 0 && ['LT', 'LG', 'C', 'RG', 'RT'].includes(basicStats.position || player.position) ? {
+          sacksAllowed: manualBlocking.sacksAllowed || 0,
+          pancakes: manualBlocking.pancakes || 0
+        } : (boxStats?.blocking || (ownYearStats?.snapsPlayed > 0 && ['LT', 'LG', 'C', 'RG', 'RT'].includes(player.position) ? {
           sacksAllowed: 0
         } : null)),
-        // Defensive - only use detailed stats if user entered real values
+        // Defensive - only use manual stats if user entered real values (map internal to display format)
         defensive: useManualDefensive ? {
-          solo: manualDefensive['Solo Tackles'] || 0,
-          ast: manualDefensive['Assisted Tackles'] || 0,
-          tfl: manualDefensive['Tackles for Loss'] || 0,
-          sacks: manualDefensive['Sacks'] || 0,
-          int: manualDefensive['Interceptions'] || 0,
-          intYds: manualDefensive['INT Return Yards'] || 0,
-          intTd: manualDefensive['Defensive TDs'] || 0,
-          pdef: manualDefensive['Deflections'] || 0,
-          ff: manualDefensive['Forced Fumbles'] || 0,
-          fr: manualDefensive['Fumble Recoveries'] || 0
+          solo: manualDefensive.soloTkl || 0,
+          ast: manualDefensive.astTkl || 0,
+          tfl: manualDefensive.tfl || 0,
+          sacks: manualDefensive.sacks || 0,
+          int: manualDefensive.int || 0,
+          intYds: manualDefensive.intYds || 0,
+          intTd: manualDefensive.td || 0,
+          pdef: manualDefensive.pd || 0,
+          ff: manualDefensive.ff || 0,
+          fr: manualDefensive.fr || 0
         } : boxStats?.defensive || null,
-        // Kicking - only use detailed stats if user entered real values
+        // Kicking - only use manual stats if user entered real values
         kicking: useManualKicking ? {
-          fgm: manualKicking['FG Made'] || 0,
-          fga: manualKicking['FG Attempted'] || 0,
-          lng: manualKicking['FG Long'] || 0,
-          xpm: manualKicking['XP Made'] || 0,
-          xpa: manualKicking['XP Attempted'] || 0
+          fgm: manualKicking.fgm || 0,
+          fga: manualKicking.fga || 0,
+          lng: manualKicking.lng || 0,
+          xpm: manualKicking.xpm || 0,
+          xpa: manualKicking.xpa || 0
         } : boxStats?.kicking || null,
-        // Punting - only use detailed stats if user entered real values
+        // Punting - only use manual stats if user entered real values
         punting: useManualPunting ? {
-          punts: manualPunting['Punts'] || 0,
-          yds: manualPunting['Punting Yards'] || 0,
-          lng: manualPunting['Punt Long'] || 0,
-          in20: manualPunting['Punts Inside 20'] || 0,
-          tb: manualPunting['Touchbacks'] || 0
+          punts: manualPunting.punts || 0,
+          yds: manualPunting.yds || 0,
+          lng: manualPunting.lng || 0,
+          in20: manualPunting.in20 || 0,
+          tb: manualPunting.tb || 0
         } : boxStats?.punting || null,
-        // Kick Return - only use detailed stats if user entered real values
+        // Kick Return - only use manual stats if user entered real values
         kickReturn: useManualKickReturn ? {
-          ret: manualKickReturn['Kickoff Returns'] || 0,
-          yds: manualKickReturn['KR Yardage'] || 0,
-          td: manualKickReturn['KR Touchdowns'] || 0,
-          lng: manualKickReturn['KR Long'] || 0
+          ret: manualKickReturn.ret || 0,
+          yds: manualKickReturn.yds || 0,
+          td: manualKickReturn.td || 0,
+          lng: manualKickReturn.lng || 0
         } : boxStats?.kickReturn || null,
-        // Punt Return - only use detailed stats if user entered real values
+        // Punt Return - only use manual stats if user entered real values
         puntReturn: useManualPuntReturn ? {
-          ret: manualPuntReturn['Punt Returns'] || 0,
-          yds: manualPuntReturn['PR Yardage'] || 0,
-          td: manualPuntReturn['PR Touchdowns'] || 0,
-          lng: manualPuntReturn['PR Long'] || 0
+          ret: manualPuntReturn.ret || 0,
+          yds: manualPuntReturn.yds || 0,
+          td: manualPuntReturn.td || 0,
+          lng: manualPuntReturn.lng || 0
         } : boxStats?.puntReturn || null
       }
 
@@ -683,7 +648,7 @@ export default function Player() {
                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${isWin ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                         {isWin ? 'W' : 'L'}
                       </span>
-                      <span className="text-xs text-gray-600">{game.teamScore}-{game.opponentScore}</span>
+                      <span className="text-xs text-gray-600">{Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}</span>
                       {oppLogo && <img src={oppLogo} alt="" className="w-4 h-4 object-contain" />}
                       <span className="text-xs font-medium text-gray-700">{oppMascot || game.opponent}</span>
                       {/* Show key stats */}
@@ -2564,7 +2529,7 @@ export default function Player() {
                       <div className="text-sm font-bold px-2 py-0.5 rounded" style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
                         {isWin ? 'W' : 'L'}
                       </div>
-                      <div className="text-sm font-bold" style={{ color: opponentTextColor }}>{game.teamScore}-{game.opponentScore}</div>
+                      <div className="text-sm font-bold" style={{ color: opponentTextColor }}>{Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}</div>
                     </div>
                   </Link>
                 )
@@ -2692,7 +2657,7 @@ export default function Player() {
                         <div className="text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: isWin ? '#22c55e' : '#ef4444', color: '#ffffff' }}>
                           {isWin ? 'W' : 'L'}
                         </div>
-                        <div className="text-sm font-bold" style={{ color: opponentTextColor }}>{game.teamScore}-{game.opponentScore}</div>
+                        <div className="text-sm font-bold" style={{ color: opponentTextColor }}>{Math.max(game.teamScore, game.opponentScore)}-{Math.min(game.teamScore, game.opponentScore)}</div>
                       </div>
                     </div>
                     <div className="mt-2 text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: `${opponentTextColor}20`, color: opponentTextColor }}>

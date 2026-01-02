@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -398,21 +398,14 @@ export default function Dashboard() {
   if (!currentDynasty) return null
 
   // Get the user's team conference (from custom conferences or default)
+  const customConferences = getCurrentCustomConferences(currentDynasty)
+
   const getUserTeamConference = () => {
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
     if (!teamAbbr) return null
 
-    // Check custom conferences first
-    if (currentDynasty.conferences && Object.keys(currentDynasty.conferences).length > 0) {
-      for (const [confName, teams] of Object.entries(currentDynasty.conferences)) {
-        if (teams.includes(teamAbbr)) {
-          return confName
-        }
-      }
-    }
-
-    // Fall back to default conference mapping
-    return getTeamConference(teamAbbr)
+    // Use getTeamConference with custom conferences
+    return getTeamConference(teamAbbr, customConferences)
   }
 
   const userTeamConference = getUserTeamConference()
@@ -957,8 +950,8 @@ export default function Dashboard() {
     if (data.allConference && data.allConference.length > 0) {
       const allConferenceByConference = {}
       data.allConference.forEach(entry => {
-        // Determine conference from the player's school
-        const conference = getTeamConference(entry.school) || 'Unknown'
+        // Determine conference from the player's school (using custom conferences)
+        const conference = getTeamConference(entry.school, customConferences) || 'Unknown'
         if (!allConferenceByConference[conference]) {
           allConferenceByConference[conference] = []
         }
@@ -1645,7 +1638,7 @@ export default function Dashboard() {
           if (rawData.allConference && rawData.allConference.length > 0) {
             const allConferenceByConference = {}
             rawData.allConference.forEach(entry => {
-              const conference = getTeamConference(entry.school) || 'Unknown'
+              const conference = getTeamConference(entry.school, customConferences) || 'Unknown'
               if (!allConferenceByConference[conference]) {
                 allConferenceByConference[conference] = []
               }
@@ -2373,7 +2366,7 @@ export default function Dashboard() {
                             className="text-sm mt-1 font-medium"
                             style={{ color: '#16a34a' }}
                           >
-                            {playedGame.result === 'win' ? 'W' : 'L'} {playedGame.teamScore}-{playedGame.opponentScore}
+                            {playedGame.result === 'win' ? 'W' : 'L'} {Math.max(playedGame.teamScore, playedGame.opponentScore)}-{Math.min(playedGame.teamScore, playedGame.opponentScore)}
                             <span className="ml-2">✓ Complete</span>
                           </div>
                         )}
@@ -2513,7 +2506,7 @@ export default function Dashboard() {
                       <div className="text-xs sm:text-sm mt-0.5" style={{ color: ccTaskComplete ? '#16a34a' : secondaryBgText, opacity: ccTaskComplete ? 1 : 0.7 }}>
                         {ccMadeChampionship === null ? 'Did you make the championship?' :
                          ccMadeChampionship === false ? 'Did not make championship' :
-                         ccGame ? `${ccGame.result === 'win' ? 'W' : 'L'} ${ccGame.teamScore}-${ccGame.opponentScore} vs ${getMascotName(ccGame.opponent) || ccGame.opponent}` :
+                         ccGame ? `${ccGame.result === 'win' ? 'W' : 'L'} ${Math.max(ccGame.teamScore, ccGame.opponentScore)}-${Math.min(ccGame.teamScore, ccGame.opponentScore)} vs ${getMascotName(ccGame.opponent) || ccGame.opponent}` :
                          ccOpponent ? `vs ${getMascotName(ccOpponent) || ccOpponent}` : 'Enter game result'}
                       </div>
                     </div>
@@ -3257,7 +3250,7 @@ export default function Dashboard() {
                               Enter Your CFP First Round Game
                             </div>
                             <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userCFPFirstRoundGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                              {userCFPFirstRoundGame ? `✓ ${userCFPFirstRoundGame.result === 'W' || userCFPFirstRoundGame.result === 'win' ? 'Won' : 'Lost'} ${userCFPFirstRoundGame.teamScore}-${userCFPFirstRoundGame.opponentScore}` : `#${userCFPSeed} vs #${17 - userCFPSeed} ${getMascotName(userCFPOpponent)}`}
+                              {userCFPFirstRoundGame ? `✓ ${userCFPFirstRoundGame.result === 'W' || userCFPFirstRoundGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userCFPFirstRoundGame.teamScore, userCFPFirstRoundGame.opponentScore)}-${Math.min(userCFPFirstRoundGame.teamScore, userCFPFirstRoundGame.opponentScore)}` : `#${userCFPSeed} vs #${17 - userCFPSeed} ${getMascotName(userCFPOpponent)}`}
                             </div>
                           </div>
                         </div>
@@ -3305,7 +3298,7 @@ export default function Dashboard() {
                               Enter Your {selectedBowl} Game
                             </div>
                             <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
-                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' || userBowlGame.result === 'win' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
+                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' || userBowlGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userBowlGame.teamScore, userBowlGame.opponentScore)}-${Math.min(userBowlGame.teamScore, userBowlGame.opponentScore)}` : `vs ${bowlOpponent}`}
                             </div>
                           </div>
                         </div>
@@ -3603,7 +3596,7 @@ export default function Dashboard() {
                               Enter Your {selectedBowl} Game
                             </div>
                             <div className="text-xs sm:text-sm mt-0.5" style={{ color: userBowlGame ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
-                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' || userBowlGame.result === 'win' ? 'Won' : 'Lost'} ${userBowlGame.teamScore}-${userBowlGame.opponentScore}` : `vs ${bowlOpponent}`}
+                              {userBowlGame ? `✓ ${userBowlGame.result === 'W' || userBowlGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userBowlGame.teamScore, userBowlGame.opponentScore)}-${Math.min(userBowlGame.teamScore, userBowlGame.opponentScore)}` : `vs ${bowlOpponent}`}
                             </div>
                           </div>
                         </div>
@@ -3646,7 +3639,7 @@ export default function Dashboard() {
                             </div>
                             <div className="text-xs sm:text-sm mt-0.5" style={{ color: userCFPQuarterfinalGame ? '#16a34a' : secondaryBgText, opacity: 0.65 }}>
                               {userCFPQuarterfinalGame
-                                ? `✓ ${userCFPQuarterfinalGame.result === 'W' || userCFPQuarterfinalGame.result === 'win' ? 'Won' : 'Lost'} ${userCFPQuarterfinalGame.teamScore}-${userCFPQuarterfinalGame.opponentScore}`
+                                ? `✓ ${userCFPQuarterfinalGame.result === 'W' || userCFPQuarterfinalGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userCFPQuarterfinalGame.teamScore, userCFPQuarterfinalGame.opponentScore)}-${Math.min(userCFPQuarterfinalGame.teamScore, userCFPQuarterfinalGame.opponentScore)}`
                                 : `#${userCFPSeed} vs ${userQFOpponent ? getMascotName(userQFOpponent) : 'TBD'}`}
                             </div>
                           </div>
@@ -4135,7 +4128,10 @@ export default function Dashboard() {
 
             // Week 5: End of Season Recap - Enter championship result if user wasn't in it
             if (week === 5) {
-              const champData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.championship || []
+              // Check unified games[] array first, then fallback to legacy cfpResultsByYear
+              const unifiedChampGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_CHAMPIONSHIP, currentDynasty.currentYear)
+              const legacyChampData = currentDynasty.cfpResultsByYear?.[currentDynasty.currentYear]?.championship || []
+              const champData = unifiedChampGames.length > 0 ? unifiedChampGames : legacyChampData
               const hasChampData = champData.length > 0
 
               return (
@@ -4186,11 +4182,14 @@ export default function Dashboard() {
                       </div>
                     )}
 
-                    {/* Task: Player Stats Entry */}
+                    {/* Task: GP/Snaps Entry */}
                     {(() => {
                       // Check if the Google Sheet was actually created, not just if data exists from box scores
                       const hasStatsSheet = !!currentDynasty?.statsEntrySheetId
-                      const playerCount = currentDynasty?.playerStatsByYear?.[currentDynasty.currentYear]?.length || 0
+                      const playerCount = currentDynasty?.players?.filter(p => {
+                        const yearStats = p.statsByYear?.[currentDynasty.currentYear] || p.statsByYear?.[String(currentDynasty.currentYear)]
+                        return yearStats && (yearStats.gamesPlayed || yearStats.snapsPlayed)
+                      }).length || 0
                       const taskNumber = !userInCFPChampionship ? 2 : 1
 
                       return (
@@ -4215,7 +4214,7 @@ export default function Dashboard() {
                             </div>
                             <div className="min-w-0">
                               <div className="text-sm sm:text-base font-semibold" style={{ color: hasStatsSheet ? '#16a34a' : secondaryBgText }}>
-                                Player Stats Entry
+                                GP/Snaps Entry
                               </div>
                               {hasStatsSheet && (
                                 <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: '#16a34a', opacity: 0.7 }}>
@@ -4275,7 +4274,7 @@ export default function Dashboard() {
                                 <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: hasDetailedStatsSheet ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                                   {hasDetailedStatsSheet
                                     ? '✓ Detailed stats entered across all categories'
-                                    : 'Complete Player Stats Entry first'}
+                                    : 'Complete GP/Snaps Entry first'}
                                 </div>
                               )}
                             </div>
@@ -4616,7 +4615,7 @@ export default function Dashboard() {
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userCFPSemifinalGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {userCFPSemifinalGame
-                              ? `✓ ${userCFPSemifinalGame.result === 'W' || userCFPSemifinalGame.result === 'win' ? 'Won' : 'Lost'} ${userCFPSemifinalGame.teamScore}-${userCFPSemifinalGame.opponentScore}`
+                              ? `✓ ${userCFPSemifinalGame.result === 'W' || userCFPSemifinalGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userCFPSemifinalGame.teamScore, userCFPSemifinalGame.opponentScore)}-${Math.min(userCFPSemifinalGame.teamScore, userCFPSemifinalGame.opponentScore)}`
                               : `${userSFBowlName || 'CFP Semifinal'} vs ${userSFOpponent ? getMascotName(userSFOpponent) || userSFOpponent : 'TBD'}`}
                           </div>
                         </div>
@@ -4734,7 +4733,7 @@ export default function Dashboard() {
                           </div>
                           <div className="text-xs sm:text-sm mt-0.5 sm:mt-1" style={{ color: userCFPChampionshipGame ? '#16a34a' : secondaryBgText, opacity: 0.7 }}>
                             {userCFPChampionshipGame
-                              ? `✓ ${userCFPChampionshipGame.result === 'W' || userCFPChampionshipGame.result === 'win' ? 'Won' : 'Lost'} ${userCFPChampionshipGame.teamScore}-${userCFPChampionshipGame.opponentScore}`
+                              ? `✓ ${userCFPChampionshipGame.result === 'W' || userCFPChampionshipGame.result === 'win' ? 'Won' : 'Lost'} ${Math.max(userCFPChampionshipGame.teamScore, userCFPChampionshipGame.opponentScore)}-${Math.min(userCFPChampionshipGame.teamScore, userCFPChampionshipGame.opponentScore)}`
                               : allSFComplete
                                 ? `National Championship vs ${userChampOpponent ? getMascotName(userChampOpponent) || userChampOpponent : 'TBD'}`
                                 : 'Enter SF results first to determine opponent'}
@@ -6294,7 +6293,7 @@ export default function Dashboard() {
                       <div className="flex-shrink-0 text-right ml-1">
                         {playedGame ? (
                           <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: opponentColors.textColor }}>
-                            {playedGame.teamScore}-{playedGame.opponentScore}
+                            {Math.max(playedGame.teamScore, playedGame.opponentScore)}-{Math.min(playedGame.teamScore, playedGame.opponentScore)}
                             {playedGame.overtimes && playedGame.overtimes.length > 0 && (
                               <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                                 {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
@@ -6431,7 +6430,7 @@ export default function Dashboard() {
                     <div className="flex-shrink-0 text-right ml-1">
                       {ccGame ? (
                         <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: ccOpponentColors.textColor }}>
-                          {ccGame.teamScore}-{ccGame.opponentScore}
+                          {Math.max(ccGame.teamScore, ccGame.opponentScore)}-{Math.min(ccGame.teamScore, ccGame.opponentScore)}
                           {ccGame.overtimes && ccGame.overtimes.length > 0 && (
                             <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                               {ccGame.overtimes.length > 1 ? `${ccGame.overtimes.length}OT` : 'OT'}
@@ -6579,7 +6578,7 @@ export default function Dashboard() {
                     <div className="flex-shrink-0 text-right ml-1">
                       {userBowlGameData ? (
                         <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: bowlOpponentColors.textColor }}>
-                          {userBowlGameData.teamScore}-{userBowlGameData.opponentScore}
+                          {Math.max(userBowlGameData.teamScore, userBowlGameData.opponentScore)}-{Math.min(userBowlGameData.teamScore, userBowlGameData.opponentScore)}
                           {userBowlGameData.overtimes && userBowlGameData.overtimes.length > 0 && (
                             <span className="ml-0.5 text-[8px] sm:text-xs font-medium opacity-60">
                               {userBowlGameData.overtimes.length > 1 ? `${userBowlGameData.overtimes.length}OT` : 'OT'}
@@ -6692,7 +6691,7 @@ export default function Dashboard() {
                     {/* Score */}
                     <div className="flex-shrink-0 text-right ml-1">
                       <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>
-                        {cfpFirstRoundGame.teamScore}-{cfpFirstRoundGame.opponentScore}
+                        {Math.max(cfpFirstRoundGame.teamScore, cfpFirstRoundGame.opponentScore)}-{Math.min(cfpFirstRoundGame.teamScore, cfpFirstRoundGame.opponentScore)}
                       </div>
                     </div>
                   </div>
@@ -6750,7 +6749,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex-shrink-0 text-right ml-1">
-                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpQFGame.teamScore}-{cfpQFGame.opponentScore}</div>
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{Math.max(cfpQFGame.teamScore, cfpQFGame.opponentScore)}-{Math.min(cfpQFGame.teamScore, cfpQFGame.opponentScore)}</div>
                     </div>
                   </div>
                 </div>
@@ -6803,7 +6802,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex-shrink-0 text-right ml-1">
-                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpSFGame.teamScore}-{cfpSFGame.opponentScore}</div>
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{Math.max(cfpSFGame.teamScore, cfpSFGame.opponentScore)}-{Math.min(cfpSFGame.teamScore, cfpSFGame.opponentScore)}</div>
                     </div>
                   </div>
                 </div>
@@ -6855,7 +6854,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex-shrink-0 text-right ml-1">
-                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{cfpChampGame.teamScore}-{cfpChampGame.opponentScore}</div>
+                      <div className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: cfpOpponentColors.textColor }}>{Math.max(cfpChampGame.teamScore, cfpChampGame.opponentScore)}-{Math.min(cfpChampGame.teamScore, cfpChampGame.opponentScore)}</div>
                     </div>
                   </div>
                 </div>
@@ -7343,39 +7342,71 @@ export default function Dashboard() {
       <ConferencesModal
         isOpen={showConferencesModal}
         onClose={() => setShowConferencesModal(false)}
-        onSave={async (conferences) => {
+        onSave={async (data) => {
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
           const year = currentDynasty.currentYear
+
+          // Check if data is multi-year format (keys are years like "2025", "2026")
+          const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
+
           if (isDev || !user) {
             // Dev mode - update both legacy and team-centric structures
             const existingPreseasonSetupByTeamYear = currentDynasty.preseasonSetupByTeamYear || {}
             const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
             const currentSetup = teamSetups[year] || currentDynasty.preseasonSetup || {}
-            await updateDynasty(currentDynasty.id, {
-              customConferences: conferences,
-              preseasonSetupByTeamYear: {
-                ...existingPreseasonSetupByTeamYear,
-                [teamAbbr]: {
-                  ...teamSetups,
-                  [year]: {
-                    ...currentSetup,
-                    conferencesEntered: true
+            const existingByYear = currentDynasty.customConferencesByYear || {}
+
+            if (isMultiYear) {
+              await updateDynasty(currentDynasty.id, {
+                customConferencesByYear: { ...existingByYear, ...data },
+                customConferences: data[year] || currentDynasty.customConferences,
+                preseasonSetupByTeamYear: {
+                  ...existingPreseasonSetupByTeamYear,
+                  [teamAbbr]: {
+                    ...teamSetups,
+                    [year]: { ...currentSetup, conferencesEntered: true }
                   }
-                }
-              },
-              preseasonSetup: {
-                ...currentDynasty.preseasonSetup,
-                conferencesEntered: true
-              }
-            })
+                },
+                preseasonSetup: { ...currentDynasty.preseasonSetup, conferencesEntered: true }
+              })
+            } else {
+              await updateDynasty(currentDynasty.id, {
+                customConferences: data,
+                customConferencesByYear: { ...existingByYear, [year]: data },
+                preseasonSetupByTeamYear: {
+                  ...existingPreseasonSetupByTeamYear,
+                  [teamAbbr]: {
+                    ...teamSetups,
+                    [year]: { ...currentSetup, conferencesEntered: true }
+                  }
+                },
+                preseasonSetup: { ...currentDynasty.preseasonSetup, conferencesEntered: true }
+              })
+            }
           } else {
             // Production mode - use dot notation
-            await updateDynasty(currentDynasty.id, {
-              customConferences: conferences,
-              [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
-              'preseasonSetup.conferencesEntered': true
-            })
+            if (isMultiYear) {
+              const updates = {
+                [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
+                'preseasonSetup.conferencesEntered': true
+              }
+              // Save each year's conferences
+              Object.entries(data).forEach(([y, conferences]) => {
+                updates[`customConferencesByYear.${y}`] = conferences
+              })
+              if (data[year]) {
+                updates.customConferences = data[year]
+              }
+              await updateDynasty(currentDynasty.id, updates)
+            } else {
+              await updateDynasty(currentDynasty.id, {
+                customConferences: data,
+                [`customConferencesByYear.${year}`]: data,
+                [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
+                'preseasonSetup.conferencesEntered': true
+              })
+            }
           }
         }}
         teamColors={teamColors}
@@ -7386,13 +7417,30 @@ export default function Dashboard() {
         isOpen={showStatsEntryModal}
         onClose={() => setShowStatsEntryModal(false)}
         onSave={async (stats) => {
-          const year = currentDynasty.currentYear
-          const existingByYear = currentDynasty.playerStatsByYear || {}
-          await updateDynasty(currentDynasty.id, {
-            playerStatsByYear: {
-              ...existingByYear,
-              [year]: stats
+          const year = Number(currentDynasty.currentYear)
+
+          // Update each player's statsByYear with gamesPlayed/snapsPlayed
+          const updatedPlayers = (currentDynasty.players || []).map(player => {
+            // Find this player's stats in the returned array
+            const playerStats = stats.find(s =>
+              s.pid === player.pid ||
+              (s.name && player.name && s.name.toLowerCase().trim() === player.name.toLowerCase().trim())
+            )
+
+            if (!playerStats) return player
+
+            const existingStatsByYear = { ...(player.statsByYear || {}) }
+            existingStatsByYear[year] = {
+              ...(existingStatsByYear[year] || {}),
+              gamesPlayed: playerStats.gamesPlayed,
+              snapsPlayed: playerStats.snapsPlayed
             }
+
+            return { ...player, statsByYear: existingStatsByYear }
+          })
+
+          await updateDynasty(currentDynasty.id, {
+            players: updatedPlayers
           })
         }}
         currentYear={currentDynasty.currentYear}
@@ -7404,13 +7452,55 @@ export default function Dashboard() {
         isOpen={showDetailedStatsModal}
         onClose={() => setShowDetailedStatsModal(false)}
         onSave={async (detailedStats) => {
-          const year = currentDynasty.currentYear
-          const existingByYear = currentDynasty.detailedStatsByYear || {}
-          await updateDynasty(currentDynasty.id, {
-            detailedStatsByYear: {
-              ...existingByYear,
-              [year]: detailedStats
+          const year = Number(currentDynasty.currentYear)
+
+          // Category mapping from sheet names to internal names
+          const categoryMapping = {
+            'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
+            'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
+            'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn'
+          }
+
+          // Build a map of player stats by name
+          const playerStatsMap = new Map()
+          Object.entries(detailedStats).forEach(([categoryName, players]) => {
+            const internalCat = categoryMapping[categoryName] || categoryName.toLowerCase()
+            if (Array.isArray(players)) {
+              players.forEach(playerData => {
+                if (!playerData.name) return
+                const key = playerData.name.toLowerCase().trim()
+                if (!playerStatsMap.has(key)) {
+                  playerStatsMap.set(key, {})
+                }
+                // Copy stats without name/pid
+                const statsOnly = { ...playerData }
+                delete statsOnly.name
+                delete statsOnly.pid
+                playerStatsMap.get(key)[internalCat] = statsOnly
+              })
             }
+          })
+
+          // Update each player's statsByYear
+          const updatedPlayers = (currentDynasty.players || []).map(player => {
+            const playerNameKey = player.name?.toLowerCase().trim()
+            const detailedPlayerStats = playerStatsMap.get(playerNameKey)
+
+            if (!detailedPlayerStats || Object.keys(detailedPlayerStats).length === 0) {
+              return player
+            }
+
+            const existingStatsByYear = { ...(player.statsByYear || {}) }
+            existingStatsByYear[year] = {
+              ...(existingStatsByYear[year] || {}),
+              ...detailedPlayerStats
+            }
+
+            return { ...player, statsByYear: existingStatsByYear }
+          })
+
+          await updateDynasty(currentDynasty.id, {
+            players: updatedPlayers
           })
         }}
         currentYear={currentDynasty.currentYear}
@@ -7767,23 +7857,38 @@ export default function Dashboard() {
       <ConferencesModal
         isOpen={showOffseasonConferencesModal}
         onClose={() => setShowOffseasonConferencesModal(false)}
-        onSave={async (conferences) => {
+        onSave={async (data) => {
           const nextYear = currentDynasty.currentYear + 1
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+
+          // Check if data is multi-year format (keys are years like "2025", "2026")
+          const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
+
           if (isDev || !user) {
-            // Dev mode - save conferences for next year
+            // Dev mode - save conferences
             const existingByYear = currentDynasty?.customConferencesByYear || {}
-            await updateDynasty(currentDynasty.id, {
-              customConferencesByYear: {
-                ...existingByYear,
-                [nextYear]: conferences
-              }
-            })
+            if (isMultiYear) {
+              await updateDynasty(currentDynasty.id, {
+                customConferencesByYear: { ...existingByYear, ...data }
+              })
+            } else {
+              await updateDynasty(currentDynasty.id, {
+                customConferencesByYear: { ...existingByYear, [nextYear]: data }
+              })
+            }
           } else {
             // Production mode - use dot notation for Firestore
-            await updateDynasty(currentDynasty.id, {
-              [`customConferencesByYear.${nextYear}`]: conferences
-            })
+            if (isMultiYear) {
+              const updates = {}
+              Object.entries(data).forEach(([y, conferences]) => {
+                updates[`customConferencesByYear.${y}`] = conferences
+              })
+              await updateDynasty(currentDynasty.id, updates)
+            } else {
+              await updateDynasty(currentDynasty.id, {
+                [`customConferencesByYear.${nextYear}`]: data
+              })
+            }
           }
         }}
         teamColors={teamColors}

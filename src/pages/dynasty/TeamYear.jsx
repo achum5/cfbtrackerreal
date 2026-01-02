@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES } from '../../context/DynastyContext'
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -332,8 +332,9 @@ export default function TeamYear() {
     secondary: teamInfo.backgroundColor || '#f3f4f6'
   }
 
-  // Conference with manual override support
-  const baseConference = getTeamConference(teamAbbr)
+  // Conference with custom conferences support (year-specific)
+  const customConferences = getCustomConferencesForYear(currentDynasty, selectedYear)
+  const baseConference = getTeamConference(teamAbbr, customConferences)
   const manualConference = currentDynasty.conferenceByTeamYear?.[teamAbbr]?.[selectedYear]
   const conference = manualConference || baseConference
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
@@ -431,7 +432,9 @@ export default function TeamYear() {
 
       // Games played AGAINST this team - check both opponent field AND team1/team2 fields
       // Need to check team1/team2 because user postseason games now have those for Bowl History
-      const isOpponent = opponentAbbr === teamAbbr || isInTeam1Team2
+      // BUT: Don't include if this game was already added as the user's own game above
+      const wasAlreadyAddedAsOwnGame = g.userTeam === teamAbbr || (!g.userTeam && isUserTeam)
+      const isOpponent = !wasAlreadyAddedAsOwnGame && (opponentAbbr === teamAbbr || isInTeam1Team2)
 
       if (isOpponent) {
         // Flip the result
@@ -559,10 +562,20 @@ export default function TeamYear() {
     // Helper to safely get array from cfpResults (handles both array and non-array cases)
     const safeArray = (val) => Array.isArray(val) ? val : []
 
+    // Helper to check if a game already exists (handles abbr vs full name comparison)
+    const gameAlreadyExists = (convGame, cfpFlag) => {
+      const convOppAbbr = getAbbreviationFromDisplayName(convGame.opponent) || convGame.opponent
+      return teamGamesFromArray.some(g => {
+        if (!g[cfpFlag]) return false
+        const existingOppAbbr = getAbbreviationFromDisplayName(g.opponent) || g.opponent
+        return existingOppAbbr === convOppAbbr
+      })
+    }
+
     // First Round
     safeArray(cfpResultsForYear.firstRound).forEach(game => {
       const conv = convertCFPGame(game, 'CFP R1', { isCFPFirstRound: true, isPlayoff: true })
-      if (conv && !teamGamesFromArray.some(g => g.isCFPFirstRound && g.opponent === conv.opponent)) {
+      if (conv && !gameAlreadyExists(conv, 'isCFPFirstRound')) {
         converted.push(conv)
       }
     })
@@ -570,7 +583,7 @@ export default function TeamYear() {
     // Quarterfinals
     safeArray(cfpResultsForYear.quarterfinals).forEach(game => {
       const conv = convertCFPGame(game, 'CFP QF', { isCFPQuarterfinal: true, isPlayoff: true })
-      if (conv && !teamGamesFromArray.some(g => g.isCFPQuarterfinal && g.opponent === conv.opponent)) {
+      if (conv && !gameAlreadyExists(conv, 'isCFPQuarterfinal')) {
         converted.push(conv)
       }
     })
@@ -578,7 +591,7 @@ export default function TeamYear() {
     // Semifinals
     safeArray(cfpResultsForYear.semifinals).forEach(game => {
       const conv = convertCFPGame(game, 'CFP SF', { isCFPSemifinal: true, isPlayoff: true })
-      if (conv && !teamGamesFromArray.some(g => g.isCFPSemifinal && g.opponent === conv.opponent)) {
+      if (conv && !gameAlreadyExists(conv, 'isCFPSemifinal')) {
         converted.push(conv)
       }
     })
@@ -589,7 +602,7 @@ export default function TeamYear() {
       : cfpResultsForYear.championship
     if (champGame) {
       const conv = convertCFPGame(champGame, 'CFP Champ', { isCFPChampionship: true, isPlayoff: true })
-      if (conv && !teamGamesFromArray.some(g => g.isCFPChampionship && g.opponent === conv.opponent)) {
+      if (conv && !gameAlreadyExists(conv, 'isCFPChampionship')) {
         converted.push(conv)
       }
     }
@@ -598,12 +611,24 @@ export default function TeamYear() {
   })()
 
   // Combine team's games with legacy bowl game, CC games, and CFP games if applicable
-  const teamYearGames = [
+  // Then deduplicate - prefer games from games[] array over converted ones
+  const combinedGames = [
     ...teamGamesFromArray,
     ...ccGamesFromLegacyStructure,
     ...(teamBowlGameConverted ? [teamBowlGameConverted] : []),
     ...teamCFPGamesConverted
-  ].sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
+  ]
+
+  // Deduplicate by game ID - games from games[] array come first, so they take precedence
+  const seenIds = new Set()
+  const teamYearGames = combinedGames
+    .filter(g => {
+      if (!g.id) return true // Keep games without IDs
+      if (seenIds.has(g.id)) return false // Skip duplicate IDs
+      seenIds.add(g.id)
+      return true
+    })
+    .sort((a, b) => getGameSortOrder(a) - getGameSortOrder(b))
   // Check for both 'win'/'loss' and 'W'/'L' formats
   // Use _displayResult for flipped perspective games (opponent team pages)
   const teamWins = teamYearGames.filter(g => {
@@ -836,10 +861,14 @@ export default function TeamYear() {
 
   // Get bowl game for this team in this year
   // UNIFIED: First check games[] array, then fallback to bowlGamesByYear
+  // Exclude CFP games - they have their own badges
   const bowlGamesFromGames = allGamesArray.filter(g =>
     g.isBowlGame && g.year === selectedYear &&
     (g.team1 === teamAbbr || g.team2 === teamAbbr) &&
-    g.team1Score !== null && g.team1Score !== undefined
+    g.team1Score !== null && g.team1Score !== undefined &&
+    !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship &&
+    g.gameType !== GAME_TYPES.CFP_FIRST_ROUND && g.gameType !== GAME_TYPES.CFP_QUARTERFINAL &&
+    g.gameType !== GAME_TYPES.CFP_SEMIFINAL && g.gameType !== GAME_TYPES.CFP_CHAMPIONSHIP
   )
 
   // Fallback: Also check bowlGamesByYear for backward compatibility
@@ -889,42 +918,51 @@ export default function TeamYear() {
     game.team1Score !== null && game.team2Score !== null
   ).sort((a, b) => a.round - b.round)
 
-  // Determine CFP result for this team
+  // Determine CFP result for this team - check unified games[] array first, then legacy cfpResultsByYear
   const getCFPResult = () => {
-    if (teamCFPGamesFromResults.length === 0) return null
+    // Get CFP games from unified games[] array
+    const unifiedChampGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_CHAMPIONSHIP, selectedYear)
+    const unifiedSFGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_SEMIFINAL, selectedYear)
+    const unifiedQFGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_QUARTERFINAL, selectedYear)
+    const unifiedFRGames = getGamesByType(currentDynasty, GAME_TYPES.CFP_FIRST_ROUND, selectedYear)
 
-    // Check championship first (championship is an object, not array)
-    const champGame = cfpResults.championship
-    if (champGame && (champGame.team1 === teamAbbr || champGame.team2 === teamAbbr)) {
+    // Check championship first - unified games array, then legacy
+    const champGame = unifiedChampGames.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr)) ||
+                      (cfpResults.championship && (cfpResults.championship.team1 === teamAbbr || cfpResults.championship.team2 === teamAbbr) ? cfpResults.championship : null)
+    if (champGame) {
       const wonChamp = champGame.winner === teamAbbr
       return wonChamp ? 'champion' : 'lost-championship'
     }
 
-    // Check semifinals
-    const sfGame = (cfpResults.semifinals || []).find(g =>
-      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
-    )
+    // Check semifinals - unified games array, then legacy
+    const sfGame = unifiedSFGames.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr)) ||
+                   (cfpResults.semifinals || []).find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (sfGame) {
       const wonSF = sfGame.winner === teamAbbr
       if (!wonSF) return 'lost-semifinal'
     }
 
-    // Check quarterfinals
-    const qfGame = (cfpResults.quarterfinals || []).find(g =>
-      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
-    )
+    // Check quarterfinals - unified games array, then legacy
+    const qfGame = unifiedQFGames.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr)) ||
+                   (cfpResults.quarterfinals || []).find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (qfGame) {
       const wonQF = qfGame.winner === teamAbbr
       if (!wonQF) return 'lost-quarterfinal'
     }
 
-    // Check first round
-    const frGame = (cfpResults.firstRound || []).find(g =>
-      g && (g.team1 === teamAbbr || g.team2 === teamAbbr)
-    )
+    // Check first round - unified games array, then legacy
+    const frGame = unifiedFRGames.find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr)) ||
+                   (cfpResults.firstRound || []).find(g => g && (g.team1 === teamAbbr || g.team2 === teamAbbr))
     if (frGame) {
       const wonFR = frGame.winner === teamAbbr
       if (!wonFR) return 'lost-first-round'
+    }
+
+    // No CFP participation
+    if (teamCFPGamesFromResults.length === 0 &&
+        unifiedChampGames.length === 0 && unifiedSFGames.length === 0 &&
+        unifiedQFGames.length === 0 && unifiedFRGames.length === 0) {
+      return null
     }
 
     return null

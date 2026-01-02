@@ -235,24 +235,51 @@ if (p.leavingYear && p.leavingReason && Number(year) > Number(p.leavingYear)) re
 
 **Redshirt rules**: Players with ≤4 games get RS prefix added (unless already RS)
 
-### Player statsByYear (Stats Storage)
+### Player statsByYear (Stats Storage) - SINGLE SOURCE OF TRUTH
 
-Stats stored within each player's `statsByYear` field:
+**All stats are now stored ONLY in `player.statsByYear`**. Legacy dynasty-level structures (`dynasty.playerStatsByYear`, `dynasty.detailedStatsByYear`) are deprecated and automatically migrated.
+
 ```javascript
 player.statsByYear = {
   2025: {
     gamesPlayed: 13,
     snapsPlayed: 850,
-    passing: { Completions: 250, Yards: 3000, ... },
-    rushing: { Carries: 50, Yards: 200, ... },
-    // ... other categories
+    passing: { cmp: 250, att: 350, yds: 3000, td: 25, int: 5, lng: 65, sacks: 10 },
+    rushing: { car: 50, yds: 200, td: 3, lng: 25, fumbles: 1 },
+    receiving: { rec: 0, yds: 0, td: 0, lng: 0 },
+    defense: { tkl: 0, tfl: 0, sacks: 0, ff: 0, int: 0, td: 0 },
+    kicking: { fgm: 0, fga: 0, lng: 0, xpm: 0, xpa: 0 },
+    punting: { punts: 0, yds: 0, lng: 0, in20: 0 },
+    kickReturn: { ret: 0, yds: 0, td: 0, lng: 0 },
+    puntReturn: { ret: 0, yds: 0, td: 0, lng: 0 }
   }
 }
 ```
 
-**Reading stats** (priority order in Player.jsx):
-1. `player.statsByYear[year]` - PRIMARY
-2. Legacy: `dynasty.detailedStatsByYear[year]` - Fallback
+**Stats sources and updates**:
+1. **Box score aggregation** - `aggregatePlayerBoxScoreStats()` in DynastyContext.jsx aggregates stats from game box scores into `player.statsByYear`. Called automatically when saving games with box scores.
+2. **Manual entry** - TeamStats.jsx saves games/snaps and detailed stats directly to `player.statsByYear`
+3. **PlayerEditModal** - Can edit individual player stats per year
+
+**Reading stats** (in Player.jsx, TeamStats.jsx, DynastyRecords.jsx):
+- Read directly from `player.statsByYear[year]` - no fallbacks needed
+- Box scores provide real-time aggregation as games are played
+
+**Legacy migration**:
+- `migrateLegacyStats()` runs once per dynasty on load
+- Migrates `dynasty.playerStatsByYear` and `dynasty.detailedStatsByYear` to each player's `statsByYear`
+- Sets `dynasty._statsMigrated = true` when complete
+
+**Stats Entry Workflow** (TeamStats.jsx):
+1. **GP/Snaps Entry** (StatsEntryModal) - Enter games played and snaps for entire roster first
+2. **Detailed Stats Entry** (DetailedStatsEntryModal) - Enter passing, rushing, etc. stats
+   - Sheet includes Snaps column (read-only) and sorts by snaps descending
+   - Players with most snaps appear at top for quick data entry
+   - Filter enabled so user can re-sort by any column
+
+**Data source priority** (for games played):
+- Box scores are prioritized over saved stats (most accurate count)
+- Both StatsEntryModal and PlayerEditModal use: `boxScoreGames ?? savedStats ?? null`
 
 ## Important Notes
 

@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { useTeamColors } from '../../hooks/useTeamColors'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { getConferenceLogo } from '../../data/conferenceLogos'
+import ConferencesModal from '../../components/ConferencesModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -132,10 +134,12 @@ const getConferenceData = (yearStandings, conferenceName) => {
 export default function ConferenceStandings() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const teamColors = useTeamColors(currentDynasty?.teamName)
   const [expandedConference, setExpandedConference] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showConferencesModal, setShowConferencesModal] = useState(false)
 
   if (!currentDynasty) return null
 
@@ -189,23 +193,37 @@ export default function ConferenceStandings() {
             </h1>
           </div>
 
-          {/* Year Selector */}
-          {availableYears.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="font-semibold text-sm text-white">
-                Year:
-              </label>
-              <select
-                value={displayYear}
-                onChange={(e) => handleYearChange(parseInt(e.target.value))}
-                className="px-4 py-2 rounded-lg font-bold text-lg border-2 bg-gray-700 text-white border-gray-500"
+          {/* Year Selector and Edit Button */}
+          <div className="flex items-center gap-3">
+            {availableYears.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="font-semibold text-sm text-white">
+                  Year:
+                </label>
+                <select
+                  value={displayYear}
+                  onChange={(e) => handleYearChange(parseInt(e.target.value))}
+                  className="px-4 py-2 rounded-lg font-bold text-lg border-2 bg-gray-700 text-white border-gray-500"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowConferencesModal(true)}
+                className="px-4 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-colors flex items-center gap-2"
+                style={{ backgroundColor: teamColors.primary, color: teamColors.secondary }}
               >
-                {availableYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-          )}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit Conferences
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -414,6 +432,40 @@ export default function ConferenceStandings() {
           </p>
         </div>
       )}
+
+      {/* Conferences Modal */}
+      <ConferencesModal
+        isOpen={showConferencesModal}
+        onClose={() => setShowConferencesModal(false)}
+        onSave={async (data) => {
+          // Data can be either:
+          // - conferencesByYear object: { 2025: {...}, 2026: {...} } (new multi-tab format)
+          // - single conferences object: { ACC: [...], ... } (legacy format)
+          const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
+
+          if (isMultiYear) {
+            // Multi-year format - save all years
+            const existingByYear = currentDynasty.customConferencesByYear || {}
+            const newByYear = { ...existingByYear, ...data }
+            await updateDynasty(currentDynasty.id, {
+              customConferencesByYear: newByYear,
+              // Also update current customConferences if current year is included
+              ...(data[currentDynasty.currentYear] ? { customConferences: data[currentDynasty.currentYear] } : {})
+            })
+          } else {
+            // Legacy single-year format - save for current year
+            const existingByYear = currentDynasty.customConferencesByYear || {}
+            await updateDynasty(currentDynasty.id, {
+              customConferencesByYear: {
+                ...existingByYear,
+                [currentDynasty.currentYear]: data
+              },
+              customConferences: data
+            })
+          }
+        }}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

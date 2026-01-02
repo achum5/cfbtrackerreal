@@ -97,8 +97,7 @@ export default function PlayersLeavingModal({ isOpen, onClose, onSave, currentYe
           const sheetInfo = await createPlayersLeavingSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
-            currentDynasty?.players || [],
-            currentDynasty?.playerStatsByYear || {}
+            currentDynasty?.players || []
           )
           setSheetId(sheetInfo.spreadsheetId)
 

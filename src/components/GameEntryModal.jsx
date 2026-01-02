@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty, getCurrentTeamRatings, getCurrentRoster, GAME_TYPES } from '../context/DynastyContext'
+import { useDynasty, getCurrentTeamRatings, getCurrentRoster, GAME_TYPES, getCurrentCustomConferences } from '../context/DynastyContext'
 import { getTeamLogo } from '../data/teams'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 import { getTeamConference } from '../data/conferenceTeams'
@@ -1144,15 +1144,19 @@ export default function GameEntryModal({
 
     const favoriteStatus = calculateFavoriteStatus()
 
-    // Auto-detect if this is a conference game
+    // Determine if this is a conference game
     const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
     const rawOpponent = gameData.opponent || scheduledGame?.opponent
     const opponentAbbr = getAbbreviationFromDisplayName(rawOpponent) || rawOpponent
-    const userConference = getTeamConference(userTeamAbbr)
-    const opponentConference = getTeamConference(opponentAbbr)
+
+    // Use custom conferences for auto-detection
+    const customConferences = getCurrentCustomConferences(currentDynasty)
+    const userConference = getTeamConference(userTeamAbbr, customConferences)
+    const opponentConference = getTeamConference(opponentAbbr, customConferences)
 
     // Conference game if both teams are in the same conference (and not independents)
     // Conference Championship games are always conference games
+    // Always recalculates based on current custom conferences
     const isConferenceGame = isConferenceChampionship ||
       (userConference && opponentConference &&
        userConference === opponentConference &&
