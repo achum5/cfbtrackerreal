@@ -461,7 +461,7 @@ export default function TeamStats() {
     const rawKickReturn = processCategory('kickReturn', 'Kick Return')
     const rawPuntReturn = processCategory('puntReturn', 'Punt Return')
 
-    // Compute derived stats for each category
+    // Compute derived stats for each category and filter to only players with stats
     const passing = rawPassing.map(p => ({
       ...p,
       comp: p.comp || 0,
@@ -476,7 +476,7 @@ export default function TeamStats() {
       tdPct: p.attempts > 0 ? ((p.tD / p.attempts) * 100).toFixed(1) : '0.0',
       intPct: p.attempts > 0 ? ((p.iNT / p.attempts) * 100).toFixed(1) : '0.0',
       tdIntRatio: p.iNT > 0 ? (p.tD / p.iNT).toFixed(2).replace('.', ':') : (p.tD > 0 ? '∞' : '0:00')
-    }))
+    })).filter(p => p.comp > 0 || p.attempts > 0)
 
     const rushing = rawRushing.map(p => ({
       ...p,
@@ -488,7 +488,7 @@ export default function TeamStats() {
       '20+': p['20+'] || 0,
       ypc: p.carries > 0 ? (p.yards / p.carries).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.carries > 0)
 
     const receiving = rawReceiving.map(p => ({
       ...p,
@@ -501,13 +501,13 @@ export default function TeamStats() {
       ypr: p.receptions > 0 ? (p.yards / p.receptions).toFixed(1) : '0.0',
       yardsPerGame: p.games > 0 ? (p.yards / p.games).toFixed(1) : '0.0',
       racAvg: p.receptions > 0 ? ((p.rAC || 0) / p.receptions).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.receptions > 0)
 
     const blocking = rawBlocking.map(p => ({
       ...p,
       pancakes: p.pancakes || 0,
       sacksAllowed: p.sacksAllowed || 0
-    }))
+    })).filter(p => p.pancakes > 0 || p.sacksAllowed > 0)
 
     const defense = rawDefense.map(p => ({
       ...p,
@@ -522,7 +522,7 @@ export default function TeamStats() {
       fR: p.fR || 0,
       tD: p.tD || 0,
       totalTackles: (p.solo || 0) + (p.assists || 0)
-    }))
+    })).filter(p => p.solo > 0 || p.assists > 0 || p.sack > 0 || p.iNT > 0 || p.tFL > 0 || p.deflections > 0 || p.fF > 0 || p.fR > 0 || p.tD > 0)
 
     const kicking = rawKicking.map(p => ({
       ...p,
@@ -533,7 +533,7 @@ export default function TeamStats() {
       kickoffs: p.kickoffs || 0,
       touchbacks: p.touchbacks || 0,
       fgPct: p.fGA > 0 ? ((p.fGM / p.fGA) * 100).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.fGM > 0 || p.fGA > 0 || p.xPM > 0 || p.xPA > 0 || p.kickoffs > 0)
 
     const punting = rawPunting.map(p => ({
       ...p,
@@ -543,7 +543,7 @@ export default function TeamStats() {
       in20: p.in20 || 0,
       long: p.long || 0,
       avg: p.punts > 0 ? (p.yards / p.punts).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.punts > 0)
 
     const kickReturn = rawKickReturn.map(p => ({
       ...p,
@@ -552,7 +552,7 @@ export default function TeamStats() {
       tD: p.tD || 0,
       long: p.long || 0,
       avg: p.kR > 0 ? (p.yards / p.kR).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.kR > 0)
 
     const puntReturn = rawPuntReturn.map(p => ({
       ...p,
@@ -561,7 +561,7 @@ export default function TeamStats() {
       tD: p.tD || 0,
       long: p.long || 0,
       avg: p.pR > 0 ? (p.yards / p.pR).toFixed(1) : '0.0'
-    }))
+    })).filter(p => p.pR > 0)
 
     return {
       passing,
