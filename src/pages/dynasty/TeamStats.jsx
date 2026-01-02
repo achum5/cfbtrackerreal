@@ -417,8 +417,7 @@ export default function TeamStats() {
 
     // Process category - prefer player.statsByYear, fallback to legacy
     const processCategory = (internalCatName, legacyCatName) => {
-      const playersWithStats = []
-      const seenPlayers = new Set()
+      const playerStatsMap = new Map() // Use Map to deduplicate by normalized name
 
       // First, get from player.statsByYear (PRIMARY source)
       allPlayers.forEach(player => {
@@ -429,8 +428,11 @@ export default function TeamStats() {
           // Only include if has meaningful stats
           const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
           if (statKeys.some(k => stats[k] > 0)) {
-            playersWithStats.push(stats)
-            seenPlayers.add(player.name?.toLowerCase().trim())
+            const normalizedName = player.name?.toLowerCase().trim()
+            // Only add if not already seen (first occurrence wins)
+            if (!playerStatsMap.has(normalizedName)) {
+              playerStatsMap.set(normalizedName, stats)
+            }
           }
         }
       })
@@ -438,16 +440,18 @@ export default function TeamStats() {
       // Then, add from legacy if not already included
       const legacyPlayers = legacyDetailedStats[legacyCatName] || []
       legacyPlayers.forEach(p => {
-        if (!p.name || seenPlayers.has(p.name.toLowerCase().trim())) return
+        if (!p.name) return
+        const normalizedName = p.name.toLowerCase().trim()
+        if (playerStatsMap.has(normalizedName)) return // Skip if already have stats from primary source
         const yearStats = getPlayerYearStats(p.name)
         const stats = convertPlayerStats(p.name, p, yearStats.gamesPlayed || 0)
         const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
         if (statKeys.some(k => stats[k] > 0)) {
-          playersWithStats.push(stats)
+          playerStatsMap.set(normalizedName, stats)
         }
       })
 
-      return playersWithStats
+      return Array.from(playerStatsMap.values())
     }
 
     // Get raw data from each category
