@@ -2520,18 +2520,20 @@ export function DynastyProvider({ children }) {
           newYear = CLASS_PROGRESSION[player.year] || player.year
         }
 
-        // Return updated player if class changed
-        if (newYear !== player.year) {
-          return {
-            ...player,
-            year: newYear,
-            classByYear: {
-              ...(player.classByYear || {}),
-              [nextYear]: newYear
-            }
+        // Update player with new class and ensure teamsByYear is set for the new season
+        // CRITICAL: Set teamsByYear[nextYear] = teamAbbr so roster filtering works immediately
+        return {
+          ...player,
+          year: newYear,
+          classByYear: {
+            ...(player.classByYear || {}),
+            [nextYear]: newYear
+          },
+          teamsByYear: {
+            ...(player.teamsByYear || {}),
+            [nextYear]: teamAbbr
           }
         }
-        return player
       })
 
       additionalUpdates.players = progressedPlayers
@@ -2755,6 +2757,11 @@ export function DynastyProvider({ children }) {
           classByYear: {
             ...(player.classByYear || {}),
             [currentSeasonYear]: newYear
+          },
+          // CRITICAL: Set teamsByYear for the new season so roster filtering works
+          teamsByYear: {
+            ...(player.teamsByYear || {}),
+            [currentSeasonYear]: teamAbbr
           }
         }
       }

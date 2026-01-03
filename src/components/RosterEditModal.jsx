@@ -110,33 +110,33 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
             currentYear
           )
 
-          // Pre-fill with roster data for the SELECTED YEAR (season-aligned)
-          // PRIMARY: Use teamsByYear[year] for immutable historical record
-          // FALLBACK: Use old calculation logic for backwards compatibility
-          const selectedYear = currentYear // currentYear prop is the year being edited
+          // Pre-fill with the CURRENT roster using the same logic as getCurrentRoster
+          // This ensures we always show the exact current roster regardless of teamsByYear state
           const targetTeam = teamAbbr || getCurrentRoster(currentDynasty)[0]?.team
+          const selectedYear = currentYear
 
           let existingPlayers = (currentDynasty?.players || []).filter(p => {
-            // Exclude honor-only players
+            // Always exclude honor-only players from roster view
             if (p.isHonorOnly) return false
-            // Exclude recruits who haven't enrolled yet
+
+            // Exclude recruits - they haven't enrolled yet
             if (p.isRecruit) return false
 
-            // PRIMARY CHECK: Use teamsByYear if available (immutable roster history)
-            if (p.teamsByYear && p.teamsByYear[selectedYear] !== undefined) {
-              return p.teamsByYear[selectedYear] === targetTeam
+            // Exclude players who have left the team
+            if (p.leftTeam) return false
+
+            // Exclude players with pending departure for this year
+            if (p.leavingYear && p.leavingReason && Number(p.leavingYear) < Number(selectedYear)) return false
+
+            // CRITICAL: If player has a recruitYear, they don't play until the NEXT year
+            if (p.recruitYear && Number(selectedYear) <= Number(p.recruitYear)) return false
+
+            // If player has team field, check it matches target team
+            if (p.team) {
+              return p.team === targetTeam
             }
 
-            // FALLBACK: Old calculation logic for backwards compatibility
-            const playerTeam = p.team
-            if (playerTeam !== targetTeam && playerTeam) return false
-            if (p.recruitYear && selectedYear <= p.recruitYear) return false
-
-            const startYear = currentDynasty?.startYear || 2024
-            const playerStartYear = p.recruitYear ? (p.recruitYear + 1) : (p.yearStarted || startYear)
-            if (selectedYear < playerStartYear) return false
-            if (p.leftTeam && selectedYear > p.leftYear) return false
-
+            // Legacy: players without team field belong to current team
             return true
           })
           if (existingPlayers.length > 0) {
