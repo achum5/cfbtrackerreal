@@ -9,7 +9,7 @@ import { getAbbreviationFromDisplayName, teamAbbreviations } from '../../data/te
 import { getTeamColors } from '../../data/teamColors'
 import PlayerEditModal from '../../components/PlayerEditModal'
 import OverallProgressionModal from '../../components/OverallProgressionModal'
-import { getPlayerSeasonStatsFromBoxScores, getPlayerGameLog } from '../../utils/boxScoreAggregator'
+import { getPlayerGameLog } from '../../utils/boxScoreAggregator'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -304,7 +304,7 @@ export default function Player() {
   const getTeamNameFromAbbr = (abbr) => teamAbbreviations[abbr]?.name || abbr
 
   // Get all games where this player has box score stats
-  const getPlayerGameLog = () => {
+  const getAllPlayerGameLogs = () => {
     const games = dynasty.games || []
     const playerName = player.name
     const gameLog = []
@@ -357,7 +357,7 @@ export default function Player() {
     return gameLog
   }
 
-  const playerGameLog = useMemo(() => getPlayerGameLog(), [dynasty.games, player.name])
+  const playerGameLog = useMemo(() => getAllPlayerGameLogs(), [dynasty.games, player.name])
 
   const handlePlayerSave = async (updatedPlayer, yearStats) => {
     // Use dynastyId from URL params, or fall back to currentDynasty.id
@@ -367,23 +367,12 @@ export default function Player() {
   }
 
   // Get year-by-year stats for this player
-  // Only reads from player.statsByYear (internal format) and box scores
+  // ONLY reads from player.statsByYear (single source of truth)
   const yearByYearStats = useMemo(() => {
-    // PRIMARY source: player's own statsByYear field
     const playerOwnStats = player.statsByYear || {}
 
-    // Get stats aggregated from box scores (fallback)
-    const boxScoreStats = getPlayerSeasonStatsFromBoxScores(dynasty, player)
-    const boxScoreByYear = {}
-    boxScoreStats.forEach(bs => {
-      boxScoreByYear[bs.year] = bs
-    })
-
-    // Get all years that have any data for this player
-    const allYears = new Set([
-      ...Object.keys(playerOwnStats),
-      ...Object.keys(boxScoreByYear)
-    ])
+    // Get all years that have stats
+    const allYears = new Set(Object.keys(playerOwnStats))
 
     const years = []
 
@@ -393,49 +382,20 @@ export default function Player() {
     sortedYears.forEach(yearStr => {
       const year = parseInt(yearStr)
 
-      // Check player's own statsByYear (check both string and number keys)
+      // Get stats from player.statsByYear (the only source of truth)
       const ownYearStats = playerOwnStats[yearStr] || playerOwnStats[year]
-      const boxStats = boxScoreByYear[year]
-
-      // Helper to check if stats have any real values entered (not blank/null/0)
-      const hasRealValues = (statsObj, fields) => {
-        if (!statsObj) return false
-        return fields.some(field => {
-          const val = statsObj[field]
-          return val !== null && val !== undefined && val !== '' && val !== 0
-        })
-      }
+      if (!ownYearStats) return
 
       // Get category stats from player.statsByYear (internal format)
-      const manualPassing = ownYearStats?.passing
-      const manualRushing = ownYearStats?.rushing
-      const manualReceiving = ownYearStats?.receiving
-      const manualBlocking = ownYearStats?.blocking
-      const manualDefensive = ownYearStats?.defense
-      const manualKicking = ownYearStats?.kicking
-      const manualPunting = ownYearStats?.punting
-      const manualKickReturn = ownYearStats?.kickReturn
-      const manualPuntReturn = ownYearStats?.puntReturn
-
-      // Check if each category has real entered values (using internal field names)
-      const useManualPassing = hasRealValues(manualPassing, ['cmp', 'att', 'yds', 'td'])
-      const useManualRushing = hasRealValues(manualRushing, ['car', 'yds', 'td'])
-      const useManualReceiving = hasRealValues(manualReceiving, ['rec', 'yds', 'td'])
-      const useManualBlocking = hasRealValues(manualBlocking, ['sacksAllowed', 'pancakes'])
-      const useManualDefensive = hasRealValues(manualDefensive, ['soloTkl', 'astTkl', 'sacks', 'int'])
-      const useManualKicking = hasRealValues(manualKicking, ['fgm', 'fga', 'xpm', 'xpa'])
-      const useManualPunting = hasRealValues(manualPunting, ['punts', 'yds'])
-      const useManualKickReturn = hasRealValues(manualKickReturn, ['ret', 'yds'])
-      const useManualPuntReturn = hasRealValues(manualPuntReturn, ['ret', 'yds'])
-
-      // Check if we have any data for this year
-      const hasManualStats = ownYearStats || manualPassing || manualRushing || manualReceiving ||
-        manualBlocking || manualDefensive || manualKicking || manualPunting || manualKickReturn || manualPuntReturn
-      const hasBoxStats = boxStats && Object.keys(boxStats).some(k =>
-        k !== 'year' && k !== 'gamesPlayed' && k !== 'fromBoxScores' && boxStats[k]
-      )
-
-      if (!hasManualStats && !hasBoxStats) return
+      const passing = ownYearStats?.passing
+      const rushing = ownYearStats?.rushing
+      const receiving = ownYearStats?.receiving
+      const blocking = ownYearStats?.blocking
+      const defensive = ownYearStats?.defense
+      const kicking = ownYearStats?.kicking
+      const punting = ownYearStats?.punting
+      const kickReturn = ownYearStats?.kickReturn
+      const puntReturn = ownYearStats?.puntReturn
 
       // Determine player's class for this year from classByYear or calculate
       let playerClass = player.classByYear?.[year] || player.classByYear?.[String(year)] || '-'
@@ -461,92 +421,88 @@ export default function Player() {
         || getAbbreviationFromDisplayName(dynasty?.teamName)
         || ''
 
-      // Build year stats object - prefer manual entry stats ONLY if real values entered, otherwise box score
+      // Build year stats object from player.statsByYear (single source of truth)
       const yearData = {
         year,
-        team: yearTeam,  // Team the player was on for this specific year
+        team: yearTeam,
         class: playerClass,
-        // Use manual games played if available, otherwise box score
-        gamesPlayed: ownYearStats?.gamesPlayed || boxStats?.gamesPlayed || 0,
+        gamesPlayed: ownYearStats?.gamesPlayed || 0,
         snapsPlayed: ownYearStats?.snapsPlayed || 0,
-        fromBoxScores: !!boxStats && !ownYearStats,
-        // Passing - only use manual stats if user entered real values
-        passing: useManualPassing ? {
-          cmp: manualPassing.cmp || 0,
-          att: manualPassing.att || 0,
-          yds: manualPassing.yds || 0,
-          td: manualPassing.td || 0,
-          int: manualPassing.int || 0,
-          lng: manualPassing.lng || 0,
-          sacks: manualPassing.sacks || 0
-        } : boxStats?.passing || null,
-        // Rushing - only use manual stats if user entered real values
-        rushing: useManualRushing ? {
-          car: manualRushing.car || 0,
-          yds: manualRushing.yds || 0,
-          td: manualRushing.td || 0,
-          lng: manualRushing.lng || 0,
-          fum: manualRushing.fum || 0,
-          bt: manualRushing.bt || 0
-        } : boxStats?.rushing || null,
-        // Receiving - only use manual stats if user entered real values
-        receiving: useManualReceiving ? {
-          rec: manualReceiving.rec || 0,
-          yds: manualReceiving.yds || 0,
-          td: manualReceiving.td || 0,
-          lng: manualReceiving.lng || 0,
-          drops: manualReceiving.drops || 0
-        } : boxStats?.receiving || null,
-        // Blocking - only use manual stats if user entered real values
-        blocking: useManualBlocking ? {
-          sacksAllowed: manualBlocking.sacksAllowed || 0,
-          pancakes: manualBlocking.pancakes || 0
-        } : (boxStats?.blocking || (ownYearStats?.snapsPlayed > 0 && ['LT', 'LG', 'C', 'RG', 'RT'].includes(player.position) ? {
-          sacksAllowed: 0
-        } : null)),
-        // Defensive - only use manual stats if user entered real values (map internal to display format)
-        defensive: useManualDefensive ? {
-          solo: manualDefensive.soloTkl || 0,
-          ast: manualDefensive.astTkl || 0,
-          tfl: manualDefensive.tfl || 0,
-          sacks: manualDefensive.sacks || 0,
-          int: manualDefensive.int || 0,
-          intYds: manualDefensive.intYds || 0,
-          intTd: manualDefensive.td || 0,
-          pdef: manualDefensive.pd || 0,
-          ff: manualDefensive.ff || 0,
-          fr: manualDefensive.fr || 0
-        } : boxStats?.defensive || null,
-        // Kicking - only use manual stats if user entered real values
-        kicking: useManualKicking ? {
-          fgm: manualKicking.fgm || 0,
-          fga: manualKicking.fga || 0,
-          lng: manualKicking.lng || 0,
-          xpm: manualKicking.xpm || 0,
-          xpa: manualKicking.xpa || 0
-        } : boxStats?.kicking || null,
-        // Punting - only use manual stats if user entered real values
-        punting: useManualPunting ? {
-          punts: manualPunting.punts || 0,
-          yds: manualPunting.yds || 0,
-          lng: manualPunting.lng || 0,
-          in20: manualPunting.in20 || 0,
-          tb: manualPunting.tb || 0
-        } : boxStats?.punting || null,
-        // Kick Return - only use manual stats if user entered real values
-        kickReturn: useManualKickReturn ? {
-          ret: manualKickReturn.ret || 0,
-          yds: manualKickReturn.yds || 0,
-          td: manualKickReturn.td || 0,
-          lng: manualKickReturn.lng || 0
-        } : boxStats?.kickReturn || null,
-        // Punt Return - only use manual stats if user entered real values
-        puntReturn: useManualPuntReturn ? {
-          ret: manualPuntReturn.ret || 0,
-          yds: manualPuntReturn.yds || 0,
-          td: manualPuntReturn.td || 0,
-          lng: manualPuntReturn.lng || 0
-        } : boxStats?.puntReturn || null
+        // Passing
+        passing: passing ? {
+          cmp: passing.cmp || 0,
+          att: passing.att || 0,
+          yds: passing.yds || 0,
+          td: passing.td || 0,
+          int: passing.int || 0,
+          lng: passing.lng || 0,
+          sacks: passing.sacks || 0
+        } : null,
+        // Rushing
+        rushing: rushing ? {
+          car: rushing.car || 0,
+          yds: rushing.yds || 0,
+          td: rushing.td || 0,
+          lng: rushing.lng || 0,
+          fum: rushing.fum || 0,
+          bt: rushing.bt || 0
+        } : null,
+        // Receiving
+        receiving: receiving ? {
+          rec: receiving.rec || 0,
+          yds: receiving.yds || 0,
+          td: receiving.td || 0,
+          lng: receiving.lng || 0,
+          drops: receiving.drops || 0
+        } : null,
+        // Blocking
+        blocking: blocking ? {
+          sacksAllowed: blocking.sacksAllowed || 0,
+          pancakes: blocking.pancakes || 0
+        } : null,
+        // Defensive (map internal to display format)
+        defensive: defensive ? {
+          solo: defensive.soloTkl || 0,
+          ast: defensive.astTkl || 0,
+          tfl: defensive.tfl || 0,
+          sacks: defensive.sacks || 0,
+          int: defensive.int || 0,
+          intYds: defensive.intYds || 0,
+          intTd: defensive.td || 0,
+          pdef: defensive.pd || 0,
+          ff: defensive.ff || 0,
+          fr: defensive.fr || 0
+        } : null,
+        // Kicking
+        kicking: kicking ? {
+          fgm: kicking.fgm || 0,
+          fga: kicking.fga || 0,
+          lng: kicking.lng || 0,
+          xpm: kicking.xpm || 0,
+          xpa: kicking.xpa || 0
+        } : null,
+        // Punting
+        punting: punting ? {
+          punts: punting.punts || 0,
+          yds: punting.yds || 0,
+          lng: punting.lng || 0,
+          in20: punting.in20 || 0,
+          tb: punting.tb || 0
+        } : null,
+        // Kick Return
+        kickReturn: kickReturn ? {
+          ret: kickReturn.ret || 0,
+          yds: kickReturn.yds || 0,
+          td: kickReturn.td || 0,
+          lng: kickReturn.lng || 0
+        } : null,
+        // Punt Return
+        puntReturn: puntReturn ? {
+          ret: puntReturn.ret || 0,
+          yds: puntReturn.yds || 0,
+          td: puntReturn.td || 0,
+          lng: puntReturn.lng || 0
+        } : null
       }
 
       years.push(yearData)
@@ -1436,8 +1392,8 @@ export default function Player() {
                           <td className="px-2 py-2 w-12"></td>
                           {primaryStat === 'passing' && <td className="px-2 py-2 text-right">{careerGames}</td>}
                           {showSnapsCol && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
-                          <td className="px-2 py-2 text-right">{careerPassing.cmp}</td>
-                          <td className="px-2 py-2 text-right">{careerPassing.att}</td>
+                          <td className="px-2 py-2 text-right">{careerPassing.cmp.toLocaleString()}</td>
+                          <td className="px-2 py-2 text-right">{careerPassing.att.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcPct(careerPassing.cmp, careerPassing.att)}</td>
                           <td className="px-2 py-2 text-right">{careerPassing.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerPassing.yds, careerPassing.att)}</td>
@@ -1542,7 +1498,7 @@ export default function Player() {
                           <td className="px-2 py-2 w-12"></td>
                           {primaryStat === 'rushing' && <td className="px-2 py-2 text-right">{careerGames}</td>}
                           {showSnapsCol && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
-                          <td className="px-2 py-2 text-right">{careerRushing.car}</td>
+                          <td className="px-2 py-2 text-right">{careerRushing.car.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerRushing.yds, careerRushing.car)}</td>
                           <td className="px-2 py-2 text-right">{careerRushing.td}</td>
@@ -1643,7 +1599,7 @@ export default function Player() {
                           <td className="px-2 py-2 w-12"></td>
                           {primaryStat === 'receiving' && <td className="px-2 py-2 text-right">{careerGames}</td>}
                           {showSnapsCol && <td className="px-2 py-2 text-right">{careerSnaps.toLocaleString()}</td>}
-                          <td className="px-2 py-2 text-right">{careerReceiving.rec}</td>
+                          <td className="px-2 py-2 text-right">{careerReceiving.rec.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{careerReceiving.yds.toLocaleString()}</td>
                           <td className="px-2 py-2 text-right">{calcAvg(careerReceiving.yds, careerReceiving.rec)}</td>
                           <td className="px-2 py-2 text-right">{careerReceiving.td}</td>
@@ -2117,7 +2073,7 @@ export default function Player() {
                       <td className="px-2 py-2 w-16"></td>
                       <td className="px-2 py-2 w-12"></td>
                       <td className="px-2 py-2 text-right">{careerKickReturn.ret}</td>
-                      <td className="px-2 py-2 text-right">{careerKickReturn.yds}</td>
+                      <td className="px-2 py-2 text-right">{careerKickReturn.yds.toLocaleString()}</td>
                       <td className="px-2 py-2 text-right">{calcAvg(careerKickReturn.yds, careerKickReturn.ret)}</td>
                       <td className="px-2 py-2 text-right">{careerKickReturn.td}</td>
                       <td className="px-2 py-2 text-right">{careerKickReturn.lng}</td>
@@ -2202,7 +2158,7 @@ export default function Player() {
                       <td className="px-2 py-2 w-16"></td>
                       <td className="px-2 py-2 w-12"></td>
                       <td className="px-2 py-2 text-right">{careerPuntReturn.ret}</td>
-                      <td className="px-2 py-2 text-right">{careerPuntReturn.yds}</td>
+                      <td className="px-2 py-2 text-right">{careerPuntReturn.yds.toLocaleString()}</td>
                       <td className="px-2 py-2 text-right">{calcAvg(careerPuntReturn.yds, careerPuntReturn.ret)}</td>
                       <td className="px-2 py-2 text-right">{careerPuntReturn.td}</td>
                       <td className="px-2 py-2 text-right">{careerPuntReturn.lng}</td>

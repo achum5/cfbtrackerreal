@@ -130,7 +130,16 @@ export function AuthProvider({ children }) {
   // Refresh the session to get a new access token without full sign-out
   const refreshSession = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider)
+      // Create a fresh provider with prompt settings to force re-consent
+      // This ensures we always get a new access token, even if already signed in
+      const freshProvider = new GoogleAuthProvider()
+      freshProvider.addScope('https://www.googleapis.com/auth/spreadsheets')
+      freshProvider.addScope('https://www.googleapis.com/auth/drive.file')
+      freshProvider.setCustomParameters({
+        prompt: 'consent'  // Force consent screen to get new tokens
+      })
+
+      const result = await signInWithPopup(auth, freshProvider)
 
       const credential = GoogleAuthProvider.credentialFromResult(result)
       if (credential?.accessToken) {

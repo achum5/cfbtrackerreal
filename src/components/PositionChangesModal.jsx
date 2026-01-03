@@ -29,24 +29,40 @@ export default function PositionChangesModal({
     (a.name || '').localeCompare(b.name || '')
   )
 
-  // Initialize with existing changes when modal opens
+  // Initialize with existing changes and auto-fill ATH players when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (existingChanges.length > 0) {
-        // Map existing changes to the format used by the modal
-        const mappedChanges = existingChanges.map(change => ({
-          playerId: change.pid,
-          playerName: change.playerName,
-          oldPosition: change.oldPosition,
-          newPosition: change.newPosition
-        }))
-        // Add an empty entry at the end for new additions
-        setPositionChanges([...mappedChanges, { playerId: '', oldPosition: '', newPosition: '' }])
-      } else {
-        setPositionChanges([{ playerId: '', oldPosition: '', newPosition: '' }])
-      }
+      // Map existing changes to the format used by the modal
+      const mappedChanges = existingChanges.map(change => ({
+        playerId: change.pid,
+        playerName: change.playerName,
+        oldPosition: change.oldPosition,
+        newPosition: change.newPosition
+      }))
+
+      // Get IDs of players already in existing changes
+      const existingPlayerIds = new Set(existingChanges.map(c => String(c.pid)))
+
+      // Find ATH players not already in existing changes
+      const athPlayers = players.filter(p =>
+        p.position === 'ATH' && !existingPlayerIds.has(String(p.pid))
+      )
+
+      // Create entries for ATH players (they must pick a position)
+      const athEntries = athPlayers.map(player => ({
+        playerId: player.pid,
+        playerName: player.name,
+        oldPosition: 'ATH',
+        newPosition: ''
+      }))
+
+      // Combine: existing changes + ATH auto-fills + empty entry for new additions
+      const allEntries = [...mappedChanges, ...athEntries]
+
+      // Always add an empty entry at the end for manual additions
+      setPositionChanges([...allEntries, { playerId: '', oldPosition: '', newPosition: '' }])
     }
-  }, [isOpen, existingChanges])
+  }, [isOpen, existingChanges, players])
 
   // Prevent body scroll when modal is open
   useEffect(() => {

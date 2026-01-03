@@ -315,6 +315,18 @@ export default function Recruiting() {
   const allCommitmentsUnfiltered = useMemo(() => {
     const commitments = []
 
+    // Helper to ensure portal players have previousTeam set for filtering
+    const ensurePortalStatus = (merged) => {
+      // If previousTeam is already set, return as-is
+      if (merged.previousTeam) return merged
+      // Only check isPortal flag (set correctly by sheetsService based on original class)
+      // Don't use class detection here as it may be overwritten by player.year
+      if (merged.isPortal === true) {
+        return { ...merged, previousTeam: 'Transfer Portal' }
+      }
+      return merged
+    }
+
     if (isAllSeasons) {
       // Get commitments from all years for this team
       const allYearsData = currentDynasty.recruitingCommitmentsByTeamYear?.[teamAbbr] || {}
@@ -327,7 +339,8 @@ export default function Recruiting() {
               const currentPlayer = normalizedName ? playersByName[normalizedName] : null
 
               // Merge: use current player data, but keep commitment-specific fields
-              commitments.push({
+              // Wrap with ensurePortalStatus to detect portal by class if previousTeam not set
+              commitments.push(ensurePortalStatus({
                 ...commit,
                 // Override with current player data if available (for fields that can be edited)
                 ...(currentPlayer && {
@@ -348,14 +361,15 @@ export default function Recruiting() {
                   stateRank: currentPlayer.stateRank,
                   positionRank: currentPlayer.positionRank,
                   gemBust: currentPlayer.gemBust,
-                  previousTeam: currentPlayer.previousTeam,
-                  isPortal: currentPlayer.isPortal,
+                  // Preserve commitment's portal data if player doesn't have it
+                  previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+                  isPortal: currentPlayer.isPortal ?? commit.isPortal,
                   pid: currentPlayer.pid
                 }),
                 // Always keep these commitment-specific fields from the original
                 commitmentWeek: key,
                 recruitYear: Number(year)
-              })
+              }))
             })
           }
         })
@@ -371,7 +385,8 @@ export default function Recruiting() {
             const currentPlayer = normalizedName ? playersByName[normalizedName] : null
 
             // Merge: use current player data, but keep commitment-specific fields
-            commitments.push({
+            // Wrap with ensurePortalStatus to detect portal by class if previousTeam not set
+            commitments.push(ensurePortalStatus({
               ...commit,
               // Override with current player data if available (for fields that can be edited)
               ...(currentPlayer && {
@@ -392,14 +407,15 @@ export default function Recruiting() {
                 stateRank: currentPlayer.stateRank,
                 positionRank: currentPlayer.positionRank,
                 gemBust: currentPlayer.gemBust,
-                previousTeam: currentPlayer.previousTeam,
-                isPortal: currentPlayer.isPortal,
+                // Preserve commitment's portal data if player doesn't have it
+                previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+                isPortal: currentPlayer.isPortal ?? commit.isPortal,
                 pid: currentPlayer.pid
               }),
               // Always keep these commitment-specific fields from the original
               commitmentWeek: key,
               recruitYear: selectedYear
-            })
+            }))
           })
         }
       })

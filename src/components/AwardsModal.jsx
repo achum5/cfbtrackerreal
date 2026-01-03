@@ -85,7 +85,9 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createAwardsSheet(currentYear)
+          // Pass awardsByYear for pre-filling past years
+          const awardsByYear = currentDynasty?.awardsByYear || {}
+          const sheetInfo = await createAwardsSheet(currentYear, awardsByYear)
           setSheetId(sheetInfo.sheetId)
           await updateDynasty(currentDynasty.id, { awardsSheetId: sheetInfo.sheetId })
         } catch (error) {
@@ -110,7 +112,8 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
     if (!sheetId) return
     setSyncing(true)
     try {
-      const awards = await readAwardsFromSheet(sheetId)
+      // Read from the current year tab
+      const awards = await readAwardsFromSheet(sheetId, currentYear)
       await onSave(awards)
       onClose()
     } catch (error) {
@@ -129,7 +132,8 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
     if (!sheetId) return
     setDeletingSheet(true)
     try {
-      const awards = await readAwardsFromSheet(sheetId)
+      // Read from the current year tab
+      const awards = await readAwardsFromSheet(sheetId, currentYear)
       await onSave(awards)
       // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
@@ -150,7 +154,7 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
 
   const handleRegenerateSheet = async () => {
     if (!sheetId) return
-    const confirmed = window.confirm('This will delete your current sheet and create a fresh one. Any unsaved data will be lost. Continue?')
+    const confirmed = window.confirm('This will delete your current sheet and create a fresh one with all past awards. Any unsaved data will be lost. Continue?')
     if (!confirmed) return
     setRegenerating(true)
     try {
@@ -174,7 +178,7 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'Awards') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, `${currentYear}`) : null
   const isLoading = creatingSheet
 
   return (

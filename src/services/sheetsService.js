@@ -4978,7 +4978,7 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
         fields: 'userEnteredFormat(textFormat.bold,horizontalAlignment,verticalAlignment,wrapStrategy)'
       }
     },
-    // Set column widths
+    // Hide PID column (used internally for player matching but not needed by user)
     {
       updateDimensionProperties: {
         range: {
@@ -4987,8 +4987,8 @@ async function initializeStatsEntrySheet(spreadsheetId, accessToken, sheetId, pl
           startIndex: 0,
           endIndex: 1
         },
-        properties: { pixelSize: 50 }, // PID column
-        fields: 'pixelSize'
+        properties: { hiddenByUser: true },
+        fields: 'hiddenByUser'
       }
     },
     {
@@ -5204,8 +5204,9 @@ export async function readStatsFromSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     // Read all data from the GP/Snaps sheet (A-H: PID, Player, Position, Class, Dev Trait, Overall, GP, Snaps)
+    const range = encodeURIComponent("'GP/Snaps'!A2:H200")
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'GP/Snaps'!A2:H200`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -5715,8 +5716,9 @@ export async function readDetailedStatsFromSheet(spreadsheetId) {
       const statColumns = DETAILED_STATS_TABS[tabName]
       const lastColumn = String.fromCharCode(65 + statColumns.length + 1) // A=65, +1 for Name, +1 for Snaps
 
+      const range = encodeURIComponent(`'${tabName}'!A2:${lastColumn}200`)
       const response = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${encodeURIComponent(tabName)}'!A2:${lastColumn}200`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`
@@ -6866,10 +6868,33 @@ const AWARDS_LIST = [
 
 /**
  * Create Awards Google Sheet for End of Season Recap
+ * Creates multiple tabs: current year (blank) + past years (pre-filled)
+ * @param {number} currentYear - The current season year
+ * @param {object} awardsByYear - Object mapping year to awards data for pre-fill
  */
-export async function createAwardsSheet(year) {
+export async function createAwardsSheet(currentYear, awardsByYear = {}) {
   try {
     const accessToken = await getAccessToken()
+
+    // Get all years to create tabs for (current year first, then past years descending)
+    const pastYears = Object.keys(awardsByYear)
+      .map(y => parseInt(y))
+      .filter(y => y < currentYear)
+      .sort((a, b) => b - a) // Most recent first
+    const allYears = [currentYear, ...pastYears]
+
+    // Create sheet definitions for each year
+    const sheets = allYears.map((year, index) => ({
+      properties: {
+        title: `${year}`,
+        index: index,
+        gridProperties: {
+          rowCount: AWARDS_LIST.length + 1,
+          columnCount: AWARDS_COLUMNS.length,
+          frozenRowCount: 1
+        }
+      }
+    }))
 
     // Create the spreadsheet
     const createResponse = await fetch(`${SHEETS_API_BASE}`, {
@@ -6880,20 +6905,9 @@ export async function createAwardsSheet(year) {
       },
       body: JSON.stringify({
         properties: {
-          title: `${year} Season Awards`
+          title: `Dynasty Awards`
         },
-        sheets: [
-          {
-            properties: {
-              title: 'Awards',
-              gridProperties: {
-                rowCount: AWARDS_LIST.length + 1,
-                columnCount: AWARDS_COLUMNS.length,
-                frozenRowCount: 1
-              }
-            }
-          }
-        ]
+        sheets
       })
     })
 
@@ -6904,127 +6918,67 @@ export async function createAwardsSheet(year) {
 
     const spreadsheet = await createResponse.json()
     const spreadsheetId = spreadsheet.spreadsheetId
-    const sheetId = spreadsheet.sheets[0].properties.sheetId
 
-    // Prepare batch update requests
+    // Map year to sheetId
+    const sheetIdMap = {}
+    spreadsheet.sheets.forEach((sheet, index) => {
+      sheetIdMap[allYears[index]] = sheet.properties.sheetId
+    })
+
+    // Helper to convert award key back to display name for lookup
+    const awardKeyToName = (key) => {
+      // Reverse the camelCase conversion
+      return AWARDS_LIST.find(name => {
+        const converted = name
+          .toLowerCase()
+          .replace(/['']/g, '')
+          .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+          .replace(/^./, str => str.toLowerCase())
+        return converted === key
+      }) || key
+    }
+
+    // Prepare batch update requests for ALL sheets
     const requests = []
 
-    // Set column widths
-    const columnWidths = [200, 200, 80, 80, 80] // Award, Player, Position, Team, Class
-    columnWidths.forEach((width, index) => {
+    // Apply formatting to each sheet
+    for (const year of allYears) {
+      const sheetId = sheetIdMap[year]
+
+      // Set column widths
+      const columnWidths = [200, 200, 80, 80, 80] // Award, Player, Position, Team, Class
+      columnWidths.forEach((width, index) => {
+        requests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'COLUMNS',
+              startIndex: index,
+              endIndex: index + 1
+            },
+            properties: { pixelSize: width },
+            fields: 'pixelSize'
+          }
+        })
+      })
+
+      // Set row height
       requests.push({
         updateDimensionProperties: {
           range: {
             sheetId: sheetId,
-            dimension: 'COLUMNS',
-            startIndex: index,
-            endIndex: index + 1
+            dimension: 'ROWS',
+            startIndex: 0,
+            endIndex: AWARDS_LIST.length + 1
           },
-          properties: { pixelSize: width },
+          properties: { pixelSize: 28 },
           fields: 'pixelSize'
         }
       })
-    })
 
-    // Set row height
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'ROWS',
-          startIndex: 0,
-          endIndex: AWARDS_LIST.length + 1
-        },
-        properties: { pixelSize: 28 },
-        fields: 'pixelSize'
-      }
-    })
-
-    // Header row formatting
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 0,
-          endColumnIndex: AWARDS_COLUMNS.length
-        },
-        cell: {
-          userEnteredFormat: {
-            backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
-            textFormat: {
-              foregroundColor: { red: 1, green: 1, blue: 1 },
-              bold: true,
-              italic: true,
-              fontFamily: 'Barlow',
-              fontSize: 10
-            },
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE'
-          }
-        },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Data rows formatting
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: AWARDS_LIST.length + 1,
-          startColumnIndex: 0,
-          endColumnIndex: AWARDS_COLUMNS.length
-        },
-        cell: {
-          userEnteredFormat: {
-            textFormat: {
-              bold: true,
-              italic: true,
-              fontFamily: 'Barlow',
-              fontSize: 10
-            },
-            horizontalAlignment: 'CENTER',
-            verticalAlignment: 'MIDDLE'
-          }
-        },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Award name column left-aligned
-    requests.push({
-      repeatCell: {
-        range: {
-          sheetId: sheetId,
-          startRowIndex: 1,
-          endRowIndex: AWARDS_LIST.length + 1,
-          startColumnIndex: 0,
-          endColumnIndex: 1
-        },
-        cell: {
-          userEnteredFormat: {
-            textFormat: {
-              bold: true,
-              italic: true,
-              fontFamily: 'Barlow',
-              fontSize: 10
-            },
-            horizontalAlignment: 'LEFT',
-            verticalAlignment: 'MIDDLE',
-            backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 }
-          }
-        },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)'
-      }
-    })
-
-    // Protect header row
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
+      // Header row formatting
+      requests.push({
+        repeatCell: {
           range: {
             sheetId: sheetId,
             startRowIndex: 0,
@@ -7032,16 +6986,53 @@ export async function createAwardsSheet(year) {
             startColumnIndex: 0,
             endColumnIndex: AWARDS_COLUMNS.length
           },
-          description: 'Header row - do not edit',
-          warningOnly: false
+          cell: {
+            userEnteredFormat: {
+              backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 },
+              textFormat: {
+                foregroundColor: { red: 1, green: 1, blue: 1 },
+                bold: true,
+                italic: true,
+                fontFamily: 'Barlow',
+                fontSize: 10
+              },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE'
+            }
+          },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
         }
-      }
-    })
+      })
 
-    // Protect award names column
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
+      // Data rows formatting
+      requests.push({
+        repeatCell: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: AWARDS_LIST.length + 1,
+            startColumnIndex: 0,
+            endColumnIndex: AWARDS_COLUMNS.length
+          },
+          cell: {
+            userEnteredFormat: {
+              textFormat: {
+                bold: true,
+                italic: true,
+                fontFamily: 'Barlow',
+                fontSize: 10
+              },
+              horizontalAlignment: 'CENTER',
+              verticalAlignment: 'MIDDLE'
+            }
+          },
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+
+      // Award name column left-aligned
+      requests.push({
+        repeatCell: {
           range: {
             sheetId: sheetId,
             startRowIndex: 1,
@@ -7049,76 +7040,122 @@ export async function createAwardsSheet(year) {
             startColumnIndex: 0,
             endColumnIndex: 1
           },
-          description: 'Award names - do not edit',
-          warningOnly: false
-        }
-      }
-    })
-
-    // Coach awards indices (these get merged Position/Team/Class into just Team)
-    const coachAwardIndices = [
-      AWARDS_LIST.indexOf('Bear Bryant Coach of the Year'),
-      AWARDS_LIST.indexOf('Broyles')
-    ].filter(i => i !== -1)
-
-    // Merge Position, Team, Class columns (C, D, E = indices 2, 3, 4) for coach awards
-    coachAwardIndices.forEach(awardIndex => {
-      const rowIndex = awardIndex + 1 // +1 for header row
-      requests.push({
-        mergeCells: {
-          range: {
-            sheetId,
-            startRowIndex: rowIndex,
-            endRowIndex: rowIndex + 1,
-            startColumnIndex: 2,
-            endColumnIndex: 5
+          cell: {
+            userEnteredFormat: {
+              textFormat: {
+                bold: true,
+                italic: true,
+                fontFamily: 'Barlow',
+                fontSize: 10
+              },
+              horizontalAlignment: 'LEFT',
+              verticalAlignment: 'MIDDLE',
+              backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 }
+            }
           },
-          mergeType: 'MERGE_ALL'
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)'
         }
       })
-    })
 
-    // Add position dropdown validation for Position column - skip coach award rows
-    // Rows before first coach award
-    if (coachAwardIndices[0] > 0) {
-      requests.push(generatePositionValidation(sheetId, 2, 1, coachAwardIndices[0] + 1))
-    }
-    // Rows between coach awards
-    if (coachAwardIndices.length > 1 && coachAwardIndices[1] > coachAwardIndices[0] + 1) {
-      requests.push(generatePositionValidation(sheetId, 2, coachAwardIndices[0] + 2, coachAwardIndices[1] + 1))
-    }
-    // Rows after last coach award
-    const lastCoachIdx = coachAwardIndices[coachAwardIndices.length - 1]
-    if (lastCoachIdx < AWARDS_LIST.length - 1) {
-      requests.push(generatePositionValidation(sheetId, 2, lastCoachIdx + 2, AWARDS_LIST.length + 1))
-    }
+      // Protect header row
+      requests.push({
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: AWARDS_COLUMNS.length
+            },
+            description: 'Header row - do not edit',
+            warningOnly: false
+          }
+        }
+      })
 
-    // Add class dropdown validation for Class column - skip coach award rows
-    // Rows before first coach award
-    if (coachAwardIndices[0] > 0) {
-      requests.push(generateClassValidation(sheetId, 4, 1, coachAwardIndices[0] + 1))
-    }
-    // Rows between coach awards
-    if (coachAwardIndices.length > 1 && coachAwardIndices[1] > coachAwardIndices[0] + 1) {
-      requests.push(generateClassValidation(sheetId, 4, coachAwardIndices[0] + 2, coachAwardIndices[1] + 1))
-    }
-    // Rows after last coach award
-    if (lastCoachIdx < AWARDS_LIST.length - 1) {
-      requests.push(generateClassValidation(sheetId, 4, lastCoachIdx + 2, AWARDS_LIST.length + 1))
-    }
+      // Protect award names column
+      requests.push({
+        addProtectedRange: {
+          protectedRange: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: 1,
+              endRowIndex: AWARDS_LIST.length + 1,
+              startColumnIndex: 0,
+              endColumnIndex: 1
+            },
+            description: 'Award names - do not edit',
+            warningOnly: false
+          }
+        }
+      })
 
-    // Add team dropdown validation for Team column (column D, index 3) - all rows
-    requests.push(generateTeamValidation(sheetId, 3, 1, AWARDS_LIST.length + 1))
+      // Coach awards indices (these get merged Position/Team/Class into just Team)
+      const coachAwardIndices = [
+        AWARDS_LIST.indexOf('Bear Bryant Coach of the Year'),
+        AWARDS_LIST.indexOf('Broyles')
+      ].filter(i => i !== -1)
 
-    // Add conditional formatting for team colors in Team column
-    requests.push(...generateTeamFormattingRulesForRange(sheetId, 3, 1, AWARDS_LIST.length + 1))
+      // Merge Position, Team, Class columns (C, D, E = indices 2, 3, 4) for coach awards
+      coachAwardIndices.forEach(awardIndex => {
+        const rowIndex = awardIndex + 1 // +1 for header row
+        requests.push({
+          mergeCells: {
+            range: {
+              sheetId,
+              startRowIndex: rowIndex,
+              endRowIndex: rowIndex + 1,
+              startColumnIndex: 2,
+              endColumnIndex: 5
+            },
+            mergeType: 'MERGE_ALL'
+          }
+        })
+      })
 
-    // Also add team validation and formatting to merged coach award cells (column C which is now part of merged)
-    coachAwardIndices.forEach(awardIndex => {
-      const rowIndex = awardIndex + 1
-      requests.push(generateTeamValidation(sheetId, 2, rowIndex, rowIndex + 1))
-      requests.push(...generateTeamFormattingRulesForRange(sheetId, 2, rowIndex, rowIndex + 1))
-    })
+      // Add position dropdown validation for Position column - skip coach award rows
+      // Rows before first coach award
+      if (coachAwardIndices[0] > 0) {
+        requests.push(generatePositionValidation(sheetId, 2, 1, coachAwardIndices[0] + 1))
+      }
+      // Rows between coach awards
+      if (coachAwardIndices.length > 1 && coachAwardIndices[1] > coachAwardIndices[0] + 1) {
+        requests.push(generatePositionValidation(sheetId, 2, coachAwardIndices[0] + 2, coachAwardIndices[1] + 1))
+      }
+      // Rows after last coach award
+      const lastCoachIdx = coachAwardIndices[coachAwardIndices.length - 1]
+      if (lastCoachIdx < AWARDS_LIST.length - 1) {
+        requests.push(generatePositionValidation(sheetId, 2, lastCoachIdx + 2, AWARDS_LIST.length + 1))
+      }
+
+      // Add class dropdown validation for Class column - skip coach award rows
+      // Rows before first coach award
+      if (coachAwardIndices[0] > 0) {
+        requests.push(generateClassValidation(sheetId, 4, 1, coachAwardIndices[0] + 1))
+      }
+      // Rows between coach awards
+      if (coachAwardIndices.length > 1 && coachAwardIndices[1] > coachAwardIndices[0] + 1) {
+        requests.push(generateClassValidation(sheetId, 4, coachAwardIndices[0] + 2, coachAwardIndices[1] + 1))
+      }
+      // Rows after last coach award
+      if (lastCoachIdx < AWARDS_LIST.length - 1) {
+        requests.push(generateClassValidation(sheetId, 4, lastCoachIdx + 2, AWARDS_LIST.length + 1))
+      }
+
+      // Add team dropdown validation for Team column (column D, index 3) - all rows
+      requests.push(generateTeamValidation(sheetId, 3, 1, AWARDS_LIST.length + 1))
+
+      // Add conditional formatting for team colors in Team column
+      requests.push(...generateTeamFormattingRulesForRange(sheetId, 3, 1, AWARDS_LIST.length + 1))
+
+      // Also add team validation and formatting to merged coach award cells (column C which is now part of merged)
+      coachAwardIndices.forEach(awardIndex => {
+        const rowIndex = awardIndex + 1
+        requests.push(generateTeamValidation(sheetId, 2, rowIndex, rowIndex + 1))
+        requests.push(...generateTeamFormattingRulesForRange(sheetId, 2, rowIndex, rowIndex + 1))
+      })
+    } // End of for loop over years
 
     // Execute batch update for formatting
     const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
@@ -7136,34 +7173,70 @@ export async function createAwardsSheet(year) {
       throw new Error(`Failed to setup sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
-    // Prepare values to write
-    const values = [
-      AWARDS_COLUMNS, // Header row
-      ...AWARDS_LIST.map(award => [award, '', '', '', '']) // Award names in first column
-    ]
-
-    // Write headers and award names
+    // Write data to each tab
     const lastCol = String.fromCharCode(65 + AWARDS_COLUMNS.length - 1)
-    const valuesResponse = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Awards!A1:${lastCol}${AWARDS_LIST.length + 1}?valueInputOption=RAW`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ values })
-      }
-    )
 
-    if (!valuesResponse.ok) {
-      const error = await valuesResponse.json()
-      throw new Error(`Failed to write values: ${error.error?.message || 'Unknown error'}`)
+    for (const year of allYears) {
+      const yearAwards = awardsByYear[year] || {}
+      const isPastYear = year < currentYear
+
+      // Build values for this year's tab
+      const values = [
+        AWARDS_COLUMNS, // Header row
+        ...AWARDS_LIST.map(awardName => {
+          // Convert award name to camelCase key for lookup
+          const awardKey = awardName
+            .toLowerCase()
+            .replace(/['']/g, '')
+            .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+            .replace(/^./, str => str.toLowerCase())
+
+          const awardData = yearAwards[awardKey]
+
+          if (isPastYear && awardData) {
+            // Pre-fill with existing data for past years
+            // Coach awards (Bear Bryant, Broyles) only have player and team (in merged Position cell)
+            const isCoachAward = awardName === 'Bear Bryant Coach of the Year' || awardName === 'Broyles'
+            if (isCoachAward) {
+              return [awardName, awardData.player || '', awardData.team || '', '', '']
+            }
+            return [
+              awardName,
+              awardData.player || '',
+              awardData.position || '',
+              awardData.team || '',
+              awardData.class || ''
+            ]
+          } else {
+            // Blank for current year or if no data
+            return [awardName, '', '', '', '']
+          }
+        })
+      ]
+
+      // Write to the year's tab
+      const valuesResponse = await fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A1:${lastCol}${AWARDS_LIST.length + 1}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ values })
+        }
+      )
+
+      if (!valuesResponse.ok) {
+        const error = await valuesResponse.json()
+        throw new Error(`Failed to write values for ${year}: ${error.error?.message || 'Unknown error'}`)
+      }
     }
 
     return {
       sheetId: spreadsheetId,
-      sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`
+      sheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+      currentYear // Return current year so caller knows which tab to read from
     }
   } catch (error) {
     console.error('Error creating awards sheet:', error)
@@ -7173,16 +7246,18 @@ export async function createAwardsSheet(year) {
 
 /**
  * Read awards from Google Sheet
+ * @param {string} spreadsheetId - The Google Sheet ID
+ * @param {number} year - The year tab to read from
  */
-export async function readAwardsFromSheet(spreadsheetId) {
+export async function readAwardsFromSheet(spreadsheetId, year) {
   try {
     const accessToken = await getAccessToken()
 
     const lastCol = String.fromCharCode(65 + AWARDS_COLUMNS.length - 1)
 
-    // Read all data rows
+    // Read all data rows from the specified year tab
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Awards!A2:${lastCol}${AWARDS_LIST.length + 1}`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A2:${lastCol}${AWARDS_LIST.length + 1}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -7242,11 +7317,12 @@ const ALL_AMERICAN_POSITIONS = [
 ]
 
 /**
- * Create All-Americans & All-Conference Google Sheet
+ * Create All-Americans & All-Conference Google Sheet with multi-year tabs
  * Structure: 12 columns (3 teams × 4 cols each: Position, Player, Team, Class)
  * Two tables: All-Americans on top, All-Conference below
+ * Each year gets its own tab; past years are pre-filled with existing data
  */
-export async function createAllAmericansSheet(year) {
+export async function createAllAmericansSheet(currentYear, allAmericansByYear = {}) {
   try {
     const accessToken = await getAccessToken()
 
@@ -7263,7 +7339,27 @@ export async function createAllAmericansSheet(year) {
     // Rows 33-57: Position data rows (25 positions)
     const totalRows = 3 + numPositions + 1 + 3 + numPositions // 57 rows
 
-    // Create the spreadsheet
+    // Get all years to create tabs for (current year first, then past years descending)
+    const pastYears = Object.keys(allAmericansByYear)
+      .map(y => parseInt(y))
+      .filter(y => y < currentYear)
+      .sort((a, b) => b - a)
+    const allYears = [currentYear, ...pastYears]
+
+    // Create sheet definitions for each year
+    const sheets = allYears.map((year, index) => ({
+      properties: {
+        title: `${year}`,
+        index: index,
+        gridProperties: {
+          rowCount: totalRows,
+          columnCount: 12,
+          frozenRowCount: 3
+        }
+      }
+    }))
+
+    // Create the spreadsheet with all year tabs
     const createResponse = await fetch(`${SHEETS_API_BASE}`, {
       method: 'POST',
       headers: {
@@ -7272,20 +7368,9 @@ export async function createAllAmericansSheet(year) {
       },
       body: JSON.stringify({
         properties: {
-          title: `${year} All-Americans & All-Conference`
+          title: `All-Americans & All-Conference`
         },
-        sheets: [
-          {
-            properties: {
-              title: 'Selections',
-              gridProperties: {
-                rowCount: totalRows,
-                columnCount: 12,
-                frozenRowCount: 3
-              }
-            }
-          }
-        ]
+        sheets
       })
     })
 
@@ -7296,366 +7381,378 @@ export async function createAllAmericansSheet(year) {
 
     const spreadsheet = await createResponse.json()
     const spreadsheetId = spreadsheet.spreadsheetId
-    const sheetId = spreadsheet.sheets[0].properties.sheetId
 
-    // Prepare batch update requests
+    // Build a map of year -> sheetId for each tab
+    const sheetIdsByYear = {}
+    spreadsheet.sheets.forEach(sheet => {
+      const yearTitle = sheet.properties.title
+      sheetIdsByYear[yearTitle] = sheet.properties.sheetId
+    })
+
+    // Prepare batch update requests for ALL tabs
     const requests = []
 
-    // Set column widths: Position(60), Player(150), Team(60), Class(60) × 3
-    const colWidths = [60, 150, 60, 60, 60, 150, 60, 60, 60, 150, 60, 60]
-    colWidths.forEach((width, index) => {
+    // Apply formatting to each year tab
+    for (const year of allYears) {
+      const sheetId = sheetIdsByYear[`${year}`]
+      if (!sheetId && sheetId !== 0) continue
+
+      // Set column widths: Position(60), Player(150), Team(60), Class(60) × 3
+      const colWidths = [60, 150, 60, 60, 60, 150, 60, 60, 60, 150, 60, 60]
+      colWidths.forEach((width, index) => {
+        requests.push({
+          updateDimensionProperties: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'COLUMNS',
+              startIndex: index,
+              endIndex: index + 1
+            },
+            properties: { pixelSize: width },
+            fields: 'pixelSize'
+          }
+        })
+      })
+
+      // Set row heights
       requests.push({
         updateDimensionProperties: {
           range: {
             sheetId: sheetId,
-            dimension: 'COLUMNS',
-            startIndex: index,
-            endIndex: index + 1
+            dimension: 'ROWS',
+            startIndex: 0,
+            endIndex: totalRows
           },
-          properties: { pixelSize: width },
+          properties: { pixelSize: 24 },
           fields: 'pixelSize'
         }
       })
-    })
 
-    // Set row heights
-    requests.push({
-      updateDimensionProperties: {
-        range: {
-          sheetId: sheetId,
-          dimension: 'ROWS',
-          startIndex: 0,
-          endIndex: totalRows
+      // Main header rows (All-Americans row 1, All-Conference row 30) - taller
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'ROWS', startIndex: 0, endIndex: 1 },
+          properties: { pixelSize: 32 },
+          fields: 'pixelSize'
+        }
+      })
+      requests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'ROWS', startIndex: 29, endIndex: 30 },
+          properties: { pixelSize: 32 },
+          fields: 'pixelSize'
+        }
+      })
+
+      // === MERGE CELLS ===
+
+      // Row 1: "All-Americans" merged across all 12 columns
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 12 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+
+      // Row 2: Team headers merged (First-Team: 0-3, Second-Team: 4-7, Freshman Team: 8-11)
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 4 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 4, endColumnIndex: 8 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 8, endColumnIndex: 12 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+
+      // Row 30: "All-Conference" merged across all 12 columns (index 29)
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 29, endRowIndex: 30, startColumnIndex: 0, endColumnIndex: 12 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+
+      // Row 31: Team headers for All-Conference (index 30)
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 0, endColumnIndex: 4 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 4, endColumnIndex: 8 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+      requests.push({
+        mergeCells: {
+          range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 8, endColumnIndex: 12 },
+          mergeType: 'MERGE_ALL'
+        }
+      })
+
+      // === FORMATTING ===
+
+      // Main headers (All-Americans & All-Conference) - dark background, white text
+      const mainHeaderFormat = {
+        backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
+        textFormat: {
+          foregroundColor: { red: 1, green: 1, blue: 1 },
+          bold: true,
+          fontSize: 14,
+          fontFamily: 'Barlow'
         },
-        properties: { pixelSize: 24 },
-        fields: 'pixelSize'
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'MIDDLE'
       }
-    })
 
-    // Main header rows (All-Americans row 1, All-Conference row 30) - taller
-    requests.push({
-      updateDimensionProperties: {
-        range: { sheetId, dimension: 'ROWS', startIndex: 0, endIndex: 1 },
-        properties: { pixelSize: 32 },
-        fields: 'pixelSize'
-      }
-    })
-    requests.push({
-      updateDimensionProperties: {
-        range: { sheetId, dimension: 'ROWS', startIndex: 29, endIndex: 30 },
-        properties: { pixelSize: 32 },
-        fields: 'pixelSize'
-      }
-    })
-
-    // === MERGE CELLS ===
-
-    // Row 1: "All-Americans" merged across all 12 columns
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 12 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-
-    // Row 2: Team headers merged (First-Team: 0-3, Second-Team: 4-7, Freshman Team: 8-11)
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 4 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 4, endColumnIndex: 8 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 8, endColumnIndex: 12 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-
-    // Row 30: "All-Conference" merged across all 12 columns (index 29)
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 29, endRowIndex: 30, startColumnIndex: 0, endColumnIndex: 12 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-
-    // Row 31: Team headers for All-Conference (index 30)
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 0, endColumnIndex: 4 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 4, endColumnIndex: 8 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-    requests.push({
-      mergeCells: {
-        range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 8, endColumnIndex: 12 },
-        mergeType: 'MERGE_ALL'
-      }
-    })
-
-    // === FORMATTING ===
-
-    // Main headers (All-Americans & All-Conference) - dark background, white text
-    const mainHeaderFormat = {
-      backgroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
-      textFormat: {
-        foregroundColor: { red: 1, green: 1, blue: 1 },
-        bold: true,
-        fontSize: 14,
-        fontFamily: 'Barlow'
-      },
-      horizontalAlignment: 'CENTER',
-      verticalAlignment: 'MIDDLE'
-    }
-
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: mainHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 29, endRowIndex: 30, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: mainHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Team headers (First-Team, Second-Team, Freshman Team) - medium gray
-    const teamHeaderFormat = {
-      backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 },
-      textFormat: {
-        foregroundColor: { red: 1, green: 1, blue: 1 },
-        bold: true,
-        fontSize: 11,
-        fontFamily: 'Barlow'
-      },
-      horizontalAlignment: 'CENTER',
-      verticalAlignment: 'MIDDLE'
-    }
-
-    // All-Americans team headers (row 2)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: teamHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-    // All-Conference team headers (row 31)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: teamHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Column headers (Position, Player, Team, Class) - light gray
-    const colHeaderFormat = {
-      backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 },
-      textFormat: {
-        foregroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
-        bold: true,
-        fontSize: 10,
-        fontFamily: 'Barlow'
-      },
-      horizontalAlignment: 'CENTER',
-      verticalAlignment: 'MIDDLE'
-    }
-
-    // All-Americans column headers (row 3)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: colHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-    // All-Conference column headers (row 32)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 31, endRowIndex: 32, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: colHeaderFormat },
-        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Data rows formatting
-    const dataFormat = {
-      textFormat: {
-        bold: true,
-        italic: true,
-        fontSize: 10,
-        fontFamily: 'Barlow'
-      },
-      horizontalAlignment: 'CENTER',
-      verticalAlignment: 'MIDDLE'
-    }
-
-    // All-Americans data rows (rows 4-28, indices 3-27)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 3, endRowIndex: 3 + numPositions, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: dataFormat },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-    // All-Conference data rows (rows 33-57, indices 32-56)
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: dataFormat },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
-      }
-    })
-
-    // Position columns background (light gray for visual distinction)
-    const positionColFormat = {
-      backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 },
-      textFormat: {
-        bold: true,
-        italic: true,
-        fontSize: 10,
-        fontFamily: 'Barlow'
-      },
-      horizontalAlignment: 'CENTER',
-      verticalAlignment: 'MIDDLE'
-    }
-
-    // All-Americans position columns (cols 0, 4, 8)
-    ;[0, 4, 8].forEach(col => {
       requests.push({
         repeatCell: {
-          range: { sheetId, startRowIndex: 3, endRowIndex: 3 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
-          cell: { userEnteredFormat: positionColFormat },
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: mainHeaderFormat },
           fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
         }
       })
-    })
-    // All-Conference position columns
-    ;[0, 4, 8].forEach(col => {
       requests.push({
         repeatCell: {
-          range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
-          cell: { userEnteredFormat: positionColFormat },
+          range: { sheetId, startRowIndex: 29, endRowIndex: 30, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: mainHeaderFormat },
           fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
         }
       })
-    })
 
-    // Separator row (row 29, index 28) - empty with light background
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 28, endRowIndex: 29, startColumnIndex: 0, endColumnIndex: 12 },
-        cell: { userEnteredFormat: { backgroundColor: { red: 0.97, green: 0.97, blue: 0.97 } } },
-        fields: 'userEnteredFormat(backgroundColor)'
+      // Team headers (First-Team, Second-Team, Freshman Team) - medium gray
+      const teamHeaderFormat = {
+        backgroundColor: { red: 0.3, green: 0.3, blue: 0.3 },
+        textFormat: {
+          foregroundColor: { red: 1, green: 1, blue: 1 },
+          bold: true,
+          fontSize: 11,
+          fontFamily: 'Barlow'
+        },
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'MIDDLE'
       }
-    })
 
-    // === PROTECT HEADERS AND POSITION COLUMNS ===
-
-    // Protect All-Americans headers (rows 1-3)
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 },
-          description: 'All-Americans headers - do not edit',
-          warningOnly: false
-        }
-      }
-    })
-
-    // Protect All-Conference headers (rows 30-32)
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId, startRowIndex: 29, endRowIndex: 32, startColumnIndex: 0, endColumnIndex: 12 },
-          description: 'All-Conference headers - do not edit',
-          warningOnly: false
-        }
-      }
-    })
-
-    // Protect position columns (cols 0, 4, 8) for All-Americans
-    ;[0, 4, 8].forEach(col => {
+      // All-Americans team headers (row 2)
       requests.push({
-        addProtectedRange: {
-          protectedRange: {
+        repeatCell: {
+          range: { sheetId, startRowIndex: 1, endRowIndex: 2, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: teamHeaderFormat },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+      // All-Conference team headers (row 31)
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 30, endRowIndex: 31, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: teamHeaderFormat },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+
+      // Column headers (Position, Player, Team, Class) - light gray
+      const colHeaderFormat = {
+        backgroundColor: { red: 0.85, green: 0.85, blue: 0.85 },
+        textFormat: {
+          foregroundColor: { red: 0.1, green: 0.1, blue: 0.1 },
+          bold: true,
+          fontSize: 10,
+          fontFamily: 'Barlow'
+        },
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'MIDDLE'
+      }
+
+      // All-Americans column headers (row 3)
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: colHeaderFormat },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+      // All-Conference column headers (row 32)
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 31, endRowIndex: 32, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: colHeaderFormat },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+
+      // Data rows formatting
+      const dataFormat = {
+        textFormat: {
+          bold: true,
+          italic: true,
+          fontSize: 10,
+          fontFamily: 'Barlow'
+        },
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'MIDDLE'
+      }
+
+      // All-Americans data rows (rows 4-28, indices 3-27)
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 3, endRowIndex: 3 + numPositions, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: dataFormat },
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+      // All-Conference data rows (rows 33-57, indices 32-56)
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: dataFormat },
+          fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      })
+
+      // Position columns background (light gray for visual distinction)
+      const positionColFormat = {
+        backgroundColor: { red: 0.95, green: 0.95, blue: 0.95 },
+        textFormat: {
+          bold: true,
+          italic: true,
+          fontSize: 10,
+          fontFamily: 'Barlow'
+        },
+        horizontalAlignment: 'CENTER',
+        verticalAlignment: 'MIDDLE'
+      }
+
+      // All-Americans position columns (cols 0, 4, 8)
+      ;[0, 4, 8].forEach(col => {
+        requests.push({
+          repeatCell: {
             range: { sheetId, startRowIndex: 3, endRowIndex: 3 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
-            description: 'Position column - do not edit',
-            warningOnly: false
+            cell: { userEnteredFormat: positionColFormat },
+            fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
           }
+        })
+      })
+      // All-Conference position columns
+      ;[0, 4, 8].forEach(col => {
+        requests.push({
+          repeatCell: {
+            range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
+            cell: { userEnteredFormat: positionColFormat },
+            fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+          }
+        })
+      })
+
+      // Separator row (row 29, index 28) - empty with light background
+      requests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 28, endRowIndex: 29, startColumnIndex: 0, endColumnIndex: 12 },
+          cell: { userEnteredFormat: { backgroundColor: { red: 0.97, green: 0.97, blue: 0.97 } } },
+          fields: 'userEnteredFormat(backgroundColor)'
         }
       })
-    })
 
-    // Protect position columns for All-Conference
-    ;[0, 4, 8].forEach(col => {
+      // === PROTECT HEADERS AND POSITION COLUMNS ===
+
+      // Protect All-Americans headers (rows 1-3)
       requests.push({
         addProtectedRange: {
           protectedRange: {
-            range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
-            description: 'Position column - do not edit',
+            range: { sheetId, startRowIndex: 0, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 12 },
+            description: 'All-Americans headers - do not edit',
             warningOnly: false
           }
         }
       })
-    })
 
-    // Protect separator row
-    requests.push({
-      addProtectedRange: {
-        protectedRange: {
-          range: { sheetId, startRowIndex: 28, endRowIndex: 29, startColumnIndex: 0, endColumnIndex: 12 },
-          description: 'Separator row - do not edit',
-          warningOnly: false
+      // Protect All-Conference headers (rows 30-32)
+      requests.push({
+        addProtectedRange: {
+          protectedRange: {
+            range: { sheetId, startRowIndex: 29, endRowIndex: 32, startColumnIndex: 0, endColumnIndex: 12 },
+            description: 'All-Conference headers - do not edit',
+            warningOnly: false
+          }
         }
-      }
-    })
+      })
 
-    // Add team dropdown validation and conditional formatting for Team columns (indices 2, 6, 10)
-    // All-Americans section: rows 3-28 (indices 3 to 3 + numPositions)
-    // All-Conference section: rows 32-57 (indices 32 to 32 + numPositions)
-    const teamColumnIndices = [2, 6, 10]
+      // Protect position columns (cols 0, 4, 8) for All-Americans
+      ;[0, 4, 8].forEach(col => {
+        requests.push({
+          addProtectedRange: {
+            protectedRange: {
+              range: { sheetId, startRowIndex: 3, endRowIndex: 3 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
+              description: 'Position column - do not edit',
+              warningOnly: false
+            }
+          }
+        })
+      })
 
-    teamColumnIndices.forEach(colIndex => {
-      // All-Americans section
-      requests.push(generateTeamValidation(sheetId, colIndex, 3, 3 + numPositions))
-      requests.push(...generateTeamFormattingRulesForRange(sheetId, colIndex, 3, 3 + numPositions))
+      // Protect position columns for All-Conference
+      ;[0, 4, 8].forEach(col => {
+        requests.push({
+          addProtectedRange: {
+            protectedRange: {
+              range: { sheetId, startRowIndex: 32, endRowIndex: 32 + numPositions, startColumnIndex: col, endColumnIndex: col + 1 },
+              description: 'Position column - do not edit',
+              warningOnly: false
+            }
+          }
+        })
+      })
 
-      // All-Conference section
-      requests.push(generateTeamValidation(sheetId, colIndex, 32, 32 + numPositions))
-      requests.push(...generateTeamFormattingRulesForRange(sheetId, colIndex, 32, 32 + numPositions))
-    })
+      // Protect separator row
+      requests.push({
+        addProtectedRange: {
+          protectedRange: {
+            range: { sheetId, startRowIndex: 28, endRowIndex: 29, startColumnIndex: 0, endColumnIndex: 12 },
+            description: 'Separator row - do not edit',
+            warningOnly: false
+          }
+        }
+      })
 
-    // Add class dropdown validation for Class columns (indices 3, 7, 11)
-    const classColumnIndices = [3, 7, 11]
+      // Add team dropdown validation and conditional formatting for Team columns (indices 2, 6, 10)
+      // All-Americans section: rows 3-28 (indices 3 to 3 + numPositions)
+      // All-Conference section: rows 32-57 (indices 32 to 32 + numPositions)
+      const teamColumnIndices = [2, 6, 10]
 
-    classColumnIndices.forEach(colIndex => {
-      // All-Americans section
-      requests.push(generateClassValidation(sheetId, colIndex, 3, 3 + numPositions))
+      teamColumnIndices.forEach(colIndex => {
+        // All-Americans section
+        requests.push(generateTeamValidation(sheetId, colIndex, 3, 3 + numPositions))
+        requests.push(...generateTeamFormattingRulesForRange(sheetId, colIndex, 3, 3 + numPositions))
 
-      // All-Conference section
-      requests.push(generateClassValidation(sheetId, colIndex, 32, 32 + numPositions))
-    })
+        // All-Conference section
+        requests.push(generateTeamValidation(sheetId, colIndex, 32, 32 + numPositions))
+        requests.push(...generateTeamFormattingRulesForRange(sheetId, colIndex, 32, 32 + numPositions))
+      })
 
-    // Execute batch update for formatting
+      // Add class dropdown validation for Class columns (indices 3, 7, 11)
+      const classColumnIndices = [3, 7, 11]
+
+      classColumnIndices.forEach(colIndex => {
+        // All-Americans section
+        requests.push(generateClassValidation(sheetId, colIndex, 3, 3 + numPositions))
+
+        // All-Conference section
+        requests.push(generateClassValidation(sheetId, colIndex, 32, 32 + numPositions))
+      })
+    } // End of for loop over years
+
+    // Execute batch update for formatting (all tabs at once)
     const batchResponse = await fetch(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
       method: 'POST',
       headers: {
@@ -7671,60 +7768,101 @@ export async function createAllAmericansSheet(year) {
       throw new Error(`Failed to setup sheet: ${error.error?.message || 'Unknown error'}`)
     }
 
+    // Helper to build position-indexed data maps for pre-filling
+    const buildPositionMap = (entries, designation) => {
+      const map = {}
+      if (!entries) return map
+      entries.filter(e => e.designation === designation).forEach(e => {
+        if (!map[e.position]) map[e.position] = e
+      })
+      return map
+    }
+
     // Prepare values to write
     const colHeaders = ['Position', 'Player', 'Team', 'Class']
-    const teamHeaders = ['First-Team', 'Second-Team', 'Freshman Team']
 
-    // Build the values array
-    const values = []
+    // Write values for each year tab
+    for (const year of allYears) {
+      const yearData = allAmericansByYear[year] || {}
+      const allAmericans = yearData.allAmericans || []
+      const allConference = yearData.allConference || []
+      const isPastYear = year < currentYear
 
-    // Row 1: All-Americans header
-    values.push(['All-Americans', '', '', '', '', '', '', '', '', '', '', ''])
+      // Build position maps for All-Americans
+      const aaFirst = buildPositionMap(allAmericans, 'first')
+      const aaSecond = buildPositionMap(allAmericans, 'second')
+      const aaFreshman = buildPositionMap(allAmericans, 'freshman')
 
-    // Row 2: Team headers (merged cells will show first value)
-    values.push(['First-Team', '', '', '', 'Second-Team', '', '', '', 'Freshman Team', '', '', ''])
+      // Build position maps for All-Conference
+      const acFirst = buildPositionMap(allConference, 'first')
+      const acSecond = buildPositionMap(allConference, 'second')
+      const acFreshman = buildPositionMap(allConference, 'freshman')
 
-    // Row 3: Column headers
-    values.push([...colHeaders, ...colHeaders, ...colHeaders])
+      // Build the values array
+      const values = []
 
-    // Rows 4-28: Position data for All-Americans
-    ALL_AMERICAN_POSITIONS.forEach(pos => {
-      values.push([pos, '', '', '', pos, '', '', '', pos, '', '', ''])
-    })
+      // Row 1: All-Americans header
+      values.push(['All-Americans', '', '', '', '', '', '', '', '', '', '', ''])
 
-    // Row 29: Empty separator
-    values.push(['', '', '', '', '', '', '', '', '', '', '', ''])
+      // Row 2: Team headers (merged cells will show first value)
+      values.push(['First-Team', '', '', '', 'Second-Team', '', '', '', 'Freshman Team', '', '', ''])
 
-    // Row 30: All-Conference header
-    values.push(['All-Conference', '', '', '', '', '', '', '', '', '', '', ''])
+      // Row 3: Column headers
+      values.push([...colHeaders, ...colHeaders, ...colHeaders])
 
-    // Row 31: Team headers
-    values.push(['First-Team', '', '', '', 'Second-Team', '', '', '', 'Freshman Team', '', '', ''])
+      // Rows 4-28: Position data for All-Americans
+      ALL_AMERICAN_POSITIONS.forEach(pos => {
+        const first = isPastYear && aaFirst[pos] ? aaFirst[pos] : null
+        const second = isPastYear && aaSecond[pos] ? aaSecond[pos] : null
+        const freshman = isPastYear && aaFreshman[pos] ? aaFreshman[pos] : null
+        values.push([
+          pos, first?.player || '', first?.school || '', first?.class || '',
+          pos, second?.player || '', second?.school || '', second?.class || '',
+          pos, freshman?.player || '', freshman?.school || '', freshman?.class || ''
+        ])
+      })
 
-    // Row 32: Column headers
-    values.push([...colHeaders, ...colHeaders, ...colHeaders])
+      // Row 29: Empty separator
+      values.push(['', '', '', '', '', '', '', '', '', '', '', ''])
 
-    // Rows 33-57: Position data for All-Conference
-    ALL_AMERICAN_POSITIONS.forEach(pos => {
-      values.push([pos, '', '', '', pos, '', '', '', pos, '', '', ''])
-    })
+      // Row 30: All-Conference header
+      values.push(['All-Conference', '', '', '', '', '', '', '', '', '', '', ''])
 
-    // Write all values
-    const valuesResponse = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Selections!A1:L${totalRows}?valueInputOption=RAW`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ values })
+      // Row 31: Team headers
+      values.push(['First-Team', '', '', '', 'Second-Team', '', '', '', 'Freshman Team', '', '', ''])
+
+      // Row 32: Column headers
+      values.push([...colHeaders, ...colHeaders, ...colHeaders])
+
+      // Rows 33-57: Position data for All-Conference
+      ALL_AMERICAN_POSITIONS.forEach(pos => {
+        const first = isPastYear && acFirst[pos] ? acFirst[pos] : null
+        const second = isPastYear && acSecond[pos] ? acSecond[pos] : null
+        const freshman = isPastYear && acFreshman[pos] ? acFreshman[pos] : null
+        values.push([
+          pos, first?.player || '', first?.school || '', first?.class || '',
+          pos, second?.player || '', second?.school || '', second?.class || '',
+          pos, freshman?.player || '', freshman?.school || '', freshman?.class || ''
+        ])
+      })
+
+      // Write values to this year's tab
+      const valuesResponse = await fetch(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A1:L${totalRows}?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ values })
+        }
+      )
+
+      if (!valuesResponse.ok) {
+        const error = await valuesResponse.json()
+        throw new Error(`Failed to write values for ${year}: ${error.error?.message || 'Unknown error'}`)
       }
-    )
-
-    if (!valuesResponse.ok) {
-      const error = await valuesResponse.json()
-      throw new Error(`Failed to write values: ${error.error?.message || 'Unknown error'}`)
     }
 
     return {
@@ -7739,16 +7877,18 @@ export async function createAllAmericansSheet(year) {
 
 /**
  * Read All-Americans & All-Conference data from Google Sheet
+ * @param spreadsheetId - The Google Sheets ID
+ * @param year - The year tab to read from
  */
-export async function readAllAmericansFromSheet(spreadsheetId) {
+export async function readAllAmericansFromSheet(spreadsheetId, year) {
   try {
     const accessToken = await getAccessToken()
 
     const numPositions = ALL_AMERICAN_POSITIONS.length
 
-    // Read all data
+    // Read all data from the specified year tab
     const response = await fetch(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Selections!A1:L57`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A1:L57`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`
@@ -9069,8 +9209,9 @@ export async function readTrainingResultsFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
+    const range = encodeURIComponent("'Training Results'!A2:D200")
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Training Results!A2:D200`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -11642,8 +11783,9 @@ export async function readPortalTransferClassFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
+    const range = encodeURIComponent("'Portal Transfers'!A2:D100")
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Portal Transfers!A2:D100`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -11994,8 +12136,9 @@ export async function readFringeCaseClassFromSheet(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
 
+    const range = encodeURIComponent("'Fringe Cases'!A2:E100")
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Fringe Cases!A2:E100`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,

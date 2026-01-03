@@ -256,14 +256,22 @@ player.statsByYear = {
 }
 ```
 
-**Stats sources and updates**:
-1. **Box score aggregation** - `aggregatePlayerBoxScoreStats()` in DynastyContext.jsx aggregates stats from game box scores into `player.statsByYear`. Called automatically when saving games with box scores.
+**Stats updates**:
+1. **Box score delta tracking** - When games with box scores are saved, `processBoxScoreSave()` calculates the delta between new and old stats and applies it to `player.statsByYear`. This prevents double-counting on edits.
+   - Each game stores `statsContributed` for future delta calculations
+   - On game deletion, `processBoxScoreDelete()` subtracts the contribution
 2. **Manual entry** - TeamStats.jsx saves games/snaps and detailed stats directly to `player.statsByYear`
 3. **PlayerEditModal** - Can edit individual player stats per year
 
 **Reading stats** (in Player.jsx, TeamStats.jsx, DynastyRecords.jsx):
-- Read directly from `player.statsByYear[year]` - no fallbacks needed
-- Box scores provide real-time aggregation as games are played
+- Read ONLY from `player.statsByYear[year]` - NO box score fallbacks
+- All components use the same single source of truth
+
+**Delta tracking functions** (DynastyContext.jsx):
+- `extractBoxScoreContribution(boxScore)` - Extracts stats contribution from a box score
+- `applyBoxScoreDelta(players, newContribution, oldContribution, year)` - Applies delta to player stats
+- `processBoxScoreSave(players, newBoxScore, oldContribution, year)` - Handles save/edit with delta tracking
+- `processBoxScoreDelete(players, oldContribution, year)` - Subtracts stats on game deletion
 
 **Legacy migration**:
 - `migrateLegacyStats()` runs once per dynasty on load
@@ -271,15 +279,10 @@ player.statsByYear = {
 - Sets `dynasty._statsMigrated = true` when complete
 
 **Stats Entry Workflow** (TeamStats.jsx):
-1. **GP/Snaps Entry** (StatsEntryModal) - Enter games played and snaps for entire roster first
+1. **GP/Snaps Entry** (StatsEntryModal) - Enter games played and snaps for entire roster
 2. **Detailed Stats Entry** (DetailedStatsEntryModal) - Enter passing, rushing, etc. stats
    - Sheet includes Snaps column (read-only) and sorts by snaps descending
    - Players with most snaps appear at top for quick data entry
-   - Filter enabled so user can re-sort by any column
-
-**Data source priority** (for games played):
-- Box scores are prioritized over saved stats (most accurate count)
-- Both StatsEntryModal and PlayerEditModal use: `boxScoreGames ?? savedStats ?? null`
 
 ## Important Notes
 

@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
+import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
+import AwardsModal from '../../components/AwardsModal'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -208,8 +211,13 @@ const AWARD_ORDER = [
 export default function Awards() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, isViewOnly, processHonorPlayers } = useDynasty()
   const pathPrefix = usePathPrefix()
+  const [showAwardsModal, setShowAwardsModal] = useState(false)
+
+  // Get team colors for the modal
+  const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName) || ''
+  const teamColors = useTeamColors(currentDynasty?.teamName)
 
   if (!currentDynasty) return null
 
@@ -226,6 +234,40 @@ export default function Awards() {
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
     navigate(`${pathPrefix}/awards/${year}`)
+  }
+
+  // Handler for saving awards from modal
+  const handleAwardsSave = async (awards) => {
+    const year = displayYear
+
+    // Convert awards object to array format for processing
+    const entries = Object.entries(awards).map(([awardKey, data]) => ({
+      ...data,
+      award: awardKey,
+      name: data.player
+    })).filter(e => e.player) // Only entries with a player name
+
+    // Process honors - this will find/create players
+    const result = await processHonorPlayers(
+      currentDynasty.id,
+      'awards',
+      entries,
+      year,
+      [] // No transfer decisions
+    )
+
+    if (!result.needsConfirmation) {
+      // Save the awards data
+      const existingByYear = currentDynasty.awardsByYear || {}
+      await updateDynasty(currentDynasty.id, {
+        awardsByYear: {
+          ...existingByYear,
+          [year]: awards
+        }
+      })
+    }
+
+    setShowAwardsModal(false)
   }
 
   // No awards yet
@@ -355,17 +397,32 @@ export default function Awards() {
           Season Awards
         </h1>
 
-        <select
-          value={displayYear}
-          onChange={(e) => handleYearChange(parseInt(e.target.value))}
-          className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
-        >
-          {availableYears.map((year) => (
-            <option key={year} value={year}>
-              {year} Season
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <select
+            value={displayYear}
+            onChange={(e) => handleYearChange(parseInt(e.target.value))}
+            className="px-4 py-2 rounded-lg font-semibold cursor-pointer focus:outline-none focus:ring-2 bg-gray-700 text-white border-2 border-gray-500"
+          >
+            {availableYears.map((year) => (
+              <option key={year} value={year}>
+                {year} Season
+              </option>
+            ))}
+          </select>
+
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowAwardsModal(true)}
+              className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors flex items-center gap-2"
+              style={{ backgroundColor: teamColors.primary, color: teamColors.secondary }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Awards by Category */}
@@ -385,6 +442,15 @@ export default function Awards() {
           </div>
         )
       })}
+
+      {/* Awards Modal */}
+      <AwardsModal
+        isOpen={showAwardsModal}
+        onClose={() => setShowAwardsModal(false)}
+        onSave={handleAwardsSave}
+        currentYear={displayYear}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

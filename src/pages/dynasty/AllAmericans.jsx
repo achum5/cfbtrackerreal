@@ -5,6 +5,8 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { getTeamLogo } from '../../data/teams'
+import AllAmericansModal from '../../components/AllAmericansModal'
+import { useTeamColors } from '../../hooks/useTeamColors'
 
 // Map abbreviation to mascot name for logo lookup
 const getMascotName = (abbr) => {
@@ -181,9 +183,11 @@ const cleanPlayerName = (name) => {
 export default function AllAmericans() {
   const { id, year: urlYear } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
   const [filter, setFilter] = useState('all') // 'all', 'first', 'second', 'freshman'
+  const [showEditModal, setShowEditModal] = useState(false)
+  const teamColors = useTeamColors(currentDynasty?.teamName)
 
   if (!currentDynasty) return null
 
@@ -206,6 +210,22 @@ export default function AllAmericans() {
   // Navigate to year when dropdown changes
   const handleYearChange = (year) => {
     navigate(`${pathPrefix}/all-americans/${year}`)
+  }
+
+  // Handle save from modal
+  const handleAllAmericansSave = async (data) => {
+    const year = displayYear
+    const existingByYear = currentDynasty.allAmericansByYear || {}
+    const existingYearData = existingByYear[year] || {}
+    await updateDynasty(currentDynasty.id, {
+      allAmericansByYear: {
+        ...existingByYear,
+        [year]: {
+          ...existingYearData,
+          ...data
+        }
+      }
+    })
   }
 
   // No data yet
@@ -405,6 +425,20 @@ export default function AllAmericans() {
                 </option>
               ))}
             </select>
+
+            {/* Edit Button */}
+            {!isViewOnly && (
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-colors flex items-center gap-2"
+                style={{ backgroundColor: teamColors.primary, color: getContrastTextColor(teamColors.primary) }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -452,6 +486,15 @@ export default function AllAmericans() {
           </p>
         </div>
       )}
+
+      {/* All-Americans Modal */}
+      <AllAmericansModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSave={handleAllAmericansSave}
+        currentYear={displayYear}
+        teamColors={teamColors}
+      />
     </div>
   )
 }

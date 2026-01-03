@@ -9,7 +9,7 @@ import { getTeamLogo } from '../../data/teams'
 import TeamStatsModal from '../../components/TeamStatsModal'
 import StatsEntryModal from '../../components/StatsEntryModal'
 import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
-import { aggregatePlayerBoxScoreStats } from '../../utils/boxScoreAggregator'
+// Stats are read directly from player.statsByYear (single source of truth)
 
 // Mapping from internal format (player.statsByYear) to box score display format
 const INTERNAL_TO_BOXSCORE = {
@@ -41,6 +41,96 @@ const INTERNAL_TO_BOXSCORE = {
   puntReturn: {
     ret: 'pR', yds: 'yards', td: 'tD', lng: 'long'
   }
+}
+
+// Reverse mapping: box score format (from sheet) to internal format (player.statsByYear)
+const BOXSCORE_TO_INTERNAL = {
+  passing: {
+    comp: 'cmp', Completions: 'cmp',
+    attempts: 'att', Attempts: 'att',
+    yards: 'yds', Yards: 'yds',
+    tD: 'td', Touchdowns: 'td',
+    iNT: 'int', Interceptions: 'int',
+    long: 'lng', 'Passing Long': 'lng',
+    sacks: 'sacks', 'Sacks Taken': 'sacks'
+  },
+  rushing: {
+    carries: 'car', Carries: 'car',
+    yards: 'yds', Yards: 'yds',
+    tD: 'td', Touchdowns: 'td',
+    long: 'lng', 'Rushing Long': 'lng',
+    fumbles: 'fum', Fumbles: 'fum',
+    brokenTackles: 'bt', 'Broken Tackles': 'bt',
+    yAC: 'yac', 'Yards After Contact': 'yac'
+  },
+  receiving: {
+    receptions: 'rec', Receptions: 'rec',
+    yards: 'yds', Yards: 'yds',
+    tD: 'td', Touchdowns: 'td',
+    long: 'lng', 'Receiving Long': 'lng',
+    drops: 'drops', Drops: 'drops',
+    rAC: 'rac', 'Run After Catch': 'rac'
+  },
+  blocking: {
+    sacksAllowed: 'sacksAllowed', 'Sacks Allowed': 'sacksAllowed',
+    pancakes: 'pancakes', Pancakes: 'pancakes'
+  },
+  defense: {
+    solo: 'soloTkl', 'Solo Tackles': 'soloTkl',
+    assists: 'astTkl', 'Assisted Tackles': 'astTkl',
+    tFL: 'tfl', 'Tackles for Loss': 'tfl',
+    sack: 'sacks', Sacks: 'sacks',
+    iNT: 'int', Interceptions: 'int',
+    iNTYards: 'intYds', 'INT Return Yards': 'intYds',
+    deflections: 'pd', Deflections: 'pd',
+    fF: 'ff', 'Forced Fumbles': 'ff',
+    fR: 'fr', 'Fumble Recoveries': 'fr',
+    tD: 'td', 'Defensive TDs': 'td'
+  },
+  kicking: {
+    fGM: 'fgm', 'FG Made': 'fgm',
+    fGA: 'fga', 'FG Attempted': 'fga',
+    fGLong: 'lng', 'FG Long': 'lng',
+    xPM: 'xpm', 'XP Made': 'xpm',
+    xPA: 'xpa', 'XP Attempted': 'xpa',
+    kickoffs: 'kickoffs', Kickoffs: 'kickoffs',
+    touchbacks: 'touchbacks', Touchbacks: 'touchbacks'
+  },
+  punting: {
+    punts: 'punts', Punts: 'punts',
+    yards: 'yds', 'Punting Yards': 'yds',
+    netYards: 'netYds', 'Net Punting Yards': 'netYds',
+    long: 'lng', 'Punt Long': 'lng',
+    in20: 'in20', 'Punts Inside 20': 'in20',
+    tB: 'tb', Touchbacks: 'tb'
+  },
+  kickReturn: {
+    kR: 'ret', 'Kickoff Returns': 'ret',
+    yards: 'yds', 'KR Yardage': 'yds',
+    tD: 'td', 'KR TDs': 'td',
+    long: 'lng', 'KR Long': 'lng'
+  },
+  puntReturn: {
+    pR: 'ret', 'Punt Returns': 'ret',
+    yards: 'yds', 'PR Yardage': 'yds',
+    tD: 'td', 'PR TDs': 'td',
+    long: 'lng', 'PR Long': 'lng'
+  }
+}
+
+// Convert box score format stats to internal format for saving to player.statsByYear
+const convertBoxScoreToInternal = (stats, categoryName) => {
+  const mapping = BOXSCORE_TO_INTERNAL[categoryName] || {}
+  const converted = {}
+  Object.entries(stats).forEach(([key, value]) => {
+    const internalKey = mapping[key] || key
+    // Parse numeric values
+    const numValue = typeof value === 'string' ? parseFloat(value) : value
+    if (!isNaN(numValue)) {
+      converted[internalKey] = numValue
+    }
+  })
+  return converted
 }
 
 // Map abbreviation to mascot name for logo lookup
@@ -119,8 +209,18 @@ export default function TeamStats() {
   const [showPlayerStatsModal, setShowPlayerStatsModal] = useState(false)
   const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
 
-  // Sort state for player stats tables
-  const [sortConfig, setSortConfig] = useState({})
+  // Sort state for player stats tables - with sensible defaults
+  const [sortConfig, setSortConfig] = useState({
+    passing: { column: 'yards', direction: 'desc' },
+    rushing: { column: 'yards', direction: 'desc' },
+    receiving: { column: 'yards', direction: 'desc' },
+    blocking: { column: 'pancakes', direction: 'desc' },
+    defense: { column: 'totalTackles', direction: 'desc' },
+    kicking: { column: 'fGM', direction: 'desc' },
+    punting: { column: 'punts', direction: 'desc' },
+    kickReturn: { column: 'yards', direction: 'desc' },
+    puntReturn: { column: 'yards', direction: 'desc' }
+  })
 
   // Get current team abbreviation
   const currentTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
@@ -323,9 +423,19 @@ export default function TeamStats() {
     return aggregated
   }, [currentDynasty, selectedTeam, selectedYear, stats.games])
 
-  // Read player stats from box scores (primary) and player.statsByYear (secondary)
+  // Read player stats from player.statsByYear (primary for games/snaps) and box scores (for detailed stats)
   const playerStats = useMemo(() => {
     const allPlayers = currentDynasty?.players || []
+    const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
+    const yearKey = String(selectedYear)
+    const numKey = Number(selectedYear)
+
+    // Helper to get player's year stats with consistent key handling
+    const getPlayerYearStats = (player) => {
+      return player.statsByYear?.[yearKey]
+        ?? player.statsByYear?.[numKey]
+        ?? player.statsByYear?.[selectedYear]
+    }
 
     // Helper to convert internal format to box score format for display
     const convertInternalToBoxScore = (playerName, categoryStats, categoryName, gamesPlayed) => {
@@ -339,42 +449,25 @@ export default function TeamStats() {
       return result
     }
 
-    // Process category - prefer box scores (most up-to-date), then player.statsByYear
+    // Process category - read all stats from player.statsByYear (single source of truth)
     const processCategory = (internalCatName) => {
       const playerStatsMap = new Map() // Use Map to deduplicate by normalized name
-      const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
 
-      // First, get from BOX SCORES (most up-to-date source - aggregated from game entries)
       allPlayers.forEach(player => {
         if (!player.name) return
         const normalizedName = player.name.toLowerCase().trim()
         if (playerStatsMap.has(normalizedName)) return
 
-        // Aggregate box score stats for this player
-        const boxScoreAgg = aggregatePlayerBoxScoreStats(currentDynasty, player.name, selectedYear, userTeamAbbr, player)
-        if (boxScoreAgg?.[internalCatName]) {
-          const categoryStats = boxScoreAgg[internalCatName]
-          const gamesWithStats = boxScoreAgg.gamesWithStats || 0
-          const stats = { playerName: player.name, games: gamesWithStats, ...categoryStats }
-          // Only include if has meaningful stats
-          const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
-          if (statKeys.some(k => stats[k] > 0)) {
-            playerStatsMap.set(normalizedName, stats)
-          }
-        }
-      })
+        // Get stats from player.statsByYear (SINGLE SOURCE OF TRUTH)
+        const yearStats = getPlayerYearStats(player)
+        if (!yearStats) return
 
-      // Second, add from player.statsByYear if not already included from box scores
-      allPlayers.forEach(player => {
-        if (!player.name) return
-        const normalizedName = player.name.toLowerCase().trim()
-        if (playerStatsMap.has(normalizedName)) return // Skip if already have stats from box scores
+        const gamesPlayed = yearStats.gamesPlayed || 0
+        const categoryStats = yearStats[internalCatName]
 
-        const yearStats = player.statsByYear?.[selectedYear] || player.statsByYear?.[String(selectedYear)]
-        if (yearStats?.[internalCatName]) {
-          const gamesPlayed = yearStats.gamesPlayed || 0
-          const stats = convertInternalToBoxScore(player.name, yearStats[internalCatName], internalCatName, gamesPlayed)
-          // Only include if has meaningful stats
+        // Only include if has meaningful stats in this category
+        if (categoryStats) {
+          const stats = convertInternalToBoxScore(player.name, categoryStats, internalCatName, gamesPlayed)
           const statKeys = Object.keys(stats).filter(k => k !== 'playerName' && k !== 'games')
           if (statKeys.some(k => stats[k] > 0)) {
             playerStatsMap.set(normalizedName, stats)
@@ -585,6 +678,9 @@ export default function TeamStats() {
   const handleSavePlayerStats = async (stats) => {
     if (!currentDynasty?.id) return
 
+    // Normalize year key to string for consistent storage
+    const yearKey = String(selectedYear)
+
     // Update each player's statsByYear field with their games/snaps
     const updatedPlayers = (currentDynasty.players || []).map(player => {
       const playerStat = stats.find(s =>
@@ -592,15 +688,21 @@ export default function TeamStats() {
       )
       if (playerStat) {
         const existingStatsByYear = player.statsByYear || {}
-        const existingYearStats = existingStatsByYear[selectedYear] || {}
+        // Check both string and number keys for existing stats
+        const existingYearStats = existingStatsByYear[yearKey] || existingStatsByYear[Number(yearKey)] || {}
+
+        // Use nullish coalescing (??) instead of || to properly handle 0 as a valid value
+        const newGamesPlayed = playerStat.gamesPlayed ?? existingYearStats.gamesPlayed ?? 0
+        const newSnapsPlayed = playerStat.snapsPlayed ?? existingYearStats.snapsPlayed ?? 0
+
         return {
           ...player,
           statsByYear: {
             ...existingStatsByYear,
-            [selectedYear]: {
+            [yearKey]: {
               ...existingYearStats,
-              gamesPlayed: playerStat.gamesPlayed || existingYearStats.gamesPlayed || 0,
-              snapsPlayed: playerStat.snapsPlayed || existingYearStats.snapsPlayed || 0
+              gamesPlayed: newGamesPlayed,
+              snapsPlayed: newSnapsPlayed
             }
           }
         }
@@ -642,17 +744,21 @@ export default function TeamStats() {
           if (!detailedStatsMap.has(key)) {
             detailedStatsMap.set(key, {})
           }
-          const playerStats = detailedStatsMap.get(key)
+          const playerStatsObj = detailedStatsMap.get(key)
           // Copy all stats except name/pid
           const statsOnly = { ...player }
           delete statsOnly.name
           delete statsOnly.pid
-          playerStats[internalCat] = statsOnly
+          // Convert from box score format (from sheet) to internal format for player.statsByYear
+          playerStatsObj[internalCat] = convertBoxScoreToInternal(statsOnly, internalCat)
         })
       }
     })
 
     // Update each player's statsByYear field with detailed stats (preserve games/snaps)
+    // Normalize year key to string for consistent storage
+    const yearKey = String(selectedYear)
+
     const updatedPlayers = (currentDynasty.players || []).map(player => {
       const playerNameLower = player.name?.toLowerCase().trim()
       const detailedPlayerStats = detailedStatsMap.get(playerNameLower) || {}
@@ -660,12 +766,13 @@ export default function TeamStats() {
       // Only update if player has new detailed stats
       if (Object.keys(detailedPlayerStats).length > 0) {
         const existingStatsByYear = player.statsByYear || {}
-        const existingYearStats = existingStatsByYear[selectedYear] || {}
+        // Check both string and number keys for existing stats (consistent with handleSavePlayerStats)
+        const existingYearStats = existingStatsByYear[yearKey] || existingStatsByYear[Number(yearKey)] || {}
         return {
           ...player,
           statsByYear: {
             ...existingStatsByYear,
-            [selectedYear]: {
+            [yearKey]: {
               ...existingYearStats,
               ...detailedPlayerStats
               // Preserve existing gamesPlayed/snapsPlayed - don't overwrite
@@ -752,6 +859,19 @@ export default function TeamStats() {
     )
   }
 
+  // Format number with commas for thousands
+  const formatStatValue = (value, colKey) => {
+    // Don't format percentages, averages, or ratios (they contain decimals or colons)
+    if (typeof value === 'string' && (value.includes('%') || value.includes(':') || value.includes('.'))) {
+      return value
+    }
+    // Format integers >= 100 with commas
+    if (typeof value === 'number' && Number.isInteger(value) && Math.abs(value) >= 100) {
+      return value.toLocaleString()
+    }
+    return value
+  }
+
   // Player stats table component
   const PlayerStatsTable = ({ category, title, columns, data }) => {
     if (!data || data.length === 0) return null
@@ -794,25 +914,27 @@ export default function TeamStats() {
                     key={player.playerName}
                     className="border-t border-white/10 hover:bg-white/5 transition-colors"
                   >
-                    {columns.map((col, colIdx) => (
-                      <td
-                        key={col.key}
-                        className={`px-2 py-2 text-sm ${colIdx === 0 ? 'text-left font-medium' : 'text-right'}`}
-                        style={{ color: primaryText, opacity: colIdx === 0 ? 1 : 0.9 }}
-                      >
-                        {colIdx === 0 && playerPID ? (
-                          <Link
-                            to={`${pathPrefix}/player/${playerPID}`}
-                            className="hover:underline"
-                            style={{ color: primaryText }}
-                          >
-                            {player[col.key]}
-                          </Link>
-                        ) : (
-                          col.format ? col.format(player[col.key]) : player[col.key]
-                        )}
-                      </td>
-                    ))}
+                    {columns.map((col, colIdx) => {
+                      const rawValue = player[col.key]
+                      const formattedValue = col.format ? col.format(rawValue) : formatStatValue(rawValue, col.key)
+                      return (
+                        <td
+                          key={col.key}
+                          className={`px-2 py-2 text-sm ${colIdx === 0 ? 'text-left font-medium' : 'text-right'}`}
+                          style={{ color: primaryText, opacity: colIdx === 0 ? 1 : 0.9 }}
+                        >
+                          {colIdx === 0 && playerPID ? (
+                            <Link
+                              to={`${pathPrefix}/player/${playerPID}`}
+                              className="hover:underline"
+                              style={{ color: primaryText }}
+                            >
+                              {rawValue}
+                            </Link>
+                          ) : formattedValue}
+                        </td>
+                      )
+                    })}
                   </tr>
                 )
               })}

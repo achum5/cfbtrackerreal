@@ -85,7 +85,9 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
-          const sheetInfo = await createAllAmericansSheet(currentYear)
+          // Pass allAmericansByYear for pre-filling past years
+          const allAmericansByYear = currentDynasty?.allAmericansByYear || {}
+          const sheetInfo = await createAllAmericansSheet(currentYear, allAmericansByYear)
           setSheetId(sheetInfo.sheetId)
           await updateDynasty(currentDynasty.id, { allAmericansSheetId: sheetInfo.sheetId })
         } catch (error) {
@@ -110,7 +112,8 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
     if (!sheetId) return
     setSyncing(true)
     try {
-      const data = await readAllAmericansFromSheet(sheetId)
+      // Read from the current year tab
+      const data = await readAllAmericansFromSheet(sheetId, currentYear)
       await onSave(data)
       onClose()
     } catch (error) {
@@ -129,7 +132,8 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
     if (!sheetId) return
     setDeletingSheet(true)
     try {
-      const data = await readAllAmericansFromSheet(sheetId)
+      // Read from the current year tab
+      const data = await readAllAmericansFromSheet(sheetId, currentYear)
       await onSave(data)
       // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
@@ -174,7 +178,7 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
 
   if (!isOpen) return null
 
-  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'All-Americans') : null
+  const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, `${currentYear}`) : null
   const isLoading = creatingSheet
 
   return (

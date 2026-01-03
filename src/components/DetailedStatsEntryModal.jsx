@@ -9,7 +9,31 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
-import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
+
+// Mapping from internal stat keys (player.statsByYear) to box score format (used by sheet)
+const INTERNAL_TO_BOXSCORE = {
+  passing: { cmp: 'comp', att: 'attempts', yds: 'yards', td: 'tD', int: 'iNT', lng: 'long', sacks: 'sacks' },
+  rushing: { car: 'carries', yds: 'yards', td: 'tD', lng: 'long', fum: 'fumbles', bt: 'brokenTackles', yac: 'yAC' },
+  receiving: { rec: 'receptions', yds: 'yards', td: 'tD', lng: 'long', drops: 'drops', rac: 'rAC' },
+  blocking: { sacksAllowed: 'sacksAllowed', pancakes: 'pancakes' },
+  defense: { soloTkl: 'solo', solo: 'solo', astTkl: 'assists', assists: 'assists', tfl: 'tFL', sacks: 'sack', sack: 'sack', int: 'iNT', intYds: 'iNTYards', pd: 'deflections', deflections: 'deflections', ff: 'fF', fr: 'fR', td: 'tD' },
+  kicking: { fgm: 'fGM', fga: 'fGA', xpm: 'xPM', xpa: 'xPA', lng: 'fGLong', kickoffs: 'kickoffs', touchbacks: 'touchbacks' },
+  punting: { punts: 'punts', yds: 'yards', netYds: 'netYards', in20: 'in20', lng: 'long' },
+  kickReturn: { ret: 'kR', kR: 'kR', yds: 'yards', td: 'tD', lng: 'long' },
+  puntReturn: { ret: 'pR', pR: 'pR', yds: 'yards', td: 'tD', lng: 'long' }
+}
+
+// Convert internal stat format to box score format
+const convertToBoxScoreFormat = (categoryStats, categoryName) => {
+  if (!categoryStats) return null
+  const mapping = INTERNAL_TO_BOXSCORE[categoryName] || {}
+  const converted = {}
+  Object.entries(categoryStats).forEach(([key, value]) => {
+    const boxScoreKey = mapping[key] || key
+    converted[boxScoreKey] = value
+  })
+  return converted
+}
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -145,58 +169,51 @@ export default function DetailedStatsEntryModal({
 
           // Get existing stats to pre-fill gamesPlayed/snapsPlayed
           // Check player.statsByYear first, then fall back to box score aggregation
+          // Use normalized string key for consistency with how stats are saved
+          const yearKey = String(currentYear)
+          const numKey = Number(currentYear)
+
           const playersWithSnaps = currentRoster.map(player => {
-            const playerYearStats = player.statsByYear?.[currentYear]
-              || player.statsByYear?.[String(currentYear)]
-              || player.statsByYear?.[Number(currentYear)]
-
-            // If no manual stats, try to get games from box score aggregation
-            let gamesPlayed = playerYearStats?.gamesPlayed
-            let snapsPlayed = playerYearStats?.snapsPlayed
-
-            // Fall back to box scores if no manual gamesPlayed set
-            if (gamesPlayed == null && player.name && currentDynasty) {
-              const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
-              if (boxScoreStats?.gamesWithStats > 0) {
-                gamesPlayed = boxScoreStats.gamesWithStats
-              }
-            }
+            // Get stats from player.statsByYear (the only source of truth)
+            const playerYearStats = player.statsByYear?.[yearKey]
+              ?? player.statsByYear?.[numKey]
+              ?? player.statsByYear?.[currentYear]
 
             return {
               ...player,
-              gamesPlayed: gamesPlayed ?? null,
-              snapsPlayed: snapsPlayed ?? null
+              gamesPlayed: playerYearStats?.gamesPlayed ?? null,
+              snapsPlayed: playerYearStats?.snapsPlayed ?? null
             }
           })
 
           // Get existing detailed stats to pre-fill the sheet
-          // Reads from player.statsByYear first, then merges with box score data
+          // Stats come ONLY from player.statsByYear (single source of truth)
           let aggregatedStats = {}
 
-          // Build aggregatedStats from stored data AND box scores
+          // Categories that could have detailed stats
+          const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+
           playersWithSnaps.forEach(player => {
             if (!player.name) return
 
-            const playerYearStats = player.statsByYear?.[currentYear]
-              || player.statsByYear?.[String(currentYear)]
-              || player.statsByYear?.[Number(currentYear)]
+            // Get stats from player.statsByYear (the only source of truth)
+            const playerYearStats = player.statsByYear?.[yearKey]
+              ?? player.statsByYear?.[numKey]
+              ?? player.statsByYear?.[currentYear]
 
-            // Get box score aggregated stats
-            const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
+            if (!playerYearStats) return
 
             const playerStats = {}
 
-            // Categories mapping: internal name -> box score category name
-            const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
-
             categories.forEach(cat => {
-              // First check player.statsByYear (manual/saved stats)
-              if (playerYearStats?.[cat]) {
-                playerStats[cat] = playerYearStats[cat]
-              }
-              // Fall back to box score aggregated stats if no manual stats
-              else if (boxScoreStats?.[cat]) {
-                playerStats[cat] = boxScoreStats[cat]
+              const categoryStats = playerYearStats[cat]
+              if (categoryStats && typeof categoryStats === 'object' && Object.keys(categoryStats).length > 0) {
+                // Check if stats are non-zero
+                const hasNonZeroStats = Object.values(categoryStats).some(v => v && v !== 0)
+                if (hasNonZeroStats) {
+                  const converted = convertToBoxScoreFormat(categoryStats, cat)
+                  playerStats[cat] = converted
+                }
               }
             })
 
@@ -230,7 +247,7 @@ export default function DetailedStatsEntryModal({
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentYear, retryCount, overrideTeamAbbr, overrideTeamName, authErrorOccurred, createAttempts])
+  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentDynasty?.players, currentYear, retryCount, overrideTeamAbbr, overrideTeamName, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
@@ -561,6 +578,9 @@ export default function DetailedStatsEntryModal({
                     try {
                       const success = await refreshSession()
                       if (success) {
+                        // Reset error states to allow sheet creation retry
+                        setAuthErrorOccurred(false)
+                        setCreateAttempts(0)
                         // Trigger sheet creation retry
                         setRetryCount(c => c + 1)
                       }

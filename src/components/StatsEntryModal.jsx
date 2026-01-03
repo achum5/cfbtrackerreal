@@ -9,7 +9,7 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
-import { aggregatePlayerBoxScoreStats } from '../utils/boxScoreAggregator'
+// Stats are read directly from player.statsByYear (single source of truth)
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -145,24 +145,19 @@ export default function StatsEntryModal({
 
           // Get existing stats to pre-fill gamesPlayed/snapsPlayed
           // Prioritize box scores (most accurate count of games played), then fall back to saved stats
+          // Use normalized string key for consistency with how stats are saved
+          const yearKey = String(currentYear)
+          const numKey = Number(currentYear)
+
           const playersWithStats = players.map(player => {
-            // Check player's own statsByYear (check both string and number keys)
-            const playerYearStats = player.statsByYear?.[currentYear]
-              || player.statsByYear?.[String(currentYear)]
-              || player.statsByYear?.[Number(currentYear)]
+            // Check player's own statsByYear - try all possible key types (SINGLE SOURCE OF TRUTH)
+            const playerYearStats = player.statsByYear?.[yearKey]
+              ?? player.statsByYear?.[numKey]
+              ?? player.statsByYear?.[currentYear]
 
-            // Get box score aggregation first (most accurate for games played)
-            let boxScoreGames = null
-            if (player.name && currentDynasty) {
-              const boxScoreStats = aggregatePlayerBoxScoreStats(currentDynasty, player.name, currentYear, userTeamAbbr, player)
-              if (boxScoreStats?.gamesWithStats > 0) {
-                boxScoreGames = boxScoreStats.gamesWithStats
-              }
-            }
-
-            // Prioritize box scores for games played (matches PlayerEditModal behavior)
-            // This ensures accurate game counts even if old saved stats had different values
-            const gamesPlayed = boxScoreGames ?? playerYearStats?.gamesPlayed ?? null
+            // Read games/snaps directly from player.statsByYear
+            // Box scores already update this via delta tracking
+            const gamesPlayed = playerYearStats?.gamesPlayed ?? null
             const snapsPlayed = playerYearStats?.snapsPlayed ?? null
 
             return {
@@ -522,6 +517,9 @@ export default function StatsEntryModal({
                     try {
                       const success = await refreshSession()
                       if (success) {
+                        // Reset error states to allow sheet creation retry
+                        setAuthErrorOccurred(false)
+                        setCreateAttempts(0)
                         // Trigger sheet creation retry
                         setRetryCount(c => c + 1)
                       }

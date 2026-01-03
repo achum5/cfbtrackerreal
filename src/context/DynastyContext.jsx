@@ -380,140 +380,207 @@ const BOX_SCORE_STATS = {
   }
 }
 
-/**
- * Aggregate box score stats from all games for a specific year into player.statsByYear
- * @param {Object} dynasty - The dynasty object
- * @param {number|string} year - The year to aggregate stats for
- * @param {string} userTeamAbbr - The user's team abbreviation
- * @returns {Array} Updated players array with aggregated stats
- */
-export function aggregateBoxScoreStats(dynasty, year, userTeamAbbr) {
-  if (!dynasty) return dynasty.players || []
+// Convert box score format to internal format for statsByYear storage
+const BOXSCORE_TO_INTERNAL_MAP = {
+  passing: { comp: 'cmp', attempts: 'att', yards: 'yds', tD: 'td', iNT: 'int', long: 'lng', sacks: 'sacks' },
+  rushing: { carries: 'car', yards: 'yds', tD: 'td', long: 'lng', fumbles: 'fum', brokenTackles: 'bt', yAC: 'yac', '20+': 'twentyPlus' },
+  receiving: { receptions: 'rec', yards: 'yds', tD: 'td', long: 'lng', drops: 'drops', rAC: 'rac' },
+  blocking: { pancakes: 'pancakes', sacksAllowed: 'sacksAllowed' },
+  defense: { solo: 'soloTkl', assists: 'astTkl', tFL: 'tfl', sack: 'sacks', iNT: 'int', iNTYards: 'intYds', deflections: 'pd', tD: 'td', fF: 'ff', fR: 'fr' },
+  kicking: { fGM: 'fgm', fGA: 'fga', xPM: 'xpm', xPA: 'xpa', kickoffs: 'kickoffs', touchbacks: 'touchbacks', fGLong: 'lng' },
+  punting: { punts: 'punts', yards: 'yds', netYards: 'netYds', in20: 'in20', touchbacks: 'tb', long: 'lng' },
+  kickReturn: { kR: 'ret', yards: 'yds', tD: 'td', long: 'lng' },
+  puntReturn: { pR: 'ret', yards: 'yds', tD: 'td', long: 'lng' }
+}
 
-  const yearNum = Number(year)
-  const players = dynasty.players || []
-  const games = dynasty.games || []
-
-  // Get all user's games with box scores for this year
-  const gamesWithBoxScores = games.filter(g => {
-    if (Number(g.year) !== yearNum) return false
-    if (!g.boxScore) return false
-    // Only process games where user was playing (has userTeam or opponent matches)
-    return g.userTeam === userTeamAbbr || g.opponent
+// Convert box score stats object to internal format
+function convertBoxScoreToInternal(boxScoreStats, category) {
+  const mapping = BOXSCORE_TO_INTERNAL_MAP[category] || {}
+  const result = {}
+  Object.entries(boxScoreStats).forEach(([key, value]) => {
+    const internalKey = mapping[key] || key
+    result[internalKey] = value
   })
+  return result
+}
 
-  // Map to aggregate stats by player name (lowercase for matching)
-  const playerStatsMap = new Map()
+/**
+ * Extract stats contribution from a box score
+ * Returns an object mapping player names to their stats in INTERNAL format
+ * @param {Object} boxScore - The game's box score object
+ * @returns {Object} { "player name (lowercase)": { passing: {...}, rushing: {...}, ... } }
+ */
+function extractBoxScoreContribution(boxScore) {
+  if (!boxScore) return {}
 
-  gamesWithBoxScores.forEach(game => {
-    // Determine which side of box score is user's team
-    const isHome = game.location === 'home' || game.location === 'Home' || game.location === 'neutral'
-    const userBoxScore = isHome ? game.boxScore.home : game.boxScore.away
+  const contribution = {}
 
-    if (!userBoxScore) return
+  // Search both sides of box score
+  for (const side of ['home', 'away']) {
+    const sideBoxScore = boxScore[side]
+    if (!sideBoxScore) continue
 
     // Process each stat category
     Object.keys(BOX_SCORE_STATS).forEach(category => {
-      const categoryStats = userBoxScore[category]
+      const categoryStats = sideBoxScore[category]
       if (!Array.isArray(categoryStats)) return
-
-      const aggregationRules = BOX_SCORE_STATS[category]
 
       categoryStats.forEach(playerRow => {
         const playerName = playerRow.playerName?.toLowerCase().trim()
         if (!playerName) return
 
-        // Initialize player stats if not exists
-        if (!playerStatsMap.has(playerName)) {
-          playerStatsMap.set(playerName, {
-            gamesPlayed: 0,
-            snapsPlayed: 0
-          })
+        // Initialize player if not exists
+        if (!contribution[playerName]) {
+          contribution[playerName] = { _hadStats: true }
         }
-
-        const aggStats = playerStatsMap.get(playerName)
 
         // Initialize category if not exists
-        if (!aggStats[category]) {
-          aggStats[category] = {}
+        if (!contribution[playerName][category]) {
+          contribution[playerName][category] = {}
         }
 
-        // Aggregate sum fields
-        if (aggregationRules.sum) {
-          aggregationRules.sum.forEach(field => {
-            const value = parseFloat(playerRow[field]) || 0
-            aggStats[category][field] = (aggStats[category][field] || 0) + value
-          })
-        }
-
-        // Aggregate max fields (for long plays)
-        if (aggregationRules.max) {
-          aggregationRules.max.forEach(field => {
-            const value = parseFloat(playerRow[field]) || 0
-            aggStats[category][field] = Math.max(aggStats[category][field] || 0, value)
-          })
-        }
+        // Extract all stat fields (in box score format)
+        const allFields = [...(BOX_SCORE_STATS[category].sum || []), ...(BOX_SCORE_STATS[category].max || [])]
+        allFields.forEach(field => {
+          const value = parseFloat(playerRow[field]) || 0
+          contribution[playerName][category][field] = value
+        })
       })
     })
+  }
 
-    // Track games played for each player who had stats in this game
-    const allPlayerNames = new Set()
-    Object.values(userBoxScore).forEach(categoryData => {
-      if (Array.isArray(categoryData)) {
-        categoryData.forEach(row => {
-          if (row.playerName) {
-            allPlayerNames.add(row.playerName.toLowerCase().trim())
-          }
-        })
-      }
-    })
-
-    allPlayerNames.forEach(name => {
-      if (playerStatsMap.has(name)) {
-        playerStatsMap.get(name).gamesPlayed = (playerStatsMap.get(name).gamesPlayed || 0) + 1
+  // Convert all stats to internal format
+  Object.keys(contribution).forEach(playerName => {
+    Object.keys(BOX_SCORE_STATS).forEach(category => {
+      if (contribution[playerName][category]) {
+        contribution[playerName][category] = convertBoxScoreToInternal(
+          contribution[playerName][category],
+          category
+        )
       }
     })
   })
 
-  // Update each player's statsByYear with aggregated stats
-  const updatedPlayers = players.map(player => {
-    const playerNameLower = player.name?.toLowerCase().trim()
-    const aggStats = playerStatsMap.get(playerNameLower)
+  return contribution
+}
 
-    if (!aggStats) return player
+/**
+ * Apply box score delta to player stats
+ * Calculates difference between new and old contribution, applies to player.statsByYear
+ * @param {Array} players - Array of player objects
+ * @param {Object} newContribution - New stats contribution from box score
+ * @param {Object} oldContribution - Previous stats contribution (null for new games)
+ * @param {number} year - The year to update stats for
+ * @returns {Array} Updated players array
+ */
+function applyBoxScoreDelta(players, newContribution, oldContribution, year) {
+  const yearNum = Number(year)
+
+  // Get all player names that appear in either contribution
+  const allPlayerNames = new Set([
+    ...Object.keys(newContribution || {}),
+    ...Object.keys(oldContribution || {})
+  ])
+
+  return players.map(player => {
+    const playerNameLower = player.name?.toLowerCase().trim()
+    if (!allPlayerNames.has(playerNameLower)) return player
+
+    const newStats = newContribution?.[playerNameLower] || {}
+    const oldStats = oldContribution?.[playerNameLower] || {}
 
     const existingStatsByYear = player.statsByYear || {}
-    const existingYearStats = existingStatsByYear[yearNum] || {}
+    const existingYearStats = { ...(existingStatsByYear[yearNum] || {}) }
 
-    // Merge aggregated stats into existing stats
-    // (preserves manually entered stats from DetailedStatsEntryModal)
-    const mergedYearStats = { ...existingYearStats }
-
-    // Update gamesPlayed from box scores if available
-    if (aggStats.gamesPlayed > 0) {
-      mergedYearStats.gamesPlayed = aggStats.gamesPlayed
-    }
-
-    // Merge each category's stats
+    // Process each category
     Object.keys(BOX_SCORE_STATS).forEach(category => {
-      if (aggStats[category] && Object.keys(aggStats[category]).length > 0) {
-        mergedYearStats[category] = {
-          ...(mergedYearStats[category] || {}),
-          ...aggStats[category]
-        }
+      const newCatStats = newStats[category] || {}
+      const oldCatStats = oldStats[category] || {}
+
+      // Get all fields for this category (in internal format)
+      const internalMapping = BOXSCORE_TO_INTERNAL_MAP[category] || {}
+      const allInternalFields = new Set([
+        ...Object.keys(newCatStats),
+        ...Object.keys(oldCatStats)
+      ])
+
+      if (allInternalFields.size === 0) return
+
+      // Initialize category if needed
+      if (!existingYearStats[category]) {
+        existingYearStats[category] = {}
       }
+
+      // Determine which fields are "max" fields (need special handling)
+      const maxFields = (BOX_SCORE_STATS[category].max || []).map(f => internalMapping[f] || f)
+
+      // Apply delta for each field
+      allInternalFields.forEach(field => {
+        const newVal = newCatStats[field] || 0
+        const oldVal = oldCatStats[field] || 0
+        const currentVal = existingYearStats[category][field] || 0
+
+        if (maxFields.includes(field)) {
+          // For "long" fields, take max of current and new
+          existingYearStats[category][field] = Math.max(currentVal, newVal)
+        } else {
+          // For sum fields, apply delta
+          const delta = newVal - oldVal
+          existingYearStats[category][field] = Math.max(0, currentVal + delta)
+        }
+      })
     })
+
+    // Update games played: increment if new game had stats, decrement if old game had stats but new doesn't
+    const newHadStats = newStats._hadStats
+    const oldHadStats = oldStats._hadStats
+
+    if (newHadStats && !oldHadStats) {
+      // New game with stats for this player
+      existingYearStats.gamesPlayed = (existingYearStats.gamesPlayed || 0) + 1
+    } else if (!newHadStats && oldHadStats) {
+      // Player was removed from box score
+      existingYearStats.gamesPlayed = Math.max(0, (existingYearStats.gamesPlayed || 0) - 1)
+    }
 
     return {
       ...player,
       statsByYear: {
         ...existingStatsByYear,
-        [yearNum]: mergedYearStats
+        [yearNum]: existingYearStats
       }
     }
   })
+}
 
-  return updatedPlayers
+/**
+ * Process box score save - extracts contribution, applies delta, returns updated players and contribution
+ * @param {Array} players - Current players array
+ * @param {Object} newBoxScore - The new box score being saved
+ * @param {Object} oldContribution - Previous statsContributed from the game (null for new games)
+ * @param {number} year - The year
+ * @returns {Object} { updatedPlayers, statsContributed }
+ */
+export function processBoxScoreSave(players, newBoxScore, oldContribution, year) {
+  const newContribution = extractBoxScoreContribution(newBoxScore)
+  const updatedPlayers = applyBoxScoreDelta(players, newContribution, oldContribution, year)
+
+  return {
+    updatedPlayers,
+    statsContributed: newContribution
+  }
+}
+
+/**
+ * Process box score deletion - subtracts the contribution from player stats
+ * @param {Array} players - Current players array
+ * @param {Object} oldContribution - The statsContributed from the deleted game
+ * @param {number} year - The year
+ * @returns {Array} Updated players array
+ */
+export function processBoxScoreDelete(players, oldContribution, year) {
+  // Deleting is like applying a delta where new contribution is empty
+  return applyBoxScoreDelta(players, {}, oldContribution, year)
 }
 
 // ============================================================================
@@ -1770,15 +1837,28 @@ export function DynastyProvider({ children }) {
     // cfpResultsByYear is deprecated and only kept for reading legacy data
     const updates = { games: updatedGames }
 
-    // If game has box score, aggregate stats to player.statsByYear
-    // This ensures TeamStats page can read player stats from a single source
+    // If game has box score, apply delta to player.statsByYear
+    // Delta tracking: compare new box score to old statsContributed to prevent double-counting
     if (cleanGameData.boxScore) {
-      const updatedDynasty = { ...dynasty, games: updatedGames }
-      const updatedPlayers = aggregateBoxScoreStats(
-        updatedDynasty,
-        cleanGameData.year || dynasty.currentYear,
-        currentUserTeam
+      // Get old contribution from existing game (null for new games)
+      const oldContribution = existingGameIndex !== -1 && existingGameIndex !== undefined
+        ? dynasty.games[existingGameIndex]?.statsContributed || null
+        : null
+
+      const { updatedPlayers, statsContributed } = processBoxScoreSave(
+        dynasty.players || [],
+        cleanGameData.boxScore,
+        oldContribution,
+        cleanGameData.year || dynasty.currentYear
       )
+
+      // Store statsContributed on the game for future delta calculations
+      const gameIndex = updatedGames.findIndex(g => g.id === game.id)
+      if (gameIndex !== -1) {
+        updatedGames[gameIndex] = { ...updatedGames[gameIndex], statsContributed }
+      }
+
+      updates.games = updatedGames
       updates.players = updatedPlayers
     }
 
@@ -2840,14 +2920,36 @@ export function DynastyProvider({ children }) {
 
     // Remove game data from the week we're reverting from
     let updatedGames = [...(dynasty.games || [])]
+    let updatedPlayers = [...(dynasty.players || [])]
     const year = dynasty.currentYear
 
+    // Helper to subtract stats from removed games
+    const subtractRemovedGameStats = (gamesToRemove) => {
+      gamesToRemove.forEach(game => {
+        if (game.statsContributed) {
+          updatedPlayers = processBoxScoreDelete(updatedPlayers, game.statsContributed, game.year || year)
+        }
+      })
+    }
+
     if (dynasty.currentPhase === 'regular_season') {
+      // Find games that will be removed
+      const removedGames = updatedGames.filter(g =>
+        g.week === dynasty.currentWeek && g.year === year && !g.isConferenceChampionship
+      )
+      subtractRemovedGameStats(removedGames)
+
       // Remove regular season game for current week
       updatedGames = updatedGames.filter(g =>
         !(g.week === dynasty.currentWeek && g.year === year && !g.isConferenceChampionship)
       )
     } else if (dynasty.currentPhase === 'conference_championship') {
+      // Find games that will be removed
+      const removedGames = updatedGames.filter(g =>
+        g.isConferenceChampionship && g.year === year
+      )
+      subtractRemovedGameStats(removedGames)
+
       // Remove CC game from games array
       updatedGames = updatedGames.filter(g =>
         !(g.isConferenceChampionship && g.year === year)
@@ -2891,6 +2993,13 @@ export function DynastyProvider({ children }) {
         // Reverting FROM Week 1 TO Conference Championship phase
         // Clear ALL Bowl Week 1 data
 
+        // Find and subtract stats from games that will be removed
+        const removedGames = updatedGames.filter(g =>
+          (g.isCFPFirstRound && g.year === year) ||
+          (g.isBowlGame && g.year === year && g.bowlWeek === 'week1')
+        )
+        subtractRemovedGameStats(removedGames)
+
         // Remove user's CFP First Round game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPFirstRound && g.year === year) &&
@@ -2933,6 +3042,13 @@ export function DynastyProvider({ children }) {
         // Reverting FROM Week 2 TO Week 1
         // Clear Week 2 data (Bowl Week 2 + CFP Quarterfinals)
 
+        // Find and subtract stats from games that will be removed
+        const removedGames = updatedGames.filter(g =>
+          (g.isCFPQuarterfinal && g.year === year) ||
+          (g.isBowlGame && g.year === year && g.bowlWeek === 'week2')
+        )
+        subtractRemovedGameStats(removedGames)
+
         // Remove user's CFP Quarterfinal game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPQuarterfinal && g.year === year) &&
@@ -2959,6 +3075,13 @@ export function DynastyProvider({ children }) {
         // Reverting FROM Week 3 TO Week 2
         // Clear Week 3 data (Bowl Week 3 + CFP Semifinals)
 
+        // Find and subtract stats from games that will be removed
+        const removedGames = updatedGames.filter(g =>
+          (g.isCFPSemifinal && g.year === year) ||
+          (g.isBowlGame && g.year === year && g.bowlWeek === 'week3')
+        )
+        subtractRemovedGameStats(removedGames)
+
         // Remove user's CFP Semifinal game and bowl game from games array
         updatedGames = updatedGames.filter(g =>
           !(g.isCFPSemifinal && g.year === year) &&
@@ -2984,6 +3107,12 @@ export function DynastyProvider({ children }) {
       } else if (dynasty.currentWeek === 4) {
         // Reverting FROM Week 4 TO Week 3
         // Clear Week 4 data (National Championship)
+
+        // Find and subtract stats from games that will be removed
+        const removedGames = updatedGames.filter(g =>
+          g.isCFPChampionship && g.year === year
+        )
+        subtractRemovedGameStats(removedGames)
 
         // Remove user's CFP Championship game from games array
         updatedGames = updatedGames.filter(g =>
@@ -3044,6 +3173,7 @@ export function DynastyProvider({ children }) {
       currentPhase: prevPhase,
       currentYear: prevYear,
       games: updatedGames,
+      players: updatedPlayers,
       ...additionalUpdates
     })
   }

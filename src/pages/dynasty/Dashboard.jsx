@@ -1348,11 +1348,22 @@ export default function Dashboard() {
       if (p.name) existingPlayerNames.add(p.name.toLowerCase().trim())
     })
 
-    // Track players who left (leftTeam: true) - they can "return" via portal
+    // Track players who left (leftTeam: true) OR are pending departure
+    // Both can "return" via recruiting/signing day
     const leftPlayersMap = new Map()
+    const pendingDepartureMap = new Map()
     existingPlayers.forEach(p => {
-      if (p.name && p.leftTeam) {
-        leftPlayersMap.set(p.name.toLowerCase().trim(), p)
+      if (p.name) {
+        const nameLower = p.name.toLowerCase().trim()
+        if (p.leftTeam) {
+          leftPlayersMap.set(nameLower, p)
+        }
+        // Also track players marked as leaving but haven't advanced yet
+        // Check ANY departure indicator: leavingYear, leavingReason, OR transferredTo
+        const isPendingDeparture = p.leavingYear || p.leavingReason || p.transferredTo
+        if (isPendingDeparture) {
+          pendingDepartureMap.set(nameLower, p)
+        }
       }
     })
 
@@ -1369,24 +1380,26 @@ export default function Dashboard() {
       }
     })
 
-    // Find recruits that are RETURNING players (they left but are coming back via portal)
+    // Find recruits that are RETURNING players (they left or are pending departure)
+    // Auto-detect: if a recruit name matches a player who left OR is marked as leaving, they're returning
     const returningPlayerRecruits = recruits.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
-      // Must be a portal transfer AND match a player who left
-      return r.isPortal && leftPlayersMap.has(nameLower)
+      // Match players who already left OR are pending departure (leavingYear set)
+      // Don't require isPortal flag - auto-detect based on name match
+      return leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)
     })
 
     // Find NEW recruits - MUST pass ALL checks:
-    // 1. Not already in the players array (prevents duplicating existing roster) - UNLESS they left
+    // 1. Not already in the players array (prevents duplicating existing roster) - UNLESS they left/leaving
     // 2. Not already in OTHER weeks' commitments (prevents cross-week duplicates)
     const newRecruits = recruits.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
       // Skip if this is a returning player (handled separately)
-      if (r.isPortal && leftPlayersMap.has(nameLower)) return false
-      // Reject if already exists as an ACTIVE player (not one who left)
-      if (existingPlayerNames.has(nameLower) && !leftPlayersMap.has(nameLower)) return false
+      if (leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)) return false
+      // Reject if already exists as an ACTIVE player
+      if (existingPlayerNames.has(nameLower)) return false
       // Reject if already in other weeks' commitments
       if (existingRecruitNames.has(nameLower)) return false
       return true
@@ -1412,6 +1425,16 @@ export default function Dashboard() {
         'RS Sr': 'RS Sr'
       }
 
+      // Auto-detect transfer portal players based on class
+      // Portal players are Fr, So, Jr, Sr (or RS versions) - NOT HS or JUCO
+      const portalClasses = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
+      const recruitClass = (recruit.class || '').trim()
+      const isPortalPlayer = recruit.isPortal || portalClasses.some(pc => pc.toLowerCase() === recruitClass.toLowerCase())
+
+      // For portal players, ensure previousTeam is set (required for filtering)
+      // If not provided, use "Transfer Portal" as a placeholder
+      const previousTeam = recruit.previousTeam || (isPortalPlayer ? 'Transfer Portal' : '')
+
       return {
         pid,
         id: `player-${pid}`,
@@ -1436,13 +1459,14 @@ export default function Dashboard() {
         stateRank: recruit.stateRank || null,
         positionRank: recruit.positionRank || null,
         gemBust: recruit.gemBust || '',
-        previousTeam: recruit.previousTeam || '',
-        isPortal: recruit.isPortal || false // Track if transfer portal player
+        previousTeam: previousTeam,
+        isPortal: isPortalPlayer
       }
     })
 
-    // Update returning players - players who left but are coming back via portal
-    // This clears their leftTeam flag and updates their team assignment
+    // Update returning players - players who left OR are pending departure but coming back
+    // This clears their leftTeam/leavingYear/leavingReason/transferredTo flags
+    // IMPORTANT: Preserve all existing player data (stats, history, etc.)
     let playersWithReturning = existingPlayers
     if (returningPlayerRecruits.length > 0) {
       const returningNames = new Set(returningPlayerRecruits.map(r => r.name.toLowerCase().trim()))
@@ -1452,33 +1476,118 @@ export default function Dashboard() {
           const recruitData = returningPlayerRecruits.find(
             r => r.name.toLowerCase().trim() === p.name.toLowerCase().trim()
           )
-          return {
-            ...p,
-            leftTeam: false, // Clear the left flag - they're back!
-            team: teamAbbr, // Update team assignment
+
+          // CRITICAL: Preserve all existing player data, only update specific fields
+          const updatedPlayer = {
+            ...p, // Preserve everything: pid, name, statsByYear, classByYear, overall, etc.
+            // Clear ALL departure flags - they're staying/coming back!
+            leftTeam: false,
+            leftYear: null,
+            leftReason: null,
+            leavingYear: null,
+            leavingReason: null,
+            transferredTo: null,
+            transferredFrom: null,
+            // Update team assignment
+            team: teamAbbr,
             teamsByYear: {
               ...p.teamsByYear,
               [year + 1]: teamAbbr // Add them to next year's roster
             },
-            isRecruit: true, // Mark as recruit until season starts
+            // Mark as returning recruit for this year
+            isRecruit: true,
             recruitYear: year,
-            isPortal: true,
-            // Update any new info from the recruit entry
-            ...(recruitData?.position && { position: recruitData.position }),
-            ...(recruitData?.devTrait && { devTrait: recruitData.devTrait }),
-            ...(recruitData?.stars && { stars: recruitData.stars })
+            isPortal: true, // Returning players are portal transfers
+            // Only update position if explicitly provided and different
+            ...(recruitData?.position && recruitData.position !== p.position && { position: recruitData.position })
           }
+
+          // Update ranks from the sheet data (these are new for this recruiting cycle)
+          if (recruitData?.stars) updatedPlayer.stars = recruitData.stars
+          if (recruitData?.nationalRank) updatedPlayer.nationalRank = recruitData.nationalRank
+          if (recruitData?.stateRank) updatedPlayer.stateRank = recruitData.stateRank
+          if (recruitData?.positionRank) updatedPlayer.positionRank = recruitData.positionRank
+          if (recruitData?.devTrait) updatedPlayer.devTrait = recruitData.devTrait
+          if (recruitData?.gemBust) updatedPlayer.gemBust = recruitData.gemBust
+
+          // Explicitly ensure critical data is preserved (defensive)
+          if (p.statsByYear) updatedPlayer.statsByYear = p.statsByYear
+          if (p.classByYear) updatedPlayer.classByYear = p.classByYear
+          if (p.overall) updatedPlayer.overall = p.overall
+          if (p.archetype) updatedPlayer.archetype = p.archetype
+          if (p.jerseyNumber) updatedPlayer.jerseyNumber = p.jerseyNumber
+
+          return updatedPlayer
         }
         return p
       })
     }
 
-    // Store recruits for this phase/week AND add new players
-    const updatedPlayers = [...playersWithReturning, ...newPlayers]
+    // Also track players from sheet who are already on active roster (not leaving)
+    // These don't need processing but should be acknowledged in commitments
+    const alreadyOnRosterRecruits = recruits.filter(r => {
+      if (!r.name) return false
+      const nameLower = r.name.toLowerCase().trim()
+      // Already on roster AND not a returning player (flags already cleared in previous save)
+      const isOnActiveRoster = existingPlayerNames.has(nameLower)
+      const isReturning = leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)
+      return isOnActiveRoster && !isReturning
+    })
 
-    // Save if there are new recruits OR returning players for this week
-    const allCommittedRecruits = [...newRecruits, ...returningPlayerRecruits]
-    if (allCommittedRecruits.length > 0) {
+    // For players already on roster, update their portal status if needed
+    // This handles the case where players were saved before portal detection was added
+    const portalClasses = ['Fr', 'RS Fr', 'So', 'RS So', 'Jr', 'RS Jr', 'Sr', 'RS Sr']
+    const alreadyOnRosterNames = new Set(
+      alreadyOnRosterRecruits.map(r => r.name.toLowerCase().trim())
+    )
+    const playersWithPortalFix = playersWithReturning.map(p => {
+      if (p.name && alreadyOnRosterNames.has(p.name.toLowerCase().trim())) {
+        // Find the recruit data to check class
+        const recruitData = alreadyOnRosterRecruits.find(
+          r => r.name.toLowerCase().trim() === p.name.toLowerCase().trim()
+        )
+        if (recruitData) {
+          const recruitClass = (recruitData.class || '').trim()
+          const isPortalPlayer = recruitData.isPortal || portalClasses.some(pc => pc.toLowerCase() === recruitClass.toLowerCase())
+          if (isPortalPlayer && !p.previousTeam) {
+            return {
+              ...p,
+              isPortal: true,
+              previousTeam: recruitData.previousTeam || 'Transfer Portal'
+            }
+          }
+        }
+      }
+      return p
+    })
+
+    // Store recruits for this phase/week AND add new players
+    const updatedPlayers = [...playersWithPortalFix, ...newPlayers]
+
+    // All commits: new recruits + returning players + already-on-roster (re-saves)
+    // Enrich commitment data with portal detection (previousTeam required for filtering)
+    // portalClasses already declared above
+    const enrichCommitment = (recruit) => {
+      // Normalize class for comparison (case-insensitive, trimmed)
+      const recruitClass = (recruit.class || '').trim()
+      const isPortalPlayer = recruit.isPortal || portalClasses.some(pc => pc.toLowerCase() === recruitClass.toLowerCase())
+      const previousTeam = recruit.previousTeam || (isPortalPlayer ? 'Transfer Portal' : '')
+      return {
+        ...recruit,
+        isPortal: isPortalPlayer,
+        previousTeam: previousTeam
+      }
+    }
+
+    const allCommittedRecruits = [
+      ...newRecruits.map(enrichCommitment),
+      ...returningPlayerRecruits.map(enrichCommitment),
+      ...alreadyOnRosterRecruits.map(enrichCommitment)
+    ]
+
+    // Save if there are any recruits to record OR if player data changed
+    const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0
+    if (allCommittedRecruits.length > 0 || hasPlayerChanges) {
       // Store in TEAM-CENTRIC structure - store all commits for this commitment key
       await updateDynasty(currentDynasty.id, {
         recruitingCommitmentsByTeamYear: {
