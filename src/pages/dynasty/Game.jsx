@@ -178,7 +178,7 @@ const defaultColors = {
 export default function Game() {
   const { id, gameId } = useParams()
   const navigate = useNavigate()
-  const { currentDynasty, updateDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty, addGame } = useDynasty()
   const pathPrefix = usePathPrefix()
   // Get team-centric team ratings
   const teamRatings = getCurrentTeamRatings(currentDynasty)
@@ -645,17 +645,20 @@ export default function Game() {
         }
       }
 
-      let updatedGames
-      if (isNewGame) {
-        // Game was constructed from fallback data - add to games array
-        updatedGames = [...existingGames, updatedGame]
+      if (isCPUGame) {
+        // CPU games - no box score delta tracking needed, update directly
+        let updatedGames
+        if (isNewGame) {
+          updatedGames = [...existingGames, updatedGame]
+        } else {
+          updatedGames = [...existingGames]
+          updatedGames[gameIndex] = updatedGame
+        }
+        await updateDynasty(currentDynasty.id, { games: updatedGames })
       } else {
-        // Game exists in array - update in place
-        updatedGames = [...existingGames]
-        updatedGames[gameIndex] = updatedGame
+        // User games - use addGame for proper box score delta tracking
+        await addGame(currentDynasty.id, updatedGame)
       }
-
-      await updateDynasty(currentDynasty.id, { games: updatedGames })
 
       setShowEditModal(false)
     } catch (error) {
