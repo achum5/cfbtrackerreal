@@ -9613,7 +9613,7 @@ async function initializeRecruitOverallsSheet(spreadsheetId, accessToken, sheetI
             { userEnteredValue: { stringValue: recruit.year || recruit.class || '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: { numberValue: recruit.stars || 0 }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
             { userEnteredValue: recruit.overall ? { numberValue: recruit.overall } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } },
-            { userEnteredValue: { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
+            { userEnteredValue: recruit.jerseyNumber != null && recruit.jerseyNumber !== '' ? { stringValue: String(recruit.jerseyNumber) } : { stringValue: '' }, userEnteredFormat: { horizontalAlignment: 'CENTER' } }
           ]
         })),
         fields: 'userEnteredValue,userEnteredFormat'

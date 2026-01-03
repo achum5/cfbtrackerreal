@@ -278,6 +278,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         weight: player.weight || '',
         hometown: player.hometown || '',
         state: player.state || '',
+
+        // Team Status
+        team: player.team || '',
         previousTeam: player.previousTeam || '',
 
         // Recruiting
@@ -308,7 +311,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
         // Departure (after season advances)
         leftTeam: player.leftTeam || false,
-        yearDeparted: player.yearDeparted || '',
+        // Use leftYear as primary, fall back to yearDeparted for backwards compat
+        leftYear: player.leftYear || player.yearDeparted || '',
+        yearDeparted: player.yearDeparted || player.leftYear || '',
         yearsInSchool: player.yearsInSchool || 0,
         leftReason: player.leftReason || '',
         draftRound: player.draftRound || '',
@@ -571,6 +576,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       weight: formData.weight ? num(formData.weight) : null,
       hometown: formData.hometown,
       state: formData.state,
+      // Team status - current team the player belongs to
+      team: formData.team || null,
       previousTeam: formData.previousTeam,
       yearStarted: formData.yearStarted,
       recruitYear: formData.recruitYear ? num(formData.recruitYear) : null,
@@ -585,6 +592,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       leavingReason: formData.leavingReason,
       transferredTo: formData.transferredTo || null,
       leftTeam: formData.leftTeam,
+      // Save both leftYear and yearDeparted for roster filtering compatibility
+      leftYear: formData.leftYear ? num(formData.leftYear) : null,
       yearDeparted: formData.yearDeparted,
       yearsInSchool: num(formData.yearsInSchool),
       leftReason: formData.leftReason,
@@ -1024,142 +1033,80 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               )}
             </div>
 
-            {/* Departure */}
+            {/* Roster Status - One unified section for all roster-related info */}
             <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
-              {renderSectionHeader('departure', 'Departure')}
-              {isExpanded('departure') && (
-                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
-                  {/* Show different UI based on whether player has already left */}
-                  {formData.leftTeam ? (
-                    /* Player has already left - show summary with edit options */
-                    <div className="p-3 rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+              {renderSectionHeader('rosterStatus', 'Roster Status')}
+              {isExpanded('rosterStatus') && (
+                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+
+                  {/* Status Badge - Clear indication of roster status */}
+                  <div className="flex items-center gap-3">
+                    {formData.leftTeam ? (
+                      <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-red-100 text-red-700">
+                        Left Team
+                      </span>
+                    ) : formData.leavingYear && formData.leavingReason ? (
+                      <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-orange-100 text-orange-700">
+                        Leaving After {formData.leavingYear}
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-green-100 text-green-700">
+                        Active on Roster
+                      </span>
+                    )}
+                    {formData.previousTeam && (
+                      <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
+                        Portal from {formData.previousTeam}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* If player has LEFT - show details and undo option */}
+                  {formData.leftTeam && (
+                    <div className="p-3 rounded-lg bg-red-50 border border-red-200">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold" style={{ color: '#dc2626' }}>
-                            Player Has Left Team
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">
-                            Not on active roster
-                          </span>
-                        </div>
+                        <span className="text-sm font-medium text-red-700">Departure Details</span>
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, leftTeam: false, leftReason: '', yearDeparted: '' }))}
-                          className="text-xs px-2 py-1 rounded hover:bg-red-200 transition-colors"
-                          style={{ color: '#dc2626' }}
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            leftTeam: false,
+                            leftReason: '',
+                            leftYear: '',
+                            yearDeparted: '',
+                            transferredTo: ''
+                          }))}
+                          className="text-xs px-2 py-1 rounded bg-red-100 hover:bg-red-200 text-red-700"
                         >
-                          Undo
+                          Undo - Put Back on Roster
                         </button>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Year Left</label>
-                          <input type="text" name="yearDeparted" value={formData.yearDeparted ?? ''} onChange={handleChange} placeholder="2026" className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Reason</label>
-                          <select name="leftReason" value={formData.leftReason ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
-                            <option value="">Select...</option>
-                            <option value="Graduating">Graduating</option>
-                            <option value="Pro Draft">Pro Draft</option>
-                            <option value="Playing Style">Transfer - Playing Style</option>
-                            <option value="Playing Time">Transfer - Playing Time</option>
-                            <option value="Proximity to Home">Transfer - Proximity to Home</option>
-                            <option value="Championship Contender">Transfer - Championship Contender</option>
-                            <option value="Program Tradition">Transfer - Program Tradition</option>
-                            <option value="Campus Lifestyle">Transfer - Campus Lifestyle</option>
-                            <option value="Stadium Atmosphere">Transfer - Stadium Atmosphere</option>
-                            <option value="Pro Potential">Transfer - Pro Potential</option>
-                            <option value="Brand Exposure">Transfer - Brand Exposure</option>
-                            <option value="Academic Prestige">Transfer - Academic Prestige</option>
-                            <option value="Conference Prestige">Transfer - Conference Prestige</option>
-                            <option value="Coach Stability">Transfer - Coach Stability</option>
-                            <option value="Coach Prestige">Transfer - Coach Prestige</option>
-                            <option value="Athletic Facilities">Transfer - Athletic Facilities</option>
-                          </select>
-                        </div>
-                      </div>
-                      {/* Show Transferred To for transfers, Draft Round for Pro Draft */}
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        {formData.leftReason && !['Graduating', 'Pro Draft'].includes(formData.leftReason) && (
-                          <div>
-                            <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Transferred To</label>
-                            <select name="transferredTo" value={formData.transferredTo ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
-                              <option value="">Select team...</option>
-                              {getTeamAbbreviationsList().map(abbr => (
-                                <option key={abbr} value={abbr}>{abbr}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                        {formData.leftReason === 'Pro Draft' && (
-                          <div>
-                            <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Draft Round</label>
-                            <select name="draftRound" value={formData.draftRound ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
-                              <option value="">Select...</option>
-                              <option value="1st Round">1st Round</option>
-                              <option value="2nd Round">2nd Round</option>
-                              <option value="3rd Round">3rd Round</option>
-                              <option value="4th Round">4th Round</option>
-                              <option value="5th Round">5th Round</option>
-                              <option value="6th Round">6th Round</option>
-                              <option value="7th Round">7th Round</option>
-                              <option value="Undrafted">Undrafted</option>
-                            </select>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    /* Player still on team - show Mark as Leaving option */
-                    <div className="p-3 rounded-lg" style={{ backgroundColor: formData.leavingYear ? 'rgba(251, 146, 60, 0.15)' : 'rgba(0,0,0,0.05)' }}>
-                      <div className="text-xs font-semibold mb-2" style={{ color: formData.leavingYear ? '#ea580c' : teamColors.primaryText }}>
-                        Mark as Leaving
-                      </div>
-                      <p className="text-xs mb-3" style={{ color: secondaryText, opacity: 0.7 }}>
-                        Set the year and reason if this player is leaving. They will appear in Transfer Destinations and be removed from the roster when you advance to the next season.
-                      </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Leaving Year</label>
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Year Left</label>
                           <input
                             type="text"
-                            name="leavingYear"
-                            value={formData.leavingYear ?? ''}
-                            onChange={handleChange}
-                            placeholder={dynasty?.currentYear?.toString() || '2025'}
-                            className="w-full px-3 py-2.5 rounded-lg border-2 text-sm"
+                            value={formData.leftYear ?? ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, leftYear: e.target.value, yearDeparted: e.target.value }))}
+                            placeholder="2026"
+                            className="w-full px-3 py-2 rounded-lg border text-sm"
                             style={inputStyle}
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Reason</label>
-                          <select name="leavingReason" value={formData.leavingReason ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Reason</label>
+                          <select name="leftReason" value={formData.leftReason ?? ''} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
                             <option value="">Select...</option>
-                            <option value="Graduating">Graduating</option>
-                            <option value="Pro Draft">Pro Draft</option>
-                            <option value="Playing Style">Transfer - Playing Style</option>
-                            <option value="Playing Time">Transfer - Playing Time</option>
-                            <option value="Proximity to Home">Transfer - Proximity to Home</option>
-                            <option value="Championship Contender">Transfer - Championship Contender</option>
-                            <option value="Program Tradition">Transfer - Program Tradition</option>
-                            <option value="Campus Lifestyle">Transfer - Campus Lifestyle</option>
-                            <option value="Stadium Atmosphere">Transfer - Stadium Atmosphere</option>
-                            <option value="Pro Potential">Transfer - Pro Potential</option>
-                            <option value="Brand Exposure">Transfer - Brand Exposure</option>
-                            <option value="Academic Prestige">Transfer - Academic Prestige</option>
-                            <option value="Conference Prestige">Transfer - Conference Prestige</option>
-                            <option value="Coach Stability">Transfer - Coach Stability</option>
-                            <option value="Coach Prestige">Transfer - Coach Prestige</option>
-                            <option value="Athletic Facilities">Transfer - Athletic Facilities</option>
+                            <option value="Graduating">Graduated</option>
+                            <option value="Pro Draft">NFL Draft</option>
+                            <option value="Transfer">Transferred</option>
                           </select>
                         </div>
                       </div>
-                      {/* Show Transferred To for transfer reasons */}
-                      {formData.leavingReason && !['Graduating', 'Pro Draft'].includes(formData.leavingReason) && (
+                      {formData.leftReason === 'Transfer' && (
                         <div className="mt-3">
-                          <label className="block text-xs font-medium mb-1.5" style={labelStyle}>Transferred To</label>
-                          <select name="transferredTo" value={formData.transferredTo ?? ''} onChange={handleChange} className="w-full px-3 py-2.5 rounded-lg border-2 text-sm" style={inputStyle}>
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Transferred To</label>
+                          <select name="transferredTo" value={formData.transferredTo ?? ''} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
                             <option value="">Select team...</option>
                             {getTeamAbbreviationsList().map(abbr => (
                               <option key={abbr} value={abbr}>{abbr}</option>
@@ -1167,141 +1114,146 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                           </select>
                         </div>
                       )}
-                      {formData.leavingYear && formData.leavingReason && (
-                        <div className="mt-2 text-xs px-2 py-1 rounded bg-orange-100 text-orange-700 inline-block">
-                          Will leave after {formData.leavingYear} season
-                          {formData.transferredTo && ` → ${formData.transferredTo}`}
+                      {formData.leftReason === 'Pro Draft' && (
+                        <div className="mt-3">
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Draft Round</label>
+                          <select name="draftRound" value={formData.draftRound ?? ''} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
+                            <option value="">Select...</option>
+                            {['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', 'Undrafted'].map(r => (
+                              <option key={r} value={r}>{r} Round</option>
+                            ))}
+                          </select>
                         </div>
                       )}
                     </div>
                   )}
-                </div>
-              )}
-            </div>
 
-            {/* Roster History - which team this player was on each season */}
-            <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
-              {renderSectionHeader('rosterHistory', 'Roster History')}
-              {isExpanded('rosterHistory') && (
-                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
-                  <p className="text-xs mb-3" style={{ color: secondaryText, opacity: 0.7 }}>
-                    Edit which team and class this player was for each season. This determines roster membership and class history.
-                  </p>
-                  <div className="space-y-2">
-                    {/* Show existing years */}
-                    {Object.entries(formData.teamsByYear || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([year, team]) => (
-                      <div key={year} className="flex items-center gap-2">
-                        <span className="text-sm font-medium w-12" style={{ color: secondaryText }}>{year}</span>
-                        <select
-                          value={team || ''}
-                          onChange={(e) => {
-                            const newTeamsByYear = { ...formData.teamsByYear }
-                            if (e.target.value) {
-                              newTeamsByYear[year] = e.target.value
-                            } else {
-                              delete newTeamsByYear[year]
-                            }
-                            setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear }))
-                          }}
-                          className="flex-1 px-2 py-2 rounded-lg border-2 text-sm"
-                          style={inputStyle}
-                        >
-                          <option value="">(Not on roster)</option>
-                          {getTeamAbbreviationsList().map(abbr => (
-                            <option key={abbr} value={abbr}>{abbr}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={formData.classByYear?.[year] || ''}
-                          onChange={(e) => {
-                            const newClassByYear = { ...formData.classByYear }
-                            if (e.target.value) {
-                              newClassByYear[year] = e.target.value
-                            } else {
-                              delete newClassByYear[year]
-                            }
-                            setFormData(prev => ({ ...prev, classByYear: newClassByYear }))
-                          }}
-                          className="w-20 px-2 py-2 rounded-lg border-2 text-sm"
-                          style={inputStyle}
-                        >
-                          <option value="">Class</option>
-                          {classes.map(cls => (
-                            <option key={cls} value={cls}>{cls}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newTeamsByYear = { ...formData.teamsByYear }
-                            const newClassByYear = { ...formData.classByYear }
-                            delete newTeamsByYear[year]
-                            delete newClassByYear[year]
-                            setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear, classByYear: newClassByYear }))
-                          }}
-                          className="px-2 py-1 rounded text-xs"
-                          style={{ backgroundColor: '#EF4444', color: '#fff' }}
-                        >
-                          ×
-                        </button>
+                  {/* If player is ACTIVE - show option to mark as leaving */}
+                  {!formData.leftTeam && (
+                    <div className="p-3 rounded-lg" style={{ backgroundColor: formData.leavingYear ? 'rgba(251, 146, 60, 0.1)' : 'rgba(0,0,0,0.03)', border: formData.leavingYear ? '1px solid rgba(251, 146, 60, 0.3)' : '1px solid rgba(0,0,0,0.1)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium" style={{ color: secondaryText }}>
+                          {formData.leavingYear ? 'Scheduled to Leave' : 'Mark as Leaving (Optional)'}
+                        </span>
+                        {formData.leavingYear && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, leavingYear: '', leavingReason: '', transferredTo: '' }))}
+                            className="text-xs px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-700"
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
-                    ))}
-                    {/* Add new year */}
-                    <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: `${teamColors.primary}30` }}>
-                      <input
-                        type="number"
-                        placeholder="Year"
-                        className="w-16 px-2 py-2 rounded-lg border-2 text-sm"
-                        style={inputStyle}
-                        id="newRosterYear"
-                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>After Season</label>
+                          <input
+                            type="text"
+                            name="leavingYear"
+                            value={formData.leavingYear ?? ''}
+                            onChange={handleChange}
+                            placeholder={dynasty?.currentYear?.toString() || '2025'}
+                            className="w-full px-3 py-2 rounded-lg border text-sm"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Reason</label>
+                          <select name="leavingReason" value={formData.leavingReason ?? ''} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
+                            <option value="">Select...</option>
+                            <option value="Graduating">Graduating</option>
+                            <option value="Pro Draft">NFL Draft</option>
+                            <option value="Transfer">Transferring</option>
+                          </select>
+                        </div>
+                      </div>
+                      {formData.leavingReason === 'Transfer' && (
+                        <div className="mt-3">
+                          <label className="block text-xs font-medium mb-1" style={labelStyle}>Transferring To</label>
+                          <select name="transferredTo" value={formData.transferredTo ?? ''} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
+                            <option value="">Select team...</option>
+                            {getTeamAbbreviationsList().map(abbr => (
+                              <option key={abbr} value={abbr}>{abbr}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Portal Transfer Info - only show if they have a previous team */}
+                  {formData.previousTeam && (
+                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                      <label className="block text-xs font-medium mb-1 text-blue-700">Transferred From (Portal)</label>
                       <select
-                        className="flex-1 px-2 py-2 rounded-lg border-2 text-sm"
+                        name="previousTeam"
+                        value={formData.previousTeam ?? ''}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 rounded-lg border text-sm"
                         style={inputStyle}
-                        id="newRosterTeam"
                       >
-                        <option value="">Team...</option>
+                        <option value="">None</option>
                         {getTeamAbbreviationsList().map(abbr => (
                           <option key={abbr} value={abbr}>{abbr}</option>
                         ))}
                       </select>
-                      <select
-                        className="w-20 px-2 py-2 rounded-lg border-2 text-sm"
-                        style={inputStyle}
-                        id="newRosterClass"
-                      >
-                        <option value="">Class</option>
-                        {classes.map(cls => (
-                          <option key={cls} value={cls}>{cls}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const yearInput = document.getElementById('newRosterYear')
-                          const teamSelect = document.getElementById('newRosterTeam')
-                          const classSelect = document.getElementById('newRosterClass')
-                          const year = yearInput?.value
-                          const team = teamSelect?.value
-                          const playerClass = classSelect?.value
-                          if (year && team) {
-                            setFormData(prev => ({
-                              ...prev,
-                              teamsByYear: { ...prev.teamsByYear, [year]: team },
-                              classByYear: playerClass ? { ...prev.classByYear, [year]: playerClass } : prev.classByYear
-                            }))
-                            yearInput.value = ''
-                            teamSelect.value = ''
-                            classSelect.value = ''
-                          }
-                        }}
-                        className="px-3 py-2 rounded-lg text-sm font-medium"
-                        style={{ backgroundColor: teamColors.primary, color: primaryText }}
-                      >
-                        Add
-                      </button>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Roster History - collapsible detail */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs font-medium py-2 flex items-center gap-2" style={{ color: secondaryText }}>
+                      <span className="group-open:rotate-90 transition-transform">▶</span>
+                      Roster History ({Object.keys(formData.teamsByYear || {}).length} seasons)
+                    </summary>
+                    <div className="mt-2 space-y-2 pl-4">
+                      {Object.entries(formData.teamsByYear || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([year, team]) => (
+                        <div key={year} className="flex items-center gap-2">
+                          <span className="text-sm font-medium w-12" style={{ color: secondaryText }}>{year}</span>
+                          <select
+                            value={team || ''}
+                            onChange={(e) => {
+                              const newTeamsByYear = { ...formData.teamsByYear }
+                              if (e.target.value) {
+                                newTeamsByYear[year] = e.target.value
+                              } else {
+                                delete newTeamsByYear[year]
+                              }
+                              setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear }))
+                            }}
+                            className="flex-1 px-2 py-1.5 rounded border text-sm"
+                            style={inputStyle}
+                          >
+                            <option value="">(Remove)</option>
+                            {getTeamAbbreviationsList().map(abbr => (
+                              <option key={abbr} value={abbr}>{abbr}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={formData.classByYear?.[year] || ''}
+                            onChange={(e) => {
+                              const newClassByYear = { ...formData.classByYear }
+                              if (e.target.value) {
+                                newClassByYear[year] = e.target.value
+                              } else {
+                                delete newClassByYear[year]
+                              }
+                              setFormData(prev => ({ ...prev, classByYear: newClassByYear }))
+                            }}
+                            className="w-16 px-2 py-1.5 rounded border text-xs"
+                            style={inputStyle}
+                          >
+                            <option value="">-</option>
+                            {classes.map(cls => (
+                              <option key={cls} value={cls}>{cls}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+
                 </div>
               )}
             </div>

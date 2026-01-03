@@ -983,13 +983,42 @@ export default function TeamYear() {
     // Exclude honor-only players (players only in system for awards, not on actual roster)
     if (p.isHonorOnly) return false
 
-    // UNIVERSAL CHECK: If player has leftTeam=true, exclude from all future years
+    // UNIVERSAL CHECK: If player has leftTeam=true, exclude from future years
     // Use Number() to handle string/number type mismatch
-    if (p.leftTeam && p.leftYear && Number(selectedYear) > Number(p.leftYear)) return false
+    if (p.leftTeam) {
+      // If leftYear is set, exclude from years AFTER that year
+      // If leftYear is NOT set, exclude from current year onwards (they left at some point)
+      const leftYear = p.leftYear ? Number(p.leftYear) : Number(currentDynasty.currentYear) - 1
+      if (Number(selectedYear) > leftYear) return false
+    }
 
     // UNIVERSAL CHECK: If player has leavingYear/leavingReason set (pending departure),
     // exclude from years AFTER the leaving year (handles case where advanceToNewSeason hasn't run yet)
     if (p.leavingYear && p.leavingReason && Number(selectedYear) > Number(p.leavingYear)) return false
+
+    // UNIVERSAL CHECK: If player has transferredTo set (pending transfer destination),
+    // exclude from years AFTER the leaving year (they're transferring away)
+    if (p.transferredTo) {
+      const departureYear = p.leavingYear || currentDynasty.currentYear
+      if (Number(selectedYear) > Number(departureYear)) return false
+    }
+
+    // UNIVERSAL CHECK: If player's current team field is set to a DIFFERENT team,
+    // they've transferred away - DON'T trust teamsByYear for current year (it may be corrupted)
+    if (p.team && p.team !== teamAbbr) {
+      // For HISTORICAL years (before current year), trust teamsByYear if it says they were here
+      if (Number(selectedYear) < Number(currentDynasty.currentYear)) {
+        // Only show if teamsByYear explicitly says they were on this team that year
+        if (p.teamsByYear?.[selectedYear] === teamAbbr) {
+          // Let it pass through to the teamsByYear check below
+        } else {
+          return false
+        }
+      } else {
+        // For CURRENT year onwards, they're on a different team - exclude regardless of teamsByYear
+        return false
+      }
+    }
 
     // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
     // This check must come FIRST before isRecruit - teamsByYear is the source of truth

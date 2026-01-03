@@ -204,13 +204,33 @@ Players can be marked as leaving via two mechanisms:
 1. `playersLeavingByYear[year]` - Array from Players Leaving task
 2. `player.leavingYear` + `player.leavingReason` - Direct fields on player
 
-Roster filtering checks BOTH:
+### Unified Roster Membership Check - `isPlayerOnRoster()`
+
+**ALWAYS use `isPlayerOnRoster(player, teamAbbr, year)` for roster filtering.** This is the single source of truth exported from DynastyContext.jsx.
+
 ```javascript
-// Exclude if leftTeam is set and year is past leftYear
-if (p.leftTeam && p.leftYear && Number(year) > Number(p.leftYear)) return false
-// Exclude if pending departure and year is past leavingYear
-if (p.leavingYear && p.leavingReason && Number(year) > Number(p.leavingYear)) return false
+import { isPlayerOnRoster } from '../context/DynastyContext'
+
+// Filter players for a specific team/year
+const rosterPlayers = players.filter(p => isPlayerOnRoster(p, teamAbbr, year))
 ```
+
+**The function checks (in order)**:
+1. Excludes `isHonorOnly` players
+2. Excludes `isRecruit` players (not yet enrolled)
+3. Excludes players with `recruitYear >= year` (haven't enrolled yet)
+4. Excludes players with `leftTeam` + `leftYear` where `year > leftYear`
+5. Excludes players with pending departure (`leavingYear` + `leavingReason`)
+6. Excludes players with `transferredTo` set (pending transfer)
+7. Uses `teamsByYear[year]` as primary check if available
+8. Falls back to `team` field
+9. Legacy fallback for players without team field
+
+### Roster Data Migration
+
+The `migrateRosterData()` function runs automatically on dynasty load (flag: `_rosterMigratedV3`):
+1. **Removes future years** from `teamsByYear` for players who have left
+2. **Backfills current year** in `teamsByYear` for active players who are missing it (fixes Signing Day bugs)
 
 ### Class Progression
 

@@ -621,8 +621,55 @@ export function getCurrentSchedule(dynasty) {
 }
 
 /**
+ * UNIFIED ROSTER MEMBERSHIP CHECK - Single source of truth
+ * Determines if a player belongs on a team's roster for a given year.
+ * All components should use this function for consistent roster filtering.
+ *
+ * @param {Object} player - Player object
+ * @param {string} teamAbbr - Team abbreviation to check
+ * @param {number|string} year - Season year to check
+ * @returns {boolean} True if player should appear on roster for this team/year
+ */
+export function isPlayerOnRoster(player, teamAbbr, year) {
+  // 1. Always exclude honor-only players from roster
+  if (player.isHonorOnly) return false
+
+  // 2. Exclude recruits who haven't enrolled yet
+  if (player.isRecruit) return false
+  if (player.recruitYear && Number(year) <= Number(player.recruitYear)) return false
+
+  // 3. Exclude players who have LEFT the team (finalized)
+  if (player.leftTeam && player.leftYear && Number(year) > Number(player.leftYear)) return false
+
+  // 4. Exclude players with PENDING departure for this year or earlier
+  // (leavingYear + leavingReason = marked as leaving but not yet processed by advanceToNewSeason)
+  if (player.leavingYear && player.leavingReason) {
+    if (Number(year) > Number(player.leavingYear)) return false
+  }
+
+  // 5. Exclude players pending transfer away (transferredTo set but not yet finalized)
+  if (player.transferredTo) {
+    const departureYear = player.leavingYear || year
+    if (Number(year) > Number(departureYear)) return false
+  }
+
+  // 6. PRIMARY CHECK: Use teamsByYear if available (immutable historical record)
+  if (player.teamsByYear && player.teamsByYear[year] !== undefined) {
+    return player.teamsByYear[year] === teamAbbr
+  }
+
+  // 7. FALLBACK: Check current team field
+  if (player.team) {
+    return player.team === teamAbbr
+  }
+
+  // 8. Legacy: players without team field belong to current team
+  return true
+}
+
+/**
  * Get the current team's roster (non-honor-only players for current team)
- * Falls back to legacy filtering for backwards compatibility
+ * Uses isPlayerOnRoster for consistent filtering
  */
 export function getCurrentRoster(dynasty) {
   if (!dynasty) return []
@@ -631,32 +678,8 @@ export function getCurrentRoster(dynasty) {
   const currentYear = dynasty.currentYear
   const allPlayers = dynasty.players || []
 
-  // Filter players by team (if they have team field) and exclude honor-only, recruits, and players who left
-  return allPlayers.filter(p => {
-    // Always exclude honor-only players from roster view
-    if (p.isHonorOnly) return false
-
-    // Exclude recruits - they haven't enrolled yet (show on recruiting page instead)
-    if (p.isRecruit) return false
-
-    // Exclude players who have left the team (graduated, transferred, drafted, etc.)
-    if (p.leftTeam) return false
-
-    // CRITICAL: If player has a recruitYear, they don't play until the NEXT year
-    // (recruitYear = their recruiting class year, they start playing recruitYear + 1)
-    // So if currentYear <= recruitYear, don't show them yet
-    // Use Number() to handle string/number type mismatch
-    if (p.recruitYear && Number(currentYear) <= Number(p.recruitYear)) return false
-
-    // If player has team field, check it matches current team
-    if (p.team) {
-      return p.team === teamAbbr
-    }
-
-    // Legacy: players without team field belong to current team
-    // (This is the backwards-compatible behavior)
-    return true
-  })
+  // Use unified isPlayerOnRoster for consistent filtering across all components
+  return allPlayers.filter(p => isPlayerOnRoster(p, teamAbbr, currentYear))
 }
 
 /**
@@ -1267,6 +1290,90 @@ export function migrateStatsToPlayers(dynasty) {
   }
 }
 
+/**
+ * Migrate roster data - Fix corrupted teamsByYear entries
+ * Removes future years from teamsByYear for players who have left
+ * This fixes the bug where players who transferred away reappear
+ * @param {Object} dynasty - The dynasty object
+ * @returns {Object} Dynasty with fixed roster data
+ */
+export function migrateRosterData(dynasty) {
+  if (!dynasty) return dynasty
+  // Use _rosterMigratedV3 to force re-run of migration (V2 didn't backfill current year)
+  if (dynasty._rosterMigratedV3) return dynasty
+  if (!dynasty.players || dynasty.players.length === 0) {
+    return { ...dynasty, _rosterMigratedV3: true }
+  }
+
+  const currentYear = dynasty.currentYear
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+
+  let needsUpdate = false
+  const fixedPlayers = dynasty.players.map(player => {
+    let modifiedPlayer = { ...player }
+    let playerModified = false
+
+    // Fix 1: Remove future years from teamsByYear for players who left
+    if ((player.leftTeam || player.transferredTo || (player.leavingYear && player.leavingReason)) && player.teamsByYear) {
+      const departureYear = Number(player.leftYear || player.leavingYear || currentYear)
+
+      const fixedTeamsByYear = {}
+      Object.entries(player.teamsByYear).forEach(([year, team]) => {
+        const yearNum = Number(year)
+        if (yearNum <= departureYear) {
+          fixedTeamsByYear[year] = team
+        } else {
+          needsUpdate = true
+          playerModified = true
+        }
+      })
+
+      if (playerModified) {
+        modifiedPlayer = { ...modifiedPlayer, teamsByYear: fixedTeamsByYear }
+      }
+    }
+
+    // Fix 2: Add current year to teamsByYear for active players who are missing it
+    // (This fixes players who went through Signing Day before the code fix)
+    if (!player.leftTeam && !player.isRecruit && !player.isHonorOnly) {
+      // Check if player should be on current team
+      const isOnCurrentTeam = player.team === teamAbbr || !player.team
+      // Check if they don't have pending departure
+      const notLeaving = !player.leavingYear || !player.leavingReason
+      // Check if they've enrolled (not a future recruit)
+      const hasEnrolled = !player.recruitYear || Number(currentYear) > Number(player.recruitYear)
+
+      if (isOnCurrentTeam && notLeaving && hasEnrolled) {
+        const existingTeamsByYear = modifiedPlayer.teamsByYear || {}
+        // If current year is missing from teamsByYear, add it
+        if (!existingTeamsByYear[currentYear] && !existingTeamsByYear[String(currentYear)]) {
+          needsUpdate = true
+          playerModified = true
+          modifiedPlayer = {
+            ...modifiedPlayer,
+            teamsByYear: {
+              ...existingTeamsByYear,
+              [currentYear]: teamAbbr
+            }
+          }
+        }
+      }
+    }
+
+    return playerModified ? modifiedPlayer : player
+  })
+
+  if (needsUpdate) {
+    return {
+      ...dynasty,
+      players: fixedPlayers,
+      _rosterMigratedV3: true
+    }
+  }
+
+  return { ...dynasty, _rosterMigratedV3: true }
+}
+
 export function useDynasty() {
   const context = useContext(DynastyContext)
   if (!context) {
@@ -1282,7 +1389,7 @@ export function DynastyProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [migrated, setMigrated] = useState(false)
 
-  // Helper to apply migrations to dynasties (games + stats)
+  // Helper to apply migrations to dynasties (games + stats + roster)
   const applyMigrations = (dynastyList) => {
     return dynastyList.map(dynasty => {
       let migrated = dynasty
@@ -1295,6 +1402,11 @@ export function DynastyProvider({ children }) {
       // Apply stats migration if needed
       if (!migrated._statsMigrated) {
         migrated = migrateStatsToPlayers(migrated)
+      }
+
+      // Apply roster migration if needed (fixes corrupted teamsByYear + backfills current year)
+      if (!migrated._rosterMigratedV3) {
+        migrated = migrateRosterData(migrated)
       }
 
       return migrated
@@ -2494,6 +2606,14 @@ export function DynastyProvider({ children }) {
         // Skip recruits (they get converted when advanceToNewSeason runs)
         if (player.isRecruit) return player
 
+        // CRITICAL: Skip players marked as pending departure - they should NOT get teamsByYear for next season
+        // These are players marked via "Players Leaving" task who haven't been finalized yet
+        if (player.leavingYear && player.leavingReason) return player
+
+        // CRITICAL: Skip players pending transfer away - they should NOT get teamsByYear for next season
+        // These are players with transfer destination set but not yet processed by advanceToNewSeason
+        if (player.transferredTo) return player
+
         // Get games played from player.statsByYear
         const yearStats = player.statsByYear?.[previousSeasonYear] || player.statsByYear?.[String(previousSeasonYear)]
         let gamesPlayed = yearStats?.gamesPlayed
@@ -3351,9 +3471,11 @@ export function DynastyProvider({ children }) {
         // CRITICAL: Set teamsByYear[year] = teamAbbr to record this player was on this team this year
         // This is the IMMUTABLE record that determines roster membership for past seasons
         // BUT: Skip adding the year if player is marked as leaving before this year
-        const isLeavingBeforeThisYear = existingPlayer.leavingYear && existingPlayer.leavingYear < year
+        // FIXED: Use <= instead of < to exclude players leaving THIS year from being added to teamsByYear
+        // Also use Number() for type safety with string/number comparison
+        const isLeavingThisYearOrBefore = existingPlayer.leavingYear && Number(existingPlayer.leavingYear) <= Number(year)
         const hasAlreadyLeft = existingPlayer.leftTeam === true
-        const shouldAddToTeamsByYear = !isLeavingBeforeThisYear && !hasAlreadyLeft
+        const shouldAddToTeamsByYear = !isLeavingThisYearOrBefore && !hasAlreadyLeft
 
         const updatedTeamsByYear = shouldAddToTeamsByYear
           ? {

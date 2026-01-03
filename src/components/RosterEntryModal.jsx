@@ -10,7 +10,7 @@ import {
   prefillRosterSheet
 } from '../services/sheetsService'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, isPlayerOnRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 
 export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
@@ -88,24 +88,11 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
           setSheetId(sheetInfo.spreadsheetId)
 
           // Get current roster for this team and pre-fill the sheet
-          // Use robust filtering to ensure we show the exact current roster
+          // Use unified isPlayerOnRoster for consistent filtering across all components
           const teamAbbr = getAbbreviationFromDisplayName(currentDynasty?.teamName)
-          const currentRoster = (currentDynasty?.players || []).filter(p => {
-            // Exclude honor-only players
-            if (p.isHonorOnly) return false
-            // Exclude recruits who haven't enrolled yet
-            if (p.isRecruit) return false
-            // Exclude players who have left the team
-            if (p.leftTeam) return false
-            // Exclude players with pending departure
-            if (p.leavingYear && p.leavingReason && Number(p.leavingYear) < Number(currentYear)) return false
-            // If player has a recruitYear, they don't play until the NEXT year
-            if (p.recruitYear && Number(currentYear) <= Number(p.recruitYear)) return false
-            // Check team matches
-            if (p.team) return p.team === teamAbbr
-            // Legacy: players without team field belong to current team
-            return true
-          })
+          const currentRoster = (currentDynasty?.players || []).filter(p =>
+            isPlayerOnRoster(p, teamAbbr, currentYear)
+          )
 
           if (currentRoster.length > 0) {
             await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster)

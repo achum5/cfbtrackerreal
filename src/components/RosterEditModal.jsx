@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty, getCurrentRoster } from '../context/DynastyContext'
+import { useDynasty, getCurrentRoster, isPlayerOnRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
@@ -110,35 +110,15 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
             currentYear
           )
 
-          // Pre-fill with the CURRENT roster using the same logic as getCurrentRoster
-          // This ensures we always show the exact current roster regardless of teamsByYear state
+          // Pre-fill with the CURRENT roster using unified isPlayerOnRoster helper
+          // This ensures consistent filtering across all components
           const targetTeam = teamAbbr || getCurrentRoster(currentDynasty)[0]?.team
           const selectedYear = currentYear
 
-          let existingPlayers = (currentDynasty?.players || []).filter(p => {
-            // Always exclude honor-only players from roster view
-            if (p.isHonorOnly) return false
-
-            // Exclude recruits - they haven't enrolled yet
-            if (p.isRecruit) return false
-
-            // Exclude players who have left the team
-            if (p.leftTeam) return false
-
-            // Exclude players with pending departure for this year
-            if (p.leavingYear && p.leavingReason && Number(p.leavingYear) < Number(selectedYear)) return false
-
-            // CRITICAL: If player has a recruitYear, they don't play until the NEXT year
-            if (p.recruitYear && Number(selectedYear) <= Number(p.recruitYear)) return false
-
-            // If player has team field, check it matches target team
-            if (p.team) {
-              return p.team === targetTeam
-            }
-
-            // Legacy: players without team field belong to current team
-            return true
-          })
+          // Use unified isPlayerOnRoster for consistent filtering
+          let existingPlayers = (currentDynasty?.players || []).filter(p =>
+            isPlayerOnRoster(p, targetTeam, selectedYear)
+          )
           if (existingPlayers.length > 0) {
             await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers)
           }
