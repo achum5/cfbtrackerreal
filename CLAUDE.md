@@ -180,29 +180,63 @@ player.classByYear = { 2025: 'Fr', 2026: 'So', 2027: 'RS So' }
 - `advanceWeek()` - Sets classByYear during Signing Day class progression (offseason week 5→6)
 - `advanceToNewSeason()` - Sets classByYear for recruit conversion and adds tracking for continuing players
 
-### Player Transfer Fields
+### Player Movements System (BBGM-Inspired)
 
-**Incoming portal transfers** (players coming TO your team):
-- `previousTeam` - Where they transferred from (e.g., Syracuse)
-- `isPortal` - true
+The player movement system tracks all roster changes through two fields:
 
-**Outgoing transfers** (players leaving your team):
-- `transferredTo` - Destination team (e.g., Arizona)
-- `transferredFrom` - Team they left (set when saving transfer destinations)
-- `leftTeam` - true (finalized after advanceToNewSeason)
-- `leftYear` - Year they left
-- `leftReason` - Transfer reason
-- `leavingYear` / `leavingReason` - Pending departure (before advanceToNewSeason)
+**1. `player.movements[]`** - Historical movement log (immutable):
+```javascript
+player.movements = [
+  { year: 2025, type: 'recruited', from: null, to: 'UT', timestamp: ... },
+  { year: 2027, type: 'transfer', from: 'UT', to: 'MICH', reason: 'Transfer', timestamp: ... }
+]
+```
 
-**IMPORTANT**: `previousTeam` and `transferredFrom` are DIFFERENT:
-- `previousTeam` = incoming portal recruit origin
-- `transferredFrom` = outgoing transfer origin (where they just left)
+**Movement Types** (`MOVEMENT_TYPES` in DynastyContext.jsx):
+| Type | When | From | To |
+|------|------|------|-----|
+| `recruited` | HS/JUCO signs | `null` | team |
+| `portal_in` | Portal transfer commits | prev team | team |
+| `transfer` | Player transfers away | team | new team |
+| `departure` | Graduating/Pro Draft | team | `null` |
+| `added` | Manual roster add | `null` | team |
+| `removed` | Manual roster delete | team | `null` |
+| `recommit` | Was leaving, came back | team | team |
 
-### Player Departure Tracking
+**2. `player.pendingDeparture`** - Pending departure (cleared at finalization):
+```javascript
+player.pendingDeparture = {
+  year: 2026,           // Season they last played
+  reason: 'Transfer',   // or 'Graduating', 'Pro Draft'
+  destination: 'MICH'   // null for graduating/pro draft
+}
+```
 
-Players can be marked as leaving via two mechanisms:
-1. `playersLeavingByYear[year]` - Array from Players Leaving task
-2. `player.leavingYear` + `player.leavingReason` - Direct fields on player
+**Departure Workflow**:
+1. **Offseason Week 1**: User marks players leaving → `pendingDeparture` set
+2. **Offseason Week 6**: User sets transfer destinations → `pendingDeparture.destination` updated
+3. **Week 6→7 transition**: Departures finalized → movement created, `pendingDeparture` cleared
+
+**Helper Functions**:
+- `createMovement(year, type, from, to, reason, extra)` - Create movement entry
+- `getPlayersLeaving(dynasty, year)` - Get players with pendingDeparture for year
+- `hasPlayerTransferredAway(player, fromTeam)` - Check if player transferred from team
+
+### Legacy Transfer Fields (Backwards Compatibility)
+
+These fields are still updated for backwards compatibility but will be deprecated:
+- `previousTeam` / `isPortal` - Incoming portal recruits
+- `transferredTo` / `transferredFrom` - Outgoing transfers
+- `leftTeam` / `leftYear` / `leftReason` - Finalized departure
+- `leavingYear` / `leavingReason` - Pending departure (use `pendingDeparture` instead)
+
+### Returning Player Detection
+
+When a recruit matches a player who left or has `pendingDeparture`:
+- System detects match by name
+- Clears `pendingDeparture` and legacy departure fields
+- Adds `recommit` movement to track they came back
+- Preserves all player data (stats, history, etc.)
 
 ### Unified Roster Membership Check - `isPlayerOnRoster()`
 
@@ -215,22 +249,25 @@ import { isPlayerOnRoster } from '../context/DynastyContext'
 const rosterPlayers = players.filter(p => isPlayerOnRoster(p, teamAbbr, year))
 ```
 
-**The function checks (in order)**:
+**The function checks (BBGM-inspired, simplified)**:
 1. Excludes `isHonorOnly` players
 2. Excludes `isRecruit` players (not yet enrolled)
 3. Excludes players with `recruitYear >= year` (haven't enrolled yet)
-4. Excludes players with `leftTeam` + `leftYear` where `year > leftYear`
-5. Excludes players with pending departure (`leavingYear` + `leavingReason`)
-6. Excludes players with `transferredTo` set (pending transfer)
-7. Uses `teamsByYear[year]` as primary check if available
-8. Falls back to `team` field
-9. Legacy fallback for players without team field
+4. **PRIMARY**: Uses `teamsByYear[year]` as the source of truth (like BBGM's stats[].tid)
+5. FALLBACK: Checks `pendingDeparture` and legacy fields for unmigrated data
 
 ### Roster Data Migration
 
 The `migrateRosterData()` function runs automatically on dynasty load (flag: `_rosterMigratedV3`):
 1. **Removes future years** from `teamsByYear` for players who have left
 2. **Backfills current year** in `teamsByYear` for active players who are missing it (fixes Signing Day bugs)
+
+### Movements System Migration
+
+The `migrateToMovementsSystem()` function runs automatically on dynasty load (flag: `_movementsMigrated`):
+1. **Creates `movements[]`** for each player from legacy fields (recruitYear, leftTeam, etc.)
+2. **Converts `leavingYear`/`leavingReason`** to `pendingDeparture`
+3. **Preserves all existing data** - legacy fields kept for backwards compatibility
 
 ### Class Progression
 

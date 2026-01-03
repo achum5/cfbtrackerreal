@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -971,9 +971,9 @@ export default function Dashboard() {
   }
 
   // Handle players leaving data save (Offseason)
+  // Uses new pendingDeparture field instead of legacy leavingYear/leavingReason
   const handlePlayersLeavingSave = async (playersLeaving) => {
     const year = currentDynasty.currentYear
-    const existingByYear = currentDynasty.playersLeavingByYear || {}
 
     // Map player names to PIDs for tracking
     const playersWithPids = playersLeaving.map(entry => {
@@ -985,7 +985,7 @@ export default function Dashboard() {
       }
     })
 
-    // Also update leavingYear/leavingReason on the player records
+    // Set pendingDeparture on player records
     const leavingPids = new Set(playersWithPids.map(p => p.pid).filter(Boolean))
     const reasonByPid = {}
     playersWithPids.forEach(p => {
@@ -994,23 +994,33 @@ export default function Dashboard() {
 
     const updatedPlayers = (currentDynasty.players || []).map(player => {
       if (leavingPids.has(player.pid)) {
-        // Mark player as leaving
+        // Mark player as leaving with pendingDeparture
         return {
           ...player,
+          pendingDeparture: {
+            year: Number(year),
+            reason: reasonByPid[player.pid] || 'Unknown',
+            destination: null // Set later via Transfer Destinations task
+          },
+          // Keep legacy fields for backwards compatibility during migration
           leavingYear: year,
           leavingReason: reasonByPid[player.pid] || null
         }
-      } else if (player.leavingYear === year) {
+      } else if (player.pendingDeparture?.year === Number(year) || player.leavingYear === year) {
         // Player was previously marked as leaving this year but is no longer in the list - clear it
         return {
           ...player,
+          pendingDeparture: null,
           leavingYear: null,
-          leavingReason: null
+          leavingReason: null,
+          transferredTo: null
         }
       }
       return player
     })
 
+    // Keep legacy playersLeavingByYear for backwards compatibility
+    const existingByYear = currentDynasty.playersLeavingByYear || {}
     await updateDynasty(currentDynasty.id, {
       playersLeavingByYear: {
         ...existingByYear,
@@ -1046,12 +1056,14 @@ export default function Dashboard() {
   }
 
   // Handle transfer destinations save (Offseason - National Signing Day)
+  // Updates pendingDeparture.destination for players leaving via transfer
   const handleTransferDestinationsSave = async (destinations) => {
     // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
     const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const nextYear = year + 1
     const existingByYear = currentDynasty.transferDestinationsByYear || {}
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
 
     // Update player records with their new team
     const updatedPlayers = [...(currentDynasty.players || [])]
@@ -1062,14 +1074,21 @@ export default function Dashboard() {
       )
       if (playerIndex !== -1 && dest.newTeam) {
         const player = updatedPlayers[playerIndex]
-        // Save where they transferred FROM (distinct from previousTeam which is for incoming portal recruits)
-        const oldTeam = player.team || getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
-        // DON'T update player.team - that would break historical stats
-        // Just set transferredTo and transferredFrom for display purposes
+        // Save where they transferred FROM
+        const oldTeam = player.team || teamAbbr
+
+        // Update pendingDeparture.destination (new system)
+        const updatedPendingDeparture = player.pendingDeparture
+          ? { ...player.pendingDeparture, destination: dest.newTeam }
+          : { year: Number(year), reason: 'Transfer', destination: dest.newTeam }
+
+        // DON'T update player.team yet - that happens at departure finalization
         // teamsByYear[nextYear] records their new team for roster filtering
         updatedPlayers[playerIndex] = {
           ...player,
-          transferredFrom: oldTeam,  // Use transferredFrom, NOT previousTeam (which is for portal recruit origin)
+          pendingDeparture: updatedPendingDeparture,
+          // Keep legacy fields for backwards compatibility
+          transferredFrom: oldTeam,
           transferredTo: dest.newTeam,
           teamsByYear: {
             ...(player.teamsByYear || {}),
@@ -1435,6 +1454,11 @@ export default function Dashboard() {
       // If not provided, use "Transfer Portal" as a placeholder
       const previousTeam = recruit.previousTeam || (isPortalPlayer ? 'Transfer Portal' : '')
 
+      // Create movement for this recruit
+      const movementType = isPortalPlayer ? MOVEMENT_TYPES.PORTAL_IN : MOVEMENT_TYPES.RECRUITED
+      const fromTeam = isPortalPlayer ? (recruit.previousTeam || null) : null
+      const recruitMovement = createMovement(year, movementType, fromTeam, teamAbbr)
+
       return {
         pid,
         id: `player-${pid}`,
@@ -1460,12 +1484,15 @@ export default function Dashboard() {
         positionRank: recruit.positionRank || null,
         gemBust: recruit.gemBust || '',
         previousTeam: previousTeam,
-        isPortal: isPortalPlayer
+        isPortal: isPortalPlayer,
+        // NEW: Add movements array with recruit movement
+        movements: [recruitMovement],
+        pendingDeparture: null
       }
     })
 
     // Update returning players - players who left OR are pending departure but coming back
-    // This clears their leftTeam/leavingYear/leavingReason/transferredTo flags
+    // This clears their pendingDeparture and adds a RECOMMIT movement
     // IMPORTANT: Preserve all existing player data (stats, history, etc.)
     let playersWithReturning = existingPlayers
     if (returningPlayerRecruits.length > 0) {
@@ -1477,10 +1504,26 @@ export default function Dashboard() {
             r => r.name.toLowerCase().trim() === p.name.toLowerCase().trim()
           )
 
+          // Create a RECOMMIT movement to track they came back
+          const recommitMovement = createMovement(
+            year,
+            MOVEMENT_TYPES.RECOMMIT,
+            teamAbbr, // from (they were on this team)
+            teamAbbr, // to (they're staying on this team)
+            'Returned from portal'
+          )
+
+          // Preserve existing movements and add the recommit
+          const existingMovements = p.movements || []
+
           // CRITICAL: Preserve all existing player data, only update specific fields
           const updatedPlayer = {
             ...p, // Preserve everything: pid, name, statsByYear, classByYear, overall, etc.
-            // Clear ALL departure flags - they're staying/coming back!
+            // Clear pendingDeparture - they're staying!
+            pendingDeparture: null,
+            // Add recommit movement
+            movements: [...existingMovements, recommitMovement],
+            // Clear ALL legacy departure flags - they're staying/coming back!
             leftTeam: false,
             leftYear: null,
             leftReason: null,
