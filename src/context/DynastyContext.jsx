@@ -426,7 +426,7 @@ function extractBoxScoreContribution(boxScore) {
       if (!Array.isArray(categoryStats)) return
 
       categoryStats.forEach(playerRow => {
-        const playerName = playerRow.playerName?.toLowerCase().trim()
+        const playerName = normalizePlayerName(playerRow.playerName)
         if (!playerName) return
 
         // Initialize player if not exists
@@ -483,11 +483,11 @@ function applyBoxScoreDelta(players, newContribution, oldContribution, year) {
   ])
 
   return players.map(player => {
-    const playerNameLower = player.name?.toLowerCase().trim()
-    if (!allPlayerNames.has(playerNameLower)) return player
+    const playerNameNormalized = normalizePlayerName(player.name)
+    if (!allPlayerNames.has(playerNameNormalized)) return player
 
-    const newStats = newContribution?.[playerNameLower] || {}
-    const oldStats = oldContribution?.[playerNameLower] || {}
+    const newStats = newContribution?.[playerNameNormalized] || {}
+    const oldStats = oldContribution?.[playerNameNormalized] || {}
 
     const existingStatsByYear = player.statsByYear || {}
     const existingYearStats = { ...(existingStatsByYear[yearNum] || {}) }

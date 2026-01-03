@@ -12,10 +12,15 @@
 
 import { getAbbreviationFromDisplayName, teamAbbreviations } from '../data/teamAbbreviations'
 
-// Normalize player name for comparison
+// Normalize player name for comparison - handles whitespace, case, and special characters
 export const normalizePlayerName = (name) => {
   if (!name) return ''
-  return name.trim().toLowerCase()
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')        // Collapse multiple spaces to single space
+    .replace(/['']/g, "'")       // Normalize curly apostrophes to straight
+    .replace(/[""]/g, '"')       // Normalize curly quotes to straight
 }
 
 // Normalize team to uppercase abbreviation for comparison
