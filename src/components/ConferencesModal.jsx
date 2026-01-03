@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getCustomConferencesForYear } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
@@ -84,30 +84,48 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Get all years' custom conferences data
-  const getAllConferencesByYear = () => {
-    const byYear = currentDynasty?.customConferencesByYear
-    if (byYear && Object.keys(byYear).length > 0) {
-      return byYear
-    }
-    // Legacy: if only customConferences exists, use it for current year
-    if (currentDynasty?.customConferences) {
-      return { [currentDynasty.currentYear]: currentDynasty.customConferences }
-    }
-    return null
+  // Get conference data for sheet creation
+  // Uses getCustomConferencesForYear which walks back through years automatically
+  const getConferencesForSheet = () => {
+    const currentYear = currentDynasty?.currentYear
+    if (!currentYear) return null
+
+    // Get the effective conferences for the current year (may be inherited from previous year)
+    const effectiveConferences = getCustomConferencesForYear(currentDynasty, currentYear)
+    if (!effectiveConferences) return null
+
+    // Return as year-keyed object for sheet creation
+    // Include all historical years plus current year with effective data
+    const byYear = currentDynasty?.customConferencesByYear || {}
+    return { ...byYear, [currentYear]: effectiveConferences }
   }
 
-  const hasExistingConferences = !!getAllConferencesByYear()
+  const hasExistingConferences = !!getConferencesForSheet()
 
   // Create Conferences sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+        // Get saved conferences data
+        const conferencesByYear = getConferencesForSheet()
+
         // Check if we have an existing conferences sheet
         const existingSheetId = currentDynasty?.conferencesSheetId
         if (existingSheetId) {
-          setSheetId(existingSheetId)
-          return
+          // If we have saved custom conferences, delete old sheet and create fresh
+          // This ensures the sheet always reflects the latest saved data
+          if (conferencesByYear) {
+            try {
+              await deleteGoogleSheet(existingSheetId)
+              await updateDynasty(currentDynasty.id, { conferencesSheetId: null, conferencesSheetUrl: null })
+            } catch (e) {
+              console.log('Could not delete old conferences sheet, creating new one anyway')
+            }
+          } else {
+            // No saved conferences, just use existing sheet
+            setSheetId(existingSheetId)
+            return
+          }
         }
 
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -115,7 +133,6 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
         setCreatingSheet(true)
         try {
           // Pass all years' custom conferences if available
-          const conferencesByYear = getAllConferencesByYear()
           const sheetInfo = await createConferencesSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentDynasty?.currentYear || new Date().getFullYear(),

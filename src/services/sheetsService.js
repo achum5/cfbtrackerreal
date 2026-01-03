@@ -4427,7 +4427,17 @@ export async function createConferencesSheet(dynastyName, currentYear, conferenc
     // Fixed 20 slots per conference (21 rows total with header)
     const maxTeams = 20
     const rowCount = maxTeams + 1 // +1 for header
-    const columnCount = Object.keys(DEFAULT_CONFERENCES).length
+
+    // Calculate column count from actual data (use max of all years' conference counts)
+    let maxConferences = Object.keys(DEFAULT_CONFERENCES).length
+    if (conferencesByYear) {
+      Object.values(conferencesByYear).forEach(yearData => {
+        if (yearData && typeof yearData === 'object') {
+          maxConferences = Math.max(maxConferences, Object.keys(yearData).length)
+        }
+      })
+    }
+    const columnCount = maxConferences
 
     // Create sheet definitions for each year
     const sheetDefinitions = years.map((year, index) => ({
@@ -4466,10 +4476,21 @@ export async function createConferencesSheet(dynastyName, currentYear, conferenc
     const spreadsheet = await response.json()
 
     // Initialize each year's tab with its conference data
+    // Find the most recent year with saved data to use as fallback
+    const savedYears = conferencesByYear ? Object.keys(conferencesByYear).map(Number).sort((a, b) => b - a) : []
+
     for (let i = 0; i < years.length; i++) {
       const year = years[i]
       const sheetId = spreadsheet.sheets[i].properties.sheetId
-      const conferencesData = conferencesByYear?.[year] || DEFAULT_CONFERENCES
+
+      // Use this year's data, or fall back to most recent previous year, or DEFAULT_CONFERENCES
+      let conferencesData = conferencesByYear?.[year]
+      if (!conferencesData) {
+        // Find the most recent year before this one that has data
+        const fallbackYear = savedYears.find(y => y < year) || savedYears[0]
+        conferencesData = (fallbackYear && conferencesByYear?.[fallbackYear]) || DEFAULT_CONFERENCES
+      }
+
       const sortedConferences = Object.keys(conferencesData).sort()
 
       await initializeConferencesSheet(spreadsheet.spreadsheetId, accessToken, sheetId, sortedConferences, maxTeams, conferencesData)
@@ -4812,7 +4833,7 @@ export async function readConferencesFromSheet(spreadsheetId) {
       if (sheetTitles.includes('Conferences')) {
         // Legacy single-tab format - read it and return without year key
         const response = await fetch(
-          `${SHEETS_API_BASE}/${spreadsheetId}/values/Conferences!A1:K21`,
+          `${SHEETS_API_BASE}/${spreadsheetId}/values/Conferences!A1:Z21`,
           {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
@@ -4837,8 +4858,9 @@ export async function readConferencesFromSheet(spreadsheetId) {
     const conferencesByYear = {}
 
     for (const yearTab of yearTabs) {
+      // Read up to 26 columns (A-Z) to handle any number of conferences
       const response = await fetch(
-        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${yearTab}'!A1:K21`,
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${yearTab}'!A1:Z21`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,

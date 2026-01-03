@@ -10,7 +10,7 @@ import {
   deleteGoogleSheet,
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, isPlayerOnRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { getAbbreviationFromDisplayName } from '../data/teamAbbreviations'
 
@@ -83,27 +83,13 @@ export default function BoxScoreSheetModal({
   }
 
   // Get roster for player dropdowns (only for user's team)
+  // Uses unified isPlayerOnRoster for consistent filtering across all components
   const roster = useMemo(() => {
     if (!currentDynasty?.players) return []
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
     const currentYear = currentDynasty.currentYear
-    const yearKey = String(currentYear)
     return currentDynasty.players
-      .filter(p => {
-        // Exclude players who left (unless they have teamsByYear showing they returned)
-        if (p.leftTeam) {
-          // Check if they returned via teamsByYear
-          const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[currentYear]
-          if (teamForYear !== teamAbbr) return false
-        }
-        // PRIMARY CHECK: If player has teamsByYear record for this year, use it
-        const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[currentYear]
-        if (teamForYear !== undefined) {
-          return teamForYear === teamAbbr
-        }
-        // FALLBACK: Use team field
-        return p.team === teamAbbr
-      })
+      .filter(p => isPlayerOnRoster(p, teamAbbr, currentYear))
       .map(p => p.name)
       .sort()
   }, [currentDynasty?.players, currentDynasty?.teamName, currentDynasty?.currentYear])

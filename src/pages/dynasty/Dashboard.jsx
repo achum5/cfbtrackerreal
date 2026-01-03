@@ -238,7 +238,6 @@ export default function Dashboard() {
   const [showCFPQuarterfinalsModal, setShowCFPQuarterfinalsModal] = useState(false)
   const [showCFPSemifinalsModal, setShowCFPSemifinalsModal] = useState(false)
   const [showCFPChampionshipModal, setShowCFPChampionshipModal] = useState(false)
-  const [showConferencesModal, setShowConferencesModal] = useState(false)
   const [showStatsEntryModal, setShowStatsEntryModal] = useState(false)
   const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
   const [showConferenceStandingsModal, setShowConferenceStandingsModal] = useState(false)
@@ -977,7 +976,7 @@ export default function Dashboard() {
   }
 
   // Handle players leaving data save (Offseason)
-  // Uses new pendingDeparture field instead of legacy leavingYear/leavingReason
+  // CLEAN SYSTEM: Only uses playersLeavingByYear and movements - no player-level departure fields
   const handlePlayersLeavingSave = async (playersLeaving) => {
     const year = currentDynasty.currentYear
 
@@ -991,41 +990,81 @@ export default function Dashboard() {
       }
     })
 
-    // Set pendingDeparture on player records
+    // Track which players are now leaving vs were previously leaving
     const leavingPids = new Set(playersWithPids.map(p => p.pid).filter(Boolean))
     const reasonByPid = {}
     playersWithPids.forEach(p => {
       if (p.pid) reasonByPid[p.pid] = p.reason
     })
 
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+
+    // Get previous list to detect removals
+    const previousLeavingPids = new Set(
+      (currentDynasty.playersLeavingByYear?.[year] || [])
+        .map(p => p.pid)
+        .filter(Boolean)
+    )
+
     const updatedPlayers = (currentDynasty.players || []).map(player => {
       if (leavingPids.has(player.pid)) {
-        // Mark player as leaving with pendingDeparture
-        return {
-          ...player,
-          pendingDeparture: {
-            year: Number(year),
-            reason: reasonByPid[player.pid] || 'Unknown',
-            destination: null // Set later via Transfer Destinations task
-          },
-          // Keep legacy fields for backwards compatibility during migration
-          leavingYear: year,
-          leavingReason: reasonByPid[player.pid] || null
+        const reason = reasonByPid[player.pid] || 'Unknown'
+        const isTransfer = reason === 'Transfer' || reason === 'Encouraged Transfer'
+        const isDeparture = reason === 'Graduating' || reason === 'Pro Draft'
+        const playerTeam = player.team || teamAbbr
+
+        // Check if player was already marked as leaving (don't duplicate movement)
+        const alreadyHasMovement = (player.movements || []).some(m =>
+          m.year === Number(year) && (m.type === 'entered_portal' || m.type === 'departure')
+        )
+
+        if (alreadyHasMovement) {
+          return player // Already processed
         }
-      } else if (player.pendingDeparture?.year === Number(year) || player.leavingYear === year) {
-        // Player was previously marked as leaving this year but is no longer in the list - clear it
+
+        // Create movement based on reason (for display/history only)
+        let newMovement = null
+        if (isTransfer) {
+          newMovement = {
+            year: Number(year),
+            type: 'entered_portal',
+            from: playerTeam,
+            to: null,
+            reason: reason,
+            timestamp: Date.now()
+          }
+        } else if (isDeparture) {
+          newMovement = {
+            year: Number(year),
+            type: 'departure',
+            from: playerTeam,
+            to: null,
+            reason: reason,
+            timestamp: Date.now()
+          }
+        }
+
         return {
           ...player,
-          pendingDeparture: null,
-          leavingYear: null,
-          leavingReason: null,
-          transferredTo: null
+          movements: newMovement
+            ? [...(player.movements || []), newMovement]
+            : player.movements
+        }
+      } else if (previousLeavingPids.has(player.pid)) {
+        // Player was previously marked as leaving this year but is no longer in the list
+        // Remove any entered_portal or departure movement for this year
+        const filteredMovements = (player.movements || []).filter(m =>
+          !(m.year === Number(year) && (m.type === 'entered_portal' || m.type === 'departure'))
+        )
+        return {
+          ...player,
+          movements: filteredMovements
         }
       }
       return player
     })
 
-    // Keep legacy playersLeavingByYear for backwards compatibility
+    // playersLeavingByYear is the source of truth for who is leaving
     const existingByYear = currentDynasty.playersLeavingByYear || {}
     await updateDynasty(currentDynasty.id, {
       playersLeavingByYear: {
@@ -1062,7 +1101,7 @@ export default function Dashboard() {
   }
 
   // Handle transfer destinations save (Offseason - National Signing Day)
-  // Updates pendingDeparture.destination for players leaving via transfer
+  // CLEAN SYSTEM: Only updates teamsByYear and movements - no legacy departure fields
   const handleTransferDestinationsSave = async (destinations) => {
     // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
     const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
@@ -1080,25 +1119,56 @@ export default function Dashboard() {
       )
       if (playerIndex !== -1 && dest.newTeam) {
         const player = updatedPlayers[playerIndex]
-        // Save where they transferred FROM
         const oldTeam = player.team || teamAbbr
 
-        // Update pendingDeparture.destination (new system)
-        const updatedPendingDeparture = player.pendingDeparture
-          ? { ...player.pendingDeparture, destination: dest.newTeam }
-          : { year: Number(year), reason: 'Transfer', destination: dest.newTeam }
+        // Check if this is a RECOMMIT (destination = their current team)
+        const isRecommit = dest.newTeam === oldTeam || dest.newTeam === teamAbbr
 
-        // DON'T update player.team yet - that happens at departure finalization
-        // teamsByYear[nextYear] records their new team for roster filtering
-        updatedPlayers[playerIndex] = {
-          ...player,
-          pendingDeparture: updatedPendingDeparture,
-          // Keep legacy fields for backwards compatibility
-          transferredFrom: oldTeam,
-          transferredTo: dest.newTeam,
-          teamsByYear: {
-            ...(player.teamsByYear || {}),
-            [nextYear]: dest.newTeam
+        if (isRecommit) {
+          // Player recommitted - they're staying on the team!
+          const recommitMovement = {
+            year: Number(year),
+            type: 'recommit',
+            from: null,
+            to: oldTeam,
+            reason: 'Recommitted after entering portal',
+            timestamp: Date.now()
+          }
+
+          // Remove entered_portal movement for this year (they're not leaving anymore)
+          const filteredMovements = (player.movements || []).filter(m =>
+            !(m.year === Number(year) && m.type === 'entered_portal')
+          )
+
+          updatedPlayers[playerIndex] = {
+            ...player,
+            movements: [...filteredMovements, recommitMovement],
+            // Keep them on roster for next year
+            teamsByYear: {
+              ...(player.teamsByYear || {}),
+              [String(nextYear)]: oldTeam
+            }
+          }
+        } else {
+          // Normal transfer to another team
+          // Add transfer movement (for display/history)
+          const transferMovement = {
+            year: Number(year),
+            type: 'transfer',
+            from: oldTeam,
+            to: dest.newTeam,
+            timestamp: Date.now()
+          }
+
+          // Update teamsByYear to new team, update current team
+          updatedPlayers[playerIndex] = {
+            ...player,
+            team: dest.newTeam, // Update current team
+            movements: [...(player.movements || []), transferMovement],
+            teamsByYear: {
+              ...(player.teamsByYear || {}),
+              [String(nextYear)]: dest.newTeam
+            }
           }
         }
       }
@@ -1362,15 +1432,22 @@ export default function Dashboard() {
     // Track players who left (leftTeam: true) OR are pending departure
     const leftPlayersMap = new Map()
     const pendingDepartureMap = new Map()
+    // Get players leaving this year (from playersLeavingByYear)
+    const playersLeavingThisYear = currentDynasty.playersLeavingByYear?.[year] || []
+    const leavingPids = new Set(playersLeavingThisYear.map(p => p.pid).filter(Boolean))
+
     existingPlayers.forEach(p => {
       if (p.name) {
         const nameLower = p.name.toLowerCase().trim()
-        if (p.leftTeam) {
+        // Check if player has a departure movement (left the team)
+        const hasDepartureMovement = (p.movements || []).some(m =>
+          m.type === 'departure' || m.type === 'transfer'
+        )
+        if (hasDepartureMovement) {
           leftPlayersMap.set(nameLower, p)
         }
-        // Check ANY departure indicator: pendingDeparture, leavingYear, leavingReason, OR transferredTo
-        const isPendingDeparture = p.pendingDeparture || p.leavingYear || p.leavingReason || p.transferredTo
-        if (isPendingDeparture) {
+        // Check if player is pending departure (in playersLeavingByYear)
+        if (leavingPids.has(p.pid)) {
           pendingDepartureMap.set(nameLower, p)
         }
       }
@@ -1384,14 +1461,12 @@ export default function Dashboard() {
     }).map(recruit => {
       const nameLower = recruit.name.toLowerCase().trim()
       const existingPlayer = pendingDepartureMap.get(nameLower) || leftPlayersMap.get(nameLower)
-      const departureReason = existingPlayer?.pendingDeparture?.reason ||
-        existingPlayer?.leavingReason ||
-        existingPlayer?.leftReason ||
-        'Transfer'
-      const departureYear = existingPlayer?.pendingDeparture?.year ||
-        existingPlayer?.leavingYear ||
-        existingPlayer?.leftYear ||
-        year
+      // Get departure info from movements
+      const departureMovement = (existingPlayer?.movements || [])
+        .filter(m => m.type === 'departure' || m.type === 'transfer')
+        .sort((a, b) => (b.year || 0) - (a.year || 0))[0]
+      const departureReason = departureMovement?.reason || 'Transfer'
+      const departureYear = departureMovement?.year || year
       return { recruit, existingPlayer, departureReason, departureYear, currentTeamAbbr: teamAbbr }
     })
 
@@ -1435,19 +1510,26 @@ export default function Dashboard() {
       if (p.name) existingPlayerNames.add(p.name.toLowerCase().trim())
     })
 
-    // Track players who left (leftTeam: true) OR are pending departure
+    // Track players who left (have departure movement) OR are pending departure
     // Both can "return" via recruiting/signing day
     const leftPlayersMap = new Map()
     const pendingDepartureMap = new Map()
+    // Get players leaving this year (from playersLeavingByYear)
+    const playersLeavingList = currentDynasty.playersLeavingByYear?.[year] || []
+    const leavingPlayerPids = new Set(playersLeavingList.map(p => p.pid).filter(Boolean))
+
     existingPlayers.forEach(p => {
       if (p.name) {
         const nameLower = p.name.toLowerCase().trim()
-        if (p.leftTeam) {
+        // Check if player has a departure movement (left the team)
+        const hasDepartureMovement = (p.movements || []).some(m =>
+          m.type === 'departure' || m.type === 'transfer'
+        )
+        if (hasDepartureMovement) {
           leftPlayersMap.set(nameLower, p)
         }
-        // Check ANY departure indicator: pendingDeparture, leavingYear, leavingReason, OR transferredTo
-        const isPendingDeparture = p.pendingDeparture || p.leavingYear || p.leavingReason || p.transferredTo
-        if (isPendingDeparture) {
+        // Check if player is pending departure (in playersLeavingByYear)
+        if (leavingPlayerPids.has(p.pid)) {
           pendingDepartureMap.set(nameLower, p)
         }
       }
@@ -2337,20 +2419,6 @@ export default function Dashboard() {
                 action: () => setShowTeamRatingsModal(true),
                 actionText: teamPreseasonSetup?.teamRatingsEntered ? 'Edit' : 'Add Ratings'
               },
-              // Only show Custom Conferences in first year of dynasty (not in subsequent years)
-              ...(() => {
-                const isFirstYear = Number(currentDynasty.currentYear) === Number(currentDynasty.startYear)
-                const hasRoster = isFirstYear || currentDynasty.isFirstYearOnCurrentTeam
-                if (!isFirstYear) return []
-                return [{
-                  num: hasRoster ? 4 : 3,
-                  title: 'Custom Conferences',
-                  done: teamPreseasonSetup?.conferencesEntered,
-                  conferences: currentDynasty.customConferences,
-                  action: () => setShowConferencesModal(true),
-                  actionText: teamPreseasonSetup?.conferencesEntered ? 'Edit' : 'Set Up'
-                }]
-              })(),
               // Only show coaching staff task for Head Coaches in first year of dynasty
               // (or first year on a new team). After that, coordinators are managed
               // through offseason firing/hiring flow and carry over automatically.
@@ -2365,7 +2433,6 @@ export default function Dashboard() {
                 let num = 2 // After schedule
                 if (hasRoster) num++ // After roster
                 num++ // After team ratings
-                if (isFirstYear) num++ // After custom conferences
                 return [{
                   num,
                   title: 'Enter Coordinators',
@@ -2386,7 +2453,6 @@ export default function Dashboard() {
                 let num = 2 // After schedule
                 if (hasRoster) num++ // After roster
                 num++ // After team ratings
-                if (isFirstYear) num++ // After custom conferences
                 // Only add coordinator increment if coordinators task is shown (HC + first year or first year on team)
                 if (currentDynasty.coachPosition === 'HC' && (isFirstYear || isFirstYearOnTeam)) num++ // After coordinators
                 return {
@@ -7619,80 +7685,6 @@ export default function Dashboard() {
         teamColors={teamColors}
       />
 
-      {/* Conferences Modal */}
-      <ConferencesModal
-        isOpen={showConferencesModal}
-        onClose={() => setShowConferencesModal(false)}
-        onSave={async (data) => {
-          const isDev = import.meta.env.VITE_DEV_MODE === 'true'
-          const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
-          const year = currentDynasty.currentYear
-
-          // Check if data is multi-year format (keys are years like "2025", "2026")
-          const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
-
-          if (isDev || !user) {
-            // Dev mode - update both legacy and team-centric structures
-            const existingPreseasonSetupByTeamYear = currentDynasty.preseasonSetupByTeamYear || {}
-            const teamSetups = existingPreseasonSetupByTeamYear[teamAbbr] || {}
-            const currentSetup = teamSetups[year] || currentDynasty.preseasonSetup || {}
-            const existingByYear = currentDynasty.customConferencesByYear || {}
-
-            if (isMultiYear) {
-              await updateDynasty(currentDynasty.id, {
-                customConferencesByYear: { ...existingByYear, ...data },
-                customConferences: data[year] || currentDynasty.customConferences,
-                preseasonSetupByTeamYear: {
-                  ...existingPreseasonSetupByTeamYear,
-                  [teamAbbr]: {
-                    ...teamSetups,
-                    [year]: { ...currentSetup, conferencesEntered: true }
-                  }
-                },
-                preseasonSetup: { ...currentDynasty.preseasonSetup, conferencesEntered: true }
-              })
-            } else {
-              await updateDynasty(currentDynasty.id, {
-                customConferences: data,
-                customConferencesByYear: { ...existingByYear, [year]: data },
-                preseasonSetupByTeamYear: {
-                  ...existingPreseasonSetupByTeamYear,
-                  [teamAbbr]: {
-                    ...teamSetups,
-                    [year]: { ...currentSetup, conferencesEntered: true }
-                  }
-                },
-                preseasonSetup: { ...currentDynasty.preseasonSetup, conferencesEntered: true }
-              })
-            }
-          } else {
-            // Production mode - use dot notation
-            if (isMultiYear) {
-              const updates = {
-                [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
-                'preseasonSetup.conferencesEntered': true
-              }
-              // Save each year's conferences
-              Object.entries(data).forEach(([y, conferences]) => {
-                updates[`customConferencesByYear.${y}`] = conferences
-              })
-              if (data[year]) {
-                updates.customConferences = data[year]
-              }
-              await updateDynasty(currentDynasty.id, updates)
-            } else {
-              await updateDynasty(currentDynasty.id, {
-                customConferences: data,
-                [`customConferencesByYear.${year}`]: data,
-                [`preseasonSetupByTeamYear.${teamAbbr}.${year}.conferencesEntered`]: true,
-                'preseasonSetup.conferencesEntered': true
-              })
-            }
-          }
-        }}
-        teamColors={teamColors}
-      />
-
       {/* Stats Entry Modal (End of Season Recap) */}
       <StatsEntryModal
         isOpen={showStatsEntryModal}
@@ -8091,6 +8083,35 @@ export default function Dashboard() {
           const year = currentDynasty?.currentYear
           const isDev = import.meta.env.VITE_DEV_MODE === 'true'
 
+          // Update players with entered_portal movement and pending departure
+          const encouragedNames = new Set(transferPlayers.map(p => p.name?.toLowerCase().trim()).filter(Boolean))
+          const updatedPlayers = (currentDynasty?.players || []).map(player => {
+            const nameLower = player.name?.toLowerCase().trim()
+            if (encouragedNames.has(nameLower)) {
+              // Add entered_portal movement
+              const portalMovement = {
+                year: Number(year),
+                type: 'entered_portal',
+                from: player.team || teamAbbr,
+                to: null,
+                reason: 'Encouraged Transfer',
+                timestamp: Date.now()
+              }
+              return {
+                ...player,
+                pendingDeparture: {
+                  year: Number(year),
+                  reason: 'Encouraged Transfer',
+                  destination: null
+                },
+                leavingYear: year,
+                leavingReason: 'Encouraged Transfer',
+                movements: [...(player.movements || []), portalMovement]
+              }
+            }
+            return player
+          })
+
           if (isDev || !user) {
             // Dev mode - store encouraged transfers using team-centric pattern
             const existingByTeamYear = currentDynasty?.encourageTransfersByTeamYear || {}
@@ -8102,12 +8123,14 @@ export default function Dashboard() {
                   ...teamTransfers,
                   [year]: transferPlayers
                 }
-              }
+              },
+              players: updatedPlayers
             })
           } else {
             // Production mode - use dot notation for Firestore
             await updateDynasty(currentDynasty.id, {
-              [`encourageTransfersByTeamYear.${teamAbbr}.${year}`]: transferPlayers
+              [`encourageTransfersByTeamYear.${teamAbbr}.${year}`]: transferPlayers,
+              players: updatedPlayers
             })
           }
         }}

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType } from '../../context/DynastyContext'
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -977,86 +977,10 @@ export default function TeamYear() {
   ).sort((a, b) => (a.round || 0) - (b.round || 0))
 
   // Find players associated with this team for the selected year
-  // PRIMARY: Use teamsByYear[year] - explicit, immutable record of roster membership
-  // FALLBACK: Use old calculation logic for backwards compatibility
-  const teamPlayers = (currentDynasty.players || []).filter(p => {
-    // Exclude honor-only players (players only in system for awards, not on actual roster)
-    if (p.isHonorOnly) return false
-
-    // UNIVERSAL CHECK: If player has leftTeam=true, exclude from future years
-    // Use Number() to handle string/number type mismatch
-    if (p.leftTeam) {
-      // If leftYear is set, exclude from years AFTER that year
-      // If leftYear is NOT set, exclude from current year onwards (they left at some point)
-      const leftYear = p.leftYear ? Number(p.leftYear) : Number(currentDynasty.currentYear) - 1
-      if (Number(selectedYear) > leftYear) return false
-    }
-
-    // UNIVERSAL CHECK: If player has leavingYear/leavingReason set (pending departure),
-    // exclude from years AFTER the leaving year (handles case where advanceToNewSeason hasn't run yet)
-    if (p.leavingYear && p.leavingReason && Number(selectedYear) > Number(p.leavingYear)) return false
-
-    // UNIVERSAL CHECK: If player has transferredTo set (pending transfer destination),
-    // exclude from years AFTER the leaving year (they're transferring away)
-    if (p.transferredTo) {
-      const departureYear = p.leavingYear || currentDynasty.currentYear
-      if (Number(selectedYear) > Number(departureYear)) return false
-    }
-
-    // UNIVERSAL CHECK: If player's current team field is set to a DIFFERENT team,
-    // they've transferred away - DON'T trust teamsByYear for current year (it may be corrupted)
-    if (p.team && p.team !== teamAbbr) {
-      // For HISTORICAL years (before current year), trust teamsByYear if it says they were here
-      if (Number(selectedYear) < Number(currentDynasty.currentYear)) {
-        // Only show if teamsByYear explicitly says they were on this team that year
-        if (p.teamsByYear?.[selectedYear] === teamAbbr) {
-          // Let it pass through to the teamsByYear check below
-        } else {
-          return false
-        }
-      } else {
-        // For CURRENT year onwards, they're on a different team - exclude regardless of teamsByYear
-        return false
-      }
-    }
-
-    // PRIMARY CHECK: If player has teamsByYear record for this year, use it (AUTHORITATIVE)
-    // This check must come FIRST before isRecruit - teamsByYear is the source of truth
-    // Check both numeric and string keys to handle any data format
-    const yearKey = String(selectedYear)
-    const numKey = Number(selectedYear)
-    const teamForYear = p.teamsByYear?.[yearKey] ?? p.teamsByYear?.[numKey]
-
-    if (teamForYear !== undefined) {
-      // Player has explicit roster membership for this year - trust it completely
-      return teamForYear === teamAbbr
-    }
-
-    // Exclude recruits who don't have explicit teamsByYear entry
-    // (they haven't enrolled yet - show on recruiting page instead)
-    if (p.isRecruit) return false
-
-    // FALLBACK: Use old calculation logic for backwards compatibility with existing data
-    // CRITICAL: If player has a recruitYear, they should NOT appear on rosters for that year or earlier
-    // Use Number() for all year comparisons to handle string/number type mismatch
-    const numSelectedYear = Number(selectedYear)
-    if (p.recruitYear && numSelectedYear <= Number(p.recruitYear)) return false
-
-    // Check if player belongs to this team (by team field or legacy logic)
-    const playerTeam = p.team
-    const belongsToThisTeam = playerTeam === teamAbbr ||
-      (!playerTeam && isUserTeam && getAbbreviationFromDisplayName(currentDynasty.teamName) === teamAbbr)
-
-    if (belongsToThisTeam) {
-      const playerStartYear = p.recruitYear ? (Number(p.recruitYear) + 1) : (Number(p.yearStarted) || Number(currentDynasty.startYear))
-      const playerEndYear = p.leftTeam ? (Number(p.leftYear) || Number(currentDynasty.currentYear)) : (Number(p.yearDeparted) || Number(currentDynasty.currentYear))
-      // leftTeam check already handled by universal check at top of filter
-      return numSelectedYear >= playerStartYear && numSelectedYear <= playerEndYear
-    }
-
-    // For other teams, also show players who transferred from this team
-    return p.previousTeam === teamAbbr || p.previousTeam === mascotName
-  })
+  // Uses the unified isPlayerOnRoster() helper - teamsByYear is the source of truth
+  const teamPlayers = (currentDynasty.players || []).filter(p =>
+    isPlayerOnRoster(p, teamAbbr, selectedYear)
+  )
 
   // Calculate vs user record
   const vsUserWins = vsUserGames.filter(g => g.result === 'W').length

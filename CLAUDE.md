@@ -82,7 +82,7 @@ All implemented in `DynastyContext.jsx` with helper functions:
 | Data | Storage | Helper |
 |------|---------|--------|
 | Schedule | `schedulesByTeamYear[team][year]` | `getCurrentSchedule()` |
-| Roster | `players[]` with `team` field | `getCurrentRoster()` |
+| Roster | `players[]` with `teamsByYear` | `getCurrentRoster()` |
 | PreseasonSetup | `preseasonSetupByTeamYear[team][year]` | `getCurrentPreseasonSetup()` |
 | TeamRatings | `teamRatingsByTeamYear[team][year]` | `getCurrentTeamRatings()` |
 | CoachingStaff | `coachingStaffByTeamYear[team][year]` | `getCurrentCoachingStaff()` |
@@ -100,6 +100,38 @@ All implemented in `DynastyContext.jsx` with helper functions:
 - `conferenceChampionshipDataByYear[year]` - CC week answers (madeChampionship, opponent, pendingFiring)
 - `bowlEligibilityDataByYear[year]` - Bowl eligibility answers
 - `cfpResultsByYear[year]` - CFP game results (firstRound, quarterfinals, semifinals, championship)
+
+### Custom Conference Alignment
+
+Conference data uses automatic year-based inheritance:
+
+```javascript
+dynasty = {
+  // Primary storage - by year (only stored when user edits)
+  customConferencesByYear: {
+    2025: { "ACC": [...], "Big Ten": [...], ... },
+    // 2026, 2027 not stored = inherit from 2025
+    2028: { "ACC": [...], ... }  // Only stored if user edited
+  },
+  // Legacy field - kept updated for backwards compatibility
+  customConferences: { ... }
+}
+```
+
+**Key behavior:**
+- If user doesn't touch conferences, they automatically inherit from previous year
+- `getCustomConferencesForYear(dynasty, year)` walks back through years to find most recent data
+- Only stores data for years where user actually made changes
+- `getCurrentCustomConferences(dynasty)` - Get conferences for current year (with fallback)
+
+**Helper functions** (in DynastyContext.jsx):
+- `getCustomConferencesForYear(dynasty, year)` - Get conferences for specific year, walks back if not found
+- `getCurrentCustomConferences(dynasty)` - Get conferences for current year
+- `getTeamConferenceForDynasty(dynasty, teamAbbr, year)` - Get a team's conference
+
+**Default conferences** defined in:
+- `src/data/conferenceTeams.js` - Used when no custom conferences exist
+- `src/services/sheetsService.js` - DEFAULT_CONFERENCES for Google Sheets
 
 ### Phase System
 
@@ -145,24 +177,47 @@ All implemented in `DynastyContext.jsx` with helper functions:
 
 ## Player Data Architecture
 
-### Player teamsByYear (Roster Membership Tracking)
+### teamsByYear - THE Source of Truth for Roster Membership
 
-Each player has a `teamsByYear` object tracking which team they were on each season:
+**`teamsByYear` is the ONLY field that determines roster membership.** All other fields (`isRecruit`, legacy departure fields, etc.) are ignored for roster filtering.
+
 ```javascript
 player.teamsByYear = { 2025: 'UT', 2026: 'UT', 2027: 'MICH' }
 ```
 
 **Used for**:
-- Roster filtering on TeamYear.jsx (PRIMARY check)
+- Roster filtering via `isPlayerOnRoster()` - THE ONLY CHECK
 - Stats table team display per year (Player.jsx)
+- Career Timeline display (Player.jsx)
 - Historical roster accuracy when coaches change teams
-- Box score stats filtering - Only aggregates stats for years player was on user's team (prevents opponent stats from showing)
 
 **Updated automatically in**:
-- `saveRoster()` - Sets teamsByYear[year] = teamAbbr
-- `advanceToNewSeason()` - Adds next year for continuing players
-- `handleTransferDestinationsSave()` - Sets teamsByYear[nextYear] = destination team
-- Recruit creation - Sets teamsByYear for enrollment year
+- `saveRoster()` - Sets `teamsByYear[year] = teamAbbr`
+- Class progression (Signing Day) - Sets `teamsByYear[nextYear]` for continuing players
+- `advanceToNewSeason()` - Sets `teamsByYear[currentYear]` for all active players
+- `handleTransferDestinationsSave()` - Sets `teamsByYear[nextYear] = destination`
+- Recruit creation - Sets `teamsByYear[enrollmentYear] = team`
+
+### Unified Roster Membership Check - `isPlayerOnRoster()`
+
+**ALWAYS use `isPlayerOnRoster(player, teamAbbr, year)` for roster filtering.**
+
+```javascript
+import { isPlayerOnRoster } from '../context/DynastyContext'
+
+// Filter players for a specific team/year
+const rosterPlayers = players.filter(p => isPlayerOnRoster(p, teamAbbr, year))
+```
+
+**The function is simple**:
+```javascript
+function isPlayerOnRoster(player, teamAbbr, year) {
+  if (player.isHonorOnly) return false
+  return player.teamsByYear?.[year] === teamAbbr
+}
+```
+
+That's it. No `isRecruit` checks, no legacy field checks. If `teamsByYear[year] === team`, they're on the roster.
 
 ### Player classByYear (Class History Tracking)
 
@@ -180,94 +235,43 @@ player.classByYear = { 2025: 'Fr', 2026: 'So', 2027: 'RS So' }
 - `advanceWeek()` - Sets classByYear during Signing Day class progression (offseason week 5→6)
 - `advanceToNewSeason()` - Sets classByYear for recruit conversion and adds tracking for continuing players
 
-### Player Movements System (BBGM-Inspired)
+### Player Movements System (Display Only)
 
-The player movement system tracks all roster changes through two fields:
+The `movements[]` array tracks career history for DISPLAY purposes only. It does NOT affect roster membership.
 
-**1. `player.movements[]`** - Historical movement log (immutable):
 ```javascript
 player.movements = [
-  { year: 2025, type: 'recruited', from: null, to: 'UT', timestamp: ... },
-  { year: 2027, type: 'transfer', from: 'UT', to: 'MICH', reason: 'Transfer', timestamp: ... }
+  { year: 2025, type: 'recruited', from: null, to: 'UT' },
+  { year: 2027, type: 'entered_portal', from: 'UT', to: null, reason: 'Transfer' },
+  { year: 2027, type: 'recommit', from: null, to: 'UT', reason: 'Returned from portal' }
 ]
 ```
 
 **Movement Types** (`MOVEMENT_TYPES` in DynastyContext.jsx):
-| Type | When | From | To |
-|------|------|------|-----|
-| `recruited` | HS/JUCO signs | `null` | team |
-| `portal_in` | Portal transfer commits | prev team | team |
-| `transfer` | Player transfers away | team | new team |
-| `departure` | Graduating/Pro Draft | team | `null` |
-| `added` | Manual roster add | `null` | team |
-| `removed` | Manual roster delete | team | `null` |
-| `recommit` | Was leaving, came back | team | team |
+| Type | When | Description |
+|------|------|-------------|
+| `recruited` | HS/JUCO signs | Player recruited to team |
+| `portal_in` | Portal transfer commits | Transfer portal player joins |
+| `entered_portal` | Player enters portal | Player leaving via transfer |
+| `transfer` | Transfer finalized | Player moved to new team |
+| `departure` | Graduating/Pro Draft | Player leaves (no destination) |
+| `added` | Manual roster add | Added via editor |
+| `removed` | Manual roster delete | Removed via editor |
+| `recommit` | Was leaving, came back | Returned after entering portal |
 
-**2. `player.pendingDeparture`** - Pending departure (cleared at finalization):
-```javascript
-player.pendingDeparture = {
-  year: 2026,           // Season they last played
-  reason: 'Transfer',   // or 'Graduating', 'Pro Draft'
-  destination: 'MICH'   // null for graduating/pro draft
-}
-```
+**Career Timeline** (Player.jsx) is built from `teamsByYear` as source of truth, with `movements[]` providing context for how/why team changes happened.
 
-**Departure Workflow**:
-1. **Offseason Week 1**: User marks players leaving → `pendingDeparture` set
-2. **Offseason Week 6**: User sets transfer destinations → `pendingDeparture.destination` updated
-3. **Week 6→7 transition**: Departures finalized → movement created, `pendingDeparture` cleared
+### Player Lifecycle Through Offseason
 
-**Helper Functions**:
-- `createMovement(year, type, from, to, reason, extra)` - Create movement entry
-- `getPlayersLeaving(dynasty, year)` - Get players with pendingDeparture for year
-- `hasPlayerTransferredAway(player, fromTeam)` - Check if player transferred from team
-
-### Legacy Transfer Fields (Backwards Compatibility)
-
-These fields are still updated for backwards compatibility but will be deprecated:
-- `previousTeam` / `isPortal` - Incoming portal recruits
-- `transferredTo` / `transferredFrom` - Outgoing transfers
-- `leftTeam` / `leftYear` / `leftReason` - Finalized departure
-- `leavingYear` / `leavingReason` - Pending departure (use `pendingDeparture` instead)
-
-### Returning Player Detection
-
-When a recruit matches a player who left or has `pendingDeparture`:
-- System detects match by name
-- Clears `pendingDeparture` and legacy departure fields
-- Adds `recommit` movement to track they came back
-- Preserves all player data (stats, history, etc.)
-
-### Unified Roster Membership Check - `isPlayerOnRoster()`
-
-**ALWAYS use `isPlayerOnRoster(player, teamAbbr, year)` for roster filtering.** This is the single source of truth exported from DynastyContext.jsx.
-
-```javascript
-import { isPlayerOnRoster } from '../context/DynastyContext'
-
-// Filter players for a specific team/year
-const rosterPlayers = players.filter(p => isPlayerOnRoster(p, teamAbbr, year))
-```
-
-**The function checks (BBGM-inspired, simplified)**:
-1. Excludes `isHonorOnly` players
-2. Excludes `isRecruit` players (not yet enrolled)
-3. Excludes players with `recruitYear >= year` (haven't enrolled yet)
-4. **PRIMARY**: Uses `teamsByYear[year]` as the source of truth (like BBGM's stats[].tid)
-5. FALLBACK: Checks `pendingDeparture` and legacy fields for unmigrated data
-
-### Roster Data Migration
-
-The `migrateRosterData()` function runs automatically on dynasty load (flag: `_rosterMigratedV3`):
-1. **Removes future years** from `teamsByYear` for players who have left
-2. **Backfills current year** in `teamsByYear` for active players who are missing it (fixes Signing Day bugs)
-
-### Movements System Migration
-
-The `migrateToMovementsSystem()` function runs automatically on dynasty load (flag: `_movementsMigrated`):
-1. **Creates `movements[]`** for each player from legacy fields (recruitYear, leftTeam, etc.)
-2. **Converts `leavingYear`/`leavingReason`** to `pendingDeparture`
-3. **Preserves all existing data** - legacy fields kept for backwards compatibility
+| Player Type | Week 1 (Leaving) | Week 6 (Signing Day) | Week 8 (advanceToNewSeason) | Result |
+|-------------|------------------|----------------------|----------------------------|--------|
+| **Normal returning** | - | Gets `teamsByYear[newYear]` | Confirmed | On roster |
+| **New HS recruit** | - | Created with `teamsByYear[newYear]` | `isRecruit: false` | On roster |
+| **Portal transfer in** | - | Created with `teamsByYear[newYear]` | `isRecruit: false` | On roster |
+| **Graduating** | Added to leaving list | Skipped | No `teamsByYear[newYear]` | NOT on roster |
+| **Pro Draft** | Added to leaving list | Skipped | No `teamsByYear[newYear]` | NOT on roster |
+| **Transfer out** | Added to leaving list | Gets `teamsByYear[newYear] = newTeam` | On new team | NOT on old roster |
+| **Recommit** | Added to leaving list | Gets `teamsByYear[newYear] = sameTeam` | `isRecruit: false` | On roster |
 
 ### Class Progression
 
@@ -294,7 +298,7 @@ The `migrateToMovementsSystem()` function runs automatically on dynasty load (fl
 
 ### Player statsByYear (Stats Storage) - SINGLE SOURCE OF TRUTH
 
-**All stats are now stored ONLY in `player.statsByYear`**. Legacy dynasty-level structures (`dynasty.playerStatsByYear`, `dynasty.detailedStatsByYear`) are deprecated and automatically migrated.
+**All stats are stored ONLY in `player.statsByYear`**. Stats display is based purely on whether data exists - no `isRecruit` or other flag checks.
 
 ```javascript
 player.statsByYear = {
@@ -322,18 +326,7 @@ player.statsByYear = {
 
 **Reading stats** (in Player.jsx, TeamStats.jsx, DynastyRecords.jsx):
 - Read ONLY from `player.statsByYear[year]` - NO box score fallbacks
-- All components use the same single source of truth
-
-**Delta tracking functions** (DynastyContext.jsx):
-- `extractBoxScoreContribution(boxScore)` - Extracts stats contribution from a box score
-- `applyBoxScoreDelta(players, newContribution, oldContribution, year)` - Applies delta to player stats
-- `processBoxScoreSave(players, newBoxScore, oldContribution, year)` - Handles save/edit with delta tracking
-- `processBoxScoreDelete(players, oldContribution, year)` - Subtracts stats on game deletion
-
-**Legacy migration**:
-- `migrateLegacyStats()` runs once per dynasty on load
-- Migrates `dynasty.playerStatsByYear` and `dynasty.detailedStatsByYear` to each player's `statsByYear`
-- Sets `dynasty._statsMigrated = true` when complete
+- Stats display if data exists (no `isRecruit` check)
 
 **Stats Entry Workflow** (TeamStats.jsx):
 1. **GP/Snaps Entry** (StatsEntryModal) - Enter games played and snaps for entire roster

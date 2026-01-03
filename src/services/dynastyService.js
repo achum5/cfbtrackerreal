@@ -86,6 +86,7 @@ export async function createDynasty(userId, dynastyData) {
 export async function updateDynasty(dynastyId, updates) {
   try {
     const docRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+
     await updateDoc(docRef, {
       ...updates,
       updatedAt: serverTimestamp()

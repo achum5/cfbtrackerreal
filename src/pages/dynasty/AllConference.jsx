@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useDynasty } from '../../context/DynastyContext'
+import { useDynasty, getCurrentCustomConferences } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { teamAbbreviations, getAbbreviationFromDisplayName } from '../../data/teamAbbreviations'
@@ -196,18 +196,21 @@ export default function AllConference() {
   const userTeamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName)
   const userConference = getTeamConference(userTeamAbbr) || 'SEC'
 
+  // Get custom conferences using helper (handles year-based fallback)
+  const customConferences = getCurrentCustomConferences(currentDynasty)
+
   // Get list of available conferences - use custom conferences if available, otherwise defaults
   const availableConferences = useMemo(() => {
-    if (currentDynasty.customConferences && Object.keys(currentDynasty.customConferences).length > 0) {
-      return Object.keys(currentDynasty.customConferences).sort()
+    if (customConferences && Object.keys(customConferences).length > 0) {
+      return Object.keys(customConferences).sort()
     }
     return getAllConferences().sort()
-  }, [currentDynasty.customConferences])
+  }, [customConferences])
 
   // Get the current conference alignment for team lookup
   const getConferenceTeams = (conf) => {
-    if (currentDynasty.customConferences && currentDynasty.customConferences[conf]) {
-      return currentDynasty.customConferences[conf]
+    if (customConferences && customConferences[conf]) {
+      return customConferences[conf]
     }
     return conferenceTeams[conf] || []
   }

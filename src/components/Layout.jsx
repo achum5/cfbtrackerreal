@@ -47,10 +47,10 @@ export default function Layout({ children }) {
   const viewedPlayer = viewedPlayerPid && currentDynasty?.players
     ? currentDynasty.players.find(p => p.pid === viewedPlayerPid)
     : null
-  // For honor-only players, transferred players, or players with a different team, use their team
-  // If player has transferredTo, use that as their current team
+  // For honor-only players or players with a different team, use their team
+  // Player's team field is always kept current (updated on transfer)
   const playerTeamAbbr = viewedPlayer
-    ? (viewedPlayer.transferredTo || (viewedPlayer.isHonorOnly ? (viewedPlayer.team || viewedPlayer.teams?.[0]) : null))
+    ? (viewedPlayer.isHonorOnly ? (viewedPlayer.team || viewedPlayer.teams?.[0]) : viewedPlayer.team)
     : null
   const playerTeamInfo = playerTeamAbbr ? teamAbbreviations[playerTeamAbbr] : null
   const isPlayerPageWithDifferentTeam = !!playerTeamInfo

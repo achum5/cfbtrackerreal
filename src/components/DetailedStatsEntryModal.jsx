@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, isPlayerOnRoster } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import AuthErrorModal from './AuthErrorModal'
 import SheetToolbar from './SheetToolbar'
@@ -141,31 +141,9 @@ export default function DetailedStatsEntryModal({
 
           // Get the full roster for this team and year
           const allPlayers = currentDynasty?.players || []
-          const currentRoster = allPlayers.filter(player => {
-            // Exclude honor-only players
-            if (player.isHonorOnly) return false
-
-            // PRIMARY CHECK: If player has teamsByYear record for this year, use it
-            const yearKey = String(currentYear)
-            const numKey = Number(currentYear)
-            const teamForYear = player.teamsByYear?.[yearKey] ?? player.teamsByYear?.[numKey]
-
-            if (teamForYear !== undefined) {
-              return teamForYear === userTeamAbbr
-            }
-
-            // Exclude recruits who don't have explicit teamsByYear entry
-            if (player.isRecruit) return false
-
-            // FALLBACK: Legacy logic for backwards compatibility
-            if (player.recruitYear && currentYear <= player.recruitYear) return false
-            if (player.team !== userTeamAbbr) return false
-
-            const playerStartYear = player.recruitYear ? (player.recruitYear + 1) : (player.yearStarted || startYear)
-            if (player.leftTeam && currentYear > player.leftYear) return false
-
-            return currentYear >= playerStartYear
-          })
+          const currentRoster = allPlayers.filter(player =>
+            isPlayerOnRoster(player, userTeamAbbr, currentYear)
+          )
 
           // Get existing stats to pre-fill gamesPlayed/snapsPlayed
           // Check player.statsByYear first, then fall back to box score aggregation

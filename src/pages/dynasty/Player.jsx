@@ -210,23 +210,24 @@ export default function Player() {
     : currentDynasty
   const player = dynasty?.players?.find(p => p.pid === parseInt(pid))
 
-  // Determine the player's team from their team field
-  // For players who transferred out, use their destination team (transferredTo)
-  // If transferredTo is set, they've transferred - show their new team
-  // Falls back to dynasty.teamName only for legacy players without a team field
-  const hasTransferredOut = !!player?.transferredTo
-  const playerTeamAbbr = hasTransferredOut
-    ? player.transferredTo  // Player transferred to a new team - show their new team
-    : (player?.team
-      || player?.teams?.[0]
-      || getAbbreviationFromDisplayName(dynasty?.teamName)
-      || '')
+  // Get departure/transfer info from movements[] array
+  // Find the most recent departure or transfer movement
+  const departureMovement = (player?.movements || [])
+    .filter(m => m.type === 'departure' || m.type === 'transfer')
+    .sort((a, b) => (b.year || 0) - (a.year || 0))[0]
+
+  // Determine if player has transferred out (to another team)
+  const hasTransferredOut = departureMovement?.type === 'transfer' && departureMovement?.to
+
+  // Determine the player's team - use their team field (which gets updated on transfer)
+  const playerTeamAbbr = player?.team
+    || player?.teams?.[0]
+    || getAbbreviationFromDisplayName(dynasty?.teamName)
+    || ''
 
   // For outgoing transfers, get the team they transferred FROM
-  // Use transferredFrom (new field) first, then fall back to player.team (legacy)
-  // Do NOT use previousTeam - that's for incoming portal recruits (where they originally came from)
   const transferredFromTeam = hasTransferredOut
-    ? (player?.transferredFrom || player?.team)
+    ? departureMovement?.from
     : null
 
   // Get the full team name from the abbreviation
@@ -628,10 +629,8 @@ export default function Player() {
   }
 
   // Check if player has any meaningful stats (non-zero games or any stat category with data)
-  // Recruits never show stats - they haven't enrolled yet
-  const hasMeaningfulStats = !player.isRecruit && (
-    careerGames > 0 || careerSnaps > 0 || Object.values(hasStats).some(v => v)
-  )
+  // Stats display is purely based on whether data exists in statsByYear - no other checks
+  const hasMeaningfulStats = careerGames > 0 || careerSnaps > 0 || Object.values(hasStats).some(v => v)
 
   // Get recruitment info - check player object first, then recruiting commitments
   const getRecruitmentInfo = () => {
@@ -775,47 +774,37 @@ export default function Player() {
                 Commitment
               </span>
             )}
-            {player.leftTeam && (
-              <span
-                className="px-2 py-0.5 rounded-full text-xs font-bold"
-                style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
-              >
-                {player.leftReason === 'Pro Draft' && player.draftRound
-                  ? `${player.leftYear} NFL Draft - ${player.draftRound}`
-                  : player.leftReason === 'Pro Draft'
-                  ? `${player.leftYear} NFL Draft`
-                  : player.leftReason === 'Graduating'
-                  ? `Graduated (${player.leftYear})`
-                  : player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
-                  ? `Transferred (${player.leftYear})`
-                  : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
-                     'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
-                     'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
-                     'Athletic Facilities'].includes(player.leftReason)
-                  ? `Transfer: ${player.leftReason} (${player.leftYear})`
-                  : player.leftReason
-                  ? `${player.leftReason} (${player.leftYear})`
-                  : `Left Team (${player.leftYear})`}
-              </span>
-            )}
-            {/* Pending departure - player marked as leaving but advanceToNewSeason hasn't run yet */}
-            {/* Don't show for transferred players - they're on their new team now */}
-            {!player.leftTeam && player.leavingYear && player.leavingReason && !player.transferredTo && (() => {
-              const isPastLeavingYear = Number(dynasty.currentYear) > Number(player.leavingYear)
+            {/* Departure badge - show based on movements[] */}
+            {departureMovement && departureMovement.type === 'departure' && (() => {
+              const reason = departureMovement.reason
+              const year = departureMovement.year
+              const draftRound = departureMovement.extra?.draftRound || player.draftRound
               return (
                 <span
                   className="px-2 py-0.5 rounded-full text-xs font-bold"
-                  style={{ backgroundColor: isPastLeavingYear ? '#6b7280' : '#f59e0b', color: '#ffffff' }}
+                  style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
                 >
-                  {player.leavingReason === 'Graduating'
-                    ? (isPastLeavingYear ? `Graduated (${player.leavingYear})` : `Graduating (${player.leavingYear})`)
-                    : player.leavingReason === 'Pro Draft'
-                    ? (isPastLeavingYear ? `Drafted (${player.leavingYear})` : `Declaring for Draft (${player.leavingYear})`)
-                    : (isPastLeavingYear ? `Left: ${player.leavingReason} (${player.leavingYear})` : `Leaving: ${player.leavingReason} (${player.leavingYear})`)}
+                  {reason === 'Pro Draft' && draftRound
+                    ? `${year} NFL Draft - ${draftRound}`
+                    : reason === 'Pro Draft'
+                    ? `${year} NFL Draft`
+                    : reason === 'Graduating'
+                    ? `Graduated (${year})`
+                    : reason === 'Encouraged Transfer'
+                    ? `Transferred (${year})`
+                    : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
+                       'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
+                       'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
+                       'Athletic Facilities'].includes(reason)
+                    ? `Transfer: ${reason} (${year})`
+                    : reason
+                    ? `${reason} (${year})`
+                    : `Left Team (${year})`}
                 </span>
               )
             })()}
-            {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
+            {/* Transfer badge - show where player transferred FROM */}
+            {transferredFromTeam && (() => {
               // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
               const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
               const prevTeamColors = getTeamColors(prevTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
@@ -964,47 +953,37 @@ export default function Player() {
                     Commitment
                   </span>
                 )}
-                {player.leftTeam && (
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-bold"
-                    style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
-                  >
-                    {player.leftReason === 'Pro Draft' && player.draftRound
-                      ? `${player.leftYear} NFL Draft - ${player.draftRound}`
-                      : player.leftReason === 'Pro Draft'
-                      ? `${player.leftYear} NFL Draft`
-                      : player.leftReason === 'Graduating'
-                      ? `Graduated (${player.leftYear})`
-                      : player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
-                      ? `Transferred (${player.leftYear})`
-                      : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
-                         'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
-                         'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
-                         'Athletic Facilities'].includes(player.leftReason)
-                      ? `Transfer: ${player.leftReason} (${player.leftYear})`
-                      : player.leftReason
-                      ? `${player.leftReason} (${player.leftYear})`
-                      : `Left Team (${player.leftYear})`}
-                  </span>
-                )}
-                {/* Pending departure - player marked as leaving but advanceToNewSeason hasn't run yet */}
-                {/* Don't show for transferred players - they're on their new team now */}
-                {!player.leftTeam && player.leavingYear && player.leavingReason && !player.transferredTo && (() => {
-                  const isPastLeavingYear = Number(dynasty.currentYear) > Number(player.leavingYear)
+                {/* Departure badge - show based on movements[] */}
+                {departureMovement && departureMovement.type === 'departure' && (() => {
+                  const reason = departureMovement.reason
+                  const year = departureMovement.year
+                  const draftRound = departureMovement.extra?.draftRound || player.draftRound
                   return (
                     <span
                       className="px-2 py-0.5 rounded-full text-xs font-bold"
-                      style={{ backgroundColor: isPastLeavingYear ? '#6b7280' : '#f59e0b', color: '#ffffff' }}
+                      style={{ backgroundColor: '#6b7280', color: '#ffffff' }}
                     >
-                      {player.leavingReason === 'Graduating'
-                        ? (isPastLeavingYear ? `Graduated (${player.leavingYear})` : `Graduating (${player.leavingYear})`)
-                        : player.leavingReason === 'Pro Draft'
-                        ? (isPastLeavingYear ? `Drafted (${player.leavingYear})` : `Declaring for Draft (${player.leavingYear})`)
-                        : (isPastLeavingYear ? `Left: ${player.leavingReason} (${player.leavingYear})` : `Leaving: ${player.leavingReason} (${player.leavingYear})`)}
+                      {reason === 'Pro Draft' && draftRound
+                        ? `${year} NFL Draft - ${draftRound}`
+                        : reason === 'Pro Draft'
+                        ? `${year} NFL Draft`
+                        : reason === 'Graduating'
+                        ? `Graduated (${year})`
+                        : reason === 'Encouraged Transfer'
+                        ? `Transferred (${year})`
+                        : ['Playing Style', 'Proximity to Home', 'Championship Contender', 'Program Tradition',
+                           'Campus Lifestyle', 'Stadium Atmosphere', 'Pro Potential', 'Brand Exposure',
+                           'Academic Prestige', 'Conference Prestige', 'Coach Stability', 'Coach Prestige',
+                           'Athletic Facilities'].includes(reason)
+                        ? `Transfer: ${reason} (${year})`
+                        : reason
+                        ? `${reason} (${year})`
+                        : `Left Team (${year})`}
                     </span>
                   )
                 })()}
-                {transferredFromTeam && transferredFromTeam !== player.transferredTo && (() => {
+                {/* Transfer badge - show where player transferred FROM */}
+                {transferredFromTeam && (() => {
                   // Show where the player transferred FROM (not previousTeam which is portal recruit origin)
                   const prevTeamName = getMascotName(transferredFromTeam) || teamAbbreviations[transferredFromTeam]?.name || transferredFromTeam
                   const prevTeamColors = getTeamColors(prevTeamName) || { primary: '#4b5563', secondary: '#6b7280' }
@@ -1186,119 +1165,125 @@ export default function Player() {
         </div>
       )}
 
-      {/* Career Timeline - Show movements if player has any */}
-      {player.movements && player.movements.length > 0 && (
-        <div
-          className="rounded-lg shadow-lg p-4 sm:p-6"
-          style={{ backgroundColor: teamColors.secondary, border: `3px solid ${teamColors.primary}` }}
-        >
-          <h2 className="text-xl font-bold mb-4" style={{ color: secondaryText }}>Career Timeline</h2>
-          <div className="relative">
-            {/* Timeline line */}
-            <div
-              className="absolute left-4 top-0 bottom-0 w-0.5"
-              style={{ backgroundColor: teamColors.primary, opacity: 0.3 }}
-            />
-            {/* Timeline entries */}
-            <div className="space-y-4">
-              {[...player.movements].sort((a, b) => a.year - b.year).map((movement, idx) => {
-                // Get movement type display
-                const getMovementDisplay = (m) => {
-                  switch (m.type) {
-                    case 'recruited':
-                      return { label: 'Recruited', icon: '🎓', color: '#22c55e' }
-                    case 'portal_in':
-                      return { label: 'Transferred In', icon: '📥', color: '#3b82f6' }
-                    case 'transfer':
-                      return { label: 'Transferred', icon: '📤', color: '#f97316' }
-                    case 'departure':
-                      return { label: m.reason || 'Left Team', icon: '👋', color: '#ef4444' }
-                    case 'recommit':
-                      return { label: 'Returned', icon: '🔄', color: '#8b5cf6' }
-                    case 'added':
-                      return { label: 'Added to Roster', icon: '➕', color: '#6b7280' }
-                    case 'removed':
-                      return { label: 'Removed from Roster', icon: '➖', color: '#6b7280' }
-                    default:
-                      return { label: m.type, icon: '📌', color: '#6b7280' }
-                  }
-                }
+      {/* Career Timeline - Built from teamsByYear (source of truth) with movements for context */}
+      {(() => {
+        // Build timeline from teamsByYear as source of truth
+        const teamsByYear = player.teamsByYear || {}
+        const years = Object.keys(teamsByYear).map(Number).sort((a, b) => a - b)
+        if (years.length === 0) return null
 
-                const display = getMovementDisplay(movement)
+        // Get movements for additional context (entered_portal, recommit, departure, etc.)
+        const movements = player.movements || []
+        const movementsByYear = {}
+        movements.forEach(m => {
+          if (!movementsByYear[m.year]) movementsByYear[m.year] = []
+          movementsByYear[m.year].push(m)
+        })
 
-                // Get team info for display
-                const fromTeamInfo = movement.from ? teamAbbreviations[movement.from] : null
-                const toTeamInfo = movement.to ? teamAbbreviations[movement.to] : null
-                const fromMascot = movement.from ? getMascotName(movement.from) : null
-                const toMascot = movement.to ? getMascotName(movement.to) : null
-                const fromLogo = fromMascot ? getTeamLogo(fromMascot) : null
-                const toLogo = toMascot ? getTeamLogo(toMascot) : null
+        // Build timeline entries
+        const timelineEntries = []
+        let prevTeam = null
+
+        years.forEach((year, idx) => {
+          const team = teamsByYear[year]
+          const yearMovements = movementsByYear[year] || []
+
+          // First year on record - show how they joined
+          if (idx === 0) {
+            // Check if there's a recruited/portal_in/added movement for this year
+            const joinMovement = yearMovements.find(m =>
+              m.type === 'recruited' || m.type === 'portal_in' || m.type === 'added'
+            )
+            if (joinMovement) {
+              timelineEntries.push({ ...joinMovement, team })
+            } else {
+              // No join movement - create a synthetic "Started" entry
+              timelineEntries.push({ year, type: 'started', team, to: team })
+            }
+          } else if (team !== prevTeam && prevTeam) {
+            // Team changed - show transfer
+            const transferMovement = yearMovements.find(m => m.type === 'transfer' || m.type === 'portal_in')
+            if (transferMovement) {
+              timelineEntries.push({ ...transferMovement, team })
+            } else {
+              timelineEntries.push({ year, type: 'transfer', from: prevTeam, to: team, team })
+            }
+          }
+
+          // Add any special movements for this year (entered_portal, recommit, departure)
+          yearMovements.forEach(m => {
+            if (m.type === 'entered_portal' || m.type === 'recommit' || m.type === 'departure') {
+              // Only add if not already in timeline
+              if (!timelineEntries.some(e => e.year === m.year && e.type === m.type)) {
+                timelineEntries.push({ ...m, team })
+              }
+            }
+          })
+
+          prevTeam = team
+        })
+
+        // Check for departure movement after last year in teamsByYear
+        const lastYear = years[years.length - 1]
+        const afterLastYearMovements = movements.filter(m =>
+          m.year > lastYear && (m.type === 'departure' || m.type === 'transfer')
+        )
+        afterLastYearMovements.forEach(m => timelineEntries.push(m))
+
+        if (timelineEntries.length === 0) return null
+
+        // Sort by year
+        timelineEntries.sort((a, b) => a.year - b.year)
+
+        const getMovementLabel = (m) => {
+          switch (m.type) {
+            case 'recruited': return 'Recruited'
+            case 'portal_in': return 'Transferred In'
+            case 'entered_portal': return 'Entered Portal'
+            case 'transfer': return 'Transferred'
+            case 'departure': return m.reason || 'Left Team'
+            case 'recommit': return 'Returned'
+            case 'added': return 'Added'
+            case 'removed': return 'Removed'
+            case 'started': return 'Started'
+            default: return m.type
+          }
+        }
+
+        return (
+          <div
+            className="rounded-lg shadow-lg p-4"
+            style={{ backgroundColor: teamColors.secondary, border: `2px solid ${teamColors.primary}` }}
+          >
+            <h3 className="text-sm font-bold mb-3 uppercase tracking-wide" style={{ color: secondaryText, opacity: 0.7 }}>
+              Career Timeline
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {timelineEntries.map((entry, idx) => {
+                const displayTeam = entry.to || entry.from || entry.team
+                const mascot = displayTeam ? getMascotName(displayTeam) : null
+                const logo = mascot ? getTeamLogo(mascot) : null
 
                 return (
-                  <div key={idx} className="relative flex items-start gap-4 pl-8">
-                    {/* Timeline dot */}
-                    <div
-                      className="absolute left-2 top-2 w-4 h-4 rounded-full border-2 bg-white"
-                      style={{ borderColor: display.color }}
-                    />
-                    {/* Content */}
-                    <div
-                      className="flex-1 rounded-lg p-3"
-                      style={{ backgroundColor: `${display.color}15`, border: `1px solid ${display.color}40` }}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">{display.icon}</span>
-                          <span className="font-semibold" style={{ color: display.color }}>
-                            {display.label}
-                          </span>
-                        </div>
-                        <span className="text-sm font-medium" style={{ color: secondaryText, opacity: 0.7 }}>
-                          {movement.year}
-                        </span>
-                      </div>
-                      {/* Team info */}
-                      <div className="flex items-center gap-2 text-sm" style={{ color: secondaryText }}>
-                        {movement.from && (
-                          <div className="flex items-center gap-1">
-                            {fromLogo && (
-                              <img src={fromLogo} alt="" className="w-4 h-4 object-contain" />
-                            )}
-                            <span>{fromTeamInfo?.name || movement.from}</span>
-                          </div>
-                        )}
-                        {movement.from && movement.to && (
-                          <span style={{ color: secondaryText, opacity: 0.5 }}>→</span>
-                        )}
-                        {movement.to && (
-                          <div className="flex items-center gap-1">
-                            {toLogo && (
-                              <img src={toLogo} alt="" className="w-4 h-4 object-contain" />
-                            )}
-                            <span>{toTeamInfo?.name || movement.to}</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Reason if available */}
-                      {movement.reason && movement.type !== 'departure' && (
-                        <div className="text-xs mt-1" style={{ color: secondaryText, opacity: 0.6 }}>
-                          {movement.reason}
-                        </div>
-                      )}
-                      {/* Draft info if available */}
-                      {movement.draftRound && (
-                        <div className="text-xs mt-1 font-medium" style={{ color: '#FFD700' }}>
-                          NFL Draft Round {movement.draftRound}
-                        </div>
-                      )}
-                    </div>
+                  <div
+                    key={idx}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+                    style={{ backgroundColor: `${teamColors.primary}15`, border: `1px solid ${teamColors.primary}30` }}
+                  >
+                    {logo && <img src={logo} alt="" className="w-3.5 h-3.5 object-contain" />}
+                    <span style={{ color: secondaryText }}>
+                      {getMovementLabel(entry)}
+                      {entry.draftRound && ` (Rd ${entry.draftRound})`}
+                    </span>
+                    <span style={{ color: secondaryText, opacity: 0.5 }}>·</span>
+                    <span style={{ color: secondaryText, opacity: 0.6 }}>{entry.year}</span>
                   </div>
                 )
               })}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Recruitment Information - Show for any player with recruitment data */}
       {recruitmentInfo && (
@@ -2618,6 +2603,9 @@ export default function Player() {
         recruitOverallsByYear={currentDynasty?.recruitOverallsByYear}
         teamColors={teamColors}
         currentYear={currentDynasty?.currentYear}
+        onSave={!isViewOnly ? async (playerToUpdate, updates) => {
+          await updatePlayer(playerToUpdate, updates)
+        } : null}
       />
 
       {/* Game Log Modal */}

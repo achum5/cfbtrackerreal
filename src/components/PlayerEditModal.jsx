@@ -11,6 +11,7 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
   const [showQuickImageModal, setShowQuickImageModal] = useState(false)
   const fileInputRef = useRef(null)
   const quickFileInputRef = useRef(null)
+  const initializedForPlayerRef = useRef(null) // Track which player we've initialized for
 
   // Upload image to ImgBB
   const uploadToImgBB = async (file) => {
@@ -215,7 +216,13 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
 
   // Initialize form data when modal opens
   useEffect(() => {
-    if (player && isOpen) {
+    const playerId = player?.id || player?.name
+
+    // Only initialize if modal is open AND we haven't already initialized for this player
+    // This prevents resetting form data when dynasty updates after save
+    if (player && isOpen && initializedForPlayerRef.current !== playerId) {
+      initializedForPlayerRef.current = playerId
+
       // Set default selected year to current dynasty year
       const years = getAvailableYears()
       const defaultYear = dynasty?.currentYear || years[0]
@@ -276,9 +283,6 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         // Game Logs (for selected year)
         snapsPlayed: yearStats.snapsPlayed,
         gamesPlayed: yearStats.gamesPlayed,
-
-        // NEW: Pending Departure (unified system)
-        pendingDeparture: player.pendingDeparture || null,
 
         // Draft info (for departed players)
         draftRound: player.draftRound || '',
@@ -354,15 +358,25 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         links: player.links || [],
 
         // Roster History - which team this player was on each year
-        teamsByYear: player.teamsByYear || {},
+        // Normalize keys to strings in case old data has number keys
+        teamsByYear: Object.fromEntries(
+          Object.entries(player.teamsByYear || {}).map(([k, v]) => [String(k), v])
+        ),
         // Class History - what class this player was each year
-        classByYear: player.classByYear || {},
+        classByYear: Object.fromEntries(
+          Object.entries(player.classByYear || {}).map(([k, v]) => [String(k), v])
+        ),
         // Career Timeline - movement history
         movements: player.movements || []
       })
 
       // Start with all sections collapsed
       setExpandedSections([])
+    }
+
+    // Clear the ref when modal closes so next open will re-initialize
+    if (!isOpen) {
+      initializedForPlayerRef.current = null
     }
   }, [player, isOpen, defaultSchool, dynasty])
 
@@ -555,8 +569,6 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       gemBust: formData.gemBust,
       overallProgression: formData.overallProgression,
       overallRatingChange: formData.overallRatingChange,
-      // NEW: Pending Departure (unified system)
-      pendingDeparture: formData.pendingDeparture,
       draftRound: formData.draftRound,
       confPOW: num(formData.confPOW),
       nationalPOW: num(formData.nationalPOW),
@@ -995,342 +1007,372 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
               )}
             </div>
 
-            {/* Roster & Career - Clean unified section */}
+            {/* Career Timeline - True unified timeline */}
             <div className="rounded-xl overflow-hidden" style={{ border: `2px solid ${teamColors.primary}` }}>
-              {renderSectionHeader('rosterStatus', 'Roster & Career')}
+              {renderSectionHeader('rosterStatus', 'Career Timeline')}
               {isExpanded('rosterStatus') && (
-                <div className="p-4 space-y-4" style={{ backgroundColor: teamColors.secondary }}>
+                <div className="p-4" style={{ backgroundColor: teamColors.secondary }}>
 
-                  {/* Status Badge */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {(() => {
-                      // Check movements for departure
-                      const hasDeparted = (formData.movements || []).some(m =>
-                        m.type === 'departure' || m.type === 'transfer'
+                  {(() => {
+                    const teamsByYear = formData.teamsByYear || {}
+                    const classByYear = formData.classByYear || {}
+                    const years = [...new Set([
+                      ...Object.keys(teamsByYear),
+                      ...Object.keys(classByYear)
+                    ])].map(y => parseInt(y)).sort((a, b) => a - b)
+
+                    // Determine entry type from flags
+                    const getEntryType = () => {
+                      if (formData.isPortal) return 'portal'
+                      if (formData.isRecruit) return 'recruited'
+                      return 'created' // Default for manually added players
+                    }
+
+                    const entryTypeConfig = {
+                      recruited: { label: 'Recruited', icon: '★', color: '#22c55e', showTeam: false },
+                      portal: { label: 'Portal from', icon: '↩', color: '#3b82f6', showTeam: true },
+                      created: { label: 'Created', icon: '+', color: '#6b7280', showTeam: false }
+                    }
+
+                    const currentEntryType = getEntryType()
+                    const entryConfig = entryTypeConfig[currentEntryType]
+
+                    // Empty state
+                    if (years.length === 0) {
+                      return (
+                        <div className="text-center py-6">
+                          <p className="text-sm text-gray-500 mb-4">No seasons recorded</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const yearKey = String(dynasty?.currentYear || new Date().getFullYear())
+                              setFormData(prev => ({
+                                ...prev,
+                                teamsByYear: { [yearKey]: prev.team || '' },
+                                classByYear: { [yearKey]: prev.year || 'Fr' }
+                              }))
+                            }}
+                            className="px-4 py-2 rounded-lg text-sm font-medium"
+                            style={{ backgroundColor: teamColors.primary, color: primaryText }}
+                          >
+                            + Add First Season
+                          </button>
+                        </div>
                       )
-                      const hasPending = formData.pendingDeparture?.year && formData.pendingDeparture?.reason
+                    }
 
-                      if (hasDeparted && !formData.pendingDeparture) {
-                        return (
-                          <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700">
-                            Former Player
-                          </span>
-                        )
-                      } else if (hasPending) {
-                        return (
-                          <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-orange-100 text-orange-700">
-                            Leaving After {formData.pendingDeparture.year}
-                          </span>
-                        )
-                      } else {
-                        return (
-                          <span className="px-3 py-1.5 rounded-full text-sm font-semibold bg-green-100 text-green-700">
-                            Active
-                          </span>
-                        )
-                      }
-                    })()}
-                    {formData.isPortal && formData.previousTeam && (
-                      <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
-                        Portal from {formData.previousTeam}
-                      </span>
-                    )}
-                    {formData.isRecruit && (
-                      <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-700">
-                        Recruit ({formData.recruitYear})
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Pending Departure - Easy to edit/clear */}
-                  <div className="p-3 rounded-lg" style={{
-                    backgroundColor: formData.pendingDeparture?.year ? 'rgba(251, 146, 60, 0.1)' : 'rgba(0,0,0,0.03)',
-                    border: formData.pendingDeparture?.year ? '1px solid rgba(251, 146, 60, 0.3)' : '1px solid rgba(0,0,0,0.1)'
-                  }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium" style={{ color: secondaryText }}>
-                        {formData.pendingDeparture?.year ? 'Scheduled Departure' : 'Mark as Leaving'}
-                      </span>
-                      {formData.pendingDeparture?.year && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, pendingDeparture: null }))}
-                          className="text-xs px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-700"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium mb-1" style={labelStyle}>Year</label>
-                        <input
-                          type="number"
-                          value={formData.pendingDeparture?.year || ''}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            pendingDeparture: {
-                              ...prev.pendingDeparture,
-                              year: parseInt(e.target.value) || null
-                            }
-                          }))}
-                          placeholder={dynasty?.currentYear?.toString() || '2025'}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={inputStyle}
+                    const lastYear = years[years.length - 1]
+                    return (
+                      <div className="relative">
+                        {/* Timeline line */}
+                        <div
+                          className="absolute left-[23px] top-0 bottom-0 w-0.5"
+                          style={{ backgroundColor: `${teamColors.primary}30` }}
                         />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1" style={labelStyle}>Reason</label>
-                        <select
-                          value={formData.pendingDeparture?.reason || ''}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            pendingDeparture: {
-                              ...prev.pendingDeparture,
-                              reason: e.target.value || null
-                            }
-                          }))}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={inputStyle}
-                        >
-                          <option value="">Select...</option>
-                          <option value="Graduating">Graduating</option>
-                          <option value="Pro Draft">NFL Draft</option>
-                          <option value="Transfer">Transfer</option>
-                          <option value="Encouraged Transfer">Encouraged Transfer</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1" style={labelStyle}>Destination</label>
-                        <select
-                          value={formData.pendingDeparture?.destination || ''}
-                          onChange={(e) => setFormData(prev => ({
-                            ...prev,
-                            pendingDeparture: {
-                              ...prev.pendingDeparture,
-                              destination: e.target.value || null
-                            }
-                          }))}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={inputStyle}
-                        >
-                          <option value="">None/Unknown</option>
-                          {getTeamAbbreviationsList().map(abbr => (
-                            <option key={abbr} value={abbr}>{abbr}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Career Timeline - The main way to track player history */}
-                  <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium" style={{ color: secondaryText }}>
-                        Career Timeline ({(formData.movements || []).length} events)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newMovement = {
-                            year: dynasty?.currentYear || new Date().getFullYear(),
-                            type: 'added',
-                            from: null,
-                            to: formData.team || null,
-                            reason: null,
-                            timestamp: Date.now()
-                          }
-                          setFormData(prev => ({ ...prev, movements: [...(prev.movements || []), newMovement] }))
-                        }}
-                        className="text-xs px-2 py-1 rounded"
-                        style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
-                      >
-                        + Add
-                      </button>
-                    </div>
-
-                    {(formData.movements || []).length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">No career events recorded</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {[...(formData.movements || [])].sort((a, b) => a.year - b.year).map((movement) => {
-                          const originalIndex = (formData.movements || []).findIndex(m => m.timestamp === movement.timestamp)
-                          const movementKey = movement.timestamp || `${movement.year}-${movement.type}-${originalIndex}`
-
-                          // Get display info for movement type
-                          const typeDisplay = {
-                            recruited: { label: 'Recruited', color: '#22c55e', icon: '🎓' },
-                            portal_in: { label: 'Portal In', color: '#3b82f6', icon: '📥' },
-                            transfer: { label: 'Transfer Out', color: '#f97316', icon: '📤' },
-                            departure: { label: 'Departed', color: '#ef4444', icon: '👋' },
-                            added: { label: 'Added', color: '#6b7280', icon: '➕' },
-                            removed: { label: 'Removed', color: '#6b7280', icon: '➖' },
-                            recommit: { label: 'Returned', color: '#8b5cf6', icon: '🔄' }
-                          }[movement.type] || { label: movement.type, color: '#6b7280', icon: '📌' }
-
-                          return (
-                            <div
-                              key={movementKey}
-                              className="flex items-center gap-2 p-2 rounded"
-                              style={{ backgroundColor: `${typeDisplay.color}10`, border: `1px solid ${typeDisplay.color}30` }}
-                            >
-                              <span className="text-sm">{typeDisplay.icon}</span>
-                              <input
-                                type="number"
-                                value={movement.year || ''}
-                                onChange={(e) => {
-                                  const newMovements = [...(formData.movements || [])]
-                                  if (originalIndex !== -1) {
-                                    newMovements[originalIndex] = { ...newMovements[originalIndex], year: parseInt(e.target.value) || 0 }
-                                    setFormData(prev => ({ ...prev, movements: newMovements }))
-                                  }
-                                }}
-                                className="w-16 px-2 py-1 rounded border text-xs font-bold bg-white"
-                                placeholder="Year"
-                              />
+                        {/* Entry point - How they joined */}
+                        <div className="relative flex items-center gap-3 mb-2">
+                          <div
+                            className="w-12 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold z-10"
+                            style={{ backgroundColor: entryConfig.color }}
+                          >
+                            {entryConfig.icon}
+                          </div>
+                          <select
+                            value={currentEntryType}
+                            onChange={(e) => {
+                              const type = e.target.value
+                              setFormData(prev => ({
+                                ...prev,
+                                isRecruit: type === 'recruited',
+                                isPortal: type === 'portal',
+                                previousTeam: type === 'portal' ? prev.previousTeam : ''
+                              }))
+                            }}
+                            className="px-2 py-1.5 rounded border text-sm bg-white font-medium"
+                            style={{ borderColor: `${teamColors.primary}30` }}
+                          >
+                            <option value="recruited">Recruited</option>
+                            <option value="portal">Portal Transfer</option>
+                            <option value="created">Created</option>
+                          </select>
+                          {currentEntryType === 'portal' && (
+                            <>
+                              <span className="text-sm text-gray-500">from</span>
                               <select
-                                value={movement.type || ''}
-                                onChange={(e) => {
-                                  const newMovements = [...(formData.movements || [])]
-                                  if (originalIndex !== -1) {
-                                    newMovements[originalIndex] = { ...newMovements[originalIndex], type: e.target.value }
-                                    setFormData(prev => ({ ...prev, movements: newMovements }))
-                                  }
-                                }}
-                                className="flex-1 px-2 py-1 rounded border text-xs bg-white"
+                                value={formData.previousTeam || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, previousTeam: e.target.value }))}
+                                className="flex-1 px-2 py-1.5 rounded border text-sm bg-white"
+                                style={{ borderColor: `${teamColors.primary}30` }}
                               >
-                                <option value="recruited">Recruited</option>
-                                <option value="portal_in">Portal In</option>
-                                <option value="transfer">Transfer Out</option>
-                                <option value="departure">Departed</option>
-                                <option value="added">Added</option>
-                                <option value="removed">Removed</option>
-                                <option value="recommit">Returned</option>
-                              </select>
-                              <input
-                                type="text"
-                                value={movement.from || ''}
-                                placeholder="From"
-                                onChange={(e) => {
-                                  const newMovements = [...(formData.movements || [])]
-                                  if (originalIndex !== -1) {
-                                    newMovements[originalIndex] = { ...newMovements[originalIndex], from: e.target.value || null }
-                                    setFormData(prev => ({ ...prev, movements: newMovements }))
-                                  }
-                                }}
-                                className="w-14 px-2 py-1 rounded border text-xs bg-white"
-                              />
-                              <span className="text-gray-400">→</span>
-                              <input
-                                type="text"
-                                value={movement.to || ''}
-                                placeholder="To"
-                                onChange={(e) => {
-                                  const newMovements = [...(formData.movements || [])]
-                                  if (originalIndex !== -1) {
-                                    newMovements[originalIndex] = { ...newMovements[originalIndex], to: e.target.value || null }
-                                    setFormData(prev => ({ ...prev, movements: newMovements }))
-                                  }
-                                }}
-                                className="w-14 px-2 py-1 rounded border text-xs bg-white"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (originalIndex !== -1) {
-                                    const newMovements = (formData.movements || []).filter((_, i) => i !== originalIndex)
-                                    setFormData(prev => ({ ...prev, movements: newMovements }))
-                                  }
-                                }}
-                                className="text-red-400 hover:text-red-600 text-sm px-1"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Links - Roster History and Portal Info */}
-                  <details className="group">
-                    <summary className="cursor-pointer text-xs font-medium py-2 flex items-center gap-2" style={{ color: secondaryText }}>
-                      <span className="group-open:rotate-90 transition-transform">▶</span>
-                      Advanced: Roster History & Portal Info
-                    </summary>
-                    <div className="mt-3 space-y-3 pl-2">
-                      {/* Portal Transfer From */}
-                      <div>
-                        <label className="block text-xs font-medium mb-1" style={labelStyle}>Portal: Transferred From</label>
-                        <select
-                          name="previousTeam"
-                          value={formData.previousTeam ?? ''}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 rounded-lg border text-sm"
-                          style={inputStyle}
-                        >
-                          <option value="">None (not a portal transfer)</option>
-                          {getTeamAbbreviationsList().map(abbr => (
-                            <option key={abbr} value={abbr}>{abbr}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Roster History by Year */}
-                      <div>
-                        <label className="block text-xs font-medium mb-2" style={labelStyle}>
-                          Roster History ({Object.keys(formData.teamsByYear || {}).length} seasons)
-                        </label>
-                        <div className="space-y-1.5">
-                          {Object.entries(formData.teamsByYear || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([year, team]) => (
-                            <div key={year} className="flex items-center gap-2">
-                              <span className="text-xs font-medium w-10" style={{ color: secondaryText }}>{year}</span>
-                              <select
-                                value={team || ''}
-                                onChange={(e) => {
-                                  const newTeamsByYear = { ...formData.teamsByYear }
-                                  if (e.target.value) {
-                                    newTeamsByYear[year] = e.target.value
-                                  } else {
-                                    delete newTeamsByYear[year]
-                                  }
-                                  setFormData(prev => ({ ...prev, teamsByYear: newTeamsByYear }))
-                                }}
-                                className="flex-1 px-2 py-1 rounded border text-xs"
-                                style={inputStyle}
-                              >
-                                <option value="">(Remove)</option>
+                                <option value="">Select team...</option>
                                 {getTeamAbbreviationsList().map(abbr => (
                                   <option key={abbr} value={abbr}>{abbr}</option>
                                 ))}
                               </select>
-                              <select
-                                value={formData.classByYear?.[year] || ''}
-                                onChange={(e) => {
-                                  const newClassByYear = { ...formData.classByYear }
-                                  if (e.target.value) {
-                                    newClassByYear[year] = e.target.value
-                                  } else {
-                                    delete newClassByYear[year]
-                                  }
-                                  setFormData(prev => ({ ...prev, classByYear: newClassByYear }))
-                                }}
-                                className="w-16 px-2 py-1 rounded border text-xs"
-                                style={inputStyle}
-                              >
-                                <option value="">-</option>
-                                {classes.map(cls => (
-                                  <option key={cls} value={cls}>{cls}</option>
-                                ))}
-                              </select>
-                            </div>
-                          ))}
+                            </>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  </details>
 
+                        {/* Seasons */}
+                        {years.map((year, idx) => {
+                          const yearKey = String(year)
+                          const team = teamsByYear[yearKey] || ''
+                          const playerClass = classByYear[yearKey] || ''
+                          const prevYear = years[idx - 1]
+                          const prevYearKey = prevYear ? String(prevYear) : null
+                          const prevTeam = prevYearKey ? teamsByYear[prevYearKey] : null
+                          const teamChanged = prevTeam && team && prevTeam !== team
+
+                          // Movement type configs
+                          const movementTypeConfig = {
+                            'entered_portal': { label: 'Entered Portal', icon: '↗', color: '#f97316' },
+                            'recommit': { label: 'Recommitted', icon: '↩', color: '#22c55e' },
+                            'transfer': { label: 'Transferred', icon: '→', color: '#3b82f6' },
+                            'departure': { label: 'Departed', icon: '↓', color: '#6b7280' },
+                            'redshirt': { label: 'Redshirted', icon: '○', color: '#8b5cf6' },
+                            'medical': { label: 'Medical RS', icon: '+', color: '#ec4899' },
+                            'suspended': { label: 'Suspended', icon: '!', color: '#ef4444' },
+                            'injury': { label: 'Injured', icon: '✚', color: '#f59e0b' }
+                          }
+
+                          // Get movements that happened AFTER the previous season (during offseason before this year)
+                          // These are stored with year = prevYear (the year they happened after)
+                          const movementsAfterPrevSeason = prevYear
+                            ? (formData.movements || []).filter(m => m.year === prevYear && m.type !== 'recruited' && m.type !== 'portal_in' && m.type !== 'departure')
+                            : []
+
+                          // Auto-detect: if team changed but no transfer movement exists, suggest one
+                          const hasTransferMovement = movementsAfterPrevSeason.some(m => m.type === 'transfer' || m.type === 'entered_portal')
+                          const shouldShowAutoTransfer = teamChanged && !hasTransferMovement
+
+                          return (
+                            <div key={year}>
+                              {/* Movements between seasons (only show after first season) */}
+                              {idx > 0 && (
+                                <div className="relative ml-5 my-1 space-y-1">
+                                  {/* Existing movements */}
+                                  {movementsAfterPrevSeason.map((movement, mIdx) => {
+                                    const config = movementTypeConfig[movement.type] || { label: movement.type, icon: '•', color: '#6b7280' }
+                                    return (
+                                      <div key={movement.timestamp || mIdx} className="flex items-center gap-2">
+                                        <div
+                                          className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
+                                          style={{ backgroundColor: config.color, color: 'white' }}
+                                        >
+                                          {config.icon}
+                                        </div>
+                                        <select
+                                          value={movement.type}
+                                          onChange={(e) => {
+                                            const newType = e.target.value
+                                            setFormData(prev => {
+                                              const newMovements = [...(prev.movements || [])]
+                                              const mIdx = newMovements.findIndex(m => m.timestamp === movement.timestamp)
+                                              if (mIdx !== -1) {
+                                                newMovements[mIdx] = { ...newMovements[mIdx], type: newType }
+                                              }
+                                              // If recommit, auto-fill the next season's team with previous team
+                                              let newTeamsByYear = prev.teamsByYear
+                                              if (newType === 'recommit' && prevTeam && yearKey) {
+                                                newTeamsByYear = { ...prev.teamsByYear, [yearKey]: prevTeam }
+                                              }
+                                              return { ...prev, movements: newMovements, teamsByYear: newTeamsByYear }
+                                            })
+                                          }}
+                                          className="px-2 py-1 rounded border text-xs bg-white"
+                                          style={{ borderColor: config.color }}
+                                        >
+                                          {Object.entries(movementTypeConfig).map(([val, cfg]) => (
+                                            <option key={val} value={val}>{cfg.label}</option>
+                                          ))}
+                                        </select>
+                                        {(movement.type === 'transfer' || movement.type === 'entered_portal') && (
+                                          <>
+                                            <span className="text-xs text-gray-400">→</span>
+                                            <select
+                                              value={movement.to || ''}
+                                              onChange={(e) => {
+                                                const destValue = e.target.value || null
+                                                setFormData(prev => {
+                                                  const newMovements = [...(prev.movements || [])]
+                                                  const mIdx = newMovements.findIndex(m => m.timestamp === movement.timestamp)
+                                                  if (mIdx !== -1) {
+                                                    newMovements[mIdx] = { ...newMovements[mIdx], to: destValue }
+                                                  }
+                                                  return { ...prev, movements: newMovements }
+                                                })
+                                              }}
+                                              className="px-2 py-1 rounded border text-xs bg-white w-20"
+                                            >
+                                              <option value="">Portal</option>
+                                              {getTeamAbbreviationsList().map(abbr => (
+                                                <option key={abbr} value={abbr}>{abbr}</option>
+                                              ))}
+                                            </select>
+                                          </>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const ts = movement.timestamp
+                                            setFormData(prev => ({
+                                              ...prev,
+                                              movements: (prev.movements || []).filter(m => m.timestamp !== ts)
+                                            }))
+                                          }}
+                                          className="text-gray-400 hover:text-red-500 p-0.5"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    )
+                                  })}
+
+                                  {/* Auto-detected transfer (not saved yet) */}
+                                  {shouldShowAutoTransfer && (
+                                    <div className="flex items-center gap-2 opacity-60">
+                                      <div className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold bg-blue-500 text-white">
+                                        →
+                                      </div>
+                                      <span className="text-xs text-gray-500">Transferred from {prevTeam}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newMovement = {
+                                            year: prevYear,
+                                            type: 'transfer',
+                                            from: prevTeam,
+                                            to: team,
+                                            timestamp: Date.now()
+                                          }
+                                          setFormData(prev => ({ ...prev, movements: [...(prev.movements || []), newMovement] }))
+                                        }}
+                                        className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Add movement button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newMovement = {
+                                        year: prevYear,
+                                        type: 'redshirt',
+                                        from: prevTeam,
+                                        to: team,
+                                        timestamp: Date.now()
+                                      }
+                                      setFormData(prev => ({ ...prev, movements: [...(prev.movements || []), newMovement] }))
+                                    }}
+                                    className="flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-dashed hover:border-solid transition-colors"
+                                    style={{ borderColor: `${teamColors.primary}40`, color: teamColors.primary }}
+                                  >
+                                    <span>+</span>
+                                    <span>Add movement</span>
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Season row */}
+                              <div className="relative flex items-center gap-3 my-1">
+                                <div
+                                  className="w-12 h-10 rounded-lg flex items-center justify-center text-sm font-bold z-10"
+                                  style={{ backgroundColor: `${teamColors.primary}`, color: primaryText }}
+                                >
+                                  {year}
+                                </div>
+                                <select
+                                  value={team}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    const yearKey = String(year)
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      teamsByYear: { ...prev.teamsByYear, [yearKey]: value }
+                                    }))
+                                  }}
+                                  className="flex-1 px-2 py-2 rounded-lg border text-sm bg-white font-medium"
+                                  style={{ borderColor: `${teamColors.primary}30` }}
+                                >
+                                  <option value="">Team...</option>
+                                  {getTeamAbbreviationsList().map(abbr => (
+                                    <option key={abbr} value={abbr}>{abbr}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={playerClass}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    const yearKey = String(year)
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      classByYear: { ...prev.classByYear, [yearKey]: value }
+                                    }))
+                                  }}
+                                  className="w-20 px-2 py-2 rounded-lg border text-sm bg-white"
+                                  style={{ borderColor: `${teamColors.primary}30` }}
+                                >
+                                  <option value="">Class</option>
+                                  {classes.map(cls => (
+                                    <option key={cls} value={cls}>{cls}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const yearKey = String(year)
+                                    setFormData(prev => {
+                                      const newTeamsByYear = { ...prev.teamsByYear }
+                                      const newClassByYear = { ...prev.classByYear }
+                                      delete newTeamsByYear[yearKey]
+                                      delete newClassByYear[yearKey]
+                                      return {
+                                        ...prev,
+                                        teamsByYear: newTeamsByYear,
+                                        classByYear: newClassByYear
+                                      }
+                                    })
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 p-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+
+                        {/* Add season button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const maxYear = Math.max(...years)
+                            const newYearKey = String(maxYear + 1)
+                            setFormData(prev => {
+                              const lastTeam = prev.teamsByYear[String(maxYear)] || prev.team || ''
+                              return {
+                                ...prev,
+                                teamsByYear: { ...prev.teamsByYear, [newYearKey]: lastTeam },
+                                classByYear: { ...prev.classByYear, [newYearKey]: '' }
+                              }
+                            })
+                          }}
+                          className="w-full mt-4 py-2 rounded-lg border-2 border-dashed text-sm font-medium hover:border-solid transition-colors"
+                          style={{ borderColor: `${teamColors.primary}40`, color: teamColors.primary }}
+                        >
+                          + Add Season
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
