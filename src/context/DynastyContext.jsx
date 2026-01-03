@@ -3783,6 +3783,14 @@ export function DynastyProvider({ children }) {
       }
 
       // For NEW players (no name match), use sheet data with required fields
+      // Add 'added' movement to track when player was manually added
+      const addedMovement = createMovement(
+        year,
+        MOVEMENT_TYPES.ADDED,
+        null,
+        teamAbbr,
+        'Added via roster entry'
+      )
       return {
         ...player,
         pid,
@@ -3792,7 +3800,9 @@ export function DynastyProvider({ children }) {
         // IMMUTABLE roster history - this player is on this team this year
         teamsByYear: { [year]: teamAbbr },
         // IMMUTABLE class history - record this player's class for this year
-        classByYear: { [year]: player.year }
+        classByYear: { [year]: player.year },
+        // Movement history for tracking career path
+        movements: [addedMovement]
       }
     })
 
@@ -4172,6 +4182,7 @@ export function DynastyProvider({ children }) {
   }
 
   // Delete a player from the dynasty
+  // Adds a 'removed' movement to track the deletion before removing
   const deletePlayer = async (dynastyId, playerPid) => {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -4191,10 +4202,39 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    // Remove the player from the players array
-    const updatedPlayers = (dynasty.players || []).filter(player => player.pid !== playerPid)
+    // Find the player being deleted to add a removal movement
+    const playerToDelete = (dynasty.players || []).find(p => p.pid === playerPid)
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
 
-    await updateDynasty(dynastyId, { players: updatedPlayers })
+    // If player exists and has movements, add a 'removed' movement before deleting
+    if (playerToDelete) {
+      const removedMovement = createMovement(
+        dynasty.currentYear,
+        MOVEMENT_TYPES.REMOVED,
+        playerToDelete.team || teamAbbr,
+        null,
+        'User removed from roster'
+      )
+
+      // Update player with removal movement, then remove from array
+      const updatedPlayers = (dynasty.players || []).map(player => {
+        if (player.pid === playerPid) {
+          return {
+            ...player,
+            movements: [...(player.movements || []), removedMovement],
+            isRemoved: true, // Mark as removed for historical tracking
+            removedYear: dynasty.currentYear
+          }
+        }
+        return player
+      }).filter(player => player.pid !== playerPid) // Then remove
+
+      await updateDynasty(dynastyId, { players: updatedPlayers })
+    } else {
+      // Fallback: just remove if player not found
+      const updatedPlayers = (dynasty.players || []).filter(player => player.pid !== playerPid)
+      await updateDynasty(dynastyId, { players: updatedPlayers })
+    }
   }
 
   const createGoogleSheetForDynasty = async (dynastyId) => {
