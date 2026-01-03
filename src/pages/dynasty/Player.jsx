@@ -1186,6 +1186,120 @@ export default function Player() {
         </div>
       )}
 
+      {/* Career Timeline - Show movements if player has any */}
+      {player.movements && player.movements.length > 0 && (
+        <div
+          className="rounded-lg shadow-lg p-4 sm:p-6"
+          style={{ backgroundColor: teamColors.secondary, border: `3px solid ${teamColors.primary}` }}
+        >
+          <h2 className="text-xl font-bold mb-4" style={{ color: secondaryText }}>Career Timeline</h2>
+          <div className="relative">
+            {/* Timeline line */}
+            <div
+              className="absolute left-4 top-0 bottom-0 w-0.5"
+              style={{ backgroundColor: teamColors.primary, opacity: 0.3 }}
+            />
+            {/* Timeline entries */}
+            <div className="space-y-4">
+              {[...player.movements].sort((a, b) => a.year - b.year).map((movement, idx) => {
+                // Get movement type display
+                const getMovementDisplay = (m) => {
+                  switch (m.type) {
+                    case 'recruited':
+                      return { label: 'Recruited', icon: '🎓', color: '#22c55e' }
+                    case 'portal_in':
+                      return { label: 'Transferred In', icon: '📥', color: '#3b82f6' }
+                    case 'transfer':
+                      return { label: 'Transferred', icon: '📤', color: '#f97316' }
+                    case 'departure':
+                      return { label: m.reason || 'Left Team', icon: '👋', color: '#ef4444' }
+                    case 'recommit':
+                      return { label: 'Returned', icon: '🔄', color: '#8b5cf6' }
+                    case 'added':
+                      return { label: 'Added to Roster', icon: '➕', color: '#6b7280' }
+                    case 'removed':
+                      return { label: 'Removed from Roster', icon: '➖', color: '#6b7280' }
+                    default:
+                      return { label: m.type, icon: '📌', color: '#6b7280' }
+                  }
+                }
+
+                const display = getMovementDisplay(movement)
+
+                // Get team info for display
+                const fromTeamInfo = movement.from ? teamAbbreviations[movement.from] : null
+                const toTeamInfo = movement.to ? teamAbbreviations[movement.to] : null
+                const fromMascot = movement.from ? getMascotName(movement.from) : null
+                const toMascot = movement.to ? getMascotName(movement.to) : null
+                const fromLogo = fromMascot ? getTeamLogo(fromMascot) : null
+                const toLogo = toMascot ? getTeamLogo(toMascot) : null
+
+                return (
+                  <div key={idx} className="relative flex items-start gap-4 pl-8">
+                    {/* Timeline dot */}
+                    <div
+                      className="absolute left-2 top-2 w-4 h-4 rounded-full border-2 bg-white"
+                      style={{ borderColor: display.color }}
+                    />
+                    {/* Content */}
+                    <div
+                      className="flex-1 rounded-lg p-3"
+                      style={{ backgroundColor: `${display.color}15`, border: `1px solid ${display.color}40` }}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{display.icon}</span>
+                          <span className="font-semibold" style={{ color: display.color }}>
+                            {display.label}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium" style={{ color: secondaryText, opacity: 0.7 }}>
+                          {movement.year}
+                        </span>
+                      </div>
+                      {/* Team info */}
+                      <div className="flex items-center gap-2 text-sm" style={{ color: secondaryText }}>
+                        {movement.from && (
+                          <div className="flex items-center gap-1">
+                            {fromLogo && (
+                              <img src={fromLogo} alt="" className="w-4 h-4 object-contain" />
+                            )}
+                            <span>{fromTeamInfo?.name || movement.from}</span>
+                          </div>
+                        )}
+                        {movement.from && movement.to && (
+                          <span style={{ color: secondaryText, opacity: 0.5 }}>→</span>
+                        )}
+                        {movement.to && (
+                          <div className="flex items-center gap-1">
+                            {toLogo && (
+                              <img src={toLogo} alt="" className="w-4 h-4 object-contain" />
+                            )}
+                            <span>{toTeamInfo?.name || movement.to}</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Reason if available */}
+                      {movement.reason && movement.type !== 'departure' && (
+                        <div className="text-xs mt-1" style={{ color: secondaryText, opacity: 0.6 }}>
+                          {movement.reason}
+                        </div>
+                      )}
+                      {/* Draft info if available */}
+                      {movement.draftRound && (
+                        <div className="text-xs mt-1 font-medium" style={{ color: '#FFD700' }}>
+                          NFL Draft Round {movement.draftRound}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recruitment Information - Show for any player with recruitment data */}
       {recruitmentInfo && (
         <div

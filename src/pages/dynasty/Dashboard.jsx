@@ -35,6 +35,7 @@ import TeamStatsModal from '../../components/TeamStatsModal'
 import AwardsModal from '../../components/AwardsModal'
 import AllAmericansModal from '../../components/AllAmericansModal'
 import PlayerMatchConfirmModal from '../../components/PlayerMatchConfirmModal'
+import ReturningPlayerConfirmModal from '../../components/ReturningPlayerConfirmModal'
 import NewJobEditModal from '../../components/NewJobEditModal'
 import PlayersLeavingModal from '../../components/PlayersLeavingModal'
 import DraftResultsModal from '../../components/DraftResultsModal'
@@ -266,6 +267,11 @@ export default function Dashboard() {
   const [playerMatchConfirmation, setPlayerMatchConfirmation] = useState(null)
   const [pendingHonorData, setPendingHonorData] = useState(null) // { honorType, entries, year, confirmations, transferDecisions }
   const [currentConfirmIndex, setCurrentConfirmIndex] = useState(0)
+
+  // Returning player confirmation states (for recruiting)
+  const [showReturningPlayerConfirm, setShowReturningPlayerConfirm] = useState(false)
+  const [returningPlayerConfirmation, setReturningPlayerConfirmation] = useState(null)
+  const [pendingRecruitingData, setPendingRecruitingData] = useState(null) // { recruits, week, potentialReturning, confirmedReturning, confirmedNew, currentIndex }
 
   // Bowl eligibility states
   const [bowlEligible, setBowlEligible] = useState(null) // null = not answered, true/false = answered
@@ -1342,6 +1348,7 @@ export default function Dashboard() {
   }
 
   // Handle recruiting commitments save - TEAM-CENTRIC
+  // This function detects potential returning players and shows confirmation modal if needed
   const handleRecruitingCommitmentsSave = async (recruits) => {
     // On Signing Day (week 6), year has already flipped, so use previous year for recruiting data
     const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
@@ -1349,6 +1356,67 @@ export default function Dashboard() {
     const commitmentKey = getCommitmentKey()
     if (!commitmentKey) return
 
+    const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
+    const existingPlayers = currentDynasty.players || []
+
+    // Track players who left (leftTeam: true) OR are pending departure
+    const leftPlayersMap = new Map()
+    const pendingDepartureMap = new Map()
+    existingPlayers.forEach(p => {
+      if (p.name) {
+        const nameLower = p.name.toLowerCase().trim()
+        if (p.leftTeam) {
+          leftPlayersMap.set(nameLower, p)
+        }
+        // Check ANY departure indicator: pendingDeparture, leavingYear, leavingReason, OR transferredTo
+        const isPendingDeparture = p.pendingDeparture || p.leavingYear || p.leavingReason || p.transferredTo
+        if (isPendingDeparture) {
+          pendingDepartureMap.set(nameLower, p)
+        }
+      }
+    })
+
+    // Find recruits that are POTENTIAL returning players
+    const potentialReturning = recruits.filter(r => {
+      if (!r.name) return false
+      const nameLower = r.name.toLowerCase().trim()
+      return leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)
+    }).map(recruit => {
+      const nameLower = recruit.name.toLowerCase().trim()
+      const existingPlayer = pendingDepartureMap.get(nameLower) || leftPlayersMap.get(nameLower)
+      const departureReason = existingPlayer?.pendingDeparture?.reason ||
+        existingPlayer?.leavingReason ||
+        existingPlayer?.leftReason ||
+        'Transfer'
+      const departureYear = existingPlayer?.pendingDeparture?.year ||
+        existingPlayer?.leavingYear ||
+        existingPlayer?.leftYear ||
+        year
+      return { recruit, existingPlayer, departureReason, departureYear, currentTeamAbbr: teamAbbr }
+    })
+
+    // If there are potential returning players, show confirmation modal
+    if (potentialReturning.length > 0) {
+      setPendingRecruitingData({
+        recruits,
+        year,
+        commitmentKey,
+        potentialReturning,
+        confirmedReturning: [],
+        confirmedNew: [],
+        currentIndex: 0
+      })
+      setReturningPlayerConfirmation(potentialReturning[0])
+      setShowReturningPlayerConfirm(true)
+      return // Don't save yet - wait for confirmations
+    }
+
+    // No potential returning players - process directly
+    await processRecruitingCommitmentsSave(recruits, year, commitmentKey, [], [])
+  }
+
+  // Process recruiting save after all confirmations are complete
+  const processRecruitingCommitmentsSave = async (recruits, year, commitmentKey, confirmedReturning, confirmedNew) => {
     const teamAbbr = getAbbreviationFromDisplayName(currentDynasty.teamName) || currentDynasty.teamName
 
     // Use TEAM-CENTRIC structure: recruitingCommitmentsByTeamYear[teamAbbr][year][commitmentKey]
@@ -1377,9 +1445,8 @@ export default function Dashboard() {
         if (p.leftTeam) {
           leftPlayersMap.set(nameLower, p)
         }
-        // Also track players marked as leaving but haven't advanced yet
-        // Check ANY departure indicator: leavingYear, leavingReason, OR transferredTo
-        const isPendingDeparture = p.leavingYear || p.leavingReason || p.transferredTo
+        // Check ANY departure indicator: pendingDeparture, leavingYear, leavingReason, OR transferredTo
+        const isPendingDeparture = p.pendingDeparture || p.leavingYear || p.leavingReason || p.transferredTo
         if (isPendingDeparture) {
           pendingDepartureMap.set(nameLower, p)
         }
@@ -1399,25 +1466,29 @@ export default function Dashboard() {
       }
     })
 
-    // Find recruits that are RETURNING players (they left or are pending departure)
-    // Auto-detect: if a recruit name matches a player who left OR is marked as leaving, they're returning
+    // Use confirmed returning players list (user confirmed these are the same players)
+    const confirmedReturningNames = new Set(confirmedReturning.map(r => r.name.toLowerCase().trim()))
+    // These were confirmed as DIFFERENT players - treat as new
+    const confirmedNewNames = new Set(confirmedNew.map(r => r.name.toLowerCase().trim()))
+
+    // Find returning player recruits (user confirmed same player)
     const returningPlayerRecruits = recruits.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
-      // Match players who already left OR are pending departure (leavingYear set)
-      // Don't require isPortal flag - auto-detect based on name match
-      return leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)
+      return confirmedReturningNames.has(nameLower)
     })
 
     // Find NEW recruits - MUST pass ALL checks:
-    // 1. Not already in the players array (prevents duplicating existing roster) - UNLESS they left/leaving
+    // 1. Not already in the players array (prevents duplicating existing roster) - UNLESS user confirmed different player
     // 2. Not already in OTHER weeks' commitments (prevents cross-week duplicates)
     const newRecruits = recruits.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
-      // Skip if this is a returning player (handled separately)
-      if (leftPlayersMap.has(nameLower) || pendingDepartureMap.has(nameLower)) return false
-      // Reject if already exists as an ACTIVE player
+      // Skip if this is a confirmed returning player (handled separately)
+      if (confirmedReturningNames.has(nameLower)) return false
+      // If user confirmed this is a DIFFERENT player (same name but new person), allow creation
+      if (confirmedNewNames.has(nameLower)) return true
+      // Otherwise, reject if already exists as an ACTIVE player
       if (existingPlayerNames.has(nameLower)) return false
       // Reject if already in other weeks' commitments
       if (existingRecruitNames.has(nameLower)) return false
@@ -1647,6 +1718,64 @@ export default function Dashboard() {
         nextPID: nextPID
       })
     }
+  }
+
+  // Handle returning player confirmation response
+  const handleReturningPlayerConfirm = async (isSamePlayer) => {
+    if (!pendingRecruitingData) return
+
+    const {
+      recruits,
+      year,
+      commitmentKey,
+      potentialReturning,
+      confirmedReturning,
+      confirmedNew,
+      currentIndex
+    } = pendingRecruitingData
+
+    const currentMatch = potentialReturning[currentIndex]
+
+    // Add to appropriate list based on user's decision
+    const newConfirmedReturning = isSamePlayer
+      ? [...confirmedReturning, currentMatch.recruit]
+      : confirmedReturning
+    const newConfirmedNew = !isSamePlayer
+      ? [...confirmedNew, currentMatch.recruit]
+      : confirmedNew
+
+    // Check if there are more confirmations
+    if (currentIndex < potentialReturning.length - 1) {
+      // Show next confirmation
+      const nextIndex = currentIndex + 1
+      setPendingRecruitingData({
+        ...pendingRecruitingData,
+        confirmedReturning: newConfirmedReturning,
+        confirmedNew: newConfirmedNew,
+        currentIndex: nextIndex
+      })
+      setReturningPlayerConfirmation(potentialReturning[nextIndex])
+    } else {
+      // All confirmations done - process the save
+      setShowReturningPlayerConfirm(false)
+      setReturningPlayerConfirmation(null)
+      setPendingRecruitingData(null)
+
+      await processRecruitingCommitmentsSave(
+        recruits,
+        year,
+        commitmentKey,
+        newConfirmedReturning,
+        newConfirmedNew
+      )
+    }
+  }
+
+  // Handle canceling returning player confirmation
+  const handleReturningPlayerCancel = () => {
+    setShowReturningPlayerConfirm(false)
+    setReturningPlayerConfirmation(null)
+    setPendingRecruitingData(null)
   }
 
   // Handle marking no commitments for the week - TEAM-CENTRIC
@@ -7741,6 +7870,16 @@ export default function Dashboard() {
         teamColors={teamColors}
         onConfirm={handlePlayerMatchConfirm}
         onCancel={handlePlayerMatchCancel}
+      />
+
+      {/* Returning Player Confirmation Modal (for recruiting) */}
+      <ReturningPlayerConfirmModal
+        isOpen={showReturningPlayerConfirm}
+        confirmation={returningPlayerConfirmation}
+        dynastyId={currentDynasty?.id}
+        teamColors={teamColors}
+        onConfirm={handleReturningPlayerConfirm}
+        onCancel={handleReturningPlayerCancel}
       />
 
       {/* Players Leaving Modal (Offseason Week 1) */}
