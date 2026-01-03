@@ -625,45 +625,52 @@ export function getCurrentSchedule(dynasty) {
  * Determines if a player belongs on a team's roster for a given year.
  * All components should use this function for consistent roster filtering.
  *
+ * Uses the new movements-based system where teamsByYear is the source of truth.
+ * Players with pendingDeparture are still shown on roster for their departure year.
+ *
  * @param {Object} player - Player object
  * @param {string} teamAbbr - Team abbreviation to check
  * @param {number|string} year - Season year to check
  * @returns {boolean} True if player should appear on roster for this team/year
  */
 export function isPlayerOnRoster(player, teamAbbr, year) {
+  const yearNum = Number(year)
+
   // 1. Always exclude honor-only players from roster
   if (player.isHonorOnly) return false
 
   // 2. Exclude recruits who haven't enrolled yet
   if (player.isRecruit) return false
-  if (player.recruitYear && Number(year) <= Number(player.recruitYear)) return false
+  if (player.recruitYear && yearNum <= Number(player.recruitYear)) return false
 
-  // 3. Exclude players who have LEFT the team (finalized)
-  if (player.leftTeam && player.leftYear && Number(year) > Number(player.leftYear)) return false
-
-  // 4. Exclude players with PENDING departure for this year or earlier
-  // (leavingYear + leavingReason = marked as leaving but not yet processed by advanceToNewSeason)
-  if (player.leavingYear && player.leavingReason) {
-    if (Number(year) > Number(player.leavingYear)) return false
+  // 3. PRIMARY CHECK: Use teamsByYear if available (the source of truth)
+  // This is the BBGM-inspired approach: if teamsByYear[year] exists, it's definitive
+  if (player.teamsByYear) {
+    const teamForYear = player.teamsByYear[year] ?? player.teamsByYear[String(year)]
+    if (teamForYear !== undefined) {
+      return teamForYear === teamAbbr
+    }
   }
 
-  // 5. Exclude players pending transfer away (transferredTo set but not yet finalized)
-  if (player.transferredTo) {
-    const departureYear = player.leavingYear || year
-    if (Number(year) > Number(departureYear)) return false
-  }
-
-  // 6. PRIMARY CHECK: Use teamsByYear if available (immutable historical record)
-  if (player.teamsByYear && player.teamsByYear[year] !== undefined) {
-    return player.teamsByYear[year] === teamAbbr
-  }
-
-  // 7. FALLBACK: Check current team field
+  // 4. FALLBACK for legacy data: Check current team field
+  // Also handle players with pendingDeparture (they're still on roster for their departure year)
   if (player.team) {
+    // If player has pendingDeparture, they're leaving after this year
+    // They should still show on roster for the departure year
+    if (player.pendingDeparture) {
+      const departureYear = Number(player.pendingDeparture.year)
+      // After departure year, not on roster
+      if (yearNum > departureYear) return false
+    }
+
+    // LEGACY SUPPORT: Check old fields too during migration period
+    if (player.leftTeam && player.leftYear && yearNum > Number(player.leftYear)) return false
+    if (player.leavingYear && player.leavingReason && yearNum > Number(player.leavingYear)) return false
+
     return player.team === teamAbbr
   }
 
-  // 8. Legacy: players without team field belong to current team
+  // 5. Legacy: players without team field belong to current team
   return true
 }
 
@@ -1374,6 +1381,160 @@ export function migrateRosterData(dynasty) {
   return { ...dynasty, _rosterMigratedV3: true }
 }
 
+// ============================================================================
+// MOVEMENT TYPES - Player movement tracking system
+// ============================================================================
+export const MOVEMENT_TYPES = {
+  RECRUITED: 'recruited',      // HS/JUCO recruit signs
+  PORTAL_IN: 'portal_in',      // Transfer portal player commits
+  TRANSFER: 'transfer',        // Player transfers to another team
+  DEPARTURE: 'departure',      // Graduating or Pro Draft (no destination)
+  ADDED: 'added',              // Manual roster add via editor
+  REMOVED: 'removed',          // Manual roster delete via editor
+  RECOMMIT: 'recommit'         // Was leaving but came back same offseason
+}
+
+/**
+ * Create a movement entry
+ * @param {number} year - The season year
+ * @param {string} type - One of MOVEMENT_TYPES
+ * @param {string|null} from - Team abbreviation or null
+ * @param {string|null} to - Team abbreviation or null
+ * @param {string} [reason] - Optional reason (e.g., 'Graduating', 'Pro Draft', 'Transfer')
+ * @param {Object} [extra] - Optional extra data (draftRound, etc.)
+ */
+export function createMovement(year, type, from, to, reason = null, extra = {}) {
+  return {
+    year: Number(year),
+    type,
+    from,
+    to,
+    reason,
+    timestamp: Date.now(),
+    ...extra
+  }
+}
+
+/**
+ * Get players with pending departures for a given year
+ * Replaces dynasty.playersLeavingByYear[year]
+ */
+export function getPlayersLeaving(dynasty, year) {
+  if (!dynasty?.players) return []
+  return dynasty.players.filter(p =>
+    p.pendingDeparture?.year === Number(year) ||
+    p.pendingDeparture?.year === String(year)
+  )
+}
+
+/**
+ * Check if a player has transferred away (has a transfer movement in their history)
+ */
+export function hasPlayerTransferredAway(player, fromTeam) {
+  if (!player.movements) return false
+  return player.movements.some(m =>
+    m.type === MOVEMENT_TYPES.TRANSFER &&
+    m.from === fromTeam
+  )
+}
+
+/**
+ * Migrate dynasty to new movements system
+ * Converts legacy fields to movements[] and pendingDeparture
+ */
+export function migrateToMovementsSystem(dynasty) {
+  if (!dynasty) return dynasty
+  if (dynasty._movementsMigrated) return dynasty
+  if (!dynasty.players || dynasty.players.length === 0) {
+    return { ...dynasty, _movementsMigrated: true }
+  }
+
+  const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+
+  const migratedPlayers = dynasty.players.map(player => {
+    // Skip if already has movements array
+    if (player.movements && player.movements.length > 0) {
+      return player
+    }
+
+    const movements = []
+
+    // Determine the player's origin team
+    const originTeam = player.team || teamAbbr
+
+    // Add recruitment movement if we can determine when they joined
+    if (player.recruitYear && player.isRecruit !== undefined) {
+      // This was a recruit
+      const recruitType = player.isPortal ? MOVEMENT_TYPES.PORTAL_IN : MOVEMENT_TYPES.RECRUITED
+      const fromTeam = player.isPortal ? (player.previousTeam || null) : null
+      movements.push(createMovement(
+        player.recruitYear,
+        recruitType,
+        fromTeam,
+        originTeam
+      ))
+    } else if (player.yearStarted) {
+      // Legacy: player has yearStarted
+      movements.push(createMovement(
+        player.yearStarted,
+        MOVEMENT_TYPES.ADDED,
+        null,
+        originTeam
+      ))
+    }
+
+    // Convert leftTeam/leftYear/leftReason to departure movement
+    if (player.leftTeam && player.leftYear) {
+      const departureTeam = player.teamsByYear?.[player.leftYear] || originTeam
+      const isTransfer = player.leftReason === 'Transfer' || player.leftReason === 'Encouraged Transfer'
+
+      if (isTransfer && player.transferredTo) {
+        movements.push(createMovement(
+          player.leftYear,
+          MOVEMENT_TYPES.TRANSFER,
+          departureTeam,
+          player.transferredTo,
+          player.leftReason
+        ))
+      } else {
+        const extra = player.draftRound ? { draftRound: player.draftRound } : {}
+        movements.push(createMovement(
+          player.leftYear,
+          MOVEMENT_TYPES.DEPARTURE,
+          departureTeam,
+          null,
+          player.leftReason || 'Unknown',
+          extra
+        ))
+      }
+    }
+
+    // Convert leavingYear/leavingReason/transferredTo to pendingDeparture
+    let pendingDeparture = null
+    if (player.leavingYear && player.leavingReason) {
+      pendingDeparture = {
+        year: Number(player.leavingYear),
+        reason: player.leavingReason,
+        destination: player.transferredTo || null
+      }
+    }
+
+    return {
+      ...player,
+      movements: movements.length > 0 ? movements : [],
+      pendingDeparture: pendingDeparture
+      // Note: We keep the legacy fields for now for backwards compatibility
+      // They will be ignored by the new isPlayerOnRoster logic
+    }
+  })
+
+  return {
+    ...dynasty,
+    players: migratedPlayers,
+    _movementsMigrated: true
+  }
+}
+
 export function useDynasty() {
   const context = useContext(DynastyContext)
   if (!context) {
@@ -1407,6 +1568,11 @@ export function DynastyProvider({ children }) {
       // Apply roster migration if needed (fixes corrupted teamsByYear + backfills current year)
       if (!migrated._rosterMigratedV3) {
         migrated = migrateRosterData(migrated)
+      }
+
+      // Apply movements migration if needed (new player movement tracking system)
+      if (!migrated._movementsMigrated) {
+        migrated = migrateToMovementsSystem(migrated)
       }
 
       return migrated
@@ -2659,6 +2825,99 @@ export function DynastyProvider({ children }) {
       additionalUpdates.players = progressedPlayers
       // Mark that class progression has been done for this year
       additionalUpdates.classProgressionDoneForYear = nextYear
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 6 && nextWeek === 7) {
+      // DEPARTURE FINALIZATION - Week 6→7 transition (after Signing Day tasks complete)
+      // This is when we process pendingDeparture and create movements
+      const previousSeasonYear = dynasty.currentYear - 1 // Year that just ended
+      const currentSeasonYear = dynasty.currentYear // Year after flip
+      const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
+      const players = dynasty.players || []
+
+      // Get draft results for draft round info
+      const getByYear = (obj, year) => obj?.[year] ?? obj?.[String(year)] ?? obj?.[Number(year)]
+      const draftResults = getByYear(dynasty.draftResultsByYear, previousSeasonYear) || []
+      const draftByPid = {}
+      draftResults.forEach(d => {
+        if (d.pid) draftByPid[d.pid] = d
+      })
+
+      // Process each player's pendingDeparture
+      const finalizedPlayers = players.map(player => {
+        // Skip honor-only players
+        if (player.isHonorOnly) return player
+
+        // Skip players from other teams
+        if (player.team && player.team !== teamAbbr) return player
+
+        // Check if player has pendingDeparture for the previous season
+        if (player.pendingDeparture && Number(player.pendingDeparture.year) === previousSeasonYear) {
+          const departure = player.pendingDeparture
+          const movements = [...(player.movements || [])]
+          const draftInfo = draftByPid[player.pid]
+
+          // Create appropriate movement based on departure type
+          if (departure.destination) {
+            // Transfer to another team
+            movements.push(createMovement(
+              previousSeasonYear,
+              MOVEMENT_TYPES.TRANSFER,
+              teamAbbr,
+              departure.destination,
+              departure.reason || 'Transfer'
+            ))
+
+            // Update team and teamsByYear for the transfer
+            return {
+              ...player,
+              team: departure.destination,
+              movements,
+              pendingDeparture: null,
+              // Update teamsByYear - destination team for current season
+              teamsByYear: {
+                ...(player.teamsByYear || {}),
+                [currentSeasonYear]: departure.destination
+              },
+              // Keep legacy fields updated for backwards compatibility
+              leftTeam: false,
+              leftYear: null,
+              leftReason: null,
+              leavingYear: null,
+              leavingReason: null,
+              transferredTo: null
+            }
+          } else {
+            // Departing (graduating, pro draft, etc.)
+            const extra = draftInfo?.draftRound ? { draftRound: draftInfo.draftRound } : {}
+            movements.push(createMovement(
+              previousSeasonYear,
+              MOVEMENT_TYPES.DEPARTURE,
+              teamAbbr,
+              null,
+              departure.reason || 'Unknown',
+              extra
+            ))
+
+            return {
+              ...player,
+              movements,
+              pendingDeparture: null,
+              // Do NOT add currentSeasonYear to teamsByYear - they're gone
+              // Keep legacy fields updated for backwards compatibility
+              leftTeam: true,
+              leftYear: previousSeasonYear,
+              leftReason: departure.reason,
+              draftRound: draftInfo?.draftRound || null,
+              leavingYear: null,
+              leavingReason: null,
+              transferredTo: null
+            }
+          }
+        }
+
+        return player
+      })
+
+      additionalUpdates.players = finalizedPlayers
     } else if (dynasty.currentPhase === 'offseason' && nextWeek > 7) {
       // SEASON ADVANCEMENT to preseason - year already flipped when entering Signing Day
       // Just transition to preseason phase, no year change needed
@@ -3524,6 +3783,14 @@ export function DynastyProvider({ children }) {
       }
 
       // For NEW players (no name match), use sheet data with required fields
+      // Add 'added' movement to track when player was manually added
+      const addedMovement = createMovement(
+        year,
+        MOVEMENT_TYPES.ADDED,
+        null,
+        teamAbbr,
+        'Added via roster entry'
+      )
       return {
         ...player,
         pid,
@@ -3533,7 +3800,9 @@ export function DynastyProvider({ children }) {
         // IMMUTABLE roster history - this player is on this team this year
         teamsByYear: { [year]: teamAbbr },
         // IMMUTABLE class history - record this player's class for this year
-        classByYear: { [year]: player.year }
+        classByYear: { [year]: player.year },
+        // Movement history for tracking career path
+        movements: [addedMovement]
       }
     })
 
@@ -3913,6 +4182,7 @@ export function DynastyProvider({ children }) {
   }
 
   // Delete a player from the dynasty
+  // Adds a 'removed' movement to track the deletion before removing
   const deletePlayer = async (dynastyId, playerPid) => {
     const isDev = import.meta.env.VITE_DEV_MODE === 'true'
     let dynasty
@@ -3932,10 +4202,39 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    // Remove the player from the players array
-    const updatedPlayers = (dynasty.players || []).filter(player => player.pid !== playerPid)
+    // Find the player being deleted to add a removal movement
+    const playerToDelete = (dynasty.players || []).find(p => p.pid === playerPid)
+    const teamAbbr = getAbbreviationFromDisplayName(dynasty.teamName) || dynasty.teamName
 
-    await updateDynasty(dynastyId, { players: updatedPlayers })
+    // If player exists and has movements, add a 'removed' movement before deleting
+    if (playerToDelete) {
+      const removedMovement = createMovement(
+        dynasty.currentYear,
+        MOVEMENT_TYPES.REMOVED,
+        playerToDelete.team || teamAbbr,
+        null,
+        'User removed from roster'
+      )
+
+      // Update player with removal movement, then remove from array
+      const updatedPlayers = (dynasty.players || []).map(player => {
+        if (player.pid === playerPid) {
+          return {
+            ...player,
+            movements: [...(player.movements || []), removedMovement],
+            isRemoved: true, // Mark as removed for historical tracking
+            removedYear: dynasty.currentYear
+          }
+        }
+        return player
+      }).filter(player => player.pid !== playerPid) // Then remove
+
+      await updateDynasty(dynastyId, { players: updatedPlayers })
+    } else {
+      // Fallback: just remove if player not found
+      const updatedPlayers = (dynasty.players || []).filter(player => player.pid !== playerPid)
+      await updateDynasty(dynastyId, { players: updatedPlayers })
+    }
   }
 
   const createGoogleSheetForDynasty = async (dynastyId) => {

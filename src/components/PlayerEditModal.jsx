@@ -391,7 +391,9 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
         // Roster History - which team this player was on each year
         teamsByYear: player.teamsByYear || {},
         // Class History - what class this player was each year
-        classByYear: player.classByYear || {}
+        classByYear: player.classByYear || {},
+        // Career Timeline - movement history
+        movements: player.movements || []
       })
 
       // Start with all sections collapsed
@@ -612,6 +614,8 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
       teamsByYear: formData.teamsByYear,
       // Class History - what class this player was each year
       classByYear: formData.classByYear,
+      // Career Timeline - movement history
+      movements: formData.movements,
       // Status flags
       isRecruit: formData.isRecruit,
       isPortal: formData.isPortal
@@ -1251,6 +1255,92 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                           </select>
                         </div>
                       ))}
+                    </div>
+                  </details>
+
+                  {/* Career Timeline - movement history editing */}
+                  <details className="group mt-4">
+                    <summary className="cursor-pointer text-xs font-medium py-2 flex items-center gap-2" style={{ color: secondaryText }}>
+                      <span className="group-open:rotate-90 transition-transform">▶</span>
+                      Career Timeline ({(formData.movements || []).length} events)
+                    </summary>
+                    <div className="mt-2 space-y-2 pl-4">
+                      {(formData.movements || []).sort((a, b) => a.year - b.year).map((movement, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 rounded bg-gray-50">
+                          <span className="text-sm font-medium w-12" style={{ color: secondaryText }}>{movement.year}</span>
+                          <select
+                            value={movement.type || ''}
+                            onChange={(e) => {
+                              const newMovements = [...(formData.movements || [])]
+                              newMovements[idx] = { ...newMovements[idx], type: e.target.value }
+                              setFormData(prev => ({ ...prev, movements: newMovements }))
+                            }}
+                            className="flex-1 px-2 py-1.5 rounded border text-xs"
+                            style={inputStyle}
+                          >
+                            <option value="recruited">Recruited</option>
+                            <option value="portal_in">Portal In</option>
+                            <option value="transfer">Transfer</option>
+                            <option value="departure">Departure</option>
+                            <option value="added">Added</option>
+                            <option value="removed">Removed</option>
+                            <option value="recommit">Recommit</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={movement.from || ''}
+                            placeholder="From"
+                            onChange={(e) => {
+                              const newMovements = [...(formData.movements || [])]
+                              newMovements[idx] = { ...newMovements[idx], from: e.target.value || null }
+                              setFormData(prev => ({ ...prev, movements: newMovements }))
+                            }}
+                            className="w-16 px-2 py-1.5 rounded border text-xs"
+                            style={inputStyle}
+                          />
+                          <span className="text-xs" style={{ color: secondaryText }}>→</span>
+                          <input
+                            type="text"
+                            value={movement.to || ''}
+                            placeholder="To"
+                            onChange={(e) => {
+                              const newMovements = [...(formData.movements || [])]
+                              newMovements[idx] = { ...newMovements[idx], to: e.target.value || null }
+                              setFormData(prev => ({ ...prev, movements: newMovements }))
+                            }}
+                            className="w-16 px-2 py-1.5 rounded border text-xs"
+                            style={inputStyle}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newMovements = (formData.movements || []).filter((_, i) => i !== idx)
+                              setFormData(prev => ({ ...prev, movements: newMovements }))
+                            }}
+                            className="text-red-500 hover:text-red-700 text-xs px-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newMovement = {
+                            year: dynasty?.currentYear || new Date().getFullYear(),
+                            type: 'added',
+                            from: null,
+                            to: formData.team || null,
+                            reason: null,
+                            timestamp: Date.now()
+                          }
+                          setFormData(prev => ({ ...prev, movements: [...(prev.movements || []), newMovement] }))
+                        }}
+                        className="text-xs px-3 py-1.5 rounded"
+                        style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
+                      >
+                        + Add Event
+                      </button>
                     </div>
                   </details>
 
