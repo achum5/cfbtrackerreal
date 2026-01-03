@@ -1265,64 +1265,93 @@ export default function PlayerEditModal({ isOpen, onClose, player, teamColors, o
                       Career Timeline ({(formData.movements || []).length} events)
                     </summary>
                     <div className="mt-2 space-y-2 pl-4">
-                      {(formData.movements || []).sort((a, b) => a.year - b.year).map((movement, idx) => (
-                        <div key={idx} className="flex items-center gap-2 p-2 rounded bg-gray-50">
-                          <span className="text-sm font-medium w-12" style={{ color: secondaryText }}>{movement.year}</span>
-                          <select
-                            value={movement.type || ''}
-                            onChange={(e) => {
-                              const newMovements = [...(formData.movements || [])]
-                              newMovements[idx] = { ...newMovements[idx], type: e.target.value }
-                              setFormData(prev => ({ ...prev, movements: newMovements }))
-                            }}
-                            className="flex-1 px-2 py-1.5 rounded border text-xs"
-                            style={inputStyle}
-                          >
-                            <option value="recruited">Recruited</option>
-                            <option value="portal_in">Portal In</option>
-                            <option value="transfer">Transfer</option>
-                            <option value="departure">Departure</option>
-                            <option value="added">Added</option>
-                            <option value="removed">Removed</option>
-                            <option value="recommit">Recommit</option>
-                          </select>
-                          <input
-                            type="text"
-                            value={movement.from || ''}
-                            placeholder="From"
-                            onChange={(e) => {
-                              const newMovements = [...(formData.movements || [])]
-                              newMovements[idx] = { ...newMovements[idx], from: e.target.value || null }
-                              setFormData(prev => ({ ...prev, movements: newMovements }))
-                            }}
-                            className="w-16 px-2 py-1.5 rounded border text-xs"
-                            style={inputStyle}
-                          />
-                          <span className="text-xs" style={{ color: secondaryText }}>→</span>
-                          <input
-                            type="text"
-                            value={movement.to || ''}
-                            placeholder="To"
-                            onChange={(e) => {
-                              const newMovements = [...(formData.movements || [])]
-                              newMovements[idx] = { ...newMovements[idx], to: e.target.value || null }
-                              setFormData(prev => ({ ...prev, movements: newMovements }))
-                            }}
-                            className="w-16 px-2 py-1.5 rounded border text-xs"
-                            style={inputStyle}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newMovements = (formData.movements || []).filter((_, i) => i !== idx)
-                              setFormData(prev => ({ ...prev, movements: newMovements }))
-                            }}
-                            className="text-red-500 hover:text-red-700 text-xs px-1"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                      {/* IMPORTANT: Create a sorted copy to avoid mutating state, and use timestamp as unique key */}
+                      {[...(formData.movements || [])].sort((a, b) => a.year - b.year).map((movement) => {
+                        // Find the original index using timestamp (unique identifier)
+                        const originalIndex = (formData.movements || []).findIndex(m => m.timestamp === movement.timestamp)
+                        const movementKey = movement.timestamp || `${movement.year}-${movement.type}-${originalIndex}`
+
+                        return (
+                          <div key={movementKey} className="flex items-center gap-2 p-2 rounded bg-gray-50">
+                            <input
+                              type="number"
+                              value={movement.year || ''}
+                              onChange={(e) => {
+                                const newMovements = [...(formData.movements || [])]
+                                if (originalIndex !== -1) {
+                                  newMovements[originalIndex] = { ...newMovements[originalIndex], year: parseInt(e.target.value) || 0 }
+                                  setFormData(prev => ({ ...prev, movements: newMovements }))
+                                }
+                              }}
+                              className="w-16 px-2 py-1.5 rounded border text-xs font-medium"
+                              style={inputStyle}
+                              placeholder="Year"
+                            />
+                            <select
+                              value={movement.type || ''}
+                              onChange={(e) => {
+                                const newMovements = [...(formData.movements || [])]
+                                if (originalIndex !== -1) {
+                                  newMovements[originalIndex] = { ...newMovements[originalIndex], type: e.target.value }
+                                  setFormData(prev => ({ ...prev, movements: newMovements }))
+                                }
+                              }}
+                              className="flex-1 px-2 py-1.5 rounded border text-xs"
+                              style={inputStyle}
+                            >
+                              <option value="recruited">Recruited</option>
+                              <option value="portal_in">Portal In</option>
+                              <option value="transfer">Transfer</option>
+                              <option value="departure">Departure</option>
+                              <option value="added">Added</option>
+                              <option value="removed">Removed</option>
+                              <option value="recommit">Recommit</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={movement.from || ''}
+                              placeholder="From"
+                              onChange={(e) => {
+                                const newMovements = [...(formData.movements || [])]
+                                if (originalIndex !== -1) {
+                                  newMovements[originalIndex] = { ...newMovements[originalIndex], from: e.target.value || null }
+                                  setFormData(prev => ({ ...prev, movements: newMovements }))
+                                }
+                              }}
+                              className="w-16 px-2 py-1.5 rounded border text-xs"
+                              style={inputStyle}
+                            />
+                            <span className="text-xs" style={{ color: secondaryText }}>→</span>
+                            <input
+                              type="text"
+                              value={movement.to || ''}
+                              placeholder="To"
+                              onChange={(e) => {
+                                const newMovements = [...(formData.movements || [])]
+                                if (originalIndex !== -1) {
+                                  newMovements[originalIndex] = { ...newMovements[originalIndex], to: e.target.value || null }
+                                  setFormData(prev => ({ ...prev, movements: newMovements }))
+                                }
+                              }}
+                              className="w-16 px-2 py-1.5 rounded border text-xs"
+                              style={inputStyle}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Find and remove the correct movement using originalIndex
+                                if (originalIndex !== -1) {
+                                  const newMovements = (formData.movements || []).filter((_, i) => i !== originalIndex)
+                                  setFormData(prev => ({ ...prev, movements: newMovements }))
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 text-xs px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
                       <button
                         type="button"
                         onClick={() => {
