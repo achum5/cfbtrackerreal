@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState, useRef } from 'react'
 import logo from '../assets/logo.png'
 import { teams, getTeamLogo } from '../data/teams'
@@ -210,6 +210,16 @@ export default function Login() {
           <p className="text-xs text-gray-500 text-center mt-6">
             Completely free!
           </p>
+
+          <div className="flex items-center justify-center gap-3 mt-4 text-xs text-gray-500">
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">
+              Privacy Policy
+            </Link>
+            <span>·</span>
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
 
