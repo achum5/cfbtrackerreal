@@ -6587,7 +6587,7 @@ export default function Dashboard() {
                         color: playedGame || isCurrentWeek ? '#fff' : secondaryBgText
                       }}
                     >
-                      {playedGame ? (isWin ? 'W' : 'L') : `Wk ${game.week}`}
+                      {playedGame ? (isWin ? 'W' : 'L') : isCurrentWeek ? 'NEXT' : `Wk ${game.week}`}
                     </div>
 
                     {/* Game Info */}
@@ -6647,13 +6647,6 @@ export default function Dashboard() {
                               </span>
                             )}
                           </div>
-                        ) : isCurrentWeek ? (
-                          <span
-                            className="inline-block text-[8px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full animate-pulse"
-                            style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
-                          >
-                            GAMEDAY
-                          </span>
                         ) : (
                           <span className="text-xs sm:text-sm font-medium" style={{ color: opponentColors.textColor, opacity: 0.5 }}>
                             —
@@ -6680,10 +6673,10 @@ export default function Dashboard() {
                 return (
                   <div
                     key={index}
-                    className="rounded-xl overflow-hidden"
+                    className={`rounded-xl overflow-hidden ${isCurrentWeek ? 'animate-pulse-subtle' : ''}`}
                     style={{
                       boxShadow: isCurrentWeek
-                        ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
+                        ? `0 2px 12px ${teamColors.primary}40`
                         : '0 2px 8px rgba(0,0,0,0.06)'
                     }}
                   >
@@ -6724,7 +6717,7 @@ export default function Dashboard() {
                       color: ccGame || isCurrentCCWeek ? '#fff' : secondaryBgText
                     }}
                   >
-                    {ccGame ? (isWin ? 'W' : 'L') : 'CC'}
+                    {ccGame ? (isWin ? 'W' : 'L') : isCurrentCCWeek ? 'NEXT' : 'CC'}
                   </div>
 
                   {/* Game Info */}
@@ -6784,13 +6777,6 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
-                      ) : isCurrentCCWeek ? (
-                        <span
-                          className="inline-block text-[8px] sm:text-xs font-bold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full animate-pulse"
-                          style={{ backgroundColor: `${teamColors.primary}20`, color: teamColors.primary }}
-                        >
-                          GAMEDAY
-                        </span>
                       ) : (
                         <span className="text-xs sm:text-sm font-medium" style={{ color: hasOpponent ? ccOpponentColors.textColor : '#fff', opacity: 0.5 }}>
                           —
@@ -6806,11 +6792,7 @@ export default function Dashboard() {
                   <Link
                     to={`${pathPrefix}/game/${ccGame.id}`}
                     className="block rounded-xl overflow-hidden hover:scale-[1.01] hover:shadow-lg transition-all duration-200"
-                    style={{
-                      boxShadow: isCurrentCCWeek
-                        ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
-                        : '0 2px 8px rgba(0,0,0,0.06)'
-                    }}
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
                   >
                     {ccContent}
                   </Link>
@@ -6819,10 +6801,10 @@ export default function Dashboard() {
 
               return (
                 <div
-                  className="rounded-xl overflow-hidden"
+                  className={`rounded-xl overflow-hidden ${isCurrentCCWeek ? 'animate-pulse-subtle' : ''}`}
                   style={{
                     boxShadow: isCurrentCCWeek
-                      ? `0 0 0 2px ${teamColors.primary}, 0 4px 16px ${teamColors.primary}30`
+                      ? `0 2px 12px ${teamColors.primary}40`
                       : '0 2px 8px rgba(0,0,0,0.06)'
                   }}
                 >

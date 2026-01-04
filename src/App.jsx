@@ -33,6 +33,9 @@ import Game from './pages/dynasty/Game'
 import TeamStats from './pages/dynasty/TeamStats'
 // View-only wrapper (no auth required)
 import ViewDynasty from './pages/ViewDynasty'
+// Public pages
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -52,6 +55,10 @@ function AppRoutes() {
     <Router>
       <ScrollToTop />
       <Routes>
+        {/* Public policy pages - no auth required */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+
         {/* Public view routes - no auth required, reuses same components */}
         <Route path="/view/:shareCode" element={<ViewDynasty />}>
           <Route index element={<Dashboard />} />
