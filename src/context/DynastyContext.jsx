@@ -2018,19 +2018,22 @@ export function migrateToFullTidSystem(dynasty) {
     migrated._tidMigrated = true
   }
 
-  // Phase 1: Add currentTid
-  if (!migrated.currentTid && migrated.teamName) {
-    // For custom teams, the name is stored in dynasty.teams
-    // For default teams, use NAME_TO_TID lookup
-    const tid = getTidFromTeamName(migrated.teamName, migrated.teams)
-    if (tid) {
-      migrated.currentTid = tid
-    } else {
-      // Fallback: try abbreviation approach
-      const abbr = getAbbrFromTeamName(migrated.teamName, migrated.teams)
-      const fallbackTid = getTidFromAbbr(abbr)
-      if (fallbackTid) {
-        migrated.currentTid = fallbackTid
+  // Phase 1: Add or FIX currentTid
+  // Also fix currentTid if it doesn't match teamName (can happen after job changes)
+  if (migrated.teamName) {
+    const expectedTid = getTidFromTeamName(migrated.teamName, migrated.teams)
+
+    // Check if currentTid is missing OR doesn't match teamName
+    if (!migrated.currentTid || (expectedTid && migrated.currentTid !== expectedTid)) {
+      if (expectedTid) {
+        migrated.currentTid = expectedTid
+      } else {
+        // Fallback: try abbreviation approach
+        const abbr = getAbbrFromTeamName(migrated.teamName, migrated.teams)
+        const fallbackTid = getTidFromAbbr(abbr)
+        if (fallbackTid) {
+          migrated.currentTid = fallbackTid
+        }
       }
     }
   }
