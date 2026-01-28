@@ -1321,7 +1321,9 @@ export default function Player() {
                   fromTeam = stint.transferFromTid
                 }
               }
-              timelineEntries.push({ ...joinMovement, team, from: fromTeam })
+              // For recruited players, show the commitment year (year before freshman year)
+              const entryYear = joinMovement.type === 'recruited' ? year - 1 : year
+              timelineEntries.push({ ...joinMovement, year: entryYear, team, from: fromTeam })
             } else {
               // No join movement - determine type from player data
               let joinType = 'started'
@@ -1367,7 +1369,9 @@ export default function Player() {
                 }
               }
 
-              timelineEntries.push({ year, type: joinType, team, to: team, from: fromTeam })
+              // For recruited players, show the commitment year (year before freshman year)
+              const entryYear = joinType === 'recruited' ? year - 1 : year
+              timelineEntries.push({ year: entryYear, type: joinType, team, to: team, from: fromTeam })
             }
           } else if (team !== prevTeam && prevTeam) {
             // Team changed - show transfer
@@ -1477,7 +1481,7 @@ export default function Player() {
             return 'Recommitted'
           }
           switch (m.type) {
-            case 'recruited': return 'Recruited'
+            case 'recruited': return 'Committed'
             case 'portal_in': return 'Portal Transfer'
             case 'juco_in': return 'JUCO Transfer'
             case 'entered_portal': return 'Entered Portal'
