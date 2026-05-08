@@ -8465,15 +8465,25 @@ export function DynastyProvider({ children }) {
     // the played-team rank wins.
     const byeRanks = Array.isArray(weeklyGames?.byeRanks) ? weeklyGames.byeRanks : []
     if (byeRanks.length > 0) {
-      // Slots already claimed by played teams in this save's
-      // propagation week — use to defend against AI-introduced
-      // collisions (an AI emitting "MIA at #2" when MIA actually
-      // played and got #2 from the screenshot is one example we
-      // ignore here without complaining).
+      // Slots and tids already claimed by played teams in this save's
+      // propagation week. Slot guard defends against an AI giving a
+      // bye team a rank some played team also got. Tid guard defends
+      // against an AI putting a team that played into the bye block
+      // (the prompt's worked example uses CLEM as a bye row, and the
+      // AI sometimes copies that team into its real output) — without
+      // this, the bye write clobbers the played row's correctly-
+      // extracted rank for the SAME team.
       const playedSlotsInPropWeek = new Set()
+      const playedTidsInPropWeek = new Set()
       for (const g of newGamesArr) {
-        if (typeof g._team1PostGameRank === 'number') playedSlotsInPropWeek.add(g._team1PostGameRank)
-        if (typeof g._team2PostGameRank === 'number') playedSlotsInPropWeek.add(g._team2PostGameRank)
+        if (typeof g._team1PostGameRank === 'number') {
+          playedSlotsInPropWeek.add(g._team1PostGameRank)
+          if (g.team1Tid != null) playedTidsInPropWeek.add(Number(g.team1Tid))
+        }
+        if (typeof g._team2PostGameRank === 'number') {
+          playedSlotsInPropWeek.add(g._team2PostGameRank)
+          if (g.team2Tid != null) playedTidsInPropWeek.add(Number(g.team2Tid))
+        }
       }
       const seenByeRanks = new Set()
       for (const entry of byeRanks) {
@@ -8485,6 +8495,9 @@ export function DynastyProvider({ children }) {
         if (seenByeRanks.has(r)) continue
         // Don't fight a played-team rank.
         if (playedSlotsInPropWeek.has(r)) continue
+        // Don't overwrite a team that already had its rank written
+        // from a played row this save.
+        if (playedTidsInPropWeek.has(Number(entry.tid))) continue
         // Don't overwrite if a played team in this propagationWeek
         // (entered separately via schedule flow) already has this
         // exact slot stored.
