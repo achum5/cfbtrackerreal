@@ -3536,9 +3536,24 @@ async function initializeWeeklyScoresSheet(spreadsheetId, accessToken, sheetId, 
     // Strict team dropdown for HOME column (col A, index 0) — covers
     // both the games range AND the bye-week-rank entries below the
     // divider, so the AI can paste team abbrs into the bye block too.
+    // Split into two ranges so the banner row at byeHeaderRowIdx0
+    // doesn't get a dropdown caret that visually competes with its
+    // header text — beta tester saw "you have a header at line 132
+    // but it doesn't put it as a header" because the dropdown was
+    // applied across the banner.
     {
       setDataValidation: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: byeLastDataRowIdx0Excl, startColumnIndex: 0, endColumnIndex: 1 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: byeHeaderRowIdx0, startColumnIndex: 0, endColumnIndex: 1 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr })) },
+          showCustomUi: true,
+          strict: true
+        }
+      }
+    },
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: byeFirstDataRowIdx0, endRowIndex: byeLastDataRowIdx0Excl, startColumnIndex: 0, endColumnIndex: 1 },
         rule: {
           condition: { type: 'ONE_OF_LIST', values: teamAbbrs.map(abbr => ({ userEnteredValue: abbr })) },
           showCustomUi: true,
@@ -3547,15 +3562,58 @@ async function initializeWeeklyScoresSheet(spreadsheetId, accessToken, sheetId, 
       }
     },
     // Home rank dropdown (col B, index 1) — blank or 1..25. Same
-    // expansion: bye rows put the team's derived rank here.
+    // expansion: bye rows put the team's derived rank here. Same
+    // split as above so the banner row stays clean.
     {
       setDataValidation: {
-        range: { sheetId, startRowIndex: 1, endRowIndex: byeLastDataRowIdx0Excl, startColumnIndex: 1, endColumnIndex: 2 },
+        range: { sheetId, startRowIndex: 1, endRowIndex: byeHeaderRowIdx0, startColumnIndex: 1, endColumnIndex: 2 },
         rule: {
           condition: { type: 'ONE_OF_LIST', values: rankDropdownValues },
           showCustomUi: true,
           strict: false
         }
+      }
+    },
+    {
+      setDataValidation: {
+        range: { sheetId, startRowIndex: byeFirstDataRowIdx0, endRowIndex: byeLastDataRowIdx0Excl, startColumnIndex: 1, endColumnIndex: 2 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: rankDropdownValues },
+          showCustomUi: true,
+          strict: false
+        }
+      }
+    },
+    // Banner row formatting + cell merge across A:G so the
+    // "BYE WEEK RANKINGS …" text reads as an actual section
+    // header, not another data row. Applied AFTER the body
+    // formatting (repeatCell { range: { sheetId } } above) so
+    // it overrides the inherited bold-italic/center treatment.
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: byeHeaderRowIdx0, endRowIndex: byeHeaderRowIdx0 + 1, startColumnIndex: 0, endColumnIndex: 7 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.13, green: 0.14, blue: 0.18 },
+            textFormat: {
+              foregroundColor: { red: 1, green: 1, blue: 1 },
+              bold: true,
+              italic: false,
+              fontFamily: 'Barlow',
+              fontSize: 11,
+            },
+            horizontalAlignment: 'LEFT',
+            verticalAlignment: 'MIDDLE',
+            padding: { left: 8 },
+          },
+        },
+        fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,padding)',
+      }
+    },
+    {
+      mergeCells: {
+        range: { sheetId, startRowIndex: byeHeaderRowIdx0, endRowIndex: byeHeaderRowIdx0 + 1, startColumnIndex: 0, endColumnIndex: 7 },
+        mergeType: 'MERGE_ALL',
       }
     },
     // Team dropdown for AWAY column (col D, index 3). Was strict —
