@@ -184,6 +184,126 @@ export async function updateDynasty(dynastyId, updates) {
   }
 }
 
+/**
+ * Confirm a recent main-doc save actually landed server-side.
+ *
+ * Background: Firestore's `updateDoc` await resolves when the write
+ * hits the LOCAL CACHE. With offline persistence enabled (which it
+ * is for this app), that doesn't guarantee the server actually
+ * received and accepted the write. Two real failure modes that
+ * leave the cache showing the new data while the server still has
+ * the old:
+ *   1. The user refreshes / closes the tab before the queued write
+ *      flushes (Firestore sends queued writes on reconnect, but a
+ *      long offline gap or a permission/rules rejection while
+ *      offline can lose them).
+ *   2. A silent server-side rejection (security rules,
+ *      1 MiB doc-size cap on a long-running dynasty, transient
+ *      backend error) — `await` already returned successfully,
+ *      so the caller sees "saved" but the server discarded the
+ *      write asynchronously without throwing.
+ *
+ * This helper:
+ *   - waits up to `pendingTimeoutMs` for queued writes to flush
+ *     (waitForPendingWrites, the official Firebase API for this);
+ *   - then forces a fresh server read via getDocFromServer
+ *     (bypassing the cache);
+ *   - compares the server's `teams` map against the values the
+ *     caller expects to be there;
+ *   - if any expected rankByWeek entry is missing or wrong, retries
+ *     the main-doc write ONCE and re-checks.
+ *
+ * Returns `{ verified, mismatchCount, retried }`. Never throws —
+ * the caller has already finished its happy-path locally; this is
+ * a background safety net.
+ */
+export async function verifyMainDocTeamsWrite(dynastyId, expected, options = {}) {
+  const {
+    expectedRankByWeek = null,
+    pendingTimeoutMs = 15000,
+  } = options
+  const result = { verified: false, mismatchCount: 0, retried: false, error: null }
+  if (!dynastyId || !expected) {
+    result.error = 'missing args'
+    return result
+  }
+
+  const docRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+
+  try {
+    // 1. Wait for pending writes to flush (or timeout).
+    await Promise.race([
+      waitForPendingWrites(db),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('PENDING_WRITES_TIMEOUT')), pendingTimeoutMs)),
+    ])
+  } catch (e) {
+    if (e?.message !== 'PENDING_WRITES_TIMEOUT') {
+      console.warn('[verifyMainDocTeamsWrite] waitForPendingWrites threw:', e)
+    } else {
+      console.warn(`[verifyMainDocTeamsWrite] pending writes did not flush within ${pendingTimeoutMs}ms`)
+    }
+    // Continue to the verification read regardless — even partial
+    // sync may have landed enough to pass.
+  }
+
+  const verify = async () => {
+    const snap = await getDocFromServer(docRef)
+    const serverTeams = snap.data()?.teams || {}
+    let mismatch = 0
+    let checked = 0
+    if (expectedRankByWeek && typeof expectedRankByWeek === 'object') {
+      // expectedRankByWeek = { yearNum: { tid: { week: rank, ... }, ... } }
+      for (const [yearKey, byTid] of Object.entries(expectedRankByWeek)) {
+        for (const [tidKey, byWeek] of Object.entries(byTid || {})) {
+          for (const [weekKey, rank] of Object.entries(byWeek || {})) {
+            checked++
+            const t = serverTeams[tidKey] || serverTeams[Number(tidKey)]
+            const v = t?.byYear?.[yearKey]?.rankByWeek?.[weekKey]
+              ?? t?.byYear?.[yearKey]?.rankByWeek?.[Number(weekKey)]
+              ?? t?.byYear?.[Number(yearKey)]?.rankByWeek?.[weekKey]
+              ?? t?.byYear?.[Number(yearKey)]?.rankByWeek?.[Number(weekKey)]
+            if (v !== rank) mismatch++
+          }
+        }
+      }
+    }
+    return { mismatch, checked }
+  }
+
+  try {
+    const first = await verify()
+    if (first.mismatch === 0) {
+      result.verified = true
+      return result
+    }
+    console.warn(`[verifyMainDocTeamsWrite] first server check: ${first.mismatch}/${first.checked} mismatched. Retrying main-doc write.`)
+    // 2. Retry the main-doc write once.
+    const retryUpdates = { teams: expected }
+    const sanitized = sanitizeForFirestore(retryUpdates)
+    await updateDoc(docRef, { ...sanitized, updatedAt: serverTimestamp() })
+    result.retried = true
+
+    // 3. Wait again and re-verify.
+    try {
+      await Promise.race([
+        waitForPendingWrites(db),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('PENDING_WRITES_TIMEOUT')), pendingTimeoutMs)),
+      ])
+    } catch {}
+    const second = await verify()
+    result.mismatchCount = second.mismatch
+    result.verified = second.mismatch === 0
+    if (!result.verified) {
+      console.error(`[verifyMainDocTeamsWrite] retry STILL mismatched: ${second.mismatch}/${second.checked}. Dynasty ${dynastyId} server doc likely diverged from local state.`)
+    }
+  } catch (e) {
+    result.error = e?.message || String(e)
+    console.warn('[verifyMainDocTeamsWrite] verification read/retry threw:', e)
+  }
+
+  return result
+}
+
 // ─── Invite tokens ───────────────────────────────────────────────
 // Stored as token-keyed docs in dynasties/{id}/invites/{token}.
 // Firestore rules:

@@ -29,7 +29,8 @@ import {
   saveWeekRecapToSubcollection,
   deleteWeekRecapFromSubcollection,
   getWeekRecapsSubcollection,
-  migrateWeekRecapsToSubcollection
+  migrateWeekRecapsToSubcollection,
+  verifyMainDocTeamsWrite,
 } from '../services/dynastyService'
 import {
   PER_YEAR_FIELDS,
@@ -8628,6 +8629,47 @@ export function DynastyProvider({ children }) {
         }
 
         lastGamesUpdateTimestampRef.current = Date.now()
+
+        // Background server-side write verification. The Firestore
+        // updateDoc await above resolves when the write hits the
+        // local cache — with offline persistence enabled (which it
+        // is here), that's not the same as a confirmed server
+        // commit. Beta tester report: "press refresh on the
+        // ranking page and it reverts" → the cache shows the new
+        // ranks but the server has the old, so a fresh page load
+        // reads the stale main doc. waitForPendingWrites + a
+        // server-source re-read catch the case where the queued
+        // write never landed (rules / size cap / network) and
+        // retry the main-doc update once. Fire-and-forget so the
+        // user gets immediate "saved" feedback; the verification
+        // runs in the background.
+        if (haveCurrentWeek) {
+          const expectedRankByWeek = {}
+          for (const g of newGamesArr) {
+            for (const tid of [g.team1Tid, g.team2Tid]) {
+              if (tid == null) continue
+              const r = readRankByWeek(tid, currentWeek)
+              if (typeof r !== 'number') continue
+              const yk = String(yearNum)
+              if (!expectedRankByWeek[yk]) expectedRankByWeek[yk] = {}
+              const tk = String(tid)
+              if (!expectedRankByWeek[yk][tk]) expectedRankByWeek[yk][tk] = {}
+              expectedRankByWeek[yk][tk][String(currentWeek)] = r
+            }
+          }
+          if (Object.keys(expectedRankByWeek).length > 0) {
+            verifyMainDocTeamsWrite(dynastyId, teamsCopy, { expectedRankByWeek })
+              .then((res) => {
+                if (!res.verified) {
+                  console.error('[saveWeeklyScores] Server-side teams write could not be verified', res)
+                } else if (res.retried) {
+                  console.warn('[saveWeeklyScores] Server-side teams write required a retry to land')
+                }
+              })
+              .catch((e) => console.warn('[saveWeeklyScores] Background verification threw:', e))
+          }
+        }
+
         return newGamesArr
       } catch (error) {
         console.error('[saveWeeklyScores] Targeted batch write failed, falling back to full updateDynasty:', error)
