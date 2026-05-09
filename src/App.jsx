@@ -7,6 +7,7 @@ import Layout from './components/Layout'
 import { ToastProvider, ConfirmProvider } from './components/ui'
 import ScrollToTop from './components/ScrollToTop'
 import RouteFallback from './components/RouteFallback'
+import SyncDiagnosticBanner from './components/SyncDiagnosticBanner'
 
 // Eager: entry points, auth, and page wrappers (small + always-on-first-paint)
 import Login from './pages/Login'
@@ -96,6 +97,7 @@ function AppRoutes() {
           {/* All other routes wrapped in DynastyProvider */}
           <Route path="/*" element={
             <DynastyProvider>
+              <SyncDiagnosticBanner />
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={

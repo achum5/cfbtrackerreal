@@ -5174,6 +5174,14 @@ export function DynastyProvider({ children }) {
   //   - the first successful Firestore snapshot landing
   const [cloudSyncing, setCloudSyncing] = useState(true)
   const [migrated, setMigrated] = useState(false)
+  // Surface for the background save-verification path. When the
+  // cloud fast-path's verifyMainDocTeamsWrite call detects that the
+  // server didn't accept the write (or only accepted it after the
+  // forced retry), it sets this to a small JSON object the user can
+  // copy from a banner and send to support. UI is the
+  // SyncDiagnosticBanner component mounted at the layout root.
+  const [syncDiagnostic, setSyncDiagnostic] = useState(null)
+  const dismissSyncDiagnostic = () => setSyncDiagnostic(null)
   // Ref to skip Firestore listener updates after manual local state update
   // This prevents the listener from overwriting fresh local changes with stale Firestore data
   // Uses a counter to skip multiple updates (optimistic + server confirm)
@@ -8658,15 +8666,52 @@ export function DynastyProvider({ children }) {
             }
           }
           if (Object.keys(expectedRankByWeek).length > 0) {
+            const expectedSummary = {
+              year: yearNum,
+              propagationWeek: currentWeek,
+              tidsWritten: Object.keys(expectedRankByWeek[String(yearNum)] || {}).length,
+            }
             verifyMainDocTeamsWrite(dynastyId, teamsCopy, { expectedRankByWeek })
               .then((res) => {
                 if (!res.verified) {
                   console.error('[saveWeeklyScores] Server-side teams write could not be verified', res)
+                  setSyncDiagnostic({
+                    kind: 'weekly_scores_verify_failed',
+                    severity: 'error',
+                    when: new Date().toISOString(),
+                    dynastyId: String(dynastyId),
+                    weekEntered: weekNum,
+                    ...expectedSummary,
+                    verify: res,
+                    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+                  })
                 } else if (res.retried) {
                   console.warn('[saveWeeklyScores] Server-side teams write required a retry to land')
+                  setSyncDiagnostic({
+                    kind: 'weekly_scores_verify_retried',
+                    severity: 'warning',
+                    when: new Date().toISOString(),
+                    dynastyId: String(dynastyId),
+                    weekEntered: weekNum,
+                    ...expectedSummary,
+                    verify: res,
+                    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+                  })
                 }
               })
-              .catch((e) => console.warn('[saveWeeklyScores] Background verification threw:', e))
+              .catch((e) => {
+                console.warn('[saveWeeklyScores] Background verification threw:', e)
+                setSyncDiagnostic({
+                  kind: 'weekly_scores_verify_threw',
+                  severity: 'error',
+                  when: new Date().toISOString(),
+                  dynastyId: String(dynastyId),
+                  weekEntered: weekNum,
+                  ...expectedSummary,
+                  errorMessage: e?.message || String(e),
+                  userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+                })
+              })
           }
         }
 
@@ -14701,6 +14746,8 @@ export function DynastyProvider({ children }) {
     saveGameSetChanges,
     saveCPUBowlGames,
     saveWeeklyScores,
+    syncDiagnostic,
+    dismissSyncDiagnostic,
     saveCFPGames,
     saveCPUConferenceChampionships,
     advanceWeek,
