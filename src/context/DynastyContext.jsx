@@ -4230,16 +4230,23 @@ export function getCurrentCustomConferences(dynasty) {
 }
 
 /**
- * Get conference for a team, using dynasty's custom conferences if available
+ * Get conference for a team, using dynasty's custom conferences if available.
+ *
+ * Accepts either a tid (preferred — TB-aware) or an abbr. When a tid is
+ * passed, `getTeamConference` resolves it against `dynasty.teams` so the
+ * dynasty's CURRENT abbr (a TB's new abbr, not the original FBS slot)
+ * is what gets matched in the conference map. Plain-abbr callers still
+ * work unchanged.
+ *
  * @param {Object} dynasty - The dynasty object
- * @param {string} teamAbbr - Team abbreviation
+ * @param {string|number} teamAbbrOrTid - Team abbreviation OR tid
  * @param {number} [year] - Optional year (defaults to current year)
  * @returns {string|null} Conference name
  */
-export function getTeamConferenceForDynasty(dynasty, teamAbbr, year = null) {
+export function getTeamConferenceForDynasty(dynasty, teamAbbrOrTid, year = null) {
   const targetYear = year || dynasty?.currentYear
   const customConferences = dynasty ? getCustomConferencesForYear(dynasty, targetYear) : null
-  return getTeamConference(teamAbbr, customConferences)
+  return getTeamConference(teamAbbrOrTid, customConferences, dynasty?.teams)
 }
 
 // ============================================================================

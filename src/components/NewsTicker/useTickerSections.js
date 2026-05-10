@@ -1185,10 +1185,25 @@ export function useTickerSections(dynasty) {
         const pid = player.pid
 
         if (!careerStats[pid]) {
+          // Derive the player's most-recent team as a tid from teamsByYear
+          // (TB-aware, drift-safe). Fall back to the legacy `player.team` abbr
+          // only when teamsByYear is missing — that field is not updated on
+          // teambuilder swaps and would point the logo at the wrong team.
+          let teamId = null
+          if (player.teamsByYear && typeof player.teamsByYear === 'object') {
+            const years = Object.keys(player.teamsByYear)
+              .map(Number)
+              .filter(Number.isFinite)
+              .sort((a, b) => b - a)
+            for (const y of years) {
+              const t = player.teamsByYear[y]
+              if (t != null) { teamId = t; break }
+            }
+          }
           careerStats[pid] = {
             pid,
             name: player.name,
-            team: player.team,
+            team: teamId ?? player.team,
             passing: { yds: 0, td: 0 },
             rushing: { yds: 0, td: 0 },
             receiving: { yds: 0, td: 0 },
@@ -1284,10 +1299,11 @@ export function useTickerSections(dynasty) {
       const seasonMap = {}
       allUserGames.forEach(g => {
         const info = getGameInfo(g)
-        const userTeamAbbr = info?.userTeamAbbr || g.userTeam
-        const key = `${g.year}-${userTeamAbbr}`
+        // Prefer tid (TB-aware) over abbr; fall back to abbr only when no tid.
+        const userTeamId = g.perspective?.userTid ?? info?.userTeamAbbr ?? g.userTeam
+        const key = `${g.year}-${userTeamId}`
         if (!seasonMap[key]) {
-          seasonMap[key] = { year: g.year, team: userTeamAbbr, wins: 0, losses: 0 }
+          seasonMap[key] = { year: g.year, team: userTeamId, wins: 0, losses: 0 }
         }
         if (g.perspective?.userWon === true) seasonMap[key].wins++
         else if (g.perspective?.userWon === false) seasonMap[key].losses++

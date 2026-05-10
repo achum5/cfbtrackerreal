@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useDynasty } from '../context/DynastyContext'
+import { useDynasty, getCustomConferencesForYear } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
@@ -239,8 +239,10 @@ FINAL CHECK before you send
         try {
           // Get existing all-conference data grouped by conference for pre-filling
           const allConferenceByConference = currentDynasty?.allAmericansByYear?.[currentYear]?.allConferenceByConference || {}
-          // Get custom conferences for this year (if any)
-          const customConferences = currentDynasty?.conferencesByYear?.[currentYear] || null
+          // Get custom conferences for this year (canonical resolver — the
+          // legacy `conferencesByYear` field doesn't exist; storage is
+          // `customConferencesByYear` overlaid with per-team year overrides).
+          const customConferences = getCustomConferencesForYear(currentDynasty, currentYear)
           // Get custom teams for dropdown validation
           const customTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
           const sheetInfo = await createAllConferenceSheet(
@@ -281,7 +283,7 @@ FINAL CHECK before you send
       // and dynastyTeams as arg 3. Previously the dynasty.teams object
       // was being passed as `conferences` by mistake — `for (const c of {})`
       // threw "{} is not iterable" and the sync silently failed.
-      const customConferences = currentDynasty?.conferencesByYear?.[currentYear] || null
+      const customConferences = getCustomConferencesForYear(currentDynasty, currentYear)
       const conferenceTabs = customConferences && Object.keys(customConferences).length > 0
         ? Object.keys(customConferences).sort()
         : undefined // let the function fall back to ALL_CONFERENCES default
@@ -307,7 +309,7 @@ FINAL CHECK before you send
       // and dynastyTeams as arg 3. Previously the dynasty.teams object
       // was being passed as `conferences` by mistake — `for (const c of {})`
       // threw "{} is not iterable" and the sync silently failed.
-      const customConferences = currentDynasty?.conferencesByYear?.[currentYear] || null
+      const customConferences = getCustomConferencesForYear(currentDynasty, currentYear)
       const conferenceTabs = customConferences && Object.keys(customConferences).length > 0
         ? Object.keys(customConferences).sort()
         : undefined // let the function fall back to ALL_CONFERENCES default
@@ -474,7 +476,7 @@ FINAL CHECK before you send
       </div>
       <AuthErrorModal isOpen={auth.showAuthError} onClose={auth.closeAuthError} onRefresh={auth.retry} teamColors={teamColors} />
       <AIPromptModal isOpen={showAIPrompt} onClose={() => setShowAIPrompt(false)} title={`${currentYear} All-Conference`} prompt={aiPrompt} pasteTarget={(() => {
-        const customConfs = currentDynasty?.conferencesByYear?.[currentYear]
+        const customConfs = getCustomConferencesForYear(currentDynasty, currentYear)
         const confs = customConfs && Object.keys(customConfs).length > 0
           ? Object.keys(customConfs).sort()
           : ['ACC', 'American', 'Big 12', 'Big Ten', 'Conference USA', 'Independent', 'MAC', 'Mountain West', 'Pac-12', 'SEC', 'Sun Belt']

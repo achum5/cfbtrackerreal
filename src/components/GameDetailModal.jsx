@@ -4,11 +4,10 @@ import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../data/te
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamColors } from '../data/teamColors'
 import { getModalColors } from '../utils/colorUtils'
-import { useDynasty, getUserGamePerspective, getRecordAsOfGame } from '../context/DynastyContext'
+import { useDynasty, getUserGamePerspective, getRecordAsOfGame, getTeamConferenceForDynasty } from '../context/DynastyContext'
 import { TEAMS, resolveTid, getGameTeamInfo, getAbbrFromTeamName } from '../data/teamRegistry'
 import { getBowlLogo } from '../data/bowlLogos'
 import { getConferenceLogo } from '../data/conferenceLogos'
-import { getTeamConference } from '../data/conferenceTeams'
 
 export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamColors, onEdit }) {
   const { currentDynasty } = useDynasty()
@@ -47,11 +46,16 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   const hasUnifiedFormat = game.team1Tid && game.team2Tid
   const isCPUGame = !!game.viewingTeam || (!perspective && (hasUnifiedFormat || (!game.userTeam && game.team1 && game.team2)))
   const displayTeam = isCPUGame ? game.viewingTeam : userTeam
-  const displayTeamAbbr = isCPUGame ? game.viewingTeamAbbr : getAbbrFromTeamName(userTeam)
+  const displayTeamAbbr = isCPUGame ? game.viewingTeamAbbr : getAbbrFromTeamName(userTeam, teams)
 
-  // Get the user's team conference - fallback computation if not stored in game
-  const userTeamAbbr = getAbbrFromTeamName(userTeam)
-  const computedConference = userTeamAbbr ? getTeamConference(userTeamAbbr) : null
+  // Resolve the user's team conference via tid (TB-aware) when we have one
+  // from the perspective; otherwise pass the abbr through the dynasty-aware
+  // resolver so realignment overrides are honored.
+  const userTeamAbbr = getAbbrFromTeamName(userTeam, teams)
+  const conferenceLookupKey = perspective?.userTid || userTeamAbbr
+  const computedConference = conferenceLookupKey
+    ? getTeamConferenceForDynasty(currentDynasty, conferenceLookupKey, game?.year)
+    : null
 
   // Helper to find player PID by name
   const getPlayerPID = (playerName) => {
@@ -87,7 +91,7 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   }
 
   // Also try getting abbreviation from display name for colors
-  const opponentAbbr = opponentMascot ? getAbbrFromTeamName(opponentMascot) : opponentAbbrResolved
+  const opponentAbbr = opponentMascot ? getAbbrFromTeamName(opponentMascot, teams) : opponentAbbrResolved
   const opponentColors = opponentMascot ? getTeamColors(opponentMascot, teams) : { primary: '#666', secondary: '#fff' }
 
   // Get display team info (user's team or viewing team for CPU games)

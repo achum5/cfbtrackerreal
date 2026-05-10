@@ -1222,13 +1222,15 @@ export default function GameEntryModal({
     const teamAbbrForSave = effectiveGame?.team1 || effectiveTeamAbbr
     const teamTidForSave = effectiveGame?.team1Tid || effectiveTeamTid
     const rawOpponent = gameData.opponent || scheduledGame?.opponent
-    const opponentAbbr = getAbbrFromTeamName(rawOpponent) || rawOpponent
+    const opponentAbbr = getAbbrFromTeamName(rawOpponent, currentDynasty?.teams) || rawOpponent
     const opponentTid = effectiveGame?.team2Tid || getTidFromAbbr(opponentAbbr, currentDynasty)
 
-    // Use custom conferences for auto-detection
+    // Use custom conferences for auto-detection. Resolve via tid+dynasty.teams
+    // so TB realignment overrides are honored (otherwise lookup by static abbr
+    // falls through to stale default conferences).
     const customConferences = getCurrentCustomConferences(currentDynasty)
-    const teamConference = getTeamConference(teamAbbrForSave, customConferences)
-    const opponentConference = getTeamConference(opponentAbbr, customConferences)
+    const teamConference = getTeamConference(teamTidForSave || teamAbbrForSave, customConferences, currentDynasty?.teams)
+    const opponentConference = getTeamConference(opponentTid || opponentAbbr, customConferences, currentDynasty?.teams)
 
     // Conference game if both teams are in the same conference (and not independents)
     // Conference Championship games are always conference games
@@ -1583,7 +1585,7 @@ export default function GameEntryModal({
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-2xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>
               {isConferenceChampionship || effectiveGame?.isConferenceChampionship
-                ? `${currentDynasty?.conference || effectiveGame?.conference || getTeamConference(effectiveTeamAbbr) || 'Conference'} Championship`
+                ? `${currentDynasty?.conference || effectiveGame?.conference || getTeamConference(effectiveTeamTid || effectiveTeamAbbr, getCurrentCustomConferences(currentDynasty), currentDynasty?.teams) || 'Conference'} Championship`
                 : effectiveGame?.isCFPChampionship
                   ? 'National Championship'
                   : effectiveGame?.isCFPSemifinal

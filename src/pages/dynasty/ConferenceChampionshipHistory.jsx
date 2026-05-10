@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { useDynasty, GAME_TYPES, detectGameType } from '../../context/DynastyContext'
+import { useDynasty, GAME_TYPES, detectGameType, getCustomConferencesForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, getSchoolName } from '../../data/teams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -158,9 +158,15 @@ export default function ConferenceChampionshipHistory() {
         return g.conference === conferenceName
       }
 
-      const customConferences = currentDynasty?.conferencesByYear?.[currentDynasty?.currentYear]
-      const team1Conf = getTeamConference(team1, customConferences, currentDynasty?.teams)
-      const team2Conf = getTeamConference(team2, customConferences, currentDynasty?.teams)
+      // Use the canonical resolver for THIS game's year; the legacy
+      // `conferencesByYear` field doesn't exist (storage is
+      // `customConferencesByYear` overlaid with per-team year overrides).
+      // Prefer tid when available so TB realignment overrides land.
+      const customConferences = getCustomConferencesForYear(currentDynasty, g.year)
+      const team1Key = g.team1Tid || team1
+      const team2Key = g.team2Tid || team2
+      const team1Conf = getTeamConference(team1Key, customConferences, currentDynasty?.teams)
+      const team2Conf = getTeamConference(team2Key, customConferences, currentDynasty?.teams)
       return team1Conf === conferenceName || team2Conf === conferenceName
     })
 

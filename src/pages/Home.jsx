@@ -4,7 +4,7 @@ import { useDynasty, getTeamConferenceForDynasty } from '../context/DynastyConte
 import { useAuth } from '../context/AuthContext'
 import { getTeamLogo } from '../data/teams'
 import { getConferenceLogo } from '../data/conferenceLogos'
-import { TEAMS, getTidFromTeamName } from '../data/teamRegistry'
+import { getTidFromTeamName } from '../data/teamRegistry'
 import ConfirmModal from '../components/ConfirmModal'
 import ShareDynastyModal from '../components/ShareDynastyModal'
 import StorageSwitchModal from '../components/StorageSwitchModal'
@@ -16,9 +16,8 @@ function getDynastyTeamConference(dynasty) {
   if (!dynasty.teamName) return null
   const tid = dynasty.currentTid || getTidFromTeamName(dynasty.teamName, dynasty.teams)
   if (!tid) return dynasty.conference || null
-  const originalTeamAbbr = TEAMS[tid]?.abbr
-  if (!originalTeamAbbr) return dynasty.conference || null
-  return getTeamConferenceForDynasty(dynasty, originalTeamAbbr)
+  // Pass tid (not static TEAMS[tid].abbr) so TB realignment overrides land.
+  return getTeamConferenceForDynasty(dynasty, tid) || dynasty.conference || null
 }
 
 function getRelativeTime(timestamp) {
