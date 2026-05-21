@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, Component } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -188,16 +188,66 @@ function AppRoutes() {
   )
 }
 
+class RootErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+  componentDidCatch(error, info) {
+    console.error('[RootErrorBoundary] Uncaught render error:', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', padding: '2rem',
+          backgroundColor: '#0f0f0f', color: '#e5e5e5', fontFamily: 'sans-serif',
+          textAlign: 'center', gap: '1rem',
+        }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Something went wrong</h1>
+          <p style={{ color: '#999', margin: 0, maxWidth: 400 }}>
+            The app hit an unexpected error. Your dynasty data is safe — try refreshing, or use the button below to go back to the home screen.
+          </p>
+          <p style={{ color: '#555', fontSize: '0.75rem', margin: 0, maxWidth: 500, wordBreak: 'break-all' }}>
+            {this.state.error?.message}
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ padding: '0.6rem 1.25rem', borderRadius: 8, border: 'none', background: '#fff', color: '#000', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => { window.location.href = '/' }}
+              style={{ padding: '0.6rem 1.25rem', borderRadius: 8, border: '1px solid #444', background: 'transparent', color: '#e5e5e5', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Go Home
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <ConfirmProvider>
-          <AppRoutes />
-        </ConfirmProvider>
-      </ToastProvider>
-      <Analytics />
-    </AuthProvider>
+    <RootErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <AppRoutes />
+          </ConfirmProvider>
+        </ToastProvider>
+        <Analytics />
+      </AuthProvider>
+    </RootErrorBoundary>
   )
 }
 
