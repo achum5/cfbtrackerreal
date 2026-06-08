@@ -3310,7 +3310,10 @@ export default function Dashboard() {
               backgroundColor: heroBg,
               backgroundImage:
                 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
-              ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': ratingItems ? '18rem' : '7rem' } : {}),
+              // Watermark sits left of the conference logo at a fixed offset,
+              // whether or not the rating rings are shown — it reads behind the
+              // rings (opacity 0.1) instead of being pushed off to the left.
+              ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
             }}
           >
             <div className="relative p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">

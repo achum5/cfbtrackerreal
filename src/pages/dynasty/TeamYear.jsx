@@ -2548,9 +2548,10 @@ export default function TeamYear() {
         style={{
           backgroundColor: teamInfo.backgroundColor,
           backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
-          // Tuck the logo watermark just left of the right-side cluster: clear
-          // the rating rings when they're shown, else sit left of the conf logo.
-          ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': teamRatings ? '18rem' : '7rem' } : {}),
+          // Tuck the logo watermark just left of the conference logo at a fixed
+          // offset, whether or not the rating rings are shown — it reads behind
+          // the rings (opacity 0.1) rather than getting pushed off to the left.
+          ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
         {/* Edit button — mobile only, pinned to the corner so it never becomes a
