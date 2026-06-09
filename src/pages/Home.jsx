@@ -973,7 +973,6 @@ export default function Home() {
                 className="flex items-baseline gap-4 py-2.5"
                 style={{
                   borderTop: index === 0 ? 'none' : '1px solid var(--rule-soft)',
-                  borderLeft: isCurrent ? '2px solid var(--text-primary)' : '2px solid transparent',
                   paddingLeft: '0.75rem',
                   transition: 'border-color 200ms ease',
                 }}

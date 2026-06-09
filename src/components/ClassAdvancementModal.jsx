@@ -44,8 +44,7 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
       style={{ margin: 0 }}
     >
       <div
-        className="card w-full max-w-2xl max-h-[90dvh] flex flex-col p-6 border-l-[3px]"
-        style={{ borderLeftColor: 'var(--surface-5)' }}
+        className="card w-full max-w-2xl max-h-[90dvh] flex flex-col p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

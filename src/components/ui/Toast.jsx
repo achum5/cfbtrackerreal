@@ -90,7 +90,7 @@ function ToastItem({ variant, message, onDismiss }) {
       className={`card-elevated flex items-start gap-3 px-4 py-3 transition-all duration-200 ${
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       }`}
-      style={{ borderLeft: `3px solid ${borderColor}` }}
+     
     >
       <div className="flex-1 min-w-0">
         <div className="label-xs mb-0.5" style={{ color: borderColor }}>

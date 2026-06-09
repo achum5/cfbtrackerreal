@@ -443,7 +443,6 @@ function PositionFilterTab({
                 }}
                 className="w-full flex items-baseline justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-3"
                 style={{
-                  borderLeft: `2px solid ${subActive ? accent : 'transparent'}`,
                   backgroundColor: subActive ? 'var(--surface-3)' : 'transparent',
                 }}
               >
@@ -2712,7 +2711,7 @@ export default function TeamYear() {
                           right: coachingStaffPopupPosition.right
                         }}
                       >
-                        <div className="px-4 py-3 bg-surface-2 border-b border-surface-4 border-l-[3px]" style={{ borderLeftColor: 'var(--text-primary)' }}>
+                        <div className="px-4 py-3 bg-surface-2 border-b border-surface-4">
                           <h4 className="font-display font-bold text-sm uppercase tracking-wide text-txt-primary">
                             Coaching Staff
                           </h4>
@@ -3780,7 +3779,6 @@ export default function TeamYear() {
                   className="flex items-center gap-2 py-2 pl-3 transition-opacity hover:opacity-90"
                   style={{
                     borderBottom: `1px solid var(--surface-4)`,
-                    borderLeft: `4px solid ${oppColor}`,
                     background: `linear-gradient(90deg, ${oppColor}4d 0%, ${oppColor}1f 42%, var(--surface-2) 82%)`,
                   }}
                 >
@@ -3960,7 +3958,7 @@ export default function TeamYear() {
                     key={player.pid}
                     to={`${pathPrefix}/player/${player.pid}`}
                     className="flex items-center gap-3 px-3 py-3 hover:bg-surface-3 transition-colors"
-                    style={{ boxShadow: `inset 3px 0 0 ${teamInfo.backgroundColor}` }}
+                   
                   >
                     {/* Jersey */}
                     <div className="w-10 flex-shrink-0 text-center">
@@ -4093,7 +4091,7 @@ export default function TeamYear() {
                       <tr
                         key={player.pid}
                         className="cursor-pointer border-b border-surface-4 hover:bg-surface-3 transition-colors"
-                        style={{ boxShadow: `inset 2px 0 0 ${teamInfo.backgroundColor}` }}
+                       
                         onClick={() => navigate(`${pathPrefix}/player/${player.pid}`)}
                       >
                         <td className="py-2 px-3 text-center">
@@ -5063,7 +5061,6 @@ export default function TeamYear() {
                   style={{
                     paddingLeft: '1rem',
                     paddingRight: '1rem',
-                    borderLeft: `4px solid ${oppColors.backgroundColor || '#6b7280'}`,
                     background: `linear-gradient(90deg, ${oppColors.backgroundColor || '#6b7280'}4d 0%, ${oppColors.backgroundColor || '#6b7280'}1f 42%, var(--surface-2) 82%)`,
                   }}
                 >
@@ -5135,7 +5132,7 @@ export default function TeamYear() {
                     </div>
 
                     {/* Stat Leaders - Desktop: flex columns that fill remaining space */}
-                    <div className="hidden md:flex flex-1 items-center ml-3 pl-3 min-w-0 overflow-hidden" style={{ borderLeft: `1px solid ${accentColor}20` }}>
+                    <div className="hidden md:flex flex-1 items-center ml-3 pl-3 min-w-0 overflow-hidden">
                         {/* PASS column */}
                         <div
                           className={`flex-1 min-w-0 flex items-center gap-1 lg:gap-2 ${statLeaders?.topPasser?.player?.pid ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
@@ -5862,7 +5859,7 @@ export default function TeamYear() {
               <div className="flex flex-col sm:flex-row sm:items-stretch">
                 <div
                   className="flex items-center gap-3 sm:gap-4 px-4 py-3 sm:px-5 flex-shrink-0"
-                  style={{ backgroundColor: 'var(--surface-3)', borderLeft: `3px solid ${viewedPrimary}` }}
+                  style={{ backgroundColor: 'var(--surface-3)' }}
                 >
                   <div className="text-4xl sm:text-5xl font-black tabular text-txt-primary leading-none" style={{ fontFamily: "var(--font-display)" }}>
                     {departures.length}
@@ -6403,7 +6400,7 @@ export default function TeamYear() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* PROGRAM RECORD + ACHIEVEMENTS (wider) */}
               <div className="card overflow-hidden lg:col-span-2 cfb-texture">
-                <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 border-l-[3px] flex items-center justify-between" style={{ borderLeftColor: teamInfo.backgroundColor }}>
+                <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between">
                   <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Program Record</h3>
                   <span className="text-[10px] font-semibold uppercase tabular-nums text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>{yearsWithRecords.length} season{yearsWithRecords.length !== 1 ? 's' : ''}</span>
                 </div>
@@ -6443,7 +6440,7 @@ export default function TeamYear() {
               {/* YOUR HISTORY (narrow rail) */}
               {(userCoachingYears.length > 0 || userVsTeamWins > 0 || userVsTeamLosses > 0) && (
                 <div className="card overflow-hidden cfb-texture">
-                  <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 border-l-[3px]" style={{ borderLeftColor: teamInfo.backgroundColor }}>
+                  <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4">
                     <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Your History</h3>
                   </div>
                   <div className="p-4 grid grid-cols-2 lg:grid-cols-1 gap-4">
@@ -6483,7 +6480,7 @@ export default function TeamYear() {
 
             {/* SEASON HISTORY */}
             <div className="card overflow-hidden cfb-texture">
-              <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 border-l-[3px] flex items-center justify-between" style={{ borderLeftColor: teamInfo.backgroundColor }}>
+              <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between">
                 <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Season History</h3>
                 <span className="text-[10px] font-semibold uppercase tabular-nums text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>{yearRecords.length} total</span>
               </div>
@@ -6504,7 +6501,7 @@ export default function TeamYear() {
                           key={yr.year}
                           onClick={() => navigate(`${pathPrefix}/team/${tid}/${yr.year}`)}
                           className="cursor-pointer transition-colors hover:bg-surface-3"
-                          style={{ borderBottom: '1px solid var(--surface-4)', boxShadow: isCurrent ? `inset 3px 0 0 ${teamInfo.backgroundColor}` : undefined }}
+                          style={{ borderBottom: '1px solid var(--surface-4)' }}
                         >
                           <td className="px-4 py-2.5 tabular-nums" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                             {yr.year}
@@ -6662,7 +6659,7 @@ export default function TeamYear() {
 
               return (
                 <div className="card overflow-hidden cfb-texture">
-                  <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 border-l-[3px] flex items-center justify-between gap-3 flex-wrap" style={{ borderLeftColor: teamInfo.backgroundColor }}>
+                  <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 flex items-center justify-between gap-3 flex-wrap">
                     <h3 className="font-display font-bold leading-none text-txt-primary m-0" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>All-Time Leaders</h3>
                     <div className="flex items-center gap-1">
                       {[

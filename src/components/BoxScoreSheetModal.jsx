@@ -1751,7 +1751,7 @@ output that fails any of them.`,
           </div>
         ) : showDeletedNote ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="card p-8 border-l-[3px] max-w-md text-center" style={{ borderLeftColor: 'var(--surface-5)' }}>
+            <div className="card p-8 max-w-md text-center">
               <p className="text-xl font-bold text-txt-primary">Saved</p>
             </div>
           </div>

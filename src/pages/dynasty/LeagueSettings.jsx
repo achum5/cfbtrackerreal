@@ -525,13 +525,22 @@ export default function LeagueSettings() {
     // Primary team for the rail-side logo. Uses the most-recent stint
     // when set, falls back to the live memberTeams entry.
     const primaryTid = lastStint?.tid ?? teams[0] ?? null
+    // Team-color accent for the member card — their primary team's color,
+    // matching the broadcast team-strip language used across the app.
+    const memberColor = (primaryTid != null && teamsSource[primaryTid]?.primaryColor) || '#3a3d47'
 
     const hasAnyAction = (canManage || isYou) || (
       canManage && role !== ROLE_COMMISH && (canPromote || canDemote || canTransfer || canActOnThis)
     )
 
     return (
-      <div key={uid} className="member-row group relative flex items-start gap-3 py-3 sm:py-3.5 px-1">
+      <div
+        key={uid}
+        className="member-row group relative flex items-start gap-3 py-3 sm:py-3.5 pl-3 pr-2 rounded-lg overflow-hidden bg-surface-2"
+        style={{
+          backgroundImage: `linear-gradient(90deg, ${memberColor}1f 0%, ${memberColor}0a 16%, transparent 42%)`,
+        }}
+      >
         {/* Logo rail — primary team (most recent stint) or empty slot. */}
         <div className="flex-shrink-0 pt-0.5">
           {primaryTid != null ? (
@@ -785,7 +794,7 @@ export default function LeagueSettings() {
             ? 'Click a name to rename. Each member coaches one team; commish and co-commishes can hold multiple to shepherd teams without an assigned coach.'
             : 'Click your own name to rename it. Team assignments are managed by the commish.'}
         </p>
-        <div className="divide-y divide-surface-3/50">
+        <div className="space-y-2">
           {renderRow(currentDynasty.userId)}
           {sortedOthers.map(uid => renderRow(uid))}
         </div>

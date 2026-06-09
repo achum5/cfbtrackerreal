@@ -8734,13 +8734,36 @@ export function DynastyProvider({ children }) {
     const newGames = validIncoming.map(bowl => {
       const existing = existingByBowlName.get(bowl.bowlName)
 
-      // Get tids (support both input formats)
-      const team1Tid = bowl.team1Tid || getTidFromAbbr(bowl.team1, dynasty)
-      const team2Tid = bowl.team2Tid || getTidFromAbbr(bowl.team2, dynasty)
+      // Raw orientation as transcribed from the sheet (col B = team1, D = team2).
+      let team1Tid = bowl.team1Tid || getTidFromAbbr(bowl.team1, dynasty)
+      let team2Tid = bowl.team2Tid || getTidFromAbbr(bowl.team2, dynasty)
+      let team1Score = parseInt(bowl.team1Score)
+      let team2Score = parseInt(bowl.team2Score)
+      let team1Rank = (bowl.team1Rank !== null && bowl.team1Rank !== undefined && bowl.team1Rank !== '') ? parseInt(bowl.team1Rank) : null
+      let team2Rank = (bowl.team2Rank !== null && bowl.team2Rank !== undefined && bowl.team2Rank !== '') ? parseInt(bowl.team2Rank) : null
 
-      // Determine scores and winner
-      const team1Score = parseInt(bowl.team1Score)
-      const team2Score = parseInt(bowl.team2Score)
+      // ORIENTATION LOCK. If this bowl already exists with the SAME two teams
+      // in the OPPOSITE slots, keep the existing team1/team2 orientation and
+      // map the incoming scores + ranks onto it. The AI transcribes the EA
+      // screenshot's left-to-right order, which can differ from how the game
+      // was first entered (the user's own game is stored user-team-first).
+      // Without this, a re-save flips team1Tid/team2Tid while the POSITIONAL
+      // quarters{team1,team2} / overtimes[{team1,team2}] stay put — silently
+      // mismatching the linescore with the teams (and, if the game is later
+      // re-opened in the editor, recomputing the final score from the wrong
+      // quarter column). Re-aligning the incoming row here fixes it entirely
+      // in the save layer, with no change to the AI prompt or the sheet.
+      const reversedVsExisting = existing &&
+        existing.team1Tid != null && existing.team2Tid != null &&
+        team1Tid != null && team2Tid != null &&
+        Number(existing.team1Tid) === Number(team2Tid) &&
+        Number(existing.team2Tid) === Number(team1Tid)
+      if (reversedVsExisting) {
+        ;[team1Tid, team2Tid] = [team2Tid, team1Tid]
+        ;[team1Score, team2Score] = [team2Score, team1Score]
+        ;[team1Rank, team2Rank] = [team2Rank, team1Rank]
+      }
+
       const winnerTid = team1Score > team2Score ? team1Tid : team2Tid
 
       // Spread the existing game first so rich fields (quarters,
@@ -8758,7 +8781,8 @@ export function DynastyProvider({ children }) {
         week: existing?.week || 'Bowl',
         gameType: GAME_TYPES.BOWL,
 
-        // UNIFIED FORMAT: tid-based team identification
+        // UNIFIED FORMAT: tid-based team identification (orientation-locked
+        // to the existing game when this is a same-teams round-trip).
         team1Tid,
         team2Tid,
         team1Score,
@@ -8767,9 +8791,9 @@ export function DynastyProvider({ children }) {
         winnerTid,
 
         // Sheet-supplied ranks win when present; otherwise keep whatever
-        // the existing game had.
-        ...(bowl.team1Rank ? { team1Rank: parseInt(bowl.team1Rank) } : {}),
-        ...(bowl.team2Rank ? { team2Rank: parseInt(bowl.team2Rank) } : {}),
+        // the existing game had. Ranks follow the locked orientation above.
+        ...(team1Rank !== null ? { team1Rank } : {}),
+        ...(team2Rank !== null ? { team2Rank } : {}),
 
         // Sheet-supplied notes/links win when present; otherwise inherit.
         gameNote: bowl.gameNote || existing?.gameNote || '',

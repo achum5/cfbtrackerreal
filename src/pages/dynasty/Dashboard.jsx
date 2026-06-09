@@ -171,7 +171,6 @@ export default function Dashboard() {
   // A faint team-color wash + left-accent style shared by the dashboard's
   // section header strips, matching the CardSectionHeader treatment.
   const sectionStripStyle = {
-    borderLeft: `3px solid ${teamAccent}`,
     borderBottom: '1px solid var(--surface-4)',
     backgroundImage: `linear-gradient(90deg, ${teamAccent}26 0%, ${teamAccent}0d 16%, transparent 40%)`,
   }
@@ -3165,7 +3164,6 @@ export default function Dashboard() {
       {isViewOnly && currentDynasty?.storageType === 'cloud' && !shareCode && (
         <div
           className="rounded-lg bg-surface-2 border border-surface-4 overflow-hidden"
-          style={{ boxShadow: 'inset 3px 0 0 0 var(--accent-warning)' }}
         >
           <button
             type="button"
@@ -6635,8 +6633,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div
-          className="card p-6 border-l-[3px]"
-          style={{ borderLeftColor: 'var(--text-primary)' }}
+          className="card p-6"
         >
           <h3 className="text-lg font-semibold mb-4 text-txt-primary">
             Current Phase: {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
@@ -6882,7 +6879,7 @@ export default function Dashboard() {
                       // Opponent-color wash — same treatment the CC + bowl rows
                       // already use, so the whole schedule reads consistently.
                       background: `linear-gradient(to right, transparent 0%, ${opponentColors.backgroundColor}99 100%)`,
-                      ...(isCurrentWeek ? { boxShadow: 'inset 2px 0 0 0 var(--text-primary)' } : {})
+
                     }}
                   >
                     {/* Week Number — current-week marker uses an inset rail
@@ -7510,7 +7507,7 @@ export default function Dashboard() {
                           className={`relative flex items-center py-2.5 px-4 gap-3 transition-all ${isLink ? 'hover:brightness-110' : ''}`}
                           style={{
                             background: `linear-gradient(to right, transparent 0%, ${opponentColors.backgroundColor}99 100%)`,
-                            ...(isCurrentWeek ? { boxShadow: 'inset 2px 0 0 0 var(--text-primary)' } : {}),
+
                           }}
                         >
                           <span className={`w-7 text-xs font-semibold tabular-nums ${isCurrentWeek ? 'text-txt-primary' : 'text-txt-tertiary'}`}>

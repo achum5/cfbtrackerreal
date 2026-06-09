@@ -35,8 +35,7 @@ export default function SheetEntryPanel({
           modal's SheetModalHeader + SheetModalAIHero already say
           what this panel is). */}
       <ol
-        className="text-left text-sm space-y-2 text-txt-secondary w-full card p-4 border-l-[3px] mb-5"
-        style={{ borderLeftColor: 'var(--surface-5)' }}
+        className="text-left text-sm space-y-2 text-txt-secondary w-full card p-4 mb-5"
       >
         <li className="flex gap-3">
           <span className="font-bold text-txt-primary tabular-nums">1.</span>

@@ -83,9 +83,8 @@ export function TabBar({ tabs, activeKey, onSelect, accentColor }) {
 export function CardSectionHeader({ label, accent, right, className = '' }) {
   return (
     <div
-      className={`relative px-4 py-3 bg-surface-2 border-b border-surface-4 border-l-[3px] flex items-center justify-between gap-3 ${className}`}
+      className={`relative px-4 py-3 bg-surface-2 border-b border-surface-4 flex items-center justify-between gap-3 ${className}`}
       style={{
-        borderLeftColor: accent,
         // Faint team-color wash fading off the left accent + a subtle top
         // highlight so the bar reads as a lit broadcast strip, not flat fill.
         backgroundImage: accent

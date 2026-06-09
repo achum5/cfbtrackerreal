@@ -165,7 +165,6 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     active
       ? {
           backgroundColor: 'var(--surface-3)',
-          borderLeft: '3px solid var(--text-primary)',
           paddingLeft: 'calc(1rem - 3px)',
         }
       : undefined

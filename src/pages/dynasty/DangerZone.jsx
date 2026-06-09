@@ -1615,7 +1615,7 @@ export default function DangerZone() {
     return (
       <Card
         className="flex flex-col h-full"
-        style={danger ? { borderLeft: '3px solid var(--accent-error)' } : undefined}
+       
       >
         <div className="mb-3">
           {danger && (
@@ -1663,7 +1663,7 @@ export default function DangerZone() {
 
       {/* Help Section (Collapsible) */}
       {showHelp && (
-        <Card style={{ borderLeft: '3px solid var(--accent-info)' }}>
+        <Card>
           <h3 className="label-sm text-txt-primary m-0 mb-2">When to use these tools</h3>
           <div className="grid sm:grid-cols-2 gap-2 text-xs text-txt-secondary">
             <div><strong className="text-txt-primary">Fix Roster:</strong> Departed players still showing on roster</div>
@@ -1680,7 +1680,7 @@ export default function DangerZone() {
       )}
 
       {/* Warning Banner */}
-      <Card style={{ borderLeft: '3px solid var(--accent-warning)' }}>
+      <Card>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-xs text-txt-secondary m-0">
             <strong style={{ color: 'var(--accent-warning)' }}>Back up first.</strong> Download a backup before making changes.
@@ -1699,6 +1699,7 @@ export default function DangerZone() {
           canonical v2 stores and apply idempotent cleanup. */}
       <div>
         <SectionHeader
+         
           size="sm"
           title="Common Fixes"
           subtitle="Safe to run, idempotent"
@@ -1810,7 +1811,7 @@ export default function DangerZone() {
 
       {/* Duplicate Players Confirmation UI */}
       {duplicateGroups && duplicateGroups.length > 0 && (
-        <Card style={{ borderLeft: '3px solid var(--accent-warning)' }}>
+        <Card>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="label-sm text-txt-primary m-0">
               Found <span className="tabular">{duplicateGroups.length}</span> possible duplicate{duplicateGroups.length > 1 ? ' groups' : ''}
@@ -2031,6 +2032,7 @@ export default function DangerZone() {
       {/* Delete Specific Game Section */}
       <div>
         <SectionHeader
+         
           size="sm"
           title="Delete Specific Game"
           subtitle="Manually remove a game that shouldn't exist"
@@ -2095,6 +2097,7 @@ export default function DangerZone() {
       {/* Swap Box Score Teams */}
       <div>
         <SectionHeader
+         
           size="sm"
           title="Swap Box Score Teams"
           subtitle="Fix a game where each team's stats are showing under the wrong team"
@@ -2173,6 +2176,7 @@ export default function DangerZone() {
           confirm before running. */}
       <div>
         <SectionHeader
+         
           size="sm"
           title="Use With Caution"
           subtitle="Known to corrupt records on dynasties started on older builds — back up first."
@@ -2361,7 +2365,7 @@ export default function DangerZone() {
       <div>
         <SectionHeader size="sm" title="Cache" />
         <div className="grid sm:grid-cols-2 gap-3">
-          <Card className="flex flex-col h-full" style={{ borderLeft: '3px solid var(--accent-error)' }}>
+          <Card className="flex flex-col h-full">
             <div className="mb-3">
               <h3 className="label-sm text-txt-primary m-0">Clear Local Cache</h3>
               <p className="text-xs mt-1 text-txt-tertiary leading-relaxed m-0">
@@ -2388,6 +2392,7 @@ export default function DangerZone() {
       {/* Storage Tier Testing (Dev) */}
       <div>
         <SectionHeader
+         
           size="sm"
           title="Storage Tier Testing"
           subtitle="Dev tool - switch between IndexedDB and Firebase"
@@ -2492,7 +2497,7 @@ export default function DangerZone() {
           </div>
 
           {/* Instructions */}
-          <div className="mt-4 p-3 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-3)', borderLeft: '3px solid var(--accent-warning)' }}>
+          <div className="mt-4 p-3 rounded-md text-xs" style={{ backgroundColor: 'var(--surface-3)' }}>
             <strong className="text-txt-primary">Testing instructions:</strong>
             <ol className="list-decimal ml-4 mt-1 space-y-1 text-txt-secondary">
               <li>Open browser console (F12) to see debug logs</li>
@@ -2508,6 +2513,7 @@ export default function DangerZone() {
       {teambuilderTeams.length > 0 && (
         <div>
           <SectionHeader
+           
             size="sm"
             title="Teambuilder Teams"
             subtitle={`${teambuilderTeams.length} custom team${teambuilderTeams.length > 1 ? 's' : ''}`}

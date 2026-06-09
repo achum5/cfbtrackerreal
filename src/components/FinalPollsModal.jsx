@@ -322,7 +322,7 @@ FINAL CHECK before you send
           </div>
         ) : showDeletedNote ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="card p-8 border-l-[3px] text-center max-w-sm" style={{ borderLeftColor: 'var(--surface-5)' }}>
+            <div className="card p-8 text-center max-w-sm">
               <p className="label-xs text-txt-tertiary mb-2">Status</p>
               <p className="text-xl font-bold text-txt-primary mb-2">Saved &amp; Moved to Trash</p>
               <p className="text-sm text-txt-secondary">Final polls saved.</p>

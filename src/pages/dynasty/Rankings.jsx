@@ -355,7 +355,6 @@ export default function Rankings() {
           paddingTop: isLeader ? '14px' : '11px',
           paddingBottom: isLeader ? '14px' : '11px',
           background: rowGradient,
-          boxShadow: `inset 4px 0 0 0 ${primary}`,
         }}
       >
         <span

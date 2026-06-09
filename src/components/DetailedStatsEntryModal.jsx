@@ -624,7 +624,7 @@ FINAL CHECK before you send
 
         <div className="flex-1 flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6">
         {/* Helper tip */}
-        <div className="mb-4 p-3 rounded-lg text-sm bg-surface-2 text-txt-secondary border-l-[3px]" style={{ borderLeftColor: 'var(--surface-5)' }}>
+        <div className="mb-4 p-3 rounded-lg text-sm bg-surface-2 text-txt-secondary">
           <span className="font-semibold text-txt-primary">Tip:</span> Make sure you've completed GP/Snaps Entry first. In CFB 26, sort your stats by Snaps Played, then go through each category tab - the order will match and make entry quick!
         </div>
 

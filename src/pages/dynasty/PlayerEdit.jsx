@@ -952,7 +952,7 @@ export default function PlayerEdit() {
       <div className="max-w-4xl mx-auto p-4">
         <div
           className="rounded-xl p-6 text-center"
-          style={{ backgroundColor: 'var(--surface-2)', borderLeft: '3px solid var(--accent-warning)' }}
+          style={{ backgroundColor: 'var(--surface-2)' }}
         >
           <h2 className="display-md text-txt-primary m-0 mb-2">View Only Mode</h2>
           <p className="text-txt-secondary mb-4 m-0">You cannot edit players in view-only mode.</p>

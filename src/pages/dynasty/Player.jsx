@@ -3207,7 +3207,7 @@ function PlayerInner() {
                     style={{ fontFamily: "var(--font-display)", letterSpacing: '0.5px' }}
                   >
                     {headlineLink
-                      ? <Link to={headlineLink} className="hover:text-team-primary transition-colors">{headline}</Link>
+                      ? <Link to={headlineLink} className="transition-colors hover:[color:var(--row-accent)]" style={{ '--row-accent': color }}>{headline}</Link>
                       : headline
                     }
                   </div>
@@ -4674,8 +4674,7 @@ function PlayerInner() {
 
         return (
           <div
-            className="card p-4 sm:p-6 border-l-[3px]"
-            style={{ borderLeftColor: teamColors.primary }}
+            className="card p-4 sm:p-6"
           >
             <h2 className="font-display font-black uppercase mb-5 text-white" style={{ fontSize: '1.4rem', letterSpacing: '0.04em' }}>Awards</h2>
 
@@ -4765,8 +4764,7 @@ function PlayerInner() {
       {/* Notes & Media */}
       {(player.notes || (player.links && player.links.length > 0)) && (
         <div
-          className="card p-4 sm:p-6 border-l-[3px]"
-          style={{ borderLeftColor: teamColors.primary }}
+          className="card p-4 sm:p-6"
         >
           <h2 className="font-display font-black uppercase mb-4 text-txt-primary" style={{ fontSize: '1.4rem', letterSpacing: '0.04em' }}>Notes & Media</h2>
           {player.notes && (
@@ -4833,7 +4831,7 @@ function PlayerInner() {
                   return (
                     <div key={index} className="rounded-lg overflow-hidden">
                       {link.title && (
-                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                           {link.title}
                         </div>
                       )}
@@ -4870,7 +4868,7 @@ function PlayerInner() {
                   return (
                     <div key={index} className="rounded-lg overflow-hidden">
                       {link.title && (
-                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                           {link.title}
                         </div>
                       )}
@@ -4898,7 +4896,7 @@ function PlayerInner() {
                     return (
                       <div key={index} className="rounded-lg overflow-hidden">
                         {link.title && (
-                          <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                          <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                             {link.title}
                           </div>
                         )}
@@ -4929,7 +4927,7 @@ function PlayerInner() {
                     return (
                       <div key={index} className="rounded-lg overflow-hidden">
                         {link.title && (
-                          <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                          <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                             {link.title}
                           </div>
                         )}
@@ -4957,7 +4955,7 @@ function PlayerInner() {
                   return (
                     <div key={index} className="rounded-lg overflow-hidden">
                       {link.title && (
-                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                           {link.title}
                         </div>
                       )}
@@ -4982,7 +4980,7 @@ function PlayerInner() {
                   return (
                     <div key={index} className="rounded-lg overflow-hidden">
                       {link.title && (
-                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                           {link.title}
                         </div>
                       )}
@@ -5000,7 +4998,7 @@ function PlayerInner() {
                   return (
                     <div key={index} className="rounded-lg overflow-hidden">
                       {link.title && (
-                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary border-l-[3px]" style={{ borderLeftColor: teamColors.primary }}>
+                        <div className="px-3 py-2 text-sm font-semibold bg-surface-3 text-txt-primary">
                           {link.title}
                         </div>
                       )}

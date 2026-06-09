@@ -377,8 +377,7 @@ FINAL CHECK before you send
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {/* First-time roster note */}
         <div
-          className="mb-4 p-3 rounded-lg text-sm border-l-[3px] bg-surface-3"
-          style={{ borderLeftColor: 'var(--surface-5)' }}
+          className="mb-4 p-3 rounded-lg text-sm bg-surface-3"
         >
           <p className="text-txt-secondary">
             <strong className="text-txt-primary">Note:</strong> This is the only time you'll need to enter your roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions. All fields are optional - fill in whatever columns you want.
@@ -406,7 +405,7 @@ FINAL CHECK before you send
           </div>
         ) : showDeletedNote ? (
           <div className="flex-1 flex items-center justify-center">
-            <div className="card p-8 border-l-[3px] text-center max-w-sm" style={{ borderLeftColor: 'var(--surface-5)' }}>
+            <div className="card p-8 text-center max-w-sm">
               <p className="label-xs text-txt-tertiary mb-2">Status</p>
               <p className="text-xl font-bold text-txt-primary mb-2">Saved &amp; Moved to Trash</p>
               <p className="text-sm text-txt-secondary">Roster saved to your dynasty.</p>

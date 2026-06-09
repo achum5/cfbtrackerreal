@@ -106,8 +106,7 @@ export default function NewJobEditModal({ isOpen, onClose, onSave, teamColors, c
       onMouseDown={onClose}
     >
       <div
-        className="card w-full max-w-md max-h-[calc(100dvh-4rem)] sm:max-h-[90dvh] overflow-y-auto p-4 sm:p-6 border-l-[3px]"
-        style={{ borderLeftColor: 'var(--surface-5)' }}
+        className="card w-full max-w-md max-h-[calc(100dvh-4rem)] sm:max-h-[90dvh] overflow-y-auto p-4 sm:p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

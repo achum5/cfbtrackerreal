@@ -197,7 +197,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
     return (
       <div
         className={`flex items-center ${compact ? 'gap-1.5 pl-1.5 pr-2 py-2' : 'gap-2.5 pl-2 pr-4 py-2.5'}`}
-        style={{ background: rowGradient, boxShadow: teamPrimary ? `inset 3px 0 0 0 ${teamPrimary}` : undefined }}
+        style={{ background: rowGradient }}
       >
         {/* ESPN-style winner indicator: small filled triangle pointing at the row */}
         <span
@@ -208,7 +208,6 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
             height: 0,
             borderTop: '4px solid transparent',
             borderBottom: '4px solid transparent',
-            borderLeft: '5px solid var(--text-primary)',
             opacity: won ? 1 : 0,
           }}
         />

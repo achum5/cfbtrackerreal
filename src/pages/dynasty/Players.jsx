@@ -34,6 +34,7 @@ export default function Players() {
   const { currentDynasty, isViewOnly } = useDynasty()
   const pathPrefix = usePathPrefix()
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
+  const teamAccent = teamColors?.primary || '#374151'
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [sortBy, setSortBy] = useState('overall')
@@ -191,7 +192,7 @@ export default function Players() {
   )
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="space-y-4 page-enter" style={{ '--row-accent': teamAccent }}>
       <PageHero
         eyebrow="Roster Directory"
         title="All Players"
@@ -236,8 +237,9 @@ export default function Players() {
               <thead>
                 <tr
                   style={{
-                    borderBottom: '1px solid var(--surface-4)',
+                    borderBottom: `2px solid ${teamAccent}`,
                     backgroundColor: 'var(--surface-1)',
+                    backgroundImage: `linear-gradient(90deg, ${teamAccent}1f 0%, ${teamAccent}0a 14%, transparent 36%)`,
                   }}
                 >
                   <SortableTh column="name">Player</SortableTh>
@@ -380,7 +382,6 @@ export default function Players() {
       <style>{`
         .player-row:hover {
           background-color: var(--surface-3);
-          box-shadow: inset 3px 0 0 var(--surface-5);
         }
       `}</style>
     </div>

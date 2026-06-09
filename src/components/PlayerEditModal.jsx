@@ -1106,8 +1106,7 @@ export default function PlayerEditModalNew({
         <form onSubmit={handleSubmit} className="flex flex-col h-full">
           {/* Header with Player Card */}
           <div
-            className="relative px-5 py-4 flex-shrink-0 bg-surface-2 border-b border-surface-4 border-l-[3px]"
-            style={{ borderLeftColor: 'var(--surface-5)' }}
+            className="relative px-5 py-4 flex-shrink-0 bg-surface-2 border-b border-surface-4"
           >
             {/* Close button */}
             <button
