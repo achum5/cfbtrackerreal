@@ -64,14 +64,14 @@ export default function StorageSwitchModal({
           <div className="flex items-center justify-center gap-4 mb-4">
             {/* Current storage */}
             <div className={`flex flex-col items-center p-4 rounded-lg border-2 ${
-              currentStorage === 'local' ? 'border-surface-5 bg-surface-3/10' : 'border-purple-500 bg-purple-500/10'
+              currentStorage === 'local' ? 'border-surface-5 bg-surface-3/10' : 'border-sky-500 bg-sky-500/10'
             }`}>
               {currentStorage === 'local' ? (
                 <svg className="w-8 h-8 text-txt-primary mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               ) : (
-                <svg className="w-8 h-8 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-8 h-8 text-sky-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                 </svg>
               )}
@@ -88,14 +88,14 @@ export default function StorageSwitchModal({
 
             {/* Target storage */}
             <div className={`flex flex-col items-center p-4 rounded-lg border-2 border-dashed ${
-              targetStorage === 'local' ? 'border-surface-5/50' : 'border-purple-500/50'
+              targetStorage === 'local' ? 'border-surface-5/50' : 'border-sky-500/50'
             }`}>
               {targetStorage === 'local' ? (
                 <svg className="w-8 h-8 text-txt-primary/50 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               ) : (
-                <svg className="w-8 h-8 text-purple-400/50 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-8 h-8 text-sky-400/50 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                 </svg>
               )}
@@ -109,7 +109,7 @@ export default function StorageSwitchModal({
           {/* Description */}
           {targetStorage === 'cloud' ? (
             <div className="text-sm text-txt-muted space-y-2">
-              <p><strong className="text-purple-400">Cloud storage</strong> enables:</p>
+              <p><strong className="text-sky-400">Cloud storage</strong> enables:</p>
               <ul className="list-disc list-inside ml-2 space-y-1">
                 <li>Access from any device</li>
                 <li>Automatic backups</li>
@@ -184,7 +184,7 @@ export default function StorageSwitchModal({
                 isUpgradeRequired
                   ? 'bg-yellow-600 hover:bg-yellow-500'
                   : targetStorage === 'cloud'
-                    ? 'bg-purple-600 hover:bg-purple-500'
+                    ? 'bg-sky-600 hover:bg-sky-500'
                     : 'bg-surface-3 hover:bg-surface-3'
               }`}
             >

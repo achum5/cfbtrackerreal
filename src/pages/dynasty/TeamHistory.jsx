@@ -12,6 +12,7 @@ import {
   Badge,
   Stat,
   SectionHeader,
+  GameResultRow,
 } from '../../components/ui'
 
 const WEEK_LABEL = (game) => {
@@ -342,7 +343,7 @@ export default function TeamHistory() {
                 <h4 className="text-sm font-semibold text-txt-primary mb-2">
                   {year} Season
                 </h4>
-                <Card padding="none">
+                <div className="space-y-1.5">
                   {games.map((game, idx) => {
                     const won = isWin(game)
                     const weekLabel = WEEK_LABEL(game)
@@ -352,44 +353,30 @@ export default function TeamHistory() {
                     const oppMascot = getMascotName(oppTid ?? oppAbbr, teams) || oppAbbr
                     const oppLogo = (oppMascot && getTeamLogo(oppMascot, teams)) ||
                       (oppAbbr && getTeamLogo(oppAbbr, teams)) || null
+                    const oppColor = (oppTid != null && teams?.[oppTid]?.primaryColor) || '#3a3d47'
                     const location = game.perspective?.isHome
                       ? 'Home'
                       : game.perspective?.isAway ? 'Away' : 'Neutral'
+                    const us = game.perspective?.userScore
+                    const them = game.perspective?.opponentScore
+                    const scoreStr = (us != null && them != null)
+                      ? `${Math.max(us, them)}-${Math.min(us, them)}`
+                      : '—'
 
                     return (
-                      <Link
+                      <GameResultRow
                         key={idx}
                         to={`/dynasty/${currentDynasty.id}/game/${game.id || idx}`}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-surface-3 transition-colors"
-                        style={{
-                          borderBottom: idx < games.length - 1 ? '1px solid var(--surface-4)' : 'none',
-                        }}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Badge variant={won ? 'success' : 'danger'} size="md">
-                            {won ? 'W' : 'L'}
-                          </Badge>
-                          {oppLogo && (
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center bg-white p-[2px] flex-shrink-0">
-                              <img src={oppLogo} alt="" className="w-full h-full object-contain" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-semibold text-sm text-txt-primary truncate">
-                              vs {oppMascot || oppAbbr || 'Unknown'}
-                            </div>
-                            <div className="label-xs text-txt-tertiary">
-                              {weekLabel} {location}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="tabular font-semibold text-sm text-txt-primary flex-shrink-0 ml-3">
-                          {game.perspective?.userScore ?? '—'} – {game.perspective?.opponentScore ?? '—'}
-                        </div>
-                      </Link>
+                        color={oppColor}
+                        logo={oppLogo}
+                        name={`${location === 'Away' ? '@' : 'vs'} ${oppMascot || oppAbbr || 'Unknown'}`}
+                        result={won ? 'W' : 'L'}
+                        score={scoreStr}
+                        meta={`${weekLabel} ${location}`}
+                      />
                     )
                   })}
-                </Card>
+                </div>
               </div>
             ))}
           </div>

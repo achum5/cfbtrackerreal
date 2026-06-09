@@ -24,6 +24,7 @@ import {
   TeamLogo,
   SectionHeader,
   ScoreRow,
+  GameResultRow,
 } from '../../components/ui'
 
 const getMascotName = (opponent, teamsData = null) => {
@@ -1185,18 +1186,19 @@ export default function CoachCareer() {
                       : 'NEUTRAL'
                     const isNatty = gameType === GAME_TYPES.CFP_CHAMPIONSHIP
 
+                    const oppColor = (game.perspective?.opponentTid != null && teamsData?.[game.perspective.opponentTid]?.primaryColor) || '#3a3d47'
+                    const metaLabel = [weekLabel, site, roundLabel].filter(Boolean).join(' · ')
                     const row = (
-                      <ScoreRow
+                      <GameResultRow
                         key={`${year}-${game.week}-${index}`}
-                        prefix={weekLabel}
                         tid={game.perspective?.opponentTid}
                         teams={teamsData}
-                        teamName={opponentName}
-                        teamRank={game.perspective?.opponentRank}
+                        color={oppColor}
+                        name={`${site === 'AWAY' ? '@' : 'vs'} ${opponentName}`}
+                        rank={game.perspective?.opponentRank}
                         result={gameIsWin ? 'W' : 'L'}
                         score={`${Math.max(userScore, oppScore)}-${Math.min(userScore, oppScore)}`}
-                        site={site}
-                        notes={roundLabel ? [roundLabel] : []}
+                        meta={metaLabel}
                         to={`${pathPrefix}/game/${game.id}`}
                       />
                     )

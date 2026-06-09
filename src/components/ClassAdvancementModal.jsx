@@ -128,10 +128,10 @@ export default function ClassAdvancementModal({ isOpen, onClose, onConfirm, play
                       ) : (
                         <button
                           onClick={() => handleToggle(player.pid)}
-                          className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                          className={`px-3 py-1 rounded text-xs font-semibold border transition-colors ${
                             played5Plus
-                              ? 'bg-green-500 text-white'
-                              : 'bg-orange-500 text-white'
+                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                              : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
                           }`}
                         >
                           {played5Plus ? 'Yes' : 'No'}

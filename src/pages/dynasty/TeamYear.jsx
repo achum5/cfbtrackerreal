@@ -28,6 +28,7 @@ import { sortGamesNewestFirst } from '../../utils/gameOrder'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { useToast } from '../../components/ui/Toast'
 import FittedPlayerName from '../../components/ui/FittedPlayerName'
+import GameResultRow from '../../components/ui/GameResultRow'
 import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTable'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
@@ -3723,7 +3724,20 @@ export default function TeamYear() {
                             style={{ borderBottom: idx < previousMeetings.length - 1 ? `1px solid var(--surface-4)` : 'none' }}
                           >
                             <span className="font-medium tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
-                              {meeting.year} Wk {meeting.week}
+                              {meeting.year} Wk {
+                                meeting.isCFPChampionship ? 'NatChamp'
+                                : meeting.isCFPSemifinal ? 'CFP SF'
+                                : meeting.isCFPQuarterfinal ? 'CFP QF'
+                                : meeting.isCFPFirstRound ? 'CFP R1'
+                                : meeting.isConferenceChampionship ? 'CCG'
+                                : meeting.isBowlGame ? 'Bowl'
+                                // Legacy fallback: older games stored the bowl-week slot
+                                // as the week string ('Bowl 4' = title game, 'Bowl 3' = semis)
+                                // before the isCFP* flags existed.
+                                : String(meeting.week) === 'Bowl 4' ? 'NatChamp'
+                                : String(meeting.week) === 'Bowl 3' ? 'CFP SF'
+                                : meeting.week
+                              }
                             </span>
                             <div className="flex items-center gap-3">
                               <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${meeting.won ? 'bg-green-600/15 text-green-400' : 'bg-red-600/15 text-red-400'}`} style={{ letterSpacing: '1px' }}>
@@ -7192,38 +7206,20 @@ export default function TeamYear() {
                     .map((game, idx) => {
                       const opponentName = getMascotName(game.opponentTid, currentDynasty.teams) || game.opponentAbbr || 'Unknown'
                       const opponentLogo = getTeamLogo(opponentName, currentDynasty.teams)
+                      const oppColor = currentDynasty.teams?.[game.opponentTid]?.primaryColor || '#3a3d47'
                       const locationPrefix = game.isHome ? 'vs' : game.isAway ? '@' : 'vs'
 
                       return (
-                        <Link
+                        <GameResultRow
                           key={game.id || idx}
-                          to={game.id ? `${pathPrefix}/game/${game.id}` : '#'}
-                          className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                            game.isWin ? 'bg-green-900/30 hover:bg-green-900/50' : 'bg-red-900/30 hover:bg-red-900/50'
-                          }`}
-                        >
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                            game.isWin ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                          }`}>
-                            {game.isWin ? 'W' : 'L'}
-                          </div>
-                          {opponentLogo && (
-                            <img src={opponentLogo} alt="" className="w-8 h-8 object-contain" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold" style={{ color: accentColor }}>
-                              {locationPrefix} {opponentName}
-                            </div>
-                            <div className="text-xs" style={{ color: accentColorMuted }}>
-                              {game.week ? `Week ${game.week}` : game.bowlName || 'Postseason'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold tabular-nums" style={{ color: accentColor }}>
-                              {formatScoreHighLow(game.teamScore, game.oppScore)}
-                            </div>
-                          </div>
-                        </Link>
+                          to={game.id ? `${pathPrefix}/game/${game.id}` : undefined}
+                          color={oppColor}
+                          logo={opponentLogo}
+                          name={`${locationPrefix} ${opponentName}`}
+                          result={game.isWin ? 'W' : 'L'}
+                          score={formatScoreHighLow(game.teamScore, game.oppScore)}
+                          meta={game.week ? `Week ${game.week}` : game.bowlName || 'Postseason'}
+                        />
                       )
                     })}
                 </div>
@@ -7293,43 +7289,19 @@ export default function TeamYear() {
                                     game.isConferenceChampionship ? 'Conference Championship' :
                                     game.bowlName || 'Bowl Game'
 
+                    const oppColor = (oppTid != null && teamsSource?.[oppTid]?.primaryColor) || '#3a3d47'
+
                     return (
-                      <Link
+                      <GameResultRow
                         key={game.id || idx}
                         to={`${pathPrefix}/game/${game.id}`}
-                        className="flex items-center justify-between p-3 rounded-lg hover:opacity-80 transition-opacity"
-                        style={{ backgroundColor: `${accentColor}10` }}
-                        onClick={() => setShowHistoryGamesModal(false)}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {hasScores && (
-                            <span
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                              style={{ backgroundColor: won ? '#16a34a' : '#dc2626' }}
-                            >
-                              {won ? 'W' : 'L'}
-                            </span>
-                          )}
-                          {oppLogo && (
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white p-[2px] flex-shrink-0">
-                              <img src={oppLogo} alt="" className="w-full h-full object-contain" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-semibold truncate" style={{ color: accentColor }}>
-                              vs {oppMascot || oppAbbr || 'Unknown'}
-                            </div>
-                            <div className="text-xs" style={{ color: accentColorMuted }}>
-                              {game.year} {gameType}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0 ml-3">
-                          <div className="font-bold tabular-nums" style={{ color: accentColor }}>
-                            {hasScores ? formatScoreHighLow(teamScore, oppScore) : '—'}
-                          </div>
-                        </div>
-                      </Link>
+                        color={oppColor}
+                        logo={oppLogo}
+                        name={`vs ${oppMascot || oppAbbr || 'Unknown'}`}
+                        result={hasScores ? (won ? 'W' : 'L') : null}
+                        score={hasScores ? formatScoreHighLow(teamScore, oppScore) : '—'}
+                        meta={`${game.year} ${gameType}`}
+                      />
                     )
                   })}
                 </div>
@@ -7391,43 +7363,19 @@ export default function TeamYear() {
                                     game.isConferenceChampionship ? 'Conference Championship' :
                                     game.isBowlGame ? (game.bowlName || 'Bowl Game') :
                                     (game.week != null ? `Week ${game.week}` : '')
+                    const oppColor = (oppTid != null && teamsSource?.[oppTid]?.primaryColor) || '#3a3d47'
+
                     return (
-                      <Link
+                      <GameResultRow
                         key={game.id || idx}
                         to={`${pathPrefix}/game/${game.id}`}
-                        className="flex items-center justify-between p-3 rounded-lg hover:opacity-80 transition-opacity"
-                        style={{ backgroundColor: `${accentColor}10` }}
-                        onClick={() => setShowUserGamesModal(false)}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {hasScores && (
-                            <span
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                              style={{ backgroundColor: won ? '#16a34a' : '#dc2626' }}
-                            >
-                              {won ? 'W' : 'L'}
-                            </span>
-                          )}
-                          {oppLogo && (
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-white p-[2px] flex-shrink-0">
-                              <img src={oppLogo} alt="" className="w-full h-full object-contain" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-semibold truncate" style={{ color: accentColor }}>
-                              vs {oppMascot || oppAbbr || 'Unknown'}
-                            </div>
-                            <div className="text-xs" style={{ color: accentColorMuted }}>
-                              {game.year}{gameType ? ` ${gameType}` : ''}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0 ml-3">
-                          <div className="font-bold tabular-nums" style={{ color: accentColor }}>
-                            {hasScores ? formatScoreHighLow(teamScore, oppScore) : '—'}
-                          </div>
-                        </div>
-                      </Link>
+                        color={oppColor}
+                        logo={oppLogo}
+                        name={`vs ${oppMascot || oppAbbr || 'Unknown'}`}
+                        result={hasScores ? (won ? 'W' : 'L') : null}
+                        score={hasScores ? formatScoreHighLow(teamScore, oppScore) : '—'}
+                        meta={`${game.year}${gameType ? ` ${gameType}` : ''}`}
+                      />
                     )
                   })}
                 </div>
