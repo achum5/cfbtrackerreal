@@ -514,6 +514,11 @@ function PlayerInner() {
     isTeambuilder: false
   }
 
+  // Faint team-logo watermark for the hero — same treatment as the team-page
+  // header. Prefer the team's own logo fields, fall back to the registry lookup.
+  const heroLogo = playerTeam?.logo || playerTeam?.logoUrl
+    || getTeamLogo(playerTeamName, dynasty?.teams || dynasty?.customTeams)
+
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [pid])
@@ -1723,10 +1728,11 @@ function PlayerInner() {
       {/* Player Header — CFB 27 broadcast banner (team-color wash, chalk
           texture, contrast text). One responsive block for mobile + desktop. */}
       <div
-        className="card overflow-hidden relative reveal"
+        className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong cfb-watermark"
         style={{
           backgroundColor: teamInfo.backgroundColor,
           backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
+          ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
         {/* Edit button — desktop: pinned top-right. On mobile the small OVR

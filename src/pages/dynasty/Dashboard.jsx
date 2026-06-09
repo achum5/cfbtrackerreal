@@ -3419,7 +3419,7 @@ export default function Dashboard() {
           {/* Phase-Specific Content */}
           {currentDynasty.currentPhase === 'preseason' ? (
         <div className="space-y-3">
-          <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+          <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
             Pre-Season Setup
           </h3>
           {(() => {
@@ -3942,7 +3942,7 @@ export default function Dashboard() {
         </div>
       ) : currentDynasty.currentPhase === 'conference_championship' ? (
         <div className="space-y-3">
-          <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+          <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
             Conference Championship Week
           </h3>
           {(() => {
@@ -4980,7 +4980,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Bowl Week 1
                   </h3>
                   {renderTodoList({ todos: bw1Todos, isViewOnly })}
@@ -5332,7 +5332,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Bowl Week 2
                   </h3>
                   {renderTodoList({ todos: bw2Todos, isViewOnly })}
@@ -5691,7 +5691,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     End of Season Recap
                   </h3>
                   {renderTodoList({ todos: w5Todos, isViewOnly })}
@@ -5994,7 +5994,7 @@ export default function Dashboard() {
 
             return (
               <>
-                <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                   {week === 4 ? 'National Championship' : `Bowl Week ${week}`}
                 </h3>
                 {renderTodoList({ todos: w34Todos, isViewOnly })}
@@ -6178,7 +6178,7 @@ export default function Dashboard() {
                 }]
                 return (
                   <>
-                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                       New Team — No Players Leaving
                     </h3>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
@@ -6199,7 +6199,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Players Leaving
                   </h3>
                   {renderTodoList({ todos: ow1Todos, isViewOnly })}
@@ -6458,7 +6458,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     {recruitingWeekNum === 5 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
                   </h3>
                   {renderTodoList({ todos: o26Todos, isViewOnly })}
@@ -6482,7 +6482,7 @@ export default function Dashboard() {
                 }]
                 return (
                   <>
-                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                       Training Camp
                     </h3>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
@@ -6567,7 +6567,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Training Camp
                   </h3>
                   {renderTodoList({ todos: w7Todos, isViewOnly })}
@@ -6609,7 +6609,7 @@ export default function Dashboard() {
 
               return (
                 <>
-                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary pl-2.5 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', borderLeft: `3px solid ${teamAccent}` }}>
+                  <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
                     Offseason
                   </h3>
                   {renderTodoList({ todos: w8Todos, isViewOnly })}
@@ -7442,7 +7442,7 @@ export default function Dashboard() {
               <div className="px-5 py-4 flex items-center justify-between" style={sectionStripStyle}>
                 <div className="flex items-center gap-3">
                   <div>
-                    <h2 className="font-display font-bold uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(1rem, 1.6vw, 1.125rem)', letterSpacing: '0.03em' }}>
+                    <h2 className="font-display font-bold uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em' }}>
                       <span className="tabular-nums">{currentDynasty.currentYear}</span>
                       <span className="ml-2">Schedule</span>
                     </h2>
@@ -7680,7 +7680,7 @@ export default function Dashboard() {
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--surface-4)' }}>
               <div className="flex items-center gap-3">
                 <div>
-                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(1rem, 1.6vw, 1.125rem)', letterSpacing: '0.03em' }}>
+                  <h2 className="font-display font-bold uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em' }}>
                     <span className="tabular-nums">{currentDynasty.currentYear}</span>
                     <span className="ml-2">Roster</span>
                   </h2>

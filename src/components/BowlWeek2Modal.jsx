@@ -316,33 +316,52 @@ baseline to determine the new ranks for teams NOT playing in Bowl Week 2.
 ${prevWeekTop25Block || '  (no prior-week Top 25 stored — infer non-playing ranks from any poll visible in screenshots)'}
 
 ═══════════════════════════════════════════════════════════
-POST-BOWL POLL — paste BELOW the game rows (same tab, same paste)
+NON-PLAYING RANKED TEAMS — paste BELOW the game rows (critical, read carefully)
 ═══════════════════════════════════════════════════════════
-After ALL bowl game rows, leave ONE blank row, then output EVERY team in
-the new post-Bowl-Week-2 AP Poll (Top 25). This MUST include both:
+The bowl screenshots only show teams that PLAYED in Bowl Week 2. A ranked
+team with NO Bowl Week 2 game (its bowl was an earlier week, or it's a CFP
+team between rounds) still holds a poll rank but never appears in the game
+rows above. This block is ONLY for those non-playing ranked teams — so the
+game-row ranks PLUS this block together cover the full Top 25.
 
-  (a) Teams that PLAYED in Bowl Week 2 — use their new rank from the
-      post-game poll visible in your screenshots, or infer from results.
-  (b) Teams that did NOT play in Bowl Week 2 — they are still ranked.
-      Use the PRIOR-WEEK TOP 25 above as your baseline:
-        • By default, non-playing teams hold their prior rank.
-        • Drop them a slot if a team below them won impressively and
-          leapfrogged; move them up if teams above them lost.
-        • Every rank 1–25 must be filled exactly once across the full
-          set of poll rows. No collisions, no gaps, no duplicates.
+DO NOT list a team here if it appears in a REGULAR (non-CFP) bowl game row
+above — its AP rank is already captured on that row (Col C / Col E), and
+repeating it here double-counts it.
 
-For each ranked team, output ONE row:
+CFP PLAYOFF TEAMS ARE THE EXCEPTION: a CFP Quarterfinal row ("… (CFP QF)")
+shows each team's SEED (1–12), NOT its AP rank (e.g. a #5 seed may be AP #2).
+So CFP teams DO belong in this block with their real AP rank from the poll —
+the seed on their game row is not their ranking.
+
+HOW TO BUILD THIS BLOCK:
+  STEP 1 — From the PRIOR-WEEK TOP 25 above, list every ranked team (call it P).
+  STEP 2 — Cross off every team in P that appears in a REGULAR (non-CFP) bowl
+           row above — its AP rank is already on that game row. Do NOT cross
+           off CFP teams: their game row shows a seed, not their AP rank, so
+           they stay here. Every remaining team in P — non-playing teams AND
+           CFP teams — goes in this block.
+  STEP 3 — Find the rank slots NOT already claimed by a REGULAR bowl team's
+           game-row AP rank, and assign each remaining team to one unfilled slot:
+             • By default a team holds its prior rank.
+             • Drop it a slot if a team below won big and leapfrogged; move it
+               up if teams above it lost.
+           Regular-bowl game-row ranks ∪ this block must equal {1,2,…,25}:
+           every rank exactly once, no gaps, no duplicates, no rank shared
+           with a regular-bowl team.
+
+For each team in this block, output ONE row:
   • Leave Col A BLANK (no bowl name)
   • Col B = team abbreviation (from the TEAM ABBREVIATIONS mapping)
-  • Col C = their rank (1–25)
+  • Col C = their AP rank (1–25)
   • Cols D–G = leave blank
 
 Format: \\t<TeamAbbr>\\t<Rank>\\t\\t\\t\\t
 (tab, team, tab, rank, then 4 blank tabs — Col A blank = no bowl name)
 
-Output all 25 ranked teams in rank order (#1 first). If no post-bowl poll
-is visible in screenshots AND no prior-week poll was provided above,
-skip this section entirely — do NOT invent rankings.
+Only list teams that WERE ranked in the Prior-Week Top 25 above. If every
+ranked team already shows its AP rank on a regular bowl row, emit NO rows
+here. If no prior-week poll was provided above, skip this block entirely —
+do NOT invent rankings.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
@@ -352,8 +371,8 @@ REQUIRED OUTPUT FORMAT
 <row2 Team1>\\t<row2 T1Rank>\\t<row2 Team2>\\t<row2 T2Rank>\\t<row2 T1Score>\\t<row2 T2Score>
 ... (one row per bowl in the screenshot, in the screenshot's alphabetical order)
 \\t\\t\\t\\t\\t\\t           ← blank separator row (6 tabs)
-\\t<rank1Team>\\t<rank1>\\t\\t\\t\\t
-... (up to 25 poll rows)
+\\t<nonPlayingTeam1>\\t<rank1>\\t\\t\\t\\t
+... (one row per NON-PLAYING ranked team only — omit any team that has a game row above)
 
 (Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)
 
@@ -369,10 +388,10 @@ FINAL CHECK before you send the answer
 [ ] For "(CFP QF)" rows: used the exact team abbreviations from the right-hand column of the EXACT ROW ORDER table above (not real-world bowl matchups, not guessed); Team 1 = First Round winner (lower seed), Team 2 = bye seed (1-4)
 [ ] Line N of my output corresponds to row N+1 of the sheet exactly per the row table — I did NOT re-alphabetize or reorder
 [ ] Blank cells for any unknown scores or unplayed bowls — invented nothing
-[ ] Post-bowl poll block present and includes ALL 25 ranked teams — both playing AND non-playing
-[ ] Non-playing ranked teams (from Prior-Week Top 25) are included with their new ranks (held or adjusted)
-[ ] Poll rows have blank Col A, team abbr in Col B, rank in Col C
-[ ] No rank collision or gap across all 25 poll rows
+[ ] Bottom block = ranked teams whose AP rank is NOT on a regular bowl row: non-playing teams PLUS CFP teams (CFP rows show a seed, not the AP rank)
+[ ] No team appears in BOTH a REGULAR bowl row and the bottom block — regular-bowl teams' AP ranks live on their game row only
+[ ] Bottom-block rows have blank Col A, team abbr in Col B, rank in Col C
+[ ] Regular-bowl game-row ranks + bottom-block ranks together cover 1–25 — no gaps, no duplicates, no collisions
 [ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,

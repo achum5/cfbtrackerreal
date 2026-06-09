@@ -3510,7 +3510,7 @@ export default function TeamYear() {
                 return (
               <div
                 className="relative mb-5 rounded-xl overflow-hidden cfb-texture cfb-texture-strong"
-                style={{ backgroundImage: `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42)), linear-gradient(90deg, ${userColor} 0%, ${userColor} 50%, ${oppColor} 50%, ${oppColor} 100%)` }}
+                style={{ backgroundImage: `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%), linear-gradient(90deg, ${userColor} 0%, ${userColor} 50%, ${oppColor} 50%, ${oppColor} 100%)` }}
               >
                 <div className="flex items-stretch justify-between">
                 <div className="flex flex-1 items-center gap-3 min-w-0 px-4 py-4">
@@ -3679,7 +3679,7 @@ export default function TeamYear() {
                   {/* Matchup row — split by both teams' colors */}
                   <div
                     className="relative flex items-stretch justify-between mb-5 rounded-xl overflow-hidden cfb-texture cfb-texture-strong"
-                    style={{ backgroundImage: `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42)), linear-gradient(90deg, ${userColor} 0%, ${userColor} 50%, ${oppColor} 50%, ${oppColor} 100%)` }}
+                    style={{ backgroundImage: `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%), linear-gradient(90deg, ${userColor} 0%, ${userColor} 50%, ${oppColor} 50%, ${oppColor} 100%)` }}
                   >
                     <div className="flex flex-1 items-center gap-3 min-w-0 px-4 py-4" style={{ borderBottom: `4px solid ${userSecondary}` }}>
                       {teamColorLogo(teamLogo, userColor, 44)}
@@ -3787,7 +3787,7 @@ export default function TeamYear() {
                   style={{
                     borderBottom: `1px solid var(--surface-4)`,
                     borderLeft: `4px solid ${oppColor}`,
-                    background: `linear-gradient(90deg, ${oppColor}66 0%, ${oppColor}40 55%, ${oppColor}24 100%)`,
+                    background: `linear-gradient(90deg, ${oppColor}4d 0%, ${oppColor}1f 42%, var(--surface-2) 82%)`,
                   }}
                 >
                   <span

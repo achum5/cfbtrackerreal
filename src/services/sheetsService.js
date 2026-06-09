@@ -3904,10 +3904,50 @@ export async function readBowlGamesFromSheet(spreadsheetId, dynastyTeams = null)
       })
     }
 
+    // Build the COMPLETE post-bowl poll by merging two disjoint sources:
+    //   1. Played teams' ranks straight off their game rows (Col C / Col E).
+    //   2. The non-playing ranked teams pasted in the block below the games.
+    // The prompt now puts a played team's rank ONLY on its game row (never in
+    // the block), so together they form the full Top 25. Game rows are
+    // authoritative: a played team is never a "non-playing" block entry, and a
+    // rank already claimed by a played team wins over a colliding block row.
+    // This mirrors saveWeeklyScores' played-tid bye guard — and stays correct
+    // even if an older prompt still emits a full-25 block (the duplicates for
+    // played teams are simply skipped).
+    const mergedPoll = []
+    const seenPollRanks = new Set()
+    const playedPollTids = new Set()
+    for (const g of bowlGames) {
+      // CFP rows ("CFP First Round …", "… (CFP QF)") show a SEED (1–12) as the
+      // number prefix, NOT an AP rank — so we must not harvest it as a poll
+      // rank, and we must NOT mark CFP teams as "played" for poll purposes.
+      // That keeps them eligible for the non-playing block, which carries
+      // their true AP rank (the user's chosen behavior, and the only source
+      // for a CFP team's AP rank whether or not its bowl is entered via AI).
+      if (g.bowlName && /CFP/i.test(g.bowlName)) continue
+      for (const side of [
+        { tid: g.team1Tid, rank: g.team1Rank, abbr: g.team1 },
+        { tid: g.team2Tid, rank: g.team2Rank, abbr: g.team2 },
+      ]) {
+        if (side.tid != null) playedPollTids.add(Number(side.tid))
+        const r = side.rank
+        if (typeof r === 'number' && r >= 1 && r <= 25 && side.tid != null && !seenPollRanks.has(r)) {
+          seenPollRanks.add(r)
+          mergedPoll.push({ abbr: side.abbr, rank: r, tid: side.tid })
+        }
+      }
+    }
+    for (const e of pollEntries) {
+      if (e.tid != null && playedPollTids.has(Number(e.tid))) continue
+      if (seenPollRanks.has(e.rank)) continue
+      seenPollRanks.add(e.rank)
+      mergedPoll.push(e)
+    }
+
     // Attach poll entries as a non-enumerable property so callers that
     // iterate bowlGames as a plain array are unaffected, but modals can
     // read bowlGames.pollEntries to save post-bowl rankings.
-    Object.defineProperty(bowlGames, 'pollEntries', { value: pollEntries, enumerable: false })
+    Object.defineProperty(bowlGames, 'pollEntries', { value: mergedPoll, enumerable: false })
     return bowlGames
   } catch (error) {
     console.error('Error reading bowl data:', error)
@@ -4968,7 +5008,41 @@ export async function readBowlWeek2GamesFromSheet(spreadsheetId, dynastyTeams = 
       })
     }
 
-    Object.defineProperty(bowlGames, 'pollEntries', { value: pollEntries, enumerable: false })
+    // Merge game-row ranks (played teams) with the non-playing block into the
+    // complete Top 25 — see readBowlGamesFromSheet for the full rationale. Game
+    // rows are authoritative; played teams are never block entries, and a rank
+    // already claimed by a played team wins over a colliding block row.
+    const mergedPoll = []
+    const seenPollRanks = new Set()
+    const playedPollTids = new Set()
+    for (const g of bowlGames) {
+      // CFP rows ("CFP First Round …", "… (CFP QF)") show a SEED (1–12) as the
+      // number prefix, NOT an AP rank — so we must not harvest it as a poll
+      // rank, and we must NOT mark CFP teams as "played" for poll purposes.
+      // That keeps them eligible for the non-playing block, which carries
+      // their true AP rank (the user's chosen behavior, and the only source
+      // for a CFP team's AP rank whether or not its bowl is entered via AI).
+      if (g.bowlName && /CFP/i.test(g.bowlName)) continue
+      for (const side of [
+        { tid: g.team1Tid, rank: g.team1Rank, abbr: g.team1 },
+        { tid: g.team2Tid, rank: g.team2Rank, abbr: g.team2 },
+      ]) {
+        if (side.tid != null) playedPollTids.add(Number(side.tid))
+        const r = side.rank
+        if (typeof r === 'number' && r >= 1 && r <= 25 && side.tid != null && !seenPollRanks.has(r)) {
+          seenPollRanks.add(r)
+          mergedPoll.push({ abbr: side.abbr, rank: r, tid: side.tid })
+        }
+      }
+    }
+    for (const e of pollEntries) {
+      if (e.tid != null && playedPollTids.has(Number(e.tid))) continue
+      if (seenPollRanks.has(e.rank)) continue
+      seenPollRanks.add(e.rank)
+      mergedPoll.push(e)
+    }
+
+    Object.defineProperty(bowlGames, 'pollEntries', { value: mergedPoll, enumerable: false })
     return bowlGames
   } catch (error) {
     console.error('Error reading bowl week 2 data:', error)

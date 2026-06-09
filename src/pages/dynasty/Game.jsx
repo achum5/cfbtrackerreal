@@ -1465,7 +1465,7 @@ export default function Game() {
   // CFB-27 broadcast scorebug: hard 50/50 team-color split with a centered
   // divider + a dark legibility wash (white text reads on any team color).
   // Matches the team page's Previous/Next Game scorebug treatment.
-  const splitHeroBg = `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(rgba(0,0,0,0.46), rgba(0,0,0,0.46)), linear-gradient(90deg, ${leftData.colors.primary} 0%, ${leftData.colors.primary} 50%, ${rightData.colors.primary} 50%, ${rightData.colors.primary} 100%)`
+  const splitHeroBg = `linear-gradient(90deg, transparent calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% - 1.5px), rgba(0,0,0,0.55) calc(50% + 1.5px), transparent calc(50% + 1.5px)), linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%), linear-gradient(90deg, ${leftData.colors.primary} 0%, ${leftData.colors.primary} 50%, ${rightData.colors.primary} 50%, ${rightData.colors.primary} 100%)`
 
   // Title-cluster pieces. For regular-season games we split the
   // wrapping link so the conference logo navigates to standings while
@@ -1696,7 +1696,7 @@ export default function Game() {
 
               {/* Center: Quarter Scores Table — dark panel keeps the table
                   legible where it sits over the team-color split + divider. */}
-              <div className="flex-shrink-0 mx-4 rounded-xl px-4 py-2.5" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+              <div className="flex-shrink-0 mx-3 sm:mx-4 rounded-xl px-3 sm:px-4 py-2.5 border border-white/10 shadow-lg shadow-black/30" style={{ backgroundColor: 'rgba(10,12,18,0.62)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                 {(() => {
                   const t = game.quarters.team1 || game.quarters.team || {}
                   const o = game.quarters.team2 || game.quarters.opponent || {}
@@ -1715,7 +1715,7 @@ export default function Game() {
                   return (
                     <table className="text-center">
                       <thead>
-                        <tr className="text-xs text-txt-muted uppercase">
+                        <tr className="text-[10px] text-white/45 uppercase tracking-wider font-semibold">
                           <th className="px-2 py-1"></th>
                           <th className="px-3 py-1">1</th>
                           <th className="px-3 py-1">2</th>
@@ -1724,35 +1724,35 @@ export default function Game() {
                           {game.overtimes?.map((_, i) => (
                             <th key={i} className="px-3 py-1">OT{i > 0 ? i + 1 : ''}</th>
                           ))}
-                          <th className="px-3 py-1 pl-4 border-l border-surface-4">T</th>
+                          <th className="px-3 py-1 pl-4 border-l border-white/15">T</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
-                          <td className={`pr-3 py-1.5 text-left text-sm font-bold ${leftData.isWinner ? 'text-white' : 'text-txt-tertiary'}`}>{leftData.abbr}</td>
+                          <td className={`pr-3 py-1.5 text-left text-sm font-bold ${leftData.isWinner ? 'text-white' : 'text-white/45'}`}>{leftData.abbr}</td>
                           {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                            <td key={q} className="px-3 py-1.5 text-txt-secondary text-sm">
+                            <td key={q} className="px-3 py-1.5 text-white/70 text-sm tabular-nums">
                               {leftQuarters[q] === '' || leftQuarters[q] === null || leftQuarters[q] === undefined ? 0 : leftQuarters[q]}
                             </td>
                           ))}
                           {game.overtimes?.map((ot, i) => (
-                            <td key={i} className="px-3 py-1.5 text-txt-secondary text-sm">{ot[leftQuarterKey] ?? '-'}</td>
+                            <td key={i} className="px-3 py-1.5 text-white/70 text-sm tabular-nums">{ot[leftQuarterKey] ?? '-'}</td>
                           ))}
-                          <td className={`px-3 py-1.5 pl-4 border-l border-surface-4 text-xl font-black ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'}`}>
+                          <td className={`px-3 py-1.5 pl-4 border-l border-white/15 text-xl font-black ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'}`}>
                             {leftData.score}
                           </td>
                         </tr>
                         <tr>
-                          <td className={`pr-3 py-1.5 text-left text-sm font-bold ${rightData.isWinner ? 'text-white' : 'text-txt-tertiary'}`}>{rightData.abbr}</td>
+                          <td className={`pr-3 py-1.5 text-left text-sm font-bold ${rightData.isWinner ? 'text-white' : 'text-white/45'}`}>{rightData.abbr}</td>
                           {['Q1', 'Q2', 'Q3', 'Q4'].map(q => (
-                            <td key={q} className="px-3 py-1.5 text-txt-secondary text-sm">
+                            <td key={q} className="px-3 py-1.5 text-white/70 text-sm tabular-nums">
                               {rightQuarters[q] === '' || rightQuarters[q] === null || rightQuarters[q] === undefined ? 0 : rightQuarters[q]}
                             </td>
                           ))}
                           {game.overtimes?.map((ot, i) => (
-                            <td key={i} className="px-3 py-1.5 text-txt-secondary text-sm">{ot[rightQuarterKey] ?? '-'}</td>
+                            <td key={i} className="px-3 py-1.5 text-white/70 text-sm tabular-nums">{ot[rightQuarterKey] ?? '-'}</td>
                           ))}
-                          <td className={`px-3 py-1.5 pl-4 border-l border-surface-4 text-xl font-black ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'}`}>
+                          <td className={`px-3 py-1.5 pl-4 border-l border-white/15 text-xl font-black ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'}`}>
                             {rightData.score}
                           </td>
                         </tr>
@@ -1760,8 +1760,8 @@ export default function Game() {
                     </table>
                   )
                 })()}
-                <div className="text-center mt-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}>
+                <div className="text-center mt-2 pt-2 border-t border-white/10">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.18em]" style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.72)' }}>
                     Final
                   </span>
                   {game.overtimes && game.overtimes.length > 0 && (
@@ -1997,7 +1997,7 @@ export default function Game() {
                   return (
                     <tr
                       key={idx}
-                      style={{ backgroundColor: team.colors.primary, backgroundImage: 'linear-gradient(rgba(0,0,0,0.40), rgba(0,0,0,0.40))' }}
+                      style={{ backgroundColor: team.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                     >
                       <td className="py-3 px-3 sm:px-4">
                         <Link to={`${pathPrefix}/team/${resolveTid(team.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group">
@@ -3325,9 +3325,9 @@ export default function Game() {
                       <div key={statKey} className="py-4 px-4">
                         <div className="grid grid-cols-2 gap-6">
                           {/* Left Team */}
-                          <div className="min-w-0">
+                          <div className="min-w-0 rounded-xl overflow-hidden border border-surface-4 bg-surface-2 shadow-sm">
                             <div
-                              className="cfb-texture flex items-center gap-2 mb-2 px-3 py-2 rounded-lg overflow-hidden"
+                              className="cfb-texture flex items-center gap-2 px-3 py-2.5 overflow-hidden"
                               style={{ backgroundColor: leftTeamData_bs.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
                               <Link to={`${pathPrefix}/team/${resolveTid(leftTeamData_bs.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-2 min-w-0">
@@ -3340,16 +3340,18 @@ export default function Game() {
                                 </div>
                                 <span className="font-semibold text-sm group-hover:underline truncate" style={{ color: getContrastTextColor(leftTeamData_bs.colors.primary) }}>{leftTeamData_bs.name}</span>
                               </Link>
-                              <span className="text-sm flex-shrink-0" style={{ color: getContrastTextColor(leftTeamData_bs.colors.primary), opacity: 0.72 }}>{tab.title}</span>
+                              <span className="text-[11px] font-bold uppercase tracking-wider flex-shrink-0 ml-auto" style={{ color: getContrastTextColor(leftTeamData_bs.colors.primary), opacity: 0.8 }}>{tab.title}</span>
                             </div>
-                            {hasLeftData ? renderTeamStatTable(leftData_bs, leftTeamData_bs, statKey, false) : (
-                              <div className="text-txt-muted text-sm px-2 py-4">No {tab.title.toLowerCase()} stats</div>
-                            )}
+                            <div className="px-3 pb-1">
+                              {hasLeftData ? renderTeamStatTable(leftData_bs, leftTeamData_bs, statKey, false) : (
+                                <div className="text-txt-muted text-sm py-4">No {tab.title.toLowerCase()} stats</div>
+                              )}
+                            </div>
                           </div>
                           {/* Right Team */}
-                          <div className="min-w-0">
+                          <div className="min-w-0 rounded-xl overflow-hidden border border-surface-4 bg-surface-2 shadow-sm">
                             <div
-                              className="cfb-texture flex items-center gap-2 mb-2 px-3 py-2 rounded-lg overflow-hidden"
+                              className="cfb-texture flex items-center gap-2 px-3 py-2.5 overflow-hidden"
                               style={{ backgroundColor: rightTeamData_bs.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
                               <Link to={`${pathPrefix}/team/${resolveTid(rightTeamData_bs.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-2 min-w-0">
@@ -3362,11 +3364,13 @@ export default function Game() {
                                 </div>
                                 <span className="font-semibold text-sm group-hover:underline truncate" style={{ color: getContrastTextColor(rightTeamData_bs.colors.primary) }}>{rightTeamData_bs.name}</span>
                               </Link>
-                              <span className="text-sm flex-shrink-0" style={{ color: getContrastTextColor(rightTeamData_bs.colors.primary), opacity: 0.72 }}>{tab.title}</span>
+                              <span className="text-[11px] font-bold uppercase tracking-wider flex-shrink-0 ml-auto" style={{ color: getContrastTextColor(rightTeamData_bs.colors.primary), opacity: 0.8 }}>{tab.title}</span>
                             </div>
-                            {hasRightData ? renderTeamStatTable(rightData_bs, rightTeamData_bs, statKey, false) : (
-                              <div className="text-txt-muted text-sm px-2 py-4">No {tab.title.toLowerCase()} stats</div>
-                            )}
+                            <div className="px-3 pb-1">
+                              {hasRightData ? renderTeamStatTable(rightData_bs, rightTeamData_bs, statKey, false) : (
+                                <div className="text-txt-muted text-sm py-4">No {tab.title.toLowerCase()} stats</div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
