@@ -5,6 +5,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import { getContrastTextColor } from '../../utils/colorUtils'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import ConferencesModal from '../../components/ConferencesModal'
 import { TEAMS, resolveTid } from '../../data/teamRegistry'
@@ -338,58 +339,52 @@ export default function ConferenceStandings() {
     const isLeader = rank === 1
     const isUserTeam = userTid != null && linkTid != null && Number(linkTid) === userTid
 
-    // Team-color horizontal gradient — strongest on the left (under the
-    // logo), fading to transparent before the record columns so the
-    // numbers stay readable. Layered ON TOP of the existing base color
-    // (transparent / leader tint / user-team gold) via background-image
-    // so the user-team and #1 highlights still read.
-    const teamPrimary = colors?.primary || null
-    const rowGradient = teamPrimary
-      ? `linear-gradient(to right, color-mix(in srgb, ${teamPrimary} 30%, transparent) 0%, color-mix(in srgb, ${teamPrimary} 8%, transparent) 60%, transparent 100%)`
-      : 'none'
+    // True, full team color — the box-score / game-card treatment, not a wash
+    // that fades to dark and muddies the color. The user-team highlight becomes
+    // a gold ring; the #1 leader is carried by bold + the brighter rank.
+    const teamPrimary = colors?.primary || '#3a3d47'
+    const txt = getContrastTextColor(teamPrimary)
     return (
       <Link
         to={`${pathPrefix}/team/${linkTid}/${displayYear}`}
-        className={`standings-row group relative flex items-center gap-3 py-2 px-3 transition-all duration-150 ${
+        className={`standings-row group relative flex items-center gap-3 py-2 px-3 cfb-texture overflow-hidden transition-all duration-150 hover:brightness-110 ${
           isUserTeam ? 'standings-row--user' : ''
         }`}
         style={{
-          borderTop: '1px solid var(--surface-4)',
-          backgroundColor: isUserTeam
-            ? 'color-mix(in srgb, #d4a44a 8%, var(--surface-2))'
-            : isLeader
-              ? 'color-mix(in srgb, var(--surface-3) 60%, transparent)'
-              : 'transparent',
-          backgroundImage: rowGradient,
+          borderTop: '1px solid rgba(0,0,0,0.28)',
+          backgroundColor: teamPrimary,
+          backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.32) 100%)',
+          ...(isUserTeam ? { boxShadow: 'inset 0 0 0 1.5px rgba(212,164,74,0.7)' } : {}),
         }}
       >
         <div
           className="w-6 text-right font-display font-black tabular leading-none flex-shrink-0"
           style={{
-            color: isLeader ? 'var(--text-primary)' : 'var(--text-tertiary)',
+            color: txt,
+            opacity: isLeader ? 1 : 0.82,
             fontSize: isLeader ? '15px' : '14px',
+            textShadow: '0 1px 2px rgba(0,0,0,0.35)',
           }}
         >
           {rank}
         </div>
 
-        <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110">
+        <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
           {logo ? (
             <img src={logo} alt="" className="w-full h-full object-contain" />
           ) : (
-            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ backgroundColor: colors.primary }}>
-              <span className="text-[10px] font-bold" style={{ color: colors.secondary }}>{teamAbbr?.charAt(0)}</span>
-            </div>
+            <span className="text-[10px] font-bold" style={{ color: teamPrimary }}>{teamAbbr?.charAt(0)}</span>
           )}
         </div>
 
         <FittedName
           full={getSchoolName(mascotName) || teamAbbr}
           abbr={teamAbbr}
-          className="flex-1 text-sm group-hover:text-txt-primary transition-colors"
+          className="flex-1 text-sm"
           style={{
-            fontWeight: isLeader ? 700 : 500,
-            color: 'var(--text-primary)',
+            fontWeight: isLeader ? 700 : 600,
+            color: txt,
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
           }}
         />
 
@@ -399,21 +394,21 @@ export default function ConferenceStandings() {
             cell with overall instead of getting its own column. */}
         <span
           className="text-sm font-display tabular flex-shrink-0 text-right whitespace-nowrap"
-          style={{ width: '120px' }}
+          style={{ width: '120px', color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
           title={`${liveWins}-${liveLosses} overall ${liveConfWins}-${liveConfLosses} conference`}
         >
-          <span className="font-black text-txt-primary tabular-nums">
-            {liveWins}<span className="text-txt-tertiary font-normal">–</span>{liveLosses}
+          <span className="font-black tabular-nums">
+            {liveWins}<span style={{ opacity: 0.55, fontWeight: 400 }}>–</span>{liveLosses}
           </span>
-          <span className="text-txt-tertiary font-normal tabular-nums ml-1.5">
-            ({liveConfWins}<span className="text-txt-muted">–</span>{liveConfLosses})
+          <span className="font-normal tabular-nums ml-1.5" style={{ opacity: 0.7 }}>
+            ({liveConfWins}<span style={{ opacity: 0.6 }}>–</span>{liveConfLosses})
           </span>
         </span>
 
         <div className="relative flex-shrink-0 group/diff">
           <span
             className="text-xs font-semibold tabular w-12 text-right block cursor-help"
-            style={{ color: diffColor }}
+            style={{ color: txt, opacity: livePointDiff !== 0 ? 0.95 : 0.6, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
           >
             {livePointDiff > 0 ? '+' : ''}{livePointDiff}
           </span>

@@ -9,6 +9,7 @@ import PlayerErrorBoundary from '../../components/PlayerErrorBoundary'
 import MediaList from '../../components/MediaList'
 import { getPlayerCards } from '../../utils/playerCards'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
+import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
 import { sortGamesNewestFirst } from '../../utils/gameOrder'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TabBar, StatRings, CardSectionHeader } from '../../components/CfbUI'
@@ -2488,11 +2489,14 @@ function PlayerInner() {
                       const resultBg = isWin ? 'rgba(16, 185, 129, 0.12)' : isLoss ? 'rgba(239, 68, 68, 0.12)' : 'transparent'
                       const resultColor = isWin ? '#10b981' : isLoss ? '#ef4444' : secondaryText
                       const oppLogo = game.opponentTid ? getTeamLogoByTid(game.opponentTid, dynasty.teams) : null
-                      // Opponent team color → broadcast-style row wash + logo chip
+                      // Opponent team color → broadcast-style row wash + logo chip.
+                      // True team color on the left (not a muddy low-alpha tint),
+                      // fading to dark on the right so the stat line + W/L score
+                      // stay legible.
                       const oppColors = game.opponentTid != null ? getColorsFromTid(dynasty.teams, game.opponentTid) : null
                       const oppPrimary = oppColors?.primary || null
                       const rowGradient = oppPrimary
-                        ? `linear-gradient(to right, color-mix(in srgb, ${oppPrimary} 32%, transparent) 0%, color-mix(in srgb, ${oppPrimary} 11%, transparent) 52%, transparent 84%)`
+                        ? `linear-gradient(to right, color-mix(in srgb, ${oppPrimary} 88%, transparent) 0%, color-mix(in srgb, ${oppPrimary} 42%, transparent) 44%, transparent 80%)`
                         : undefined
                       let statDisplay = ''
                       if (stats?.category === 'passing') {
@@ -2534,7 +2538,7 @@ function PlayerInner() {
                           {/* Date / week column */}
                           <div className="flex-shrink-0 w-11 text-center">
                             <div className="text-[12px] font-bold tabular-nums" style={{ color: primaryText, fontFamily: "var(--font-display)" }}>{game.year}</div>
-                            <div className="text-[10px] uppercase tracking-wider tabular-nums" style={{ color: secondaryText }}>W{game.week ?? '-'}</div>
+                            <div className="text-[10px] uppercase tracking-wider tabular-nums" style={{ color: secondaryText }}>{gameWeekLabel(game, 'W') || '-'}</div>
                           </div>
                           {/* Opponent + inline stat line */}
                           <div className="flex items-center gap-2.5 flex-1 min-w-0">
@@ -5390,13 +5394,7 @@ function PlayerInner() {
                             }}
                           >
                             <td className="px-2 py-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
-                              {game.week ? `Week ${game.week}` :
-                               game.isConferenceChampionship || game.gameType === 'conference_championship' ? 'Conf Champ' :
-                               game.isCFPFirstRound || game.gameType === 'cfp_first_round' ? 'CFP R1' :
-                               game.isCFPQuarterfinal || game.gameType === 'cfp_quarterfinal' ? 'CFP QF' :
-                               game.isCFPSemifinal || game.gameType === 'cfp_semifinal' ? 'CFP SF' :
-                               game.isCFPChampionship || game.gameType === 'cfp_championship' ? 'CFP Champ' :
-                               game.isBowlGame || game.gameType === 'bowl' ? 'Bowl' : 'N/A'}
+                              {gameWeekLabel(game, 'Week ') || 'N/A'}
                             </td>
                             <td className="px-2 py-2">
                               <div className="flex items-center gap-2">
@@ -5507,7 +5505,7 @@ function PlayerInner() {
                   if (linkedGame) {
                     const t1 = currentDynasty?.teams?.[Number(linkedGame.team1Tid)]?.abbr || ''
                     const t2 = currentDynasty?.teams?.[Number(linkedGame.team2Tid)]?.abbr || ''
-                    gameLinkLabel = `Wk ${linkedGame.week ?? '?'} ${t1} vs ${t2}`
+                    gameLinkLabel = `${gameWeekLabel(linkedGame, 'Wk ') || 'Wk ?'} ${t1} vs ${t2}`
                   }
                   return (
                     <div key={card.id || idx} className="flex flex-col items-center">
@@ -5597,7 +5595,7 @@ function PlayerInner() {
                         className="absolute bottom-0 inset-x-0 px-1.5 py-1 flex items-center gap-1 text-[10px] font-semibold text-white"
                         style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.78), transparent)' }}
                       >
-                        <span className="tabular-nums">{[ph.year, ph.week != null ? `Wk ${ph.week}` : null].filter(Boolean).join(' ')}</span>
+                        <span className="tabular-nums">{[ph.year, formatWeek(ph.week, 'Wk ') || null].filter(Boolean).join(' ')}</span>
                         {(ph.oppLogo || ph.oppAbbr) && (
                           <span className="inline-flex items-center gap-0.5 min-w-0">
                             <span className="opacity-80">{ph.loc || 'vs'}</span>
@@ -5656,7 +5654,7 @@ function PlayerInner() {
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold"
                     style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)' }}
                   >
-                    <span className="tabular-nums">{[cur.year, cur.week != null ? `Wk ${cur.week}` : null].filter(Boolean).join(' ')}</span>
+                    <span className="tabular-nums">{[cur.year, formatWeek(cur.week, 'Wk ') || null].filter(Boolean).join(' ')}</span>
                     {(cur.oppLogo || cur.oppAbbr) && (
                       <>
                         <span className="opacity-80">{cur.loc || 'vs'}</span>
@@ -5721,7 +5719,7 @@ function PlayerInner() {
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <div className="text-xs font-medium w-16 sm:w-20 flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.9 }}>
-                        {game.year} Wk {game.week}
+                        {game.year} {gameWeekLabel(game, 'Wk ')}
                       </div>
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: opponentTextColor, color: opponentBgColor }}>
@@ -5877,7 +5875,7 @@ function PlayerInner() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <div className="text-xs font-medium w-16 flex-shrink-0" style={{ color: opponentTextColor, opacity: 0.9 }}>
-                          {game.year} Wk {game.week}
+                          {game.year} {gameWeekLabel(game, 'Wk ')}
                         </div>
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: opponentTextColor, color: opponentBgColor }}>
                           {game.location === 'away' ? '@' : 'vs'}

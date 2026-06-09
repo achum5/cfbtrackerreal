@@ -4,6 +4,7 @@ import { useDynasty, calculateTeamRecordFromGames, getTeamRecord } from '../../c
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import { getContrastTextColor } from '../../utils/colorUtils'
 import { TEAMS, resolveTid } from '../../data/teamRegistry'
 import { PageHero, Card, EmptyState, TitleWithYear, Button } from '../../components/ui'
 import Top25SheetModal from '../../components/Top25SheetModal'
@@ -340,21 +341,22 @@ export default function Rankings() {
     const isLeader = rank === 1
     const isTopFive = rank <= 5
 
-    const primary = colors.primary || '#6e6e78'
-    // Broadcast-style left-anchored team wash (stronger on the left, fading to
-    // transparent) + a crisp inset color spine — same treatment as the Weekly
-    // Scores game cards, so each row reads unmistakably as "that team."
-    const rowGradient = `linear-gradient(to right, color-mix(in srgb, ${primary} ${isLeader ? 60 : 46}%, transparent) 0%, color-mix(in srgb, ${primary} ${isLeader ? 26 : 18}%, transparent) 48%, transparent 84%)`
+    const primary = colors.primary || '#3a3d47'
+    const txt = getContrastTextColor(primary)
+    const logoPx = isLeader ? 56 : isTopFive ? 44 : 38
 
     return (
       <Link
         to={`${pathPrefix}/team/${linkTid}/${year}`}
-        className="ranking-row group relative flex items-center gap-3 px-3 sm:px-4 transition-all duration-150 hover:brightness-125"
+        className="ranking-row group relative flex items-center gap-3 px-3 sm:px-4 cfb-texture overflow-hidden transition-all duration-150 hover:brightness-110"
         style={{
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid rgba(0,0,0,0.3)',
           paddingTop: isLeader ? '14px' : '11px',
           paddingBottom: isLeader ? '14px' : '11px',
-          background: rowGradient,
+          // True, full team color — the box-score / game-card treatment, not a
+          // wash that fades to dark and muddies the color.
+          backgroundColor: primary,
+          backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)',
         }}
       >
         <span
@@ -362,39 +364,39 @@ export default function Rankings() {
           style={{
             width: isLeader ? '40px' : '32px',
             fontSize: isLeader ? '26px' : isTopFive ? '19px' : '15px',
-            color: isLeader ? 'var(--text-primary)' : isTopFive ? 'var(--text-secondary)' : 'var(--text-tertiary)',
+            color: txt,
+            opacity: isLeader ? 1 : isTopFive ? 0.92 : 0.8,
             letterSpacing: '-0.02em',
+            textShadow: '0 1px 2px rgba(0,0,0,0.35)',
           }}
         >
           {rank}
         </span>
         <div
-          className={`logo-container ${isLeader ? 'logo-container-xl' : 'logo-container-lg'} flex-shrink-0 transition-transform duration-200 group-hover:scale-110`}
+          className="rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105"
+          style={{ width: logoPx, height: logoPx }}
         >
           {teamLogo ? (
-            <img src={teamLogo} alt="" />
+            <img src={teamLogo} alt="" className="w-full h-full object-contain" />
           ) : (
-            <div
-              className="w-full h-full rounded-full flex items-center justify-center text-xs font-bold"
-              style={{ backgroundColor: primary, color: colors.secondary }}
-            >
-              {(resolvedAbbr || '').charAt(0)}
-            </div>
+            <span className="font-display font-black" style={{ color: primary }}>{(resolvedAbbr || '').charAt(0)}</span>
           )}
         </div>
         <span
-          className="flex-1 truncate font-display font-bold uppercase tracking-tight text-txt-primary leading-none"
+          className="flex-1 truncate font-display font-bold uppercase tracking-tight leading-none"
           style={{
             fontSize: isLeader ? 'clamp(1.05rem, 2vw, 1.3rem)' : isTopFive ? '1.02rem' : '0.95rem',
             letterSpacing: '0.01em',
+            color: txt,
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
           }}
         >
           {getSchoolName(mascotName) || resolvedAbbr}
         </span>
         {record && (
           <span
-            className="tabular-nums flex-shrink-0 font-display font-bold text-txt-primary"
-            style={{ fontSize: isLeader ? '15px' : '13px' }}
+            className="tabular-nums flex-shrink-0 font-display font-bold"
+            style={{ fontSize: isLeader ? '15px' : '13px', color: txt, opacity: 0.9, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
           >
             {record.wins}-{record.losses}
           </span>

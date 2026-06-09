@@ -165,14 +165,10 @@ export default function Dashboard() {
   const userTeamName = userTeamData?.name || currentDynasty?.teamName
 
   const teamColors = useTeamColors(userTeamName, currentDynasty?.teams || currentDynasty?.customTeams)
-  // Team primary as a hex (alpha suffixes need hex) for the CFB-27 team-color
-  // accent strips on the dashboard's Roster / Schedule panels.
-  const teamAccent = teamColors?.primary || '#374151'
-  // A faint team-color wash + left-accent style shared by the dashboard's
-  // section header strips, matching the CardSectionHeader treatment.
+  // Neutral section-header strip shared by the dashboard's Roster / Schedule
+  // panels — just a hairline rule, no team-color wash.
   const sectionStripStyle = {
     borderBottom: '1px solid var(--surface-4)',
-    backgroundImage: `linear-gradient(90deg, ${teamAccent}26 0%, ${teamAccent}0d 16%, transparent 40%)`,
   }
 
   // Build path prefix from the actual route — `/view/:shareCode` for

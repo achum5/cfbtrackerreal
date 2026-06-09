@@ -619,7 +619,6 @@ export default function CFPBracket() {
     const txtColor = customEntry?.secondaryColor || teamData?.textColor || '#D1D5DB'
     const mascotName = customEntry?.name || (resolvedAbbr ? mascotMap[resolvedAbbr] : null)
     const logo = customEntry?.logo || (mascotName ? getTeamLogo(mascotName, dynastyTeams) : null)
-    const isLoser = score !== undefined && !isWinner
 
     // Team name should always link to the team page. When the parent
     // Matchup is itself a Link, we render via a button + programmatic
@@ -675,8 +674,8 @@ export default function CFPBracket() {
           boxShadow: isWinner
             ? `inset 0 0 0 1.5px ${CFP_GOLD}, 0 2px 10px rgba(0,0,0,0.45)`
             : '0 2px 8px rgba(0,0,0,0.40)',
-          opacity: isLoser ? 0.78 : 1,
-          filter: isLoser ? 'grayscale(35%)' : 'none',
+          // The loser is NOT dimmed/desaturated — that skewed the team colors.
+          // The winner is marked by the gold ring above instead.
         }}
       >
         {/* Glossy broadcast sheen over the team color */}
@@ -1119,17 +1118,16 @@ export default function CFPBracket() {
       }}
     >
 
-      {/* Header — CFB 27 broadcast title */}
+      {/* Header — CFB 27 broadcast title. Year selector, then the CFP logo,
+          then the wordmark. (The old gold eyebrow above just repeated the
+          title verbatim, so it's gone.) */}
       <div className="relative">
-        <div className="flex items-center gap-2 mb-1.5">
-          <img src="https://i.imgur.com/ZKD9dQJ.png" alt="" className="h-4 opacity-90" />
-          <span className="font-display font-bold uppercase" style={{ color: CFP_GOLD, letterSpacing: '0.2em', fontSize: '0.72rem' }}>College Football Playoff</span>
-        </div>
         <h1
-          className="group m-0 font-display font-black uppercase leading-none text-white inline-flex items-baseline flex-wrap gap-x-3"
+          className="group m-0 font-display font-black uppercase leading-none text-white inline-flex items-center flex-wrap gap-x-3"
           style={{ fontSize: 'clamp(1.6rem, 4vw, 3rem)', letterSpacing: '0.01em' }}
         >
           <InlineYearSelect value={displayYear} years={availableYears} onChange={handleYearChange} ariaLabel="Select playoff year" />
+          <img src="https://i.imgur.com/ZKD9dQJ.png" alt="" className="h-[0.85em] w-auto flex-shrink-0" />
           <span>College Football Playoff</span>
           {showProjection && (
             <span className="font-display font-bold" style={{ color: CFP_GOLD, fontSize: '0.42em', letterSpacing: '0.18em' }}>· Projection</span>

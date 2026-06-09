@@ -173,6 +173,18 @@ export default function Recruiting() {
   const teamBgText = getContrastTextColor(teamAccent)
 
   const teamsSource = currentDynasty?.teams || TEAMS
+  const heroLogo = selectedTid ? getTeamLogoByTid(selectedTid, teamsSource) : null
+
+  // Filter dropdowns in the team-colored toolbar are styled as white pills to
+  // match the active BOTH/HS/PORTAL toggle — contrast text + a matching chevron.
+  const filterSelectStyle = {
+    backgroundColor: teamBgText,
+    color: teamAccent,
+    border: `1px solid ${teamBgText}`,
+    fontWeight: 700,
+    backgroundImage:
+      `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='${encodeURIComponent(teamAccent)}'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+  }
 
   useEffect(() => {
     if (!tidParam && currentTeamTid && currentDynasty?.currentYear) {
@@ -843,11 +855,12 @@ export default function Recruiting() {
       <TeamPermissionBanner tids={selectedTid ? [selectedTid] : []} />
 
       <section
-        className="card overflow-hidden relative reveal"
+        className="card overflow-hidden relative reveal cfb-texture cfb-watermark"
         style={{
           backgroundColor: teamAccent,
           backgroundImage:
             'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
+          ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
         <div className="relative px-6 py-5 sm:px-8 sm:py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1017,6 +1030,7 @@ export default function Recruiting() {
             <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Stars</span>
             <Select
               size="sm"
+              style={filterSelectStyle}
               value={selectedStars.length === 1 ? String(selectedStars[0]) : 'all'}
               onChange={(e) => setSelectedStars(e.target.value === 'all' ? [] : [Number(e.target.value)])}
               aria-label="Filter by star rating"
@@ -1035,6 +1049,7 @@ export default function Recruiting() {
             <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Pos</span>
             <Select
               size="sm"
+              style={filterSelectStyle}
               value={positionFilter}
               onChange={(e) => setPositionFilter(e.target.value)}
               aria-label="Filter by position"
@@ -1050,6 +1065,7 @@ export default function Recruiting() {
             <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Sort</span>
             <Select
               size="sm"
+              style={filterSelectStyle}
               value={sortBy}
               onChange={(e) => handleSortChange(e.target.value)}
               aria-label="Sort recruits"

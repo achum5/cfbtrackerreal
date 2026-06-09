@@ -84,7 +84,7 @@ export default function SortableStatsTable({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ backgroundColor: `${teamBgColor}15` }}>
+            <tr style={{ backgroundColor: 'var(--surface-2)' }}>
               {columns.map(col => {
                 const sortable = !!col.sortValue
                 const isActive = sortable && sortKey === col.key
@@ -96,12 +96,12 @@ export default function SortableStatsTable({
                     onClick={() => onHeaderClick(col)}
                     className={`${align} ${padX} py-2 font-bold uppercase tracking-wider text-xs whitespace-nowrap ${sortable ? 'cursor-pointer select-none' : ''}`}
                     style={{
-                      color: accentColor,
+                      color: 'var(--text-tertiary)',
                       // Subtle hover affordance for sortable cols only.
                       transition: 'background-color 120ms ease',
                     }}
                     onMouseEnter={(e) => {
-                      if (sortable) e.currentTarget.style.backgroundColor = `${accentColor}22`
+                      if (sortable) e.currentTarget.style.backgroundColor = 'var(--surface-3)'
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent'

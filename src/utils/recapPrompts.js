@@ -103,6 +103,11 @@ function gameSlotFor(g) {
 function recordFromGames(games, year, tid, upToWeek = null) {
   let w = 0, l = 0
   const cap = upToWeek != null ? Number(upToWeek) : null
+  // Dedup by canonical slot + gameType so a duplicate game record (a weekly
+  // re-save that left two rows for the same matchup) can't double-count toward
+  // the record. calculateTeamRecordFromGames does the same — without it this
+  // prompt showed Kentucky 10-5 while the app correctly showed 10-4.
+  const seen = new Set()
   for (const g of (games || [])) {
     if (Number(g?.year) !== Number(year)) continue
     // Count games at or before the recap's canonical slot. Using the slot
@@ -112,6 +117,9 @@ function recordFromGames(games, year, tid, upToWeek = null) {
     if (cap != null && !(gameSlotFor(g) <= cap)) continue
     const persp = userPerspective(g, tid)
     if (!persp || persp.won == null) continue
+    const key = `${gameSlotFor(g)}-${g.gameType || 'regular'}`
+    if (seen.has(key)) continue
+    seen.add(key)
     if (persp.won) w++; else l++
   }
   return { wins: w, losses: l }
@@ -164,16 +172,22 @@ function fmtGameLine(game, dynasty, confLookup) {
   const c2 = confLookup ? confLookup(game.team2Tid, game.team2) : null
   const t1Full = c1 ? `${t1} (${c1})` : t1
   const t2Full = c2 ? `${t2} (${c2})` : t2
+  // Location annotation. Only emit it for games with a real home team — a
+  // null homeTeamTid means a neutral site (bowls / CFP / conference
+  // championships), and tagging those "(neutral site)" made the AI write the
+  // clunky "at a neutral site" in prose. Omitting it reads naturally; the AI
+  // already knows those rounds are neutral.
   const home = game.homeTeamTid == null
-    ? 'neutral site'
+    ? null
     : Number(game.homeTeamTid) === Number(game.team1Tid)
       ? `at ${t1}`
       : `at ${t2}`
+  const loc = home ? ` (${home})` : ''
   const ot = game.ot ? ' (OT)' : ''
   if (s1 == null || s2 == null) {
-    return `${r1}${t1Full} vs ${r2}${t2Full}${ot} — score not entered (${home})`
+    return `${r1}${t1Full} vs ${r2}${t2Full}${ot} — score not entered${loc}`
   }
-  return `${r1}${t1Full} ${s1}, ${r2}${t2Full} ${s2}${ot} (${home})`
+  return `${r1}${t1Full} ${s1}, ${r2}${t2Full} ${s2}${ot}${loc}`
 }
 
 // ---------------------------------------------------------------------------

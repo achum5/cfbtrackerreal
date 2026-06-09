@@ -6,6 +6,12 @@ import { useAuth } from '../../context/AuthContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getTidFromAbbr } from '../../data/teamRegistry'
 import { getMascotName as getMascotNameFromTeams } from '../../data/teams'
+import { getContrastTextColor } from '../../utils/colorUtils'
+
+// Shared CFB-aesthetic gradient overlay for team-colored panels (matches the
+// team page hero / scorebugs).
+const CFB_GRADIENT =
+  'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.40) 100%)'
 import {
   getEditors,
   getMemberLabel,
@@ -748,6 +754,8 @@ export default function CoachCareer() {
                       ? `${stint.startYear}`
                       : `${stint.startYear}–${stint.isCurrent ? 'NOW' : stint.endYear}`
                     const stintAnchorId = `stint-${stint.teamAbbr}-${stint.startYear}`
+                    const arcPrimary = teamsData?.[stint.teamTid]?.primaryColor || '#3a3d47'
+                    const arcTxt = getContrastTextColor(arcPrimary)
                     return (
                       <button
                         type="button"
@@ -755,11 +763,12 @@ export default function CoachCareer() {
                         onClick={() => {
                           document.getElementById(stintAnchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         }}
-                        className="relative flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-2.5 min-w-0 flex-shrink-0 text-left transition-colors hover:bg-surface-4 focus:outline-none focus:ring-1 focus:ring-text-primary"
+                        className="relative flex items-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-2.5 min-w-0 flex-shrink-0 text-left cfb-texture transition-[filter] hover:brightness-110 focus:outline-none focus:ring-1 focus:ring-white/70"
                         style={{
                           width: `${widthPct}%`,
-                          backgroundColor: stint.isCurrent ? 'var(--surface-3)' : 'var(--surface-2)',
-                          borderRight: idx < sortedStints.length - 1 ? '1px solid var(--surface-4)' : 'none',
+                          backgroundColor: arcPrimary,
+                          backgroundImage: CFB_GRADIENT,
+                          borderRight: idx < sortedStints.length - 1 ? '1px solid rgba(0,0,0,0.28)' : 'none',
                         }}
                       >
                         {stint.teamTid && (
@@ -774,14 +783,15 @@ export default function CoachCareer() {
                               fontFamily: "'Bebas Neue', sans-serif",
                               fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)',
                               letterSpacing: '0.5px',
-                              color: stint.isCurrent ? 'var(--text-primary)' : 'var(--text-secondary)',
+                              color: arcTxt,
+                              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
                             }}
                           >
                             {stint.teamAbbr}
                           </div>
                           <div
-                            className="label-xs text-txt-tertiary tabular-nums mt-1 truncate"
-                            style={{ letterSpacing: '1px', fontSize: '9px' }}
+                            className="tabular-nums mt-1 truncate"
+                            style={{ letterSpacing: '1px', fontSize: '9px', color: arcTxt, opacity: 0.78 }}
                           >
                             {yearLabel}
                           </div>
@@ -811,6 +821,10 @@ export default function CoachCareer() {
         const bowlLosses = parseInt(bowlParts[1]) || 0
 
         const showsBowls = bowlWins > 0 || bowlLosses > 0
+
+        // CFB-aesthetic team color for this stint's header band.
+        const sectionPrimary = teamsData?.[stint.teamTid]?.primaryColor || '#3a3d47'
+        const sectionTxt = getContrastTextColor(sectionPrimary)
 
         // Stint stat strip — broadcast-bar style. Each cell is a big
         // tabular numeral over a tracked label. Cells share a single
@@ -925,79 +939,57 @@ export default function CoachCareer() {
           <div
             key={`${stint.teamName}-${stint.startYear}`}
             id={`stint-${stint.teamAbbr}-${stint.startYear}`}
-            className={`media-card relative ${stint.isCurrent ? '' : 'opacity-90'}`}
-            style={{
-              scrollMarginTop: '88px',
-              ...(stint.isCurrent ? {} : { backgroundColor: 'var(--surface-1)' }),
-            }}
+            className={`media-card relative overflow-hidden ${stint.isCurrent ? '' : 'opacity-95'}`}
+            style={{ scrollMarginTop: '88px' }}
           >
-            {/* Current-stint top accent — 1px text-primary hairline.
-                Subtle but distinctive; no team color used in chrome. */}
-            {stint.isCurrent && (
-              <div
-                aria-hidden="true"
-                className="absolute top-0 left-0 right-0 h-px rounded-t-lg"
-                style={{ backgroundColor: 'var(--text-primary)' }}
-              />
-            )}
-            <div className={stint.isCurrent ? 'p-3 sm:p-5' : 'p-3 sm:p-4'}>
-              {/* Stint header — Bebas Neue team name. Past stints get a
-                  smaller logo + name treatment to read as compressed
-                  history vs the current chapter. */}
-              <div className={`flex items-center gap-3 sm:gap-4 ${stint.isCurrent ? 'mb-4' : 'mb-3'}`}>
-                {stint.teamTid && (
-                  <div className="flex-shrink-0">
-                    <TeamLogo tid={stint.teamTid} teams={teamsData} size={stint.isCurrent ? 'xl' : 'lg'} />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <Link
-                      to={`${pathPrefix}/team/${resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${stint.endYear}`}
-                      className="text-txt-primary hover:opacity-80 transition-opacity m-0 leading-[0.95] uppercase break-words"
-                      style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: stint.isCurrent
-                          ? 'clamp(1.5rem, 2.8vw, 2.1rem)'
-                          : 'clamp(1.15rem, 2vw, 1.5rem)',
-                        letterSpacing: '0.5px',
-                      }}
-                    >
-                      {stint.teamName}
-                    </Link>
-                    {stint.isCurrent && (
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tabular-nums"
-                        style={{
-                          letterSpacing: '1.5px',
-                          color: 'var(--accent-success)',
-                          backgroundColor: 'color-mix(in srgb, var(--accent-success) 14%, transparent)',
-                          border: '1px solid color-mix(in srgb, var(--accent-success) 30%, transparent)',
-                          borderRadius: '999px',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-success)' }} />
-                        Now
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 label-sm text-txt-tertiary mt-1 flex-wrap">
-                    <span className="font-semibold text-txt-secondary uppercase" style={{ letterSpacing: '1px', fontSize: '11px' }}>
-                      {getPositionLabel(stint.position)}
-                    </span>
-                    
-                    <span className="tabular">{yearRange}</span>
-                    {stint.conference && (
-                      <>
-                        
-                        <span>{stint.conference}</span>
-                      </>
-                    )}
-                  </div>
+            {/* Stint header — full-bleed team-color band (CFB aesthetic):
+                true team color + gradient wash + faint logo watermark, with
+                contrast-aware text. The current stint reads larger. */}
+            <div
+              className="cfb-texture flex items-center gap-3 sm:gap-4"
+              style={{
+                backgroundColor: sectionPrimary,
+                backgroundImage: CFB_GRADIENT,
+                padding: stint.isCurrent ? 'clamp(0.75rem, 2vw, 1.25rem)' : '0.75rem 1rem',
+              }}
+            >
+              {stint.teamTid && (
+                <div className="flex-shrink-0">
+                  <TeamLogo tid={stint.teamTid} teams={teamsData} size={stint.isCurrent ? 'xl' : 'lg'} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1 relative">
+                <Link
+                  to={`${pathPrefix}/team/${resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${stint.endYear}`}
+                  className="hover:opacity-90 transition-opacity m-0 leading-[0.95] uppercase break-words block"
+                  style={{
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: stint.isCurrent
+                      ? 'clamp(1.5rem, 2.8vw, 2.1rem)'
+                      : 'clamp(1.15rem, 2vw, 1.5rem)',
+                    letterSpacing: '0.5px',
+                    color: sectionTxt,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {stint.teamName}
+                </Link>
+                <div
+                  className="flex items-center gap-2 mt-1 flex-wrap"
+                  style={{ color: sectionTxt, '--text-tertiary': `color-mix(in srgb, ${sectionTxt} 72%, transparent)` }}
+                >
+                  <span className="font-semibold uppercase" style={{ letterSpacing: '1px', fontSize: '11px', opacity: 0.92 }}>
+                    {getPositionLabel(stint.position)}
+                  </span>
+                  <span className="tabular" style={{ fontSize: '12px', opacity: 0.82 }}>{yearRange}</span>
+                  {stint.conference && (
+                    <span style={{ fontSize: '12px', opacity: 0.82 }}>{stint.conference}</span>
+                  )}
                 </div>
               </div>
+            </div>
 
+            <div className={stint.isCurrent ? 'p-3 sm:p-5' : 'p-3 sm:p-4'}>
               {/* Unified broadcast stat strip — single bordered card with
                   vertical hairline dividers between cells. Clickable
                   cells open the games modal for that subset. Cells flow

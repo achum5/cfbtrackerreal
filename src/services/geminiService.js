@@ -2239,6 +2239,9 @@ function getTeamSeasonHistory(allGames, teamAbbr, currentYear, maxSeasons = 3, d
   const seasonsByYear = {}
   // Pass dynasty so a teambuilder-renamed team's abbr resolves to its tid.
   const teamTid = getTidFromAbbr(teamAbbr, dynasty)
+  // Dedup by year + week + gameType so a duplicate game record can't
+  // double-count a past season's W-L — mirrors calculateTeamRecordFromGames.
+  const seenSeasonGames = new Set()
 
   for (const g of allGames) {
     const gYear = Number(g.year)
@@ -2249,6 +2252,10 @@ function getTeamSeasonHistory(allGames, teamAbbr, currentYear, maxSeasons = 3, d
     const teamInGameUnified = teamTid && (g.team1Tid === teamTid || g.team2Tid === teamTid || g.userTid === teamTid)
     if (!teamInGameLegacy && !teamInGameUnified) continue
     if (isUnplayedGame(g)) continue
+
+    const dedupKey = `${gYear}-${g.week ?? 0}-${g.gameType || 'regular'}`
+    if (seenSeasonGames.has(dedupKey)) continue
+    seenSeasonGames.add(dedupKey)
 
     if (!seasonsByYear[gYear]) {
       seasonsByYear[gYear] = { year: gYear, wins: 0, losses: 0, confWins: 0, confLosses: 0 }
@@ -4072,6 +4079,7 @@ Your ENTIRE response must be wrapped in a single fenced code block so the user c
 FORMAT (the markdown that goes INSIDE the fence):
 - HEADLINE on its own line as a level-1 heading (e.g., "# Kentucky beats Louisville 45-27 behind Dahl's three touchdowns"). Sentence case.
 - DATELINE on its own line if the game has a home team: "City, ST —" in EXACTLY this format — two-letter state abbreviation, a space, an em-dash "—", a space, then the first sentence of the lede. Examples: "Lexington, KY — Kentucky..." or "Madison, WI — The Badgers...". Use the home team's city. For neutral-site games (bowls, CFP, conference championships), omit the dateline.
+- NEVER write the phrase "at a neutral site" (or "neutral-site game", "on a neutral field", etc.) in the prose. No real beat reporter says that. For bowls, CFP rounds, and conference championships, just name the event ("in the Sugar Bowl", "in the CFP first round", "in the SEC Championship Game") or simply state the result with no location at all.
 - SUBHEADS only if used (per RULE E) — level-2 markdown headings, short label form ("## Turning point").
 - **bold** for pivotal stats, decisive plays, and standout stat lines you want the reader's eye to land on. 3-6 boldings across the entire article is the sweet spot — don't over-bold.
 - *italic* sparingly, for a team nickname on first mention or rare narrative emphasis. Skip it if unsure.

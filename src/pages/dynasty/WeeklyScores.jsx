@@ -3,8 +3,9 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useDynasty, GAME_TYPES, detectGameType, getCustomConferencesForYear, getTeamRankForWeek } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TEAMS, getCurrentTeamTid, getCurrentTeamAbbr, isFCSPlaceholderAbbr } from '../../data/teamRegistry'
-import { getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
+import { getMascotName as getMascotNameFromTeams, stripMascotFromName, getTeamLogoByTid } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
+import { getContrastTextColor } from '../../utils/colorUtils'
 import { conferenceTeams as DEFAULT_CONFERENCES, getTeamConference } from '../../data/conferenceTeams'
 import { Card, EmptyState, TeamLogo } from '../../components/ui'
 import InlineYearSelect from '../../components/ui/InlineYearSelect'
@@ -44,6 +45,39 @@ function formatRecord(rec) {
   if (!rec) return null
   const { w = 0, l = 0, t = 0 } = rec
   return t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`
+}
+
+// Single-line label that shrinks its own font-size until it fits the available
+// width (never wraps to a second line). Used for long bowl names like
+// "FAMOUS IDAHO POTATO BOWL" in the card header strip.
+function FitText({ children, max = 10, min = 6.5, className = '', style }) {
+  const ref = useRef(null)
+  const [fontSize, setFontSize] = useState(max)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const fit = () => {
+      let s = max
+      el.style.fontSize = `${s}px`
+      let guard = 0
+      // nowrap + overflow-hidden → scrollWidth is the full one-line text width.
+      while (s > min && el.scrollWidth > el.clientWidth + 0.5 && guard < 40) {
+        s -= 0.5
+        el.style.fontSize = `${s}px`
+        guard++
+      }
+      setFontSize(s)
+    }
+    fit()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null
+    if (ro && el.parentElement) ro.observe(el.parentElement)
+    return () => ro?.disconnect()
+  }, [children, max, min])
+  return (
+    <span ref={ref} className={`block whitespace-nowrap overflow-hidden ${className}`} style={{ ...style, fontSize: `${fontSize}px` }}>
+      {children}
+    </span>
+  )
 }
 
 // Renders a Link with smart text fitting: shows `full` when it fits, swaps
@@ -182,42 +216,34 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
   const TeamRow = ({ tid, team, score, won, lost, record, rank }) => {
     const mascot = getMascotNameFromTeams(tid, teams) || team?.name || ''
     const school = getSchoolName(mascot) || team?.abbr || `TID ${tid}`
-    // Subtle horizontal gradient in the team's primary color — strongest
-    // on the left (under the logo), fading to transparent before the
-    // score so the score number stays readable on the card background.
     const teamColors = mascot ? getTeamColors(mascot, teams) : null
-    const teamPrimary = teamColors?.primary || null
-    // Broadcast scorebug feel — a stronger team-color wash on the left
-    // (under the logo/name) that fades out before the score so the number
-    // stays readable on the dark card. A solid 3px team-color spine on the
-    // far edge makes the matchup's two teams pop at a glance.
-    const rowGradient = teamPrimary
-      ? `linear-gradient(to right, color-mix(in srgb, ${teamPrimary} 52%, transparent) 0%, color-mix(in srgb, ${teamPrimary} 20%, transparent) 52%, transparent 88%)`
-      : 'transparent'
+    const teamPrimary = teamColors?.primary || '#3a3d47'
+    // Full broadcast team-color band (matches the box-score / game-result rows):
+    // the team's color washes the whole row, with the shared highlight + vignette
+    // and grain. The loser's row darkens slightly + dims so the winner reads at a
+    // glance, without losing the team color.
+    const txt = getContrastTextColor(teamPrimary)
+    const logoUrl = getTeamLogoByTid(tid, teams)
     return (
       <div
-        className={`flex items-center ${compact ? 'gap-1.5 pl-1.5 pr-2 py-2' : 'gap-2.5 pl-2 pr-4 py-2.5'}`}
-        style={{ background: rowGradient }}
+        className={`cfb-texture relative flex items-center ${compact ? 'gap-2 pl-2 pr-2.5 py-2' : 'gap-2.5 pl-2.5 pr-4 py-2.5'}`}
+        style={{
+          backgroundColor: teamPrimary,
+          backgroundImage: lost
+            ? 'linear-gradient(120deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.5) 100%)'
+            : 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.3) 100%)',
+        }}
       >
-        {/* ESPN-style winner indicator: small filled triangle pointing at the row */}
-        <span
-          aria-hidden="true"
-          className="flex-shrink-0 transition-opacity"
-          style={{
-            width: 0,
-            height: 0,
-            borderTop: '4px solid transparent',
-            borderBottom: '4px solid transparent',
-            opacity: won ? 1 : 0,
-          }}
-        />
-        <TeamLogo tid={tid} teams={teams} size={compact ? 'xs' : 'sm'} className="flex-shrink-0" />
+        {logoUrl ? (
+          <div className={`${compact ? 'w-6 h-6' : 'w-7 h-7'} rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0 shadow-sm`}>
+            <img src={logoUrl} alt="" className="w-full h-full object-contain" />
+          </div>
+        ) : (
+          <TeamLogo tid={tid} teams={teams} size={compact ? 'xs' : 'sm'} className="flex-shrink-0" />
+        )}
         <div className="flex-1 min-w-0 flex items-baseline gap-1">
           {rank != null && (
-            <span
-              className="tabular-nums flex-shrink-0"
-              style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontWeight: 700 }}
-            >
+            <span className="tabular-nums flex-shrink-0" style={{ fontSize: '10px', color: txt, opacity: 0.7, fontWeight: 700 }}>
               {rank}
             </span>
           )}
@@ -227,16 +253,10 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
             full={school}
             abbr={team?.abbr || ''}
             className={`${compact ? 'text-[12px]' : 'text-[15px]'} truncate hover:underline transition-colors`}
-            style={{
-              fontWeight: won ? 700 : 600,
-              color: lost ? 'var(--text-tertiary)' : 'var(--text-primary)',
-            }}
+            style={{ fontWeight: won ? 800 : 600, color: txt, opacity: lost ? 0.85 : 1, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
           />
           {record && !compact && (
-            <span
-              className="tabular-nums flex-shrink-0"
-              style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}
-            >
+            <span className="tabular-nums flex-shrink-0" style={{ fontSize: '11px', color: txt, opacity: 0.65 }}>
               {record}
             </span>
           )}
@@ -246,10 +266,12 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
           style={{
             fontSize: compact ? '18px' : '22px',
             fontWeight: won ? 800 : 600,
-            color: lost ? 'var(--text-tertiary)' : 'var(--text-primary)',
+            color: txt,
+            opacity: lost ? 0.78 : 1,
             minWidth: compact ? '1.75rem' : '2.25rem',
             textAlign: 'right',
             letterSpacing: '-0.02em',
+            textShadow: '0 1px 2px rgba(0,0,0,0.35)',
           }}
         >
           {score ?? '—'}
@@ -266,7 +288,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
       onClick={handleCardClick}
       onKeyDown={handleCardKey}
       className="game-card relative rounded-lg overflow-hidden bg-surface-2 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-surface-5"
-      style={{ border: '1px solid rgba(255, 255, 255, 0.10)', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }}
+      style={{ border: '1px solid rgba(255,255,255,0.55)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
     >
       {/* Header strip only renders for non-default states (tie, scheduled, neutral) */}
       {showStatusStrip && (
@@ -277,21 +299,26 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
             borderBottom: '1px solid var(--surface-4)',
           }}
         >
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              color: 'var(--text-secondary)',
-              letterSpacing: '1.6px',
-              textTransform: 'uppercase',
-            }}
-          >
-            {statusLabel || ''}
-          </span>
-          {isNeutral && (
+          {statusLabel && (
             <span
+              className="flex-shrink-0"
               style={{
                 fontSize: '10px',
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+                letterSpacing: '1.6px',
+                textTransform: 'uppercase',
+              }}
+            >
+              {statusLabel}
+            </span>
+          )}
+          {isNeutral && (
+            <FitText
+              className="flex-1 min-w-0 text-right"
+              max={10}
+              min={6.5}
+              style={{
                 fontWeight: 600,
                 color: 'var(--text-tertiary)',
                 letterSpacing: '1.4px',
@@ -299,7 +326,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
               }}
             >
               {venueLabel}
-            </span>
+            </FitText>
           )}
         </div>
       )}
@@ -312,7 +339,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
         record={topRecord}
         rank={topRank}
       />
-      <div style={{ borderTop: '1px solid var(--surface-3)' }}>
+      <div style={{ borderTop: '1px solid rgba(0,0,0,0.45)' }}>
         <TeamRow
           tid={bottomTid}
           team={bottomTeam}

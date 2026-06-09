@@ -15,6 +15,7 @@ import CardStylePicker from './CardStylePicker'
 import ImageUpload from './ImageUpload'
 import Button from './ui/Button'
 import { CARD_CONTEXTS, WEEKLY_AWARDS, getCardStyle } from '../data/cardStyles'
+import { gameWeekLabel } from '../utils/weekLabel'
 import {
   buildCardPromptVariables,
   interpolatePrompt,
@@ -336,7 +337,7 @@ function PhaseContext({
               <option value="">Select a game…</option>
               {availableGames.map(g => (
                 <option key={g.gameId} value={g.gameId}>
-                  {g.year} W{g.week} {g.won ? 'W' : 'L'} {(g.playerScore != null && g.oppScore != null) ? `${g.playerScore}-${g.oppScore}` : '—'} {g.location === 'home' ? 'vs' : g.location === 'away' ? '@' : 'vs (N)'} {g.opponentName}
+                  {g.year} {gameWeekLabel(g, 'W')} {g.won ? 'W' : 'L'} {(g.playerScore != null && g.oppScore != null) ? `${g.playerScore}-${g.oppScore}` : '—'} {g.location === 'home' ? 'vs' : g.location === 'away' ? '@' : 'vs (N)'} {g.opponentName}
                 </option>
               ))}
             </SelectControl>

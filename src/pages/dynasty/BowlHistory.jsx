@@ -6,7 +6,8 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { bowlLogos, getAllBowlNames } from '../../data/bowlLogos'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, getSchoolName } from '../../data/teams'
 import { getSlotIdFromBowlName, getCFPGameId } from '../../data/cfpConstants'
-import { TEAMS, getGameTeamInfo } from '../../data/teamRegistry'
+import { TEAMS, getGameTeamInfo, resolveTid } from '../../data/teamRegistry'
+import { getContrastTextColor } from '../../utils/colorUtils'
 import BowlHistoryEditModal from '../../components/BowlHistoryEditModal'
 import { PageHero, Card, Button, EmptyState, Input } from '../../components/ui'
 
@@ -390,9 +391,10 @@ export default function BowlHistory() {
 
                 {isExpanded && hasGames && (
                   <div
-                    className="px-3 pb-3 pt-2 space-y-1 expand-body"
+                    className="px-3 pb-3 pt-2 expand-body"
                     style={{ borderTop: '1px solid var(--surface-4)' }}
                   >
+                    <div className="rounded-lg overflow-hidden">
                     {results.map((game, idx) => {
                       const winner = getWinner(game)
                       const team1Mascot = getMascotName(game.team1, currentDynasty?.teams || currentDynasty?.customTeams)
@@ -422,77 +424,57 @@ export default function BowlHistory() {
                         gameId = `bowl-${game.year}-${bowlSlug}`
                       }
 
+                      const teamsSrc = currentDynasty?.teams || currentDynasty?.customTeams || TEAMS
+                      const t1Tid = game.team1Tid ?? resolveTid(game.team1, teamsSrc)
+                      const t2Tid = game.team2Tid ?? resolveTid(game.team2, teamsSrc)
+                      const t1Color = (t1Tid != null && teamsSrc?.[t1Tid]?.primaryColor) || '#3a3d47'
+                      const t2Color = (t2Tid != null && teamsSrc?.[t2Tid]?.primaryColor) || '#3a3d47'
+                      const t1Txt = getContrastTextColor(t1Color)
+                      const t2Txt = getContrastTextColor(t2Color)
+                      const t1Win = winner === game.team1
+                      const t2Win = winner === game.team2
+
                       return (
                         <Link
                           key={`${game.year}-${idx}`}
                           to={`${pathPrefix}/game/${gameId}`}
-                          className={`score-row group flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-md transition-all duration-150 ${
-                            userWon ? 'score-row--gold' : ''
-                          }`}
+                          className="score-row group relative flex items-stretch overflow-hidden cfb-texture transition-all duration-150 hover:brightness-110"
                           style={{
-                            border: userWon
-                              ? '1px solid color-mix(in srgb, #d4a44a 35%, transparent)'
-                              : '1px solid transparent',
-                            backgroundColor: userWon
-                              ? 'color-mix(in srgb, #d4a44a 7%, var(--surface-2))'
-                              : 'var(--surface-2)',
+                            // Split team-color scorebug: team1 color | team2 color, with a
+                            // center divider, the shared highlight/vignette, and (when the
+                            // user's team won) a subtle gold ring instead of a gold wash.
+                            // Games sit flush; a thin white rule separates each one.
+                            backgroundImage: `linear-gradient(90deg, transparent calc(50% - 1px), rgba(0,0,0,0.55) calc(50% - 1px), rgba(0,0,0,0.55) calc(50% + 1px), transparent calc(50% + 1px)), linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0.4) 100%), linear-gradient(90deg, ${t1Color} 0%, ${t1Color} 50%, ${t2Color} 50%, ${t2Color} 100%)`,
+                            ...(idx > 0 ? { borderTop: '1px solid rgba(255,255,255,0.7)' } : {}),
+                            ...(userWon ? { boxShadow: 'inset 0 0 0 1.5px rgba(212,164,74,0.65)' } : {}),
                           }}
                         >
-                          <div
-                            className="w-11 sm:w-14 text-center tabular font-display font-black text-sm leading-none flex-shrink-0 flex flex-col items-center gap-0.5"
-                            style={{ color: userWon ? '#e0b566' : 'var(--text-secondary)' }}
-                          >
-                            <span>{game.year}</span>
-                            {userWon && (
-                              <span
-                                className="label-xs"
-                                style={{
-                                  fontSize: '8px',
-                                  letterSpacing: '1.5px',
-                                  fontWeight: 700,
-                                  color: '#d4a44a',
-                                }}
-                              >
-                                WON
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          {/* Left half — year, team1 logo + name, team1 score at the seam */}
+                          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-2.5 min-w-0" style={{ width: '50%' }}>
+                            <span className="font-display font-black tabular-nums text-[11px] flex-shrink-0 w-8 sm:w-10" style={{ color: t1Txt, opacity: 0.72 }}>{game.year}</span>
                             {team1Logo && (
-                              <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110">
+                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-105">
                                 <img src={team1Logo} alt="" className="w-full h-full object-contain" />
                               </div>
                             )}
-                            <span
-                              className={`text-xs sm:text-sm font-semibold truncate ${
-                                winner === game.team1 ? 'text-txt-primary' : 'text-txt-tertiary'
-                              }`}
-                            >
-                              {getSchoolName(game.team1, currentDynasty?.teams) || game.team1}
+                            <span className="text-xs sm:text-sm font-semibold truncate flex-1" style={{ color: t1Txt, opacity: t1Win ? 1 : 0.78, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                              {getSchoolName(game.team1, teamsSrc) || game.team1}
                             </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 tabular font-display font-black text-sm sm:text-base flex-shrink-0">
-                            <span style={winner === game.team1 ? { color: 'var(--text-primary)' } : { color: 'var(--text-tertiary)' }}>
+                            <span className="font-display font-black tabular-nums text-base sm:text-lg flex-shrink-0" style={{ color: t1Txt, opacity: t1Win ? 1 : 0.6, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
                               {game.team1Score}
                             </span>
-                            <span className="text-txt-tertiary font-normal text-xs">–</span>
-                            <span style={winner === game.team2 ? { color: 'var(--text-primary)' } : { color: 'var(--text-tertiary)' }}>
-                              {game.team2Score}
-                            </span>
                           </div>
 
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
-                            <span
-                              className={`text-xs sm:text-sm font-semibold truncate ${
-                                winner === game.team2 ? 'text-txt-primary' : 'text-txt-tertiary'
-                              }`}
-                            >
-                              {getSchoolName(game.team2, currentDynasty?.teams) || game.team2}
+                          {/* Right half — team2 score at the seam, team2 name + logo */}
+                          <div className="flex items-center gap-2 px-2.5 sm:px-3 py-2.5 min-w-0 justify-end" style={{ width: '50%' }}>
+                            <span className="font-display font-black tabular-nums text-base sm:text-lg flex-shrink-0" style={{ color: t2Txt, opacity: t2Win ? 1 : 0.6, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
+                              {game.team2Score}
+                            </span>
+                            <span className="text-xs sm:text-sm font-semibold truncate flex-1 text-right" style={{ color: t2Txt, opacity: t2Win ? 1 : 0.78, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                              {getSchoolName(game.team2, teamsSrc) || game.team2}
                             </span>
                             {team2Logo && (
-                              <div className="w-6 h-6 rounded-full bg-white p-0.5 flex-shrink-0 transition-transform duration-150 group-hover:scale-110">
+                              <div className="w-7 h-7 rounded-full bg-white p-1 flex-shrink-0 flex items-center justify-center transition-transform duration-150 group-hover:scale-105">
                                 <img src={team2Logo} alt="" className="w-full h-full object-contain" />
                               </div>
                             )}
@@ -500,6 +482,7 @@ export default function BowlHistory() {
                         </Link>
                       )
                     })}
+                    </div>
                   </div>
                 )}
 

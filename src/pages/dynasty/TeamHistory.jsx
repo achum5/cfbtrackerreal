@@ -4,6 +4,7 @@ import { useDynasty, getUserGamePerspective, GAME_TYPES } from '../../context/Dy
 import { getGameTeamInfo } from '../../data/teamRegistry'
 import { getTeamLogo, getMascotName } from '../../data/teams'
 import { weekSortKey } from '../../utils/compareUtils'
+import { gameWeekLabel } from '../../utils/weekLabel'
 import {
   PageHero,
   Card,
@@ -15,19 +16,9 @@ import {
   GameResultRow,
 } from '../../components/ui'
 
-const WEEK_LABEL = (game) => {
-  if (game.phase === 'postseason') return 'Bowl'
-  if (game.phase === 'conf_championship') return 'CCG'
-  // Detect CCG by flag or gameType too — game.phase isn't on game records
-  // (it lives on the dynasty), so the two checks above almost never fire.
-  // CCG games carry isConferenceChampionship and/or gameType =
-  // 'conference_championship', and game.week may be 'CCG' / 'CC' / 15 /
-  // NaN depending on how it was saved before the migration.
-  if (game.isConferenceChampionship || game.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 'Conf Champ Week'
-  const w = game.week
-  if (typeof w === 'string' && (w.toUpperCase() === 'CCG' || w.toUpperCase() === 'CC')) return 'Conf Champ Week'
-  return `Week ${w || '?'}`
-}
+// Flag-aware short slot label ("Bowl" / "CCG" / "CFP SF" / "Week 6"), shared so
+// it never prints "Week Bowl" / "WBowl" style nonsense for a string week value.
+const WEEK_LABEL = (game) => gameWeekLabel(game, 'Week ')
 
 export default function TeamHistory() {
   const { currentDynasty } = useDynasty()

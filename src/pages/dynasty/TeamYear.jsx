@@ -6,7 +6,7 @@ import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCust
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TabBar, StatRings } from '../../components/CfbUI'
 // Team colors are derived from the viewed team, not the user's team
-import { getContrastTextColor, getContrastRatio, isDarkColor } from '../../utils/colorUtils'
+import { getContrastTextColor } from '../../utils/colorUtils'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -28,6 +28,7 @@ import { sortGamesNewestFirst } from '../../utils/gameOrder'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { useToast } from '../../components/ui/Toast'
 import FittedPlayerName from '../../components/ui/FittedPlayerName'
+import FittedTeamName from '../../components/ui/FittedTeamName'
 import GameResultRow from '../../components/ui/GameResultRow'
 import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTable'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
@@ -587,6 +588,8 @@ export default function TeamYear() {
   const [showRecordGamesModal, setShowRecordGamesModal] = useState(false)
   const [recordGamesModalType, setRecordGamesModalType] = useState(null)
   const [recordGamesModalGames, setRecordGamesModalGames] = useState([])
+  // Team-stat player-breakdown modal: { title, unit, total, rows } | null
+  const [statBreakdown, setStatBreakdown] = useState(null)
   const [showHistoryGamesModal, setShowHistoryGamesModal] = useState(false)
   const [historyGamesModalTitle, setHistoryGamesModalTitle] = useState('')
   const [historyGamesModalGames, setHistoryGamesModalGames] = useState([])
@@ -746,11 +749,12 @@ export default function TeamYear() {
   // very dark (black / dark navy), a dark logo would vanish — so it gets a
   // white circular plate; otherwise it renders bare. Keeps light/mid team
   // colors plate-free while rescuing the dark-on-dark cases.
+  // Always render the logo in a white disc. Many team logos are monochrome or
+  // tinted in their own team color (Texas, Tennessee, UNC, Georgia Tech…), so
+  // dropping them straight onto a team-colored background makes them vanish.
+  // The white circle guarantees the logo reads on ANY colored surface.
   const teamColorLogo = (src, bgColor, sizePx = 48) => {
     if (!src) return null
-    if (!isDarkColor(bgColor)) {
-      return <img src={src} alt="" className="object-contain flex-shrink-0" style={{ width: sizePx, height: sizePx }} />
-    }
     return (
       <div
         className="rounded-full bg-white flex items-center justify-center flex-shrink-0"
@@ -2058,6 +2062,11 @@ export default function TeamYear() {
     let puntRetYards = 0, kickRetYards = 0
     let punts = 0, penalties = 0, penaltyYards = 0
     let possMinutes = 0, possSeconds = 0
+    // Defense — production ALLOWED, aggregated from the opponent's box score
+    // in each game this team played. Yards-allowed per game uses defGames
+    // (games where the opponent's team stats exist), points-allowed uses the
+    // full played-games count (scores are always present for played games).
+    let oppPassYards = 0, oppRushYards = 0, oppTotalYards = 0, oppFirstDowns = 0, defGames = 0
 
     games.forEach(game => {
       if (Number(game.year) !== selectedYear) return
@@ -2264,6 +2273,20 @@ export default function TeamYear() {
         possMinutes += parseInt(ts.possMinutes) || 0
         possSeconds += parseInt(ts.possSeconds) || 0
       }
+
+      // Defense — the opponent's offensive box score IS this team's yards
+      // allowed. Keyed by the opponent's tid in the same canonical store.
+      const oppTidForStats = isTeam1 ? team2Tid : team1Tid
+      const oppTs = oppTidForStats != null ? getTeamStatsForTid(game, oppTidForStats, currentDynasty?.teams) : null
+      if (oppTs) {
+        defGames++
+        const oPass = parseInt(oppTs.passYards || oppTs.passingYards) || 0
+        const oRush = parseInt(oppTs.rushYards) || 0
+        oppPassYards += oPass
+        oppRushYards += oRush
+        oppTotalYards += (parseInt(oppTs.totalOffense || oppTs.totalYards) || 0) || (oPass + oRush)
+        oppFirstDowns += parseInt(oppTs.firstDowns) || 0
+      }
     })
 
     const gamesPlayed = wins + losses
@@ -2291,10 +2314,75 @@ export default function TeamYear() {
       penalties, penaltyYards,
       possMinutes, possSeconds,
       gamesPlayed,
+      // Defense (yards/points allowed)
+      oppPassYards, oppRushYards, oppTotalYards, oppFirstDowns, defGames,
       // Games arrays for modal
       allGames, confGames, favoriteGames, underdogGames
     }
   }, [currentDynasty.games, currentDynasty.rankings, currentDynasty.teams, selectedYear, tid, teamAbbr])
+
+  // Defensive playmaking — sacks / INTs / TFL / forced fumbles are tracked at
+  // the player level, so sum this team's defenders for the selected season.
+  const teamDefensePlaymaking = useMemo(() => {
+    const d = playerStats.defense || []
+    return {
+      sacks: d.reduce((s, p) => s + (Number(p.sacks) || 0), 0),
+      ints: d.reduce((s, p) => s + (Number(p.int) || 0), 0),
+      tfl: d.reduce((s, p) => s + (Number(p.tfl) || 0), 0),
+      ff: d.reduce((s, p) => s + (Number(p.ff) || 0), 0),
+    }
+  }, [playerStats.defense])
+
+  // Player breakdown for a clickable team stat — pull the players in a
+  // playerStats bucket (passing/rushing/defense/…), keep the ones with a
+  // non-zero value for `field`, biggest first.
+  const statBreakdownRows = (category, field) => (
+    (playerStats[category] || [])
+      .map(p => ({ pid: p.pid, name: p.name, position: p.position, pictureUrl: p.pictureUrl, value: Number(p[field]) || 0 }))
+      .filter(p => p.value > 0)
+      .sort((a, b) => b.value - a.value)
+  )
+  // Total offense = each player's passing + rushing yards, merged by pid.
+  const combinedYardsRows = () => {
+    const byPid = {}
+    ;['passing', 'rushing'].forEach(cat => (playerStats[cat] || []).forEach(p => {
+      const v = Number(p.yds) || 0
+      if (!v) return
+      if (!byPid[p.pid]) byPid[p.pid] = { pid: p.pid, name: p.name, position: p.position, pictureUrl: p.pictureUrl, value: 0 }
+      byPid[p.pid].value += v
+    }))
+    return Object.values(byPid).sort((a, b) => b.value - a.value)
+  }
+
+  // Render one stat row. With `bk`, the row is a button that opens the
+  // player-breakdown modal; without it, a plain label/value row. `bk` is
+  // { title?, unit, total, category, field } or { ..., combined: true }.
+  const renderStatRow = (label, value, bk) => {
+    if (!bk) {
+      return (
+        <div className="flex justify-between items-center px-4 py-2.5">
+          <span className="text-sm" style={{ color: accentColorMuted }}>{label}</span>
+          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+        </div>
+      )
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setStatBreakdown({
+          title: bk.title || label,
+          subtitle: `${selectedYear} Season`,
+          unit: bk.unit,
+          total: bk.total,
+          rows: bk.combined ? combinedYardsRows() : statBreakdownRows(bk.category, bk.field),
+        })}
+        className="w-full flex justify-between items-center px-4 py-2.5 text-left transition-colors hover:bg-surface-3 group"
+      >
+        <span className="text-sm group-hover:underline" style={{ color: accentColorMuted }}>{label}</span>
+        <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      </button>
+    )
+  }
 
   // Calculate vs user record
   // Use perspective for win/loss (vsUserGames already has perspective attached)
@@ -2641,9 +2729,12 @@ export default function TeamYear() {
                   changes teams. */}
               <div className="relative inline-flex items-center gap-1.5 min-w-0">
                 <div className="leading-[0.92] min-w-0">
-                  <div className="font-display font-extrabold uppercase tracking-tight truncate" style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}>
-                    {getSchoolName(mascotName) || teamInfo.name}
-                  </div>
+                  <FittedTeamName
+                    name={getSchoolName(mascotName) || teamInfo.name}
+                    abbr={teamAbbr}
+                    className="font-display font-extrabold uppercase tracking-tight"
+                    style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}
+                  />
                   {(() => {
                     const sch = getSchoolName(mascotName) || ''
                     const masc = (mascotName || '').slice(sch.length).trim()
@@ -3027,8 +3118,22 @@ export default function TeamYear() {
           {/* RIGHT: ratings + conference + edit */}
           <div className="flex items-center gap-2 sm:gap-3 self-start sm:self-center empty:hidden">
             {/* Team Ratings — circular CFB-style rings (contrast outline on the
-                team-colored banner) */}
-            <StatRings items={teamRatings ? [{ label: 'OVR', value: teamRatings.overall }, { label: 'OFF', value: teamRatings.offense }, { label: 'DEF', value: teamRatings.defense }] : null} ringColor={teamBgText} textColor={teamBgText} />
+                team-colored banner). Compact on mobile so the team name keeps
+                its room and never has to truncate; full size from sm up. */}
+            {(() => {
+              const ratingItems = teamRatings ? [{ label: 'OVR', value: teamRatings.overall }, { label: 'OFF', value: teamRatings.offense }, { label: 'DEF', value: teamRatings.defense }] : null
+              if (!ratingItems) return null
+              return (
+                <>
+                  <div className="sm:hidden">
+                    <StatRings items={ratingItems} ringColor={teamBgText} textColor={teamBgText} size="xs" />
+                  </div>
+                  <div className="hidden sm:block">
+                    <StatRings items={ratingItems} ringColor={teamBgText} textColor={teamBgText} size="md" />
+                  </div>
+                </>
+              )
+            })()}
             {/* Conference logo — broadcast style, anchored far right; links to
                 the conference standings like the meta-row label. */}
             {conferenceLogo && (
@@ -3790,38 +3895,42 @@ export default function TeamYear() {
                 <Link
                   key={game.id || index}
                   to={`${pathPrefix}/game/${game.id}`}
-                  className="flex items-center gap-2 py-2 pl-3 transition-opacity hover:opacity-90"
+                  className="cfb-texture relative flex items-center gap-2 py-2 pl-3 pr-3 overflow-hidden transition-all hover:brightness-110"
                   style={{
-                    borderBottom: `1px solid var(--surface-4)`,
-                    background: `linear-gradient(90deg, ${oppColor}4d 0%, ${oppColor}1f 42%, var(--surface-2) 82%)`,
+                    borderBottom: `1px solid rgba(0,0,0,0.25)`,
+                    backgroundColor: oppColor,
+                    // Strong opponent color on the left (logo + name) fading to a
+                    // dark right edge so the W/L score stays legible — matches the
+                    // broadcast team-color treatment used elsewhere on the page.
+                    backgroundImage: `linear-gradient(120deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 36%), linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.28) 52%, rgba(0,0,0,0.6) 100%)`,
                   }}
                 >
                   <span
                     className="text-[10px] font-bold uppercase w-10 flex-shrink-0 tabular-nums"
-                    style={{ letterSpacing: '1px', color: 'var(--text-tertiary)' }}
+                    style={{ letterSpacing: '1px', color: 'rgba(255,255,255,0.8)' }}
                   >
                     {game.isCFPChampionship ? 'Nty' : game.isCFPSemifinal ? 'SF' : game.isCFPQuarterfinal ? 'QF' : game.isCFPFirstRound ? 'R1' : game.isBowlGame ? 'Bowl' : game.isConferenceChampionship ? 'CCG' : `Wk${game.week}`}
                   </span>
                   <span
                     className="text-[10px] w-4 flex-shrink-0"
-                    style={{ color: 'var(--text-tertiary)', opacity: 0.6 }}
+                    style={{ color: 'rgba(255,255,255,0.6)' }}
                   >
                     {location === 'away' ? '@' : 'vs'}
                   </span>
                   {teamColorLogo(oppLogo, oppColor, 16)}
                   <span
                     className="text-xs font-semibold truncate flex-1"
-                    style={{ color: 'var(--text-primary)' }}
+                    style={{ color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
                   >
-                    {game.opponentRank && <span style={{ color: 'var(--text-tertiary)' }}>#{game.opponentRank} </span>}
+                    {game.opponentRank && <span style={{ color: 'rgba(255,255,255,0.7)' }}>#{game.opponentRank} </span>}
                     {oppAbbr}
                   </span>
                   {hasResult ? (
-                    <span className={`text-xs font-bold tabular-nums ${isWin ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: isWin ? '#86efac' : '#fca5a5', textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
                       {isWin ? 'W' : 'L'} {formatScoreHighLow(teamScore, oppScore)}
                     </span>
                   ) : (
-                    <span className="text-[10px]" style={{ color: 'var(--text-tertiary)', opacity: 0.5 }}>--</span>
+                    <span className="text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>--</span>
                   )}
                 </Link>
               )
@@ -4688,30 +4797,25 @@ export default function TeamYear() {
                     </div>
                   </div>
 
+                  {/* OFFENSE section */}
+                  <div className="flex items-center gap-3 pt-1">
+                    <span className="font-display font-bold uppercase text-txt-primary" style={{ fontSize: '0.95rem', letterSpacing: '0.1em' }}>Offense</span>
+                    <div className="flex-1 h-px bg-surface-4" />
+                  </div>
+
                   {/* Stats Cards */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Offense Card */}
                     <div className="card overflow-hidden cfb-texture">
                       <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 text-txt-primary">
-                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Offense</h4>
+                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Overview</h4>
                       </div>
                       <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Total Yards</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.totalOffense.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Yards/Game</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{(teamStatsData.totalOffense / teamStatsData.gamesPlayed).toFixed(1)}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Total Plays</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.totalPlays || '-'}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>First Downs</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.firstDowns || '-'}</span>
-                        </div>
+                        {renderStatRow('Points/Game', teamStatsData.gamesPlayed > 0 ? (teamStatsData.pointsFor / teamStatsData.gamesPlayed).toFixed(1) : '-')}
+                        {renderStatRow('Total Yards', teamStatsData.totalOffense.toLocaleString(), { combined: true, unit: 'YDS', total: teamStatsData.totalOffense, title: 'Total Offense' })}
+                        {renderStatRow('Yards/Game', (teamStatsData.totalOffense / teamStatsData.gamesPlayed).toFixed(1), { combined: true, unit: 'YDS', total: teamStatsData.totalOffense, title: 'Total Offense' })}
+                        {renderStatRow('Total Plays', teamStatsData.totalPlays || '-')}
+                        {renderStatRow('First Downs', teamStatsData.firstDowns || '-')}
                       </div>
                     </div>
 
@@ -4721,22 +4825,11 @@ export default function TeamYear() {
                         <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Passing</h4>
                       </div>
                       <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Pass Yards</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.passYards.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Completions</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.completions || 0} / {teamStatsData.passAttempts || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Comp %</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.passAttempts > 0 ? `${((teamStatsData.completions / teamStatsData.passAttempts) * 100).toFixed(1)}%` : '-'}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Pass TDs</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.passTds || 0}</span>
-                        </div>
+                        {renderStatRow('Pass Yards', teamStatsData.passYards.toLocaleString(), { category: 'passing', field: 'yds', unit: 'YDS', total: teamStatsData.passYards, title: 'Passing Yards' })}
+                        {renderStatRow('Pass Yards/Game', teamStatsData.gamesPlayed > 0 ? (teamStatsData.passYards / teamStatsData.gamesPlayed).toFixed(1) : '-', { category: 'passing', field: 'yds', unit: 'YDS', total: teamStatsData.passYards, title: 'Passing Yards' })}
+                        {renderStatRow('Completions', `${teamStatsData.completions || 0} / ${teamStatsData.passAttempts || 0}`, { category: 'passing', field: 'cmp', unit: 'CMP', total: teamStatsData.completions, title: 'Completions' })}
+                        {renderStatRow('Comp %', teamStatsData.passAttempts > 0 ? `${((teamStatsData.completions / teamStatsData.passAttempts) * 100).toFixed(1)}%` : '-')}
+                        {renderStatRow('Pass TDs', teamStatsData.passTds || 0, { category: 'passing', field: 'td', unit: 'TD', total: teamStatsData.passTds, title: 'Passing Touchdowns' })}
                       </div>
                     </div>
 
@@ -4746,22 +4839,11 @@ export default function TeamYear() {
                         <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Rushing</h4>
                       </div>
                       <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Rush Yards</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.rushYards.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Attempts</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.rushAttempts || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Yards/Carry</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.rushAttempts > 0 ? (teamStatsData.rushYards / teamStatsData.rushAttempts).toFixed(1) : '-'}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Rush TDs</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.rushTds || 0}</span>
-                        </div>
+                        {renderStatRow('Rush Yards', teamStatsData.rushYards.toLocaleString(), { category: 'rushing', field: 'yds', unit: 'YDS', total: teamStatsData.rushYards, title: 'Rushing Yards' })}
+                        {renderStatRow('Rush Yards/Game', teamStatsData.gamesPlayed > 0 ? (teamStatsData.rushYards / teamStatsData.gamesPlayed).toFixed(1) : '-', { category: 'rushing', field: 'yds', unit: 'YDS', total: teamStatsData.rushYards, title: 'Rushing Yards' })}
+                        {renderStatRow('Attempts', teamStatsData.rushAttempts || 0, { category: 'rushing', field: 'car', unit: 'CAR', total: teamStatsData.rushAttempts, title: 'Rush Attempts' })}
+                        {renderStatRow('Yards/Carry', teamStatsData.rushAttempts > 0 ? (teamStatsData.rushYards / teamStatsData.rushAttempts).toFixed(1) : '-')}
+                        {renderStatRow('Rush TDs', teamStatsData.rushTds || 0, { category: 'rushing', field: 'td', unit: 'TD', total: teamStatsData.rushTds, title: 'Rushing Touchdowns' })}
                       </div>
                     </div>
 
@@ -4808,10 +4890,7 @@ export default function TeamYear() {
                           <span className="text-sm" style={{ color: accentColorMuted }}>Fumbles Lost</span>
                           <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.fumblesLost || 0}</span>
                         </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>INTs Thrown</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.interceptions || 0}</span>
-                        </div>
+                        {renderStatRow('INTs Thrown', teamStatsData.interceptions || 0, { category: 'passing', field: 'int', unit: 'INT', total: teamStatsData.interceptions, title: 'Interceptions Thrown' })}
                         <div className="flex justify-between items-center px-4 py-2.5">
                           <span className="text-sm" style={{ color: accentColorMuted }}>TO/Game</span>
                           <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.gamesPlayed > 0 ? (teamStatsData.turnovers / teamStatsData.gamesPlayed).toFixed(2) : '-'}</span>
@@ -4825,14 +4904,8 @@ export default function TeamYear() {
                         <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Special Teams & Misc</h4>
                       </div>
                       <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Kick Ret Yds</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.kickRetYards || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center px-4 py-2.5">
-                          <span className="text-sm" style={{ color: accentColorMuted }}>Punt Ret Yds</span>
-                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.puntRetYards || 0}</span>
-                        </div>
+                        {renderStatRow('Kick Ret Yds', teamStatsData.kickRetYards || 0, { category: 'kickReturn', field: 'yds', unit: 'YDS', total: teamStatsData.kickRetYards, title: 'Kick Return Yards' })}
+                        {renderStatRow('Punt Ret Yds', teamStatsData.puntRetYards || 0, { category: 'puntReturn', field: 'yds', unit: 'YDS', total: teamStatsData.puntRetYards, title: 'Punt Return Yards' })}
                         <div className="flex justify-between items-center px-4 py-2.5">
                           <span className="text-sm" style={{ color: accentColorMuted }}>Penalties</span>
                           <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>
@@ -4849,6 +4922,87 @@ export default function TeamYear() {
                               : '-'}
                           </span>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DEFENSE section — production allowed (from opponents' box
+                      scores) plus player-sourced sacks / INTs / TFL / FF. */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className="font-display font-bold uppercase text-txt-primary" style={{ fontSize: '0.95rem', letterSpacing: '0.1em' }}>Defense</span>
+                    <div className="flex-1 h-px bg-surface-4" />
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Defense Overview Card — yards & points allowed */}
+                    <div className="card overflow-hidden cfb-texture">
+                      <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 text-txt-primary">
+                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Overview</h4>
+                      </div>
+                      <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Points/Game Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.gamesPlayed > 0 ? (teamStatsData.pointsAgainst / teamStatsData.gamesPlayed).toFixed(1) : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Total Yards Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? teamStatsData.oppTotalYards.toLocaleString() : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Yards/Game Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? (teamStatsData.oppTotalYards / teamStatsData.defGames).toFixed(1) : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>1st Downs Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? (teamStatsData.oppFirstDowns || 0) : '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pass Defense Card */}
+                    <div className="card overflow-hidden cfb-texture">
+                      <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 text-txt-primary">
+                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Pass Defense</h4>
+                      </div>
+                      <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Pass Yards Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? teamStatsData.oppPassYards.toLocaleString() : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Pass Yards/Game</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? (teamStatsData.oppPassYards / teamStatsData.defGames).toFixed(1) : '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rush Defense Card */}
+                    <div className="card overflow-hidden cfb-texture">
+                      <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 text-txt-primary">
+                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Rush Defense</h4>
+                      </div>
+                      <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Rush Yards Allowed</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? teamStatsData.oppRushYards.toLocaleString() : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center px-4 py-2.5">
+                          <span className="text-sm" style={{ color: accentColorMuted }}>Rush Yards/Game</span>
+                          <span className="text-sm font-semibold" style={{ color: accentColor, fontVariantNumeric: 'tabular-nums' }}>{teamStatsData.defGames > 0 ? (teamStatsData.oppRushYards / teamStatsData.defGames).toFixed(1) : '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Defensive Playmaking Card */}
+                    <div className="card overflow-hidden cfb-texture">
+                      <div className="px-4 py-2.5 bg-surface-2 border-b border-surface-4 text-txt-primary">
+                        <h4 className="font-display font-bold text-txt-primary" style={{ fontSize: '1.05rem', letterSpacing: '0.03em', textTransform: 'uppercase' }}>Playmaking</h4>
+                      </div>
+                      <div className="divide-y" style={{ '--tw-divide-opacity': 1, borderColor: `${accentColor}15` }}>
+                        {renderStatRow('Sacks', teamDefensePlaymaking.sacks || 0, { category: 'defense', field: 'sacks', unit: 'SACK', total: teamDefensePlaymaking.sacks, title: 'Sacks' })}
+                        {renderStatRow('Interceptions', teamDefensePlaymaking.ints || 0, { category: 'defense', field: 'int', unit: 'INT', total: teamDefensePlaymaking.ints, title: 'Interceptions' })}
+                        {renderStatRow('Tackles For Loss', teamDefensePlaymaking.tfl || 0, { category: 'defense', field: 'tfl', unit: 'TFL', total: teamDefensePlaymaking.tfl, title: 'Tackles For Loss' })}
+                        {renderStatRow('Forced Fumbles', teamDefensePlaymaking.ff || 0, { category: 'defense', field: 'ff', unit: 'FF', total: teamDefensePlaymaking.ff, title: 'Forced Fumbles' })}
                       </div>
                     </div>
                   </div>
@@ -5615,10 +5769,7 @@ export default function TeamYear() {
             <div className="card overflow-hidden cfb-texture">
               <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex items-center gap-3 sm:gap-5">
-                  <div
-                    className="flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-sm"
-                    style={{ backgroundColor: viewedPrimary, backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0) 55%), linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42))' }}
-                  >
+                  <div className="flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-sm bg-surface-2 border border-surface-4">
                     <div className="text-4xl sm:text-5xl font-black tabular text-txt-primary leading-none" style={{ fontFamily: "var(--font-display)" }}>
                       {nationalRank ? `#${nationalRank}` : '—'}
                     </div>
@@ -5627,10 +5778,7 @@ export default function TeamYear() {
                       <span className="label-xs text-txt-muted" style={{ letterSpacing: '1.5px' }}>Rank</span>
                     </div>
                   </div>
-                  <div
-                    className="flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-sm"
-                    style={{ backgroundColor: viewedPrimary, backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0) 55%), linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42))' }}
-                  >
+                  <div className="flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-sm bg-surface-2 border border-surface-4">
                     <div className="text-4xl sm:text-5xl font-black tabular text-txt-primary leading-none" style={{ fontFamily: "var(--font-display)" }}>
                       {formatRecruitingClassScore(classScore)}
                     </div>
@@ -5690,11 +5838,11 @@ export default function TeamYear() {
               </div>
             ) : (
               <div className="card overflow-hidden cfb-texture">
-                <div className="grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4" style={{ backgroundColor: `${viewedPrimary}1f` }}>
+                <div className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 bg-surface-2">
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>★</span>
                   <span className="label-xs text-txt-tertiary hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Pos</span>
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Name</span>
-                  <span className="label-xs text-txt-tertiary text-right" style={{ letterSpacing: '1.5px' }}>Hometown</span>
+                  <span className="label-xs text-txt-tertiary text-right hidden sm:inline" style={{ letterSpacing: '1.5px' }}>Hometown</span>
                   <span className="label-xs text-txt-tertiary text-right" style={{ letterSpacing: '1.5px' }}>Type</span>
                 </div>
                 {sorted.map((c, i) => {
@@ -5720,7 +5868,14 @@ export default function TeamYear() {
                         ))}
                       </div>
                       <span className="hidden sm:inline text-xs font-semibold text-txt-secondary tabular">{c.position || '—'}</span>
-                      <span className="text-sm font-semibold text-txt-primary truncate">{c.name}</span>
+                      <div className="min-w-0">
+                        <span className="block text-sm font-semibold text-txt-primary truncate">{c.name}</span>
+                        {/* Mobile sub-line: position · hometown (the dedicated
+                            columns are desktop-only, so surface them here). */}
+                        <span className="sm:hidden block text-[11px] text-txt-tertiary truncate">
+                          {[c.position, c.hometown ? `${c.hometown}${c.state ? `, ${c.state}` : ''}` : c.state].filter(Boolean).join(' · ') || '—'}
+                        </span>
+                      </div>
                       <span className="text-xs text-txt-tertiary text-right truncate hidden sm:inline">
                         {c.hometown ? `${c.hometown}${c.state ? `, ${c.state}` : ''}` : (c.state || '—')}
                       </span>
@@ -5729,7 +5884,7 @@ export default function TeamYear() {
                       </span>
                     </>
                   )
-                  const rowClass = 'grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 last:border-b-0'
+                  const rowClass = 'grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_auto_1fr_auto_auto] gap-3 sm:gap-4 items-center px-4 py-2.5 border-b border-surface-4 last:border-b-0'
                   return resolvedPid ? (
                     <Link
                       key={`${c.name}-${i}`}
@@ -6503,7 +6658,7 @@ export default function TeamYear() {
                   <thead>
                     <tr>
                       {['Year', 'Record', 'Final Rank', 'Postseason'].map(h => (
-                        <th key={h} className="px-4 py-2 text-left text-[10px] font-bold uppercase text-txt-tertiary" style={{ letterSpacing: '1.5px', borderBottom: '1px solid var(--surface-4)', backgroundColor: `${teamInfo.backgroundColor}1f` }}>{h}</th>
+                        <th key={h} className="px-4 py-2 text-left text-[10px] font-bold uppercase text-txt-tertiary" style={{ letterSpacing: '1.5px', borderBottom: '1px solid var(--surface-4)', backgroundColor: 'var(--surface-2)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -7225,6 +7380,95 @@ export default function TeamYear() {
                 </div>
               )}
             </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* Team-stat player breakdown — who made up a clickable stat. Clean,
+          team-colored header band; each player links to their stats tab. */}
+      {statBreakdown && createPortal(
+        <div
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setStatBreakdown(null)}
+        >
+          <div
+            className="w-full max-w-md max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
+            style={{ backgroundColor: 'var(--surface-1)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Team-color header band */}
+            <div
+              className="cfb-texture relative px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 flex-shrink-0"
+              style={{
+                backgroundColor: teamInfo.backgroundColor,
+                backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)',
+              }}
+            >
+              <div className="min-w-0">
+                <h3 className="font-display font-bold uppercase leading-tight m-0 truncate" style={{ color: teamBgText, fontSize: '1.15rem', letterSpacing: '0.04em', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                  {statBreakdown.title}
+                </h3>
+                {statBreakdown.subtitle && (
+                  <div className="text-[11px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: teamBgText, opacity: 0.82 }}>
+                    {statBreakdown.subtitle}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setStatBreakdown(null)}
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-black/20"
+                style={{ color: teamBgText }}
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Player list */}
+            <div className="overflow-y-auto divide-y" style={{ borderColor: 'var(--surface-3)' }}>
+              {(!statBreakdown.rows || statBreakdown.rows.length === 0) ? (
+                <div className="px-4 py-10 text-center text-sm text-txt-tertiary">
+                  No player stats recorded for this stat yet.
+                </div>
+              ) : statBreakdown.rows.map((p, i) => (
+                <Link
+                  key={p.pid || i}
+                  to={`${pathPrefix}/player/${p.pid}?tab=stats`}
+                  onClick={() => setStatBreakdown(null)}
+                  className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2 no-underline group"
+                >
+                  <span className="w-5 text-center text-xs font-bold tabular-nums flex-shrink-0 text-txt-tertiary">{i + 1}</span>
+                  <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: `${accentColor}1f` }}>
+                    {p.pictureUrl
+                      ? <img src={proxyImageUrl(p.pictureUrl, 120)} alt="" className="w-full h-full object-cover" />
+                      : <span className="text-xs font-bold" style={{ color: accentColor }}>{(p.name || '?').charAt(0)}</span>}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-txt-primary truncate group-hover:underline">{p.name}</div>
+                    {p.position && <div className="text-[11px] text-txt-tertiary uppercase tracking-wide">{p.position}</div>}
+                  </div>
+                  <span className="font-display font-black tabular-nums text-base flex-shrink-0" style={{ color: accentColor }}>
+                    {Number.isInteger(p.value) ? p.value.toLocaleString() : p.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                    {statBreakdown.unit && <span className="text-[10px] font-bold ml-1 text-txt-tertiary">{statBreakdown.unit}</span>}
+                  </span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Team total footer */}
+            {statBreakdown.total != null && statBreakdown.rows && statBreakdown.rows.length > 0 && (
+              <div className="px-4 py-2.5 border-t flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--surface-3)', backgroundColor: 'var(--surface-2)' }}>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-txt-tertiary">Team Total</span>
+                <span className="font-display font-black tabular-nums text-base text-txt-primary">
+                  {Number.isInteger(statBreakdown.total) ? statBreakdown.total.toLocaleString() : statBreakdown.total.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  {statBreakdown.unit && <span className="text-[10px] font-bold ml-1 text-txt-tertiary">{statBreakdown.unit}</span>}
+                </span>
+              </div>
+            )}
           </div>
         </div>,
         document.body,

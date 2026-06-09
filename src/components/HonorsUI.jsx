@@ -16,43 +16,53 @@ const hexA = (hex, a) => {
 // One honoree tile — a team-color gradient row with the player's photo (or a
 // monogram), name, a team logo+name pill, class, and position. The whole tile
 // links to the player's page.
-export function HonorPlayerTile({ position, name, klass, schoolName, schoolAbbr, teamLogo, primary = '#64748b', photoUrl, to }) {
-  const pillText = getContrastTextColor(primary)
+export function HonorPlayerTile({ position, name, klass, schoolName, schoolAbbr, teamLogo, primary = '#3a3d47', photoUrl, to }) {
+  // Full, true team color (the box-score / game-card treatment) instead of a
+  // low-alpha wash that fades to dark and muddies the color. Text is
+  // contrast-aware; the team chip + avatar sit in dark translucent pills so
+  // they read on any team color.
+  const txt = getContrastTextColor(primary)
   const initial = (name || '?').trim().charAt(0).toUpperCase()
   const inner = (
-    <div className="flex items-center gap-2 px-2 py-2">
+    <div className="relative z-[1] flex items-center gap-2 px-2 py-2">
       {position && (
-        <span className="w-7 flex-shrink-0 text-center text-[10px] font-bold tracking-wider tabular-nums" style={{ color: 'rgba(255,255,255,0.7)' }}>
+        <span className="w-7 flex-shrink-0 text-center text-[10px] font-bold tracking-wider tabular-nums" style={{ color: txt, opacity: 0.72 }}>
           {position}
         </span>
       )}
       <span
         className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-        style={{ backgroundColor: hexA(primary, 0.3) }}
+        style={{ backgroundColor: 'rgba(0,0,0,0.28)' }}
       >
         {photoUrl
           ? <img src={proxyImageUrl(photoUrl, 120)} alt="" className="w-full h-full object-cover" />
-          : <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.85)' }}>{initial}</span>}
+          : <span className="text-sm font-bold" style={{ color: txt }}>{initial}</span>}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-white text-sm leading-tight truncate">{name}</div>
+        <div className="font-semibold text-sm leading-tight truncate" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{name}</div>
         <div className="mt-1 flex items-center gap-1.5 min-w-0">
-          <span className="inline-flex items-center gap-1 max-w-full pl-0.5 pr-2 py-0.5 rounded-full" style={{ backgroundColor: primary }}>
+          <span className="inline-flex items-center gap-1 max-w-full pl-0.5 pr-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}>
             {teamLogo && (
               <span className="w-3.5 h-3.5 rounded-full bg-white p-px flex items-center justify-center flex-shrink-0">
                 <img src={teamLogo} alt="" className="w-full h-full object-contain" />
               </span>
             )}
-            <FittedTeamName name={schoolName} abbr={schoolAbbr} className="text-[10px] font-bold uppercase tracking-wide" style={{ color: pillText }} />
+            <FittedTeamName name={schoolName} abbr={schoolAbbr} className="text-[10px] font-bold uppercase tracking-wide" style={{ color: txt }} />
           </span>
-          {klass && <span className="text-[11px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }}>{klass}</span>}
+          {klass && <span className="text-[11px] flex-shrink-0" style={{ color: txt, opacity: 0.72 }}>{klass}</span>}
         </div>
       </div>
     </div>
   )
-  const bg = `linear-gradient(90deg, ${hexA(primary, 0.42)} 0%, ${hexA(primary, 0.16)} 55%, ${hexA(primary, 0.05)} 100%), var(--surface-2)`
   return (
-    <div className="rounded-lg overflow-hidden border border-surface-4" style={{ background: bg }}>
+    <div
+      className="cfb-texture rounded-lg overflow-hidden relative"
+      style={{
+        backgroundColor: primary,
+        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)',
+        border: '1px solid rgba(0,0,0,0.3)',
+      }}
+    >
       {to
         ? <Link to={to} className="block hover:brightness-110 transition-[filter]">{inner}</Link>
         : inner}
