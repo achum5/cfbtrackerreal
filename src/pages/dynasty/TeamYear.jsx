@@ -3573,18 +3573,12 @@ export default function TeamYear() {
                     { key: 'pass', label: 'Pass', fmt: (p) => `${p.comp}/${p.att} ${p.yards} yds` },
                     { key: 'rush', label: 'Rush', fmt: (p) => `${p.carries} car ${p.yards} yds` },
                     { key: 'rec',  label: 'Rec',  fmt: (p) => `${p.rec} rec ${p.yards} yds` },
-                  ].map(({ key, label, fmt }) => {
+                  ].map(({ key, fmt }) => {
                     const our = lastGameStats[key]?.our
                     const opp = lastGameStats[key]?.opp
                     if (!our && !opp) return null
                     return (
-                      <div key={key} className="grid grid-cols-[auto_1fr_1fr] items-center gap-4">
-                        <span
-                          className="font-bold uppercase"
-                          style={{ letterSpacing: '1.5px', color: '#fff', opacity: 0.55, fontSize: '10px', minWidth: '34px' }}
-                        >
-                          {label}
-                        </span>
+                      <div key={key} className="grid grid-cols-2 items-center gap-4">
                         <div className="flex flex-col min-w-0">
                           {our ? (
                             <>

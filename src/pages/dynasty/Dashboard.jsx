@@ -82,7 +82,7 @@ const normalizePlayerName = (name) => {
 function renderTodoList({ todos, isViewOnly }) {
   if (!todos || todos.length === 0) return null
   return (
-    <div className="media-card overflow-hidden">
+    <div>
       {todos.map((todo, idx) => (
         <div
           key={todo.key}
@@ -3561,7 +3561,7 @@ export default function Dashboard() {
             }
 
             return (
-              <div className="media-card overflow-hidden">
+              <div>
                 {todos.map((todo, idx) => (
                   <div
                     key={todo.key}
@@ -3868,7 +3868,7 @@ export default function Dashboard() {
               if (todos.length === 0) return null
 
               return (
-                <div className="media-card overflow-hidden">
+                <div>
                   {todos.map((todo, idx) => (
                     <div
                       key={todo.key}
@@ -4174,7 +4174,7 @@ export default function Dashboard() {
             }
 
             return (
-              <div className="media-card overflow-hidden">
+              <div>
                 {todos.map((todo, idx) => (
                   <div
                     key={todo.key}
@@ -4239,8 +4239,8 @@ export default function Dashboard() {
         </div>
       ) : currentDynasty.currentPhase === 'postseason' ? (
         // Postseason / Bowl Weeks
-        <div className="media-card overflow-hidden">
-          <div className="px-4 pt-3 pb-4 sm:px-6 sm:pt-3 sm:pb-6">
+        <div>
+          <div className="space-y-3">
           {(() => {
             const week = currentDynasty.currentWeek
             const currentYear = currentDynasty.currentYear
@@ -6155,8 +6155,8 @@ export default function Dashboard() {
           </div>
         </div>
       ) : currentDynasty.currentPhase === 'offseason' ? (
-        <div className="media-card overflow-hidden">
-          <div className="px-4 pt-3 pb-4 sm:px-6 sm:pt-3 sm:pb-6">
+        <div>
+          <div className="space-y-3">
           {(() => {
             const week = currentDynasty.currentWeek
 

@@ -966,14 +966,17 @@ export default function Game() {
     if (hasScoringSummary) return 'scoring'
     if (hasRecap) return 'recap'
     if (hasTeamStatsData) return 'stats'
-    if (hasRatingsData) return 'ratings'
     if (hasAwardsData) return 'awards'
     if (hasCardsData) return 'cards'
     if (hasPhotosData || hasScoreGraphicData) return 'photos'
     return 'gamecast' // empty state — gamecast will render its own placeholder
   })()
-  const effectiveDefaultTab = defaultTabPref === 'auto' ? autoDefaultTab : defaultTabPref
-  const activeTab = searchParams.get('tab') || effectiveDefaultTab
+  // 'ratings' is no longer its own tab (ratings live in Gamecast). Coerce any
+  // stale saved preference or shared ?tab=ratings link back to the auto default
+  // so nobody lands on the removed tab.
+  const effectiveDefaultTab = (defaultTabPref === 'auto' || defaultTabPref === 'ratings') ? autoDefaultTab : defaultTabPref
+  const requestedTab = searchParams.get('tab')
+  const activeTab = (requestedTab && requestedTab !== 'ratings') ? requestedTab : effectiveDefaultTab
 
   // Get user perspective for this game (if user's team was in it)
   const perspective = getUserGamePerspective(game, currentDynasty)
@@ -2066,7 +2069,6 @@ export default function Game() {
                 { key: 'scoring', label: 'Plays', shortLabel: 'Plays', show: hasScoringSummary },
                 { key: 'recap', label: 'Recap', shortLabel: 'Recap', show: hasRecap },
                 { key: 'stats', label: 'Team Stats', shortLabel: 'Stats', show: hasTeamStatsData },
-                { key: 'ratings', label: 'Ratings', shortLabel: 'Rtg', show: !isCPUGame && hasRatingsData },
                 { key: 'awards', label: 'Awards', shortLabel: 'Awards', show: !isCPUGame && hasAwardsData },
                 { key: 'cards', label: 'Cards', shortLabel: 'Cards', show: hasCardsData },
                 { key: 'photos', label: hasPhotosData ? 'Photos' : 'Graphic', shortLabel: hasPhotosData ? 'Photos' : 'Graphic', show: hasPhotosData || hasScoreGraphicData },
@@ -2108,7 +2110,6 @@ export default function Game() {
                 <option value="scoring">Scoring</option>
                 <option value="stats">Team Stats</option>
                 <option value="recap">Recap</option>
-                <option value="ratings">Ratings</option>
                 <option value="awards">Awards</option>
               </select>
             </div>
@@ -2416,7 +2417,7 @@ export default function Game() {
                   {hasRatings && (
                     <div>
                       <SectionHead>Team Ratings</SectionHead>
-                      <div className="space-y-2">
+                      <div className="rounded-lg overflow-hidden">
                         {[[leftData, leftRatings], [rightData, rightRatings]].map(([team, ratings], idx) => {
                           if (!hasAnyRatings(ratings)) return null
                           const other = idx === 0 ? rightRatings : leftRatings
@@ -2435,7 +2436,7 @@ export default function Game() {
                             <Link
                               key={idx}
                               to={`${pathPrefix}/team/${resolveTid(team.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`}
-                              className="cfb-texture group flex items-center gap-3 rounded-lg py-2 pl-2 pr-3 overflow-hidden hover:brightness-110 transition-all"
+                              className="cfb-texture group flex items-center gap-3 py-2 pl-2 pr-3 overflow-hidden hover:brightness-110 transition-all"
                               style={{ backgroundColor: color, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
                               <div className="w-9 h-9 rounded-md flex items-center justify-center p-1 bg-white shadow-sm flex-shrink-0">
