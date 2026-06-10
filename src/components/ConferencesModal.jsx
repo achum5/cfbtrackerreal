@@ -246,7 +246,7 @@ FINAL CHECK before you send
           // AuthErrorModal fires; fall back to a toast for anything
           // else so the user knows the save didn't go through.
           if (!auth.handleError(error)) {
-            toast.error('Failed to create the conferences sheet — try again or contact support.')
+            toast.error('Failed to create the conferences sheet. Try again or contact support.')
           }
         } finally {
           setCreatingSheet(false)
@@ -354,7 +354,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)

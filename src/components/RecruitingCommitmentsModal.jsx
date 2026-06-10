@@ -62,7 +62,7 @@ export default function RecruitingCommitmentsModal({
   const [regenerating, setRegenerating] = useState(false)
 
   const aiPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Recruiting Commitments — ${recruitingLabel || ''}`.trim(),
+    title: `${currentYear} Recruiting Commitments: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments".
 The header row (row 1) is pre-filled and PROTECTED. Commitments already entered occupy the rows above the paste point. Output ONLY the NEW commitments visible in the screenshots attached to THIS request — one row per new recruit (up to 35 total per class). Do NOT re-output commitments that are already in the sheet or from a prior week; the user pastes your rows BELOW the ones already entered.
 
@@ -370,7 +370,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)
@@ -400,7 +400,7 @@ FINAL CHECK before you send
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <SheetModalHeader eyebrow="Recruiting" title={`Commitments — ${recruitingLabel}`} onClose={handleClose} />
+        <SheetModalHeader eyebrow="Recruiting" title={`Commitments: ${recruitingLabel}`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {currentPhase !== 'offseason' && (

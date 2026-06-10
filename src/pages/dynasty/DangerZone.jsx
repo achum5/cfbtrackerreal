@@ -223,7 +223,7 @@ export default function DangerZone() {
 
       const lines = []
       if (serverFetchFailed) {
-        lines.push('⚠️  COULD NOT READ FROM FIRESTORE — falling back to in-memory state.')
+        lines.push('⚠️  COULD NOT READ FROM FIRESTORE. Falling back to in-memory state.')
         lines.push('   Numbers may overstate the actual main-doc size. Check console for the error.')
         lines.push('')
       }
@@ -2179,7 +2179,7 @@ export default function DangerZone() {
          
           size="sm"
           title="Use With Caution"
-          subtitle="Known to corrupt records on dynasties started on older builds — back up first."
+          subtitle="Known to corrupt records on dynasties started on older builds. Back up first."
         />
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
           <ActionCard

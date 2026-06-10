@@ -184,7 +184,7 @@ const ImageUpload = forwardRef(function ImageUpload({
         return false
       }
       onChange(cleanUrl)
-      toast.success('Image URL set. If it stops loading later, paste again — some hosts expire links.')
+      toast.success('Image URL set. If it stops loading later, paste again; some hosts expire links.')
       return true
     }
   }

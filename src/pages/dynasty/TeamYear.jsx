@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
-import { TabBar, StatRings } from '../../components/CfbUI'
+import { StatRings } from '../../components/CfbUI'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
@@ -28,7 +28,6 @@ import { sortGamesNewestFirst } from '../../utils/gameOrder'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { useToast } from '../../components/ui/Toast'
 import FittedPlayerName from '../../components/ui/FittedPlayerName'
-import FittedTeamName from '../../components/ui/FittedTeamName'
 import GameResultRow from '../../components/ui/GameResultRow'
 import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTable'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
@@ -2632,31 +2631,34 @@ export default function TeamYear() {
     <div className="space-y-4 sm:space-y-6 relative isolate">
       {/* Team Header */}
       <div
-        className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong cfb-watermark"
+        className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong"
         style={{
           backgroundColor: teamInfo.backgroundColor,
           backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
           // Tuck the logo watermark just left of the conference logo at a fixed
           // offset, whether or not the rating rings are shown — it reads behind
           // the rings (opacity 0.1) rather than getting pushed off to the left.
+          // The watermark itself rides the hero-content row (below) so it stays
+          // above the docked tab nav instead of bleeding across it.
           ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
-        {/* Edit button — mobile only, pinned to the corner so it never becomes a
-            stray row under the identity. Desktop has its own in the RIGHT group. */}
-        {!isViewOnly && (
-          <button
-            onClick={() => setShowTeamEditModal(true)}
-            className="sm:hidden absolute bottom-3 right-3 z-[1] p-2 rounded-lg hover:bg-black/20 transition-colors"
-            style={{ color: teamBgText }}
-            title="Edit Team Info"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-        )}
-        <div className="relative p-4 sm:p-5 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="relative p-4 sm:p-5 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
+          {/* Edit button — mobile only, pinned to the bottom-right of the hero
+              CONTENT row so it stays above the docked tab nav and never overlaps
+              the tabs. Desktop has its own in the RIGHT group. */}
+          {!isViewOnly && (
+            <button
+              onClick={() => setShowTeamEditModal(true)}
+              className="sm:hidden absolute bottom-2 right-2 z-[2] p-2 rounded-lg hover:bg-black/20 transition-colors"
+              style={{ color: teamBgText }}
+              title="Edit Team Info"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
           {/* LEFT: logo + identity (name / season / record). flex-1 so the
               name truncates instead of shoving the rating rings off-screen on
               mobile, where the rings now sit inline at the top-right. */}
@@ -2729,12 +2731,17 @@ export default function TeamYear() {
                   changes teams. */}
               <div className="relative inline-flex items-center gap-1.5 min-w-0">
                 <div className="leading-[0.92] min-w-0">
-                  <FittedTeamName
-                    name={getSchoolName(mascotName) || teamInfo.name}
-                    abbr={teamAbbr}
-                    className="font-display font-extrabold uppercase tracking-tight"
+                  {/* Mobile shows the abbreviation (tight space); from sm: up
+                      there's room for the full school name. Plain responsive
+                      swap — the measuring FittedTeamName collapses in this
+                      content-sized lockup and gets stuck on the abbr. */}
+                  <div
+                    className="font-display font-extrabold uppercase tracking-tight truncate"
                     style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}
-                  />
+                  >
+                    <span className="sm:hidden">{teamAbbr}</span>
+                    <span className="hidden sm:inline">{getSchoolName(mascotName) || teamInfo.name}</span>
+                  </div>
                   {(() => {
                     const sch = getSchoolName(mascotName) || ''
                     const masc = (mascotName || '').slice(sch.length).trim()
@@ -3160,6 +3167,49 @@ export default function TeamYear() {
             )}
           </div>
         </div>
+
+        {/* Tab nav docked to the bottom edge of the hero masthead so it reads
+            as part of the team header, not a floating strip below it. */}
+        <div className="relative mt-2 sm:mt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
+          <div className="flex overflow-x-auto no-scrollbar">
+            {[
+              { key: 'home', label: 'Home' },
+              { key: 'schedule', label: 'Schedule' },
+              { key: 'stats', label: 'Stats' },
+              { key: 'depthchart', label: 'Depth Chart' },
+              { key: 'roster', label: 'Roster' },
+              { key: 'recruiting', label: 'Recruiting' },
+              ...(departures.length > 0 ? [{ key: 'departures', label: 'Departures' }] : []),
+              { key: 'history', label: 'History' },
+            ].map(tab => {
+              const isActive = activeTab === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="relative flex-shrink-0 px-3 sm:px-4 lg:px-5 py-3 font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '0.85rem',
+                    letterSpacing: '0.06em',
+                    color: teamBgText,
+                    opacity: isActive ? 1 : 0.55,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {tab.label}
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-2 right-2 bottom-0 h-[3px] rounded-t-sm"
+                      style={{ backgroundColor: teamBgText }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Team-color wash — only on Home, where the team-colored sections sit on
@@ -3177,27 +3227,6 @@ export default function TeamYear() {
           }}
         />
       )}
-
-      {/* Tab Navigation — single sliding underline. Departures tab
-          is hidden when this team has nothing to show for the year
-          (most commonly the current season before the leaving sheet
-          is filled in) so it doesn't clutter the bar with an empty
-          page the user can't usefully navigate to. */}
-      <TabBar
-        tabs={[
-          { key: 'home', label: 'Home' },
-          { key: 'schedule', label: 'Schedule' },
-          { key: 'stats', label: 'Stats' },
-          { key: 'depthchart', label: 'Depth Chart' },
-          { key: 'roster', label: 'Roster' },
-          { key: 'recruiting', label: 'Recruiting' },
-          ...(departures.length > 0 ? [{ key: 'departures', label: 'Departures' }] : []),
-          { key: 'history', label: 'History' }
-        ]}
-        activeKey={activeTab}
-        onSelect={setActiveTab}
-        accentColor={teamInfo.backgroundColor}
-      />
 
       <div key={activeTab} className="reveal">
 
@@ -5223,24 +5252,28 @@ export default function TeamYear() {
               // Content for the detailed game display - matches Dashboard style
               // Home games: left accent bar in team color, Away games: plain background
               const isHomeGame = displayLocation === 'home' || displayLocation === 'Home'
+              const rowAccent = oppColors.backgroundColor || '#6b7280'
+              const rowText = getContrastTextColor(rowAccent)
+              const rowTextMuted = `${rowText}b3`
               const gameContent = (
                 <div
-                  className="relative py-2.5 sm:py-3 transition-all duration-200"
+                  className="relative py-2.5 sm:py-3 cfb-texture transition-[filter] duration-150 hover:brightness-[1.08]"
                   style={{
                     paddingLeft: '1rem',
                     paddingRight: '1rem',
-                    background: `linear-gradient(90deg, ${oppColors.backgroundColor || '#6b7280'}4d 0%, ${oppColors.backgroundColor || '#6b7280'}1f 42%, var(--surface-2) 82%)`,
+                    backgroundColor: rowAccent,
+                    backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)',
                   }}
                 >
                   {/* Main game row */}
                   <div className="flex items-center gap-3">
                     {/* Week number */}
-                    <span className="w-10 text-xs sm:text-sm font-medium flex-shrink-0" style={{ color: accentColorMuted }}>
+                    <span className="w-10 text-xs sm:text-sm font-medium flex-shrink-0" style={{ color: rowTextMuted }}>
                       {weekLabel}
                     </span>
 
                     {/* Team Logo */}
-                    <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '4px' }}>
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                       {oppLogo ? (
                         <img src={oppLogo} alt={oppMascot || displayOpponent} className="w-full h-full object-contain" />
                       ) : (
@@ -5258,22 +5291,22 @@ export default function TeamYear() {
                             #{game.opponentRank}
                           </span>
                         )}
-                        <span className="text-sm font-semibold truncate" style={{ color: accentColor }}>
+                        <span className="text-sm font-semibold truncate" style={{ color: rowText }}>
                           {oppMascot || displayOpponent}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {game.isCFPFirstRound ? (
                           /* CFP R1 games are hosted by higher seed - show Home/Away */
-                          <span className="text-[10px]" style={{ color: accentColorMuted }}>
+                          <span className="text-[10px]" style={{ color: rowTextMuted }}>
                             {displayLocation === 'away' ? 'Away' : displayLocation === 'neutral' ? 'Neutral' : 'Home'}
                           </span>
                         ) : (game.isBowlGame || game.isConferenceChampionship || game.isCFPSemifinal || game.isCFPQuarterfinal || game.isCFPChampionship) ? (
-                          <span className="text-[10px]" style={{ color: accentColorMuted }}>
+                          <span className="text-[10px]" style={{ color: rowTextMuted }}>
                             {game.bowlName || (game.isConferenceChampionship ? 'CCG' : game.isCFPChampionship ? 'Natl Champ' : game.isCFPSemifinal ? 'CFP SF' : game.isCFPQuarterfinal ? 'CFP QF' : '')}
                           </span>
                         ) : (
-                          <span className="text-[10px]" style={{ color: accentColorMuted }}>
+                          <span className="text-[10px]" style={{ color: rowTextMuted }}>
                             {displayLocation === 'away' ? 'Away' : displayLocation === 'neutral' ? 'Neutral' : 'Home'}
                           </span>
                         )}
@@ -5287,7 +5320,7 @@ export default function TeamYear() {
                           <span className={`text-sm font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>
                             {isWin ? 'W' : 'L'}
                           </span>
-                          <span className="text-sm font-bold tabular-nums" style={{ color: accentColor }}>
+                          <span className="text-sm font-bold tabular-nums" style={{ color: rowText }}>
                             {displayTeamScore}-{displayOpponentScore}
                           </span>
                           {game.overtimes && game.overtimes.length > 0 && (
@@ -5295,7 +5328,7 @@ export default function TeamYear() {
                           )}
                         </>
                       ) : (
-                        <span className="text-sm" style={{ color: `${accentColor}40` }}>—</span>
+                        <span className="text-sm" style={{ color: `${rowText}40` }}>—</span>
                       )}
                     </div>
 
@@ -5309,17 +5342,17 @@ export default function TeamYear() {
                           {statLeaders?.topPasser && statLeaders.topPasser.yards > 0 ? (
                             <>
                               {statLeaders.topPasser.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topPasser.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${accentColor}20` }} />
+                                <img src={proxyImageUrl(statLeaders.topPasser.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
                               ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${accentColor}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: accentColorMuted }}>{statLeaders.topPasser.name.charAt(0)}</span>
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.charAt(0)}</span>
                                 </div>
                               )}
-                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: accentColorMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
-                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: accentColor }}>{statLeaders.topPasser.yards}</span>
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
+                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topPasser.yards}</span>
                             </>
                           ) : (
-                            <span className="text-xs" style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-xs" style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
@@ -5331,17 +5364,17 @@ export default function TeamYear() {
                           {statLeaders?.topRusher && statLeaders.topRusher.yards > 0 ? (
                             <>
                               {statLeaders.topRusher.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topRusher.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${accentColor}20` }} />
+                                <img src={proxyImageUrl(statLeaders.topRusher.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
                               ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${accentColor}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: accentColorMuted }}>{statLeaders.topRusher.name.charAt(0)}</span>
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.charAt(0)}</span>
                                 </div>
                               )}
-                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: accentColorMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
-                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: accentColor }}>{statLeaders.topRusher.yards}</span>
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
+                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topRusher.yards}</span>
                             </>
                           ) : (
-                            <span className="text-xs" style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-xs" style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
@@ -5353,17 +5386,17 @@ export default function TeamYear() {
                           {statLeaders?.topReceiver && statLeaders.topReceiver.yards > 0 ? (
                             <>
                               {statLeaders.topReceiver.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topReceiver.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${accentColor}20` }} />
+                                <img src={proxyImageUrl(statLeaders.topReceiver.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
                               ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${accentColor}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: accentColorMuted }}>{statLeaders.topReceiver.name.charAt(0)}</span>
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.charAt(0)}</span>
                                 </div>
                               )}
-                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: accentColorMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
-                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: accentColor }}>{statLeaders.topReceiver.yards}</span>
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
+                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topReceiver.yards}</span>
                             </>
                           ) : (
-                            <span className="text-xs" style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-xs" style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
@@ -5375,17 +5408,17 @@ export default function TeamYear() {
                           {statLeaders?.topTackler && statLeaders.topTackler.tackles > 0 ? (
                             <>
                               {statLeaders.topTackler.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topTackler.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${accentColor}20` }} />
+                                <img src={proxyImageUrl(statLeaders.topTackler.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
                               ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${accentColor}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: accentColorMuted }}>{statLeaders.topTackler.name.charAt(0)}</span>
+                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
+                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.charAt(0)}</span>
                                 </div>
                               )}
-                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: accentColorMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
-                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: accentColor }}>{statLeaders.topTackler.tackles}</span>
+                              <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
+                              <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topTackler.tackles}</span>
                             </>
                           ) : (
-                            <span className="text-xs" style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-xs" style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
                       </div>
@@ -5393,69 +5426,69 @@ export default function TeamYear() {
 
                   {/* Stat Leaders - Mobile: compact second row */}
                   {hasResult && statLeaders && (
-                    <div className="md:hidden mt-1.5 pt-1.5 border-t" style={{ borderColor: `${accentColor}15` }}>
+                    <div className="md:hidden mt-1.5 pt-1.5 border-t" style={{ borderColor: `${rowText}15` }}>
                       <div className="grid grid-cols-4 gap-1">
                         {/* PASS */}
                         <div className="text-center min-w-0">
-                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: accentColorMuted }}>Pass</div>
+                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: rowTextMuted }}>Pass</div>
                           {statLeaders.topPasser && statLeaders.topPasser.yards > 0 ? (
                             <div
                               className={`flex flex-col items-center ${statLeaders.topPasser.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topPasser.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topPasser.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: accentColorMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
-                              <span className="text-[10px] font-semibold" style={{ color: accentColor }}>{statLeaders.topPasser.yards}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
+                              <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topPasser.yards}</span>
                             </div>
                           ) : (
-                            <span className="text-[10px] " style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-[10px] " style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
                         {/* RUSH */}
                         <div className="text-center min-w-0">
-                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: accentColorMuted }}>Rush</div>
+                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: rowTextMuted }}>Rush</div>
                           {statLeaders.topRusher && statLeaders.topRusher.yards > 0 ? (
                             <div
                               className={`flex flex-col items-center ${statLeaders.topRusher.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topRusher.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topRusher.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: accentColorMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
-                              <span className="text-[10px] font-semibold" style={{ color: accentColor }}>{statLeaders.topRusher.yards}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
+                              <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topRusher.yards}</span>
                             </div>
                           ) : (
-                            <span className="text-[10px] " style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-[10px] " style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
                         {/* REC */}
                         <div className="text-center min-w-0">
-                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: accentColorMuted }}>Rec</div>
+                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: rowTextMuted }}>Rec</div>
                           {statLeaders.topReceiver && statLeaders.topReceiver.yards > 0 ? (
                             <div
                               className={`flex flex-col items-center ${statLeaders.topReceiver.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topReceiver.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topReceiver.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: accentColorMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
-                              <span className="text-[10px] font-semibold" style={{ color: accentColor }}>{statLeaders.topReceiver.yards}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
+                              <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topReceiver.yards}</span>
                             </div>
                           ) : (
-                            <span className="text-[10px] " style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-[10px] " style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
 
                         {/* TACKLES */}
                         <div className="text-center min-w-0">
-                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: accentColorMuted }}>Tackles</div>
+                          <div className="text-[7px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: rowTextMuted }}>Tackles</div>
                           {statLeaders.topTackler && statLeaders.topTackler.tackles > 0 ? (
                             <div
                               className={`flex flex-col items-center ${statLeaders.topTackler.player?.pid ? 'cursor-pointer' : ''}`}
                               onClick={statLeaders.topTackler.player?.pid ? (e) => { e.preventDefault(); e.stopPropagation(); navigate(`${pathPrefix}/player/${statLeaders.topTackler.player.pid}`) } : undefined}
                             >
-                              <span className="text-[8px] truncate max-w-full" style={{ color: accentColorMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
-                              <span className="text-[10px] font-semibold" style={{ color: accentColor }}>{statLeaders.topTackler.tackles}</span>
+                              <span className="text-[8px] truncate max-w-full" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
+                              <span className="text-[10px] font-semibold" style={{ color: rowText }}>{statLeaders.topTackler.tackles}</span>
                             </div>
                           ) : (
-                            <span className="text-[10px] " style={{ color: `${accentColor}40` }}>—</span>
+                            <span className="text-[10px] " style={{ color: `${rowText}40` }}>—</span>
                           )}
                         </div>
                       </div>
@@ -6674,7 +6707,6 @@ export default function TeamYear() {
                         >
                           <td className="px-4 py-2.5 tabular-nums" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                             {yr.year}
-                            {isCurrent && <span className="ml-2 text-[9px] font-bold uppercase" style={{ letterSpacing: '1px', color: teamInfo.backgroundColor }}>Current</span>}
                           </td>
                           <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: yr.hasRecord ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>{yr.hasRecord ? `${yr.wins}-${yr.losses}` : '—'}</td>
                           <td className="px-4 py-2.5 tabular-nums font-semibold" style={{ color: yr.finalRank ? '#eab308' : 'var(--text-tertiary)' }}>{yr.finalRank ? `#${yr.finalRank}` : '—'}</td>

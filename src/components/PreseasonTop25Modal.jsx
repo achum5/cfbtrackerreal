@@ -78,7 +78,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
       } catch (error) {
         console.error('[PreseasonTop25Modal] sheet create failed:', error)
         if (!auth.handleError(error)) {
-          toast.error('Failed to create the rankings sheet — try again.')
+          toast.error('Failed to create the rankings sheet. Try again.')
         }
       } finally {
         setCreatingSheet(false)
@@ -240,7 +240,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
       onClose?.()
     } catch (error) {
       console.error('[PreseasonTop25Modal] sheet sync failed:', error)
-      if (!auth.handleError(error)) toast.error('Failed to read the sheet — try again.')
+      if (!auth.handleError(error)) toast.error('Failed to read the sheet. Try again.')
     } finally {
       setSyncing(false)
     }
@@ -266,7 +266,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
       onClose?.()
     } catch (error) {
       console.error('[PreseasonTop25Modal] sheet delete failed:', error)
-      if (!auth.handleError(error)) toast.error('Failed to delete the sheet — try again.')
+      if (!auth.handleError(error)) toast.error('Failed to delete the sheet. Try again.')
     } finally {
       setDeletingSheet(false)
     }

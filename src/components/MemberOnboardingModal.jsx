@@ -177,7 +177,7 @@ export default function MemberOnboardingModal() {
     >
       <p className="text-sm text-txt-secondary mb-4">
         Set your name and pick the team you're coaching. The rest of the app uses these to
-        attribute games, awards, and recruits to your career — you can always tweak them on the
+        attribute games, awards, and recruits to your career; you can always tweak them on the
         Members page later.
       </p>
 

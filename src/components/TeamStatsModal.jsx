@@ -285,7 +285,7 @@ FINAL CHECK before you send the answer
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)
@@ -332,7 +332,7 @@ FINAL CHECK before you send the answer
               role="note"
             >
               <span className="text-txt-primary font-semibold">Skip this if you've been entering box scores game-by-game.</span>
-              {' '}Team stats are aggregated from box scores — this sheet is only for end-of-season catch-up if you skipped per-game entry.
+              {' '}Team stats are aggregated from box scores. This sheet is only for end-of-season catch-up if you skipped per-game entry.
             </div>
             <SheetModalAIHero
               tagline="Skip the typing. Let AI fill the team stats."

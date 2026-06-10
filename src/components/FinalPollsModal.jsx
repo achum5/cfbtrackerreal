@@ -190,7 +190,7 @@ FINAL CHECK before you send
         } catch (error) {
           console.error('Failed to create final polls sheet:', error)
           if (!auth.handleError(error)) {
-            toast.error('Failed to create the final polls sheet — try again or contact support.')
+            toast.error('Failed to create the final polls sheet. Try again or contact support.')
           }
         } finally {
           setCreatingSheet(false)
@@ -288,7 +288,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)

@@ -43,7 +43,7 @@ export default class PlayerErrorBoundary extends Component {
           <p className="text-sm text-txt-secondary mb-6">
             One of the fields on this player record is in a shape the page
             doesn't know how to display. Open the editor to inspect and
-            re-save — that triggers an auto-clean of any malformed data.
+            re-save, which triggers an auto-clean of any malformed data.
           </p>
           <pre className="text-[11px] text-txt-tertiary bg-surface-2 rounded-md p-3 mb-6 text-left overflow-auto max-h-32">
             {message}

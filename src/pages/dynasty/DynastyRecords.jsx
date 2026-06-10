@@ -26,7 +26,7 @@ const STAT_CATEGORIES = {
   // box-score production. See src/utils/approximateValue.js.
   production: {
     name: 'Approximate Value',
-    minNote: 'Approximate Value — one cross-position production score (PFR-AV inspired). Higher = more total production. Top single-season around 15-22.',
+    minNote: 'Approximate Value: one cross-position production score (PFR-AV inspired). Higher = more total production. Top single-season around 15-22.',
     stats: [
       { key: 'av', label: 'Approximate Value', abbr: 'AV', calculated: true, format: 'av' },
     ]
@@ -509,8 +509,8 @@ export default function DynastyRecords() {
           }
         })
         const label = mode === 'career'
-          ? '[AV] Career leaders — top 25 with per-role breakdown'
-          : '[AV] Single-season leaders — top 25 with per-role breakdown'
+          ? '[AV] Career leaders: top 25 with per-role breakdown'
+          : '[AV] Single-season leaders: top 25 with per-role breakdown'
         // eslint-disable-next-line no-console
         console.groupCollapsed(label)
         // eslint-disable-next-line no-console
@@ -855,7 +855,7 @@ export default function DynastyRecords() {
             : rank === 3 ? 'rgba(205, 127, 50, 0.95)'
             : rank <= 10 ? 'var(--text-primary)' : 'var(--text-tertiary)'
           return (
-            <div className="media-card records-card overflow-hidden">
+            <div className="media-card records-card overflow-hidden max-w-4xl mx-auto">
               <div className="p-3" style={{ borderBottom: '1px solid var(--surface-4)' }}>
                 <input
                   type="text"

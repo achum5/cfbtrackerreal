@@ -55,7 +55,7 @@ export default function SheetLoadingHint({ active, delayMs = 60000 }) {
             Taking longer than expected?
           </div>
           <div className="text-amber-100/80 leading-relaxed">
-            Google Drive storage may be full — sheets can't be created when it is.
+            Google Drive storage may be full. Sheets can't be created when it is.
             Check at{' '}
             <a
               href="https://one.google.com/storage"

@@ -108,7 +108,7 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
 
   const handleSave = async () => {
     if (isViewOnly) {
-      toast.error('Read-only mode — cannot save.')
+      toast.error('Read-only mode, cannot save.')
       return
     }
     const trimmed = draft.trim()
@@ -246,7 +246,7 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
                 <span>
                   Rankings have changed for {recapDrift.count}{' '}
                   team{recapDrift.count === 1 ? '' : 's'} since this recap was generated.
-                  The text below may reference outdated rank numbers — regenerate to refresh.
+                  The text below may reference outdated rank numbers; regenerate to refresh.
                 </span>
               </div>
             )}

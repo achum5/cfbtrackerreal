@@ -1478,7 +1478,7 @@ export default function PlayerEdit() {
                   Photos
                 </h2>
                 <p className="mt-1 text-xs text-txt-tertiary">
-                  Upload images of this player — they appear on the Photos tab of the player page.
+                  Upload images of this player; they appear on the Photos tab of the player page.
                 </p>
               </div>
               <div className="p-5 space-y-3">
@@ -1969,7 +1969,7 @@ export default function PlayerEdit() {
                             }
                             if (er === 'juco_in') return { text: 'JUCO Transfer', color: '#3b82f6' }
                             if (er === 'walk_on') return { text: 'Walk-On', color: '#a78bfa' }
-                            if (er === 'created') return { text: 'Created', color: '#6b7280' }
+                            if (er === 'created') return { text: 'Created', color: 'var(--text-tertiary)' }
                             return null
                           }
                           if (prevType === 'entered_portal') {

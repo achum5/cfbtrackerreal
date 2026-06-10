@@ -590,7 +590,7 @@ export default function Layout({ children }) {
               <Link
                 to="/"
                 className="flex-shrink-0 relative inline-block"
-                aria-label="Dynasty Tracker — beta"
+                aria-label="Dynasty Tracker (beta)"
               >
                 <img src={logo} alt="Dynasty Tracker" className="h-8 sm:h-10 object-contain" />
                 {/* BETA tag — sits on top of the logo's upper-right corner

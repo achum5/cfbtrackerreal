@@ -202,7 +202,7 @@ FINAL CHECK before you send
         } catch (error) {
           console.error('Failed to create conference standings sheet:', error)
           if (!auth.handleError(error)) {
-            toast.error('Failed to create the conference standings sheet — try again or contact support.')
+            toast.error('Failed to create the conference standings sheet. Try again or contact support.')
           }
         } finally {
           setCreatingSheet(false)
@@ -301,7 +301,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)
@@ -355,7 +355,7 @@ FINAL CHECK before you send
               role="note"
             >
               <span className="text-txt-primary font-semibold">Skip this if you've been entering weekly scores all season.</span>
-              {' '}Standings are computed from your saved game results — this sheet is only for end-of-season catch-up if you skipped weekly entry.
+              {' '}Standings are computed from your saved game results. This sheet is only for end-of-season catch-up if you skipped weekly entry.
             </div>
             <SheetModalAIHero
               tagline="Skip the typing. Let AI fill the conference standings."

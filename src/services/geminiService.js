@@ -3953,7 +3953,7 @@ The closing paragraph lands on a FACT — records finalized, bowl eligibility, n
 ═══════════════════════════════════════════════════════════
 RULE D — PROSE DISCIPLINE (em-dashes, sentence rhythm, stats do work)
 ═══════════════════════════════════════════════════════════
-(1) EM-DASH BUDGET. Max 4 em-dashes (—) across the entire article. ESPN beat copy uses commas, periods, and parentheses — em-dashes are the AI tell. If you've used four and want a fifth, rewrite the sentence.
+(1) EM-DASHES. NEVER use an em dash (—) in the article prose. The ONLY permitted em-dash is the standard dateline ("City, ST —", see formatting rules). Everywhere else, the em-dash is the AI tell: ESPN beat copy uses commas, periods, and parentheses. If a sentence seems to want one, rewrite it with a comma, colon, parentheses, or a period.
 
 (2) SENTENCE RHYTHM. Avoid the AI metronome (every sentence 15-25 words). Mix short reporting sentences ("Reed threw two interceptions.") with longer detail sentences ("Reed, who completed 33 of 44 passes for 494 yards and three touchdowns including an 82-yard catch-and-run by Tyler Gaskin, also lost 46 yards on eight rushing attempts.").
 
@@ -4057,7 +4057,7 @@ Read your draft top to bottom. Honest answers. If any answer is no, REWRITE befo
   10. BANNED VERBS — any of "rolled, drilled, flattened, crushed, edged, topped, hammered, handled, dropped" used more than twice?
   11. RANK / RESUME COUNT — total rank refs ≤ 2 per team? Rank-movement claims ≤ 1? Résumé claims ≤ 1 per team? CFP projection claims ≤ 1 total?
   12. Does my CLOSING paragraph land on a FACT (record finalized, bowl eligibility, next opponent, regular season concluded) — NOT a column-y kicker, NOT a thematic flourish, NOT "that says something about..."
-  13. EM-DASH count ≤ 4 across the whole article?
+  13. EM-DASH count = 0 in the prose (the dateline "City, ST —" is the only allowed em dash)?
   14. SENTENCE RHYTHM: am I mixing short reporting sentences with longer detail sentences, or is every sentence in the 15-25 word AI band?
   15. HEADLINE check: ESPN news-style? Sentence case, 6-12 words, reports the result, no clever-with-a-period twist, no "[Team] Lost by X Anyway", no "[Team] Survives ___" unless margin ≤ 7. Would this headline read at home on ESPN.com Sunday morning?
   16. SUBHEAD check (if used): each is a SHORT NEWS LABEL (3-5 words, no verbs), NOT a column-y phrase? If they sound like article-section titles in a column, rewrite as labels or drop subheads entirely.
@@ -4078,7 +4078,7 @@ Your ENTIRE response must be wrapped in a single fenced code block so the user c
 
 FORMAT (the markdown that goes INSIDE the fence):
 - HEADLINE on its own line as a level-1 heading (e.g., "# Kentucky beats Louisville 45-27 behind Dahl's three touchdowns"). Sentence case.
-- DATELINE on its own line if the game has a home team: "City, ST —" in EXACTLY this format — two-letter state abbreviation, a space, an em-dash "—", a space, then the first sentence of the lede. Examples: "Lexington, KY — Kentucky..." or "Madison, WI — The Badgers...". Use the home team's city. For neutral-site games (bowls, CFP, conference championships), omit the dateline.
+- DATELINE on its own line if the game has a home team: "City, ST —" in EXACTLY this format — two-letter state abbreviation, a space, an em-dash "—", a space, then the first sentence of the lede. Examples: "Lexington, KY — Kentucky..." or "Madison, WI — The Badgers...". Use the home team's city. (This dateline em-dash is the ONE permitted exception to the no-em-dash rule.) For neutral-site games (bowls, CFP, conference championships), omit the dateline.
 - NEVER write the phrase "at a neutral site" (or "neutral-site game", "on a neutral field", etc.) in the prose. No real beat reporter says that. For bowls, CFP rounds, and conference championships, just name the event ("in the Sugar Bowl", "in the CFP first round", "in the SEC Championship Game") or simply state the result with no location at all.
 - SUBHEADS only if used (per RULE E) — level-2 markdown headings, short label form ("## Turning point").
 - **bold** for pivotal stats, decisive plays, and standout stat lines you want the reader's eye to land on. 3-6 boldings across the entire article is the sweet spot — don't over-bold.
@@ -4218,7 +4218,7 @@ HEADLINE — BLOG-POST TITLE:
 - ✗ "Kentucky beats Louisville 45-27" — wire style, not fan.
 
 PROSE DISCIPLINE (loosened from neutral):
-- Em-dash budget: up to ~8 (looser than neutral's 4). Fan voice uses dashes naturally.
+- Em-dashes: never use an em dash (—) except the standard dateline ("City, ST —"). Use commas, colons, parentheses, or separate sentences instead.
 - Sentence rhythm: anything goes — fragments are fine.
 - Stats still do work: every number should connect to a fact / opinion in the same sentence or next. Don't park decorative numbers.
 - ALL the columnist-mode banned phrases from the neutral rules STILL apply ("the numbers lied", "less dramatic than it sounds", "the obituary started writing itself", "in the most [Team] way imaginable") — those are AI tells, not fan voice. Fan voice has its OWN clichés (banned for fans too): "buckle up", "strap in", "let that sink in", "the boys are back", "all eyes on", "rebuilding job", "trust the process" without irony.

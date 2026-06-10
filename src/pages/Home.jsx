@@ -385,7 +385,7 @@ export default function Home() {
               Dynasty Tracker
             </h1>
             <p className="text-base sm:text-lg text-txt-secondary leading-relaxed max-w-2xl mb-8">
-              Track your EA College Football dynasty — box scores, recruiting,
+              Track your EA College Football dynasty: box scores, recruiting,
               postseason, all preserved across the years.
             </p>
 
@@ -443,8 +443,8 @@ export default function Home() {
                 <div className="px-5 py-4 sm:px-6 sm:py-5 flex items-center justify-between gap-4 flex-wrap">
                   <p className="text-sm text-txt-secondary">
                     {isPremium
-                      ? 'Premium — cloud sync enabled.'
-                      : 'Free — local-only storage. Upgrade to sync across devices.'}
+                      ? 'Premium: cloud sync enabled.'
+                      : 'Free: local-only storage. Upgrade to sync across devices.'}
                   </p>
                   {isPremium ? (
                     user && (
@@ -889,8 +889,8 @@ export default function Home() {
         />
         <div className="text-xs mt-4 mb-4 space-y-1 text-txt-muted">
           <p>Supported link formats:</p>
-          <p>Dropbox — share link or dl.dropboxusercontent.com</p>
-          <p>GitHub — raw file link or blob link</p>
+          <p>Dropbox: share link or dl.dropboxusercontent.com</p>
+          <p>GitHub: raw file link or blob link</p>
           <p>Any direct link to a .json file</p>
         </div>
         <div className="flex gap-3">

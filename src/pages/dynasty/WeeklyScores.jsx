@@ -896,7 +896,7 @@ export default function WeeklyScores() {
               title={displayWeek === -1 ? `No preseason recap for ${displayYear} yet` : `No recap for Week ${displayWeek} yet`}
               message={
                 isViewOnly
-                  ? 'Read-only — the dynasty owner can generate one.'
+                  ? 'Read-only. The dynasty owner can generate one.'
                   : 'Generates a prompt bundling every season fact we have for the AI to turn into a narrative recap.'
               }
               action={!isViewOnly && (

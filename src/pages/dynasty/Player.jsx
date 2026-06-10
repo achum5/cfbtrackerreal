@@ -12,7 +12,7 @@ import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
 import { sortGamesNewestFirst } from '../../utils/gameOrder'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
-import { TabBar, StatRings, CardSectionHeader } from '../../components/CfbUI'
+import { StatRings, CardSectionHeader } from '../../components/CfbUI'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
@@ -258,7 +258,7 @@ function PlayerInner() {
       <th
         key={column}
         className={`px-1.5 py-2.5 text-xs font-semibold uppercase cursor-pointer select-none transition-opacity hover:opacity-70 ${widthClass} text-${align}`}
-        style={{ color: '#6b7280', opacity: isActive ? 1 : 0.7 }}
+        style={{ color: 'var(--text-tertiary)', opacity: isActive ? 1 : 0.7 }}
         onClick={() => handleStatSort(category, column)}
         title={`Sort by ${label}`}
       >
@@ -1729,10 +1729,12 @@ function PlayerInner() {
       {/* Player Header — CFB 27 broadcast banner (team-color wash, chalk
           texture, contrast text). One responsive block for mobile + desktop. */}
       <div
-        className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong cfb-watermark"
+        className="card overflow-hidden relative reveal cfb-texture cfb-texture-strong"
         style={{
           backgroundColor: teamInfo.backgroundColor,
           backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)',
+          // Watermark var lives here but the class rides the identity row below,
+          // so the logo stays above the docked tab nav instead of bleeding over it.
           ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
@@ -1765,7 +1767,7 @@ function PlayerInner() {
             </button>
           )
         })()}
-        <div className="relative p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 cfb-watermark">
           {/* LEFT: photo + identity */}
           <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
             {player.pictureUrl && (
@@ -1820,7 +1822,7 @@ function PlayerInner() {
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                       style={{ backgroundColor: 'rgba(15,15,18,0.35)', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.35)', letterSpacing: '1px' }}
-                      title={`Transferred away${departureMovement.year ? ` (${departureMovement.year})` : ''} — no destination recorded`}
+                      title={`Transferred away${departureMovement.year ? ` (${departureMovement.year})` : ''}, no destination recorded`}
                     >
                       Transferred Away No destination
                     </span>
@@ -1828,7 +1830,7 @@ function PlayerInner() {
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold"
                       style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fde68a', border: '1px solid rgba(245, 158, 11, 0.6)', letterSpacing: '1px' }}
-                      title={`In transfer portal${departureMovement.year ? ` since ${departureMovement.year}` : ''}${departureMovement.reason ? ` — ${departureMovement.reason}` : ''}`}
+                      title={`In transfer portal${departureMovement.year ? ` since ${departureMovement.year}` : ''}${departureMovement.reason ? `, ${departureMovement.reason}` : ''}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#fbbf24' }} aria-hidden="true" />
                       In Portal
@@ -1994,69 +1996,86 @@ function PlayerInner() {
             {recruitmentStrip}
           </div>
         )}
-      </div>
 
-      {/* Award Plates — career honors summary (only render when the player has any) */}
-      {awardPlates.length > 0 && (
-        <div
-          onClick={() => setActiveTab('awards')}
-          className="flex flex-wrap gap-2 items-center cursor-pointer -mt-1 sm:-mt-2"
-          title="View all awards"
-        >
-          {awardPlates.map((p, i) => {
-            // Per-variant chrome; the trophy image (when the award has one) sits
-            // before the label in every variant.
-            const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide"
-            let cls = ''
-            let style = { fontFamily: "var(--font-display)", letterSpacing: '1px' }
-            if (p.variant === 'gold') {
-              style = { ...style, backgroundColor: '#fbbf24', color: '#78350f', boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.4), 0 2px 6px rgba(251, 191, 36, 0.25)' }
-            } else if (p.variant === 'silver') {
-              style = { ...style, backgroundColor: '#cbd5e1', color: '#1e293b', boxShadow: '0 0 0 1px rgba(148, 163, 184, 0.45), 0 2px 6px rgba(148, 163, 184, 0.2)' }
-            } else if (p.variant === 'accent') {
-              cls = 'text-txt-primary'
-              style = { ...style, backgroundColor: 'var(--surface-2)', border: `1px solid ${teamInfo.backgroundColor}` }
-            } else {
-              cls = 'text-txt-secondary'
-              style = { ...style, backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }
-            }
-            return (
-              <span key={i} className={`${base} ${cls}`} style={style}>
-                {p.img && <img src={p.img} alt="" className="h-5 w-5 object-contain flex-shrink-0 -ml-1" />}
-                {p.label}
-              </span>
-            )
-          })}
+        {/* Award plates — career honors summary, docked into the header above
+            the tab nav (sits under all other identity info). */}
+        {awardPlates.length > 0 && (
+          <div
+            onClick={() => setActiveTab('awards')}
+            className="relative px-4 sm:px-5 py-2 flex flex-wrap gap-2 items-center cursor-pointer"
+            style={{ borderTop: `1px solid ${teamBgText}26` }}
+            title="View all awards"
+          >
+            {awardPlates.map((p, i) => {
+              const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide"
+              let cls = ''
+              let style = { fontFamily: "var(--font-display)", letterSpacing: '1px' }
+              if (p.variant === 'gold') {
+                style = { ...style, backgroundColor: '#fbbf24', color: '#78350f', boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.4), 0 2px 6px rgba(251, 191, 36, 0.25)' }
+              } else if (p.variant === 'silver') {
+                style = { ...style, backgroundColor: '#cbd5e1', color: '#1e293b', boxShadow: '0 0 0 1px rgba(148, 163, 184, 0.45), 0 2px 6px rgba(148, 163, 184, 0.2)' }
+              } else if (p.variant === 'accent') {
+                cls = 'text-txt-primary'
+                style = { ...style, backgroundColor: 'var(--surface-2)', border: `1px solid ${teamInfo.backgroundColor}` }
+              } else {
+                cls = 'text-txt-secondary'
+                style = { ...style, backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }
+              }
+              return (
+                <span key={i} className={`${base} ${cls}`} style={style}>
+                  {p.img && <img src={p.img} alt="" className="h-5 w-5 object-contain flex-shrink-0 -ml-1" />}
+                  {p.label}
+                </span>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Tab nav docked to the bottom edge of the hero masthead so it reads
+            as part of the player header, not a floating strip below it. */}
+        <div className="relative mt-2 sm:mt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
+          <div className="flex overflow-x-auto no-scrollbar">
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'stats', label: 'Stats' },
+              { key: 'gamelog', label: 'Game Log' },
+              { key: 'timeline', label: 'Timeline' },
+              { key: 'awards', label: 'Awards' },
+              ...((Array.isArray(player.highlights) ? player.highlights : []).filter(Boolean).length > 0
+                ? [{ key: 'highlights', label: 'Highlights' }]
+                : []),
+              ...(getPlayerCards(player).length > 0 ? [{ key: 'card', label: 'Cards' }] : []),
+              ...(taggedPhotos.length > 0 ? [{ key: 'photos', label: 'Photos' }] : []),
+            ].map(tab => {
+              const isActive = activeTab === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="relative flex-shrink-0 px-3 sm:px-4 lg:px-5 py-3 font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: '0.85rem',
+                    letterSpacing: '0.06em',
+                    color: teamBgText,
+                    opacity: isActive ? 1 : 0.55,
+                    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {tab.label}
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-2 right-2 bottom-0 h-[3px] rounded-t-sm"
+                      style={{ backgroundColor: teamBgText }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      )}
-
-      {/* Tab Navigation — shared CFB 27 sliding-underline bar */}
-      <TabBar
-        tabs={[
-          { key: 'overview', label: 'Overview' },
-          { key: 'stats', label: 'Stats' },
-          { key: 'gamelog', label: 'Game Log' },
-          { key: 'timeline', label: 'Timeline' },
-          { key: 'awards', label: 'Awards' },
-          // Highlights tab — only renders once the player has at least
-          // one highlight URL saved. Uses the same link-and-embed
-          // pattern as the per-game Media section, so YouTube clips,
-          // Imgur albums, and direct images all auto-render inline.
-          ...((Array.isArray(player.highlights) ? player.highlights : []).filter(Boolean).length > 0
-            ? [{ key: 'highlights', label: 'Highlights' }]
-            : []),
-          // The Cards tab only appears once at least one card exists
-          // for this player. Pulls from player.cards[] with a fallback
-          // to the legacy single-card fields.
-          ...(getPlayerCards(player).length > 0 ? [{ key: 'card', label: 'Cards' }] : []),
-          // The Photos tab appears once the player is tagged in at least
-          // one game photo (game editor → Photos → tag players).
-          ...(taggedPhotos.length > 0 ? [{ key: 'photos', label: 'Photos' }] : []),
-        ]}
-        activeKey={activeTab}
-        onSelect={setActiveTab}
-        accentColor={teamInfo.backgroundColor}
-      />
+      </div>
 
       {/* Tab content — keyed so the whole subtree fades up on each switch */}
       <div key={activeTab} className="reveal">
@@ -5199,7 +5218,7 @@ function PlayerInner() {
                       right={seasonScoringPlays.length > 0 && (
                         <button
                           onClick={() => {
-                            setSelectedGameScoringPlays({ plays: seasonScoringPlays, opponent: 'All Games', customTitle: `${player.name} — ${year} Scores` })
+                            setSelectedGameScoringPlays({ plays: seasonScoringPlays, opponent: 'All Games', customTitle: `${player.name}, ${year} Scores` })
                             setShowScoringHighlightsModal(true)
                           }}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors shrink-0 hover:opacity-90"

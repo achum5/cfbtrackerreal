@@ -279,7 +279,7 @@ export default function BowlHistory() {
   }
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="space-y-4 page-enter max-w-4xl mx-auto">
       <PageHero
         title="Bowl History"
         actions={

@@ -84,7 +84,7 @@ export default function DynastyMigrationModal({ dynasty, isOpen, onMigrate, onDi
           </p>
           <p className="text-txt-secondary">
             <span className="text-amber-400 font-semibold">Heads up:</span> this will touch
-            player records — consolidating duplicate movement data, removing a few
+            player records, consolidating duplicate movement data, removing a few
             stale ghost entries from old award imports, and cleaning empty team
             references. Nothing you care about gets deleted, but be safe:
           </p>

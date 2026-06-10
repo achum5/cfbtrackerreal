@@ -287,7 +287,7 @@ export default function PromptStudio() {
           >
             <div>
               <div className="text-sm font-semibold text-txt-primary">
-                {styleOpen ? 'Style options' : 'Style options (smart defaults set — click to customize)'}
+                {styleOpen ? 'Style options' : 'Style options (smart defaults set, click to customize)'}
               </div>
               {styleOpen && (
                 <div className="text-[11px] text-txt-tertiary mt-0.5">
@@ -350,7 +350,7 @@ export default function PromptStudio() {
               color: 'var(--text-secondary)',
             }}
           >
-            {composed || '_(empty — type a request, or click a quick-start)_'}
+            {composed || '_(empty: type a request, or click a quick-start)_'}
           </pre>
         </Card>
       )}

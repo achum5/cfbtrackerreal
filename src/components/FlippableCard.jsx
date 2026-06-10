@@ -84,7 +84,7 @@ export default function FlippableCard({ frontImageUrl, backImageUrl, styleId, cl
       onClick={() => setFlipped(f => !f)}
       className={`w-full block text-left ${className}`}
       style={{ aspectRatio, perspective: '1200px', cursor: 'pointer' }}
-      title={flipped ? 'Click to flip — front' : 'Click to flip — back'}
+      title={flipped ? 'Click to flip, front' : 'Click to flip, back'}
     >
       <div
         style={{

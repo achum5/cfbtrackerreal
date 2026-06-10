@@ -191,7 +191,7 @@ export default function MemberTimelineEditor({ isOpen, onClose, uid }) {
     >
       <p className="text-xs text-txt-tertiary mb-3">
         Set which team {memberName} coached each season. Adding a team to a year automatically
-        takes it away from whoever else had it that year — only one coach per team per season.
+        takes it away from whoever else had it that year; only one coach per team per season.
         Helpful when a member joined the dynasty mid-stream and needs past seasons claimed.
       </p>
 

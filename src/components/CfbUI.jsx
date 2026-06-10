@@ -1,77 +1,46 @@
 import { useRef, useState, useEffect, useLayoutEffect } from 'react'
+import { getContrastTextColor } from '../utils/colorUtils'
 
 // Shared "CFB 27" broadcast-style UI primitives used across the team page
 // (TeamYear) and player page (Player). Extracted so both surfaces share the
 // exact same tab bar and rating-ring treatment instead of drifting apart.
 
-// Tab bar with a single sliding underline in the team accent color and a
-// gentle team-color wash behind the active tab. The underline measures the
-// active button and animates to it on change (no slide on first paint).
+// Tab bar, CFB-27 broadcast style: the ACTIVE tab is a solid team-color chip
+// (true color + gradient sheen + film grain + contrast-aware label), inactive
+// tabs stay quiet until hovered. This replaced the old sliding-underline bar.
+// It's the single source for the app's primary tab bar (TeamYear / Player /
+// WeeklyScores) — to revert the look, restore this function from git.
 export function TabBar({ tabs, activeKey, onSelect, accentColor }) {
-  const containerRef = useRef(null)
-  const buttonRefs = useRef({})
-  const [indicator, setIndicator] = useState({ left: 0, width: 0, ready: false })
-
-  const measure = () => {
-    const btn = buttonRefs.current[activeKey]
-    const container = containerRef.current
-    if (!btn || !container) return
-    setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth, ready: true })
-  }
-
-  useLayoutEffect(() => {
-    measure()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey, tabs.length])
-
-  useEffect(() => {
-    const onResize = () => measure()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKey])
-
+  const accent = accentColor || '#3a3d47'
+  const activeText = getContrastTextColor(accent)
   return (
-    <div ref={containerRef} className="relative border-b border-surface-4 flex overflow-x-auto no-scrollbar">
+    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
       {tabs.map(tab => {
         const isActive = activeKey === tab.key
         return (
           <button
             key={tab.key}
-            ref={el => { if (el) buttonRefs.current[tab.key] = el; else delete buttonRefs.current[tab.key] }}
             onClick={() => onSelect(tab.key)}
-            className={`relative px-2 sm:px-3 md:px-4 lg:px-6 py-3 font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
-              isActive ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'
+            className={`relative flex-shrink-0 rounded-md px-3 sm:px-4 lg:px-5 py-2.5 font-bold uppercase tracking-wide whitespace-nowrap transition-[background-color,color,filter] duration-150 ${
+              isActive ? 'cfb-texture hover:brightness-[1.06]' : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-2'
             }`}
-            style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem' }}
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '0.9rem',
+              ...(isActive ? {
+                backgroundColor: accent,
+                backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 46%), linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.32) 100%)',
+                color: activeText,
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                border: '1px solid rgba(0,0,0,0.28)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+              } : {}),
+            }}
           >
-            {/* Always-present accent wash — opacity fades it in/out on select so
-                the active tab "lights up" instead of popping (gradients can't
-                CSS-transition, opacity can). */}
-            <span
-              aria-hidden="true"
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                backgroundImage: `linear-gradient(to top, ${accentColor}30, transparent 70%)`,
-                opacity: isActive ? 1 : 0,
-                transition: 'opacity 380ms ease-out',
-              }}
-            />
-            <span className="relative">{tab.label}</span>
+            <span className="relative z-[1]">{tab.label}</span>
           </button>
         )
       })}
-      <span
-        className="absolute bottom-0 h-[2px] pointer-events-none"
-        style={{
-          backgroundColor: accentColor,
-          transform: `translateX(${indicator.left}px)`,
-          width: `${indicator.width}px`,
-          transition: indicator.ready ? 'transform 300ms ease-out, width 300ms ease-out' : 'none',
-          opacity: indicator.ready ? 1 : 0,
-        }}
-        aria-hidden="true"
-      />
     </div>
   )
 }

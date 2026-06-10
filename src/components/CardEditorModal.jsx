@@ -343,12 +343,12 @@ function PhaseContext({
             </SelectControl>
             {staleGame && (
               <p className="text-xs mt-2 text-danger">
-                The game this card pointed to is no longer available. Pick a game above — otherwise the back will have no matchup or stats.
+                The game this card pointed to is no longer available. Pick a game above; otherwise the back will have no matchup or stats.
               </p>
             )}
           </Field>
 
-          <Field label="Weekly award" hint="Optional — turns this into a Player-of-the-Week card.">
+          <Field label="Weekly award" hint="Optional. Turns this into a Player-of-the-Week card.">
             <SelectControl
               value={working.contextDetails?.weeklyAward || ''}
               onChange={(e) => onChangeContextDetails({ weeklyAward: e.target.value })}
@@ -417,7 +417,7 @@ function PhaseContext({
         </Field>
       )}
 
-      <Field label="Label" hint="Optional — shown under the card in the collection.">
+      <Field label="Label" hint="Optional. Shown under the card in the collection.">
         <InputControl
           value={working.label || ''}
           onChange={(e) => onChange({ label: e.target.value })}

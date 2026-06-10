@@ -280,7 +280,7 @@ FINAL CHECK before you send
       } catch (error) {
         console.error('Failed to create CC history sheet:', error)
         if (!auth.handleError(error)) {
-          toast.error('Failed to create the conference championships sheet — try again.')
+          toast.error('Failed to create the conference championships sheet. Try again.')
         }
       } finally {
         setCreatingSheet(false)
@@ -403,7 +403,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to delete CC history sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)
@@ -430,7 +430,7 @@ FINAL CHECK before you send
     } catch (error) {
       console.error('Failed to regenerate CC history sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to reset the sheet — try again.')
+        toast.error('Failed to reset the sheet. Try again.')
       }
     } finally {
       setRegenerating(false)
@@ -478,7 +478,7 @@ FINAL CHECK before you send
                   {regenerating ? 'Resetting sheet…' : 'Creating Conference Championships Sheet…'}
                 </p>
                 <p className="text-sm mt-2 text-txt-secondary">
-                  One tab per year — current year first.
+                  One tab per year, current year first.
                 </p>
                 <SheetLoadingHint active={isLoading} />
               </div>

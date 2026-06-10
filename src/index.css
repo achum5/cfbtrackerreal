@@ -21,25 +21,30 @@
   --team-primary-muted: color-mix(in srgb, var(--team-primary) 40%, #16171c);
   --team-primary-subtle: color-mix(in srgb, var(--team-primary) 8%, #16171c);
 
-  /* Core dark palette — deeper blue-black warmth (≈225° hue). Widened contrast
-     between page-bg (surface-1) and cards (surface-2+) so cards read as lifted,
-     not fused into the background. */
-  --surface-0: #06070b;      /* Deepest background */
-  --surface-1: #0b0c11;      /* Chrome: header, sidebar, page background */
-  --surface-2: #191b22;      /* Card backgrounds — ~9pt lift from surface-1 */
-  --surface-3: #23252e;      /* Elevated cards, hover states */
-  --surface-4: #2f313b;      /* Inputs, subtle borders */
-  --surface-5: #42454f;      /* Strong borders, dividers */
+  /* Core dark palette — dark-GREY (not near-black), keeping a faint blue-black
+     warmth (≈225° hue). The whole ramp was lifted one tier so the page/chrome
+     reads as a calm dark grey while cards (surface-2+) still lift above it. The
+     ~+10-12 luminance step between each tier is what keeps cards from fusing
+     into the background — preserve it if you retune. */
+  --surface-0: #101117;      /* Deepest — deep wells, behind content */
+  --surface-1: #191b22;      /* Chrome: header, sidebar, page background (dark grey) */
+  --surface-2: #242730;      /* Card backgrounds — lifts above the grey page */
+  --surface-3: #2f323c;      /* Elevated cards, hover states */
+  --surface-4: #3b3e49;      /* Inputs, subtle borders */
+  --surface-5: #4e515c;      /* Strong borders, dividers */
 
   /* Hairline rules for section dividers — thinner, cooler than surface-4 */
   --rule-soft: color-mix(in srgb, var(--surface-5) 50%, transparent);
   --rule-strong: color-mix(in srgb, var(--surface-5) 85%, transparent);
 
-  /* Text hierarchy */
+  /* Text hierarchy. Lifted brighter to stay readable on the dark-GREY surfaces
+     (the old greys were tuned for a near-black bg and washed out once the page
+     became grey). Keep the steps so hierarchy survives — primary > secondary >
+     tertiary > muted — but every tier reads clearly now. */
   --text-primary: #f5f5f7;
-  --text-secondary: #a8a8b0;
-  --text-tertiary: #6e6e78;
-  --text-muted: #4a4a52;
+  --text-secondary: #d3d4da;
+  --text-tertiary: #a4a5af;
+  --text-muted: #7e7f8a;
 
   /* Semantic accents */
   --accent-success: #22c55e;
@@ -293,7 +298,7 @@ button.card-elevated:hover {
   inset: 0;
   z-index: 60;
   pointer-events: none;
-  opacity: 0.22;
+  opacity: 0.4;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='cfbn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23cfbn)'/%3E%3C/svg%3E");
   background-size: 160px 160px;

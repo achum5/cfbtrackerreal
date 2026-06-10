@@ -239,7 +239,7 @@ export default function DepthChartPositionsModal({ layoutMap, positionsMap, onSa
 
             <div className="pt-2">
               <div className="text-[11px] font-bold uppercase tracking-wide text-txt-tertiary mb-1.5">
-                Available — drag here to hide
+                Available, drag here to hide
               </div>
               <DropArea
                 id="available"

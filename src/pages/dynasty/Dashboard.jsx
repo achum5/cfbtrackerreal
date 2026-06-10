@@ -3546,7 +3546,7 @@ export default function Dashboard() {
                 done: recapDone,
                 title: 'Generate Preseason CFB Recap',
                 subtitle: recapDone
-                  ? 'Saved — view it on the Weekly Recap page'
+                  ? 'Saved. View it on the Weekly Recap page'
                   : 'AI-written season preview based on past dynasty data',
                 viewTo: recapDone ? `${pathPrefix}/weekly-scores/${yearNum}/-1?tab=recap` : null,
                 onAction: () => setRecapModalContext({ year: yearNum, week: -1 }),
@@ -6173,7 +6173,7 @@ export default function Dashboard() {
                 return (
                   <>
                     <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                      New Team — No Players Leaving
+                      New Team: No Players Leaving
                     </h3>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
                   </>

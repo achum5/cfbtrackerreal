@@ -615,7 +615,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
                     className="text-txt-tertiary"
                     style={{ fontSize: '9px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}
                   >
-                    Your Semifinal — Already Entered
+                    Your Semifinal: Already Entered
                   </div>
                   <div className="text-sm text-txt-primary truncate">
                     {lockedUserSF.bowlName}: {t1Abbr} {lockedUserSF.team1Score}–{lockedUserSF.team2Score} {t2Abbr}

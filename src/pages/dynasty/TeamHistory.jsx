@@ -304,7 +304,7 @@ export default function TeamHistory() {
 
               {season.year === currentDynasty.currentYear && (
                 <div className="mt-4 label-xs text-txt-tertiary">
-                  Season in progress — statistics will update as data is tracked.
+                  Season in progress. Statistics will update as data is tracked.
                 </div>
               )}
             </div>

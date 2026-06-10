@@ -254,7 +254,7 @@ export default function ConferenceChampionshipHistory() {
   const canEdit = !isViewOnly && !!user
 
   return (
-    <div className="space-y-4 page-enter">
+    <div className="space-y-4 page-enter max-w-4xl mx-auto">
       <PageHero
         title="Conference Championships"
         actions={canEdit ? (

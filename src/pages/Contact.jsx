@@ -24,7 +24,7 @@ export default function Contact() {
     const form = e.currentTarget
     const formData = new FormData(form)
     formData.append('access_key', WEB3FORMS_ACCESS_KEY)
-    formData.append('subject', 'CFB Dynasty Tracker — contact form')
+    formData.append('subject', 'CFB Dynasty Tracker contact form')
     formData.append('from_name', 'Dynasty Tracker Contact Form')
 
     try {
@@ -152,7 +152,7 @@ export default function Contact() {
             href={REDDIT_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Reddit — u/achum5"
+            aria-label="Reddit: u/achum5"
             title="Reddit"
             className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
             style={{
@@ -169,7 +169,7 @@ export default function Contact() {
             href={INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Instagram — @alexguess_"
+            aria-label="Instagram: @alexguess_"
             title="Instagram"
             className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
             style={{
@@ -186,7 +186,7 @@ export default function Contact() {
             href={X_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Twitter — @alexguess_"
+            aria-label="Twitter: @alexguess_"
             title="Twitter"
             className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
             style={{
@@ -203,7 +203,7 @@ export default function Contact() {
             href={FACEBOOK_URL}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Facebook — alex.chumbler"
+            aria-label="Facebook: alex.chumbler"
             title="Facebook"
             className="group w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5"
             style={{

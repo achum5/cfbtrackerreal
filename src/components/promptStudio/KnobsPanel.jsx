@@ -33,7 +33,7 @@ export default function KnobsPanel({
   if (orderedExposed.length === 0) {
     return (
       <div className="text-xs text-txt-tertiary italic">
-        This template has no customizable knobs — all defaults are used.
+        This template has no customizable knobs. All defaults are used.
       </div>
     )
   }
@@ -119,7 +119,7 @@ export default function KnobsPanel({
           className="pt-3 mt-1 text-xs text-txt-tertiary italic"
           style={{ borderTop: '1px solid var(--surface-4)' }}
         >
-          Nothing to customize — we'll use smart defaults. Check anything above to override.
+          Nothing to customize. We'll use smart defaults. Check anything above to override.
         </div>
       )}
     </div>

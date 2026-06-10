@@ -221,7 +221,7 @@ export default function JoinDynasty() {
         <Card>
           <EmptyState
             title="You're already a member"
-            message="No need to redeem — head to the dynasty."
+            message="No need to redeem, head to the dynasty."
           />
           <div className="mt-4 flex justify-center">
             <Link to={`/dynasty/${dynastyId}`}>
@@ -237,7 +237,7 @@ export default function JoinDynasty() {
           <h3 className="label-sm text-txt-primary mb-2">Couldn't auto-join</h3>
           <p className="text-sm text-txt-secondary mb-3">
             The dynasty's settings don't allow self-redemption from this link yet.
-            Send the commish your User ID below — they can paste it into the Members
+            Send the commish your User ID below; they can paste it into the Members
             page to add you directly.
           </p>
           <code className="block px-3 py-2 rounded-md bg-surface-2 text-txt-primary text-xs font-mono break-all border border-surface-4 mb-2">

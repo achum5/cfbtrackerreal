@@ -51,7 +51,7 @@ export default function TeamPermissionBanner({ tids = [], message = null }) {
 
   const defaultMessage = coachNames.length > 0
     ? `Heads up — these teams belong to ${coachNames.join(', ')}. Saving here will overwrite their data.`
-    : "Heads up — you don't manage these teams. Saving will write to a coach who isn't you."
+    : "Heads up: you don't manage these teams. Saving will write to a coach who isn't you."
 
   return (
     <div

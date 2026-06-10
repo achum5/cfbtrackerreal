@@ -419,7 +419,7 @@ export default function Account() {
             <h2 className="label-sm text-txt-primary mb-2">Beta Premium Access</h2>
             <p className="text-sm text-txt-secondary mb-4">
               {isPremium
-                ? 'Your beta pass is active. When it expires, come back here and grant yourself another 30 days — no charge during beta.'
+                ? 'Your beta pass is active. When it expires, come back here and grant yourself another 30 days, no charge during beta.'
                 : "You're on the beta allowlist. Click below to grant yourself 30 days of premium. After it expires, just come back and grant again."}
             </p>
             <div className="p-3 rounded-lg text-xs space-y-1 mb-4" style={{ backgroundColor: 'var(--surface-3)' }}>

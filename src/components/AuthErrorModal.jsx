@@ -32,7 +32,7 @@ export default function AuthErrorModal({ isOpen, onClose, onRefresh, firstTime =
       const refreshPromise = refreshSession()
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error('Timed out — the sign-in popup may have been blocked.')),
+          () => reject(new Error('Timed out. The sign-in popup may have been blocked.')),
           REFRESH_TIMEOUT_MS
         )
       )
@@ -50,7 +50,7 @@ export default function AuthErrorModal({ isOpen, onClose, onRefresh, firstTime =
       } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         msg = 'Sign-in popup was closed before it finished. Try again, or use Sign Out & Sign In Again below.'
       } else if (error?.message?.includes('Timed out')) {
-        msg = 'The sign-in popup didn\'t respond in time. On mobile it may have opened in a hidden tab — try Sign Out & Sign In Again below.'
+        msg = 'The sign-in popup didn\'t respond in time. On mobile it may have opened in a hidden tab; try Sign Out & Sign In Again below.'
       } else {
         msg = error?.message || 'Refresh failed. Try Sign Out & Sign In Again below.'
       }
@@ -118,7 +118,7 @@ export default function AuthErrorModal({ isOpen, onClose, onRefresh, firstTime =
           {/* Message */}
           <p className="text-sm text-txt-secondary mt-3 leading-relaxed">
             {firstTime
-              ? 'Schedule and roster entry use Google Sheets. Connect your Google account to get started — it only takes a moment.'
+              ? 'Schedule and roster entry use Google Sheets. Connect your Google account to get started; it only takes a moment.'
               : 'Your Google sign-in has expired. Refresh your session to continue editing.'}
           </p>
 

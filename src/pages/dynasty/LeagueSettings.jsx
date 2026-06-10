@@ -983,7 +983,7 @@ export default function LeagueSettings() {
           </h3>
           <p className="text-xs text-txt-tertiary mb-3">
             Walk yourself out. Your past coaching record stays in the timeline so the commish
-            can still see your career — you just lose edit access.
+            can still see your career; you just lose edit access.
           </p>
           <Button
             variant="outline"
@@ -1006,7 +1006,7 @@ export default function LeagueSettings() {
           </h3>
           <p className="text-xs text-txt-tertiary">
             As commish you can't leave directly. Use <span className="font-semibold text-txt-primary">Make Commish</span> on
-            another member's row to transfer ownership — once transferred, you become a regular
+            another member's row to transfer ownership; once transferred, you become a regular
             member and can leave from this same page.
           </p>
         </Card>

@@ -134,7 +134,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       } catch (error) {
         console.error('Failed to create Top 25 sheet:', error)
         if (!auth.handleError(error)) {
-          toast.error('Failed to create the rankings sheet — try again or contact support.')
+          toast.error('Failed to create the rankings sheet. Try again or contact support.')
         }
       } finally {
         setCreatingSheet(false)
@@ -295,7 +295,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
     } catch (error) {
       console.error('Failed to apply Top 25 changes:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to save changes — try again.')
+        toast.error('Failed to save changes. Try again.')
       }
     } finally {
       setSyncing(false)
@@ -321,7 +321,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
     } catch (error) {
       console.error('Failed to delete sheet:', error)
       if (!auth.handleError(error)) {
-        toast.error('Failed to delete the sheet — try again.')
+        toast.error('Failed to delete the sheet. Try again.')
       }
     } finally {
       setDeletingSheet(false)
@@ -545,7 +545,7 @@ function Top25DiffConfirmModal({ summary, yearTotals, unknownAbbrs, alsoDelete, 
 
           {bulkDeleteFlags.length > 0 && (
             <div className="rounded-lg p-3 border border-surface-4" style={{ backgroundColor: 'rgba(220, 38, 38, 0.08)' }}>
-              <p className="text-txt-primary font-semibold mb-1">Heads up — large deletion</p>
+              <p className="text-txt-primary font-semibold mb-1">Heads up: large deletion</p>
               <ul className="list-disc list-inside text-xs">
                 {bulkDeleteFlags.map(f => (
                   <li key={f.year}>
@@ -571,7 +571,7 @@ function Top25DiffConfirmModal({ summary, yearTotals, unknownAbbrs, alsoDelete, 
           )}
 
           {noChanges ? (
-            <div className="text-txt-tertiary italic">No changes to apply — the sheet matches the dynasty's current state.</div>
+            <div className="text-txt-tertiary italic">No changes to apply. The sheet matches the dynasty's current state.</div>
           ) : (
             orderedYears.map(year => {
               const y = summary.byYear[year]

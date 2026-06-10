@@ -3115,7 +3115,7 @@ export default function GameEdit() {
               <Input
                 value={massTagQuery}
                 onChange={(e) => setMassTagQuery(e.target.value)}
-                placeholder="Bulk-tag a player — search, then click their photos…"
+                placeholder="Bulk-tag a player: search, then click their photos…"
                 size="sm"
               />
               {massTagQuery.trim() && (
