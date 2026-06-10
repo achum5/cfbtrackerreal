@@ -33,9 +33,14 @@ import {
 function ProtectedRoute({ children }) {
   const { user } = useAuth()
   const isDev = import.meta.env.VITE_DEV_MODE === 'true'
+  // Demo mode: an unauthenticated visitor who loaded the sample dynasty into
+  // local storage from the sign-in page ("Try it out"). The data layer runs
+  // fully on IndexedDB without a user, so we let them explore. They can sign in
+  // any time via /login (still a public route) to get cloud sync.
+  const isDemo = typeof window !== 'undefined' && window.localStorage?.getItem('cfb_demo_mode') === '1'
 
-  // In dev mode, skip authentication
-  if (isDev) {
+  // In dev or demo mode, skip authentication
+  if (isDev || isDemo) {
     return children
   }
 

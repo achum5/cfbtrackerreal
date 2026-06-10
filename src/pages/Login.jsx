@@ -1,10 +1,15 @@
 import { useAuth } from '../context/AuthContext'
+import { useDynasty } from '../context/DynastyContext'
 import { useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import logo from '../assets/logo.png'
 import BouncingLogos from '../components/BouncingLogos'
 import { Card, ContactCTA } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
+
+// Sample dynasty (my own UK 2035 save) that anyone can load to explore the app
+// without signing in. Imported into local IndexedDB; see handleTryDemo below.
+const DEMO_DYNASTY_URL = 'https://www.dropbox.com/scl/fi/y49gxbn427hi69hqw8pga/UK_2035_Week12.json?rlkey=n4wno8rs3c1al31edktemof6t&st=2yakp8n8&dl=0'
 
 const SCREENSHOTS = [
   { url: 'https://i.imgur.com/I7wIQZL.png' },
@@ -29,7 +34,7 @@ const FEATURES = [
   'View CFP brackets and bowl history',
 ]
 
-function FeaturesAndSignin({ onSignIn }) {
+function FeaturesAndSignin({ onSignIn, onTryDemo, demoLoading }) {
   return (
     <>
       <Card padding="md" className="mb-6">
@@ -63,13 +68,20 @@ function FeaturesAndSignin({ onSignIn }) {
         </p>
       </Card>
 
-      <p className="text-xs text-txt-tertiary text-center mt-4 px-2">
-        We use Google Sign-In for authentication and optionally connect to Google Sheets to import your game data. We never access any other Google data.
-      </p>
+      {/* Try-it-out: load a sample dynasty into local storage, no sign-in. */}
+      <div className="flex items-center gap-3 my-4">
+        <div className="flex-1 h-px bg-surface-4" />
+        <span className="label-xs text-txt-tertiary">or</span>
+        <div className="flex-1 h-px bg-surface-4" />
+      </div>
 
-      <p className="text-xs text-txt-tertiary text-center mt-4">
-        Completely free
-      </p>
+      <button
+        onClick={onTryDemo}
+        disabled={demoLoading}
+        className="w-full flex items-center justify-center gap-2 rounded-lg px-5 py-3.5 font-semibold transition-colors bg-surface-2 hover:bg-surface-3 text-txt-primary border border-surface-4 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {demoLoading ? 'Loading sample dynasty…' : 'Try it out with a sample dynasty'}
+      </button>
 
       <div className="mt-6">
         <ContactCTA />
@@ -94,12 +106,36 @@ function FeaturesAndSignin({ onSignIn }) {
 
 export default function Login() {
   const { user, signInWithGoogle } = useAuth()
+  const { importDynastyFromUrl } = useDynasty()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [demoLoading, setDemoLoading] = useState(false)
+
+  // Load the sample dynasty into local storage and enter the app without
+  // signing in. The data layer runs fully on IndexedDB for an unauthenticated
+  // visitor, so the import lands locally; the cfb_demo_mode flag lets
+  // ProtectedRoute admit them. They can sign in later for cloud sync.
+  const handleTryDemo = async () => {
+    if (demoLoading) return
+    setDemoLoading(true)
+    try {
+      const result = await importDynastyFromUrl(DEMO_DYNASTY_URL)
+      try { localStorage.setItem('cfb_demo_mode', '1') } catch {}
+      navigate(result?.id ? `/dynasty/${result.id}` : '/')
+    } catch (error) {
+      console.error('Failed to load demo dynasty:', error)
+      toast.error(error?.message || 'Could not load the sample dynasty. Please try again.')
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (user) {
+      // A real sign-in ends the demo trial — drop the bypass flag so signing
+      // out later returns to the normal login wall.
+      try { localStorage.removeItem('cfb_demo_mode') } catch {}
       // Honor a stashed redirect (set by JoinDynasty when a signed-out user
       // hits an invite link). Single-use — clear it after consuming.
       let dest = '/'
@@ -169,7 +205,7 @@ export default function Login() {
             </div>
 
             <div className="hidden lg:block">
-              <FeaturesAndSignin onSignIn={handleGoogleSignIn} />
+              <FeaturesAndSignin onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
             </div>
           </div>
 
@@ -212,7 +248,7 @@ export default function Login() {
           </div>
 
           <div className="w-full max-w-sm flex-shrink-0 order-3 lg:hidden mx-auto">
-            <FeaturesAndSignin onSignIn={handleGoogleSignIn} />
+            <FeaturesAndSignin onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
           </div>
         </div>
       </div>

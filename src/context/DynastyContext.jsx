@@ -15020,6 +15020,9 @@ export function DynastyProvider({ children }) {
       // Local storage: IndexedDB - needs an ID
       reportProgress('creating', 'Creating dynasty...', 20)
       const newId = Date.now().toString()
+      // Surface the new id on the returned object so callers (e.g. the sign-in
+      // "Try it out" loader) can navigate straight into the imported dynasty.
+      cleanDynastyData.id = newId
 
       const importedDynasty = {
         ...cleanDynastyData,

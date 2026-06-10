@@ -6858,6 +6858,7 @@ export default function Dashboard() {
                 // Use merged game data from getScheduleWithGameData
                 const playedGame = entry.game
                 const opponentColors = getOpponentColors(entry.opponentTid ?? entry.opponent)
+                const rowTxt = getContrastTextColor(opponentColors.backgroundColor)
                 const mascotName = getMascotName(entry.opponentTid ?? entry.opponent)
                 const opponentName = mascotName || getTeamNameFromAbbr(entry.opponent)
                 const opponentLogo = mascotName ? getTeamLogo(mascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
@@ -6869,19 +6870,19 @@ export default function Dashboard() {
 
                 const renderGameRow = (isLink) => (
                   <div
-                    className={`relative flex items-center py-2.5 px-4 gap-3 transition-all ${isLink ? 'hover:brightness-110' : ''}`}
+                    className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
                     style={{
-                      borderBottom: '1px solid var(--surface-4)',
-                      // Opponent-color wash — same treatment the CC + bowl rows
-                      // already use, so the whole schedule reads consistently.
-                      background: `linear-gradient(to right, transparent 0%, ${opponentColors.backgroundColor}99 100%)`,
-
+                      borderBottom: '1px solid rgba(0,0,0,0.28)',
+                      // Solid opponent color (CFB-27 broadcast look): true color +
+                      // gradient sheen + film grain, contrast-aware text below.
+                      backgroundColor: opponentColors.backgroundColor,
+                      backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                     }}
                   >
                     {/* Week Number — current-week marker uses an inset rail
                         on the row instead of a filled circle, so the row's
                         identity remains the opponent, not the week chip. */}
-                    <span className={`w-7 text-xs font-semibold tabular-nums ${isCurrentWeek ? 'text-txt-primary' : 'text-txt-tertiary'}`}>
+                    <span className="w-7 text-xs font-semibold tabular-nums" style={{ color: rowTxt, opacity: isCurrentWeek ? 1 : 0.72 }}>
                       {weekNum}
                     </span>
 
@@ -6889,14 +6890,14 @@ export default function Dashboard() {
                         team-color logos (Florida orange on dark looks bad
                         without a white plate). */}
                     <div
-                      className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity bg-white"
+                      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity bg-white"
                       style={{ padding: '5px' }}
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(teamPageUrl) }}
                     >
                       {opponentLogo ? (
                         <img src={opponentLogo} alt={opponentName} className="w-full h-full object-contain" />
                       ) : (
-                        <span className="text-xs font-bold text-txt-primary">
+                        <span className="text-xs font-bold" style={{ color: opponentColors.backgroundColor }}>
                           {entry.opponent?.slice(0, 3)}
                         </span>
                       )}
@@ -6906,15 +6907,15 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         {entry.perspective?.opponentRank && (
-                          <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--accent-warning)' }}>
+                          <span className="text-xs font-bold tabular-nums text-amber-300">
                             #{entry.perspective.opponentRank}
                           </span>
                         )}
-                        <span className="text-sm font-semibold text-txt-primary truncate">
+                        <span className="text-sm font-semibold truncate" style={{ color: rowTxt, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                           {opponentName}
                         </span>
                       </div>
-                      <span className="text-[10px] text-txt-tertiary">
+                      <span className="text-[10px]" style={{ color: rowTxt, opacity: 0.72 }}>
                         {entry.location === 'away' ? 'Away' : entry.location === 'neutral' ? 'Neutral' : 'Home'}
                       </span>
                     </div>
@@ -6924,7 +6925,7 @@ export default function Dashboard() {
                       {entry.isPlayed && (
                         <span
                           className="text-xs font-bold tabular-nums"
-                          style={{ color: isWin ? 'var(--accent-success)' : 'var(--accent-error)' }}
+                          style={{ color: isWin ? '#4ade80' : '#f87171', textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
                         >
                           {isWin ? 'W' : 'L'}
                         </span>
@@ -6932,17 +6933,17 @@ export default function Dashboard() {
                       <div className="w-14 text-right">
                         {entry.isPlayed ? (
                           <div className="flex flex-col items-end">
-                            <span className="text-base font-bold tabular-nums text-txt-primary">
+                            <span className="text-base font-bold tabular-nums" style={{ color: rowTxt, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
                               {Math.max(entry.perspective?.userScore || 0, entry.perspective?.opponentScore || 0)}-{Math.min(entry.perspective?.userScore || 0, entry.perspective?.opponentScore || 0)}
                             </span>
                             {playedGame?.overtimes && playedGame.overtimes.length > 0 && (
-                              <span className="text-[10px] text-txt-tertiary">
+                              <span className="text-[10px]" style={{ color: rowTxt, opacity: 0.72 }}>
                                 {playedGame.overtimes.length > 1 ? `${playedGame.overtimes.length}OT` : 'OT'}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-sm text-txt-muted">—</span>
+                          <span className="text-sm" style={{ color: rowTxt, opacity: 0.5 }}>—</span>
                         )}
                       </div>
                     </div>
@@ -6994,28 +6995,28 @@ export default function Dashboard() {
 
               const ccRow = (isLink) => (
                 <div
-                  className={`relative flex items-center py-2.5 gap-3 transition-all duration-200 ${isLink ? 'hover:bg-surface-3 hover:z-10' : ''} ${isCurrentCCWeek ? 'ring-1 ring-inset' : ''}`}
+                  className={`relative flex items-center py-2.5 gap-3 cfb-texture transition-[filter] duration-200 ${isLink ? 'hover:brightness-110 hover:z-10' : ''} ${isCurrentCCWeek ? 'ring-1 ring-inset' : ''}`}
                   style={{
-                    background: `linear-gradient(to right, transparent 0%, ${ccOpponentColors.backgroundColor}99 100%)`,
+                    backgroundColor: ccOpponentColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                     paddingLeft: '1rem',
                     paddingRight: '1rem',
                     ...(isCurrentCCWeek ? { ringColor: 'var(--text-primary)' } : {})
                   }}
                 >
-                  <span className={`w-7 text-xs font-medium ${isCurrentCCWeek ? 'text-white' : 'text-txt-tertiary'}`}>
+                  <span className={`w-7 text-xs font-medium ${isCurrentCCWeek ? 'text-white' : 'text-white/70'}`}>
                     {isCurrentCCWeek ? (
                       <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold" style={{ backgroundColor: 'var(--text-primary)' }}>CC</span>
                     ) : 'CC'}
                   </span>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                     {ccOpponentLogo ? <img src={ccOpponentLogo} alt={ccOpponentName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: ccOpponentColors.backgroundColor }}>{ccOpponentAbbr?.slice(0, 3) || '?'}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {ccGame?.opponentRank && <span className="text-xs font-bold text-amber-400">#{ccGame.opponentRank}</span>}
-                      <span className="text-sm font-semibold text-txt-primary truncate">{ccOpponentName}</span>
+                      <span className="text-sm font-semibold text-white truncate">{ccOpponentName}</span>
                     </div>
-                    <span className="text-[10px] text-txt-tertiary">Conf Championship</span>
+                    <span className="text-[10px] text-white/70">Conf Championship</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {ccGame && (
@@ -7024,7 +7025,7 @@ export default function Dashboard() {
                     <div className="w-14 text-right">
                       {ccGame && userScore != null ? (
                         <span className="text-base font-bold tabular-nums text-white">{Math.max(userScore || 0, opponentScore || 0)}-{Math.min(userScore || 0, opponentScore || 0)}</span>
-                      ) : <span className="text-sm text-txt-muted">—</span>}
+                      ) : <span className="text-sm text-white/50">—</span>}
                     </div>
                   </div>
                 </div>
@@ -7060,23 +7061,23 @@ export default function Dashboard() {
 
               const bowlRow = (isLink) => (
                 <div
-                  className={`relative flex items-center py-2.5 gap-3 transition-all duration-200 ${isLink ? 'hover:bg-surface-3 hover:z-10' : ''}`}
+                  className={`relative flex items-center py-2.5 gap-3 cfb-texture transition-[filter] duration-200 ${isLink ? 'hover:brightness-110 hover:z-10' : ''}`}
                   style={{
-                    background: `linear-gradient(to right, transparent 0%, ${bowlOpponentColors.backgroundColor}99 100%)`,
+                    backgroundColor: bowlOpponentColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                     paddingLeft: '1rem',
                     paddingRight: '1rem'
                   }}
                 >
-                  <span className="w-7 text-xs font-medium text-txt-tertiary">Bowl</span>
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                  <span className="w-7 text-xs font-medium text-white/70">Bowl</span>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                     {bowlOpponentLogo ? <img src={bowlOpponentLogo} alt={bowlOpponentName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: bowlOpponentColors.backgroundColor }}>{bowlOpponentAbbr?.slice(0, 3) || '?'}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {userBowlGameData?.opponentRank && <span className="text-xs font-bold text-amber-400">#{userBowlGameData.opponentRank}</span>}
-                      <span className="text-sm font-semibold text-txt-primary truncate">{bowlOpponentName}</span>
+                      <span className="text-sm font-semibold text-white truncate">{bowlOpponentName}</span>
                     </div>
-                    <span className="text-[10px] text-txt-tertiary truncate block">{bowlGameName}</span>
+                    <span className="text-[10px] text-white/70 truncate block">{bowlGameName}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {userBowlGameData && (
@@ -7085,7 +7086,7 @@ export default function Dashboard() {
                     <div className="w-14 text-right">
                       {userBowlGameData && userScore != null ? (
                         <span className="text-base font-bold tabular-nums text-white">{Math.max(userScore || 0, opponentScore || 0)}-{Math.min(userScore || 0, opponentScore || 0)}</span>
-                      ) : <span className="text-sm text-txt-muted">—</span>}
+                      ) : <span className="text-sm text-white/50">—</span>}
                     </div>
                   </div>
                 </div>
@@ -7113,20 +7114,20 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 hover:bg-surface-3 hover:z-10 transition-all duration-200"
+                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
                     style={{
-                      background: `linear-gradient(to right, transparent 0%, ${oppColors.backgroundColor}99 100%)`,
+                      backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
                       paddingRight: '1rem'
                     }}
                   >
-                    <span className="w-7 text-xs font-medium text-txt-tertiary">R1</span>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                    <span className="w-7 text-xs font-medium text-white/70">R1</span>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                       {oppLogo ? <img src={oppLogo} alt={oppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: oppColors.backgroundColor }}>{oppAbbr?.slice(0, 3) || '?'}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-txt-primary truncate block">{oppName}</span>
-                      <span className="text-[10px] text-txt-tertiary">CFP First Round</span>
+                      <span className="text-sm font-semibold text-white truncate block">{oppName}</span>
+                      <span className="text-[10px] text-white/70">CFP First Round</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>{isWin ? 'W' : 'L'}</span>
@@ -7155,20 +7156,20 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 hover:bg-surface-3 hover:z-10 transition-all duration-200"
+                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
                     style={{
-                      background: `linear-gradient(to right, transparent 0%, ${oppColors.backgroundColor}99 100%)`,
+                      backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
                       paddingRight: '1rem'
                     }}
                   >
-                    <span className="w-7 text-xs font-medium text-txt-tertiary">QF</span>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                    <span className="w-7 text-xs font-medium text-white/70">QF</span>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                       {oppLogo ? <img src={oppLogo} alt={oppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: oppColors.backgroundColor }}>{oppAbbr?.slice(0, 3) || '?'}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-txt-primary truncate block">{oppName}</span>
-                      <span className="text-[10px] text-txt-tertiary truncate block">{bowlName}</span>
+                      <span className="text-sm font-semibold text-white truncate block">{oppName}</span>
+                      <span className="text-[10px] text-white/70 truncate block">{bowlName}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>{isWin ? 'W' : 'L'}</span>
@@ -7197,20 +7198,20 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 hover:bg-surface-3 hover:z-10 transition-all duration-200"
+                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
                     style={{
-                      background: `linear-gradient(to right, transparent 0%, ${oppColors.backgroundColor}99 100%)`,
+                      backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
                       paddingRight: '1rem'
                     }}
                   >
-                    <span className="w-7 text-xs font-medium text-txt-tertiary">SF</span>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                    <span className="w-7 text-xs font-medium text-white/70">SF</span>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                       {oppLogo ? <img src={oppLogo} alt={oppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: oppColors.backgroundColor }}>{oppAbbr?.slice(0, 3) || '?'}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-txt-primary truncate block">{oppName}</span>
-                      <span className="text-[10px] text-txt-tertiary truncate block">{bowlName}</span>
+                      <span className="text-sm font-semibold text-white truncate block">{oppName}</span>
+                      <span className="text-[10px] text-white/70 truncate block">{bowlName}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>{isWin ? 'W' : 'L'}</span>
@@ -7238,20 +7239,20 @@ export default function Dashboard() {
               return (
                 <Link to={`${pathPrefix}/game/${cfpGame.id}`} className="block">
                   <div
-                    className="relative flex items-center py-2.5 gap-3 hover:bg-surface-3 hover:z-10 transition-all duration-200"
+                    className="relative flex items-center py-2.5 gap-3 cfb-texture hover:brightness-110 hover:z-10 transition-[filter] duration-200"
                     style={{
-                      background: `linear-gradient(to right, transparent 0%, ${oppColors.backgroundColor}99 100%)`,
+                      backgroundColor: oppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
                       paddingLeft: '1rem',
                       paddingRight: '1rem'
                     }}
                   >
                     <span className="w-7 text-xs font-bold text-amber-400">NC</span>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-sm" style={{ padding: '5px' }}>
                       {oppLogo ? <img src={oppLogo} alt={oppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: oppColors.backgroundColor }}>{oppAbbr?.slice(0, 3) || '?'}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-txt-primary truncate block">{oppName}</span>
-                      <span className="text-[10px] text-txt-tertiary">National Championship</span>
+                      <span className="text-sm font-semibold text-white truncate block">{oppName}</span>
+                      <span className="text-[10px] text-white/70">National Championship</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold ${isWin ? 'text-emerald-400' : 'text-red-400'}`}>{isWin ? 'W' : 'L'}</span>
@@ -7500,24 +7501,24 @@ export default function Dashboard() {
 
                       const renderMobileGameRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 transition-all ${isLink ? 'hover:brightness-110' : ''}`}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
                           style={{
-                            background: `linear-gradient(to right, transparent 0%, ${opponentColors.backgroundColor}99 100%)`,
+                            backgroundColor: opponentColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)',
 
                           }}
                         >
-                          <span className={`w-7 text-xs font-semibold tabular-nums ${isCurrentWeek ? 'text-txt-primary' : 'text-txt-tertiary'}`}>
+                          <span className={`w-7 text-xs font-semibold tabular-nums ${isCurrentWeek ? 'text-white' : 'text-white/70'}`}>
                             {weekNum}
                           </span>
                           <div
-                            className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity bg-white"
+                            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity bg-white"
                             style={{ padding: '5px' }}
                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(teamPageUrl) }}
                           >
                             {opponentLogo ? (
                               <img src={opponentLogo} alt={opponentName} className="w-full h-full object-contain" />
                             ) : (
-                              <span className="text-xs font-bold text-txt-primary">
+                              <span className="text-xs font-bold" style={{ color: opponentColors.backgroundColor }}>
                                 {entry.opponent?.slice(0, 3)}
                               </span>
                             )}
@@ -7529,11 +7530,11 @@ export default function Dashboard() {
                                   #{entry.perspective.opponentRank}
                                 </span>
                               )}
-                              <span className="text-sm font-semibold text-txt-primary truncate">
+                              <span className="text-sm font-semibold text-white truncate">
                                 {opponentName}
                               </span>
                             </div>
-                            <span className="text-[10px] text-txt-tertiary">
+                            <span className="text-[10px] text-white/70">
                               {entry.location === 'away' ? 'Away' : entry.location === 'neutral' ? 'Neutral' : 'Home'}
                             </span>
                           </div>
@@ -7548,11 +7549,11 @@ export default function Dashboard() {
                             )}
                             <div className="w-14 text-right">
                               {entry.isPlayed ? (
-                                <span className="text-base font-bold tabular-nums text-txt-primary">
+                                <span className="text-base font-bold tabular-nums text-white">
                                   {Math.max(entry.perspective?.userScore || 0, entry.perspective?.opponentScore || 0)}-{Math.min(entry.perspective?.userScore || 0, entry.perspective?.opponentScore || 0)}
                                 </span>
                               ) : (
-                                <span className="text-sm text-txt-muted">—</span>
+                                <span className="text-sm text-white/50">—</span>
                               )}
                             </div>
                           </div>
@@ -7584,23 +7585,23 @@ export default function Dashboard() {
                       const ccOppColors = getOpponentColors(ccOppTid)
                       const ccRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 transition-all ${isLink ? 'hover:brightness-110' : ''}`}
-                          style={{ background: `linear-gradient(to right, transparent 0%, ${ccOppColors.backgroundColor}99 100%)` }}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
+                          style={{ backgroundColor: ccOppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)' }}
                         >
-                          <span className="w-7 text-xs font-semibold text-txt-tertiary">CC</span>
-                          <div className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-white" style={{ padding: '5px' }}>
-                            {ccOppLogo ? <img src={ccOppLogo} alt={ccOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold text-txt-primary">{String(ccOppTid)?.slice(0, 3)}</span>}
+                          <span className="w-7 text-xs font-semibold text-white/70">CC</span>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ padding: '5px' }}>
+                            {ccOppLogo ? <img src={ccOppLogo} alt={ccOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: ccOppColors.backgroundColor }}>{String(ccOppTid)?.slice(0, 3)}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-txt-primary truncate block">{ccOppName}</span>
-                            <span className="text-[10px] text-txt-tertiary">Conf Championship</span>
+                            <span className="text-sm font-semibold text-white truncate block">{ccOppName}</span>
+                            <span className="text-[10px] text-white/70">Conf Championship</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {ccIsPlayed && <span className="text-xs font-bold tabular-nums" style={{ color: ccIsWin ? 'var(--accent-success)' : 'var(--accent-error)' }}>{ccIsWin ? 'W' : 'L'}</span>}
                             <div className="w-14 text-right">
                               {ccIsPlayed && ccUserScore != null ? (
-                                <span className="text-base font-bold tabular-nums text-txt-primary">{Math.max(ccUserScore, ccOppScore || 0)}-{Math.min(ccUserScore, ccOppScore || 0)}</span>
-                              ) : <span className="text-sm text-txt-muted">—</span>}
+                                <span className="text-base font-bold tabular-nums text-white">{Math.max(ccUserScore, ccOppScore || 0)}-{Math.min(ccUserScore, ccOppScore || 0)}</span>
+                              ) : <span className="text-sm text-white/50">—</span>}
                             </div>
                           </div>
                         </div>
@@ -7627,23 +7628,23 @@ export default function Dashboard() {
                       const bowlOppColors = getOpponentColors(bowlOppTid)
                       const bowlRow = (isLink) => (
                         <div
-                          className={`relative flex items-center py-2.5 px-4 gap-3 transition-all ${isLink ? 'hover:brightness-110' : ''}`}
-                          style={{ background: `linear-gradient(to right, transparent 0%, ${bowlOppColors.backgroundColor}99 100%)` }}
+                          className={`relative flex items-center py-2.5 px-4 gap-3 cfb-texture transition-[filter] ${isLink ? 'hover:brightness-110' : ''}`}
+                          style={{ backgroundColor: bowlOppColors.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.36) 100%)' }}
                         >
-                          <span className="w-7 text-xs font-semibold text-txt-tertiary">Bowl</span>
-                          <div className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-white" style={{ padding: '5px' }}>
-                            {bowlOppLogo ? <img src={bowlOppLogo} alt={bowlOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold text-txt-primary">{String(bowlOppTid)?.slice(0, 3)}</span>}
+                          <span className="w-7 text-xs font-semibold text-white/70">Bowl</span>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-white" style={{ padding: '5px' }}>
+                            {bowlOppLogo ? <img src={bowlOppLogo} alt={bowlOppName} className="w-full h-full object-contain" /> : <span className="text-xs font-bold" style={{ color: bowlOppColors.backgroundColor }}>{String(bowlOppTid)?.slice(0, 3)}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-semibold text-txt-primary truncate block">{bowlOppName}</span>
-                            <span className="text-[10px] text-txt-tertiary">{bowlGame.bowlName || 'Bowl Game'}</span>
+                            <span className="text-sm font-semibold text-white truncate block">{bowlOppName}</span>
+                            <span className="text-[10px] text-white/70">{bowlGame.bowlName || 'Bowl Game'}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {bowlIsPlayed && <span className="text-xs font-bold tabular-nums" style={{ color: bowlIsWin ? 'var(--accent-success)' : 'var(--accent-error)' }}>{bowlIsWin ? 'W' : 'L'}</span>}
                             <div className="w-14 text-right">
                               {bowlIsPlayed && bowlUserScore != null ? (
-                                <span className="text-base font-bold tabular-nums text-txt-primary">{Math.max(bowlUserScore, bowlOppScore || 0)}-{Math.min(bowlUserScore, bowlOppScore || 0)}</span>
-                              ) : <span className="text-sm text-txt-muted">—</span>}
+                                <span className="text-base font-bold tabular-nums text-white">{Math.max(bowlUserScore, bowlOppScore || 0)}-{Math.min(bowlUserScore, bowlOppScore || 0)}</span>
+                              ) : <span className="text-sm text-white/50">—</span>}
                             </div>
                           </div>
                         </div>

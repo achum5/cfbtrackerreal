@@ -2643,7 +2643,7 @@ export default function TeamYear() {
           ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
-        <div className="relative p-4 sm:p-5 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
+        <div className="relative overflow-hidden p-4 sm:p-5 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
           {/* Edit button — mobile only, pinned to the bottom-right of the hero
               CONTENT row so it stays above the docked tab nav and never overlaps
               the tabs. Desktop has its own in the RIGHT group. */}
