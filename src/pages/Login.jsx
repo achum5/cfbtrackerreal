@@ -25,13 +25,15 @@ const SCREENSHOTS = [
 ]
 
 const FEATURES = [
-  'Cloud saves that sync across all devices',
-  'Guided to-do list for every phase of the season',
-  'Manage schedules, rosters, and recruiting',
-  'Track stats, awards, and team records',
-  'AI-powered game reports and analysis',
-  'Import game data from Google Sheets',
-  'View CFP brackets and bowl history',
+  'Week-by-week to-do list for every phase of the season',
+  'Nearly fully automated input. Update every game in the country in seconds',
+  'Paste in screenshots and AI reads the scores, stats, and rankings',
+  'AI-powered game recaps and season analysis',
+  'Track schedules, rosters, recruiting, and the transfer portal',
+  'Player and team stats, awards, and all-time dynasty records',
+  'CFP bracket, bowl history, and conference championships',
+  'AI-generated trading cards for your players',
+  'Cloud saves that sync across all your devices',
 ]
 
 function FeaturesAndSignin({ onSignIn, onTryDemo, demoLoading }) {
