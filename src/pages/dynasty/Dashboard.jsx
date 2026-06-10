@@ -6771,7 +6771,7 @@ export default function Dashboard() {
                   ("# 2034 Week 10 Recap") so a header here would just
                   duplicate it. The external-link affordance floats at the
                   top-right of the body, out of the way. */}
-              <div className="relative px-5 py-4 max-h-[640px] overflow-y-auto">
+              <div className="relative px-5 py-4">
                 <Link
                   to={`${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/${Number(currentDynasty.currentWeek) - 1}?tab=recap`}
                   className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-txt-tertiary hover:text-txt-secondary hover:bg-surface-3 transition-colors"
