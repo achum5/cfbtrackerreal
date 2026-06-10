@@ -288,15 +288,16 @@ button.card-elevated:hover {
 }
 .cfb-texture-strong::after { opacity: 0.85; }
 
-/* App-wide grain. A single fixed, full-viewport layer that blends over the
-   ENTIRE app — header, sidebar, content, and the gaps between them — so the
-   grain reads as one continuous background rather than living only on certain
-   cards. Sits above the chrome (z above the sticky header) but below modals
-   (z-[9999]) so dialogs stay crisp. pointer-events:none keeps it click-through. */
+/* App-wide grain. A single fixed, full-viewport layer that textures the page
+   BACKGROUND. It sits BEHIND content (z-index:-1 inside the isolated app-shell
+   wrapper) so it blends over the surface-1 backdrop but never over cards,
+   images, trading cards, or player photos. Team-colored mastheads keep their
+   own `cfb-texture`; this is just the ambient background grain.
+   pointer-events:none keeps it click-through. */
 .cfb-grain-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: -1;
   pointer-events: none;
   opacity: 0.4;
   mix-blend-mode: overlay;
@@ -322,6 +323,11 @@ button.card-elevated:hover {
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+  /* The hero clips the watermark just above the tab nav; fade its lower edge
+     so that clip reads as a soft vignette instead of a hard cut through the
+     logo. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 90%);
+  mask-image: linear-gradient(to bottom, #000 58%, transparent 90%);
 }
 /* Hide the logo watermark on mobile — the narrow hero has no room for it
    and it crowds the identity. (Tailwind `sm` breakpoint = 640px.) */

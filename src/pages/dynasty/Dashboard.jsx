@@ -6765,7 +6765,7 @@ export default function Dashboard() {
         {lastWeekRecapExists && (
           <div className="lg:block lg:row-span-2">
             <div
-              className="media-card overflow-hidden"
+              className="overflow-hidden"
             >
               {/* No title bar — the recap text starts with its own H1
                   ("# 2034 Week 10 Recap") so a header here would just
@@ -7431,7 +7431,7 @@ export default function Dashboard() {
 
           {/* Schedule Tab Content */}
           {mobileTab === 'schedule' && (
-            <div className="media-card overflow-hidden">
+            <div className="overflow-hidden">
               {/* Schedule Header */}
               <div className="px-5 py-4 flex items-center justify-between" style={sectionStripStyle}>
                 <div className="flex items-center gap-3">
@@ -7670,7 +7670,7 @@ export default function Dashboard() {
 
           {/* Roster Tab Content */}
           {mobileTab === 'roster' && (
-          <div className="media-card overflow-hidden">
+          <div className="overflow-hidden">
             <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--surface-4)' }}>
               <div className="flex items-center gap-3">
                 <div>

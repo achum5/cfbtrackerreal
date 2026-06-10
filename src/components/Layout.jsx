@@ -529,10 +529,11 @@ export default function Layout({ children }) {
 
   return (
     <div
-      className="min-h-dvh flex flex-col surface-1"
+      className="min-h-dvh flex flex-col surface-1 isolate"
     >
-      {/* App-wide paper grain — one fixed layer over the whole UI so the
-          texture is continuous across header, sidebar, content, and gaps. */}
+      {/* App-wide paper grain — a fixed layer that textures the background
+          BEHIND content (z-index:-1 inside this isolated wrapper) so it never
+          fuzzes images, cards, or player photos. */}
       <div className="cfb-grain-overlay" aria-hidden="true" />
       <a
         href="#main"

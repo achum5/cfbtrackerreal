@@ -1774,7 +1774,7 @@ function PlayerInner() {
               <img
                 src={proxyImageUrl(player.pictureUrl, 300)}
                 alt={player.name}
-                className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl flex-shrink-0"
+                className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl flex-shrink-0"
                 style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
                 onError={(e) => { e.target.style.display = 'none' }}
               />
@@ -1992,7 +1992,7 @@ function PlayerInner() {
             banner, divided from the identity row above with a faint
             contrast-colored rule. */}
         {recruitmentStrip && (
-          <div className="relative px-4 sm:px-5 py-3" style={{ borderTop: `1px solid ${teamBgText}26` }}>
+          <div className="relative px-4 sm:px-5 py-2" style={{ borderTop: `1px solid ${teamBgText}26` }}>
             {recruitmentStrip}
           </div>
         )}
@@ -2033,7 +2033,7 @@ function PlayerInner() {
 
         {/* Tab nav docked to the bottom edge of the hero masthead so it reads
             as part of the player header, not a floating strip below it. */}
-        <div className="relative mt-2 sm:mt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
+        <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
           <div className="flex overflow-x-auto no-scrollbar">
             {[
               { key: 'overview', label: 'Overview' },
@@ -5494,28 +5494,18 @@ function PlayerInner() {
         if (collection.length === 0) return null
 
         return (
-          <div className="card overflow-hidden">
-            <div className="p-5">
-              <div className="flex items-end justify-between mb-5">
-                <div>
-                  <div className="label-xs text-txt-tertiary mb-1" style={{ letterSpacing: '1.5px' }}>
-                    {collection.length} {collection.length === 1 ? 'card' : 'cards'}
-                  </div>
-                  <h2 className="text-xl font-black uppercase text-txt-primary" style={{ fontFamily: "var(--font-display)", letterSpacing: '1px' }}>
-                    Card Collection
-                  </h2>
-                </div>
-                {!isViewOnly && (
-                  <button
-                    onClick={() => navigate(`${pathPrefix}/player/${pid}/edit?tab=card`)}
-                    className="px-3 py-1.5 rounded-md text-xs font-semibold border border-surface-4 text-txt-secondary hover:bg-surface-3 transition-colors"
-                  >
-                    Edit collection →
-                  </button>
-                )}
+          <div>
+            {!isViewOnly && (
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => navigate(`${pathPrefix}/player/${pid}/edit?tab=card`)}
+                  className="px-3 py-1.5 rounded-md text-xs font-semibold border border-surface-4 text-txt-secondary hover:bg-surface-3 transition-colors"
+                >
+                  Edit collection →
+                </button>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {collection.map((card, idx) => {
                   const linkedGame = card.gameId
                     ? (currentDynasty?.games || []).find(g => String(g.id) === String(card.gameId))
@@ -5570,21 +5560,13 @@ function PlayerInner() {
                   )
                 })}
               </div>
-            </div>
           </div>
         )
       })()}
 
       {/* Photos Tab — every game photo this player is tagged in */}
       {activeTab === 'photos' && taggedPhotos.length > 0 && (
-        <div className="card overflow-hidden">
-          <CardSectionHeader
-            label="Photos"
-            accent={teamInfo.backgroundColor}
-            right={<span className="text-[11px] font-bold tabular-nums text-txt-tertiary uppercase tracking-wider">{taggedPhotos.length} {taggedPhotos.length === 1 ? 'photo' : 'photos'}</span>}
-          />
-          <div className="p-5">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
               {taggedPhotos.map((ph, idx) => {
                 const thumb = `https://wsrv.nl/?url=${encodeURIComponent(ph.url)}&w=240&output=webp`
                 return (
@@ -5628,8 +5610,6 @@ function PlayerInner() {
                   </button>
                 )
               })}
-            </div>
-          </div>
         </div>
       )}
       </div>

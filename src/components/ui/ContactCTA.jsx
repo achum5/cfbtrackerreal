@@ -14,9 +14,6 @@ export default function ContactCTA({ className = '' }) {
           <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight">
             Got feedback, bugs, or ideas?
           </span>
-          <span className="text-xs text-txt-tertiary">
-            Discord Reddit DM
-          </span>
         </div>
         <span className="btn-refined flex-shrink-0">
           Contact

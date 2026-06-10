@@ -1113,8 +1113,10 @@ export default function CFPBracket() {
     <div
       className="relative overflow-hidden rounded-2xl px-4 sm:px-6 py-5 sm:py-6 space-y-5"
       style={{
-        backgroundColor: '#0b0c10',
-        backgroundImage: `radial-gradient(circle at 18% -10%, rgba(228,176,74,0.12), transparent 38%), radial-gradient(circle at 88% 120%, rgba(228,176,74,0.09), transparent 42%), radial-gradient(ellipse at 50% 42%, transparent 50%, rgba(0,0,0,0.62) 100%)`,
+        // Sit on the app's unified dark-grey background instead of a black
+        // box; keep only the faint gold CFP glows in the corners.
+        backgroundColor: 'var(--surface-1)',
+        backgroundImage: `radial-gradient(circle at 18% -10%, rgba(228,176,74,0.10), transparent 38%), radial-gradient(circle at 88% 120%, rgba(228,176,74,0.08), transparent 42%)`,
       }}
     >
 
