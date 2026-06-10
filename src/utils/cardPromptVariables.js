@@ -70,6 +70,16 @@ const POSITION_FULL = {
   K: 'Kicker', P: 'Punter',
 }
 
+// Positions that should NOT have defense stats on a highlight card.
+// A TE who batted down a pass or a QB who tackled on an INT return —
+// those are flukes, not defining achievements.
+const NON_DEFENSIVE_POS = new Set([
+  'QB', 'HB', 'RB', 'FB', 'WR', 'TE',
+  'LT', 'LG', 'C', 'RG', 'RT',
+  'K', 'P',
+])
+const OFFENSIVE_LINE_POS = new Set(['LT', 'LG', 'C', 'RG', 'RT'])
+
 function emptyToBlank(v) {
   return v == null || v === '' ? '' : String(v)
 }
@@ -113,7 +123,7 @@ function namesMatch(boxName, playerName) {
  * in the box score (older games without box-score data, walk-on with no
  * recorded stats, etc.).
  */
-function buildPlayerGameStatsLine(player, game) {
+function buildPlayerGameStatsLine(player, game, pos = '') {
   if (!player?.name || !game?.boxScore) return ''
 
   const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
@@ -154,6 +164,9 @@ function buildPlayerGameStatsLine(player, game) {
   const has = (v) => Number(v) > 0
   const parts = []
 
+  const isQB = pos === 'QB'
+  const noDefense = NON_DEFENSIVE_POS.has(pos)
+
   if (found.passing) {
     const p = found.passing
     if (has(p.attempts) || has(p.yards) || has(p.tD) || has(p.comp)) {
@@ -167,13 +180,18 @@ function buildPlayerGameStatsLine(player, game) {
   if (found.rushing) {
     const r = found.rushing
     if (has(r.carries) || has(r.yards) || has(r.tD)) {
-      const sub = [`${num(r.carries)} car`, `${num(r.yards)} yds`, `${num(r.tD)} TD`]
-      if (has(r.long)) sub.push(`${num(r.long)} long`)
-      if (has(r['20+'])) sub.push(`${num(r['20+'])} 20+`)
-      if (has(r.brokenTackles)) sub.push(`${num(r.brokenTackles)} BT`)
-      if (has(r.yAC)) sub.push(`${num(r.yAC)} YAC`)
-      if (has(r.fumbles)) sub.push(`${num(r.fumbles)} fum`)
-      parts.push(`Rushing: ${sub.join(', ')}`)
+      const rushYds = num(r.yards)
+      const rushTD = num(r.tD)
+      const skipQBRush = isQB && rushYds <= 0 && rushTD === 0
+      if (!skipQBRush) {
+        const sub = [`${num(r.carries)} car`, `${rushYds} yds`, `${rushTD} TD`]
+        if (has(r.long)) sub.push(`${num(r.long)} long`)
+        if (has(r['20+'])) sub.push(`${num(r['20+'])} 20+`)
+        if (has(r.brokenTackles)) sub.push(`${num(r.brokenTackles)} BT`)
+        if (has(r.yAC)) sub.push(`${num(r.yAC)} YAC`)
+        // Fumbles omitted — always unflattering on a highlight card
+        parts.push(`Rushing: ${sub.join(', ')}`)
+      }
     }
   }
   if (found.receiving) {
@@ -182,20 +200,21 @@ function buildPlayerGameStatsLine(player, game) {
       const sub = [`${num(c.receptions)} rec`, `${num(c.yards)} yds`, `${num(c.tD)} TD`]
       if (has(c.long)) sub.push(`${num(c.long)} long`)
       if (has(c.rAC)) sub.push(`${num(c.rAC)} RAC`)
-      if (has(c.drops)) sub.push(`${num(c.drops)} drops`)
+      // Drops omitted — unflattering on a highlight card
       parts.push(`Receiving: ${sub.join(', ')}`)
     }
   }
   if (found.blocking) {
     const b = found.blocking
-    if (has(b.pancakes) || has(b.sacksAllowed)) {
-      const sub = []
-      if (has(b.pancakes)) sub.push(`${num(b.pancakes)} pancakes`)
-      if (has(b.sacksAllowed)) sub.push(`${num(b.sacksAllowed)} sacks allowed`)
-      parts.push(`Blocking: ${sub.join(', ')}`)
+    // Pancakes always; sacks allowed only for OL (low count = achievement).
+    const bSub = []
+    if (has(b.pancakes)) bSub.push(`${num(b.pancakes)} pancakes`)
+    if (OFFENSIVE_LINE_POS.has(pos) && b.sacksAllowed != null) {
+      bSub.push(`${num(b.sacksAllowed)} sacks allowed`)
     }
+    if (bSub.length) parts.push(`Blocking: ${bSub.join(', ')}`)
   }
-  if (found.defense) {
+  if (!noDefense && found.defense) {
     const d = found.defense
     const tackles = num(d.solo) + num(d.assists)
     const sub = []
@@ -295,14 +314,16 @@ function buildBioText({ player, position, school, year, statsLine, recordLine, c
 }
 
 /**
- * Build a comprehensive stats-line for the year. Pulls EVERY stat we
- * actually store on player.statsByYear so the model has the full
- * picture instead of one cherry-picked number. Field names match the
- * INTERNAL format written by BOXSCORE_TO_INTERNAL_MAP in DynastyContext
- * (e.g. defense uses soloTkl/astTkl/tfl/sacks/int/intYds/pd/td/ff/fr).
- * Returns '' when the player has no stat data for that year.
+ * Build a highlight-appropriate stats-line for a card. Omits stats that
+ * would look embarrassing on a collectible card (negative rushing yards,
+ * fumbles, drops, sacks allowed, defense for offensive players).
+ *
+ * `pos` (optional) — the player's position string (e.g. 'QB', 'TE'). When
+ * supplied, defense is suppressed for non-defensive positions and other
+ * position-aware filters apply. Safe to call without `pos`; it just won't
+ * filter position-specific categories.
  */
-function buildStatsLine(player, year) {
+function buildStatsLine(player, year, pos = '') {
   if (!player?.statsByYear || !year) return ''
   const yearStats = player.statsByYear[year] || player.statsByYear[String(year)]
   if (!yearStats) return ''
@@ -310,6 +331,9 @@ function buildStatsLine(player, year) {
   const num = (v) => Number(v) || 0
   const has = (v) => Number(v) > 0
   const parts = []
+
+  const isQB = pos === 'QB'
+  const noDefense = NON_DEFENSIVE_POS.has(pos)
 
   // Passing
   const p = yearStats.passing
@@ -325,21 +349,28 @@ function buildStatsLine(player, year) {
     parts.push(`Passing: ${sub.join(', ')}`)
   }
 
-  // Rushing
+  // Rushing — omit for QBs whose net yards are negative with no TDs
+  // (those are sack losses, not real runs — embarrassing on a card).
   const r = yearStats.rushing
   if (r && (has(r.yds) || has(r.td) || has(r.car))) {
-    const sub = []
-    const rushAvg = num(r.car) > 0 ? `${(num(r.yds) / num(r.car)).toFixed(1)} avg` : null
-    sub.push(`${num(r.car)} car`)
-    sub.push(`${num(r.yds)} yds`)
-    if (rushAvg) sub.push(rushAvg)
-    sub.push(`${num(r.td)} TD`)
-    if (r.fum != null) sub.push(`${num(r.fum)} fum`)
-    if (has(r.lng)) sub.push(`${num(r.lng)} long`)
-    if (has(r.twentyPlus)) sub.push(`${num(r.twentyPlus)} 20+`)
-    if (has(r.bt)) sub.push(`${num(r.bt)} BT`)
-    if (has(r.yac)) sub.push(`${num(r.yac)} YAC`)
-    parts.push(`Rushing: ${sub.join(', ')}`)
+    const rushYds = num(r.yds)
+    const rushTD = num(r.td)
+    const skipQBRush = isQB && rushYds <= 0 && rushTD === 0
+    if (!skipQBRush) {
+      const sub = []
+      const rawAvg = num(r.car) > 0 ? rushYds / num(r.car) : null
+      sub.push(`${num(r.car)} car`)
+      sub.push(`${rushYds} yds`)
+      // Negative avg is embarrassing — omit it
+      if (rawAvg != null && rawAvg > 0) sub.push(`${rawAvg.toFixed(1)} avg`)
+      sub.push(`${rushTD} TD`)
+      // Fumbles omitted — always unflattering on a highlight card
+      if (has(r.lng)) sub.push(`${num(r.lng)} long`)
+      if (has(r.twentyPlus)) sub.push(`${num(r.twentyPlus)} 20+`)
+      if (has(r.bt)) sub.push(`${num(r.bt)} BT`)
+      if (has(r.yac)) sub.push(`${num(r.yac)} YAC`)
+      parts.push(`Rushing: ${sub.join(', ')}`)
+    }
   }
 
   // Receiving
@@ -353,13 +384,15 @@ function buildStatsLine(player, year) {
     sub.push(`${num(c.td)} TD`)
     if (has(c.lng)) sub.push(`${num(c.lng)} long`)
     if (has(c.rac)) sub.push(`${num(c.rac)} RAC`)
-    if (has(c.drops)) sub.push(`${num(c.drops)} drops`)
+    // Drops omitted — unflattering on a highlight card
     parts.push(`Receiving: ${sub.join(', ')}`)
   }
 
-  // Defense
+  // Defense — omit for QB, RB, WR, TE, OL, K, P.
+  // A TE who batted a pass or a QB who tackled on an INT is a fluke,
+  // not a card-worthy achievement.
   const d = yearStats.defense
-  if (d) {
+  if (!noDefense && d) {
     const tot = num(d.soloTkl) + num(d.astTkl)
     const sub = []
     if (tot > 0) sub.push(`${tot} tkl (${num(d.soloTkl)} solo, ${num(d.astTkl)} ast)`)
@@ -374,13 +407,17 @@ function buildStatsLine(player, year) {
     if (sub.length) parts.push(`Defense: ${sub.join(', ')}`)
   }
 
-  // Blocking (OL)
+  // Blocking — pancakes always; sacks allowed only for OL where a low
+  // count is a genuine achievement (1 sack allowed in 15 games is elite).
+  // Suppressed for non-OL positions where it's irrelevant.
   const b = yearStats.blocking
-  if (b && (has(b.pancakes) || has(b.sacksAllowed))) {
+  if (b) {
     const sub = []
     if (has(b.pancakes)) sub.push(`${num(b.pancakes)} pancakes`)
-    if (has(b.sacksAllowed)) sub.push(`${num(b.sacksAllowed)} sacks allowed`)
-    parts.push(`Blocking: ${sub.join(', ')}`)
+    if (OFFENSIVE_LINE_POS.has(pos) && b.sacksAllowed != null) {
+      sub.push(`${num(b.sacksAllowed)} sacks allowed`)
+    }
+    if (sub.length) parts.push(`Blocking: ${sub.join(', ')}`)
   }
 
   // Kicking
@@ -429,12 +466,13 @@ function buildStatsLine(player, year) {
  * Returns an object with summed fields for passing, rushing, receiving,
  * defense, kicking, punting, and returns.
  */
-function buildCareerTotals(player) {
+function buildCareerTotals(player, pos = '') {
   if (!player?.statsByYear) return null
   const years = Object.keys(player.statsByYear).map(Number).filter(n => Number.isFinite(n) && n > 0)
   if (years.length === 0) return null
 
   const num = (v) => Number(v) || 0
+  const noDefense = NON_DEFENSIVE_POS.has(pos)
   const totals = {}
 
   for (const yr of years) {
@@ -462,7 +500,7 @@ function buildCareerTotals(player) {
       totals.receiving.yds += num(s.receiving.yds)
       totals.receiving.td  += num(s.receiving.td)
     }
-    if (s.defense) {
+    if (!noDefense && s.defense) {
       if (!totals.defense) totals.defense = { soloTkl: 0, astTkl: 0, tfl: 0, sacks: 0, int: 0, pd: 0, ff: 0, fr: 0, td: 0 }
       totals.defense.soloTkl += num(s.defense.soloTkl)
       totals.defense.astTkl  += num(s.defense.astTkl)
@@ -494,11 +532,12 @@ function buildCareerTotals(player) {
  * Format career totals object into a human-readable line (same style
  * as buildStatsLine so they can be concatenated in the career table).
  */
-function formatCareerTotalsLine(totals) {
+function formatCareerTotalsLine(totals, pos = '') {
   if (!totals) return ''
   const num = (v) => Number(v) || 0
   const has = (v) => Number(v) > 0
   const parts = []
+  const noDefense = NON_DEFENSIVE_POS.has(pos)
 
   if (totals.passing) {
     const p = totals.passing
@@ -507,11 +546,12 @@ function formatCareerTotalsLine(totals) {
   }
   if (totals.rushing) {
     const r = totals.rushing
-    const avg = num(r.car) > 0 ? `${(num(r.yds) / num(r.car)).toFixed(1)} avg` : null
+    const rawAvg = num(r.car) > 0 ? num(r.yds) / num(r.car) : null
     const parts2 = [`${num(r.car)} car`, `${num(r.yds)} yds`]
-    if (avg) parts2.push(avg)
+    // Negative career avg is embarrassing — omit it
+    if (rawAvg != null && rawAvg > 0) parts2.push(`${rawAvg.toFixed(1)} avg`)
     parts2.push(`${num(r.td)} TD`)
-    if (has(r.fum)) parts2.push(`${num(r.fum)} fum`)
+    // Fumbles omitted — always unflattering on a highlight card
     parts.push(`Rushing: ${parts2.join(', ')}`)
   }
   if (totals.receiving) {
@@ -522,7 +562,7 @@ function formatCareerTotalsLine(totals) {
     parts2.push(`${num(c.td)} TD`)
     parts.push(`Receiving: ${parts2.join(', ')}`)
   }
-  if (totals.defense) {
+  if (!noDefense && totals.defense) {
     const d = totals.defense
     const tot = num(d.soloTkl) + num(d.astTkl)
     const sub = []
@@ -558,7 +598,7 @@ function formatCareerTotalsLine(totals) {
  * @param {object} player
  * @param {Record<number,number>} gpByYear - games played per year (optional)
  */
-function buildCareerStatsTable(player, gpByYear = {}) {
+function buildCareerStatsTable(player, gpByYear = {}, pos = '') {
   if (!player?.statsByYear) return ''
   const years = Object.keys(player.statsByYear)
     .map(Number)
@@ -569,7 +609,7 @@ function buildCareerStatsTable(player, gpByYear = {}) {
   const rows = []
   let totalGP = 0
   for (const yr of years) {
-    const line = buildStatsLine(player, yr)
+    const line = buildStatsLine(player, yr, pos)
     if (!line) continue
     const cls = player.classByYear?.[yr] || player.classByYear?.[String(yr)] || ''
     const gp = gpByYear[yr] != null ? gpByYear[yr] : null
@@ -580,7 +620,7 @@ function buildCareerStatsTable(player, gpByYear = {}) {
 
   // Career totals row — only meaningful when there are multiple years
   if (rows.length > 1) {
-    const careerLine = formatCareerTotalsLine(buildCareerTotals(player))
+    const careerLine = formatCareerTotalsLine(buildCareerTotals(player, pos), pos)
     if (careerLine) {
       const gpStr = totalGP > 0 ? `${totalGP} GP, ` : ''
       rows.push(`CAREER: ${gpStr}${careerLine}`)
@@ -630,6 +670,12 @@ function buildContextStatBlock({
 }) {
   const lines = []
   const push = (s) => { if (s != null) lines.push(s) }
+
+  // Universal card format spec — tells the AI the exact output target.
+  // Appears at the top of every context block so the AI knows what it is
+  // generating before it reads the player data.
+  push('CARD FORMAT: Standard trading card, portrait orientation, 750 × 1050 pixels (2.5 × 3.5 in). This is the BACK of the card.')
+  push('')
 
   // Wording instruction added to every non-game context when the card's
   // year is the in-progress season. Tells the AI to phrase numbers as
@@ -710,6 +756,7 @@ function buildContextStatBlock({
     push('HOW TO RENDER THIS DATA ON THE BACK:')
     push('  • This is a debut/rookie card — content is the recruiting profile + the rookie-year stats only. No later years exist from this card\'s perspective.')
     push('  • Render the rookie-season stats as a small tabular block (column headers + one row of numbers), the way the brand\'s actual rookie cards from this era did.')
+    push('  • BE SELECTIVE — only show stat categories that are impressive and appropriate for this player\'s position. Never invent or extrapolate stats not listed above. Omit any category that would look unflattering (negative averages, incidental stats outside the player\'s primary role).')
     push('  • A short scouting-style bio (2-3 sentences) is appropriate. Keep it factual; do NOT pad with generic AI prose.')
     if (inProgressGuidance) push(inProgressGuidance)
     return lines.join('\n')
@@ -736,6 +783,7 @@ function buildContextStatBlock({
     push('HOW TO RENDER THIS DATA ON THE BACK:')
     push(`  • The "${championshipName || 'championship'}" title is the visual headline of the back — render it large/prominent in era-appropriate styling.`)
     push(`  • Render the ${year} season stats as a small tabular block (column headers + one row of numbers).`)
+    push(`  • BE SELECTIVE — only show stat categories that are impressive and position-appropriate. Never invent or extrapolate numbers not listed above. Omit any category that would look unflattering (negative averages, incidental stats outside the player's primary role).`)
     push(`  • If the card style includes a career totals section, use ONLY the career numbers listed above. Do NOT invent or estimate career stats.`)
     push(`  • A 2-3 sentence factual narrative tying the player to the title run is appropriate.`)
     if (inProgressGuidance) push(inProgressGuidance)
@@ -763,6 +811,7 @@ function buildContextStatBlock({
     push('HOW TO RENDER THIS DATA ON THE BACK:')
     push(`  • The "${awardName || 'award'}" name is the visual headline — render it large/prominent in era-appropriate styling (trophy, seal, ribbon).`)
     push(`  • Render the ${year} season stats as a small tabular block — these are the numbers that earned the honor.`)
+    push(`  • BE SELECTIVE — only show stat categories that are impressive and position-appropriate. Never invent or extrapolate numbers not listed above. Omit any category that would look unflattering (negative averages, incidental stats outside the player's primary role).`)
     push(`  • If the card style includes a career totals section, use ONLY the career numbers listed above. Do NOT invent or estimate career stats.`)
     push('  • A 2-3 sentence factual narrative on the case for the award is appropriate.')
     if (inProgressGuidance) push(inProgressGuidance)
@@ -784,6 +833,7 @@ function buildContextStatBlock({
     push('HOW TO RENDER THIS DATA ON THE BACK:')
     push(`  • Render the back around the user-supplied theme: "${customLabel || ''}".`)
     push('  • Use only the data above — do NOT invent additional achievements.')
+    push('  • BE SELECTIVE — only show stat categories that are impressive and position-appropriate. Omit any category that would look unflattering (negative averages, incidental stats outside the player\'s primary role).')
     if (inProgressGuidance) push(inProgressGuidance)
     return lines.join('\n')
   }
@@ -825,6 +875,7 @@ function buildContextStatBlock({
   push('HOW TO RENDER THIS DATA ON THE BACK:')
   push(`  • Render the career data as a multi-column STAT TABLE the way ${school ? school + "'s era of " : ''}real production cards did — column headers across the top (Year, GP, and the position-specific stat columns), one row per season, totals row in bold at the bottom.`)
   push(`  • Visually EMPHASIZE the ${year} highlight row — bold type, accent color, asterisk, or whatever device the era's actual cards used to call out a featured season.`)
+  push('  • BE SELECTIVE — only show the stat columns that are impressive and appropriate for this player\'s position. Never invent or extrapolate numbers not listed above. Omit columns that would look unflattering (negative averages, incidental stats outside the player\'s primary role).')
   push('  • A 2-3 sentence career-arc bio in the era\'s typical tone is appropriate. Keep it factual; no AI-recap clichés.')
   push('  • Do NOT invent years, totals, or stats not listed above. The career years are exactly what is shown.')
   if (inProgressGuidance) push(inProgressGuidance)
@@ -863,7 +914,7 @@ export function buildCardPromptVariables({ player, dynasty, card }) {
   const cls = player.classByYear?.[year] || player.year || ''
 
   // Season data.
-  const statsLine = buildStatsLine(player, year)
+  const statsLine = buildStatsLine(player, year, position)
   const ranking = teamTid != null
     ? (getTeamRanking(dynasty, teamTid, year)?.rank || '')
     : ''
@@ -1015,13 +1066,13 @@ export function buildCardPromptVariables({ player, dynasty, card }) {
   })()
 
   // Career-wide stats (used by season-context cards on the back).
-  const careerStatsTable = buildCareerStatsTable(player, gpByYear)
+  const careerStatsTable = buildCareerStatsTable(player, gpByYear, position)
   const careerYearsLine = buildCareerYearsLine(player)
 
   // For game-context cards, pull the player's per-game stat line from
   // the box score so the back of the card can show what they actually
   // did in that single game (instead of repeating season totals).
-  const gameStatsLine = gameRecord ? buildPlayerGameStatsLine(player, gameRecord) : ''
+  const gameStatsLine = gameRecord ? buildPlayerGameStatsLine(player, gameRecord, position) : ''
 
   // Build "City, ST" when both city and state are known, "City" if
   // only city, "ST" if only state, "" otherwise. The AI was guessing
