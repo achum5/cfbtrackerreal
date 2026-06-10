@@ -675,6 +675,7 @@ function buildContextStatBlock({
   // Appears at the top of every context block so the AI knows what it is
   // generating before it reads the player data.
   push('CARD FORMAT: Standard trading card, portrait orientation, 750 × 1050 pixels (2.5 × 3.5 in). This is the BACK of the card.')
+  push('STATS PHILOSOPHY: Cards are highlights, not report cards. Only include stats that make the player look impressive. If a number is unflattering — negative averages, low counts, or anything that distracts from the achievement being commemorated — leave it out. Never invent stats not listed below.')
   push('')
 
   // Wording instruction added to every non-game context when the card's
