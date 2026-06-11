@@ -2317,7 +2317,11 @@ export default function Game() {
             )
 
             return (
-              <div className="px-5 py-6 sm:px-6 sm:py-7 grid grid-cols-1 lg:grid-cols-[minmax(180px,280px)_minmax(360px,1fr)_minmax(220px,320px)] gap-y-8 lg:gap-x-8 xl:gap-x-12">
+              <div className={`px-5 py-6 sm:px-6 sm:py-7 grid grid-cols-1 gap-y-8 lg:gap-x-8 xl:gap-x-12 ${
+                hasBoxForLeaders
+                  ? 'lg:grid-cols-[minmax(180px,280px)_minmax(360px,1fr)_minmax(220px,320px)]'
+                  : 'lg:grid-cols-[minmax(360px,620px)_minmax(300px,560px)] lg:justify-center'
+              }`}>
                 {/* Mobile-only score graphic — appears at the top of the
                     gamecast on phones/tablets below lg. Order -1 ensures
                     it sits above the Recap (order-1). Hidden on desktop

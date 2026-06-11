@@ -5550,21 +5550,8 @@ export default function Dashboard() {
 
               const w5Todos = []
 
-              {
-                const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[19]
-                const done = !!recap?.text
-                w5Todos.push({
-                  key: 'nc-recap',
-                  done,
-                  title: done ? 'National Championship Recap Saved' : 'Generate National Championship Recap',
-                  subtitle: done ? 'Narrative recap stored for the National Championship' : 'Generate the AI recap of the National Championship',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
-                  actionLabel: done ? 'Edit' : 'Generate',
-                })
-              }
-
+              // Result first, then recap — you enter the championship result
+              // before generating its recap, so it leads the list.
               if (userInCFPChampionship) {
                 // User played in the NC — link to their game record
                 const userChampHasScoresW5 = userCFPChampionshipGame &&
@@ -5592,6 +5579,21 @@ export default function Dashboard() {
                     : 'Enter the championship game result',
                   onAction: () => setShowCFPChampionshipModal(true),
                   actionLabel: hasChampData ? 'Edit' : 'Enter',
+                })
+              }
+
+              {
+                const yearNum = Number(currentDynasty.currentYear)
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[19]
+                const done = !!recap?.text
+                w5Todos.push({
+                  key: 'nc-recap',
+                  done,
+                  title: done ? 'National Championship Recap Saved' : 'Generate National Championship Recap',
+                  subtitle: done ? 'Narrative recap stored for the National Championship' : 'Generate the AI recap of the National Championship',
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
+                  actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
 

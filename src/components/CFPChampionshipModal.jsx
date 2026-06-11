@@ -4,7 +4,7 @@ import { useDynasty, getGamesByType, GAME_TYPES } from '../context/DynastyContex
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo } from '../data/teams'
 import { TEAMS, getGameTeamInfo } from '../data/teamRegistry'
-import { getModalColors } from '../utils/colorUtils'
+import { getModalColors, getContrastTextColor } from '../utils/colorUtils'
 import { useToast } from './ui/Toast'
 
 // Map abbreviations to mascot names for logo lookup
@@ -344,10 +344,8 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
 
 // --- Local presentational helpers ---
 
-function ChampTeamCard({ info, side, scoreValue, onScoreChange, scoreDisabled, opponentScore }) {
+function ChampTeamCard({ info, scoreValue, onScoreChange, scoreDisabled, opponentScore }) {
   const GOLD = '#c9a227'
-  const accent = info?.backgroundColor || GOLD
-  const reverse = side === 'right'
 
   const myNum = Number(scoreValue)
   const oppNum = Number(opponentScore)
@@ -357,7 +355,7 @@ function ChampTeamCard({ info, side, scoreValue, onScoreChange, scoreDisabled, o
 
   if (!info) {
     return (
-      <div className="rounded-md border border-dashed border-surface-4 bg-surface-3 p-4 flex flex-col items-center justify-center text-center min-h-[200px]">
+      <div className="rounded-lg border border-dashed border-surface-5 bg-surface-3 p-4 flex flex-col items-center justify-center text-center min-h-[200px]">
         <span className="font-display text-lg font-bold text-txt-tertiary tracking-tight">TBD</span>
         <p
           className="mt-1 text-txt-muted"
@@ -368,41 +366,38 @@ function ChampTeamCard({ info, side, scoreValue, onScoreChange, scoreDisabled, o
       </div>
     )
   }
+  // CFB-27 solid team-color panel (broadcast scorebug): true color + gradient
+  // sheen + grain, white-circle logo, contrast-aware text (light teams borrow
+  // their secondary). The champion's panel gets a gold ring + glow.
+  const bg = info.backgroundColor
+  const txt = getContrastTextColor(bg, info.textColor)
   return (
     <div
-      className="relative rounded-md bg-surface-3 border overflow-hidden p-4 flex flex-col items-center justify-start text-center transition-colors"
+      className="relative rounded-lg overflow-hidden cfb-texture p-4 sm:p-5 flex flex-col items-center justify-start text-center transition-all"
       style={{
-        borderColor: isWinner ? GOLD : 'var(--surface-4)',
-        boxShadow: isWinner ? `0 0 0 1px ${GOLD}` : 'none',
+        backgroundColor: bg,
+        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.40) 100%)',
+        border: isWinner ? `2px solid ${GOLD}` : '1px solid rgba(0,0,0,0.28)',
+        boxShadow: isWinner ? `0 0 0 1px ${GOLD}, 0 8px 26px rgba(201,162,39,0.28)` : 'none',
+        opacity: isLoser ? 0.82 : 1,
       }}
     >
-      <div
-        className={`absolute top-0 ${reverse ? 'right-0' : 'left-0'} bottom-0 w-[3px]`}
-        style={{ backgroundColor: accent }}
-        aria-hidden="true"
-      />
       {info.logo && (
-        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-full p-1.5 flex items-center justify-center mb-2 flex-shrink-0">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-full p-1.5 flex items-center justify-center mb-2 flex-shrink-0 shadow-md">
           <img src={info.logo} alt={info.fullMascot} className="w-full h-full object-contain" />
         </div>
       )}
-      <div
-        className="text-txt-tertiary"
-        style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}
-      >
+      <div style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 800, color: txt, opacity: 0.82 }}>
         #{info.seed || '–'} Seed
       </div>
       <div
-        className="font-display font-bold text-txt-primary text-sm sm:text-base leading-tight mt-0.5 mb-3"
-        style={{ opacity: isLoser ? 0.55 : 1 }}
+        className="font-display font-extrabold text-sm sm:text-base leading-tight mt-0.5 mb-3"
+        style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.3)', opacity: isLoser ? 0.7 : 1 }}
       >
         {info.fullMascot?.split(' ').slice(-2).join(' ') || info.abbr}
       </div>
 
-      <div
-        className="label-xs text-txt-tertiary mb-1"
-        style={{ fontSize: '9px', letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 700 }}
-      >
+      <div className="mb-1" style={{ fontSize: '9px', letterSpacing: '2.5px', textTransform: 'uppercase', fontWeight: 800, color: txt, opacity: 0.72 }}>
         Score
       </div>
       <input
@@ -413,12 +408,12 @@ function ChampTeamCard({ info, side, scoreValue, onScoreChange, scoreDisabled, o
         disabled={scoreDisabled}
         placeholder="0"
         aria-label={`${info.fullMascot || info.abbr} score`}
-        className="w-full max-w-[96px] h-14 sm:h-16 text-center font-display font-black text-3xl sm:text-4xl rounded-md bg-surface-2 border text-txt-primary focus:outline-none focus:ring-2 transition-all disabled:opacity-30"
+        className="w-full max-w-[96px] h-14 sm:h-16 text-center font-display font-black text-3xl sm:text-4xl rounded-md text-white focus:outline-none focus:ring-2 transition-all disabled:opacity-40"
         style={{
           fontVariantNumeric: 'tabular-nums',
           letterSpacing: '-0.02em',
-          borderColor: isWinner ? GOLD : 'var(--surface-4)',
-          color: isLoser ? 'var(--text-tertiary)' : 'var(--text-primary)',
+          backgroundColor: 'rgba(13,15,20,0.82)',
+          border: isWinner ? `1px solid ${GOLD}` : '1px solid rgba(255,255,255,0.22)',
           '--tw-ring-color': GOLD,
         }}
       />
