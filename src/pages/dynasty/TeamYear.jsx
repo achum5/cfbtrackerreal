@@ -3462,23 +3462,45 @@ export default function TeamYear() {
                   </button>
                 </div>
 
-                {/* Mobile: horizontal scroll — left-indented to align with section heading text */}
-                <div className="md:hidden flex gap-4 overflow-x-auto pb-2 -mr-4 pr-4 pl-[15px] scrollbar-hide stagger-reveal">
-                  {leaders.map((l) => (
-                    <Link
-                      key={l.key}
-                      to={l.data.player ? `${pathPrefix}/player/${l.data.player.pid}` : '#'}
-                      className="flex-shrink-0 w-36 group"
-                    >
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-txt-tertiary">{l.label}</div>
-                      <FittedPlayerName name={l.data.name} className="text-sm font-semibold mt-0.5 group-hover:opacity-80 transition-opacity" style={{ color: accentColor }} />
-                      <div className="font-display font-black tabular-nums leading-none mt-1" style={{ color: accentColor, fontSize: '1.75rem' }}>
-                        {l.valueText}
-                        <span className="text-[10px] font-bold tracking-wider ml-1" style={{ color: accentColorMuted }}>{l.unit}</span>
-                      </div>
-                      <div className="text-[10px] tabular-nums mt-1" style={{ color: accentColorMuted }}>{l.sub}</div>
-                    </Link>
-                  ))}
+                {/* Mobile: one connected CFB-27 strip (photo + label + name +
+                    value) that scrolls horizontally, cells separated by a thin
+                    light divider — matching the desktop rail aesthetic instead
+                    of bare text on the page background. No left indent so the
+                    card's left edge lines up with the Previous Game scorebug
+                    below; -mr-4/pr-4 lets it bleed off the right while scrolling. */}
+                <div className="md:hidden -mr-4 pr-4 overflow-x-auto scrollbar-hide">
+                  <div
+                    className="inline-flex rounded-xl overflow-hidden cfb-texture cfb-texture-strong stagger-reveal align-top"
+                    style={{ backgroundColor: teamInfo.backgroundColor, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.44) 100%)' }}
+                  >
+                    {leaders.map((l, idx) => (
+                      <Link
+                        key={l.key}
+                        to={l.data.player ? `${pathPrefix}/player/${l.data.player.pid}` : '#'}
+                        className="flex-shrink-0 w-[132px] group flex flex-col p-3 transition-colors hover:bg-white/[0.06]"
+                        style={idx > 0 ? { borderLeft: `1px solid ${teamBgText}33` } : undefined}
+                      >
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ border: `2px solid ${teamBgText}99`, backgroundColor: 'rgba(255,255,255,0.10)' }}>
+                            {realPhoto(l.data.player?.pictureUrl) ? (
+                              <img src={proxyImageUrl(realPhoto(l.data.player.pictureUrl), 300)} alt="" className="w-full h-full object-cover" />
+                            ) : teamLogo ? (
+                              <img src={teamLogo} alt="" className="w-full h-full object-contain p-1" />
+                            ) : (
+                              <span className="text-base font-bold" style={{ color: teamBgText }}>{l.data.name?.charAt(0) || l.fallback}</span>
+                            )}
+                          </div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: teamBgText, opacity: 0.7 }}>{l.label}</div>
+                        </div>
+                        <FittedPlayerName name={l.data.name} className="text-xs font-semibold group-hover:opacity-80 transition-opacity" style={{ color: teamBgText }} />
+                        <div className="font-display font-black tabular-nums leading-none mt-0.5" style={{ color: teamBgText, fontSize: '1.35rem' }}>
+                          {l.valueText}
+                          <span className="text-[9px] font-bold tracking-wider ml-0.5" style={{ color: teamBgText, opacity: 0.65 }}>{l.unit}</span>
+                        </div>
+                        <div className="text-[9px] tabular-nums mt-0.5 truncate" style={{ color: teamBgText, opacity: 0.65 }}>{l.sub}</div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Desktop: 5-col grid at md+; collapses to vertical stack at xl+
