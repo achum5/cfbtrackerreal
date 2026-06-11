@@ -2514,9 +2514,11 @@ function PlayerInner() {
                       // stay legible.
                       const oppColors = game.opponentTid != null ? getColorsFromTid(dynasty.teams, game.opponentTid) : null
                       const oppPrimary = oppColors?.primary || null
-                      const rowGradient = oppPrimary
-                        ? `linear-gradient(to right, color-mix(in srgb, ${oppPrimary} 88%, transparent) 0%, color-mix(in srgb, ${oppPrimary} 42%, transparent) 44%, transparent 80%)`
-                        : undefined
+                      // Bold CFB-27 solid opponent-color band (matches the schedule
+                      // rows): true team color + gradient sheen + grain, with
+                      // contrast-aware text instead of a fade-to-dark wash.
+                      const rowText = oppPrimary ? getContrastTextColor(oppPrimary) : primaryText
+                      const rowTextMuted = oppPrimary ? `${rowText}b3` : secondaryText
                       let statDisplay = ''
                       if (stats?.category === 'passing') {
                         const c = stats.comp ?? stats.cmp ?? stats.completions ?? 0
@@ -2551,31 +2553,31 @@ function PlayerInner() {
                         <RowWrap
                           key={idx}
                           {...rowProps}
-                          className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.06] cursor-pointer"
-                          style={{ background: rowGradient }}
+                          className={`relative flex items-center gap-3 px-4 py-3 cursor-pointer ${oppPrimary ? 'cfb-texture transition-[filter] duration-150 hover:brightness-110' : 'transition-colors hover:bg-white/[0.06]'}`}
+                          style={oppPrimary ? { backgroundColor: oppPrimary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' } : undefined}
                         >
                           {/* Date / week column */}
                           <div className="flex-shrink-0 w-11 text-center">
-                            <div className="text-[12px] font-bold tabular-nums" style={{ color: primaryText, fontFamily: "var(--font-display)" }}>{game.year}</div>
-                            <div className="text-[10px] uppercase tracking-wider tabular-nums" style={{ color: secondaryText }}>{gameWeekLabel(game, 'W') || '-'}</div>
+                            <div className="text-[12px] font-bold tabular-nums" style={{ color: rowText, fontFamily: "var(--font-display)", textShadow: oppPrimary ? '0 1px 2px rgba(0,0,0,0.3)' : undefined }}>{game.year}</div>
+                            <div className="text-[10px] uppercase tracking-wider tabular-nums" style={{ color: rowTextMuted }}>{gameWeekLabel(game, 'W') || '-'}</div>
                           </div>
                           {/* Opponent + inline stat line */}
                           <div className="flex items-center gap-2.5 flex-1 min-w-0">
                             {oppLogo && (
                               <div
                                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-white"
-                                style={{ boxShadow: oppPrimary ? `0 0 0 1.5px ${oppPrimary}` : '0 0 0 1px rgba(0,0,0,0.1)', padding: '4px' }}
+                                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.3)', padding: '4px' }}
                               >
                                 <img src={oppLogo} alt="" className="w-full h-full object-contain" />
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-baseline gap-1.5">
-                                <span className="text-[10px] uppercase tracking-wider" style={{ color: secondaryText }}>{locationPrefix}</span>
-                                <span className="text-sm font-bold uppercase tracking-tight truncate" style={{ color: primaryText, fontFamily: "var(--font-display)" }}>{game.opponent || '—'}</span>
+                                <span className="text-[10px] uppercase tracking-wider" style={{ color: rowTextMuted }}>{locationPrefix}</span>
+                                <span className="text-sm font-bold uppercase tracking-tight truncate" style={{ color: rowText, fontFamily: "var(--font-display)", textShadow: oppPrimary ? '0 1px 2px rgba(0,0,0,0.3)' : undefined }}>{game.opponent || '—'}</span>
                               </div>
                               {statDisplay && (
-                                <div className="text-[11px] tabular-nums truncate mt-0.5" style={{ color: secondaryText }}>{statDisplay}</div>
+                                <div className="text-[11px] tabular-nums truncate mt-0.5" style={{ color: rowTextMuted }}>{statDisplay}</div>
                               )}
                             </div>
                           </div>
@@ -2584,12 +2586,12 @@ function PlayerInner() {
                             {(isWin || isLoss) && (
                               <span
                                 className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded"
-                                style={{ backgroundColor: `${resultColor}26`, color: resultColor, letterSpacing: '0.5px' }}
+                                style={{ backgroundColor: oppPrimary ? 'rgba(0,0,0,0.32)' : `${resultColor}26`, color: resultColor, letterSpacing: '0.5px' }}
                               >
                                 {game.result}
                               </span>
                             )}
-                            <span className="text-sm font-black tabular-nums" style={{ color: primaryText, fontFamily: "var(--font-display)" }}>
+                            <span className="text-sm font-black tabular-nums" style={{ color: rowText, fontFamily: "var(--font-display)", textShadow: oppPrimary ? '0 1px 2px rgba(0,0,0,0.3)' : undefined }}>
                               {formatScoreHighLow(game.teamScore, game.opponentScore)}
                             </span>
                           </div>

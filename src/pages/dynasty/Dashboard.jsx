@@ -3853,7 +3853,7 @@ export default function Dashboard() {
                   subtitle: done
                     ? 'Narrative recap stored for this week'
                     : "Summarize the week's biggest results",
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: prevWeek }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
@@ -4161,7 +4161,7 @@ export default function Dashboard() {
                 subtitle: done
                   ? 'Narrative recap stored for this week'
                   : 'Generate the AI recap of Week 14',
-                viewTo: `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}?tab=recap`,
+                viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}?tab=recap` : null,
                 onAction: () => setRecapModalContext({ year: yearNum, week: prevWeek }),
                 actionLabel: done ? 'Edit' : 'Generate',
               })
@@ -4651,7 +4651,7 @@ export default function Dashboard() {
                   subtitle: done
                     ? 'Narrative recap stored for Conference Championship Week'
                     : 'Generate the AI recap of Conference Championship Week',
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/15?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/15?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 15 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
@@ -5064,7 +5064,7 @@ export default function Dashboard() {
                   done,
                   title: done ? 'Bowl Week 1 Recap Saved' : 'Generate Bowl Week 1 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 1' : 'Generate the AI recap of Bowl Week 1',
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/16?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/16?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 16 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
@@ -5559,7 +5559,7 @@ export default function Dashboard() {
                   done,
                   title: done ? 'National Championship Recap Saved' : 'Generate National Championship Recap',
                   subtitle: done ? 'Narrative recap stored for the National Championship' : 'Generate the AI recap of the National Championship',
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
@@ -5721,7 +5721,7 @@ export default function Dashboard() {
                   done,
                   title: done ? 'Bowl Week 2 Recap Saved' : 'Generate Bowl Week 2 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 2' : 'Generate the AI recap of Bowl Week 2',
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/17?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/17?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 17 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
@@ -5787,7 +5787,7 @@ export default function Dashboard() {
                   done,
                   title: done ? 'Bowl Week 3 Recap Saved' : 'Generate Bowl Week 3 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 3' : 'Generate the AI recap of Bowl Week 3',
-                  viewTo: `${pathPrefix}/weekly-scores/${yearNum}/18?tab=recap`,
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/18?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 18 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
