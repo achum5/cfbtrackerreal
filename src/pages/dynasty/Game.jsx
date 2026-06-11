@@ -1873,46 +1873,91 @@ export default function Game() {
               </div>
             </Link>
 
-            {/* Scores - Center */}
+            {/* Scores - Center. The per-quarter line score tucks directly
+                under each team's score (broadcast-style), so the stacked
+                layout no longer needs a separate full-width band below. */}
             <div className="flex-shrink-0 px-1">
-              {gameIsPlayed ? (
-                <div className="flex items-center gap-1.5 sm:gap-6">
-                  <div className="text-center">
+              {gameIsPlayed ? (() => {
+                // Resolve each side's quarters object — new team1/team2 format
+                // or legacy team/opponent — matching by tid first (abbrs can
+                // collide between teambuilder + real FBS teams).
+                let leftCells = null, rightCells = null
+                if (hasQuarterScores) {
+                  const isNewFormat = game.quarters.team1 || game.quarters.team2
+                  const isLeftTeam1 = leftData.tid != null && game.team1Tid != null
+                    ? Number(leftData.tid) === Number(game.team1Tid)
+                    : leftData.abbr === (game.team1Tid ? (currentDynasty?.teams?.[game.team1Tid]?.abbr || TEAMS[game.team1Tid]?.abbr) : game.team1)
+                  const leftKey = isNewFormat ? (isLeftTeam1 ? 'team1' : 'team2') : (leftTeam === 'user' ? 'team' : 'opponent')
+                  const rightKey = isNewFormat ? (isLeftTeam1 ? 'team2' : 'team1') : (leftTeam === 'user' ? 'opponent' : 'team')
+                  const lq = game.quarters[leftKey] || {}
+                  const rq = game.quarters[rightKey] || {}
+                  const cell = (v) => (v === '' || v === null || v === undefined ? 0 : v)
+                  leftCells = ['Q1', 'Q2', 'Q3', 'Q4'].map(q => cell(lq[q])).concat((game.overtimes || []).map(ot => cell(ot[leftKey])))
+                  rightCells = ['Q1', 'Q2', 'Q3', 'Q4'].map(q => cell(rq[q])).concat((game.overtimes || []).map(ot => cell(ot[rightKey])))
+                }
+                // Mini line score: quarter values separated by a dim pipe.
+                // The loser dims; all quarters render uniformly.
+                const miniLine = (cells, isWinner) => {
+                  if (!cells) return <div aria-hidden="true" />
+                  const nodes = []
+                  cells.forEach((v, i) => {
+                    if (i > 0) nodes.push(<span key={`s${i}`} className="text-white/20">|</span>)
+                    nodes.push(
+                      <span key={`v${i}`} className="font-semibold text-white/65">{v}</span>
+                    )
+                  })
+                  return (
+                    <div className={`flex items-center justify-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs tabular-nums leading-none ${isWinner ? '' : 'opacity-60'}`}>
+                      {nodes}
+                    </div>
+                  )
+                }
+                // 2-row grid: scores + FINAL on top, line scores beneath in the
+                // same columns so each team's quarters sit under its score and
+                // the FINAL pill stays aligned with the big numbers.
+                return (
+                  <div
+                    className="grid items-center justify-items-center gap-x-1.5 sm:gap-x-6 gap-y-1 sm:gap-y-1.5"
+                    style={{ gridTemplateColumns: 'auto auto auto' }}
+                  >
                     <div
-                      className={`inline-block text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
+                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${leftData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
                       style={{ minWidth: '1.5em', ...(leftData.isWinner ? { textShadow: '0 0 20px rgba(255,255,255,0.3)' } : {}) }}
                     >
                       {leftData.score}
                     </div>
-                  </div>
 
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div
-                      className="px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-xs font-bold uppercase tracking-wider"
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.1)',
-                        color: 'rgba(255,255,255,0.8)'
-                      }}
-                    >
-                      Final
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div
+                        className="px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-xs font-bold uppercase tracking-wider"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)' }}
+                      >
+                        Final
+                      </div>
+                      {game.overtimes && game.overtimes.length > 0 && (
+                        <span className="text-amber-400 text-[8px] sm:text-xs font-bold">
+                          {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
+                        </span>
+                      )}
                     </div>
-                    {game.overtimes && game.overtimes.length > 0 && (
-                      <span className="text-amber-400 text-[8px] sm:text-xs font-bold">
-                        {game.overtimes.length > 1 ? `${game.overtimes.length}OT` : 'OT'}
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="text-center">
                     <div
-                      className={`inline-block text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
+                      className={`text-center text-2xl sm:text-5xl md:text-6xl font-black tabular-nums transition-all ${rightData.isWinner ? 'text-white' : 'text-white opacity-60'}`}
                       style={{ minWidth: '1.5em', ...(rightData.isWinner ? { textShadow: '0 0 20px rgba(255,255,255,0.3)' } : {}) }}
                     >
                       {rightData.score}
                     </div>
+
+                    {hasQuarterScores && (
+                      <>
+                        {miniLine(leftCells, leftData.isWinner)}
+                        <div aria-hidden="true" />
+                        {miniLine(rightCells, rightData.isWinner)}
+                      </>
+                    )}
                   </div>
-                </div>
-              ) : (
+                )
+              })() : (
                 <div className="flex flex-col items-center py-2 sm:py-4">
                   <div className="px-2 py-1 sm:px-4 sm:py-2 rounded-full bg-yellow-500/20 border border-yellow-500/30">
                     <span className="text-xs sm:text-sm font-bold text-yellow-400">UPCOMING</span>
@@ -1965,81 +2010,10 @@ export default function Game() {
         </div>
       </div>
 
-      {/* Scoring Summary - Dark theme continuation (hidden on desktop when integrated).
-          Surface matches the hero card above and the tabs card below
-          (bg-surface-1) so the table doesn't read as a brighter slab. */}
-      {hasQuarterScores && (
-        <div className="xl:hidden bg-surface-1 rounded-xl overflow-hidden shadow-lg cfb-texture cfb-texture-strong">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-[10px] sm:text-xs text-txt-tertiary uppercase tracking-wider border-b border-surface-4">
-                  <th className="text-left py-3 px-3 sm:px-4 font-semibold">Team</th>
-                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">1st</th>
-                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">2nd</th>
-                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">3rd</th>
-                  <th className="text-center py-3 px-2 sm:px-3 font-semibold">4th</th>
-                  {game.overtimes?.map((_, i) => (
-                    <th key={i} className="text-center py-3 px-2 sm:px-3 font-semibold">OT{i > 0 ? i + 1 : ''}</th>
-                  ))}
-                  <th className="text-center py-3 px-3 sm:px-4 font-semibold">Total</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {[leftData, rightData].map((team, idx) => {
-                  // Support both new format (team1/team2) and legacy format (team/opponent)
-                  const isNewFormat = game.quarters.team1 || game.quarters.team2
-                  // Match by tid when both sides are available — abbrs can
-                  // collide between teambuilder teams and real FBS teams.
-                  // Fall back to abbr only when one side has no tid.
-                  const isLeftTeam1 = leftData.tid != null && game.team1Tid != null
-                    ? Number(leftData.tid) === Number(game.team1Tid)
-                    : leftData.abbr === (game.team1Tid ? (currentDynasty?.teams?.[game.team1Tid]?.abbr || TEAMS[game.team1Tid]?.abbr) : game.team1)
-                  const quarterKey = isNewFormat
-                    ? (idx === 0 ? (isLeftTeam1 ? 'team1' : 'team2') : (isLeftTeam1 ? 'team2' : 'team1'))
-                    : ((idx === 0 ? leftTeam : rightTeam) === 'user' ? 'team' : 'opponent')
-                  return (
-                    <tr
-                      key={idx}
-                      style={{ backgroundColor: team.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
-                    >
-                      <td className="py-3 px-3 sm:px-4">
-                        <Link to={`${pathPrefix}/team/${resolveTid(team.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group">
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <div
-                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center p-1 flex-shrink-0 bg-white "
-                            >
-                              {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
-                            </div>
-                            <span className={`font-bold group-hover:underline ${team.isWinner ? 'text-white' : 'text-white opacity-70'}`}>
-                              <span className="sm:hidden">{team.abbr}</span>
-                              <span className="hidden sm:inline">{team.name}</span>
-                            </span>
-                          </div>
-                        </Link>
-                      </td>
-                      {['Q1', 'Q2', 'Q3', 'Q4'].map(q => {
-                        const val = game.quarters[quarterKey]?.[q]
-                        return (
-                          <td key={q} className="text-center py-3 px-2 sm:px-3 text-white font-medium">
-                            {val === '' || val === null || val === undefined ? 0 : val}
-                          </td>
-                        )
-                      })}
-                      {game.overtimes?.map((ot, i) => (
-                        <td key={i} className="text-center py-3 px-2 sm:px-3 text-white font-medium">{ot[quarterKey] ?? '-'}</td>
-                      ))}
-                      <td className={`text-center py-3 px-3 sm:px-4 font-black text-lg sm:text-xl ${team.isWinner ? 'text-white' : 'text-white opacity-60'}`}>
-                        {team.score}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* The below-xl quarter-by-quarter band that used to live here was
+          replaced by the compact per-quarter line score tucked under each
+          team's score in the stacked scorebug above. The xl+ layout keeps
+          its integrated center quarter table. */}
 
       {/* Score Graphic used to live here as a giant full-width visual.
           It's now a small clickable thumbnail inside the Gamecast tab —
