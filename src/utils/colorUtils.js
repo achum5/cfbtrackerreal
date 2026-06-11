@@ -56,14 +56,27 @@ export function isDarkColor(hexColor, threshold = 0.12) {
 }
 
 /**
- * Get the appropriate text color (black or white) based on background color
+ * Get the appropriate text color based on a background color.
+ *
+ * Default: black on light backgrounds, white on dark ones (max legibility).
+ * Optional: pass the team's secondary color — on a LIGHT primary, a pure-black
+ * label reads stark/off-brand (black on Michigan's maize), so if the secondary
+ * contrasts cleanly with the background (e.g. Michigan navy on maize) we prefer
+ * it. A contrast-ratio guard (>= 4.5) means the swap never hurts legibility;
+ * otherwise it falls back to black. Dark backgrounds always keep white text.
  */
-export function getContrastTextColor(backgroundColor) {
+export function getContrastTextColor(backgroundColor, secondaryColor = null) {
   // Handle undefined/null/invalid colors - default to black text
   if (!backgroundColor || typeof backgroundColor !== 'string' || !backgroundColor.match(/^#[0-9A-Fa-f]{6}$/)) {
     return '#000000'
   }
-  return isLightColor(backgroundColor) ? '#000000' : '#ffffff'
+  const baseChoice = isLightColor(backgroundColor) ? '#000000' : '#ffffff'
+  if (baseChoice === '#000000' && secondaryColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryColor)) {
+    if (getContrastRatio(backgroundColor, secondaryColor) >= 4.5) {
+      return secondaryColor
+    }
+  }
+  return baseChoice
 }
 
 /**

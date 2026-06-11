@@ -5,7 +5,7 @@ import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo, stripMascotFromName } from '../data/teams'
 import { getBowlLogo } from '../data/bowlGames'
 import { TEAMS, getGameTeamInfo } from '../data/teamRegistry'
-import { getModalColors } from '../utils/colorUtils'
+import { getModalColors, getContrastTextColor } from '../utils/colorUtils'
 import { useToast } from './ui/Toast'
 import { DEFAULT_BOWL_CONFIG } from '../data/cfpConstants'
 
@@ -555,13 +555,6 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
         aria-modal="true"
         aria-label="CFP Semifinals"
       >
-        {/* Thin team-primary accent stripe */}
-        <div
-          className="h-[3px] w-full flex-shrink-0"
-          style={{ backgroundColor: accent }}
-          aria-hidden="true"
-        />
-
         {/* Header */}
         <header className="px-5 sm:px-6 py-4 sm:py-5 border-b border-surface-4 flex items-start justify-between flex-shrink-0">
           <div>
@@ -800,7 +793,6 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
 // --- Local presentational helpers ---
 
 function TeamCard({ info, side, qfLabel }) {
-  const accent = info?.backgroundColor || 'var(--text-primary)'
   const reverse = side === 'right'
   if (!info) {
     return (
@@ -815,28 +807,30 @@ function TeamCard({ info, side, qfLabel }) {
       </div>
     )
   }
+  // CFB-27 solid team-color panel (broadcast scorebug): true team color +
+  // gradient sheen + grain, white-circle logo, contrast-aware text (light teams
+  // borrow their secondary for the label instead of pure black).
+  const bg = info.backgroundColor
+  const txt = getContrastTextColor(bg, info.textColor)
   return (
     <div
-      className={`sm:flex-1 relative rounded-md bg-surface-3 border border-surface-4 overflow-hidden flex items-center gap-3 px-3 py-3 ${reverse ? 'sm:flex-row-reverse sm:text-right' : ''}`}
+      className={`sm:flex-1 relative rounded-lg overflow-hidden cfb-texture flex items-center gap-3 px-3.5 py-3.5 ${reverse ? 'sm:flex-row-reverse sm:text-right' : ''}`}
+      style={{
+        backgroundColor: bg,
+        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.40) 100%)',
+        border: '1px solid rgba(0,0,0,0.28)',
+      }}
     >
-      <div
-        className={`absolute top-0 ${reverse ? 'right-0' : 'left-0'} bottom-0 w-[3px]`}
-        style={{ backgroundColor: accent }}
-        aria-hidden="true"
-      />
       {info.logo && (
-        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-full p-1 flex items-center justify-center flex-shrink-0">
+        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full p-1.5 flex items-center justify-center flex-shrink-0 shadow-md">
           <img src={info.logo} alt={info.fullMascot} className="w-full h-full object-contain" />
         </div>
       )}
       <div className={`flex-1 min-w-0 ${reverse ? 'sm:text-right' : ''}`}>
-        <div
-          className="text-txt-tertiary"
-          style={{ fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}
-        >
+        <div style={{ fontSize: '10px', letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 800, color: txt, opacity: 0.82 }}>
           #{info.seed || '–'} Seed
         </div>
-        <div className="font-display font-bold text-txt-primary text-base sm:text-lg truncate leading-tight">
+        <div className="font-display font-extrabold text-base sm:text-lg truncate leading-tight" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
           {info.name}
         </div>
       </div>

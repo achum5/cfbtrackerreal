@@ -10,7 +10,7 @@ import MediaList from '../../components/MediaList'
 import { getPlayerCards } from '../../utils/playerCards'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
-import { sortGamesNewestFirst } from '../../utils/gameOrder'
+import { sortGamesNewestFirst, gameSeasonRank } from '../../utils/gameOrder'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings, CardSectionHeader } from '../../components/CfbUI'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -847,7 +847,7 @@ function PlayerInner() {
     return [...playerGameLog]
       .sort((a, b) =>
         (a.game.year - b.game.year) ||
-        ((a.game.week ?? 0) - (b.game.week ?? 0))
+        (gameSeasonRank(a.game) - gameSeasonRank(b.game))
       )
       .flatMap(entry => {
         const game = entry.game
@@ -980,11 +980,15 @@ function PlayerInner() {
       for (const url of urls) {
         const pids = tags[url]
         if (Array.isArray(pids) && pids.some(p => String(p) === String(pid))) {
-          out.push({ url, gameId: g.id, year: g.year, week: g.week, oppAbbr, oppLogo, loc })
+          // rank = within-season chronological position (postseason ranks above
+          // the regular weeks), so CCG / bowls / CFP sort as most recent rather
+          // than falling to the bottom on a raw Number(week) compare.
+          out.push({ url, gameId: g.id, year: g.year, week: g.week, rank: gameSeasonRank(g), oppAbbr, oppLogo, loc })
         }
       }
     }
-    // Newest first: year desc, then week desc.
+    // Newest first: year desc, then within-season chronological position desc
+    // (rank already encodes CCG/bowls/CFP as later than the regular weeks).
     out.sort((a, b) => {
       // Player-uploaded photos always lead; game photos follow, newest first.
       if (a.playerUpload && !b.playerUpload) return -1
@@ -992,9 +996,7 @@ function PlayerInner() {
       const yA = Number(a.year) || 0
       const yB = Number(b.year) || 0
       if (yB !== yA) return yB - yA
-      const wA = Number(a.week)
-      const wB = Number(b.week)
-      return (Number.isFinite(wB) ? wB : -1) - (Number.isFinite(wA) ? wA : -1)
+      return (b.rank ?? -1) - (a.rank ?? -1)
     })
     return out
   }, [player?.pid, player?.photos, player?.teamsByYear, player?.team, dynasty?.games, dynasty?.teams])
@@ -5114,7 +5116,7 @@ function PlayerInner() {
         const allPlayerScoringPlays = [...playerGameLog]
           .sort((a, b) =>
             (a.game.year - b.game.year) ||
-            ((a.game.week ?? 0) - (b.game.week ?? 0))
+            (gameSeasonRank(a.game) - gameSeasonRank(b.game))
           )
           .flatMap(entry => {
             const game = entry.game

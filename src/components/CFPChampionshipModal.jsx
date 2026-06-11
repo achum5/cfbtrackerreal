@@ -251,13 +251,6 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
         aria-modal="true"
         aria-label="National Championship"
       >
-        {/* Thin gold accent stripe */}
-        <div
-          className="h-[3px] w-full flex-shrink-0"
-          style={{ backgroundColor: GOLD }}
-          aria-hidden="true"
-        />
-
         {/* Header */}
         <header className="px-5 sm:px-6 py-4 sm:py-5 border-b border-surface-4 flex items-start justify-between flex-shrink-0">
           <div className="flex items-center gap-3 sm:gap-4">

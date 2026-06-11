@@ -222,7 +222,7 @@ function GameCard({ game, teams, pathPrefix, recordsByTid, domId, compact = fals
     // the team's color washes the whole row, with the shared highlight + vignette
     // and grain. The loser's row darkens slightly + dims so the winner reads at a
     // glance, without losing the team color.
-    const txt = getContrastTextColor(teamPrimary)
+    const txt = getContrastTextColor(teamPrimary, teamColors?.secondary)
     const logoUrl = getTeamLogoByTid(tid, teams)
     return (
       <div
