@@ -199,10 +199,15 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
 
   const years = useMemo(() => {
     if (!Number.isFinite(currentYear)) return []
+    // Don't let the season picker go further back than the season the team page
+    // is showing: a 2035 team page lists 2035→future, a 2027 page lists 2027→future.
+    const lo = Number.isFinite(parsedPageYear)
+      ? Math.min(maxYear, Math.max(minYear, parsedPageYear))
+      : minYear
     const out = []
-    for (let y = maxYear; y >= minYear; y--) out.push(y)
+    for (let y = maxYear; y >= lo; y--) out.push(y)
     return out
-  }, [minYear, maxYear, currentYear])
+  }, [minYear, maxYear, currentYear, parsedPageYear])
 
   const players = useMemo(() => {
     if (!currentDynasty || tid == null || !Number.isFinite(year)) return []

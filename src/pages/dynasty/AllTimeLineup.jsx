@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useAuth } from '../../context/AuthContext'
-import { Card } from '../../components/ui'
 import { normalizeAwardName } from '../../utils/playerHeal'
 import { getTeamLogoByTid } from '../../data/teams'
 import { getColorsFromTid, getTidFromAbbr } from '../../data/teamRegistry'
@@ -81,6 +80,30 @@ function getTileLabel(key) {
   const match = key.match(/^(.+?)(\d+)$/)
   if (!match) return slot.label
   return match[2] === '1' ? slot.label : slot.label + match[2]
+}
+
+// Firestore can't store nested arrays, and the layout is rows-of-keys
+// (`{ offense: [['LT1',…], …] }`) — a nested array. Writing it straight to the
+// dynasty doc throws ("Nested arrays are not supported"), so a cloud user's
+// custom Positions layout silently failed to save and reverted to default on
+// reload. The fix: persist the layout as a JSON string (allTimeTeam.layoutJSON)
+// and decode it here. Falls back to a legacy nested-array `layout` field (old
+// local-only saves) and finally DEFAULT_LAYOUT.
+function readLayout(att) {
+  if (att?.layoutJSON) {
+    try {
+      const p = JSON.parse(att.layoutJSON)
+      if (p && (p.offense || p.defense || p.st)) {
+        return {
+          offense: p.offense || DEFAULT_LAYOUT.offense,
+          defense: p.defense || DEFAULT_LAYOUT.defense,
+          st:      p.st      || DEFAULT_LAYOUT.st,
+        }
+      }
+    } catch { /* fall through */ }
+  }
+  if (att?.layout?.offense) return att.layout
+  return DEFAULT_LAYOUT
 }
 
 // ─── Award helpers ────────────────────────────────────────────────────────────
@@ -793,12 +816,14 @@ function PositionCol({ slot, pid, onSelect, eligible, pathPrefix, playerMap, pla
 
   return (
     <div className="flex flex-col min-w-0">
-      {/* Position label — broadcast-style header with a trailing hairline */}
-      <div className="mb-1.5 sm:mb-2 flex items-center gap-2">
-        <span className="font-display font-bold uppercase text-txt-secondary flex-shrink-0 text-[9px] sm:text-[11px]" style={{ letterSpacing: '1.5px' }}>
-          {slot.tileLabel || slot.label}
+      {/* Position label — compact broadcast chip (shows WR2 / HB2, not bare WR) */}
+      <div className="mb-1.5 sm:mb-2">
+        <span
+          className="inline-flex items-center font-display font-bold uppercase rounded text-[8px] sm:text-[10px] px-1.5 py-0.5"
+          style={{ letterSpacing: '1px', color: 'var(--text-secondary)', backgroundColor: 'var(--surface-3)', border: '1px solid var(--surface-4)' }}
+        >
+          {getTileLabel(slot.key)}
         </span>
-        <div className="flex-1 h-px" style={{ background: 'var(--surface-4)' }} />
       </div>
 
       {player ? (
@@ -932,7 +957,7 @@ function DockedTabs({ tabs, active, onChange }) {
             key={t.key}
             type="button"
             onClick={() => onChange(t.key)}
-            className="relative flex-shrink-0 px-3 sm:px-4 py-2.5 font-display font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+            className="relative flex-shrink-0 px-3 sm:px-4 lg:px-5 py-2.5 font-display font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
             style={{ fontSize: '0.8rem', letterSpacing: '0.06em', color: 'var(--text-primary)', opacity: isActive ? 1 : 0.5 }}
           >
             {t.label}
@@ -1027,7 +1052,7 @@ export default function AllTimeLineup({ embedded = false }) {
   const uid = user?.uid || currentDynasty.userId || ''
   const players = currentDynasty.players || []
   const dynastyTeams = currentDynasty.teams || {}
-  const layout = allTimeTeam.layout || DEFAULT_LAYOUT
+  const layout = readLayout(allTimeTeam)
 
   const coachedTids = useMemo(() => getAllCoachedTids(currentDynasty), [currentDynasty])
 
@@ -1084,7 +1109,7 @@ export default function AllTimeLineup({ embedded = false }) {
   // reserved first so auto never steals them; teams fill in order (1st, 2nd).
   const effectiveTeams = useMemo(() => {
     const flags = allTimeTeam.autoAV || {}
-    const lay = allTimeTeam.layout || DEFAULT_LAYOUT
+    const lay = readLayout(allTimeTeam)
     const slotKeys = [...(lay.offense || []), ...(lay.defense || []), ...(lay.st || [])].flat()
     const used = new Set()
     for (const teamKey of ['first', 'second']) {
@@ -1130,9 +1155,17 @@ export default function AllTimeLineup({ embedded = false }) {
   // Single persistence path: optimistically update the local draft so the UI
   // reflects the change immediately, then persist in the background.
   const commit = async (updated) => {
-    setAllTimeTeam(updated)
+    // Firestore rejects nested arrays — the rows-of-keys `layout` must never be
+    // written raw. Carry it as a JSON string and strip the nested-array form so
+    // EVERY save (picks, auto-fill, layout) is a clean, persistable write.
+    const safe = { ...updated }
+    if (safe.layout && !safe.layoutJSON) {
+      try { safe.layoutJSON = JSON.stringify(safe.layout) } catch { /* drop it */ }
+    }
+    delete safe.layout
+    setAllTimeTeam(safe)
     setSaving(true)
-    try { await updateDynasty(currentDynasty.id, { allTimeTeam: updated }) }
+    try { await updateDynasty(currentDynasty.id, { allTimeTeam: safe }) }
     finally { setSaving(false) }
   }
 
@@ -1158,7 +1191,7 @@ export default function AllTimeLineup({ embedded = false }) {
   const handleSaveLayout = (newLayout) => {
     if (isViewOnly || saving) return
     setShowLayoutEditor(false)
-    commit({ ...allTimeTeam, layout: newLayout })
+    commit({ ...allTimeTeam, layoutJSON: JSON.stringify(newLayout) })
   }
 
   const sharedProps = {
@@ -1205,7 +1238,7 @@ export default function AllTimeLineup({ embedded = false }) {
       <div className="space-y-2">
       {/* Team tabs (1st / 2nd) + controls — docked-tab style, reads as an
           extension of the leaderboard header tabs. */}
-      <div className="flex items-end justify-between gap-3 flex-wrap border-b" style={{ borderColor: 'var(--surface-4)' }}>
+      <div className="flex items-end justify-between gap-3 flex-wrap border-b pl-3 sm:pl-5" style={{ borderColor: 'var(--surface-4)' }}>
         <DockedTabs
           tabs={[{ key: 'first', label: '1st Team' }, { key: 'second', label: '2nd Team' }]}
           active={activeTeam}
@@ -1279,7 +1312,7 @@ export default function AllTimeLineup({ embedded = false }) {
       </div>
 
       {/* Section tabs (Offense / Defense / Special Teams) */}
-      <div className="border-b" style={{ borderColor: 'var(--surface-4)' }}>
+      <div className="border-b pl-3 sm:pl-5" style={{ borderColor: 'var(--surface-4)' }}>
         <DockedTabs
           tabs={[
             { key: 'offense', label: 'Offense' },
@@ -1292,15 +1325,14 @@ export default function AllTimeLineup({ embedded = false }) {
       </div>
       </div>
 
-      <Card className="relative overflow-hidden">
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <SectionGrid
-            rows={layout[activeSection] || DEFAULT_LAYOUT[activeSection]}
-            hideTitle
-            {...sharedProps}
-          />
-        </div>
-      </Card>
+      {/* Cards render straight onto the page background — no surface box. */}
+      <div className="pt-2">
+        <SectionGrid
+          rows={layout[activeSection] || DEFAULT_LAYOUT[activeSection]}
+          hideTitle
+          {...sharedProps}
+        />
+      </div>
 
       {showLayoutEditor && (
         <LayoutEditorModal
