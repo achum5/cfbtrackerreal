@@ -3339,8 +3339,12 @@ export default function Dashboard() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {currentRank && (
                       <span
-                        className="shrink-0 px-2 py-0.5 rounded-md text-sm font-bold tabular-nums"
-                        style={{ backgroundColor: 'rgba(0,0,0,0.28)', color: heroText }}
+                        className="shrink-0 px-2 py-1 rounded-lg text-sm font-bold tabular-nums"
+                        style={
+                          rankingData?.source === 'final_poll'
+                            ? { backgroundColor: '#fbbf24', color: '#78350f' }
+                            : { backgroundColor: '#6b7280', color: '#ffffff' }
+                        }
                       >
                         #{currentRank}
                       </span>

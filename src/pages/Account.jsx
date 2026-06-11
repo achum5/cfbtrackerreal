@@ -7,6 +7,7 @@ import BouncingLogos from '../components/BouncingLogos'
 import { PageHero, Card, Button, Badge, Input } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useConfirm } from '../components/ui/ConfirmDialog'
+import { PAYWALL_ENABLED, PREMIUM_PRICE, PREMIUM_PRICE_PER_MO } from '../config/billing'
 import {
   adminGrantPremium,
   adminRevokePremium,
@@ -337,7 +338,7 @@ export default function Account() {
                   </div>
                   <div className="flex justify-between">
                     <span>Amount</span>
-                    <span className="font-medium text-txt-primary tabular">$4.99</span>
+                    <span className="font-medium text-txt-primary tabular">{PREMIUM_PRICE}</span>
                   </div>
                 </div>
               )}
@@ -385,27 +386,55 @@ export default function Account() {
               <div className="mb-4">
                 <span className="label-sm text-txt-primary">Premium Access</span>
               </div>
-              {/* Stripe checkout is disabled while the app is in beta.
-                  Users email the dev to be added to the allowlist; once
-                  added, the "Beta Premium Access" card below appears for
-                  them and they self-grant. */}
-              <div className="rounded-lg p-4 mb-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
-                <p className="text-sm text-txt-primary mb-2">
-                  <span className="font-semibold">Beta is free.</span>
-                </p>
-                <p className="text-sm text-txt-secondary">
-                  While the app is in beta, premium is on me. Reach out from the Contact page with the
-                  email you sign in with and I&apos;ll get you access.
-                </p>
-              </div>
-              <Link to="/contact" className="block">
-                <Button variant="primary" className="w-full">
-                  Contact Me for Free Premium
-                </Button>
-              </Link>
-              <p className="text-center text-txt-tertiary text-xs mt-3">
-                No payment required during beta.
-              </p>
+              {PAYWALL_ENABLED ? (
+                /* LIVE MODE — real Stripe checkout. */
+                <>
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    disabled={upgrading}
+                    onClick={async () => {
+                      setUpgrading(true)
+                      try {
+                        await upgradeToPremium()
+                      } catch (error) {
+                        console.error('Upgrade error:', error)
+                        toast.error(error.message || 'Failed to start checkout. Please try again.')
+                      } finally {
+                        setUpgrading(false)
+                      }
+                    }}
+                  >
+                    {upgrading ? 'Loading…' : `Upgrade — ${PREMIUM_PRICE_PER_MO}`}
+                  </Button>
+                  <p className="text-center text-txt-tertiary text-xs mt-3">
+                    Cancel anytime. Secure checkout via Stripe.
+                  </p>
+                </>
+              ) : (
+                /* BETA MODE — premium is free; Stripe checkout hidden. Users
+                   email the dev to be added to the BETA_GRANT_EMAILS allowlist
+                   and then self-grant via the "Beta Premium Access" card. */
+                <>
+                  <div className="rounded-lg p-4 mb-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
+                    <p className="text-sm text-txt-primary mb-2">
+                      <span className="font-semibold">Beta is free.</span>
+                    </p>
+                    <p className="text-sm text-txt-secondary">
+                      While the app is in beta, premium is on me. Reach out from the Contact page with the
+                      email you sign in with and I&apos;ll get you access.
+                    </p>
+                  </div>
+                  <Link to="/contact" className="block">
+                    <Button variant="primary" className="w-full">
+                      Contact Me for Free Premium
+                    </Button>
+                  </Link>
+                  <p className="text-center text-txt-tertiary text-xs mt-3">
+                    No payment required during beta.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </Card>

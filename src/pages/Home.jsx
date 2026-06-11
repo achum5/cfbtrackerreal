@@ -11,6 +11,7 @@ import StorageSwitchModal from '../components/StorageSwitchModal'
 import BouncingLogos from '../components/BouncingLogos'
 import { Button, Badge, Modal, Input, LoadingState, ContactCTA } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
+import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
 
 function getDynastyTeamConference(dynasty) {
   if (!dynasty.teamName) return null
@@ -457,24 +458,32 @@ export default function Home() {
                       </button>
                     )
                   ) : user ? (
-                    <button
-                      type="button"
-                      disabled={upgrading}
-                      onClick={async () => {
-                        setUpgrading(true)
-                        try {
-                          await upgradeToPremium()
-                        } catch (error) {
-                          console.error('Upgrade error:', error)
-                          toast.error('Failed to start upgrade. Please try again.')
-                        } finally {
-                          setUpgrading(false)
-                        }
-                      }}
-                      className="btn-refined btn-refined--solid"
-                    >
-                      {upgrading ? 'Loading…' : 'Upgrade $4.99 / mo'}
-                    </button>
+                    PAYWALL_ENABLED ? (
+                      <button
+                        type="button"
+                        disabled={upgrading}
+                        onClick={async () => {
+                          setUpgrading(true)
+                          try {
+                            await upgradeToPremium()
+                          } catch (error) {
+                            console.error('Upgrade error:', error)
+                            toast.error('Failed to start upgrade. Please try again.')
+                          } finally {
+                            setUpgrading(false)
+                          }
+                        }}
+                        className="btn-refined btn-refined--solid"
+                      >
+                        {upgrading ? 'Loading…' : `Upgrade ${PREMIUM_PRICE_PER_MO}`}
+                      </button>
+                    ) : (
+                      /* Beta mode — premium is free; route to Account instead
+                         of live Stripe checkout so nobody is charged. */
+                      <Link to="/account" className="btn-refined">
+                        Premium is free in beta
+                      </Link>
+                    )
                   ) : null}
                 </div>
               </div>
