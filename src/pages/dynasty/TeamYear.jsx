@@ -4382,6 +4382,7 @@ export default function TeamYear() {
       {/* DEPTH CHART TAB */}
       {activeTab === 'depthchart' && (
         <TeamOutlook tid={tid} guardRef={outlookGuardRef}
+          pageYear={selectedYear}
           focusPid={searchParams.get('player')}
           side={searchParams.get('side') || 'offense'}
           onSideChange={(s) => setSearchParams(prev => {

@@ -1741,22 +1741,7 @@ function PlayerInner() {
           ...(heroLogo ? { '--cfb-watermark': `url("${heroLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
-        {/* Edit button — desktop: pinned top-right. On mobile the small OVR
-            ring takes this corner instead and edit relocates below the meta. */}
-        {!isViewOnly && (
-          <button
-            onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
-            className="hidden sm:block absolute top-3 right-3 z-[1] p-2 rounded-lg hover:bg-black/20 transition-colors"
-            style={{ color: teamBgText }}
-            title="Edit Player"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
-        )}
-        {/* Mobile: compact OVR ring pinned to the top-right corner (replaces the
-            big right-rail ring that wasted a whole row on phones). Tap → progression. */}
+        {/* Mobile: compact OVR ring pinned to the top-right corner. */}
         {(() => {
           const currentOvr = player.overallByYear?.[currentYear] || player.overallByYear?.[String(currentYear)] || player.overall
           if (!currentOvr) return null
@@ -1773,19 +1758,35 @@ function PlayerInner() {
         <div className="relative overflow-hidden p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 cfb-watermark">
           {/* LEFT: photo + identity */}
           <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            {player.pictureUrl && (
-              <img
-                src={proxyImageUrl(player.pictureUrl, 300)}
-                alt={player.name}
-                className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl flex-shrink-0"
-                style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
-                onError={(e) => { e.target.style.display = 'none' }}
-              />
-            )}
+            <div className="flex flex-col items-center gap-2 flex-shrink-0">
+              {player.pictureUrl && (
+                <img
+                  src={proxyImageUrl(player.pictureUrl, 300)}
+                  alt={player.name}
+                  className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl"
+                  style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
+                  onError={(e) => { e.target.style.display = 'none' }}
+                />
+              )}
+              {/* Mobile Edit — tucked into the empty space under the photo. */}
+              {!isViewOnly && (
+                <button
+                  onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
+                  className="sm:hidden w-20 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide hover:bg-black/20 transition-colors"
+                  style={{ color: teamBgText, border: `1px solid ${teamBgText}45` }}
+                  title="Edit Player"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+              )}
+            </div>
             <div className="min-w-0 flex-1">
               {/* Name + captain (extra right padding on mobile clears the
                   pinned OVR ring; desktop clears the edit button) */}
-              <div className="flex items-center gap-2 min-w-0 pr-14 sm:pr-8">
+              <div className="flex items-center gap-2 min-w-0 pr-14 sm:pr-0">
                 <h1
                   className="font-display font-extrabold uppercase tracking-tight leading-none truncate"
                   style={{ color: teamBgText, fontSize: 'clamp(1.45rem, 3.2vw, 2.5rem)' }}
@@ -1794,6 +1795,20 @@ function PlayerInner() {
                 </h1>
                 {player.isCaptain && (
                   <img src={CAPTAIN_PATCH_URL} alt="Team Captain" title="Team Captain" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0 self-center" />
+                )}
+                {/* Edit — inline right after the name on tablet/desktop. */}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
+                    className="hidden sm:inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center"
+                    style={{ color: teamBgText, border: `1px solid ${teamBgText}40` }}
+                    title="Edit Player"
+                    aria-label="Edit Player"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
                 )}
               </div>
 
@@ -1951,24 +1966,6 @@ function PlayerInner() {
                   </>
                 )}
               </div>
-
-              {/* Mobile-only edit — relocated here since the OVR ring now owns
-                  the top-right corner on phones. */}
-              {!isViewOnly && (
-                <div className="sm:hidden mt-3 flex justify-end">
-                  <button
-                    onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/20 transition-colors"
-                    style={{ color: teamBgText, border: `1px solid ${teamBgText}55` }}
-                    title="Edit Player"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </button>
-                </div>
-              )}
 
             </div>
           </div>
@@ -2562,7 +2559,7 @@ function PlayerInner() {
                           {/* Date / week column */}
                           <div className="flex-shrink-0 w-11 text-center">
                             <div className="text-[12px] font-bold tabular-nums" style={{ color: rowText, fontFamily: "var(--font-display)", textShadow: oppPrimary ? '0 1px 2px rgba(0,0,0,0.3)' : undefined }}>{game.year}</div>
-                            <div className="text-[10px] uppercase tracking-wider tabular-nums" style={{ color: rowTextMuted }}>{gameWeekLabel(game, 'W') || '-'}</div>
+                            <div className="text-[10px] uppercase tracking-wider tabular-nums truncate" style={{ color: rowTextMuted }}>{((game.isBowlGame || game.gameType === 'bowl') ? 'Bowl' : gameWeekLabel(game, 'W')) || '-'}</div>
                           </div>
                           {/* Opponent + inline stat line */}
                           <div className="flex items-center gap-2.5 flex-1 min-w-0">

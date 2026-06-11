@@ -17,6 +17,7 @@ import {
 } from '../../components/ui'
 import { computeSeasonAV, explainSeasonAV } from '../../utils/approximateValue'
 import { getPlayerTid } from '../../data/rosterModel'
+import AllTimeLineup from './AllTimeLineup'
 
 // Stat category definitions
 const STAT_CATEGORIES = {
@@ -149,6 +150,10 @@ const STAT_CATEGORIES = {
 
 const CATEGORY_ORDER = ['production', 'passing', 'rushing', 'receiving', 'allPurpose', 'defensive', 'kicking', 'punting', 'kickReturn', 'puntReturn']
 
+// Special non-stat tab appended to the category strip — renders the embedded
+// All-Time Team builder instead of a stat leaderboard.
+const ALL_TIME_KEY = 'all-time-team'
+
 // Stat fields that are MAX-style (single-best) rather than count-style
 // (cumulative). Career aggregation needs Math.max for these instead of
 // summing — otherwise a player's "longest pass" career stat becomes the
@@ -173,6 +178,7 @@ export default function DynastyRecords() {
   // headline Production tab. Validates against STAT_CATEGORIES so a
   // bad URL slug doesn't blank the page.
   const resolveCategory = (param) => {
+    if (param === ALL_TIME_KEY) return ALL_TIME_KEY
     if (param && STAT_CATEGORIES[param]) return param
     const stored = localStorage.getItem('leaderboard-category')
     if (stored && STAT_CATEGORIES[stored]) return stored
@@ -754,6 +760,7 @@ export default function DynastyRecords() {
 
   if (!currentDynasty) return null
 
+  const isAllTime = activeCategory === ALL_TIME_KEY
   const category = STAT_CATEGORIES[activeCategory]
   const catLeaderboards = leaderboards[activeCategory] || {}
   const hasData = Object.values(catLeaderboards).some(lb => lb && lb.length > 0)
@@ -785,56 +792,44 @@ export default function DynastyRecords() {
     </div>
   )
 
+  // Category tabs — docked into the hero header. All-Time Team leads; the
+  // Approximate Value tab is shortened to "AV".
+  const categoryTabs = [
+    { key: ALL_TIME_KEY, label: 'All-Time Team' },
+    ...CATEGORY_ORDER.map(catKey => ({
+      key: catKey,
+      label: catKey === 'production' ? 'AV' : STAT_CATEGORIES[catKey].name,
+    })),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHero
-        title="Dynasty Records"
-        actions={modeTabs}
+        title="Dynasty Leaderboards"
+        actions={isAllTime ? null : modeTabs}
+        tabs={categoryTabs}
+        activeTab={activeCategory}
+        onTabChange={handleCategoryChange}
       />
-
-      {/* Category Navigation — editorial tab strip, neutral underline on active */}
-      <div className="overflow-x-auto -mx-4 px-4 scrollbar-hide">
-        <div
-          className="flex gap-6 min-w-max"
-          style={{ borderBottom: '1px solid var(--surface-4)' }}
-        >
-          {CATEGORY_ORDER.map(catKey => {
-            const cat = STAT_CATEGORIES[catKey]
-            const isActive = activeCategory === catKey
-            return (
-              <button
-                key={catKey}
-                onClick={() => handleCategoryChange(catKey)}
-                className={`relative py-3 whitespace-nowrap transition-colors text-[11px] font-bold uppercase ${
-                  isActive ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'
-                }`}
-                style={{ letterSpacing: '2px' }}
-              >
-                {cat.name}
-                {isActive && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute left-0 right-0 -bottom-px h-[2px]"
-                    style={{ backgroundColor: 'var(--text-primary)' }}
-                  />
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
 
       {/* Active category is already shown by the highlighted nav tab above, so
           no big "{Category} Leaders" banner — just the qualification note when
           the category has one. (Hidden on the Approximate Value tab.) */}
-      {activeCategory !== 'production' && category.minNote && (
+      {!isAllTime && activeCategory !== 'production' && category?.minNote && (
         <p className="-mt-3 text-[11px] text-txt-tertiary" style={{ letterSpacing: '0.5px' }}>
           {category.minNote}
         </p>
       )}
 
-      {/* Stats Grid */}
-      {!hasData ? (
+      {/* Stats Grid (or the embedded All-Time Team builder) */}
+      {isAllTime ? (
+        // Pull up tight under the header tabs — the inline negative margin
+        // overrides the page's space-y gap so the team tabs read as a
+        // continuation of the category tabs, not a detached block.
+        <div style={{ marginTop: '-1.25rem' }}>
+          <AllTimeLineup embedded />
+        </div>
+      ) : !hasData ? (
         <Card>
           <EmptyState
             title={`No ${category.name.toLowerCase()} records yet`}

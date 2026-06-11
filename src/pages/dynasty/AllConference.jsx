@@ -102,7 +102,7 @@ export default function AllConference() {
   const navigate = useNavigate()
   const { currentDynasty, updateDynasty, isViewOnly, processHonorPlayers } = useDynasty()
   const pathPrefix = usePathPrefix()
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState('first')
   const [showEditModal, setShowEditModal] = useState(false)
   const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams || currentDynasty?.customTeams)
 
@@ -486,21 +486,17 @@ export default function AllConference() {
 
   return (
     <div className="space-y-6">
-      <PageHero title={titleNode} actions={heroActions} />
-
-      {hasAnyPlayers && (
-        <Tabs
-          variant="pill"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: `All (${allConference.length})` },
-            { value: 'first', label: `1st Team (${groupedByDesignation.first.length})` },
-            { value: 'second', label: `2nd Team (${groupedByDesignation.second.length})` },
-            { value: 'freshman', label: `Freshman (${groupedByDesignation.freshman.length})` },
-          ]}
-        />
-      )}
+      <PageHero
+        title={titleNode}
+        actions={heroActions}
+        tabs={hasAnyPlayers ? [
+          { key: 'first', label: '1st Team' },
+          { key: 'second', label: '2nd Team' },
+          { key: 'freshman', label: 'Freshman' },
+        ] : undefined}
+        activeTab={filter}
+        onTabChange={setFilter}
+      />
 
       {!hasAnyPlayers ? (
         <Card>
@@ -513,17 +509,8 @@ export default function AllConference() {
             )}
           />
         </Card>
-      ) : filter === 'all' ? (
-        <div className="space-y-6">
-          <TeamSection designation="first" players={groupedByDesignation.first} />
-          <TeamSection designation="second" players={groupedByDesignation.second} />
-          <TeamSection designation="freshman" players={groupedByDesignation.freshman} />
-        </div>
       ) : (
-        <TeamSection
-          designation={filter}
-          players={filteredPlayers}
-        />
+        <TeamSection designation={filter} players={filteredPlayers} />
       )}
 
       <AllConferenceModal

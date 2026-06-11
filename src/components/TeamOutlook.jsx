@@ -110,7 +110,7 @@ function sameContainers(a, b) {
   return true
 }
 
-export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, onSideChange, dcYear, onYearChange, onFocusConsumed }) {
+export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, onSideChange, dcYear, pageYear, onYearChange, onFocusConsumed }) {
   const { id: dynastyId } = useParams()
   const navigate = useNavigate()
   const pathPrefix = usePathPrefix()
@@ -131,12 +131,19 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   // route; setSide writes back up so the URL stays in sync.
   const side = VALID_SIDES.includes(sideProp) ? sideProp : 'offense'
   const setSide = (s) => onSideChange?.(s)
-  // `year` is URL-driven too (?dcyear=), clamped to the selectable range
-  // [currentYear .. currentYear+4]; defaults to currentYear.
+  // Selectable range: the dynasty's first season through 4 years out (future
+  // projections). The depth chart DEFAULTS to the year the team page is showing
+  // (`pageYear`) so a past-season team page shows that season's depth chart, not
+  // the current one. `?dcyear=` overrides within the range.
+  const startYear = Number(currentDynasty?.startYear)
+  const minYear = Number.isFinite(startYear) && Number.isFinite(currentYear) ? Math.min(startYear, currentYear) : currentYear
+  const maxYear = Number.isFinite(currentYear) ? currentYear + 4 : currentYear
+  const inYearRange = (y) => Number.isFinite(y) && y >= minYear && y <= maxYear
   const parsedDcYear = Number(dcYear)
-  const year = (Number.isFinite(parsedDcYear) && Number.isFinite(currentYear)
-    && parsedDcYear >= currentYear && parsedDcYear <= currentYear + 4)
-    ? parsedDcYear : currentYear
+  const parsedPageYear = Number(pageYear)
+  const year = inYearRange(parsedDcYear)
+    ? parsedDcYear
+    : (inYearRange(parsedPageYear) ? parsedPageYear : currentYear)
   const setYear = (y) => onYearChange?.(y)
   const [markMode, setMarkMode] = useState(false)
   const [highlightKey, setHighlightKey] = useState(null)
@@ -144,7 +151,13 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   // Last-saved plan (source of truth) and the editable working copy. All edits
   // mutate `draft` locally (instant — no Firestore round-trip per drag); the
   // user persists with the Save button. dirty = draft differs from persisted.
-  const persisted = currentDynasty?.teamFuture?.[tid] || EMPTY_OBJ
+  // Past seasons each save their own depth chart at depthChartByYear[tid][year];
+  // the current + future years share the team's forward-projection plan
+  // (teamFuture[tid]). isPastYear picks the right store for read AND write.
+  const isPastYear = Number.isFinite(year) && Number.isFinite(currentYear) && year < currentYear
+  const persisted = isPastYear
+    ? (currentDynasty?.depthChartByYear?.[tid]?.[year] || EMPTY_OBJ)
+    : (currentDynasty?.teamFuture?.[tid] || EMPTY_OBJ)
   const [draft, setDraft] = useState(() => clonePlan(persisted))
 
   // `touched` = the user has unsaved edits. While UNtouched, the draft adopts
@@ -163,9 +176,9 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   useEffect(() => {
     setMarkMode(false)
     touchedRef.current = false
-    setDraft(clonePlan(currentDynasty?.teamFuture?.[tid] || {}))
+    setDraft(clonePlan(persisted))
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [tid])
+  }, [tid, year])
 
   const placements = draft.placements || EMPTY_OBJ
   const order = draft.order || EMPTY_OBJ
@@ -187,9 +200,9 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   const years = useMemo(() => {
     if (!Number.isFinite(currentYear)) return []
     const out = []
-    for (let y = currentYear; y <= currentYear + 4; y++) out.push(y)
+    for (let y = maxYear; y >= minYear; y--) out.push(y)
     return out
-  }, [currentYear])
+  }, [minYear, maxYear, currentYear])
 
   const players = useMemo(() => {
     if (!currentDynasty || tid == null || !Number.isFinite(year)) return []
@@ -342,7 +355,16 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
     const snapshot = clonePlan(draft)
     setSaving(true)
     try {
-      const promise = Promise.resolve(saveTeamFuture(dynastyId, tid, snapshot))
+      let promise
+      if (isPastYear) {
+        // Per-season store: depthChartByYear[tid][year]. Replace the whole map
+        // (merged with what's there) so both local + cloud writes are safe.
+        const dcByYear = { ...(currentDynasty.depthChartByYear || {}) }
+        dcByYear[tid] = { ...(dcByYear[tid] || {}), [year]: snapshot }
+        promise = Promise.resolve(updateDynasty(dynastyId, { depthChartByYear: dcByYear }))
+      } else {
+        promise = Promise.resolve(saveTeamFuture(dynastyId, tid, snapshot))
+      }
       pendingWriteRef.current = promise
       await promise
       touchedRef.current = false

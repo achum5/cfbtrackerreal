@@ -77,41 +77,15 @@ export default function Teams() {
   return (
     <div className="space-y-6 page-enter">
       <PageHero
-        eyebrow="Directory"
         title="All Teams"
-        meta={
-          <>
-            <span className="tabular">{allTeams.length}</span>
-            <span>FBS teams</span>
-            {searchQuery && (
-              <>
-                
-                <span className="tabular">{filteredTeams.length}</span>
-                <span>matching</span>
-              </>
-            )}
-          </>
-        }
         actions={
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search teams…"
-              className="sm:w-64"
-            />
-            {!isViewOnly && (
-              <button
-                type="button"
-                onClick={() => setAdding(true)}
-                className="px-3 py-2 text-xs font-semibold uppercase tracking-wider rounded bg-surface-3 hover:bg-surface-4 text-txt-primary transition-colors flex-shrink-0"
-                title="Add a team to this dynasty"
-              >
-                + Add Team
-              </button>
-            )}
-          </div>
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search teams…"
+            className="sm:w-64"
+          />
         }
       />
 
