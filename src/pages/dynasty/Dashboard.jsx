@@ -3863,6 +3863,19 @@ export default function Dashboard() {
 
               return (
                 <div>
+                  {/* Header bar — mirrors the Schedule column header (same
+                      3.5rem min-height + bottom border) so the two columns
+                      align row-for-row on desktop instead of the to-do list
+                      floating up past the schedule's header. */}
+                  <div className="pl-3 pr-1 flex items-center min-h-[3.5rem]" style={sectionStripStyle}>
+                    <div
+                      className="font-display font-bold uppercase leading-none text-txt-primary"
+                      style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em' }}
+                    >
+                      <span className="tabular-nums">{currentDynasty.currentYear}</span>
+                      <span className="ml-2">Week {curWeek}</span>
+                    </div>
+                  </div>
                   {todos.map((todo, idx) => (
                     <div
                       key={todo.key}
@@ -6835,8 +6848,9 @@ export default function Dashboard() {
         <div ref={scheduleColumnRef} className={lastWeekRecapExists ? 'hidden' : 'hidden lg:block'}>
           {/* Schedule Section - Clean Redesign */}
       <div>
-        {/* Schedule Header */}
-        <div className="py-3 pl-3 pr-1 flex items-center justify-between" style={sectionStripStyle}>
+        {/* Schedule Header — fixed min-height so it lines up with the
+            to-do column's header bar on desktop (both 3.5rem). */}
+        <div className="pl-3 pr-1 flex items-center justify-between min-h-[3.5rem]" style={sectionStripStyle}>
           <div className="flex items-center gap-3">
             <div
               className="font-display font-bold uppercase leading-none text-txt-primary"

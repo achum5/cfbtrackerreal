@@ -9,7 +9,6 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { conferenceTeams as DEFAULT_CONFERENCES, getTeamConference } from '../../data/conferenceTeams'
 import { Card, EmptyState, TeamLogo } from '../../components/ui'
 import InlineYearSelect from '../../components/ui/InlineYearSelect'
-import { TabBar } from '../../components/CfbUI'
 import WeeklyScoresModal from '../../components/WeeklyScoresModal'
 import WeekRecapModal from '../../components/WeekRecapModal'
 import BowlWeek1Modal from '../../components/BowlWeek1Modal'
@@ -753,7 +752,7 @@ export default function WeeklyScores() {
             backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 32%, rgba(0,0,0,0.25) 100%)',
           }}
         >
-          <div className="relative p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="relative p-4 sm:p-5 pb-2 sm:pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h1
               className="group font-display font-extrabold uppercase tracking-tight leading-none m-0 break-words inline-flex items-baseline flex-wrap gap-x-3 text-txt-primary"
               style={{ fontSize: 'clamp(1.6rem, 3.4vw, 2.6rem)' }}
@@ -819,21 +818,46 @@ export default function WeeklyScores() {
               )}
             </div>
           </div>
+
+          {/* Tab nav docked to the bottom edge of the hero panel — Scores /
+              Recap — so it reads as part of the header, like the team and
+              player pages. Neutral (light) accent; this is a league-wide page. */}
+          <div className="relative mt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
+            <div className="flex overflow-x-auto no-scrollbar px-4 sm:px-5">
+              {[
+                ...(displayWeek !== -1 ? [{ key: 'scores', label: 'Scores' }] : []),
+                { key: 'recap', label: displayWeek === -1 ? 'Preseason Recap' : 'Recap' },
+              ].map(tab => {
+                const isActive = tabParam === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setTab(tab.key)}
+                    className="relative flex-shrink-0 px-3 sm:px-4 lg:px-5 py-3 font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: '0.85rem',
+                      letterSpacing: '0.06em',
+                      color: 'var(--text-primary)',
+                      opacity: isActive ? 1 : 0.5,
+                    }}
+                  >
+                    {tab.label}
+                    {isActive && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute left-2 right-2 bottom-0 h-[3px] rounded-t-sm"
+                        style={{ backgroundColor: 'var(--text-primary)' }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
         )
       })()}
-
-      {/* Tab bar — Scores / Recap, shared sliding-underline bar. Neutral
-          accent (light), since this page is not about the user's team. */}
-      <TabBar
-        tabs={[
-          ...(displayWeek !== -1 ? [{ key: 'scores', label: 'Scores' }] : []),
-          { key: 'recap', label: displayWeek === -1 ? 'Preseason Recap' : 'Recap' },
-        ]}
-        activeKey={tabParam}
-        onSelect={setTab}
-        accentColor="#e2e8f0"
-      />
 
       {/* Tab content — keyed so it fades up on each switch */}
       <div key={tabParam} className="reveal">

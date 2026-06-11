@@ -933,6 +933,22 @@ button.media-card:active,
   transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* Dynasty Records — Approximate Value leaderboard rows. Hovering lifts the
+   row fill so the list reads as a live leaderboard rather than a flat table;
+   the expanded row stays highlighted. */
+.av-row {
+  background-color: transparent;
+  transition: background-color var(--dur-base) var(--ease-out-expo);
+}
+.av-row--open {
+  background-color: var(--surface-3);
+}
+@media (hover: hover) and (pointer: fine) {
+  .av-row:hover {
+    background-color: var(--surface-3);
+  }
+}
+
 /* Ghost card — for CTAs that should NOT compete with real content.
    Dashed border, no fill, lighter visual weight. Used for the
    sample-dynasty pinned entry and other "this is an offer, not your

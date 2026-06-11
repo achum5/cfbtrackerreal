@@ -5,7 +5,7 @@ import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getTeamLogoByTid } from '../../data/teams'
 import { getTeamName } from '../../data/teamAbbreviations'
-import { getAbbrFromTeamName, getAbbrFromTid } from '../../data/teamRegistry'
+import { getAbbrFromTeamName, getAbbrFromTid, getTidFromAbbr, getTeam } from '../../data/teamRegistry'
 import {
   PageHero,
   Card,
@@ -16,6 +16,7 @@ import {
   Select,
 } from '../../components/ui'
 import { computeSeasonAV, explainSeasonAV } from '../../utils/approximateValue'
+import { getPlayerTid } from '../../data/rosterModel'
 
 // Stat category definitions
 const STAT_CATEGORIES = {
@@ -225,20 +226,29 @@ export default function DynastyRecords() {
   // Get player info. player.team may be a tid (modern format), an abbr
   // (legacy), or a full team name (older legacy). Resolve all three so the
   // leaderboard's team logo / name doesn't break for tid-stored players.
-  const getPlayerInfo = (pid) => {
+  // `seasonYear` (set in Season mode) pins the team to whoever the player
+  // suited up for THAT season — a transfer's stripe/logo/name must reflect
+  // the year's team, not their latest one. Career mode leaves it null and
+  // falls back to the player's current team.
+  const getPlayerInfo = (pid, seasonYear = null) => {
     const player = currentDynasty?.players?.find(p => p.pid === pid)
     const teamsSource = currentDynasty?.teams || currentDynasty?.customTeams
-    const playerTeamRaw = player?.team || currentDynasty?.teamName
+    let playerTeamRaw = player?.team || currentDynasty?.teamName
+    if (seasonYear != null && player) {
+      const tidForYear = getPlayerTid(player, seasonYear, { currentYear: currentDynasty?.currentYear })
+      if (tidForYear != null && tidForYear !== '') playerTeamRaw = tidForYear
+    }
 
     // tid-first resolution. Numeric tid → abbr/name/logo via registry.
     let teamAbbr = null
     let teamFullName = null
     let teamLogo = null
+    let resolvedTid = null
     if (typeof playerTeamRaw === 'number' || (typeof playerTeamRaw === 'string' && /^\d+$/.test(playerTeamRaw))) {
-      const tid = Number(playerTeamRaw)
-      teamAbbr = getAbbrFromTid(teamsSource, tid)
-      teamFullName = teamsSource?.[tid]?.name || (teamAbbr ? getTeamName(teamAbbr) : null)
-      teamLogo = getTeamLogoByTid(tid, teamsSource)
+      resolvedTid = Number(playerTeamRaw)
+      teamAbbr = getAbbrFromTid(teamsSource, resolvedTid)
+      teamFullName = teamsSource?.[resolvedTid]?.name || (teamAbbr ? getTeamName(teamAbbr) : null)
+      teamLogo = getTeamLogoByTid(resolvedTid, teamsSource)
     }
     // Fall back to abbr / team-name handling for legacy player records.
     if (!teamAbbr) {
@@ -250,6 +260,13 @@ export default function DynastyRecords() {
     if (!teamLogo) {
       teamLogo = getTeamLogo(teamFullName, teamsSource)
     }
+    if (resolvedTid == null) {
+      resolvedTid = getTidFromAbbr(teamAbbr, currentDynasty)
+    }
+    // Primary team color powers the broadcast-style left accent stripe on
+    // each leaderboard row. Custom/teambuilder teams carry their own color
+    // in dynasty.teams; otherwise fall back to the static registry.
+    const teamColor = getTeam(teamsSource, resolvedTid)?.primaryColor || null
 
     return {
       name: player?.name || `Player ${pid}`,
@@ -257,6 +274,7 @@ export default function DynastyRecords() {
       team: teamFullName,
       teamAbbr,
       teamLogo,
+      teamColor,
       pictureUrl: player?.pictureUrl || null
     }
   }
@@ -649,7 +667,7 @@ export default function DynastyRecords() {
             value = p[stat.field] || 0
           }
 
-          const playerInfo = getPlayerInfo(p.pid)
+          const playerInfo = getPlayerInfo(p.pid, mode === 'season' ? p.year : null)
           return {
             pid: p.pid,
             name: playerInfo.name,
@@ -657,6 +675,7 @@ export default function DynastyRecords() {
             team: playerInfo.team,
             teamAbbr: playerInfo.teamAbbr,
             teamLogo: playerInfo.teamLogo,
+            teamColor: playerInfo.teamColor,
             pictureUrl: playerInfo.pictureUrl,
             value,
             year: p.year,
@@ -879,28 +898,38 @@ export default function DynastyRecords() {
                     return (
                       <div key={rowKey}>
                         <div
-                          className="relative flex items-center gap-3 cursor-pointer transition-colors"
+                          className={`av-row relative flex items-center gap-3 sm:gap-3.5 cursor-pointer ${isExpanded ? 'av-row--open' : ''}`}
                           style={{
-                            padding: isFirst ? '14px 20px 14px 23px' : (isTop3 ? '10px 20px' : '8px 20px'),
+                            padding: isFirst ? '15px 20px' : (isTop3 ? '12px 20px' : '10px 20px'),
                             borderTop: displayIdx > 0 ? '1px solid var(--surface-4)' : 'none',
-                            background: isFirst ? 'linear-gradient(90deg, rgba(234,179,8,0.10) 0%, var(--surface-2) 70%)' : 'transparent',
                           }}
                           onClick={() => setExpandedRowKey(isExpanded ? null : rowKey)}
                         >
-                          {isFirst && <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: 'var(--accent-warning)' }} />}
-                          <div className="text-right tabular flex-shrink-0" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isFirst ? '1.5rem' : isTop3 ? '1.2rem' : '0.95rem', fontWeight: isFirst ? 900 : isTop3 ? 800 : 600, letterSpacing: '0.5px', lineHeight: 1, width: '2.25rem', color: avRankColor(rank) }}>{rank}</div>
-                          {entry.pictureUrl ? (
-                            <img src={proxyImageUrl(entry.pictureUrl, 300)} alt="" className={`${isFirst ? 'w-10 h-10' : 'w-8 h-8'} rounded-full object-cover flex-shrink-0`} style={{ border: isFirst ? '1.5px solid var(--accent-warning)' : '1px solid var(--surface-4)' }} />
-                          ) : entry.teamLogo ? (
-                            <img src={entry.teamLogo} alt="" className={`${isFirst ? 'w-9 h-9' : 'w-7 h-7'} object-contain flex-shrink-0`} />
-                          ) : (
-                            <div className={`${isFirst ? 'w-10 h-10' : 'w-8 h-8'} rounded-full bg-surface-4 flex-shrink-0`} />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <Link to={`${pathPrefix}/player/${entry.pid}`} onClick={(e) => e.stopPropagation()} className={`${isFirst ? 'text-[15px]' : 'text-sm'} font-semibold text-txt-primary hover:underline truncate block`}>{entry.name}</Link>
-                            <p className="text-[11px] text-txt-tertiary truncate">{entry.position && `${entry.position} `}{mode === 'career' ? formatYears(entry.years) : entry.year}</p>
+                          <div className="text-right tabular flex-shrink-0" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isFirst ? '1.65rem' : isTop3 ? '1.3rem' : '1rem', fontWeight: isFirst ? 900 : isTop3 ? 800 : 600, letterSpacing: '0.5px', lineHeight: 1, width: '2.25rem', color: avRankColor(rank) }}>{rank}</div>
+                          {/* Avatar with a small team-logo badge tucked in the
+                              corner — the on-air headshot + helmet treatment. */}
+                          <div className={`relative flex-shrink-0 ${isFirst ? 'w-12 h-12' : isTop3 ? 'w-11 h-11' : 'w-10 h-10'}`}>
+                            {entry.pictureUrl ? (
+                              <img src={proxyImageUrl(entry.pictureUrl, 300)} alt="" className="w-full h-full rounded-full object-cover" style={{ border: '1px solid var(--surface-4)' }} />
+                            ) : entry.teamLogo ? (
+                              <img src={entry.teamLogo} alt="" className="w-full h-full object-contain" />
+                            ) : (
+                              <div className="w-full h-full rounded-full bg-surface-4" />
+                            )}
+                            {entry.pictureUrl && entry.teamLogo && (
+                              <img
+                                src={entry.teamLogo}
+                                alt=""
+                                className={`absolute -bottom-0.5 -right-0.5 object-contain rounded-full ${isFirst ? 'w-5 h-5' : 'w-4 h-4'}`}
+                                style={{ backgroundColor: 'var(--surface-1)', padding: '1px', boxShadow: '0 0 0 1px var(--surface-4)' }}
+                              />
+                            )}
                           </div>
-                          <div className="tabular flex-shrink-0 text-right text-txt-primary" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isFirst ? '1.85rem' : isTop3 ? '1.35rem' : '1.05rem', fontWeight: isFirst ? 900 : isTop3 ? 800 : 700, letterSpacing: '0.5px', lineHeight: 1, opacity: isFirst ? 1 : isTop3 ? 0.92 : 0.82 }}>{entry.value.toFixed(1)}</div>
+                          <div className="flex-1 min-w-0">
+                            <Link to={`${pathPrefix}/player/${entry.pid}`} onClick={(e) => e.stopPropagation()} className={`${isFirst ? 'text-base' : 'text-sm'} font-bold text-txt-primary hover:underline truncate block leading-tight`}>{entry.name}</Link>
+                            <p className="text-[11px] text-txt-tertiary truncate uppercase mt-0.5" style={{ letterSpacing: '0.5px' }}>{entry.position && `${entry.position} · `}{mode === 'career' ? formatYears(entry.years) : entry.year}</p>
+                          </div>
+                          <div className="tabular flex-shrink-0 text-right text-txt-primary" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: isFirst ? '2rem' : isTop3 ? '1.45rem' : '1.1rem', fontWeight: isFirst ? 900 : isTop3 ? 800 : 700, letterSpacing: '0.5px', lineHeight: 1, opacity: isFirst ? 1 : isTop3 ? 0.94 : 0.84 }}>{entry.value.toFixed(1)}</div>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" style={{ color: isExpanded ? 'var(--text-primary)' : 'var(--text-tertiary)', transition: 'transform 150ms ease', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}><polyline points="6 9 12 15 18 9" /></svg>
                         </div>
                         {isExpanded && breakdown && (
@@ -999,9 +1028,7 @@ export default function DynastyRecords() {
                           style={{
                             padding: isFirst ? '14px 16px' : '8px 16px',
                             borderTop: idx === 0 ? 'none' : '1px solid var(--surface-4)',
-                            backgroundColor: isFirst
-                              ? 'color-mix(in srgb, var(--accent-warning) 5%, transparent)'
-                              : 'transparent'
+                            backgroundColor: 'transparent'
                           }}
                         >
                           <div
@@ -1265,24 +1292,13 @@ export default function DynastyRecords() {
                           <div
                             className="relative flex items-center gap-3 px-6 transition-colors"
                             style={{
-                              padding: isFirst ? '14px 24px 14px 27px' : (isTop3 ? '10px 24px' : '8px 24px'),
+                              padding: isFirst ? '14px 24px' : (isTop3 ? '10px 24px' : '8px 24px'),
                               borderTop: displayIdx > 0 ? '1px solid var(--surface-4)' : 'none',
-                              background: isFirst
-                                ? 'linear-gradient(90deg, rgba(234, 179, 8, 0.10) 0%, var(--surface-2) 70%)'
-                                : 'transparent',
+                              background: 'transparent',
                             }}
-                            onMouseEnter={(e) => { if (!isFirst) e.currentTarget.style.backgroundColor = 'var(--surface-3)' }}
-                            onMouseLeave={(e) => { if (!isFirst) e.currentTarget.style.backgroundColor = 'transparent' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--surface-3)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                           >
-                            {/* #1 accent rail */}
-                            {isFirst && (
-                              <span
-                                aria-hidden="true"
-                                className="absolute left-0 top-0 bottom-0 w-[3px]"
-                                style={{ backgroundColor: 'var(--accent-warning)' }}
-                              />
-                            )}
-
                             <div
                               className="text-right tabular flex-shrink-0"
                               style={{

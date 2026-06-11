@@ -7,6 +7,7 @@ import CardComposer from '../../components/CardComposer'
 import FlippableCard from '../../components/FlippableCard'
 import PlayerErrorBoundary from '../../components/PlayerErrorBoundary'
 import MediaList from '../../components/MediaList'
+import ProgressiveLightboxImage from '../../components/ProgressiveLightboxImage'
 import { getPlayerCards } from '../../utils/playerCards'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
@@ -5641,16 +5642,16 @@ function PlayerInner() {
               </button>
               {total > 1 && (
                 <>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); step(-1) }} aria-label="Previous" className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full" style={{ width: 48, height: 48, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); step(-1) }} aria-label="Previous" className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full" style={{ width: 48, height: 48, zIndex: 2, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); step(1) }} aria-label="Next" className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full" style={{ width: 48, height: 48, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); step(1) }} aria-label="Next" className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full" style={{ width: 48, height: 48, zIndex: 2, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}>
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                   </button>
                 </>
               )}
               <div className="flex flex-col items-center gap-3" style={{ maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)' }} onClick={(e) => e.stopPropagation()}>
-                <img src={`https://wsrv.nl/?url=${encodeURIComponent(cur.url)}&output=webp&q=92`} alt="Tagged photo" className="block select-none" style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 120px)', objectFit: 'contain', boxShadow: '0 24px 60px rgba(0,0,0,0.6)' }} onError={(e) => { if (e.currentTarget.src !== cur.url) e.currentTarget.src = cur.url }} draggable={false} />
+                <ProgressiveLightboxImage currentUrl={cur.url} alt="Tagged photo" maxHeight="calc(100vh - 120px)" />
                 {cur.gameId && (
                   <Link
                     to={`${pathPrefix}/game/${cur.gameId}`}

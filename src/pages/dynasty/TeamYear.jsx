@@ -2643,7 +2643,7 @@ export default function TeamYear() {
           ...(teamLogo ? { '--cfb-watermark': `url("${teamLogo}")`, '--cfb-watermark-right': '7rem' } : {}),
         }}
       >
-        <div className="relative overflow-hidden p-4 sm:p-5 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
+        <div className="relative overflow-hidden p-4 sm:p-5 pb-2 sm:pb-2 flex flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 cfb-watermark">
           {/* Edit button — mobile only, pinned to the bottom-right of the hero
               CONTENT row so it stays above the docked tab nav and never overlaps
               the tabs. Desktop has its own in the RIGHT group. */}
@@ -3169,7 +3169,7 @@ export default function TeamYear() {
 
         {/* Tab nav docked to the bottom edge of the hero masthead so it reads
             as part of the team header, not a floating strip below it. */}
-        <div className="relative mt-2 sm:mt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
+        <div className="relative mt-1 sm:mt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
           <div className="flex overflow-x-auto no-scrollbar">
             {[
               { key: 'home', label: 'Home' },
@@ -6602,7 +6602,11 @@ export default function TeamYear() {
             value: nationalChampionships.length,
             accent: nationalChampionships.length > 0 ? '#eab308' : null,
             onClick: nationalChampionships.length > 0 ? () => {
-              const games = nationalChampionships.flatMap(yr => yr.cfpResult?.games || [])
+              // Only the title game itself — not the full CFP run (quarterfinal,
+              // semifinal). The CFP stat tile covers the whole bracket run.
+              const games = nationalChampionships.flatMap(yr =>
+                (yr.cfpResult?.games || []).filter(g => g.isCFPChampionship)
+              )
               setHistoryGamesModalTitle('National Championships')
               setHistoryGamesModalGames(games)
               setShowHistoryGamesModal(true)

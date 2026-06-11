@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useDynasty, getPlayerClassForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { proxyImageUrl } from '../../utils/imageProxy'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import RosterHistoryModal from '../../components/RosterHistoryModal'
 import { PageHero, Card, EmptyState, Input, Select, Badge, Button } from '../../components/ui'
@@ -237,9 +238,8 @@ export default function Players() {
               <thead>
                 <tr
                   style={{
-                    borderBottom: `2px solid ${teamAccent}`,
+                    borderBottom: '1px solid var(--surface-4)',
                     backgroundColor: 'var(--surface-1)',
-                    backgroundImage: `linear-gradient(90deg, ${teamAccent}1f 0%, ${teamAccent}0a 14%, transparent 36%)`,
                   }}
                 >
                   <SortableTh column="name">Player</SortableTh>
@@ -254,27 +254,29 @@ export default function Players() {
                     Archetype
                   </th>
                   <th
-                    className="px-4 py-3 label-xs text-txt-tertiary text-left hidden lg:table-cell"
+                    className="px-4 py-3 label-xs text-txt-tertiary text-center hidden lg:table-cell"
                     style={{ letterSpacing: '2px', fontSize: '10px' }}
                   >
-                    Hometown
+                    Last Year
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPlayers.map((player, idx) => {
-                  // Tiered OVR color treatment — broadcast scorebug data
-                  // emphasis: elite ratings stand out at a glance, sub-80s
-                  // recede. Same tier drives the jersey-chip color so the
-                  // row reads as a unit.
+                  // All OVR numbers render in plain white — no tiered color
+                  // emphasis. Size still steps up slightly for elites so the
+                  // column keeps a little hierarchy.
                   const ovr = player.overall || 0
                   const tier = ovr >= 90 ? 'elite' : ovr >= 85 ? 'star' : ovr >= 80 ? 'starter' : ovr > 0 ? 'depth' : 'none'
-                  const ovrColor = tier === 'elite' ? '#34d399'
-                    : tier === 'star' ? 'var(--text-primary)'
-                    : tier === 'starter' ? 'var(--text-primary)'
-                    : tier === 'depth' ? 'var(--text-tertiary)'
-                    : 'var(--text-muted)'
+                  const ovrColor = 'var(--text-primary)'
                   const ovrSize = tier === 'elite' ? '20px' : tier === 'star' ? '18px' : '17px'
+
+                  // Last year this player appears in stats or on a roster.
+                  const playedYears = [
+                    ...Object.keys(player.statsByYear || {}),
+                    ...Object.keys(player.teamsByYear || {}),
+                  ].map(Number).filter(Number.isFinite)
+                  const lastYearPlayed = playedYears.length ? Math.max(...playedYears) : null
 
                   return (
                     <tr
@@ -288,19 +290,22 @@ export default function Players() {
                           className="font-semibold hover:underline flex items-center gap-2 group"
                           style={{ color: 'var(--text-primary)' }}
                         >
-                          {player.jerseyNumber && (
+                          {player.pictureUrl ? (
+                            <img
+                              src={proxyImageUrl(player.pictureUrl, 300)}
+                              alt=""
+                              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                              style={{ border: '1px solid var(--surface-4)' }}
+                              onError={(e) => { e.currentTarget.style.display = 'none' }}
+                            />
+                          ) : (
                             <span
-                              className="label-xs tabular px-1.5 py-0.5 rounded flex-shrink-0"
-                              style={{
-                                fontSize: '10px',
-                                backgroundColor: 'var(--surface-3)',
-                                color: 'var(--text-secondary)',
-                                fontWeight: 700,
-                                minWidth: '28px',
-                                textAlign: 'center',
-                              }}
+                              className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center"
+                              style={{ backgroundColor: 'var(--surface-3)' }}
                             >
-                              {player.jerseyNumber}
+                              <span className="text-[10px] font-bold text-txt-secondary uppercase">
+                                {(player.position || player.name?.charAt(0) || '').slice(0, 2)}
+                              </span>
                             </span>
                           )}
                           <span className="transition-transform duration-200 group-hover:translate-x-0.5">{player.name}</span>
@@ -338,10 +343,8 @@ export default function Players() {
                       <td className="px-4 py-3 hidden md:table-cell text-sm text-txt-secondary">
                         {player.archetype || '-'}
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell text-sm text-txt-secondary">
-                        {player.hometown && player.state
-                          ? `${player.hometown}, ${player.state}`
-                          : player.hometown || player.state || '-'}
+                      <td className="px-4 py-3 hidden lg:table-cell text-center text-sm text-txt-secondary tabular">
+                        {lastYearPlayed ?? '-'}
                       </td>
                     </tr>
                   )

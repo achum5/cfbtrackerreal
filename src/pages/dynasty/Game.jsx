@@ -10,6 +10,7 @@ import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getT
 import { saveGamesToSubcollection } from '../../services/dynastyService'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
 import CardComposer from '../../components/CardComposer'
+import ProgressiveLightboxImage from '../../components/ProgressiveLightboxImage'
 import { getCardsForGame } from '../../utils/playerCards'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
 import FlippableCard from '../../components/FlippableCard'
@@ -4119,6 +4120,7 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
           className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full transition-colors"
           style={{
             width: 48, height: 48,
+            zIndex: 2,
             backgroundColor: 'rgba(255, 255, 255, 0.08)',
             color: '#fff',
             border: '1px solid rgba(255, 255, 255, 0.18)',
@@ -4139,6 +4141,7 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
           className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-full transition-colors"
           style={{
             width: 48, height: 48,
+            zIndex: 2,
             backgroundColor: 'rgba(255, 255, 255, 0.08)',
             color: '#fff',
             border: '1px solid rgba(255, 255, 255, 0.18)',
@@ -4157,18 +4160,10 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
         style={{ maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <img
-          src={`https://wsrv.nl/?url=${encodeURIComponent(currentUrl)}&output=webp&q=92`}
+        <ProgressiveLightboxImage
+          currentUrl={currentUrl}
           alt={`Game photo ${index + 1} of ${total}`}
-          className="block select-none"
-          style={{
-            maxWidth: '100%',
-            maxHeight: (tagPids.length > 0 || canEditTags) ? 'calc(100vh - 120px)' : 'calc(100vh - 32px)',
-            objectFit: 'contain',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.6)',
-          }}
-          onError={(e) => { if (e.currentTarget.src !== currentUrl) e.currentTarget.src = currentUrl }}
-          draggable={false}
+          maxHeight={(tagPids.length > 0 || canEditTags) ? 'calc(100vh - 120px)' : 'calc(100vh - 32px)'}
         />
         {(tagPids.length > 0 || canEditTags) && (
           <div className="flex flex-wrap items-center justify-center gap-2">
