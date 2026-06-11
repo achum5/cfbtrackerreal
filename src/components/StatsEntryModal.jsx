@@ -483,10 +483,6 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Stats" title={`${currentYear} GP / Snaps`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6">
-        <p className="text-sm mb-3 text-txt-secondary">
-          Enter this first! Detailed Stats entry sorts players by snaps, so entering snaps here lets you quickly go down the list when entering passing, rushing, and other stats.
-        </p>
-
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">

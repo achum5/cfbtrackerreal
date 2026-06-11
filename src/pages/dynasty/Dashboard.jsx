@@ -5549,6 +5549,10 @@ export default function Dashboard() {
               const hasAllConference = allAmericansForYear?.allConference?.length > 0
 
               const w5Todos = []
+              // Shared view targets for the "View" link on completed items.
+              const w5Year = currentDynasty.currentYear
+              const w5Tid = currentDynasty.currentTid
+              const w5TeamStats = w5Tid != null ? `${pathPrefix}/team/${w5Tid}/${w5Year}?tab=stats` : null
 
               // Result first, then recap — you enter the championship result
               // before generating its recap, so it leads the list.
@@ -5568,6 +5572,9 @@ export default function Dashboard() {
                     ? () => navigate(`${pathPrefix}/game/${userCFPChampionshipGame.id}/edit`, { state: { from: location.pathname } })
                     : () => setShowCFPChampionshipModal(true),
                   actionLabel: userChampHasScoresW5 ? 'Edit' : 'Enter',
+                  viewTo: userChampHasScoresW5
+                    ? (userCFPChampionshipGame ? `${pathPrefix}/game/${userCFPChampionshipGame.id}` : `${pathPrefix}/cfp-bracket/${w5Year}`)
+                    : null,
                 })
               } else {
                 w5Todos.push({
@@ -5579,6 +5586,7 @@ export default function Dashboard() {
                     : 'Enter the championship game result',
                   onAction: () => setShowCFPChampionshipModal(true),
                   actionLabel: hasChampData ? 'Edit' : 'Enter',
+                  viewTo: hasChampData ? `${pathPrefix}/cfp-bracket/${w5Year}` : null,
                 })
               }
 
@@ -5606,6 +5614,7 @@ export default function Dashboard() {
                   : 'Enter games played and snaps for each player',
                 onAction: () => setShowStatsEntryModal(true),
                 actionLabel: gpSnapsCompleted ? 'Edit' : 'Enter',
+                viewTo: gpSnapsCompleted ? w5TeamStats : null,
               })
 
               w5Todos.push({
@@ -5621,6 +5630,7 @@ export default function Dashboard() {
                       : 'Enter detailed stats by category',
                 onAction: detailedStatsLocked ? undefined : () => setShowDetailedStatsModal(true),
                 actionLabel: detailedStatsLocked ? undefined : (detailedStatsEffectivelyDone ? 'Edit' : 'Enter'),
+                viewTo: detailedStatsEffectivelyDone ? w5TeamStats : null,
               })
 
               w5Todos.push({
@@ -5634,6 +5644,7 @@ export default function Dashboard() {
                     : 'Enter final conference standings',
                 onAction: () => setShowConferenceStandingsModal(true),
                 actionLabel: standingsEffectivelyDone ? 'Edit' : 'Enter',
+                viewTo: standingsEffectivelyDone ? `${pathPrefix}/conference-standings/${w5Year}` : null,
               })
 
               w5Todos.push({
@@ -5643,6 +5654,7 @@ export default function Dashboard() {
                 subtitle: hasPollsData ? 'Final Top 25 entered' : 'Enter the final media poll',
                 onAction: () => setShowFinalPollsModal(true),
                 actionLabel: hasPollsData ? 'Edit' : 'Enter',
+                viewTo: hasPollsData ? `${pathPrefix}/rankings/${w5Year}` : null,
               })
 
               w5Todos.push({
@@ -5656,6 +5668,7 @@ export default function Dashboard() {
                     : 'Enter team statistical leaders',
                 onAction: () => setShowTeamStatsModal(true),
                 actionLabel: teamStatsEffectivelyDone ? 'Edit' : 'Enter',
+                viewTo: teamStatsEffectivelyDone && w5Tid != null ? `${pathPrefix}/team/${w5Tid}/${w5Year}?tab=stats&statsTab=team` : null,
               })
 
               w5Todos.push({
@@ -5665,6 +5678,7 @@ export default function Dashboard() {
                 subtitle: hasAwards ? `${awardsCount} awards entered` : 'Enter major award winners',
                 onAction: () => setShowAwardsModal(true),
                 actionLabel: hasAwards ? 'Edit' : 'Enter',
+                viewTo: hasAwards ? `${pathPrefix}/awards/${w5Year}` : null,
               })
 
               w5Todos.push({
@@ -5674,6 +5688,7 @@ export default function Dashboard() {
                 subtitle: hasAllAmericans ? 'All-Americans selections entered' : 'Enter All-America selections',
                 onAction: () => setShowAllAmericansModal(true),
                 actionLabel: hasAllAmericans ? 'Edit' : 'Enter',
+                viewTo: hasAllAmericans ? `${pathPrefix}/all-americans/${w5Year}` : null,
               })
 
               w5Todos.push({
@@ -5683,6 +5698,7 @@ export default function Dashboard() {
                 subtitle: hasAllConference ? 'All-Conference selections entered' : 'Enter All-Conference selections',
                 onAction: () => setShowAllConferenceModal(true),
                 actionLabel: hasAllConference ? 'Edit' : 'Enter',
+                viewTo: hasAllConference ? `${pathPrefix}/all-conference/${w5Year}` : null,
               })
 
               return (

@@ -46,6 +46,17 @@
  *   best defender ~22-23 (on par with an elite QB) instead of ~30.
  *   Also tightened punting (baseline 38→40, mult 0.05→0.03, in20
  *   0.15→0.12) — a good-not-great punter was cracking the top 10.
+ *
+ * - 2026-06-11 OL + defense rebalance (validated on a full ~1100-player
+ *   dynasty). OL were invisible (pancakes-minus-sacks left a clean full
+ *   starter at ~0; top OL season was 1.2). Rebuilt OL around snapsPlayed:
+ *   snaps drive a base (full starter → ~10), pancakes add run-block credit,
+ *   sacks allowed dock pass-pro — top OL now ~11-12 (90 players valued vs 8).
+ *   Defense was still flooding the board (DL 95th-pct 23.5, LB 23.5 vs RB
+ *   15.8 / WR 9.1, plus far more defenders). Trimmed volume + events (solo
+ *   .08→.05, ast .035→.02, tfl .25→.15, sack 1.0→.8, int 1.3→1.2, pd .3→.28,
+ *   ff 1.0→.8, fr .7→.6, def TD 2.0→1.6) and DROPPED the DL ×1.15 boost.
+ *   Defense now lands DL/LB ~15-17, DB ~12 — interleaved with offense.
  */
 
 // Position groups — used to dispatch to the right formula.
@@ -124,13 +135,22 @@ function wrTeValue(s) {
 }
 
 function olValue(s) {
-  let av = 0
-  const b = s.blocking
-  if (b) {
-    av += (b.pancakes || 0) * 0.05      // 100 pancakes → 5
-    av -= (b.sacksAllowed || 0) * 0.5    // 5 sacks → -2.5
-  }
-  return Math.max(0, av)
+  // OL have almost no box-score footprint, so the old pancakes-minus-sacks
+  // line left a clean full-season starter at ~0 AV (invisible on the board).
+  // Snaps fix that: snaps = the player's blocking workload (durability + role,
+  // the bulk of an OL's value), then pancakes reward run-block dominance and
+  // sacks allowed dock pass-pro lapses — so a high-snap, low-sack lineman
+  // grades out well and a leaky one doesn't.
+  const snaps = Number(s.snapsPlayed) || 0
+  const b = s.blocking || {}
+  const pancakes = b.pancakes || 0
+  const sacksAllowed = b.sacksAllowed || 0
+
+  // Fallback for seasons with no snaps entered: the legacy line.
+  if (!snaps) return Math.max(0, pancakes * 0.05 - sacksAllowed * 0.5)
+
+  const ratio = Math.min(1, snaps / 850)   // ~850 snaps = a full-season starter
+  return Math.max(0, ratio * 10 + pancakes * 0.06 - sacksAllowed * 0.4)
 }
 
 function defenseValue(s, posGroup) {
@@ -141,25 +161,21 @@ function defenseValue(s, posGroup) {
   // are volume; deflections and forced fumbles are difference-makers
   // worth their own line in the formula.
   let av = 0
-  av += (d.solo || d.soloTkl || 0) * 0.08
-  av += (d.assists || d.astTkl || 0) * 0.035
-  av += (d.tfl || 0) * 0.25
-  av += (d.sack || d.sacks || 0) * 1.0
-  av += (d.int || 0) * 1.3
-  av += (d.deflections || d.pd || 0) * 0.3
-  av += (d.ff || 0) * 1.0
-  av += (d.fr || 0) * 0.7
-  av += (d.td || 0) * 2.0       // defensive scores are massive
+  av += (d.solo || d.soloTkl || 0) * 0.05
+  av += (d.assists || d.astTkl || 0) * 0.02
+  av += (d.tfl || 0) * 0.15
+  av += (d.sack || d.sacks || 0) * 0.8
+  av += (d.int || 0) * 1.2
+  av += (d.deflections || d.pd || 0) * 0.28
+  av += (d.ff || 0) * 0.8
+  av += (d.fr || 0) * 0.6
+  av += (d.td || 0) * 1.6       // defensive scores are big, just not runaway
   av += (d.safeties || 0) * 1.0
   av += (d.blocks  || 0) * 1.0
 
-  // Position-group multiplier. DL stat-lines tend to be sparser per
-  // game (a 3-sack game is huge; a 12-tackle game from a LB is
-  // expected), so weight DL slightly higher per stat.
-  if (posGroup === 'DL') av *= 1.15
-  else if (posGroup === 'LB') av *= 1.0
-  else if (posGroup === 'DB') av *= 1.0
-
+  // No position-group multiplier anymore — the DL 1.15 boost (plus heavy
+  // tackle/TFL volume) was the main reason defenders flooded the leaderboard.
+  // posGroup is retained for call-signature stability / future tuning.
   return Math.max(0, av)
 }
 
@@ -341,27 +357,34 @@ export function explainSeasonAV(yearStats, position) {
       push('Rushing TDs', `${r.td || 0} TD`, (r.td || 0) * 0.4)
     }
   } else if (OL_POS.has(pos)) {
+    const snaps = Number(s.snapsPlayed) || 0
     const b = s.blocking
-    if (b) {
+    if (snaps) {
+      const ratio = Math.min(1, snaps / 850)
+      push('Snaps played', `${snaps} snaps`, ratio * 10)
+      if (b) {
+        push('Pancakes', `${b.pancakes || 0}`, (b.pancakes || 0) * 0.06)
+        push('Sacks allowed', `${b.sacksAllowed || 0}`, -(b.sacksAllowed || 0) * 0.4)
+      }
+    } else if (b) {
       push('Pancakes', `${b.pancakes || 0}`, (b.pancakes || 0) * 0.05)
       push('Sacks allowed', `${b.sacksAllowed || 0}`, -(b.sacksAllowed || 0) * 0.5)
     }
   } else if (DL_POS.has(pos) || LB_POS.has(pos) || DB_POS.has(pos)) {
     const d = s.defense
     if (d) {
-      const m = DL_POS.has(pos) ? 1.15 : 1.0
       const solo = d.solo || d.soloTkl || 0
       const ast = d.assists || d.astTkl || 0
-      push('Tackles', `${solo} solo, ${ast} ast`, (solo * 0.08 + ast * 0.035) * m)
-      push('Tackles for loss', `${d.tfl || 0}`, (d.tfl || 0) * 0.25 * m)
-      push('Sacks', `${d.sack || d.sacks || 0}`, (d.sack || d.sacks || 0) * 1.0 * m)
-      push('Interceptions', `${d.int || 0}`, (d.int || 0) * 1.3 * m)
-      push('Pass deflections', `${d.deflections || d.pd || 0}`, (d.deflections || d.pd || 0) * 0.3 * m)
-      push('Forced fumbles', `${d.ff || 0}`, (d.ff || 0) * 1.0 * m)
-      push('Fumble recoveries', `${d.fr || 0}`, (d.fr || 0) * 0.7 * m)
-      push('Defensive TDs', `${d.td || 0}`, (d.td || 0) * 2.0 * m)
-      push('Safeties', `${d.safeties || 0}`, (d.safeties || 0) * 1.0 * m)
-      push('Blocked kicks', `${d.blocks || 0}`, (d.blocks || 0) * 1.0 * m)
+      push('Tackles', `${solo} solo, ${ast} ast`, solo * 0.05 + ast * 0.02)
+      push('Tackles for loss', `${d.tfl || 0}`, (d.tfl || 0) * 0.15)
+      push('Sacks', `${d.sack || d.sacks || 0}`, (d.sack || d.sacks || 0) * 0.8)
+      push('Interceptions', `${d.int || 0}`, (d.int || 0) * 1.2)
+      push('Pass deflections', `${d.deflections || d.pd || 0}`, (d.deflections || d.pd || 0) * 0.28)
+      push('Forced fumbles', `${d.ff || 0}`, (d.ff || 0) * 0.8)
+      push('Fumble recoveries', `${d.fr || 0}`, (d.fr || 0) * 0.6)
+      push('Defensive TDs', `${d.td || 0}`, (d.td || 0) * 1.6)
+      push('Safeties', `${d.safeties || 0}`, (d.safeties || 0) * 1.0)
+      push('Blocked kicks', `${d.blocks || 0}`, (d.blocks || 0) * 1.0)
     }
   } else if (K_POS.has(pos)) {
     const k = s.kicking
