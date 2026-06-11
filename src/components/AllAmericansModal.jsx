@@ -170,22 +170,25 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        const existingSheetId = currentDynasty?.allAmericansSheetIdByYear?.[currentYear]
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, {
-            allAmericansSheetIdByYear: { ...(currentDynasty.allAmericansSheetIdByYear || {}), [currentYear]: null }
-          })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Existing-sheet Drive lookup must live INSIDE the try: an expired
+          // Google token throws here, and outside the try the rejection escaped,
+          // leaving an empty modal with no re-auth prompt.
+          const existingSheetId = currentDynasty?.allAmericansSheetIdByYear?.[currentYear]
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, {
+              allAmericansSheetIdByYear: { ...(currentDynasty.allAmericansSheetIdByYear || {}), [currentYear]: null }
+            })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
           // Pass allAmericansByYear for pre-filling past years
           const allAmericansByYear = currentDynasty?.allAmericansByYear || {}
           const sheetInfo = await createAllAmericansOnlySheet(currentYear, allAmericansByYear, currentDynasty?.teams || currentDynasty?.customTeams)

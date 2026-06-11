@@ -163,31 +163,31 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noDraftDeclarees) {
-        // Check if we have an existing sheet for this year
-        const existingSheetId = currentDynasty?.draftResultsSheetId
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, { draftResultsSheetId: null })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
-
-        // Check if there are any draft declarees
-        const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
-        const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
-
-        if (draftDeclarees.length === 0) {
-          setNoDraftDeclarees(true)
-          return
-        }
-
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Check if we have an existing sheet for this year
+          const existingSheetId = currentDynasty?.draftResultsSheetId
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, { draftResultsSheetId: null })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
+
+          // Check if there are any draft declarees
+          const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
+          const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
+
+          if (draftDeclarees.length === 0) {
+            setNoDraftDeclarees(true)
+            return
+          }
+
           const sheetInfo = await createDraftResultsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,

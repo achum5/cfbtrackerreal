@@ -125,27 +125,45 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     return excluded
   }, [currentDynasty, currentYear])
 
-  // Prior-week Top 25 (post-BW1 poll = rankByWeek slot 16).
+  // Prior Top 25 reference for the AI's non-playing-team block. The immediate
+  // prior poll (slot 16 for BW2) is usually SPARSE during bowls — the user only
+  // re-confirms their own team's rank week to week, so reading slot 16 alone
+  // often yields a single team. To still hand the AI a full Top 25 (so it can
+  // carry every non-playing ranked team forward), fall back to the most recent
+  // slot that holds a (near-)complete poll, scanning back through the bowl weeks
+  // into the final regular-season / CCG poll.
   const prevWeekTop25Block = useMemo(() => {
     if (!currentDynasty) return ''
     const yearNum = Number(currentYear)
     const teamsData = currentDynasty.teams || {}
-    const slotMap = new Map()
-    for (const team of Object.values(teamsData)) {
-      const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[String(yearNum)]?.rankByWeek
-      if (!rbw) continue
-      const v = rbw[16] ?? rbw['16']
-      if (typeof v !== 'number' || v < 1 || v > 25) continue
-      if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+    const priorSlot = (Number.isFinite(effectiveRankWeek) ? effectiveRankWeek : 17) - 1
+    const buildForSlot = (slot) => {
+      const slotMap = new Map()
+      for (const team of Object.values(teamsData)) {
+        const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[String(yearNum)]?.rankByWeek
+        if (!rbw) continue
+        const v = rbw[slot] ?? rbw[String(slot)]
+        if (typeof v !== 'number' || v < 1 || v > 25) continue
+        if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+      }
+      return slotMap
     }
-    if (slotMap.size === 0) return ''
+    // Walk back from the immediate prior slot and keep the fullest poll found.
+    // Strict `>` keeps the most recent poll on ties; stop once we hit a full 25.
+    let best = new Map()
+    for (let slot = priorSlot; slot >= 0; slot--) {
+      const m = buildForSlot(slot)
+      if (m.size > best.size) best = m
+      if (best.size >= 25) break
+    }
+    if (best.size === 0) return ''
     const lines = []
     for (let r = 1; r <= 25; r++) {
-      const abbr = slotMap.get(r)
+      const abbr = best.get(r)
       if (abbr) lines.push(`  #${r} ${abbr}`)
     }
     return lines.join('\n')
-  }, [currentDynasty, currentYear])
+  }, [currentDynasty, currentYear, effectiveRankWeek])
 
   // EXACT row-by-row table the sheet uses for column A — already
   // sorted by getBowlGamesWeek2 to interleave the user's QF bowls
@@ -355,8 +373,9 @@ For each team in this block, output ONE row:
   • Col C = their AP rank (1–25)
   • Cols D–G = leave blank
 
-Format: \\t<TeamAbbr>\\t<Rank>\\t\\t\\t\\t
-(tab, team, tab, rank, then 4 blank tabs — Col A blank = no bowl name)
+Format: <TeamAbbr>\\t<Rank>\\t\\t\\t\\t
+(team, tab, rank, then 4 blank tabs — NO leading tab. The block pastes at
+cell B2, so the team lands in Col B and the rank in Col C; Col A stays blank.)
 
 Only list teams that WERE ranked in the Prior-Week Top 25 above. If every
 ranked team already shows its AP rank on a regular bowl row, emit NO rows
@@ -371,7 +390,7 @@ REQUIRED OUTPUT FORMAT
 <row2 Team1>\\t<row2 T1Rank>\\t<row2 Team2>\\t<row2 T2Rank>\\t<row2 T1Score>\\t<row2 T2Score>
 ... (one row per bowl in the screenshot, in the screenshot's alphabetical order)
 \\t\\t\\t\\t\\t\\t           ← blank separator row (6 tabs)
-\\t<nonPlayingTeam1>\\t<rank1>\\t\\t\\t\\t
+<nonPlayingTeam1>\\t<rank1>\\t\\t\\t\\t
 ... (one row per NON-PLAYING ranked team only — omit any team that has a game row above)
 
 (Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)

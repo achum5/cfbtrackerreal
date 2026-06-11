@@ -91,28 +91,40 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     return excluded
   }, [currentDynasty, currentYear])
 
-  // Prior-week Top 25 (post-CCG poll = rankByWeek slot 15) so the AI can
-  // reason about which ranked teams aren't playing in Bowl Week 1.
+  // Prior Top 25 reference (post-CCG poll = rankByWeek slot 15) so the AI can
+  // reason about which ranked teams aren't playing in Bowl Week 1. If that slot
+  // is sparse, fall back to the most recent slot holding a (near-)complete poll
+  // so the AI still gets a full 25 to carry forward.
   const prevWeekTop25Block = useMemo(() => {
     if (!currentDynasty) return ''
     const yearNum = Number(currentYear)
     const teams = currentDynasty.teams || {}
-    const slotMap = new Map()
-    for (const team of Object.values(teams)) {
-      const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[String(yearNum)]?.rankByWeek
-      if (!rbw) continue
-      const v = rbw[15] ?? rbw['15']
-      if (typeof v !== 'number' || v < 1 || v > 25) continue
-      if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+    const priorSlot = (Number.isFinite(effectiveRankWeek) ? effectiveRankWeek : 16) - 1
+    const buildForSlot = (slot) => {
+      const slotMap = new Map()
+      for (const team of Object.values(teams)) {
+        const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[String(yearNum)]?.rankByWeek
+        if (!rbw) continue
+        const v = rbw[slot] ?? rbw[String(slot)]
+        if (typeof v !== 'number' || v < 1 || v > 25) continue
+        if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+      }
+      return slotMap
     }
-    if (slotMap.size === 0) return ''
+    let best = new Map()
+    for (let slot = priorSlot; slot >= 0; slot--) {
+      const m = buildForSlot(slot)
+      if (m.size > best.size) best = m
+      if (best.size >= 25) break
+    }
+    if (best.size === 0) return ''
     const lines = []
     for (let r = 1; r <= 25; r++) {
-      const abbr = slotMap.get(r)
+      const abbr = best.get(r)
       if (abbr) lines.push(`  #${r} ${abbr}`)
     }
     return lines.join('\n')
-  }, [currentDynasty, currentYear])
+  }, [currentDynasty, currentYear, effectiveRankWeek])
 
   // The EXACT row-by-row table the sheet uses for column A. Built per
   // open so excludes (user's own CFP First Round game) and dynasty-
@@ -270,8 +282,9 @@ For each team in this block, output ONE row:
   • Col C = their AP rank (1–25)
   • Cols D–G = leave blank
 
-Format: \\t<TeamAbbr>\\t<Rank>\\t\\t\\t\\t
-(tab, team, tab, rank, then 4 blank tabs — Col A blank = no bowl name)
+Format: <TeamAbbr>\\t<Rank>\\t\\t\\t\\t
+(team, tab, rank, then 4 blank tabs — NO leading tab. The block pastes at
+cell B2, so the team lands in Col B and the rank in Col C; Col A stays blank.)
 
 Only list teams that WERE ranked in the Prior-Week Top 25 above. If every
 ranked team already shows its AP rank on a regular bowl row, emit NO rows
@@ -286,8 +299,8 @@ REQUIRED OUTPUT FORMAT
 <row2 Team1>\\t<row2 T1Rank>\\t<row2 Team2>\\t<row2 T2Rank>\\t<row2 T1Score>\\t<row2 T2Score>
 ... (one row per bowl in the screenshot, in the screenshot's order)
 \\t\\t\\t\\t\\t\\t           ← blank separator row (6 tabs)
-\\t<nonPlayingTeam1>\\t<rank1>\\t\\t\\t\\t
-\\t<nonPlayingTeam2>\\t<rank2>\\t\\t\\t\\t
+<nonPlayingTeam1>\\t<rank1>\\t\\t\\t\\t
+<nonPlayingTeam2>\\t<rank2>\\t\\t\\t\\t
 ... (one row per NON-PLAYING ranked team only — omit any team that has a game row above)
 
 (Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)

@@ -213,22 +213,25 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        // Check for existing sheet for this year
-        const existingSheetId = currentDynasty?.allConferenceSheetIdByYear?.[currentYear]
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, {
-            allConferenceSheetIdByYear: { ...(currentDynasty.allConferenceSheetIdByYear || {}), [currentYear]: null }
-          })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Check for existing sheet for this year. This Drive lookup must live
+          // INSIDE the try: when the Google token is expired it throws, and if
+          // it sat outside the try the rejection escaped — leaving an empty
+          // modal with no re-auth prompt (had to trigger refresh from another tab).
+          const existingSheetId = currentDynasty?.allConferenceSheetIdByYear?.[currentYear]
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, {
+              allConferenceSheetIdByYear: { ...(currentDynasty.allConferenceSheetIdByYear || {}), [currentYear]: null }
+            })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
           // Get existing all-conference data grouped by conference for pre-filling
           const allConferenceByConference = currentDynasty?.allAmericansByYear?.[currentYear]?.allConferenceByConference || {}
           // Get custom conferences for this year (if any)

@@ -214,34 +214,34 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers) {
-        // Check if dynasty already has a sheet for this season (avoid race with restore effect)
-        if (
-          currentDynasty?.transferDestinationsSheetId &&
-          currentDynasty?.transferDestinationsSheetYear === currentYear
-        ) {
-          const stillExists = await sheetExists(currentDynasty.transferDestinationsSheetId)
-          if (stillExists) {
-            setSheetId(currentDynasty.transferDestinationsSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, {
-            transferDestinationsSheetId: null,
-            transferDestinationsSheetYear: null
-          })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
-
-        const transferringPlayers = getTransferringPlayers()
-
-        if (transferringPlayers.length === 0) {
-          setNoTransfers(true)
-          return
-        }
-
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Check if dynasty already has a sheet for this season (avoid race with restore effect)
+          if (
+            currentDynasty?.transferDestinationsSheetId &&
+            currentDynasty?.transferDestinationsSheetYear === currentYear
+          ) {
+            const stillExists = await sheetExists(currentDynasty.transferDestinationsSheetId)
+            if (stillExists) {
+              setSheetId(currentDynasty.transferDestinationsSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, {
+              transferDestinationsSheetId: null,
+              transferDestinationsSheetYear: null
+            })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
+
+          const transferringPlayers = getTransferringPlayers()
+
+          if (transferringPlayers.length === 0) {
+            setNoTransfers(true)
+            return
+          }
+
           const sheetInfo = await createTransferDestinationsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,

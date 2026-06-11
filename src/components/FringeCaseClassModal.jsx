@@ -173,22 +173,22 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        // Check if we have an existing sheet for this year
-        const existingSheetId = currentDynasty?.fringeCaseClassSheetId
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, { fringeCaseClassSheetId: null })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
-
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Check if we have an existing sheet for this year
+          const existingSheetId = currentDynasty?.fringeCaseClassSheetId
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, { fringeCaseClassSheetId: null })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
+
           const sheetInfo = await createFringeCaseClassSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,

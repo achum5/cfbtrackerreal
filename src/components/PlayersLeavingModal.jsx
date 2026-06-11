@@ -161,22 +161,22 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        // Check if we have an existing sheet for this year
-        const existingSheetId = currentDynasty?.playersLeavingSheetId
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, { playersLeavingSheetId: null })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
-
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          // Check if we have an existing sheet for this year
+          const existingSheetId = currentDynasty?.playersLeavingSheetId
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, { playersLeavingSheetId: null })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
+
           const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty?.teamName
           const sheetInfo = await createPlayersLeavingSheet(
             currentDynasty?.teamName || 'Dynasty',

@@ -216,22 +216,22 @@ FINAL CHECK before you send
   useEffect(() => {
     const createSheet = async () => {
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        const existingSheetId = currentDynasty?.awardsSheetIdByYear?.[currentYear]
-        if (existingSheetId) {
-          const stillExists = await sheetExists(existingSheetId)
-          if (stillExists) {
-            setSheetId(existingSheetId)
-            return
-          }
-          await updateDynasty(currentDynasty.id, {
-            awardsSheetIdByYear: { ...(currentDynasty.awardsSheetIdByYear || {}), [currentYear]: null }
-          })
-          // stale sheet (trashed in Drive); fall through to regenerate
-        }
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
+          const existingSheetId = currentDynasty?.awardsSheetIdByYear?.[currentYear]
+          if (existingSheetId) {
+            const stillExists = await sheetExists(existingSheetId)
+            if (stillExists) {
+              setSheetId(existingSheetId)
+              return
+            }
+            await updateDynasty(currentDynasty.id, {
+              awardsSheetIdByYear: { ...(currentDynasty.awardsSheetIdByYear || {}), [currentYear]: null }
+            })
+            // stale sheet (trashed in Drive); fall through to regenerate
+          }
           // Pass awardsByYear for pre-filling past years
           const awardsByYear = currentDynasty?.awardsByYear || {}
           const sheetInfo = await createAwardsSheet(currentYear, awardsByYear, currentDynasty?.teams || currentDynasty?.customTeams)
