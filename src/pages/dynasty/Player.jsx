@@ -2009,7 +2009,7 @@ function PlayerInner() {
             title="View all awards"
           >
             {awardPlates.map((p, i) => {
-              const base = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide"
+              const base = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] sm:text-xs font-bold tracking-wide"
               let cls = ''
               let style = { fontFamily: "var(--font-display)", letterSpacing: '1px' }
               if (p.variant === 'gold') {
@@ -2025,7 +2025,7 @@ function PlayerInner() {
               }
               return (
                 <span key={i} className={`${base} ${cls}`} style={style}>
-                  {p.img && <img src={p.img} alt="" className="h-5 w-5 object-contain flex-shrink-0 -ml-1" />}
+                  {p.img && <img src={p.img} alt="" className="h-3.5 w-3.5 sm:h-5 sm:w-5 object-contain flex-shrink-0 -ml-0.5 sm:-ml-1" />}
                   {p.label}
                 </span>
               )

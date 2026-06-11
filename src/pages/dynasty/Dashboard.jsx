@@ -5528,10 +5528,25 @@ export default function Dashboard() {
                 typeof g.team1Score === 'number' && typeof g.team2Score === 'number'
               )
               const allYearGamesAreScored = yearGamesW5.length > 0 && playedGamesW5.length === yearGamesW5.length
-              const allGamesHavePlayerBoxScores = playedGamesW5.length > 0 && playedGamesW5.every(g =>
+              // Only the USER's team's games carry box scores — CPU-vs-CPU games
+              // entered via the weekly-scores sheet are scored but have no box
+              // score. Scope the "all games have stats" detection to the user's
+              // team so one CPU-only game on the slate doesn't keep these tiles
+              // red after the user has entered every one of their own games.
+              const userPlayedGamesW5 = playedGamesW5.filter(g => {
+                const isUser = Number(g.team1Tid) === Number(userTeamTid) || Number(g.team2Tid) === Number(userTeamTid)
+                if (!isUser) return false
+                // Skip empty 0-0 placeholder shells (e.g. an unplayed bowl/CFP
+                // shell left on the slate). They pass the "has numeric scores"
+                // test but were never played, so they have no box score and
+                // would otherwise keep these tiles red forever.
+                const isEmptyShell = Number(g.team1Score) === 0 && Number(g.team2Score) === 0 && !g.boxScore
+                return !isEmptyShell
+              })
+              const allGamesHavePlayerBoxScores = userPlayedGamesW5.length > 0 && userPlayedGamesW5.every(g =>
                 g.boxScore && hasAnyPlayerStats(g, currentDynasty?.teams)
               )
-              const allGamesHaveTeamBoxScores = playedGamesW5.length > 0 && playedGamesW5.every(g =>
+              const allGamesHaveTeamBoxScores = userPlayedGamesW5.length > 0 && userPlayedGamesW5.every(g =>
                 g.boxScore && hasAnyTeamStats(g, currentDynasty?.teams)
               )
               // Effective "done" for each tile = explicit catch-up sheet save
