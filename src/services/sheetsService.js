@@ -10875,7 +10875,7 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b))
 
-    const totalRows = Math.max(proDraftDeclarees.length + 10, 20)
+    const totalRows = Math.max(proDraftDeclarees.length + 10, 100)
 
     // Create the spreadsheet — 2 columns: Player | Draft Round.
     // The AI reads names + rounds from screenshots and pastes both at A2,
