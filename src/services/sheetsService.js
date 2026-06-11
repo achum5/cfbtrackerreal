@@ -10855,31 +10855,27 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
   try {
     const accessToken = await getAccessToken()
 
-    // Candidate list = the FULL roster (so the user can record a draft round
-    // for ANY player without first flagging them "Pro Draft"). Entering a round
-    // flips that player to a Pro Draft departure on save; blank rows are ignored
-    // by the reader. Falls back to declared-for-draft players if no roster given.
-    const draftDeclarees = ((rosterPlayers && rosterPlayers.length)
-      ? rosterPlayers.map(p => ({
-          name: p.name,
-          pid: p.pid,
-          position: p.position || '',
-          overall: p.overall || ''
-        }))
-      : playersLeavingThisYear
-          .filter(p => p.reason === 'Pro Draft')
-          .map(leaving => {
-            const player = allPlayers.find(p => p.name === leaving.playerName || p.pid === leaving.pid)
-            return {
-              name: leaving.playerName,
-              pid: leaving.pid || player?.pid,
-              position: player?.position || '',
-              overall: player?.overall || ''
-            }
-          })
-    ).sort((a, b) => (b.overall || 0) - (a.overall || 0)) // Sort by overall desc
+    // Players flagged as Pro Draft in PlayersLeaving — pre-filled at the top.
+    const proDraftDeclarees = playersLeavingThisYear
+      .filter(p => p.reason === 'Pro Draft')
+      .map(leaving => {
+        const player = (rosterPlayers || []).find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+          || allPlayers.find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+        return {
+          name: leaving.playerName || player?.name || '',
+          pid: leaving.pid || player?.pid,
+        }
+      })
+      .filter(p => p.name)
 
-    const totalRows = Math.max(draftDeclarees.length + 5, 20)
+    // Full roster name list for the column A dropdown — users can still type
+    // names that aren't in the list (strict: false).
+    const rosterNames = (rosterPlayers || [])
+      .map(p => p.name)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
+
+    const totalRows = Math.max(proDraftDeclarees.length + 10, 20)
 
     // Create the spreadsheet — 2 columns: Player | Draft Round.
     // The AI reads names + rounds from screenshots and pastes both at A2,
@@ -10962,7 +10958,31 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
       }
     })
 
-    // Add data validation for Draft Round column (column B)
+    // Column A dropdown — full roster names, not strict so users can type
+    // players who aren't in the roster list (e.g. walk-ons, missed imports).
+    if (rosterNames.length > 0) {
+      requests.push({
+        setDataValidation: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: totalRows + 1,
+            startColumnIndex: 0,
+            endColumnIndex: 1
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: rosterNames.map(name => ({ userEnteredValue: name }))
+            },
+            showCustomUi: true,
+            strict: false
+          }
+        }
+      })
+    }
+
+    // Column B — Draft Round strict dropdown
     requests.push({
       setDataValidation: {
         range: {
@@ -10982,6 +11002,29 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
         }
       }
     })
+
+    // Pre-fill rows for players already flagged as Pro Draft in PlayersLeaving.
+    // AI/user fills in their rounds; blank rows below are available for anyone else.
+    if (proDraftDeclarees.length > 0) {
+      requests.push({
+        updateCells: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: 1,
+            endRowIndex: 1 + proDraftDeclarees.length,
+            startColumnIndex: 0,
+            endColumnIndex: 2
+          },
+          rows: proDraftDeclarees.map(p => ({
+            values: [
+              { userEnteredValue: { stringValue: p.name } },
+              { userEnteredValue: { stringValue: '' } }
+            ]
+          })),
+          fields: 'userEnteredValue'
+        }
+      })
+    }
 
     // Protect header row
     requests.push({
