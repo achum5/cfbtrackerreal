@@ -265,12 +265,8 @@ export default function ScoringHighlightsModal({
   const currentPlay = playsWithVideo[currentIndex]
   const totalPlays = playsWithVideo.length
 
-  // Extract unique seasons and games for filtering
-  const seasons = useMemo(() => {
-    const uniqueSeasons = [...new Set(playsWithVideo.map(p => p.gameInfo?.year).filter(Boolean))]
-    return uniqueSeasons.sort((a, b) => b - a) // Descending order
-  }, [playsWithVideo])
-
+  // Extract unique games for the game filter dropdown (which spans all
+  // seasons — there's no separate season picker).
   const games = useMemo(() => {
     const uniqueGames = []
     const seen = new Set()
@@ -298,15 +294,6 @@ export default function ScoringHighlightsModal({
     })
     return sortGamesNewestFirst(uniqueGames)
   }, [playsWithVideo])
-
-  // Jump to first play of selected season
-  const jumpToSeason = (year) => {
-    const index = playsWithVideo.findIndex(p => p.gameInfo?.year === parseInt(year))
-    if (index !== -1) {
-      setCurrentIndex(index)
-      setTimeRemaining(PLAY_DURATION)
-    }
-  }
 
   // Jump to first play of selected game. Tid match for opponent is
   // preferred; abbr fallback for legacy plays.
@@ -561,19 +548,6 @@ export default function ScoringHighlightsModal({
           </span>
 
           <div className="flex-1" />
-
-          {seasons.length > 1 && (
-            <select
-              value={currentPlay?.gameInfo?.year || ''}
-              onChange={(e) => jumpToSeason(e.target.value)}
-              className="px-2.5 py-1 bg-surface-3 text-white rounded-md text-xs border border-surface-4 hover:border-surface-5 focus:border-surface-5 focus:outline-none"
-              aria-label="Season"
-            >
-              {seasons.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          )}
 
           {games.length > 1 && (
             <div className="relative" ref={gameDropdownRef}>

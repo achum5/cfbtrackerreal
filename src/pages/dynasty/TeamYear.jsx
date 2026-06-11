@@ -2731,16 +2731,15 @@ export default function TeamYear() {
                   changes teams. */}
               <div className="relative inline-flex items-center gap-1.5 min-w-0">
                 <div className="leading-[0.92] min-w-0">
-                  {/* Mobile shows the abbreviation (tight space); from sm: up
-                      there's room for the full school name. Plain responsive
-                      swap — the measuring FittedTeamName collapses in this
-                      content-sized lockup and gets stuck on the abbr. */}
+                  {/* Full school name at every breakpoint. The clamp font +
+                      truncate handle the rare too-long name gracefully; there's
+                      ample room for the school name even on mobile, so don't
+                      force the abbreviation. */}
                   <div
                     className="font-display font-extrabold uppercase tracking-tight truncate"
                     style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}
                   >
-                    <span className="sm:hidden">{teamAbbr}</span>
-                    <span className="hidden sm:inline">{getSchoolName(mascotName) || teamInfo.name}</span>
+                    {getSchoolName(mascotName) || teamInfo.name}
                   </div>
                   {(() => {
                     const sch = getSchoolName(mascotName) || ''
