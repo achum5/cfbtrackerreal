@@ -10851,24 +10851,33 @@ const DRAFT_ROUNDS = [
 
 // Create Draft Results sheet for recruiting week 1
 // Pre-fills players who declared for the draft (reason = 'Pro Draft')
-export async function createDraftResultsSheet(dynastyName, year, playersLeavingThisYear, allPlayers) {
+export async function createDraftResultsSheet(dynastyName, year, playersLeavingThisYear, allPlayers, rosterPlayers = null) {
   try {
     const accessToken = await getAccessToken()
 
-    // Filter players who declared for the draft
-    const draftDeclarees = playersLeavingThisYear
-      .filter(p => p.reason === 'Pro Draft')
-      .map(leaving => {
-        // Find the full player info
-        const player = allPlayers.find(p => p.name === leaving.playerName || p.pid === leaving.pid)
-        return {
-          name: leaving.playerName,
-          pid: leaving.pid || player?.pid,
-          position: player?.position || '',
-          overall: player?.overall || ''
-        }
-      })
-      .sort((a, b) => (b.overall || 0) - (a.overall || 0)) // Sort by overall desc
+    // Candidate list = the FULL roster (so the user can record a draft round
+    // for ANY player without first flagging them "Pro Draft"). Entering a round
+    // flips that player to a Pro Draft departure on save; blank rows are ignored
+    // by the reader. Falls back to declared-for-draft players if no roster given.
+    const draftDeclarees = ((rosterPlayers && rosterPlayers.length)
+      ? rosterPlayers.map(p => ({
+          name: p.name,
+          pid: p.pid,
+          position: p.position || '',
+          overall: p.overall || ''
+        }))
+      : playersLeavingThisYear
+          .filter(p => p.reason === 'Pro Draft')
+          .map(leaving => {
+            const player = allPlayers.find(p => p.name === leaving.playerName || p.pid === leaving.pid)
+            return {
+              name: leaving.playerName,
+              pid: leaving.pid || player?.pid,
+              position: player?.position || '',
+              overall: player?.overall || ''
+            }
+          })
+    ).sort((a, b) => (b.overall || 0) - (a.overall || 0)) // Sort by overall desc
 
     const totalRows = Math.max(draftDeclarees.length + 5, 20)
 

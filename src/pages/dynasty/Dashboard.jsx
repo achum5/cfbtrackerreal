@@ -6222,6 +6222,9 @@ export default function Dashboard() {
                   : 'Graduating seniors, transfers, early declarations',
                 onAction: () => setShowPlayersLeavingModal(true),
                 actionLabel: hasPlayersLeavingData ? 'Edit' : 'Enter',
+                viewTo: hasPlayersLeavingData && currentDynasty?.currentTid != null
+                  ? `${pathPrefix}/team/${currentDynasty.currentTid}/${currentDynasty.currentYear}?tab=departures`
+                  : null,
               }]
 
               return (
@@ -6299,18 +6302,19 @@ export default function Dashboard() {
 
               // Task 2: Draft Results (Recruiting Week 1 only)
               if (recruitingWeekNum === 1) {
+                // Open to the whole roster — enter a draft round for any player
+                // and it flips them to a Pro Draft departure. Auto-green when no
+                // one declared so it doesn't nag, but always openable.
                 const draftDone = hasDraftResultsData || !hasDraftDeclarees
                 o26Todos.push({
                   key: 'draft-results',
                   done: draftDone,
                   title: 'Draft Results',
-                  subtitle: !hasDraftDeclarees
-                    ? 'No players declared for the draft'
-                    : hasDraftResultsData
-                      ? `${draftResultsCount} player${draftResultsCount !== 1 ? 's' : ''} drafted`
-                      : `${draftDeclarees.length} player${draftDeclarees.length !== 1 ? 's' : ''} declared for the draft`,
-                  onAction: hasDraftDeclarees ? () => setShowDraftResultsModal(true) : undefined,
-                  actionLabel: hasDraftDeclarees ? (hasDraftResultsData ? 'Edit' : 'Enter') : undefined,
+                  subtitle: hasDraftResultsData
+                    ? `${draftResultsCount} player${draftResultsCount !== 1 ? 's' : ''} drafted`
+                    : 'Enter any roster players drafted to the NFL',
+                  onAction: () => setShowDraftResultsModal(true),
+                  actionLabel: hasDraftResultsData ? 'Edit' : 'Enter',
                 })
               }
 

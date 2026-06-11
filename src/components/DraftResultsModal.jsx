@@ -179,20 +179,16 @@ FINAL CHECK before you send
             // stale sheet (trashed in Drive); fall through to regenerate
           }
 
-          // Check if there are any draft declarees
+          // The sheet lists the FULL roster so the user can record a draft round
+          // for any player without first flagging them "Pro Draft". Entering a
+          // round flips that player to a Pro Draft departure on save.
           const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[currentYear] || []
-          const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
-
-          if (draftDeclarees.length === 0) {
-            setNoDraftDeclarees(true)
-            return
-          }
-
           const sheetInfo = await createDraftResultsSheet(
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             playersLeavingThisYear,
-            currentDynasty?.players || []
+            currentDynasty?.players || [],
+            userRoster
           )
           setSheetId(sheetInfo.spreadsheetId)
 
