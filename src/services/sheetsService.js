@@ -10881,7 +10881,9 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
 
     const totalRows = Math.max(draftDeclarees.length + 5, 20)
 
-    // Create the spreadsheet
+    // Create the spreadsheet — 2 columns: Player | Draft Round.
+    // The AI reads names + rounds from screenshots and pastes both at A2,
+    // so we don't need Position or Overall columns in the sheet.
     const response = await fetchWithTimeout(SHEETS_API_BASE, {
       method: 'POST',
       headers: {
@@ -10898,7 +10900,7 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
               title: 'Draft Results',
               gridProperties: {
                 rowCount: totalRows + 1,
-                columnCount: 4,
+                columnCount: 2,
                 frozenRowCount: 1
               }
             }
@@ -10916,9 +10918,6 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
     const spreadsheetId = spreadsheet.spreadsheetId
     const sheetId = spreadsheet.sheets[0].properties.sheetId
 
-    // Get player names for validation (only draft declarees)
-    const playerNames = draftDeclarees.map(p => p.name)
-
     // Build batch update requests
     const requests = []
 
@@ -10935,13 +10934,11 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
           startRowIndex: 0,
           endRowIndex: 1,
           startColumnIndex: 0,
-          endColumnIndex: 4
+          endColumnIndex: 2
         },
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerFormat },
-            { userEnteredValue: { stringValue: 'Position' }, userEnteredFormat: headerFormat },
-            { userEnteredValue: { stringValue: 'Overall' }, userEnteredFormat: headerFormat },
             { userEnteredValue: { stringValue: 'Draft Round' }, userEnteredFormat: headerFormat }
           ]
         }],
@@ -10953,41 +10950,27 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
     requests.push({
       updateDimensionProperties: {
         range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 },
-        properties: { pixelSize: 200 },
+        properties: { pixelSize: 220 },
         fields: 'pixelSize'
       }
     })
     requests.push({
       updateDimensionProperties: {
         range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 1, endIndex: 2 },
-        properties: { pixelSize: 80 },
-        fields: 'pixelSize'
-      }
-    })
-    requests.push({
-      updateDimensionProperties: {
-        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 2, endIndex: 3 },
-        properties: { pixelSize: 80 },
-        fields: 'pixelSize'
-      }
-    })
-    requests.push({
-      updateDimensionProperties: {
-        range: { sheetId: sheetId, dimension: 'COLUMNS', startIndex: 3, endIndex: 4 },
-        properties: { pixelSize: 120 },
+        properties: { pixelSize: 140 },
         fields: 'pixelSize'
       }
     })
 
-    // Add data validation for Draft Round column (dropdown)
+    // Add data validation for Draft Round column (column B)
     requests.push({
       setDataValidation: {
         range: {
           sheetId: sheetId,
           startRowIndex: 1,
           endRowIndex: totalRows + 1,
-          startColumnIndex: 3,
-          endColumnIndex: 4
+          startColumnIndex: 1,
+          endColumnIndex: 2
         },
         rule: {
           condition: {
@@ -11000,14 +10983,13 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
       }
     })
 
-    // Pre-fill draft declarees
+    // Pre-fill column A with roster player names as a reference for manual entry.
+    // The AI prompt overwrites from A2 with name+round pairs, so these are hints only.
     if (draftDeclarees.length > 0) {
       const prefilledRows = draftDeclarees.map(player => ({
         values: [
           { userEnteredValue: { stringValue: String(player.name ?? '') } },
-          { userEnteredValue: { stringValue: String(player.position ?? '') } },
-          { userEnteredValue: { numberValue: Number(player.overall) || 0 } },
-          { userEnteredValue: { stringValue: '' } } // Draft round to be filled in
+          { userEnteredValue: { stringValue: '' } } // Draft round — AI or user fills this
         ]
       }))
 
@@ -11018,7 +11000,7 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
             startRowIndex: 1,
             endRowIndex: 1 + draftDeclarees.length,
             startColumnIndex: 0,
-            endColumnIndex: 4
+            endColumnIndex: 2
           },
           rows: prefilledRows,
           fields: 'userEnteredValue'
@@ -11035,7 +11017,7 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 4
+            endColumnIndex: 2
           },
           description: 'Header row - do not edit',
           warningOnly: true
@@ -11069,7 +11051,7 @@ export async function readDraftResultsFromSheet(spreadsheetId, dynastyTeams = nu
     const accessToken = await getAccessToken()
 
     const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Draft Results!A2:D100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Draft Results!A2:B100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -11085,14 +11067,16 @@ export async function readDraftResultsFromSheet(spreadsheetId, dynastyTeams = nu
     const data = await response.json()
     const rows = data.values || []
 
-    // Parse rows into draft result objects
+    // Parse rows — column A = player name, column B = draft round.
+    // Both columns are now AI/user-supplied; position and overall are looked
+    // up from player records in the save handler so we don't need them here.
     const draftResults = rows
-      .filter(row => row[0] && row[0].trim() && row[3] && row[3].trim()) // Must have player name and draft round
+      .filter(row => row[0] && row[0].trim() && row[1] && row[1].trim())
       .map(row => ({
         playerName: row[0]?.trim() || '',
-        position: row[1]?.trim() || '',
-        overall: parseInt(row[2]) || 0,
-        draftRound: row[3]?.trim() || ''
+        position: '',
+        overall: 0,
+        draftRound: row[1]?.trim() || ''
       }))
 
     return draftResults

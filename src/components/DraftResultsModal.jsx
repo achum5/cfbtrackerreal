@@ -64,32 +64,29 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
     title: `${currentYear} Draft Results`,
     roster: userRoster,
     structure: `This sheet has ONE tab: "Draft Results".
-Row 1 (header) and columns A–C (Player, Position, Overall) are PRE-FILLED. Players who declared for the draft are listed in column A, sorted by Overall DESCENDING. You output ONE value per player: the Draft Round in column D (a strict dropdown).
+Row 1 (header) is PRE-FILLED. You output TWO columns per drafted player: the Player Name in column A and the Draft Round in column B.
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. Output ONLY column D. NEVER output columns A, B, or C. NEVER output the header row.
-2. ROW ORDER IS FIXED. Exactly one line per pre-filled player row, in the SAME ORDER as column A appears in the screenshots. Do NOT reorder, skip, or add rows.
-3. Exactly ONE value per line: the Draft Round string. No tabs, no numbers alone, no commas, no extra text.
-4. Column D is a STRICT DROPDOWN. Use EXACTLY one of the 8 literal values listed below — case-sensitive, with the space between number and "Round". Any other text is rejected.
-5. BLANK LINE if a player's draft round is unknown or not visible in the screenshots — never guess. Blank preserves row alignment.
-6. No header row, no totals, no commentary INSIDE the data. ONE single-column TSV block, preceded by the required paste-target label line above the fence (see Method A/B rules above).
+1. Output TWO tab-separated values per line: Player Name then Draft Round.
+2. Read BOTH the player name AND their draft round directly from the screenshots.
+3. OMIT any player whose draft round is not visible — never guess. Only include players you can clearly see in the screenshots.
+4. Column B is a STRICT DROPDOWN. Use EXACTLY one of the 8 literal values listed below — case-sensitive, with the space between number and "Round".
+5. No header row, no totals, no commentary INSIDE the data block.
 
 ═══════════════════════════════════════════════════════════
 TAB: "Draft Results"
-Paste at cell D2 of the "Draft Results" tab
+Paste at cell A2 of the "Draft Results" tab
 ═══════════════════════════════════════════════════════════
 
 Col | Header (protected)  | Your output                              | Format
 ----+---------------------+------------------------------------------+-------------------
- A  | Player              | — (pre-filled, do NOT output)            | protected
- B  | Position            | — (pre-filled, do NOT output)            | protected
- C  | Overall             | — (pre-filled, do NOT output)            | protected
- D  | Draft Round         | EXACT dropdown string, one of the 8 below| strict dropdown
+ A  | Player              | Player name exactly as shown             | text
+ B  | Draft Round         | EXACT dropdown string, one of the 8 below| strict dropdown
 
 ═══════════════════════════════════════════════════════════
-ENUMERATED DROPDOWN VALUES for column D (use EXACTLY — case-sensitive, with the space)
+ENUMERATED DROPDOWN VALUES for column B (use EXACTLY — case-sensitive, with the space)
 ═══════════════════════════════════════════════════════════
   1st Round
   2nd Round
@@ -105,22 +102,20 @@ NOT allowed: "Round 1", "R1", "1st round", "1", "1st", "1st-round", "first round
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== DRAFT RESULTS — paste at cell D2 of "Draft Results" tab ===
-<Draft Round>
-<Draft Round>
-<Draft Round>
+=== DRAFT RESULTS — paste at cell A2 of "Draft Results" tab ===
+<Player Name>\t<Draft Round>
+<Player Name>\t<Draft Round>
 ...
-(one line per player, same order as column A in the screenshots; blank line = unknown)
+(one line per drafted player visible in screenshots; tab-separated; omit unknowns entirely)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Line count exactly equals the number of pre-filled player rows visible in the screenshots (including blank lines for unknowns)
-[ ] Every non-blank line is EXACTLY one of: 1st Round, 2nd Round, 3rd Round, 4th Round, 5th Round, 6th Round, 7th Round, Undrafted
+[ ] Each line has exactly TWO tab-separated values: player name and draft round
+[ ] Every draft round value is EXACTLY one of: 1st Round, 2nd Round, 3rd Round, 4th Round, 5th Round, 6th Round, 7th Round, Undrafted
 [ ] Exact capitalization: "1st Round" (capital R), "Undrafted" (capital U)
-[ ] NO tabs, NO extra text, NO commentary INSIDE the data block (the paste-target label above the fence is required, see Method A/B rules above)
-[ ] Row order matches column A in the screenshots exactly
-[ ] Blank lines for unknown players — did not invent any values`,
+[ ] Only players clearly visible in the screenshots — did not invent or guess any entries
+[ ] NO tabs within names, NO extra text, NO commentary INSIDE the data block`,
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
