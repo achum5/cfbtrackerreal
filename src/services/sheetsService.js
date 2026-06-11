@@ -10983,31 +10983,6 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
       }
     })
 
-    // Pre-fill column A with roster player names as a reference for manual entry.
-    // The AI prompt overwrites from A2 with name+round pairs, so these are hints only.
-    if (draftDeclarees.length > 0) {
-      const prefilledRows = draftDeclarees.map(player => ({
-        values: [
-          { userEnteredValue: { stringValue: String(player.name ?? '') } },
-          { userEnteredValue: { stringValue: '' } } // Draft round — AI or user fills this
-        ]
-      }))
-
-      requests.push({
-        updateCells: {
-          range: {
-            sheetId: sheetId,
-            startRowIndex: 1,
-            endRowIndex: 1 + draftDeclarees.length,
-            startColumnIndex: 0,
-            endColumnIndex: 2
-          },
-          rows: prefilledRows,
-          fields: 'userEnteredValue'
-        }
-      })
-    }
-
     // Protect header row
     requests.push({
       addProtectedRange: {
