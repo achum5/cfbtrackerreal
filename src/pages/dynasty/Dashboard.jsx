@@ -6252,9 +6252,11 @@ export default function Dashboard() {
               const userAbbrForDraft = getCurrentTeamAbbr(currentDynasty)
               const draftResultsFromTid = currentDynasty?.teams?.[userTidForDraft]?.byYear?.[offseasonDataYear]?.draftResults
               const draftResultsFromLegacy = currentDynasty?.draftResultsByTeamYear?.[userAbbrForDraft]?.[offseasonDataYear]
-              const draftResultsData = draftResultsFromTid || draftResultsFromLegacy || []
-              const hasDraftResultsData = draftResultsData.length > 0
-              const draftResultsCount = draftResultsData.length
+              // Use ?? (not ||) so an explicitly-saved empty array [] is treated as
+              // "confirmed — no drafts this year" rather than "never opened."
+              const draftResultsData = draftResultsFromTid ?? draftResultsFromLegacy ?? null
+              const hasDraftResultsData = draftResultsData !== null
+              const draftResultsCount = (draftResultsData || []).length
 
               const userTidForCommits = getUserTeamTid(currentDynasty)
               const recruitingCommitmentsForTeamYear = getRecruitingCommitments(currentDynasty, userTidForCommits, offseasonDataYear)
@@ -6302,10 +6304,9 @@ export default function Dashboard() {
 
               // Task 2: Draft Results (Recruiting Week 1 only)
               if (recruitingWeekNum === 1) {
-                // Open to the whole roster — enter a draft round for any player
-                // and it flips them to a Pro Draft departure. Auto-green when no
-                // one declared so it doesn't nag, but always openable.
-                const draftDone = hasDraftResultsData || !hasDraftDeclarees
+                // Green only when the user has explicitly saved results (even empty []).
+                // Saving empty means "confirmed — nobody was drafted this year."
+                const draftDone = hasDraftResultsData
                 o26Todos.push({
                   key: 'draft-results',
                   done: draftDone,
