@@ -6316,6 +6316,9 @@ export default function Dashboard() {
                     : 'Enter any roster players drafted to the NFL',
                   onAction: () => setShowDraftResultsModal(true),
                   actionLabel: hasDraftResultsData ? 'Edit' : 'Enter',
+                  viewTo: hasDraftResultsData && currentDynasty?.currentTid != null
+                    ? `${pathPrefix}/team/${currentDynasty.currentTid}/${currentDynasty.currentYear}?tab=departures`
+                    : null,
                 })
               }
 
