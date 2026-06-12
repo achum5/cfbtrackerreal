@@ -9,7 +9,7 @@ const REDDIT_URL = 'https://www.reddit.com/user/achum5/'
 const INSTAGRAM_URL = 'https://www.instagram.com/alexguess_/'
 const X_URL = 'https://x.com/alexguess_'
 const FACEBOOK_URL = 'https://www.facebook.com/alex.chumbler/'
-const DISCORD_INVITE_URL = 'https://discord.gg/kmrRtVFbh'
+const DISCORD_INVITE_URL = 'https://discord.gg/9wtE6bHrsJ'
 const DISCORD_SERVER_NAME = 'Dynasty Tracker'
 
 export default function Contact() {
