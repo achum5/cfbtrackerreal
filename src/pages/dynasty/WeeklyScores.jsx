@@ -16,6 +16,7 @@ import BowlWeek2Modal from '../../components/BowlWeek2Modal'
 import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 import FormattedRecap from '../../components/FormattedRecap'
 import buildRecapLinks from '../../utils/buildRecapLinks'
+import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { useTeamColors } from '../../hooks/useTeamColors'
 
 const REGULAR_SEASON_WEEKS = Array.from({ length: 15 }, (_, i) => i)  // 0-14
@@ -35,6 +36,43 @@ const WEEK_LABELS = {
 
 // Returns a human-readable label; regular weeks stay as "Week N".
 const weekLabelFor = (wk) => WEEK_LABELS[wk] ?? `Week ${wk}`
+
+// Maps a game to the numeric week slot used as the key in gamesByWeek.
+// Regular weeks 0-14 come from game.week. Post-season slots:
+//   15 = Conference Championship
+//   16 = Bowl Week 1 + CFP First Round
+//   17 = Bowl Week 2 + CFP Quarterfinal
+//   18 = Bowl Week 3 / CFP Semifinal
+//   19 = National Championship
+const weekBucketFor = (g) => {
+  const type = detectGameType(g)
+  if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 15
+  if (type === GAME_TYPES.CFP_FIRST_ROUND) return 16
+  if (type === GAME_TYPES.CFP_QUARTERFINAL) return 17
+  if (type === GAME_TYPES.CFP_SEMIFINAL) return 18
+  if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 19
+  if (type === GAME_TYPES.BOWL) {
+    return g.bowlWeek === 'week2' ? 17 : 16
+  }
+  const wk = Number(g.week)
+  return Number.isFinite(wk) ? wk : null
+}
+
+// The latest week slot that has a *played* game (both scores entered) for a
+// given year. Used to default the recap to the most recent results once the
+// season is fully over — so it keeps advancing through the bowl weeks and the
+// Playoff instead of getting stuck on Conf Champ.
+const latestPlayedWeekForYear = (games, year) => {
+  let max = null
+  for (const g of games || []) {
+    if (!g || Number(g.year) !== year) continue
+    if (typeof g.team1Score !== 'number' || typeof g.team2Score !== 'number') continue
+    const wk = weekBucketFor(g)
+    if (wk == null) continue
+    if (max == null || wk > max) max = wk
+  }
+  return max
+}
 
 // Delegate to the shared mascot-strip helper so this page stays in
 // sync with the canonical list (FCS placeholders + 2/3-word mascots).
@@ -380,7 +418,10 @@ export default function WeeklyScores() {
     // postseason week 1 → show CCG (15), week 2 → BW1 (16), week 3 → BW2 (17), etc.
     // mirrors regular season "show the last completed week" pattern
     if (phase === 'postseason') return Math.max(15, 14 + week)
-    return 15
+    // offseason / anything past the postseason: the season is fully played, so
+    // land on the most recent week that has results — the final bowl/CFP week,
+    // not Conf Champ. Falls back to 15 if somehow nothing's been played.
+    return latestPlayedWeekForYear(currentDynasty?.games, displayYear) ?? 15
   })()
 
   // Tab state lives in the URL (?tab=scores|recap) so deep-links from the
@@ -540,27 +581,6 @@ export default function WeeklyScores() {
     }
   }
 
-  // Maps each game to the numeric week slot used as the key in gamesByWeek.
-  // Regular weeks 0-14 come from game.week. Post-season slots:
-  //   15 = Conference Championship
-  //   16 = Bowl Week 1 + CFP First Round
-  //   17 = Bowl Week 2 + CFP Quarterfinal
-  //   18 = Bowl Week 3 / CFP Semifinal
-  //   19 = National Championship
-  const weekBucketFor = (g) => {
-    const type = detectGameType(g)
-    if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 15
-    if (type === GAME_TYPES.CFP_FIRST_ROUND) return 16
-    if (type === GAME_TYPES.CFP_QUARTERFINAL) return 17
-    if (type === GAME_TYPES.CFP_SEMIFINAL) return 18
-    if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 19
-    if (type === GAME_TYPES.BOWL) {
-      return g.bowlWeek === 'week2' ? 17 : 16
-    }
-    const wk = Number(g.week)
-    return Number.isFinite(wk) ? wk : null
-  }
-
   // All games for the selected year, grouped by week slot (regular season
   // through post-season). Records computation below still limits to
   // REGULAR + CCG so season records stay accurate.
@@ -683,6 +703,11 @@ export default function WeeklyScores() {
         return isRanked(r1) || isRanked(r2)
       })
     }
+    if (filter === 'rivalries') {
+      // Games whose two teams contest a rivalry trophy (same detection the
+      // game header uses to badge a rivalry).
+      return playedThisWeek.filter(g => !!getRivalryTrophyForTeams(currentDynasty, g.team1Tid, g.team2Tid))
+    }
     // Conference filter: include games where AT LEAST one team is in the
     // selected conference (matches ESPN's behavior — conf games + non-conf
     // games involving a team from that conference).
@@ -732,7 +757,9 @@ export default function WeeklyScores() {
     ? 'All FBS'
     : filter === 'top25'
       ? 'Top 25'
-      : filter
+      : filter === 'rivalries'
+        ? 'Rivalries'
+        : filter
 
   return (
     <div className="space-y-6 page-enter">
@@ -783,6 +810,7 @@ export default function WeeklyScores() {
               >
                 <option value="all">All FBS</option>
                 <option value="top25">Top 25</option>
+                <option value="rivalries">Rivalries</option>
                 <optgroup label="Conferences">
                   {conferenceList.map(c => (
                     <option key={c} value={c}>{c}</option>
@@ -884,7 +912,9 @@ export default function WeeklyScores() {
               message={
                 filter === 'top25'
                   ? `No ranked teams played in ${weekLabelFor(displayWeek)}, ${displayYear}.`
-                  : `No games involving ${filterLabel} were played in ${weekLabelFor(displayWeek)}, ${displayYear}.`
+                  : filter === 'rivalries'
+                    ? `No rivalry games were played in ${weekLabelFor(displayWeek)}, ${displayYear}.`
+                    : `No games involving ${filterLabel} were played in ${weekLabelFor(displayWeek)}, ${displayYear}.`
               }
             />
           </Card>

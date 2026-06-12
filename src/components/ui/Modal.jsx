@@ -68,7 +68,7 @@ export default function Modal({
         className={`w-full ${sizeClass} card-elevated flex flex-col max-h-[90dvh] overflow-hidden modal-panel-in`}
         role="dialog"
         aria-modal="true"
-        aria-label={title || undefined}
+        aria-label={typeof title === 'string' ? title : undefined}
       >
         {title && (
           <header className="px-6 py-4 border-b border-surface-4 flex items-center justify-between flex-shrink-0">

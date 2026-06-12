@@ -32,6 +32,7 @@ import GameResultRow from '../../components/ui/GameResultRow'
 import SortableStatsTable, { PlayerCell } from '../../components/SortableStatsTable'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
+import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import TeamOutlook from '../../components/TeamOutlook'
 
 // Map abbreviation to mascot name for logo lookup
@@ -2681,7 +2682,15 @@ export default function TeamYear() {
           <div className="min-w-0">
             {/* Year Selector - embedded in season label */}
             <div className="flex items-center gap-1.5">
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors" style={{ backgroundColor: 'rgba(0,0,0,0.22)' }}>
+              <div className="relative inline-flex items-center gap-1 px-2 py-0.5 rounded cursor-pointer transition-colors" style={{ backgroundColor: 'rgba(0,0,0,0.22)' }}>
+                <span className="text-xs sm:text-sm font-bold uppercase tracking-wide pointer-events-none" style={{ color: teamBgText }}>
+                  {selectedYear}
+                </span>
+                <svg className="w-3 h-3 flex-shrink-0 pointer-events-none" style={{ color: teamBgText, opacity: 0.7 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {/* Transparent native select overlaid across the whole pill so
+                    clicking the year OR the chevron opens the dropdown. */}
                 <select
                   value={selectedYear}
                   onChange={(e) => {
@@ -2689,8 +2698,8 @@ export default function TeamYear() {
                     const tabParam = activeTab && activeTab !== 'home' ? `?tab=${activeTab}` : ''
                     navigate(`${pathPrefix}/team/${tid}/${newYear}${tabParam}`)
                   }}
-                  className="bg-transparent text-xs sm:text-sm font-bold uppercase tracking-wide cursor-pointer focus:outline-none appearance-none"
-                  style={{ color: teamBgText }}
+                  aria-label="Change season"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 >
                   {availableYears.map((y) => (
                     <option key={y} value={y} style={{ color: '#fff', backgroundColor: '#1a1a1a' }}>
@@ -2698,9 +2707,6 @@ export default function TeamYear() {
                     </option>
                   ))}
                 </select>
-                <svg className="w-3 h-3 flex-shrink-0" style={{ color: teamBgText, opacity: 0.7 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-nowrap mt-0.5 min-w-0 overflow-hidden">
@@ -3662,6 +3668,7 @@ export default function TeamYear() {
                 const oppTid = teamIsTeam1 ? lastGame.team2Tid : lastGame.team1Tid
                 const userColor = teamInfo.backgroundColor
                 const oppColor = teamsSource?.[oppTid]?.primaryColor || '#374151'
+                const rivalryTrophy = getRivalryTrophyForTeams(currentDynasty, tid, oppTid)
                 return (
               <div
                 className="relative mb-5 rounded-xl overflow-hidden cfb-texture cfb-texture-strong"
@@ -3696,6 +3703,15 @@ export default function TeamYear() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 px-1 flex-shrink-0">
+                  {rivalryTrophy && (
+                    <img
+                      src={rivalryTrophy.image}
+                      alt={rivalryTrophy.gameName || rivalryTrophy.name}
+                      title={rivalryTrophy.gameName || rivalryTrophy.name}
+                      className="h-9 w-auto object-contain mb-0.5"
+                      style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.5))' }}
+                    />
+                  )}
                   <span
                     className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-md ${lastGameInfo.isWin ? 'bg-green-500/25 text-green-300' : 'bg-red-500/25 text-red-300'}`}
                     style={{ letterSpacing: '1px' }}
@@ -3795,6 +3811,7 @@ export default function TeamYear() {
                 })
 
               const ngOppTid = resolveTid(nextGameInfo.oppAbbr, teamsSource)
+              const ngRivalryTrophy = getRivalryTrophyForTeams(currentDynasty, tid, ngOppTid)
               const userColor = teamInfo.backgroundColor
               const oppColor = teamsSource?.[ngOppTid]?.primaryColor || '#374151'
               const userSecondary = teamInfo.textColor || '#ffffff'
@@ -3839,12 +3856,23 @@ export default function TeamYear() {
                         {teamAbbr}
                       </span>
                     </div>
-                    <span
-                      className="flex items-center text-[10px] font-bold uppercase px-2 flex-shrink-0"
-                      style={{ letterSpacing: '2px', color: '#fff', opacity: 0.6 }}
-                    >
-                      {nextGameInfo.location === 'away' ? 'at' : 'vs'}
-                    </span>
+                    <div className="flex flex-col items-center justify-center px-2 flex-shrink-0 gap-0.5">
+                      {ngRivalryTrophy && (
+                        <img
+                          src={ngRivalryTrophy.image}
+                          alt={ngRivalryTrophy.gameName || ngRivalryTrophy.name}
+                          title={ngRivalryTrophy.gameName || ngRivalryTrophy.name}
+                          className="h-10 w-auto object-contain"
+                          style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.5))' }}
+                        />
+                      )}
+                      <span
+                        className="text-[10px] font-bold uppercase"
+                        style={{ letterSpacing: '2px', color: '#fff', opacity: 0.6 }}
+                      >
+                        {nextGameInfo.location === 'away' ? 'at' : 'vs'}
+                      </span>
+                    </div>
                     <div className="flex flex-1 items-center justify-end gap-3 min-w-0 px-4 py-4" style={{ borderBottom: `4px solid ${oppSecondary}` }}>
                       <span
                         className="text-base font-bold uppercase text-right truncate"

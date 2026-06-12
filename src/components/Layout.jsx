@@ -42,6 +42,22 @@ export default function Layout({ children }) {
   // makes it obvious work is happening.
   const [isAdvancing, setIsAdvancing] = useState(false)
   const userMenuRef = useRef(null)
+  // The header is `fixed` (not `sticky`) so it survives the modal scroll-lock
+  // below: a `position: sticky` element breaks when an ancestor gets
+  // `overflow: hidden`, which made the header vanish whenever a modal opened
+  // while the page was scrolled. A measured spacer reserves its (responsive)
+  // height so page content sits exactly where it did when the header was sticky.
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const measure = () => setHeaderHeight(el.offsetHeight)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const handleSignOut = async () => {
     try {
@@ -547,7 +563,8 @@ export default function Layout({ children }) {
         Skip to main content
       </a>
       <header
-        className="sticky top-0 z-50"
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-50"
         style={{
           backgroundColor: 'var(--surface-1)',
           borderBottom: '1px solid var(--surface-4)',
@@ -825,6 +842,8 @@ export default function Layout({ children }) {
           </div>
         </div>
       </header>
+      {/* Spacer reserving the fixed header's height (keeps content in place). */}
+      <div aria-hidden="true" style={{ height: headerHeight }} />
 
       <main id="main" tabIndex={-1} className={`flex-1 [overflow-x:clip] ${isHomePage || isAccountPage ? '' : 'px-4 py-6'} ${isDynastyPage || isHomePage || isAccountPage ? '' : 'container mx-auto'}`}>
         {isDynastyPage ? (

@@ -7,6 +7,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getTidFromAbbr } from '../../data/teamRegistry'
 import { getMascotName as getMascotNameFromTeams } from '../../data/teams'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import CoachTrophyRoom from './CoachTrophyRoom'
 
 // Shared CFB-aesthetic gradient overlay for team-colored panels (matches the
 // team page hero / scorebugs).
@@ -805,6 +806,8 @@ export default function CoachCareer() {
           })()}
         </div>
       </section>
+
+      <CoachTrophyRoom dynasty={currentDynasty} stints={coachingHistory} />
 
       {(Array.isArray(coachingHistory) ? [...coachingHistory].reverse() : []).map((stint) => {
         if (!stint) return null

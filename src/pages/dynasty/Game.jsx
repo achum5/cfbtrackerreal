@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
+import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../../data/teams'
@@ -1256,6 +1257,13 @@ export default function Game() {
     rightTeam = location === 'home' ? 'user' : 'opponent'
   }
 
+  // Rivalry trophy (regular-season only): when these two teams contest a named
+  // rivalry trophy, the header shows it (name + art) instead of "Week N". Bowls /
+  // CFP / conference-championship games keep their own title.
+  const rivalryTrophy = (!game.isConferenceChampionship && !game.isCFPChampionship && !game.isCFPSemifinal && !game.isCFPQuarterfinal && !game.isCFPFirstRound && !game.bowlName)
+    ? getRivalryTrophyForTeams(currentDynasty, game.team1Tid, game.team2Tid)
+    : null
+
   // Get game title
   let gameTitle = ''
   let gameSubtitle = ''
@@ -1277,6 +1285,9 @@ export default function Game() {
   } else if (game.bowlName) {
     gameTitle = game.bowlName
     gameSubtitle = `${game.year} Bowl Season`
+  } else if (rivalryTrophy) {
+    gameTitle = rivalryTrophy.gameName || rivalryTrophy.name
+    gameSubtitle = `${game.year} Regular Season${game.week != null ? ` · Week ${game.week}` : ''}`
   } else {
     gameTitle = game.week ? `Week ${game.week}` : 'Game'
     gameSubtitle = `${game.year} Regular Season`
@@ -1295,8 +1306,8 @@ export default function Game() {
   const oppConf = opponentAbbr ? getTeamConference(opponentAbbr, customConfs, currentDynasty?.teams) : null
   const isConferenceMatchup = !!(userConf && oppConf && userConf === oppConf) && !game.isConferenceChampionship && !game.bowlName
   const conferenceMatchupLogo = isConferenceMatchup ? getConferenceLogo(userConf) : null
-  const eventLogo = bowlLogo || confLogo || conferenceMatchupLogo
-  const eventLogoAlt = bowlLogo ? game.bowlName : (confLogo ? `${confName} Championship` : (conferenceMatchupLogo ? `${userConf}` : 'Event'))
+  const eventLogo = bowlLogo || confLogo || (rivalryTrophy?.image || null) || conferenceMatchupLogo
+  const eventLogoAlt = bowlLogo ? game.bowlName : (confLogo ? `${confName} Championship` : (rivalryTrophy ? rivalryTrophy.name : (conferenceMatchupLogo ? `${userConf}` : 'Event')))
 
   // Rankings — read straight from game.team1Rank / team2Rank. The
   // stored value IS each team's entering rank (rank during the game)
@@ -1477,13 +1488,11 @@ export default function Game() {
   // page (with a query param so it auto-scrolls to this game). For
   // championship / bowl / CFP rounds the whole cluster keeps its
   // single navigation target as before.
+  const eventIsRivalryTrophy = !!rivalryTrophy && eventLogo === rivalryTrophy.image
   const eventLogoBlock = eventLogo ? (
     <div
       className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-md flex items-center justify-center p-1"
-      style={{
-        backgroundColor: '#fff',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
-      }}
+      style={eventIsRivalryTrophy ? {} : { backgroundColor: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
     >
       <img src={eventLogo} alt={eventLogoAlt} className="w-full h-full object-contain" />
     </div>
@@ -1959,9 +1968,19 @@ export default function Game() {
                 )
               })() : (
                 <div className="flex flex-col items-center py-2 sm:py-4">
-                  <div className="px-2 py-1 sm:px-4 sm:py-2 rounded-full bg-yellow-500/20 border border-yellow-500/30">
-                    <span className="text-xs sm:text-sm font-bold text-yellow-400">UPCOMING</span>
-                  </div>
+                  {rivalryTrophy ? (
+                    <img
+                      src={rivalryTrophy.image}
+                      alt={rivalryTrophy.gameName || rivalryTrophy.name}
+                      title={rivalryTrophy.gameName || rivalryTrophy.name}
+                      className="h-16 sm:h-28 w-auto object-contain"
+                      style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.55))' }}
+                    />
+                  ) : (
+                    <div className="px-2 py-1 sm:px-4 sm:py-2 rounded-full bg-yellow-500/20 border border-yellow-500/30">
+                      <span className="text-xs sm:text-sm font-bold text-yellow-400">UPCOMING</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

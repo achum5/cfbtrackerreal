@@ -57,6 +57,12 @@
  *   .08→.05, ast .035→.02, tfl .25→.15, sack 1.0→.8, int 1.3→1.2, pd .3→.28,
  *   ff 1.0→.8, fr .7→.6, def TD 2.0→1.6) and DROPPED the DL ×1.15 boost.
  *   Defense now lands DL/LB ~15-17, DB ~12 — interleaved with offense.
+ *
+ * - 2026-06-12 OL pass-pro is now a RATE. Sacks allowed are graded per snap
+ *   (projected to a full ~850-snap workload) instead of a flat −0.4/sack, so
+ *   the same sack count docks a low-snap lineman more than a high-snap starter.
+ *   At a full season the dock equals the old flat penalty — starter values are
+ *   unchanged; only partial-season linemen shift.
  */
 
 // Position groups — used to dispatch to the right formula.
@@ -69,6 +75,16 @@ const LB_POS = new Set(['SAM', 'MIKE', 'WILL', 'OLB', 'MLB', 'ILB', 'LB'])
 const DB_POS = new Set(['CB', 'FS', 'SS', 'S', 'DB'])
 const K_POS = new Set(['K'])
 const P_POS = new Set(['P'])
+
+// OL grading constants. Pass protection is graded as a RATE — sacks allowed per
+// snap, projected to a full starter's workload — rather than a flat per-sack
+// penalty. So a lineman who allows 4 sacks over 850 snaps grades far better than
+// one who allows 4 over 300 snaps. At a full ~850-snap season the rate dock
+// equals the old flat 0.4/sack, so starter calibration is unchanged.
+const OL_STARTER_SNAPS = 850   // ~a full-season starter's snap count
+const OL_SNAPS_BASE = 10       // base AV a full-workload starter earns from snaps
+const OL_PANCAKE_W = 0.06      // run-block credit per pancake
+const OL_SACK_RATE_W = 0.4     // pass-pro dock per (sack/snap × starter snaps)
 
 // ──────────────────────────────────────────────────────────────────
 // Position formulas — each takes a player's per-season stats object
@@ -135,22 +151,26 @@ function wrTeValue(s) {
 }
 
 function olValue(s) {
-  // OL have almost no box-score footprint, so the old pancakes-minus-sacks
-  // line left a clean full-season starter at ~0 AV (invisible on the board).
-  // Snaps fix that: snaps = the player's blocking workload (durability + role,
-  // the bulk of an OL's value), then pancakes reward run-block dominance and
-  // sacks allowed dock pass-pro lapses — so a high-snap, low-sack lineman
-  // grades out well and a leaky one doesn't.
+  // OL have almost no box-score footprint, so AV is built from two components:
+  //   1. Snaps played — the blocking workload (durability + role), the bulk of
+  //      an OL's value. A full-workload starter earns OL_SNAPS_BASE here.
+  //   2. Sacks allowed PER SNAP — pass protection graded as a rate, not a raw
+  //      count. The dock is the sack rate projected to a full starter's snaps,
+  //      so the same sacks hurt a low-snap lineman more than a high-snap one.
+  //   (+ pancakes for run-block dominance.)
   const snaps = Number(s.snapsPlayed) || 0
   const b = s.blocking || {}
   const pancakes = b.pancakes || 0
   const sacksAllowed = b.sacksAllowed || 0
 
-  // Fallback for seasons with no snaps entered: the legacy line.
+  // Fallback for seasons with no snaps entered: the legacy raw-count line.
   if (!snaps) return Math.max(0, pancakes * 0.05 - sacksAllowed * 0.5)
 
-  const ratio = Math.min(1, snaps / 850)   // ~850 snaps = a full-season starter
-  return Math.max(0, ratio * 10 + pancakes * 0.06 - sacksAllowed * 0.4)
+  const ratio = Math.min(1, snaps / OL_STARTER_SNAPS)
+  const base = ratio * OL_SNAPS_BASE
+  // sacks/snap × starter-snaps = "sacks allowed at a full-season workload".
+  const sackRateDock = (sacksAllowed / snaps) * OL_STARTER_SNAPS * OL_SACK_RATE_W
+  return Math.max(0, base + pancakes * OL_PANCAKE_W - sackRateDock)
 }
 
 function defenseValue(s, posGroup) {
@@ -360,11 +380,13 @@ export function explainSeasonAV(yearStats, position) {
     const snaps = Number(s.snapsPlayed) || 0
     const b = s.blocking
     if (snaps) {
-      const ratio = Math.min(1, snaps / 850)
-      push('Snaps played', `${snaps} snaps`, ratio * 10)
+      const ratio = Math.min(1, snaps / OL_STARTER_SNAPS)
+      push('Snaps played', `${snaps} snaps`, ratio * OL_SNAPS_BASE)
       if (b) {
-        push('Pancakes', `${b.pancakes || 0}`, (b.pancakes || 0) * 0.06)
-        push('Sacks allowed', `${b.sacksAllowed || 0}`, -(b.sacksAllowed || 0) * 0.4)
+        const sacksAllowed = b.sacksAllowed || 0
+        const ratePct = ((sacksAllowed / snaps) * 100).toFixed(2)
+        push('Pancakes', `${b.pancakes || 0}`, (b.pancakes || 0) * OL_PANCAKE_W)
+        push('Sacks allowed', `${sacksAllowed} on ${snaps} snaps (${ratePct}%/snap)`, -(sacksAllowed / snaps) * OL_STARTER_SNAPS * OL_SACK_RATE_W)
       }
     } else if (b) {
       push('Pancakes', `${b.pancakes || 0}`, (b.pancakes || 0) * 0.05)
