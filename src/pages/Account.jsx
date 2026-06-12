@@ -41,6 +41,7 @@ const BETA_GRANT_EMAILS = new Set([
   'couchcoach16@gmail.com',
   'paul.540909@gmail.com',
   'john.prince1529@gmail.com',
+  'd.carasiti@gmail.com',
 ])
 
 function PlanCell({ value }) {
