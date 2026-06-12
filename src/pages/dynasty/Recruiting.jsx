@@ -13,6 +13,8 @@ import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClass
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
+import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
+import RecruitingTargetsTab from './RecruitingTargetsTab'
 
 const stateFullNames = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -130,6 +132,10 @@ export default function Recruiting() {
   const defaultView = location.pathname.includes('/recruiting/portal/') ? 'portal' : 'both'
   const viewMode = searchParams.get('view') || defaultView
   const setViewMode = (v) => setParam('view', v, defaultView)
+
+  // Commitments / Targets tab (persisted in the URL like the other filters).
+  const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
+  const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
 
   // stars: ?stars=<n> (single tier) ; absent = All. Memoized so the array
   // identity is stable across renders (it feeds a useMemo dep below).
@@ -306,7 +312,18 @@ export default function Recruiting() {
     const updatedPlayers = [...existingPlayers]
     const newPlayers = []
 
-    recruits.forEach(recruit => {
+    // Targets routing: target-concern rows go to the safe reconciler; plain
+    // commit rows keep the existing portal/returning logic below. With no
+    // tracked targets and no Commitment column, every row is a commit row and
+    // this path runs byte-for-byte as before. See utils/recruitingTargets.js.
+    const { targetRows, commitRows } = partitionRecruitingRows(recruits, {
+      players: existingPlayers,
+      userTid: selectedTid,
+      classYear: selectedYear,
+      dynastyTeams: currentDynasty.teams,
+    })
+
+    commitRows.forEach(recruit => {
       if (!recruit.name) return
 
       const normalizedName = recruit.name.toLowerCase().trim()
@@ -403,8 +420,27 @@ export default function Recruiting() {
       }
     })
 
-    const commitmentData = { edit: recruits }
-    const finalPlayers = [...updatedPlayers, ...newPlayers]
+    let finalPlayers = [...updatedPlayers, ...newPlayers]
+    let committedToUs = []
+    if (targetRows.length) {
+      const rec = reconcileRecruitingRows({
+        rows: targetRows,
+        players: finalPlayers,
+        userTid: selectedTid,
+        dynastyTeams: currentDynasty.teams,
+        classYear: selectedYear,
+        weekKey: null,
+        startPID: nextPID,
+      })
+      finalPlayers = rec.players
+      nextPID = rec.nextPID
+      committedToUs = rec.committedToUs
+    }
+
+    // recruitingCommitments holds ONLY commitments to this team (M1): plain
+    // commit rows plus any tracked target that resolved to us. Open / elsewhere
+    // targets are excluded so they never inflate the class score.
+    const commitmentData = { edit: [...commitRows, ...committedToUs] }
 
     const updates = {
       players: finalPlayers,
@@ -943,11 +979,23 @@ export default function Recruiting() {
           )}
         </div>
 
-        {/* Toolbar merged into the hero — one unified team-color section,
-            divided from the title by a hairline. Numbers inherit the
-            contrast text color; labels use a translucent version (via the
-            --text-tertiary override); the Select pills keep their own dark
-            surface so they stay legible on any team color. */}
+        {/* Commitments / Targets tabs — docked under the hero title */}
+        <div className="flex gap-1 px-3 sm:px-5" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
+          {[{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }].map(t => (
+            <button
+              key={t.k}
+              type="button"
+              onClick={() => setActiveTab(t.k)}
+              className="relative px-3 sm:px-4 py-2.5 font-display font-bold uppercase whitespace-nowrap transition-opacity"
+              style={{ fontSize: '0.8rem', letterSpacing: '0.06em', color: teamBgText, opacity: activeTab === t.k ? 1 : 0.55 }}
+            >
+              {t.l}
+              {activeTab === t.k && <span aria-hidden className="absolute left-2 right-2 bottom-0 h-[2px] rounded-t-sm" style={{ backgroundColor: teamBgText }} />}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'commitments' && (
         <div
           className="relative"
           style={{
@@ -1077,9 +1125,11 @@ export default function Recruiting() {
           </div>
         </div>
       </div>
+        )}
       </section>
 
-      {allCommitments.length > 0 ? (
+      {activeTab === 'commitments' ? (
+        allCommitments.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 stagger-reveal">
           {allCommitments.map((recruit, index) => {
             const player = findPlayerByName(recruit.name, recruit.recruitYear)
@@ -1385,6 +1435,9 @@ export default function Recruiting() {
             title={viewMode === 'portal' ? 'No Transfer Portal Commits' : viewMode === 'hs' ? 'No HS Commitments Yet' : 'No Commitments Yet'}
           />
         </Card>
+        )
+      ) : (
+        <RecruitingTargetsTab dynasty={currentDynasty} year={selectedYear} userTid={selectedTid} pathPrefix={pathPrefix} />
       )}
 
       <RecruitingCommitmentsModal

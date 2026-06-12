@@ -6,6 +6,8 @@ import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeam
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { OAuthError } from '../utils/authErrors'
+import { parseRecruitingRows, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL } from '../utils/recruitSheetParse'
+import { ATTRIBUTE_COLUMNS } from '../utils/recruitAttributes'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
@@ -11161,7 +11163,9 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     const teams = getTeamsWithCustom(dynastyTeams)
     const teamAbbrs = Object.keys(teams).sort()
 
-    const totalRows = Math.max(35, existingCommitments.length + 10) // Max 35 scholarships per class
+    // Roomy enough for a full season of TARGETS (far more than the 35-scholarship
+    // commit cap), since one sheet does both commitments and target tracking.
+    const totalRows = Math.max(120, existingCommitments.length + 25)
 
     // Create the spreadsheet
     const response = await fetchWithTimeout(SHEETS_API_BASE, {
@@ -11179,8 +11183,10 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
             properties: {
               title: 'Commitments',
               gridProperties: {
+                // A–O (15 commit fields) + Commitment + one column per named
+                // attribute + hidden pid = TOTAL_COLS.
                 rowCount: totalRows + 1,
-                columnCount: 15,
+                columnCount: TOTAL_COLS,
                 frozenRowCount: 1
               }
             }
@@ -11205,7 +11211,7 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     const headerStyle = { textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }, backgroundColor: { red: 0.2, green: 0.2, blue: 0.2 }, horizontalAlignment: 'CENTER' }
     requests.push({
       updateCells: {
-        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 15 },
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: TOTAL_COLS },
         rows: [{
           values: [
             { userEnteredValue: { stringValue: 'Player' }, userEnteredFormat: headerStyle },
@@ -11222,15 +11228,18 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
             { userEnteredValue: { stringValue: 'State' }, userEnteredFormat: headerStyle },
             { userEnteredValue: { stringValue: 'Gem/Bust' }, userEnteredFormat: headerStyle },
             { userEnteredValue: { stringValue: 'Dev Trait' }, userEnteredFormat: headerStyle },
-            { userEnteredValue: { stringValue: 'Prev Team' }, userEnteredFormat: headerStyle }
+            { userEnteredValue: { stringValue: 'Prev Team' }, userEnteredFormat: headerStyle },
+            // ── Targets extension: Commitment + one column per named attribute + hidden pid ──
+            ...['Commitment', ...ATTRIBUTE_COLUMNS, 'pid'].map(h => ({ userEnteredValue: { stringValue: h }, userEnteredFormat: headerStyle }))
           ]
         }],
         fields: 'userEnteredValue,userEnteredFormat'
       }
     })
 
-    // Set column widths
-    const columnWidths = [150, 70, 70, 140, 80, 70, 70, 70, 60, 60, 120, 50, 70, 70, 80]
+    // Set column widths (A–O commit fields, then Commitment, the named attrs, pid)
+    const columnWidths = [150, 70, 70, 140, 80, 70, 70, 70, 60, 60, 120, 50, 70, 70, 80,
+      100, ...ATTRIBUTE_COLUMNS.map(() => 52), 50]
     columnWidths.forEach((width, idx) => {
       requests.push({
         updateDimensionProperties: {
@@ -11354,6 +11363,28 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
       }
     })
 
+    // Column P: Commitment dropdown (Targets). Blank = committed to your team
+    // (today's behavior), '(Pursuing)' = open target, a team abbr = committed
+    // there. Not strict, so the AI/user can still type a team if needed.
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 15, endColumnIndex: 16 },
+        rule: {
+          condition: { type: 'ONE_OF_LIST', values: ['', '(Pursuing)', ...teamAbbrs].map(v => ({ userEnteredValue: v })) },
+          showCustomUi: true, strict: false
+        }
+      }
+    })
+
+    // Hidden pid column (round-trip stability for the reconciler — users never touch it).
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: PID_COL, endIndex: TOTAL_COLS },
+        properties: { hiddenByUser: true },
+        fields: 'hiddenByUser'
+      }
+    })
+
     // Build conditional format rules separately — they're applied in a second
     // batchUpdate after the essential requests so a slow/failed color pass
     // never blocks sheet creation.
@@ -11403,6 +11434,12 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
         }
         return '' // unknown tid → blank (column is strict)
       }
+      // Targets columns prefill: commitment string, the 10 attributes (in the
+      // canonical order for the row's position/archetype), and the hidden pid.
+      // These are blank for plain commitments (the fields are simply absent).
+      const numOrBlank = (v) => (v === null || v === undefined || v === '')
+        ? { userEnteredValue: { stringValue: '' } }
+        : { userEnteredValue: { numberValue: Number(v) } }
       const dataRows = existingCommitments.map(recruit => ({
         values: [
           { userEnteredValue: { stringValue: str(recruit.name) } },
@@ -11419,13 +11456,16 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
           { userEnteredValue: { stringValue: str(recruit.state) } },
           { userEnteredValue: { stringValue: str(recruit.gemBust) } },
           { userEnteredValue: { stringValue: str(recruit.devTrait || 'Normal') } },
-          { userEnteredValue: { stringValue: previousTeamAsAbbr(recruit.previousTeam) } }
+          { userEnteredValue: { stringValue: previousTeamAsAbbr(recruit.previousTeam) } },
+          { userEnteredValue: { stringValue: str(recruit.commitment) } },
+          ...ATTRIBUTE_COLUMNS.map(name => numOrBlank(recruit.attributes ? recruit.attributes[name] : undefined)),
+          numOrBlank(recruit.pid)
         ]
       }))
 
       requests.push({
         updateCells: {
-          range: { sheetId, startRowIndex: 1, endRowIndex: 1 + existingCommitments.length, startColumnIndex: 0, endColumnIndex: 15 },
+          range: { sheetId, startRowIndex: 1, endRowIndex: 1 + existingCommitments.length, startColumnIndex: 0, endColumnIndex: TOTAL_COLS },
           rows: dataRows,
           fields: 'userEnteredValue'
         }
@@ -11436,7 +11476,7 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     requests.push({
       addProtectedRange: {
         protectedRange: {
-          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 15 },
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: TOTAL_COLS },
           description: 'Header row - do not edit',
           warningOnly: true
         }
@@ -11493,8 +11533,13 @@ export async function readRecruitingFromSheet(spreadsheetId, dynastyTeams = null
   try {
     const accessToken = await getAccessToken()
 
+    // Range is wide (A–AA) so the optional Targets columns (P = Commitment,
+    // Q–Z = attributes, AA = hidden pid) round-trip, and tall enough for a full
+    // season of targets — far more than the legacy ~99-row commitments cap. A
+    // legacy commitments sheet (only A–O filled) parses identically; the extra
+    // columns simply come back blank. See utils/recruitSheetParse.js.
     const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Commitments!A2:O100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${RECRUITING_READ_RANGE}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -11510,35 +11555,7 @@ export async function readRecruitingFromSheet(spreadsheetId, dynastyTeams = null
     const data = await response.json()
     const rows = data.values || []
 
-    // Parse rows into recruit objects
-    // Non-portal classes: HS, JUCO Fr, JUCO So, JUCO Jr (regular recruits)
-    // Portal classes: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr (transfer portal)
-    const nonPortalClasses = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr']
-    const recruits = rows
-      .filter(row => row[0] && row[0].trim()) // Must have player name
-      .map(row => {
-        const recruitClass = row[1]?.trim() || 'HS'
-        return {
-          name: row[0]?.trim() || '',
-          class: recruitClass,
-          position: row[2]?.trim() || '',
-          archetype: row[3]?.trim() || '',
-          stars: starsSymbolToNumber(row[4]),
-          nationalRank: row[5] ? parseInt(row[5]) : null,
-          stateRank: row[6] ? parseInt(row[6]) : null,
-          positionRank: row[7] ? parseInt(row[7]) : null,
-          height: row[8]?.trim() || '',
-          weight: row[9] ? parseInt(row[9]) : null,
-          hometown: row[10]?.trim() || '',
-          state: row[11]?.trim() || '',
-          gemBust: row[12]?.trim() || '',
-          devTrait: row[13]?.trim() || 'Normal',
-          previousTeam: row[14]?.trim() || '',
-          isPortal: !nonPortalClasses.includes(recruitClass) // Fr, So, Jr, etc. are portal transfers
-        }
-      })
-
-    return recruits
+    return parseRecruitingRows(rows)
   } catch (error) {
     console.error('Error reading recruiting data:', error)
     throw error
