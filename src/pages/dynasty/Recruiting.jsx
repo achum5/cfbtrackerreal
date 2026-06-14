@@ -358,7 +358,9 @@ export default function Recruiting() {
             ...updatedPlayers[playerIndex],
             position: updatedPlayers[playerIndex].position || recruit.position,
             archetype: updatedPlayers[playerIndex].archetype || recruit.archetype,
-            devTrait: recruit.devTrait || updatedPlayers[playerIndex].devTrait,
+            // Sheet is authoritative: a blank ('') clears the trait; only an
+            // omitted field (undefined) keeps the existing one.
+            devTrait: recruit.devTrait ?? updatedPlayers[playerIndex].devTrait,
             height: recruit.height || updatedPlayers[playerIndex].height,
             weight: recruit.weight || updatedPlayers[playerIndex].weight,
             hometown: recruit.hometown || updatedPlayers[playerIndex].hometown,
@@ -401,7 +403,7 @@ export default function Recruiting() {
             isRecruit: true,
             recruitYear: selectedYear,
             previousTeam: recruit.previousTeam || getOriginalTeamAbbr(previousTeamTid) || existingPlayer.previousTeam,
-            devTrait: recruit.devTrait || existingPlayer.devTrait,
+            devTrait: recruit.devTrait ?? existingPlayer.devTrait,
             stars: recruit.stars ?? existingPlayer.stars,
             nationalRank: recruit.nationalRank ?? existingPlayer.nationalRank,
             stateRank: recruit.stateRank ?? existingPlayer.stateRank,

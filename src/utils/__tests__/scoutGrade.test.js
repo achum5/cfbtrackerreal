@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS, scoutLetter, inferPlayStyle, schemeFits, scoutReport, scoutDossier, gradeBreakdown } from '../scoutGrade'
+import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS, scoutLetter, inferPlayStyle, schemeFits, scoutReport, scoutDossier, dossierParagraphs, gradeBreakdown } from '../scoutGrade'
 
 const player = (o) => ({ position: 'QB', archetype: 'Pocket Passer', stars: 4, devTrait: 'Impact', ...o })
 
@@ -114,6 +114,21 @@ describe('scoutGrade — engine', () => {
     expect(labels).toContain('Strengths')
     expect(labels).toContain('Bottom line')
     expect(scoutDossier(player({ attributes: {} }))).toBeNull()
+  })
+
+  it('scoutDossier folds into paragraphs and adds a depth-chart line', () => {
+    const p = player({
+      devTrait: 'Star', stars: 5,
+      attributes: { 'Throw Power': 92, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 88, Awareness: 85 },
+    })
+    const d = scoutDossier(p, 'pass', { group: 'QB', returning: 0, rank: 2 })
+    expect(d.some((s) => s.label === 'Depth-chart fit')).toBe(true)
+    expect(d.find((s) => s.label === 'Depth-chart fit').body).toMatch(/nobody at QB/)
+    const paras = dossierParagraphs(d)
+    expect(paras.length).toBe(3) // overview / fit / verdict
+    expect(paras.join(' ')).toMatch(/clear runway/)
+    // No depth context → no depth line
+    expect(scoutDossier(p, 'pass').some((s) => s.label === 'Depth-chart fit')).toBe(false)
   })
 
   it('gradeBreakdown parts sum to the published score', () => {

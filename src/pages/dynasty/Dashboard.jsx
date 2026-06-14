@@ -2722,14 +2722,13 @@ export default function Dashboard() {
 
       const updated = { ...p }
 
-      // Dev trait — only overwrite when the sheet has a non-Normal pick
-      // OR the player has no dev trait at all. "Normal" is the default
-      // sheet value; a user who left it as Normal means "keep as-is."
-      // Stamp devTraitByYear[enrollYr] too so the player profile shows
-      // the right trait for the year they enroll.
-      const sheetTrait = (recruitData.devTrait || '').trim()
-      const isMeaningfulTrait = sheetTrait && sheetTrait !== 'Normal'
-      if (isMeaningfulTrait || (sheetTrait && !p.devTrait)) {
+      // Dev trait is authoritative from the sheet: a value sets it, a blank
+      // CLEARS it. Traits are hidden until signing day, so users routinely
+      // leave them empty — we must not presume Normal or keep a stale trait.
+      // Stamp devTraitByYear[enrollYr] too so the profile shows the right
+      // trait for the year they enroll.
+      if (recruitData.devTrait !== undefined) {
+        const sheetTrait = (recruitData.devTrait || '').trim()
         updated.devTrait = sheetTrait
         if (enrollYr != null) {
           updated.devTraitByYear = {

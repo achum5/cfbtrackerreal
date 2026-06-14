@@ -107,7 +107,10 @@ function mergeRecruitFields(base, row) {
     name: row.name || base.name,
     position: pick(row.position, base.position) || '',
     archetype: pick(row.archetype, base.archetype) || '',
-    devTrait: pick(row.devTrait, base.devTrait) || 'Normal',
+    // Dev trait is authoritative from the sheet: a value sets it, a blank
+    // CLEARS it (traits are hidden until signing day — never presume Normal).
+    // Only fall back to the base record when the row omits the field entirely.
+    devTrait: row.devTrait !== undefined ? row.devTrait : (base.devTrait ?? ''),
     height: pick(row.height, base.height) || '',
     weight: pick(row.weight, base.weight) || 0,
     hometown: pick(row.hometown, base.hometown) || '',

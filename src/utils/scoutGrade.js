@@ -331,12 +331,17 @@ function listPhrase(xs) {
 }
 
 /**
- * A structured scouting dossier — an array of { label, body } sections, or null
- * when the player is unscouted.
+ * A structured scouting dossier — an array of { group, label, body } sentences,
+ * or null when the player is unscouted. `group` ('overview' | 'fit' | 'verdict')
+ * lets callers fold the sentences into flowing paragraphs.
  * @param {object} player
  * @param {'pass'|'run'|'balanced'} playStyle  the team's offensive identity
+ * @param {null | { group?: string, returning: number, rank?: number }} depth
+ *        next-season depth at the player's position group (returning headcount +
+ *        need rank: 2 = below starters, 1 = thin, 0 = stocked). Omit for callers
+ *        without roster context (e.g. cards).
  */
-export function scoutDossier(player, playStyle = 'balanced') {
+export function scoutDossier(player, playStyle = 'balanced', depth = null) {
   const bd = gradeBreakdown(player)
   if (!bd) return null
   const { score, tier, letter, factors, hasDev } = bd
@@ -348,7 +353,7 @@ export function scoutDossier(player, playStyle = 'balanced') {
 
   // Projection
   out.push({
-    label: 'Projection',
+    group: 'overview', label: 'Projection',
     body: `${TIER_WORD[tier.key]} ${archPhrase} who projects as ${role(score)}. He grades out at ${letter} (${score} overall) against the demands of the ${arch || player.position || 'position'} archetype.`,
   })
 
@@ -358,13 +363,13 @@ export function scoutDossier(player, playStyle = 'balanced') {
     const phrases = strong.map((f) => `${gradeWord(f.value)} ${blurb(f.name)} (${f.value})`)
     const best = strong[0]
     out.push({
-      label: 'Strengths',
+      group: 'overview', label: 'Strengths',
       body: `His game is built on ${listPhrase(phrases)}. His ${blurb(best.name)} is the trait scouts trust most to translate at the next level.`,
     })
   } else {
     const top = factors.slice(0, 2)
     out.push({
-      label: 'Strengths',
+      group: 'overview', label: 'Strengths',
       body: top.length
         ? `Nothing grades as a true plus yet — his best marks are ${listPhrase(top.map((f) => `${blurb(f.name)} (${f.value})`))}, more steady than special.`
         : 'No standout traits have been scouted yet.',
@@ -374,7 +379,7 @@ export function scoutDossier(player, playStyle = 'balanced') {
   // Areas to develop
   const gaps = factors.filter((f) => f.weight >= 5 && f.value < 75).sort((a, b) => a.value - b.value).slice(0, 3)
   out.push({
-    label: 'Areas to develop',
+    group: 'overview', label: 'Areas to develop',
     body: gaps.length
       ? `He'll need to clean up ${listPhrase(gaps.map((g) => `${blurb(g.name)} (${g.value})`))} to hit his ceiling${gaps.some((g) => g.value < 65) ? ' — those grade as real question marks right now.' : '.'}`
       : 'There are no obvious holes in his profile for the position — the scouted marks come back clean across the board.',
@@ -389,7 +394,7 @@ export function scoutDossier(player, playStyle = 'balanced') {
   if (Number.isFinite(str)) physBits.push(`${gradeWord(str)} play strength (${str})`)
   if (size || physBits.length) {
     out.push({
-      label: 'Physical profile',
+      group: 'fit', label: 'Physical profile',
       body: `${size ? `Measures in at ${size}. ` : ''}${physBits.length ? `${size ? 'He shows ' : 'Shows '}${listPhrase(physBits)}.` : ''}`.trim(),
     })
   }
@@ -398,14 +403,27 @@ export function scoutDossier(player, playStyle = 'balanced') {
   const fit = schemeFits(player.archetype, playStyle)
   const scheme = playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'
   if (fit === true) {
-    out.push({ label: 'Scheme fit', body: `His skill set is a clean fit for your ${scheme} offense — the archetype is exactly what that scheme asks for.` })
+    out.push({ group: 'fit', label: 'Scheme fit', body: `His skill set is a clean fit for your ${scheme} offense — the archetype is exactly what that scheme asks for.` })
   } else if (fit === false) {
-    out.push({ label: 'Scheme fit', body: `He's a scheme-stretch for your ${scheme} identity; you'd be adapting to his strengths rather than dropping him into a defined role.` })
+    out.push({ group: 'fit', label: 'Scheme fit', body: `He's a scheme-stretch for your ${scheme} identity; you'd be adapting to his strengths rather than dropping him into a defined role.` })
+  }
+
+  // Depth-chart fit — compares against your ACTUAL returning depth next season.
+  if (depth && Number.isFinite(depth.returning)) {
+    const g = depth.group || player.position || 'the position'
+    const n = depth.returning
+    const rank = depth.rank ?? 0
+    let body
+    if (n <= 0) body = `You return nobody at ${g} next season, so he'd have a clear runway to early playing time.`
+    else if (rank >= 2) body = `You return just ${n} at ${g} next season — short of a full starting group — so he'd push into the two-deep right away.`
+    else if (rank === 1) body = `You return ${n} at ${g} next season, thin depth, so he'd add a needed body to the rotation.`
+    else body = `You return a stocked ${n} at ${g} next season, so he'd likely develop behind an established room before pushing for snaps.`
+    out.push({ group: 'fit', label: 'Depth-chart fit', body })
   }
 
   // Development outlook
   out.push({
-    label: 'Development outlook',
+    group: 'verdict', label: 'Development outlook',
     body: hasDev
       ? `${DEV_LINE[player.devTrait]}`
       : `His dev trait isn't visible yet — common before signing day — so the grade leans on his ${stars}-star billing and projects his growth conservatively. A hidden Impact-or-better trait would push this projection up.`,
@@ -413,22 +431,31 @@ export function scoutDossier(player, playStyle = 'balanced') {
 
   // Bottom line
   out.push({
-    label: 'Bottom line',
-    body: score >= 88 ? 'A priority target worth a hard push — he can change the trajectory of your roster.'
-      : score >= 81 ? 'A high-value get who should pay off early in his career.'
-      : score >= 74 ? 'A worthwhile addition with starter upside if the development hits.'
-      : 'A depth-and-upside swing — worth a scholarship if the board thins, but not over a higher-graded option.',
+    group: 'verdict', label: 'Bottom line',
+    body: score >= 88 ? 'Bottom line: a priority target worth a hard push — he can change the trajectory of your roster.'
+      : score >= 81 ? 'Bottom line: a high-value get who should pay off early in his career.'
+      : score >= 74 ? 'Bottom line: a worthwhile addition with starter upside if the development hits.'
+      : 'Bottom line: a depth-and-upside swing — worth a scholarship if the board thins, but not over a higher-graded option.',
   })
 
   return out
+}
+
+// Fold a dossier into flowing paragraphs (one per group, in order).
+export function dossierParagraphs(sections) {
+  if (!sections) return []
+  const order = ['overview', 'fit', 'verdict']
+  return order
+    .map((g) => sections.filter((s) => s.group === g).map((s) => s.body).join(' '))
+    .filter(Boolean)
 }
 
 /**
  * The dossier flattened to a single paragraph (for compact callers like cards).
  * @returns {string|null}
  */
-export function scoutReport(player, playStyle = 'balanced') {
-  const d = scoutDossier(player, playStyle)
+export function scoutReport(player, playStyle = 'balanced', depth = null) {
+  const d = scoutDossier(player, playStyle, depth)
   return d ? d.map((s) => s.body).join(' ') : null
 }
 

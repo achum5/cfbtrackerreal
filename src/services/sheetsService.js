@@ -11483,7 +11483,7 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
           { userEnteredValue: { stringValue: str(recruit.hometown) } },
           { userEnteredValue: { stringValue: str(recruit.state) } },
           { userEnteredValue: { stringValue: str(recruit.gemBust) } },
-          { userEnteredValue: { stringValue: str(recruit.devTrait || 'Normal') } },
+          { userEnteredValue: { stringValue: str(recruit.devTrait || '') } },
           { userEnteredValue: { stringValue: previousTeamAsAbbr(recruit.previousTeam) } },
           { userEnteredValue: { stringValue: str(recruit.commitment) } },
           ...ATTRIBUTE_COLUMNS.map(name => numOrBlank(recruit.attributes ? recruit.attributes[name] : undefined)),

@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs, scoutLetter, scoutDossier, gradeBreakdown, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
+import { scoutGrade, topScoutedAttrs, scoutLetter, scoutDossier, dossierParagraphs, gradeBreakdown, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
@@ -46,12 +46,13 @@ const Chevron = ({ open }) => (
 )
 
 function Row({ r, rank, pathPrefix, playStyle }) {
-  const { p, score, tier, need, fits, status } = r
+  const { p, score, tier, need, status } = r
   const [open, setOpen] = useState(false)
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
   const top = score != null ? topScoutedAttrs(p, 3) : []
-  const dossier = open ? scoutDossier(p, playStyle) : null
+  const depth = Number.isFinite(r.returning) ? { group: r.group || p.position, returning: r.returning, rank: need?.rank ?? 0 } : null
+  const paragraphs = open ? dossierParagraphs(scoutDossier(p, playStyle, depth)) : []
   const breakdown = open ? gradeBreakdown(p) : null
   const attrEntries = ATTRIBUTE_COLUMNS
     .filter((name) => p.attributes?.[name] != null && p.attributes[name] !== '')
@@ -76,7 +77,6 @@ function Row({ r, rank, pathPrefix, playStyle }) {
   if (p.positionRank) meta.push(`#${p.positionRank} ${p.position || 'POS'}`)
   if (p.stateRank && p.state) meta.push(`#${p.stateRank} ${p.state}`)
 
-  const needLine = need && need.rank > 0 ? `${p.position || 'Position'} is ${need.label.toLowerCase()} on next year's roster` : null
   const fmtAdj = (v) => (v > 0 ? `+${v}` : `${v}`)
 
   return (
@@ -121,21 +121,13 @@ function Row({ r, rank, pathPrefix, playStyle }) {
 
       {open && (
         <div className="px-4 pb-5 pt-1 sm:pl-[4.5rem] space-y-4">
-          {/* Scouting dossier — labelled sections */}
-          {dossier && dossier.length > 0 && (
+          {/* Scouting report — flowing paragraphs */}
+          {paragraphs.length > 0 && (
             <div className="space-y-2.5">
-              {dossier.map((s) => (
-                <div key={s.label}>
-                  <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>{s.label}</div>
-                  <p className="text-[12px] leading-relaxed text-txt-secondary">{s.body}</p>
-                </div>
+              <div className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Scouting Report</div>
+              {paragraphs.map((para, i) => (
+                <p key={i} className="text-[12px] leading-relaxed text-txt-secondary">{para}</p>
               ))}
-              {needLine && (
-                <div>
-                  <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Roster context</div>
-                  <p className="text-[12px] leading-relaxed text-txt-secondary">{needLine}.</p>
-                </div>
-              )}
             </div>
           )}
 
@@ -246,7 +238,8 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       const { score, tier } = scoutGrade(p)
       const group = finePositionGroup(p.position)
       const need = group ? needsByGroup[group]?.need : null
-      rows.push({ p, score, tier, group, need, fits: schemeFits(p.archetype, playStyle), status: getTargetStatus(p, userTid) })
+      const returning = group ? needsByGroup[group]?.returning : null
+      rows.push({ p, score, tier, group, need, returning, fits: schemeFits(p.archetype, playStyle), status: getTargetStatus(p, userTid) })
     }
     rows.sort((a, b) => {
       const aLost = a.status === 'committed_elsewhere' ? 1 : 0
