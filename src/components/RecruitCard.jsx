@@ -1,7 +1,13 @@
+import { useState } from 'react'
 import { Card } from './ui'
 import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
+
+// Madden-style rating color ramp for scouted attribute values.
+const ratingColor = (v) =>
+  v >= 90 ? '#22c55e' : v >= 80 ? '#84cc16' : v >= 70 ? '#eab308' : v >= 60 ? '#f97316' : '#ef4444'
 
 // Shared recruit/target scouting card. Identical visuals for the Commitments
 // tab and the Targets tab — the ONLY difference is the color pair fed in:
@@ -35,6 +41,12 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
   const teamBgText = text
   const teamAccent = bg
   const teamsSource = teamsData || {}
+
+  const [showAttrs, setShowAttrs] = useState(false)
+  const attrEntries = ATTRIBUTE_COLUMNS
+    .filter((name) => recruit.attributes?.[name] != null && recruit.attributes[name] !== '')
+    .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(recruit.attributes[name]) }))
+  const hasAttrs = attrEntries.length > 0
 
   const hometownText = recruit.hometown
     ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
@@ -207,6 +219,39 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
               >
                 High School
               </span>
+            )}
+          </div>
+        )}
+
+        {/* === ATTRIBUTES DROPDOWN === scouted ratings, collapsed behind a
+            chevron. preventDefault/stopPropagation so toggling doesn't follow
+            the card's player-page link. */}
+        {hasAttrs && (
+          <div className="pt-1.5" style={{ borderTop: `1px solid ${teamBgText}33` }}>
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowAttrs((v) => !v) }}
+              className="w-full flex items-center justify-center gap-1 text-[9px] font-bold uppercase"
+              style={{ letterSpacing: '1.2px', color: teamBgText, opacity: 0.75 }}
+            >
+              {attrEntries.length} Attribute{attrEntries.length === 1 ? '' : 's'}
+              <svg
+                className="w-2.5 h-2.5 transition-transform"
+                style={{ transform: showAttrs ? 'rotate(180deg)' : 'none' }}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showAttrs && (
+              <div className="grid grid-cols-3 gap-x-1 gap-y-1.5 mt-2">
+                {attrEntries.map((e) => (
+                  <div key={e.name} className="text-center" title={e.name}>
+                    <div className="font-display font-black tabular-nums leading-none" style={{ fontSize: '14px', color: ratingColor(e.value) }}>{e.value}</div>
+                    <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: teamBgText, opacity: 0.6 }}>{e.abbr}</div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
