@@ -63,7 +63,7 @@ import FringeCaseClassModal from '../../components/FringeCaseClassModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
-import { isOpenTarget } from '../../utils/recruitingTargets'
+import { isOpenTarget, partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
 const normalizePlayerName = (name) => {
@@ -2271,6 +2271,18 @@ export default function Dashboard() {
     const teamTid = getCurrentTeamTid(currentDynasty)
     const existingPlayers = currentDynasty.players || []
 
+    // Targets routing (B1): split out target-concern rows so they go through the
+    // safe pid-first reconciler instead of the global-name returning/transfer
+    // detection below — which would otherwise hijack a same-named rostered player.
+    // With no targets + no Commitment column, EVERY row is a commit row and this
+    // path runs exactly as before. See utils/recruitingTargets.js.
+    const { targetRows, commitRows } = partitionRecruitingRows(recruits, {
+      players: existingPlayers,
+      userTid: teamTid,
+      classYear: year,
+      dynastyTeams: currentDynasty.teams,
+    })
+
     // Track players who left (leftTeam: true) OR are pending departure
     const leftPlayersMap = new Map()
     const pendingDepartureMap = new Map()
@@ -2311,8 +2323,9 @@ export default function Dashboard() {
       }
     })
 
-    // Find recruits that are POTENTIAL returning players OR transfers from other teams
-    const potentialReturning = recruits.filter(r => {
+    // Find recruits that are POTENTIAL returning players OR transfers from other teams.
+    // Only COMMIT rows are eligible — target rows are reconciled safely (B1).
+    const potentialReturning = commitRows.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
 
@@ -2361,10 +2374,13 @@ export default function Dashboard() {
       return { recruit, existingPlayer, departureReason, departureYear, currentTeamAbbr: teamAbbr }
     })
 
-    // If there are potential returning players, show confirmation modal
+    // If there are potential returning players, show confirmation modal.
+    // `recruits` carries ONLY commit rows from here on; targetRows ride alongside
+    // so the post-confirmation save reconciles them too.
     if (potentialReturning.length > 0) {
       setPendingRecruitingData({
-        recruits,
+        recruits: commitRows,
+        targetRows,
         year,
         commitmentKey,
         potentialReturning,
@@ -2378,11 +2394,11 @@ export default function Dashboard() {
     }
 
     // No potential returning players - process directly
-    await processRecruitingCommitmentsSave(recruits, year, commitmentKey, [], [])
+    await processRecruitingCommitmentsSave(commitRows, year, commitmentKey, [], [], targetRows)
   }
 
   // Process recruiting save after all confirmations are complete
-  const processRecruitingCommitmentsSave = async (recruits, year, commitmentKey, confirmedReturning, confirmedNew) => {
+  const processRecruitingCommitmentsSave = async (recruits, year, commitmentKey, confirmedReturning, confirmedNew, targetRows = []) => {
     // CRITICAL: Get tid directly - tid is the ONLY source of truth
     const teamTid = getCurrentTeamTid(currentDynasty)
     const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName // For display/key lookups only
@@ -2777,13 +2793,33 @@ export default function Dashboard() {
       ...alreadyOnRosterRecruits.map(enrichCommitment)
     ]
 
+    // Targets: reconcile target-concern rows (pid-first) into the player list.
+    // Any that committed to US join the commitment list; open / elsewhere targets
+    // become tracked player records only (never recruitingCommitments — M1).
+    let finalPlayers = updatedPlayers
+    const committedRecruitsWithTargets = [...allCommittedRecruits]
+    if (targetRows && targetRows.length) {
+      const rec = reconcileRecruitingRows({
+        rows: targetRows,
+        players: finalPlayers,
+        userTid: teamTid,
+        dynastyTeams: currentDynasty.teams,
+        classYear: year,
+        weekKey: commitmentKey,
+        startPID: nextPID,
+      })
+      finalPlayers = rec.players
+      nextPID = rec.nextPID
+      committedRecruitsWithTargets.push(...rec.committedToUs)
+    }
+
     // Save if there are any recruits to record OR if player data changed
-    const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0
-    if (allCommittedRecruits.length > 0 || hasPlayerChanges) {
+    const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0 || (targetRows && targetRows.length > 0)
+    if (committedRecruitsWithTargets.length > 0 || hasPlayerChanges) {
       const tid = getTidFromAbbr(teamAbbr, currentDynasty)
       const commitmentData = {
         ...existingForYear,
-        [commitmentKey]: allCommittedRecruits
+        [commitmentKey]: committedRecruitsWithTargets
       }
 
       // Store in TEAM-CENTRIC structure - store all commits for this commitment key
@@ -2797,7 +2833,7 @@ export default function Dashboard() {
           },
           ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: commitmentData } } : {})
         },
-        players: updatedPlayers,
+        players: finalPlayers,
         nextPID: nextPID
       }
 
@@ -2833,6 +2869,7 @@ export default function Dashboard() {
 
     const {
       recruits,
+      targetRows = [],
       year,
       commitmentKey,
       potentialReturning,
@@ -2873,7 +2910,8 @@ export default function Dashboard() {
         year,
         commitmentKey,
         newConfirmedReturning,
-        newConfirmedNew
+        newConfirmedNew,
+        targetRows
       )
     }
   }
