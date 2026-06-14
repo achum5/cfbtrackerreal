@@ -224,6 +224,13 @@ export function getEarnedTrophies(dynasty, stints) {
   return earned
 }
 
+// The conference-championship trophy for a conference name (game.conference) —
+// used to badge the conference champion in the standings.
+export function getConferenceTrophy(conference) {
+  const id = CONFERENCE_TROPHY[conference]
+  return id ? TROPHY_BY_ID[id] : null
+}
+
 // The rivalry trophy (if any) contested when these two teams meet — used to
 // badge a game with its rivalry trophy.
 export function getRivalryTrophyForTeams(dynasty, tidA, tidB) {

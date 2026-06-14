@@ -4079,6 +4079,7 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
         className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center justify-center rounded-md transition-colors"
         style={{
           width: 40, height: 40,
+          zIndex: 10,
           backgroundColor: 'rgba(255, 255, 255, 0.08)',
           color: '#fff',
           border: '1px solid rgba(255, 255, 255, 0.18)',
@@ -4094,6 +4095,7 @@ function PhotoLightbox({ photos, index, onClose, onIndexChange, photoTags = null
         <div
           className="absolute top-3 left-3 sm:top-4 sm:left-4 px-3 py-1.5 rounded-md text-xs font-bold tabular-nums"
           style={{
+            zIndex: 10,
             backgroundColor: 'rgba(255, 255, 255, 0.08)',
             color: '#fff',
             border: '1px solid rgba(255, 255, 255, 0.18)',

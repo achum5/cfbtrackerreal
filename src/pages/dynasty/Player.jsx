@@ -5633,7 +5633,7 @@ function PlayerInner() {
                 onClick={() => setPhotoTabLightboxIdx(null)}
                 aria-label="Close"
                 className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center justify-center rounded-md"
-                style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}
+                style={{ width: 40, height: 40, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)' }}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>

@@ -10,6 +10,7 @@ import { getConferenceLogo } from '../../data/conferenceLogos'
 import ConferencesModal from '../../components/ConferencesModal'
 import { TEAMS, resolveTid } from '../../data/teamRegistry'
 import { conferenceTeams as DEFAULT_CONFERENCE_TEAMS } from '../../data/conferenceTeams'
+import { getConferenceTrophy } from '../../utils/trophyEngine'
 import {
   PageHero,
   Card,
@@ -286,6 +287,25 @@ export default function ConferenceStandings() {
   // conference card so they can scan and immediately find themselves.
   const userTid = currentDynasty.currentTid != null ? Number(currentDynasty.currentTid) : null
 
+  // tid → conference-championship trophy, for the team that WON this year's
+  // conference title game. Used to badge the champion's row with their trophy.
+  const championTrophyByTid = useMemo(() => {
+    const map = {}
+    for (const g of currentDynasty?.games || []) {
+      if (Number(g.year) !== displayYear) continue
+      if (!(g.isConferenceChampionship || g.gameType === 'conference_championship')) continue
+      const trophy = getConferenceTrophy(g.conference)
+      if (!trophy) continue
+      let winner = g.winnerTid
+      if (winner == null || winner === '') {
+        const s1 = Number(g.team1Score), s2 = Number(g.team2Score)
+        if (Number.isFinite(s1) && Number.isFinite(s2) && s1 !== s2) winner = s1 > s2 ? g.team1Tid : g.team2Tid
+      }
+      if (winner != null && winner !== '') map[Number(winner)] = trophy
+    }
+    return map
+  }, [currentDynasty?.games, displayYear])
+
   // Team row component. Tid-first identity so a renamed teambuilder team
   // still resolves to current logo/name/link — `team.team` is the abbr at
   // sheet-write time and may have drifted since.
@@ -377,16 +397,27 @@ export default function ConferenceStandings() {
           )}
         </div>
 
-        <FittedName
-          full={getSchoolName(mascotName) || teamAbbr}
-          abbr={teamAbbr}
-          className="flex-1 text-sm"
-          style={{
-            fontWeight: isLeader ? 700 : 600,
-            color: txt,
-            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-          }}
-        />
+        <div className="flex-1 flex items-center gap-1.5 min-w-0">
+          <FittedName
+            full={getSchoolName(mascotName) || teamAbbr}
+            abbr={teamAbbr}
+            className="text-sm min-w-0"
+            style={{
+              fontWeight: isLeader ? 700 : 600,
+              color: txt,
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            }}
+          />
+          {championTrophyByTid[linkTid] && (
+            <img
+              src={championTrophyByTid[linkTid].image}
+              alt="Conference champion"
+              title={`${championTrophyByTid[linkTid].name} — ${displayYear} champion`}
+              className="w-5 h-5 object-contain flex-shrink-0"
+              style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}
+            />
+          )}
+        </div>
 
         {/* Combined record cell — overall first, conference in parens
             ("9-1 (6-1)"). Sort is still by CONF record (handled in the
