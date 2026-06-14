@@ -381,6 +381,17 @@ FINAL CHECK
     createSheet()
   }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, prefillRecruits, authErrorOccurred, createAttempts])
 
+  // When the user re-authenticates (retryCount bumps via the AuthErrorModal's
+  // Refresh), clear the blocking flags so the sheet-creation effect above
+  // retries with the fresh token — instead of staying stuck on "Failed to
+  // create sheet" until the user manually closes and reopens this modal.
+  useEffect(() => {
+    if (auth.retryCount > 0) {
+      setAuthErrorOccurred(false)
+      setCreateAttempts(0)
+    }
+  }, [auth.retryCount])
+
   // Reset state when modal closes or commitmentKey changes
   useEffect(() => {
     if (!isOpen) {
