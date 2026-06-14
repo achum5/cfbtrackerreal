@@ -11376,6 +11376,25 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
       }
     })
 
+    // Column P: team-color conditional formatting. Each Commitment cell is tinted
+    // with the committed team's colors — sourced from the dynasty's tid-keyed
+    // teams (getTeamsWithCustom), so the coloring is tid-based, matching by the
+    // team's abbr the cell displays. Open targets ('(Pursuing)') get a neutral
+    // slate so they read as "still being recruited".
+    requests.push({
+      addConditionalFormatRule: {
+        rule: {
+          ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 15, endColumnIndex: 16 }],
+          booleanRule: {
+            condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: '(Pursuing)' }] },
+            format: { backgroundColor: { red: 0.42, green: 0.45, blue: 0.5 }, textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true } },
+          },
+        },
+        index: 0,
+      },
+    })
+    requests.push(...generateTeamFormattingRulesForRange(sheetId, 15, 1, totalRows + 1, dynastyTeams))
+
     // Hidden pid column (round-trip stability for the reconciler — users never touch it).
     requests.push({
       updateDimensionProperties: {
