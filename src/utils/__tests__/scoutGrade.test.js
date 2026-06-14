@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS } from '../scoutGrade'
+import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS, scoutLetter, inferPlayStyle, schemeFits, scoutReport } from '../scoutGrade'
 
 const player = (o) => ({ position: 'QB', archetype: 'Pocket Passer', stars: 4, devTrait: 'Impact', ...o })
 
@@ -68,5 +68,39 @@ describe('scoutGrade — engine', () => {
       expect(key).toMatch(/^[A-Z]+_/)
       expect(Object.values(w).some((v) => v > 0)).toBe(true)
     }
+  })
+
+  it('scoutLetter maps scores to letter grades', () => {
+    expect(scoutLetter(96)).toBe('A+')
+    expect(scoutLetter(90)).toBe('A')
+    expect(scoutLetter(78)).toBe('B')
+    expect(scoutLetter(40)).toBe('F')
+    expect(scoutLetter(null)).toBeNull()
+  })
+
+  it('inferPlayStyle reads pass vs rush yards', () => {
+    const pass = [{ statsByYear: { 2030: { passing: { yds: 4000 }, rushing: { yds: 800 } } } }]
+    const run = [{ statsByYear: { 2030: { passing: { yds: 1000 }, rushing: { yds: 2600 } } } }]
+    expect(inferPlayStyle(pass, 2030)).toBe('pass')
+    expect(inferPlayStyle(run, 2030)).toBe('run')
+    expect(inferPlayStyle([], 2030)).toBe('balanced')
+  })
+
+  it('schemeFits respects archetype tendency and balanced schemes', () => {
+    expect(schemeFits('Pocket Passer', 'pass')).toBe(true)
+    expect(schemeFits('Pure Runner', 'pass')).toBe(false)
+    expect(schemeFits('Pocket Passer', 'balanced')).toBeNull() // everyone fits
+    expect(schemeFits('Lurker', 'pass')).toBeNull() // defensive — n/a
+  })
+
+  it('scoutReport composes a grade + strengths + scheme-fit blurb', () => {
+    const r = scoutReport(player({
+      devTrait: 'Elite', stars: 5,
+      attributes: { 'Throw Power': 92, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 88, Awareness: 85, Speed: 60 },
+    }), 'pass')
+    expect(r).toMatch(/grading out at/)
+    expect(r).toMatch(/pass-heavy scheme/)
+    expect(r).toMatch(/Elite dev trait/)
+    expect(scoutReport(player({ attributes: {} }))).toBeNull()
   })
 })

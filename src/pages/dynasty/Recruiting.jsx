@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useDynasty, getRecruitingCommitments, lookupByTeamYear } from '../../context/DynastyContext'
+import { useDynasty, getRecruitingCommitments, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
+import { inferPlayStyle } from '../../utils/scoutGrade'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getOriginalTeamAbbr, getColorsFromTid } from '../../data/teamRegistry'
@@ -181,6 +182,14 @@ export default function Recruiting() {
     () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
     [currentDynasty?.players, selectedYear],
   )
+
+  // Offensive identity of the class's team (pass/run/balanced) → feeds the
+  // scheme-fit line in each card's generated scouting report.
+  const playStyle = useMemo(() => {
+    const yr = Number(currentDynasty?.currentYear)
+    const roster = (currentDynasty?.players || []).filter(p => isPlayerOnRoster(p, selectedTid, yr, currentDynasty))
+    return inferPlayStyle(roster, yr)
+  }, [currentDynasty?.players, selectedTid, currentDynasty?.currentYear, currentDynasty])
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
@@ -1213,6 +1222,7 @@ export default function Recruiting() {
                 teamsData={teamsData}
                 isAllSeasons={isAllSeasons}
                 interactive={!!linkPid}
+                playStyle={playStyle}
               />
             )
 

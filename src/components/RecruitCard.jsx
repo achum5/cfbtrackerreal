@@ -4,7 +4,7 @@ import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
-import { scoutGrade, scoutLetter } from '../utils/scoutGrade'
+import { scoutGrade, scoutLetter, scoutReport } from '../utils/scoutGrade'
 
 // Madden-style rating color ramp for scouted attribute values.
 const ratingColor = (v) =>
@@ -38,7 +38,7 @@ const stateFullNames = {
   DC: 'Washington, D.C.',
 }
 
-export default function RecruitCard({ recruit, player, bg, text, teamsData, isAllSeasons = false, interactive = false }) {
+export default function RecruitCard({ recruit, player, bg, text, teamsData, isAllSeasons = false, interactive = false, playStyle = 'balanced' }) {
   const teamBgText = text
   const teamAccent = bg
   const teamsSource = teamsData || {}
@@ -49,6 +49,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(recruit.attributes[name]) }))
   const hasAttrs = attrEntries.length > 0
   const grade = scoutGrade(recruit) // { score, tier } — null score when unscouted
+  const report = scoutReport(recruit, playStyle) // generated blurb, null when unscouted
 
   const hometownText = recruit.hometown
     ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
@@ -256,6 +257,11 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </button>
+            {showAttrs && report && (
+              <p className="text-[10px] leading-snug mt-2 text-left" style={{ color: teamBgText, opacity: 0.8 }}>
+                {report}
+              </p>
+            )}
             {showAttrs && (
               <div className="grid grid-cols-3 gap-x-1 gap-y-1.5 mt-2">
                 {attrEntries.map((e) => (
