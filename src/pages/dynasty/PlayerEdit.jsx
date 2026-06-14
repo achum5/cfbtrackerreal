@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useDynasty, getPlayerBoxScoreTotals } from '../../context/DynastyContext'
+import { resolveTargetCommitment, isTargetPlayer } from '../../utils/recruitingTargets'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -411,6 +412,15 @@ export default function PlayerEdit() {
   const initialTab = searchParams.get('tab') || 'profile'
   const [activeTab, setActiveTab] = useState(initialTab)
   const [formData, setFormData] = useState({})
+
+  // Team options for the recruiting-commitment picker (your team listed first).
+  const commitTeamOptions = useMemo(() => {
+    const teams = dynasty?.teams || {}
+    const userTid = Number(dynasty?.currentTid)
+    const opts = Object.entries(teams).map(([tid, t]) => ({ tid: Number(tid), name: t?.name || getMascotName(Number(tid), teams) || `#${tid}` }))
+    opts.sort((a, b) => (a.tid === userTid ? -1 : b.tid === userTid ? 1 : a.name.localeCompare(b.name)))
+    return opts
+  }, [dynasty?.teams, dynasty?.currentTid])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -540,6 +550,9 @@ export default function PlayerEdit() {
       gemBust: player.gemBust || '',
       isPortal: player.isPortal || false,
       previousTeam: player.previousTeam || '',
+      // Recruiting-target commitment (which team they committed to; null = open).
+      // Lets you fix a mis-clicked commitment straight from the editor.
+      commitmentTid: player.commitmentTid ?? null,
       // Normalize classByYear and teamsByYear keys to numbers
       classByYear: Object.entries(player.classByYear || {}).reduce((acc, [k, v]) => {
         acc[parseInt(k)] = v
@@ -847,6 +860,24 @@ export default function PlayerEdit() {
       accolades: (formData.accolades || []).filter(a => a.year && a.award),
       notes: formData.notes,
       isHonorOnly: false,
+    }
+
+    // Recruiting target: apply the (possibly edited) commitment so the board,
+    // status, and enrollment stay consistent — open = no enrollment, committed =
+    // a freshman at the chosen team next season. (The class-score store isn't
+    // synced from here; use Resolve Targets to commit a target to your own team.)
+    if (isTargetPlayer(player)) {
+      const classYear = Number(player.targetYear) || Number(dynasty?.currentYear)
+      const tid = (formData.commitmentTid == null || formData.commitmentTid === '') ? null : Number(formData.commitmentTid)
+      const resolved = resolveTargetCommitment(updatedPlayer, { commitmentTid: tid, classYear, weekKey: player.commitWeekKey })
+      updatedPlayer.commitmentTid = resolved.commitmentTid
+      updatedPlayer.commitWeekKey = resolved.commitWeekKey
+      updatedPlayer.team = resolved.team
+      updatedPlayer.teamsByYear = resolved.teamsByYear
+      updatedPlayer.isRecruit = resolved.isRecruit
+      updatedPlayer.recruitYear = resolved.recruitYear
+      updatedPlayer.targetYear = resolved.targetYear
+      updatedPlayer.isTarget = true
     }
 
     // Update stats for selected year (convert flat form fields back to nested structure).
@@ -2246,6 +2277,29 @@ export default function PlayerEdit() {
               </div>
 
               <div className="p-5 space-y-4">
+                {/* Commitment (recruiting targets only) — fix a mis-clicked
+                    school or reopen a target straight from the editor. */}
+                {isTargetPlayer(player) && (
+                  <div>
+                    <label className="block text-xs font-semibold text-txt-muted uppercase tracking-wide mb-1.5">
+                      Commitment
+                    </label>
+                    <select
+                      value={formData.commitmentTid == null ? '' : String(formData.commitmentTid)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, commitmentTid: e.target.value === '' ? null : Number(e.target.value) }))}
+                      className="w-full px-3 py-2.5 rounded-lg border-2 border-surface-4 focus:border-surface-5 focus:outline-none transition-colors text-txt-primary bg-surface-2"
+                    >
+                      <option value="">Uncommitted</option>
+                      {commitTeamOptions.map(o => (
+                        <option key={o.tid} value={o.tid}>{o.name}{o.tid === Number(dynasty?.currentTid) ? ' (your team)' : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-txt-tertiary mt-1">
+                      Committing enrolls them as a freshman at that school next season. Use “Resolve Targets” to commit to your own team so it counts in your class score.
+                    </p>
+                  </div>
+                )}
+
                 {/* Stars and Rankings Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
