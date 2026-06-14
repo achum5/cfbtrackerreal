@@ -119,3 +119,23 @@ export function mapAttributeColumns(values, position, archetype) {
   }
   return Object.keys(out).length ? out : null
 }
+
+// Short, CFB-standard abbreviations for the sheet column headers (the named
+// attribute columns are narrow; full names truncate). Display-only — the reader
+// maps attribute columns by POSITION in ATTRIBUTE_COLUMNS, not by header text,
+// so these never affect parsing. Full name rides along as a header cell note.
+export const ATTRIBUTE_ABBR = {
+  'Awareness': 'AWR', 'Speed': 'SPD', 'Acceleration': 'ACC', 'Strength': 'STR',
+  'Agility': 'AGI', 'Change of Direction': 'COD',
+  'Throw Power': 'THP', 'Short Accuracy': 'SAC', 'Medium Accuracy': 'MAC',
+  'Deep Accuracy': 'DAC', 'Throw On Run': 'TOR', 'Under Pressure': 'TUP', 'Break Sack': 'BSK',
+  'Carrying': 'CAR', 'Break Tackle': 'BTK', 'Juke Move': 'JKM', 'Spin Move': 'SPM', 'BC Vision': 'BCV',
+  'Catching': 'CTH', 'Catch In Traffic': 'CIT', 'Spectacular Catch': 'SPC',
+  'Short Route': 'SRR', 'Medium Route': 'MRR', 'Deep Route': 'DRR', 'Release': 'RLS',
+  'Run Block': 'RBK', 'Run Block Power': 'RBP', 'Run Block Finesse': 'RBF',
+  'Pass Block': 'PBK', 'Pass Block Power': 'PBP', 'Pass Block Finesse': 'PBF', 'Impact Blocking': 'IBL',
+  'Block Shedding': 'BSH', 'Tackle': 'TAK', 'Hit Power': 'POW', 'Power Moves': 'PMV',
+  'Finesse Moves': 'FMV', 'Pursuit': 'PUR', 'Play Recognition': 'PRC',
+  'Man Coverage': 'MCV', 'Zone Coverage': 'ZCV', 'Press': 'PRS',
+  'Kick Power': 'KPW', 'Kick Accuracy': 'KAC', 'Punt Power': 'PPW', 'Punt Accuracy': 'PAC',
+}
