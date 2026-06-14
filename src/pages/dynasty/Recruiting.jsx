@@ -138,12 +138,9 @@ export default function Recruiting() {
   const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
   const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
 
-  // In-app target resolution (Phase 4).
+  // In-app target resolution (Phase 4). openTargets is defined below, once
+  // selectedYear exists.
   const [showResolveModal, setShowResolveModal] = useState(false)
-  const openTargets = useMemo(
-    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
-    [currentDynasty?.players, selectedYear],
-  )
 
   // stars: ?stars=<n> (single tier) ; absent = All. Memoized so the array
   // identity is stable across renders (it feeds a useMemo dep below).
@@ -177,6 +174,12 @@ export default function Recruiting() {
   const team = baseTeam ? { ...baseTeam, ...dynastyTeam } : dynastyTeam
   const teamAbbr = team?.abbr || baseTeam?.abbr || currentTeamAbbr
   const selectedYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : currentDynasty?.currentYear)
+
+  // Open targets for this class — drives the "Resolve Targets" action + modal.
+  const openTargets = useMemo(
+    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
+    [currentDynasty?.players, selectedYear],
+  )
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
