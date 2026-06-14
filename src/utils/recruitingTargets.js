@@ -25,7 +25,7 @@ import { getTidFromTeamName, resolveTid } from '../data/teamRegistry'
 // Sentinel the Targets sheet/prompt uses in the Commitment column for an
 // uncommitted prospect. Blank is reserved for "committed to your team" so the
 // commit-only (today's) flow is unchanged.
-export const PURSUING = '(Pursuing)'
+export const PURSUING = 'Uncommitted'
 
 const CLASS_TO_YEAR = {
   HS: 'Fr', 'JUCO Fr': 'So', 'JUCO So': 'Jr', 'JUCO Jr': 'Sr',
@@ -53,14 +53,14 @@ export function resolveCommittedTid(text, dynastyTeams = null) {
 
 // Classify a Commitment cell into { status, commitmentTid }:
 //   ''            → committed to YOU      (back-compat: today's sheet has no col)
-//   '(Pursuing)'  → open target
+//   'Uncommitted' → open target (also accepts legacy 'Pursuing'/'(Pursuing)')
 //   team text/tid → committed there (resolved tid)
 //   unresolvable  → 'unresolved' (kept open; UI should surface a picker)
 export function classifyCommitment(cell, userTid, dynastyTeams = null) {
   const s = (cell == null ? '' : String(cell)).trim()
   if (s === '') return { status: 'committed', commitmentTid: Number(userTid) }
   const low = s.toLowerCase()
-  if (low === PURSUING.toLowerCase() || low === 'pursuing') {
+  if (low === PURSUING.toLowerCase() || low === 'pursuing' || low === '(pursuing)') {
     return { status: 'open', commitmentTid: null }
   }
   const tid = resolveCommittedTid(s, dynastyTeams)

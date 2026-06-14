@@ -78,7 +78,7 @@ export default function RecruitingCommitmentsModal({
     for (const p of players) {
       if (!p?.isTarget || Number(p.targetYear) !== Number(currentYear)) continue
       const commitment = p.commitmentTid == null
-        ? '(Pursuing)'
+        ? 'Uncommitted'
         : (Number(p.commitmentTid) === userTid ? userAbbr : abbrOf(p.commitmentTid))
       byPid.set(p.pid, {
         name: p.name, class: p.class, position: p.position, archetype: p.archetype,
@@ -256,7 +256,7 @@ COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first em
  K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
  N Dev Trait  | Elite, Star, Impact, Normal
  O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
- P Commitment | "(Pursuing)" if uncommitted/still being recruited; otherwise the team ABBR they committed to (use YOUR team's abbr if they committed to you). Use ONLY abbreviations from the team mapping below.
+ P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team ABBR they committed to (use YOUR team's abbr if they committed to you). Use ONLY abbreviations from the team mapping below.
 
 ═══════════════════════════════════════════════════════════
 ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
@@ -293,11 +293,11 @@ FINAL CHECK
 [ ] Board rows have exactly 16 tab-separated fields (15 tabs); fully-scouted rows have 16 + ${ATTR_N} fields
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
-[ ] Column P is "(Pursuing)" or a team abbreviation
+[ ] Column P is "Uncommitted" or a team abbreviation
 [ ] Attributes filled ONLY from a player-page Attributes tab; blank when not scouted; pid column never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-    notes: 'Column P (Commitment): "(Pursuing)" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',
+    notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',
   }), [currentYear, recruitingLabel, currentDynasty?.teams, ATTR_N, startRow, prefillRecruits])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)

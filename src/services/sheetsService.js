@@ -11364,13 +11364,13 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     })
 
     // Column P: Commitment dropdown (Targets). Blank = committed to your team
-    // (today's behavior), '(Pursuing)' = open target, a team abbr = committed
+    // (today's behavior), 'Uncommitted' = open target, a team abbr = committed
     // there. Not strict, so the AI/user can still type a team if needed.
     requests.push({
       setDataValidation: {
         range: { sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 15, endColumnIndex: 16 },
         rule: {
-          condition: { type: 'ONE_OF_LIST', values: ['', '(Pursuing)', ...teamAbbrs].map(v => ({ userEnteredValue: v })) },
+          condition: { type: 'ONE_OF_LIST', values: ['', 'Uncommitted', ...teamAbbrs].map(v => ({ userEnteredValue: v })) },
           showCustomUi: true, strict: false
         }
       }
@@ -11379,14 +11379,14 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     // Column P: team-color conditional formatting. Each Commitment cell is tinted
     // with the committed team's colors — sourced from the dynasty's tid-keyed
     // teams (getTeamsWithCustom), so the coloring is tid-based, matching by the
-    // team's abbr the cell displays. Open targets ('(Pursuing)') get a neutral
+    // team's abbr the cell displays. Open targets ('Uncommitted') get a neutral
     // slate so they read as "still being recruited".
     requests.push({
       addConditionalFormatRule: {
         rule: {
           ranges: [{ sheetId, startRowIndex: 1, endRowIndex: totalRows + 1, startColumnIndex: 15, endColumnIndex: 16 }],
           booleanRule: {
-            condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: '(Pursuing)' }] },
+            condition: { type: 'TEXT_EQ', values: [{ userEnteredValue: 'Uncommitted' }] },
             format: { backgroundColor: { red: 0.42, green: 0.45, blue: 0.5 }, textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true } },
           },
         },

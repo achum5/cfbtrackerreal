@@ -62,7 +62,7 @@ export default function RecruitingTargetsTab({ dynasty, year, userTid, pathPrefi
       <Card>
         <EmptyState
           title="No Targets Tracked Yet"
-          message='Open the recruiting sheet (Edit) and use the "Targets + Attributes" prompt to track prospects you are recruiting — set their Commitment to "(Pursuing)" and they show up here.'
+          message='Open the recruiting sheet (Edit) and use the "Targets + Attributes" prompt to track prospects you are recruiting — set their Commitment to "Uncommitted" and they show up here.'
         />
       </Card>
     )

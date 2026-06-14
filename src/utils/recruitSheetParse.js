@@ -4,7 +4,7 @@
 // without the Google Sheets API. Columns A–O (0–14) are the EXISTING commitment
 // fields and are parsed identically to the legacy reader — a legacy commitments
 // sheet (no P+) round-trips byte-for-byte. The Targets feature appends:
-//   P  (15)                 Commitment  — '' = your team, '(Pursuing)' = open, team = there
+//   P  (15)                 Commitment  — '' = your team, 'Uncommitted' = open, team = there
 //   Q.. (16 … 16+N-1)       one column per NAMED attribute (ATTRIBUTE_COLUMNS order)
 //   next col                pid         — hidden, for stable pid-first reconciliation
 //
