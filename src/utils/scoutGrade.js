@@ -315,20 +315,28 @@ const ATTR_BLURB = {
   'Kick Power': 'leg strength', 'Kick Accuracy': 'kicking accuracy', 'Punt Power': 'punt leg', 'Punt Accuracy': 'punt placement',
 }
 const blurb = (name) => ATTR_BLURB[name] || String(name).toLowerCase()
-const gradeWord = (v) => (v >= 92 ? 'elite' : v >= 85 ? 'plus' : v >= 78 ? 'solid' : v >= 70 ? 'average' : 'below-average')
+// How a single attribute value reads as a tier word.
+const gradeWord = (v) => (v >= 92 ? 'elite' : v >= 86 ? 'plus' : v >= 80 ? 'solid' : v >= 73 ? 'average' : v >= 65 ? 'fringe' : 'poor')
+// Role projection from the overall grade — one clean clause, no value judgment
+// (the tier word and bottom line carry that, so nothing repeats).
 const role = (s) =>
-  s >= 90 ? 'a Day-One impact starter and a cornerstone to build around'
-  : s >= 83 ? 'an early contributor who should push for a starting job as a freshman'
-  : s >= 76 ? 'a rotational piece with the upside to start once he develops'
-  : s >= 68 ? 'a developmental addition who needs a year or two in the program'
-  : 'a long-term project — a bet on traits over present polish'
+  s >= 90 ? 'an immediate-impact starter'
+  : s >= 83 ? 'an early contributor who should compete to start as a freshman'
+  : s >= 76 ? 'a rotational piece with starter upside as he develops'
+  : s >= 68 ? 'a multi-year developmental project'
+  : 'a long-term, traits-based projection'
 
 const lc = (s) => String(s || '').toLowerCase()
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+// "a" / "an" for a letter grade said aloud (A, F start with a vowel sound).
+const gradeArticle = (letter) => (/^[AaFf]/.test(letter || '') ? 'an' : 'a')
 function listPhrase(xs) {
   if (xs.length <= 1) return xs[0] || ''
   if (xs.length === 2) return `${xs[0]} and ${xs[1]}`
   return `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`
 }
+// "trait (value)" — the standard way ratings are laid out in the prose.
+const rated = (name, value) => `${blurb(name)} (${value})`
 
 /**
  * A structured scouting dossier — an array of { group, label, body } sentences,
@@ -347,95 +355,118 @@ export function scoutDossier(player, playStyle = 'balanced', depth = null) {
   const { score, tier, letter, factors, hasDev } = bd
   const attrs = player.attributes || {}
   const arch = (player.archetype || '').replace(/^ATH\s*-\s*/i, '').replace(/\s*\([A-Z]+\)\s*$/, '').trim()
-  const archPhrase = arch ? `${lc(arch)} ${player.position}` : (player.position || 'prospect')
+  const posLabel = player.position || 'prospect'
+  const archPhrase = arch ? `${lc(arch)} ${posLabel}` : posLabel
   const stars = parseInt(player.stars, 10) || 3
   const out = []
+  // Every attribute is named at most once across the whole write-up.
+  const used = new Set()
 
-  // Projection
+  // ── OVERVIEW ───────────────────────────────────────────────────────────────
+  // Projection — identity, role, and the letter grade (no numeric overall).
   out.push({
     group: 'overview', label: 'Projection',
-    body: `${TIER_WORD[tier.key]} ${archPhrase} who projects as ${role(score)}. He grades out at ${letter} (${score} overall) against the demands of the ${arch || player.position || 'position'} archetype.`,
+    body: `${TIER_WORD[tier.key]} ${archPhrase} who profiles as ${role(score)}, earning ${gradeArticle(letter)} ${letter} on our board.`,
   })
 
-  // Strengths
-  const strong = factors.filter((f) => f.value >= 80).slice(0, 4)
+  // Strengths — lead with the single best trait, then the supporting cast. No
+  // attribute is repeated; each is cited once with its rating.
+  const strong = factors.filter((f) => f.value >= 80)
   if (strong.length) {
-    const phrases = strong.map((f) => `${gradeWord(f.value)} ${blurb(f.name)} (${f.value})`)
     const best = strong[0]
+    used.add(best.name)
+    const rest = strong.slice(1, 4).filter((f) => { used.add(f.name); return true })
+    const lead = `His calling card is ${gradeWord(best.value)} ${rated(best.name, best.value)}`
     out.push({
       group: 'overview', label: 'Strengths',
-      body: `His game is built on ${listPhrase(phrases)}. His ${blurb(best.name)} is the trait scouts trust most to translate at the next level.`,
+      body: rest.length
+        ? `${lead}, and he backs it with ${listPhrase(rest.map((f) => rated(f.name, f.value)))}.`
+        : `${lead} — the one trait scouts most trust to translate.`,
     })
   } else {
     const top = factors.slice(0, 2)
+    top.forEach((f) => used.add(f.name))
     out.push({
       group: 'overview', label: 'Strengths',
       body: top.length
-        ? `Nothing grades as a true plus yet — his best marks are ${listPhrase(top.map((f) => `${blurb(f.name)} (${f.value})`))}, more steady than special.`
-        : 'No standout traits have been scouted yet.',
+        ? `Nothing grades as a true plus yet; his steadiest marks are ${listPhrase(top.map((f) => rated(f.name, f.value)))}.`
+        : 'He has not been scouted enough to flag a standout trait.',
     })
   }
 
-  // Areas to develop
-  const gaps = factors.filter((f) => f.weight >= 5 && f.value < 75).sort((a, b) => a.value - b.value).slice(0, 3)
-  out.push({
-    group: 'overview', label: 'Areas to develop',
-    body: gaps.length
-      ? `He'll need to clean up ${listPhrase(gaps.map((g) => `${blurb(g.name)} (${g.value})`))} to hit his ceiling${gaps.some((g) => g.value < 65) ? ' — those grade as real question marks right now.' : '.'}`
-      : 'There are no obvious holes in his profile for the position — the scouted marks come back clean across the board.',
-  })
-
-  // Physical profile
-  const size = [player.height, player.weight ? `${player.weight} lbs` : null].filter(Boolean).join(', ')
-  const spd = Number(attrs.Speed)
-  const str = Number(attrs.Strength)
-  const physBits = []
-  if (Number.isFinite(spd)) physBits.push(`${gradeWord(spd)} timed speed (${spd})`)
-  if (Number.isFinite(str)) physBits.push(`${gradeWord(str)} play strength (${str})`)
-  if (size || physBits.length) {
+  // Areas to develop — only the archetype-defining attributes that grade low,
+  // and only ones not already cited as strengths.
+  const gaps = factors
+    .filter((f) => f.weight >= 5 && f.value < 73 && !used.has(f.name))
+    .sort((a, b) => a.value - b.value).slice(0, 3)
+  gaps.forEach((g) => used.add(g.name))
+  if (gaps.length) {
+    const severe = gaps.some((g) => g.value < 63)
     out.push({
-      group: 'fit', label: 'Physical profile',
-      body: `${size ? `Measures in at ${size}. ` : ''}${physBits.length ? `${size ? 'He shows ' : 'Shows '}${listPhrase(physBits)}.` : ''}`.trim(),
+      group: 'overview', label: 'Areas to develop',
+      body: `The questions center on ${listPhrase(gaps.map((g) => rated(g.name, g.value)))}${severe ? ' — real holes he must close to reach the projection.' : ', which he will need to firm up to hit his ceiling.'}`,
+    })
+  } else {
+    out.push({
+      group: 'overview', label: 'Areas to develop',
+      body: 'There is no glaring hole in his game for the position — his defining marks all grade cleanly.',
     })
   }
 
-  // Scheme fit
+  // ── FIT ──────────────────────────────────────────────────────────────────
+  // Measurables — frame plus any physical tool not already named above.
+  const size = [player.height, player.weight ? `${player.weight} lbs` : null].filter(Boolean).join(', ')
+  const physBits = ['Speed', 'Acceleration', 'Strength', 'Agility', 'Change of Direction']
+    .filter((k) => Number.isFinite(Number(attrs[k])) && !used.has(k))
+    .map((k) => { used.add(k); return `${gradeWord(Number(attrs[k]))} ${rated(k, Number(attrs[k]))}` })
+  if (size || physBits.length) {
+    let body
+    if (size && physBits.length) body = `He checks in at ${size}, and the testing profile adds ${listPhrase(physBits)}.`
+    else if (size) body = `He checks in at ${size}.`
+    else body = `${cap(listPhrase(physBits))} headline${physBits.length === 1 ? 's' : ''} his physical profile.`
+    out.push({ group: 'fit', label: 'Measurables', body })
+  }
+
+  // Scheme fit — only when his archetype actually leans one way and your offense
+  // has an identity (balanced/defensive archetypes contribute nothing here).
   const fit = schemeFits(player.archetype, playStyle)
   const scheme = playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'
   if (fit === true) {
-    out.push({ group: 'fit', label: 'Scheme fit', body: `His skill set is a clean fit for your ${scheme} offense — the archetype is exactly what that scheme asks for.` })
+    out.push({ group: 'fit', label: 'Scheme fit', body: `Schematically he is a clean fit — the archetype is exactly what your ${scheme} offense asks for.` })
   } else if (fit === false) {
-    out.push({ group: 'fit', label: 'Scheme fit', body: `He's a scheme-stretch for your ${scheme} identity; you'd be adapting to his strengths rather than dropping him into a defined role.` })
+    out.push({ group: 'fit', label: 'Scheme fit', body: `Schematically he is a stretch for your ${scheme} offense; you would be tailoring usage to his strengths rather than plugging him into a defined role.` })
   }
 
-  // Depth-chart fit — compares against your ACTUAL returning depth next season.
+  // Depth-chart fit — against your ACTUAL returning headcount next season.
   if (depth && Number.isFinite(depth.returning)) {
-    const g = depth.group || player.position || 'the position'
+    const g = depth.group || posLabel
     const n = depth.returning
     const rank = depth.rank ?? 0
     let body
-    if (n <= 0) body = `You return nobody at ${g} next season, so he'd have a clear runway to early playing time.`
-    else if (rank >= 2) body = `You return just ${n} at ${g} next season — short of a full starting group — so he'd push into the two-deep right away.`
-    else if (rank === 1) body = `You return ${n} at ${g} next season, thin depth, so he'd add a needed body to the rotation.`
-    else body = `You return a stocked ${n} at ${g} next season, so he'd likely develop behind an established room before pushing for snaps.`
+    if (n <= 0) body = `With nobody returning at ${g} next season, he would have a clear runway to early snaps.`
+    else if (rank >= 2) body = `You return just ${n} at ${g} next season — short of a full starting group — so he would push into the two-deep immediately.`
+    else if (rank === 1) body = `You return ${n} at ${g} next season, thin depth, so he would add a needed body to the rotation.`
+    else body = `You are stocked at ${g} with ${n} returning next season, so he would likely develop behind an established room before earning snaps.`
     out.push({ group: 'fit', label: 'Depth-chart fit', body })
   }
 
-  // Development outlook
+  // ── VERDICT ────────────────────────────────────────────────────────────────
+  // Development outlook — the dev trait, or an honest note when it is still hidden.
   out.push({
     group: 'verdict', label: 'Development outlook',
     body: hasDev
-      ? `${DEV_LINE[player.devTrait]}`
-      : `His dev trait isn't visible yet — common before signing day — so the grade leans on his ${stars}-star billing and projects his growth conservatively. A hidden Impact-or-better trait would push this projection up.`,
+      ? DEV_LINE[player.devTrait]
+      : `His dev trait is not yet visible — typical before signing day — so this grade leans on his ${stars}-star billing and projects his growth conservatively; a hidden Impact-or-better trait would raise it.`,
   })
 
-  // Bottom line
+  // Bottom line — a recruiting recommendation, tied to grade and distinct from
+  // the role projection so it never restates it.
   out.push({
     group: 'verdict', label: 'Bottom line',
-    body: score >= 88 ? 'Bottom line: a priority target worth a hard push — he can change the trajectory of your roster.'
-      : score >= 81 ? 'Bottom line: a high-value get who should pay off early in his career.'
-      : score >= 74 ? 'Bottom line: a worthwhile addition with starter upside if the development hits.'
-      : 'Bottom line: a depth-and-upside swing — worth a scholarship if the board thins, but not over a higher-graded option.',
+    body: score >= 88 ? 'Bottom line: a priority target — recruit him like a difference-maker.'
+      : score >= 81 ? 'Bottom line: a high-value get worth real resources on the trail.'
+      : score >= 74 ? 'Bottom line: a solid addition worth a scholarship if he fits the class plan.'
+      : 'Bottom line: a developmental flier — worth a late spot if the board thins.',
   })
 
   return out

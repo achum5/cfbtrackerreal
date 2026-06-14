@@ -109,11 +109,10 @@ function Row({ r, rank, pathPrefix, playStyle }) {
           </div>
         </div>
 
-        <div className="text-right flex-shrink-0 w-10">
-          <div className="tabular-nums font-display leading-none text-txt-primary" style={{ fontSize: '1.4rem', fontWeight: 800 }} title={tier ? tier.label : 'Unscouted'}>
-            {score ?? '—'}
+        <div className="text-right flex-shrink-0 w-12">
+          <div className="font-display leading-none text-txt-primary" style={{ fontSize: '1.55rem', fontWeight: 800 }} title={tier ? tier.label : 'Unscouted'}>
+            {score != null ? scoutLetter(score) : '—'}
           </div>
-          {score != null && <div className="text-[9px] font-bold uppercase tracking-wide mt-0.5 text-txt-tertiary">{scoutLetter(score)}</div>}
         </div>
 
         <Chevron open={open} />
@@ -229,7 +228,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     const roster = (dynasty?.players || []).filter((p) => isPlayerOnRoster(p, userTid, currentYear, dynasty))
     return inferPlayStyle(roster, currentYear)
   }, [dynasty?.players, userTid, currentYear, dynasty])
-  const schemeLabel = playStyle === 'pass' ? 'Pass-heavy' : playStyle === 'run' ? 'Run-heavy' : 'Balanced'
 
   const ranked = useMemo(() => {
     const rows = []
@@ -257,7 +255,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     () => Object.values(needsByGroup).sort((a, b) => b.need.rank - a.need.rank || a.group.localeCompare(b.group)),
     [needsByGroup],
   )
-  const thinCount = needGroups.filter((g) => g.need.rank > 0).length
 
   if (ranked.length === 0) {
     return (
@@ -280,13 +277,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
             onClick={() => setNeedsOpen((o) => !o)}
             className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 hover:bg-surface-2 transition-colors text-left"
           >
-            <div className="flex items-baseline gap-2 min-w-0">
-              <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Returning next season</span>
-              <span className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Roster Needs</span>
-              {thinCount > 0 && (
-                <span className="text-[11px] text-txt-tertiary tabular-nums">{thinCount} thin</span>
-              )}
-            </div>
+            <span className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Roster Needs</span>
             <Chevron open={needsOpen} />
           </button>
           {needsOpen && (
@@ -308,12 +299,9 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       {/* Big board */}
       <section className="media-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
-          <div>
-            <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>{schemeLabel} scheme · {ranked.length} target{ranked.length === 1 ? '' : 's'}</div>
-            <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
-          </div>
+          <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
           {onResolveTargets && (
-            <Button variant="secondary" size="sm" onClick={onResolveTargets}>Commits ({resolveCount})</Button>
+            <Button variant="secondary" size="sm" onClick={onResolveTargets}>New commits? ({resolveCount})</Button>
           )}
         </div>
         <div>

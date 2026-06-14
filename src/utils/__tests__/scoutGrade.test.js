@@ -98,7 +98,7 @@ describe('scoutGrade — engine', () => {
       devTrait: 'Elite', stars: 5,
       attributes: { 'Throw Power': 92, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 88, Awareness: 85, Speed: 60 },
     }), 'pass')
-    expect(r).toMatch(/grades out at/)
+    expect(r).toMatch(/on our board/)
     expect(r).toMatch(/pass-heavy offense/)
     expect(r).toMatch(/Elite dev trait/)
     expect(scoutReport(player({ attributes: {} }))).toBeNull()
@@ -123,12 +123,27 @@ describe('scoutGrade — engine', () => {
     })
     const d = scoutDossier(p, 'pass', { group: 'QB', returning: 0, rank: 2 })
     expect(d.some((s) => s.label === 'Depth-chart fit')).toBe(true)
-    expect(d.find((s) => s.label === 'Depth-chart fit').body).toMatch(/nobody at QB/)
+    expect(d.find((s) => s.label === 'Depth-chart fit').body).toMatch(/nobody returning at QB/)
     const paras = dossierParagraphs(d)
     expect(paras.length).toBe(3) // overview / fit / verdict
     expect(paras.join(' ')).toMatch(/clear runway/)
     // No depth context → no depth line
     expect(scoutDossier(p, 'pass').some((s) => s.label === 'Depth-chart fit')).toBe(false)
+  })
+
+  it('never names the same attribute twice (e.g. Speed as both strength and measurable)', () => {
+    // WR Speedster weights Speed heavily, and Speed is also a physical tool —
+    // the report must cite "top-end speed" exactly once.
+    const wr = {
+      position: 'WR', archetype: 'Speedster', stars: 4, devTrait: 'Impact',
+      height: "6'1\"", weight: 195,
+      attributes: { Speed: 96, Acceleration: 93, 'Deep Route': 88, Catching: 84, 'Short Route': 70, Strength: 62 },
+    }
+    const report = scoutReport(wr, 'pass', { group: 'WR', returning: 3, rank: 1 })
+    const speedHits = (report.match(/top-end speed/g) || []).length
+    expect(speedHits).toBe(1)
+    // The flat numeric overall (e.g. "(84 overall)") must not appear — letter only.
+    expect(report).not.toMatch(/overall\)/)
   })
 
   it('gradeBreakdown parts sum to the published score', () => {
