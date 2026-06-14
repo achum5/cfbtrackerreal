@@ -13,8 +13,9 @@ import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClass
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
-import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
+import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import RecruitingTargetsTab from './RecruitingTargetsTab'
+import TargetResolutionModal from '../../components/TargetResolutionModal'
 
 const stateFullNames = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -136,6 +137,13 @@ export default function Recruiting() {
   // Commitments / Targets tab (persisted in the URL like the other filters).
   const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
   const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
+
+  // In-app target resolution (Phase 4).
+  const [showResolveModal, setShowResolveModal] = useState(false)
+  const openTargets = useMemo(
+    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
+    [currentDynasty?.players, selectedYear],
+  )
 
   // stars: ?stars=<n> (single tier) ; absent = All. Memoized so the array
   // identity is stable across renders (it feeds a useMemo dep below).
@@ -477,6 +485,57 @@ export default function Recruiting() {
         [selectedYear]: commitmentData
       },
       ...(selectedTid ? { [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData } } : {})
+    }
+
+    await updateDynasty(currentDynasty.id, updates)
+  }
+
+  // In-app target resolution (Phase 4). `resolutions` is { pid: commitmentTid }.
+  // Flips each target's player record with the SAME field-setting the sheet
+  // reconciler uses (resolveTargetCommitment → applyStatus), then — for any that
+  // committed to US — appends to recruitingCommitments so the class score counts
+  // them (M1: open / elsewhere targets never touch that store).
+  const handleResolveTargets = async (resolutions) => {
+    if (isViewOnly || !currentDynasty) return
+    const ids = Object.keys(resolutions || {})
+    if (!ids.length) return
+
+    const players = currentDynasty.players || []
+    const committedToUs = []
+    const newPlayers = players.map((p) => {
+      const tid = resolutions[p.pid]
+      if (tid == null) return p
+      const classYear = Number(p.targetYear) || Number(selectedYear)
+      const updated = resolveTargetCommitment(p, { commitmentTid: Number(tid), classYear, weekKey: null })
+      if (Number(tid) === Number(selectedTid)) committedToUs.push(buildCommitmentRecord(updated))
+      return updated
+    })
+
+    const updates = { players: newPlayers }
+
+    if (committedToUs.length && selectedTid && currentDynasty.teams) {
+      const existingTeams = currentDynasty.teams
+      const existingTeamData = existingTeams[selectedTid] || {}
+      const existingByYear = existingTeamData.byYear || {}
+      const existingYearData = existingByYear[selectedYear] || {}
+      const prevEdit = existingYearData.recruitingCommitments?.edit || []
+      const prevPids = new Set(prevEdit.map((c) => c.pid))
+      const merged = [...prevEdit, ...committedToUs.filter((c) => !prevPids.has(c.pid))]
+      const commitmentData = { edit: merged }
+
+      updates.teams = {
+        ...existingTeams,
+        [selectedTid]: {
+          ...existingTeamData,
+          byYear: { ...existingByYear, [selectedYear]: { ...existingYearData, recruitingCommitments: commitmentData } },
+        },
+      }
+      const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
+      updates.recruitingCommitmentsByTeamYear = {
+        ...existingByTeamYear,
+        [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [selectedYear]: commitmentData },
+        [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData },
+      }
     }
 
     await updateDynasty(currentDynasty.id, updates)
@@ -1437,8 +1496,26 @@ export default function Recruiting() {
         </Card>
         )
       ) : (
-        <RecruitingTargetsTab dynasty={currentDynasty} year={selectedYear} userTid={selectedTid} pathPrefix={pathPrefix} />
+        <>
+          {!isViewOnly && openTargets.length > 0 && (
+            <div className="flex justify-end mb-3">
+              <Button variant="secondary" size="sm" onClick={() => setShowResolveModal(true)}>
+                Resolve Targets ({openTargets.length})
+              </Button>
+            </div>
+          )}
+          <RecruitingTargetsTab dynasty={currentDynasty} year={selectedYear} userTid={selectedTid} pathPrefix={pathPrefix} />
+        </>
       )}
+
+      <TargetResolutionModal
+        isOpen={showResolveModal}
+        onClose={() => setShowResolveModal(false)}
+        targets={openTargets}
+        dynastyTeams={currentDynasty?.teams}
+        userTid={selectedTid}
+        onResolve={handleResolveTargets}
+      />
 
       <RecruitingCommitmentsModal
         isOpen={showEditModal}

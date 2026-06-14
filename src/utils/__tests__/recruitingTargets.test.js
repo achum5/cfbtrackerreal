@@ -5,6 +5,8 @@ import {
   classifyCommitment,
   isOpenTarget,
   getTargetStatus,
+  resolveTargetCommitment,
+  buildCommitmentRecord,
   PURSUING,
 } from '../recruitingTargets'
 
@@ -177,5 +179,49 @@ describe('reconcile — attributes', () => {
     // a row with no attributes keeps what was already captured
     const third = run([row({ pid, commitment: PURSUING })], second).players
     expect(third[0].attributes).toEqual({ 'Throw Power': 88, Awareness: 70 })
+  })
+})
+
+describe('resolveTargetCommitment — in-app resolution (Phase 4)', () => {
+  const openTarget = {
+    pid: 7, name: 'John Smith', position: 'QB', stars: 4,
+    isTarget: true, targetYear: YEAR, team: -1, commitmentTid: null, teamsByYear: {},
+  }
+
+  it('commits an open target to my team → enrolls next season + isRecruit', () => {
+    const r = resolveTargetCommitment(openTarget, { commitmentTid: USER, classYear: YEAR })
+    expect(r.commitmentTid).toBe(USER)
+    expect(r.team).toBe(USER)
+    expect(r.teamsByYear).toEqual({ [YEAR + 1]: USER })
+    expect(r.isRecruit).toBe(true)
+    expect(r.isTarget).toBe(true) // stays on the board
+    expect(getTargetStatus(r, USER)).toBe('committed_us')
+    expect(isOpenTarget(r)).toBe(false)
+  })
+
+  it('commits a target elsewhere → enrolls at the other tid, no your-team artifacts', () => {
+    const r = resolveTargetCommitment(openTarget, { commitmentTid: 42, classYear: YEAR })
+    expect(r.commitmentTid).toBe(42)
+    expect(r.teamsByYear).toEqual({ [YEAR + 1]: 42 })
+    expect(getTargetStatus(r, USER)).toBe('committed_elsewhere')
+  })
+
+  it('reopening a committed target clears the enrollment', () => {
+    const committed = resolveTargetCommitment(openTarget, { commitmentTid: USER, classYear: YEAR })
+    const reopened = resolveTargetCommitment(committed, { commitmentTid: null, classYear: YEAR })
+    expect(reopened.commitmentTid).toBeNull()
+    expect(reopened.teamsByYear).toEqual({})
+    expect(reopened.isRecruit).toBe(false)
+    expect(isOpenTarget(reopened)).toBe(true)
+  })
+
+  it('buildCommitmentRecord yields the recruitingCommitments shape (no team fields)', () => {
+    const r = resolveTargetCommitment(openTarget, { commitmentTid: USER, classYear: YEAR })
+    const rec = buildCommitmentRecord(r)
+    expect(rec.pid).toBe(7)
+    expect(rec.name).toBe('John Smith')
+    expect(rec.position).toBe('QB')
+    expect(rec).not.toHaveProperty('teamsByYear')
+    expect(rec).not.toHaveProperty('commitmentTid')
   })
 })

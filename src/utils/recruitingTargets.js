@@ -154,6 +154,19 @@ function applyStatus(record, { status, commitmentTid, classYear, weekKey }) {
   return r
 }
 
+// Public: apply a resolution to a SINGLE target player record (the in-app
+// resolution modal, §5). Mirrors exactly what the reconciler does per row, so
+// the two entry paths stay interchangeable. `commitmentTid == null` reopens it.
+export function resolveTargetCommitment(player, { commitmentTid, classYear, weekKey = null } = {}) {
+  const status = commitmentTid == null ? 'open' : 'committed'
+  return applyStatus(player, { status, commitmentTid, classYear: Number(classYear), weekKey })
+}
+
+// Public wrapper: the recruitingCommitments record for a committed-to-you target.
+export function buildCommitmentRecord(player) {
+  return toCommitmentRecord(player)
+}
+
 // The shape stored in recruitingCommitments for a committed-to-you record (M1).
 function toCommitmentRecord(p) {
   return {
