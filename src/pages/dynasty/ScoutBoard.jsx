@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Card, EmptyState } from '../../components/ui'
+import { Card, EmptyState, Button } from '../../components/ui'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
@@ -100,7 +100,7 @@ function Row({ r, rank, pathPrefix }) {
   )
 }
 
-export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
+export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
   const currentYear = Number(dynasty?.currentYear)
 
@@ -190,12 +190,14 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
 
       {/* Big board */}
       <section className="media-card overflow-hidden">
-        <div className="px-4 sm:px-5 py-3 flex items-end justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
+        <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
           <div>
-            <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Ranked by scout grade</div>
+            <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Ranked by scout grade · {ranked.length} target{ranked.length === 1 ? '' : 's'}</div>
             <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
           </div>
-          <span className="text-[11px] tabular-nums text-txt-tertiary">{ranked.length} target{ranked.length === 1 ? '' : 's'}</span>
+          {onResolveTargets && (
+            <Button variant="secondary" size="sm" onClick={onResolveTargets}>Resolve ({resolveCount})</Button>
+          )}
         </div>
         <div>
           {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} />)}

@@ -1237,16 +1237,14 @@ export default function Recruiting() {
         </Card>
         )
       ) : (
-        <>
-          {!isViewOnly && openTargets.length > 0 && (
-            <div className="flex justify-end mb-3">
-              <Button variant="secondary" size="sm" onClick={() => setShowResolveModal(true)}>
-                Resolve Targets ({openTargets.length})
-              </Button>
-            </div>
-          )}
-          <ScoutBoard dynasty={currentDynasty} year={selectedYear} userTid={selectedTid} pathPrefix={pathPrefix} />
-        </>
+        <ScoutBoard
+          dynasty={currentDynasty}
+          year={selectedYear}
+          userTid={selectedTid}
+          pathPrefix={pathPrefix}
+          onResolveTargets={!isViewOnly && openTargets.length > 0 ? () => setShowResolveModal(true) : null}
+          resolveCount={openTargets.length}
+        />
       )}
 
       <TargetResolutionModal
