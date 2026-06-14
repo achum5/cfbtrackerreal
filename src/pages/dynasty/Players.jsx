@@ -6,6 +6,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import RosterHistoryModal from '../../components/RosterHistoryModal'
 import { PageHero, Card, EmptyState, Input, Select, Badge, Button } from '../../components/ui'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 
 const POSITION_GROUPS = {
   'All': [],
@@ -48,7 +49,10 @@ export default function Players() {
 
   if (!currentDynasty) return null
 
-  const allPlayers = currentDynasty.players || []
+  // Exclude uncommitted recruiting targets — they're tracked board records with
+  // no team/stats and shouldn't appear in the all-players directory. Committed
+  // targets are real freshmen (teamsByYear set) and pass through normally.
+  const allPlayers = (currentDynasty.players || []).filter(p => !isOpenTarget(p))
 
   const filteredPlayers = useMemo(() => {
     let result = [...allPlayers]

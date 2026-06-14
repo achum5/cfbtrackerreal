@@ -5,6 +5,7 @@ import { TEAMS, resolveTid, getGameTeamInfo, getAbbrFromTeamName, getCurrentTeam
 import { getPlayerStatsForTid } from '../../utils/boxScoreHelpers'
 import { isSameWeek, isSameYear } from '../../utils/compareUtils'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 
 // Get abbreviation - handles both full names and abbreviations
 function getTeamAbbr(teamIdentifier, dynastyTeams = null) {
@@ -219,7 +220,7 @@ export function useTickerSections(dynasty) {
     // showing the final score + top QB/RB/WR/defender/kicker.
     const findPlayerPidByName = (playerName) => {
       if (!playerName || !dynasty.players) return null
-      const player = dynasty.players.find(p => p.name === playerName)
+      const player = dynasty.players.find(p => !isOpenTarget(p) && p.name === playerName)
       return player?.pid || null
     }
 
@@ -528,7 +529,7 @@ export function useTickerSections(dynasty) {
 
       // Find player pid by name
       const findPlayerPid = (name) => {
-        const player = dynasty.players?.find(p => p.name === name)
+        const player = dynasty.players?.find(p => !isOpenTarget(p) && p.name === name)
         return player?.pid || null
       }
 
@@ -883,7 +884,7 @@ export function useTickerSections(dynasty) {
       })
 
       if (bestRush.yds >= 150) {
-        const pid = dynasty.players?.find(p => p.name === bestRush.player)?.pid
+        const pid = dynasty.players?.find(p => !isOpenTarget(p) && p.name === bestRush.player)?.pid
         recordItems.push({
           id: 'bestrush',
           label: 'RUSH GAME',

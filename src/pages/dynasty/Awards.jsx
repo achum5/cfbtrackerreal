@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -222,6 +223,7 @@ export default function Awards() {
 
     if (teamAbbrVal) {
       const exactMatch = currentDynasty.players.find(p => {
+        if (isOpenTarget(p)) return false
         if (normalizePlayerNameUtil(p.name) !== normalizedName) return false
         if (teamTid && p.teamsByYear) {
           const playerTeams = Object.values(p.teamsByYear)
@@ -236,6 +238,7 @@ export default function Awards() {
 
     if (awardYear) {
       const accoladeMatch = currentDynasty.players.find(p => {
+        if (isOpenTarget(p)) return false
         if (normalizePlayerNameUtil(p.name) !== normalizedName) return false
         if (p.accolades?.some(a => a.year === awardYear)) return true
         return false
@@ -244,7 +247,7 @@ export default function Awards() {
     }
 
     return currentDynasty.players.find(p =>
-      normalizePlayerNameUtil(p.name) === normalizedName
+      !isOpenTarget(p) && normalizePlayerNameUtil(p.name) === normalizedName
     )
   }
 

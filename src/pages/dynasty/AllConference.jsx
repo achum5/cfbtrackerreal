@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 import { useDynasty, getCustomConferencesForYear, getTeamConferenceForDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
@@ -337,7 +338,7 @@ export default function AllConference() {
     }
 
     const nameMatches = currentDynasty.players.filter(p =>
-      normalizePlayerName(p.name) === normalizedName
+      !isOpenTarget(p) && normalizePlayerName(p.name) === normalizedName
     )
 
     if (nameMatches.length === 0) return null
