@@ -62,6 +62,39 @@ export default function RecruitingCommitmentsModal({
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
+  // Prefill set = every commit PLUS every tracked target for this class, deduped
+  // by pid. Targets carry their current Commitment status + attributes so the
+  // board survives the weekly Save & Delete (the sheet is disposable; the player
+  // records are the source of truth). Plain commits keep a blank Commitment.
+  // Defined before the prompts so they can point the AI at the right paste row.
+  const prefillRecruits = useMemo(() => {
+    const players = currentDynasty?.players || []
+    const teams = currentDynasty?.teams || {}
+    const userTid = Number(currentDynasty?.currentTid)
+    const abbrOf = (tid) => teams[tid]?.abbr || ''
+    const byPid = new Map()
+    for (const p of players) {
+      if (!p?.isTarget || Number(p.targetYear) !== Number(currentYear)) continue
+      const commitment = p.commitmentTid == null
+        ? '(Pursuing)'
+        : (Number(p.commitmentTid) === userTid ? '' : abbrOf(p.commitmentTid))
+      byPid.set(p.pid, {
+        name: p.name, class: p.class, position: p.position, archetype: p.archetype,
+        stars: p.stars, nationalRank: p.nationalRank, stateRank: p.stateRank, positionRank: p.positionRank,
+        height: p.height, weight: p.weight, hometown: p.hometown, state: p.state,
+        gemBust: p.gemBust, devTrait: p.devTrait, previousTeam: p.previousTeam,
+        commitment, attributes: p.attributes || null, pid: p.pid,
+      })
+    }
+    // Add plain commits that aren't already represented by a tracked target.
+    let anon = 0
+    for (const c of existingCommitments) {
+      if (c?.pid != null && byPid.has(c.pid)) continue
+      byPid.set(c?.pid != null ? c.pid : `c-${anon++}`, c)
+    }
+    return [...byPid.values()]
+  }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, existingCommitments, currentYear])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting Commitments: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments".
@@ -83,7 +116,7 @@ CRITICAL RULES — read before anything else
 
 ═══════════════════════════════════════════════════════════
 TAB: "Commitments" — up to 35 rows × 15 columns
-Paste at cell A${(existingCommitments?.length || 0) + 2} of the "Commitments" tab — the first empty row, just below the ${existingCommitments?.length || 0} commitment(s) already entered. If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
+Paste at cell A${prefillRecruits.length + 2} of the "Commitments" tab — the first empty row, just below the ${prefillRecruits.length} row(s) already entered (commitments + tracked targets). If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
 ═══════════════════════════════════════════════════════════
 
 Row | Col | Header (protected)  | Your value                                                                            | Format
@@ -155,7 +188,7 @@ Column O — Prev Team: use ONLY abbreviations from the team mapping appended be
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== COMMITMENTS — paste at cell A${(existingCommitments?.length || 0) + 2} of "Commitments" tab ===
+=== COMMITMENTS — paste at cell A${prefillRecruits.length + 2} of "Commitments" tab ===
 <Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat. Rank>\\t<State Rank>\\t<Pos. Rank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev Trait>\\t<Prev Team>
 <next recruit row...>
 ...
@@ -174,7 +207,7 @@ FINAL CHECK before you send
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
     notes: 'Column O (Prev Team) applies ONLY to transfer-portal recruits (Class = Fr, RS Fr, So, RS So, Jr, or RS Jr) when the previous school is clearly visible. For HS/JUCO recruits OR when the previous school is unknown, leave column O BLANK. Use ONLY the team abbreviations in the mapping — never a full team name, never "Transfer Portal" or any placeholder.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams])
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, prefillRecruits])
 
   // ── Targets + Attributes prompt ──────────────────────────────────────────
   // Self-contained (does NOT depend on the Commitments prompt above) so the AI
@@ -184,7 +217,7 @@ FINAL CHECK before you send
   // recruiting board/list — so the board screenshot fills A–P with attributes
   // blank, and a player-page screenshot fills the attribute columns.
   const ATTR_N = ATTRIBUTE_COLUMNS.length
-  const startRow = (existingCommitments?.length || 0) + 2
+  const startRow = prefillRecruits.length + 2
   const targetsPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting TARGETS + Attributes: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots — paste BELOW the rows already entered; never re-output existing rows.
@@ -207,7 +240,7 @@ CRITICAL RULES
 8. Do NOT output the hidden "pid" column — the app fills it.
 
 ═══════════════════════════════════════════════════════════
-COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first empty row below the ${(existingCommitments?.length || 0)} already entered)
+COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first empty row below the ${prefillRecruits.length} already entered)
 ═══════════════════════════════════════════════════════════
  A Player     | Full name (text)
  B Class      | Dropdown: HS, JUCO Fr, JUCO So, JUCO Jr, Fr, RS Fr, So, RS So, Jr, RS Jr
@@ -261,7 +294,7 @@ FINAL CHECK
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
     notes: 'Column P (Commitment): "(Pursuing)" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams, ATTR_N, startRow])
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, ATTR_N, startRow, prefillRecruits])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -324,7 +357,7 @@ FINAL CHECK
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             currentDynasty?.teams || null,
-            existingCommitments // Pass all previous commitments to pre-populate
+            prefillRecruits // commits + tracked targets (status + attributes), deduped by pid
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -346,7 +379,7 @@ FINAL CHECK
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, existingCommitments, authErrorOccurred, createAttempts])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, prefillRecruits, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes or commitmentKey changes
   useEffect(() => {
@@ -494,9 +527,9 @@ FINAL CHECK
         {currentPhase !== 'offseason' && (
           <div className="mb-4 p-3 rounded-lg text-sm text-txt-primary" style={{ backgroundColor: 'var(--surface-3)' }}>
             <strong>Note:</strong> Weekly commitment entry is optional. You can also enter all commitments during Signing Day in the offseason.
-            {existingCommitments.length > 0 && (
+            {prefillRecruits.length > 0 && (
               <span className="block mt-1">
-                Previous commitments ({existingCommitments.length}) are pre-filled in the sheet.
+                Your existing commitments and tracked targets ({prefillRecruits.length}) are pre-filled in the sheet.
               </span>
             )}
           </div>
