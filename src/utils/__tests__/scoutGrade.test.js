@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS, scoutLetter, inferPlayStyle, schemeFits, scoutReport } from '../scoutGrade'
+import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS, scoutLetter, inferPlayStyle, schemeFits, scoutReport, scoutDossier, gradeBreakdown } from '../scoutGrade'
 
 const player = (o) => ({ position: 'QB', archetype: 'Pocket Passer', stars: 4, devTrait: 'Impact', ...o })
 
@@ -98,9 +98,44 @@ describe('scoutGrade — engine', () => {
       devTrait: 'Elite', stars: 5,
       attributes: { 'Throw Power': 92, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 88, Awareness: 85, Speed: 60 },
     }), 'pass')
-    expect(r).toMatch(/grading out at/)
-    expect(r).toMatch(/pass-heavy scheme/)
+    expect(r).toMatch(/grades out at/)
+    expect(r).toMatch(/pass-heavy offense/)
     expect(r).toMatch(/Elite dev trait/)
     expect(scoutReport(player({ attributes: {} }))).toBeNull()
+  })
+
+  it('scoutDossier returns labelled sections including a bottom line', () => {
+    const d = scoutDossier(player({
+      devTrait: 'Star', stars: 5,
+      attributes: { 'Throw Power': 92, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 88, Awareness: 85 },
+    }), 'pass')
+    const labels = d.map((s) => s.label)
+    expect(labels).toContain('Projection')
+    expect(labels).toContain('Strengths')
+    expect(labels).toContain('Bottom line')
+    expect(scoutDossier(player({ attributes: {} }))).toBeNull()
+  })
+
+  it('gradeBreakdown parts sum to the published score', () => {
+    const p = player({
+      devTrait: 'Impact', stars: 4,
+      attributes: { 'Throw Power': 88, 'Short Accuracy': 84, 'Medium Accuracy': 82, 'Deep Accuracy': 80, Awareness: 78 },
+    })
+    const bd = gradeBreakdown(p)
+    expect(bd.score).toBe(computeScoutScore(p))
+    const summed = Math.max(0, Math.min(99, Math.round(bd.adjustments.reduce((a, x) => a + x.value, 0))))
+    expect(summed).toBe(bd.score)
+    expect(bd.factors.every((f) => f.share > 0)).toBe(true)
+    expect(bd.hasDev).toBe(true)
+  })
+
+  it('a blank dev trait is projected from stars, not penalized as Normal', () => {
+    const attrs = { 'Throw Power': 85, 'Short Accuracy': 85, 'Medium Accuracy': 85, 'Deep Accuracy': 85, Awareness: 85 }
+    const blank = computeScoutScore(player({ devTrait: '', stars: 4, attributes: attrs }))
+    const normal = computeScoutScore(player({ devTrait: 'Normal', stars: 4, attributes: attrs }))
+    expect(blank).toBeGreaterThan(normal) // +4 (4★ estimate) vs -5 (Normal)
+    const bd = gradeBreakdown(player({ devTrait: '', stars: 4, attributes: attrs }))
+    expect(bd.hasDev).toBe(false)
+    expect(bd.adjustments.find((a) => a.kind === 'dev').note).toMatch(/hidden/)
   })
 })

@@ -2547,7 +2547,9 @@ export default function Dashboard() {
         position: recruit.position || '',
         year: enrollmentClass,
         jerseyNumber: '',
-        devTrait: recruit.devTrait || 'Normal',
+        // Dev traits are usually hidden until signing day — leave blank unless
+        // the user actually entered one.
+        devTrait: recruit.devTrait || '',
         archetype: recruit.archetype || '',
         overall: null, // Recruits don't have OVR until they enroll
         height: recruit.height || '',
@@ -2561,7 +2563,7 @@ export default function Dashboard() {
         // written here (syncDerivedFieldsFromV2 would strip it anyway).
         teamsByYear: { [enrollmentYear]: teamsByYearValue },
         classByYear: { [enrollmentYear]: enrollmentClass },
-        devTraitByYear: { [enrollmentYear]: recruit.devTrait || 'Normal' },
+        devTraitByYear: recruit.devTrait ? { [enrollmentYear]: recruit.devTrait } : {},
         movementByYear: {
           [year]: isPortalPlayer
             ? { type: 'arrival', arrival: 'transfer_in', fromTid: fromTeamTid }

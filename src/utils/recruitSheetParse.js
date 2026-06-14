@@ -70,7 +70,7 @@ export function parseRecruitingRow(row) {
     hometown: trim(row[10]),
     state: trim(row[11]),
     gemBust: trim(row[12]),
-    devTrait: trim(row[13]) || 'Normal',
+    devTrait: trim(row[13]), // blank stays blank — dev traits are hidden until signing day
     previousTeam: trim(row[14]),
     isPortal: !NON_PORTAL_CLASSES.includes(recruitClass),
     // ── Targets extension (harmless on a legacy sheet) ──

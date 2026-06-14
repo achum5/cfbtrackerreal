@@ -419,7 +419,9 @@ export default function Recruiting() {
           position: recruit.position || '',
           year: classToYear[recruit.class] || 'Fr',
           jerseyNumber: '',
-          devTrait: recruit.devTrait || 'Normal',
+          // Dev traits are often hidden until signing day — leave blank when the
+          // user didn't enter one (don't presume Normal).
+          devTrait: recruit.devTrait || '',
           archetype: recruit.archetype || '',
           overall: null,
           height: recruit.height || '',

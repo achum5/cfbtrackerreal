@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs, scoutLetter, scoutReport, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
+import { scoutGrade, topScoutedAttrs, scoutLetter, scoutDossier, gradeBreakdown, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
@@ -51,7 +51,8 @@ function Row({ r, rank, pathPrefix, playStyle }) {
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
   const top = score != null ? topScoutedAttrs(p, 3) : []
-  const report = scoutReport(p, playStyle)
+  const dossier = open ? scoutDossier(p, playStyle) : null
+  const breakdown = open ? gradeBreakdown(p) : null
   const attrEntries = ATTRIBUTE_COLUMNS
     .filter((name) => p.attributes?.[name] != null && p.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(p.attributes[name]) }))
@@ -68,19 +69,15 @@ function Row({ r, rank, pathPrefix, playStyle }) {
     subline = m.join('   ')
   }
 
-  // Expanded meta (bio + ranks) shown above the attributes grid.
+  // Expanded meta (bio + ranks) shown beneath the attributes grid.
   const meta = []
-  if (p.height || p.weight) meta.push([p.height, p.weight ? `${p.weight} lbs` : null].filter(Boolean).join(', '))
   if (p.hometown) meta.push(`${p.hometown}${p.state ? `, ${p.state}` : ''}`)
   if (p.nationalRank) meta.push(`#${p.nationalRank} National`)
   if (p.positionRank) meta.push(`#${p.positionRank} ${p.position || 'POS'}`)
+  if (p.stateRank && p.state) meta.push(`#${p.stateRank} ${p.state}`)
 
-  const schemeLine = fits === true
-    ? `Fits your ${playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'} scheme`
-    : fits === false
-      ? `Scheme stretch for your ${playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'} offense`
-      : null
   const needLine = need && need.rank > 0 ? `${p.position || 'Position'} is ${need.label.toLowerCase()} on next year's roster` : null
+  const fmtAdj = (v) => (v > 0 ? `+${v}` : `${v}`)
 
   return (
     <div style={{ borderTop: rank > 1 ? '1px solid var(--surface-4)' : 'none', opacity: lost ? 0.55 : 1 }}>
@@ -123,18 +120,66 @@ function Row({ r, rank, pathPrefix, playStyle }) {
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 sm:pl-[4.5rem]">
-          {report && <p className="text-[12px] leading-relaxed text-txt-secondary">{report}</p>}
-
-          {(schemeLine || needLine) && (
-            <div className="mt-2 flex flex-col gap-0.5">
-              {schemeLine && <span className="text-[11px] text-txt-tertiary">{schemeLine}</span>}
-              {needLine && <span className="text-[11px] text-txt-tertiary">{needLine}</span>}
+        <div className="px-4 pb-5 pt-1 sm:pl-[4.5rem] space-y-4">
+          {/* Scouting dossier — labelled sections */}
+          {dossier && dossier.length > 0 && (
+            <div className="space-y-2.5">
+              {dossier.map((s) => (
+                <div key={s.label}>
+                  <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>{s.label}</div>
+                  <p className="text-[12px] leading-relaxed text-txt-secondary">{s.body}</p>
+                </div>
+              ))}
+              {needLine && (
+                <div>
+                  <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Roster context</div>
+                  <p className="text-[12px] leading-relaxed text-txt-secondary">{needLine}.</p>
+                </div>
+              )}
             </div>
           )}
 
+          {/* How the grade is determined */}
+          {breakdown && (
+            <div className="rounded-md p-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>How this grade is built</span>
+                <span className="text-[12px] tabular-nums text-txt-secondary">
+                  {breakdown.letter} <span className="text-txt-primary font-bold">{breakdown.score}</span> overall
+                </span>
+              </div>
+              <div className="space-y-1">
+                {breakdown.adjustments.map((a) => (
+                  <div key={a.label} className="flex items-baseline gap-2 text-[11px]">
+                    <span className="text-txt-secondary w-40 flex-shrink-0">{a.label}</span>
+                    <span className="tabular-nums font-bold text-txt-primary w-9 text-right flex-shrink-0">{a.kind === 'base' ? a.value : fmtAdj(a.value)}</span>
+                    <span className="text-txt-tertiary truncate">{a.note}</span>
+                  </div>
+                ))}
+              </div>
+              {breakdown.factors.length > 0 && breakdown.usesWeights && (
+                <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--surface-4)' }}>
+                  <div className="label-xs text-txt-tertiary mb-1.5" style={{ letterSpacing: '1px' }}>Attributes driving the base (by weight)</div>
+                  <div className="flex flex-col gap-1.5">
+                    {breakdown.factors.map((f) => (
+                      <div key={f.name} className="flex items-center gap-2 text-[11px]">
+                        <span className="text-txt-secondary w-32 flex-shrink-0 truncate">{f.name}</span>
+                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${Math.round(f.share * 100)}%`, backgroundColor: 'var(--text-tertiary)' }} />
+                        </div>
+                        <span className="tabular-nums text-txt-tertiary w-8 text-right flex-shrink-0">{Math.round(f.share * 100)}%</span>
+                        <span className="tabular-nums font-bold text-txt-primary w-7 text-right flex-shrink-0">{f.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Full scouted-attributes grid */}
           {attrEntries.length > 0 && (
-            <div className="mt-3">
+            <div>
               <div className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '1px' }}>Scouted Attributes</div>
               <div className="grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-2.5">
                 {attrEntries.map((e) => (
@@ -148,12 +193,12 @@ function Row({ r, rank, pathPrefix, playStyle }) {
           )}
 
           {meta.length > 0 && (
-            <div className="mt-3 text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</div>
+            <div className="text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</div>
           )}
 
           <Link
             to={`${pathPrefix}/player/${p.pid}`}
-            className="inline-block mt-3 text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary"
+            className="inline-block text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary"
             style={{ letterSpacing: '0.5px' }}
           >
             View full profile →

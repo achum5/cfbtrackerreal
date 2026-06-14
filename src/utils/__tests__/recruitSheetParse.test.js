@@ -21,11 +21,13 @@ describe('parseRecruitingRow — legacy A–O parity', () => {
     })
   })
 
-  it('detects portal class and defaults devTrait', () => {
+  it('detects portal class and leaves a blank devTrait blank', () => {
+    // Dev traits are hidden until signing day — a blank cell must stay blank
+    // (not get presumed Normal), so grading can project from stars instead.
     const r = parseRecruitingRow(['Joe Transfer', 'Jr', 'WR', '', '☆☆☆☆', '', '', '', '', '', '', '', '', '', 'OHIO'])
     expect(r.isPortal).toBe(true)
     expect(r.stars).toBe(4)
-    expect(r.devTrait).toBe('Normal')
+    expect(r.devTrait).toBe('')
     expect(r.previousTeam).toBe('OHIO')
   })
 

@@ -227,10 +227,64 @@ export function schemeFits(archetype, playStyle) {
   return t === playStyle || t === 'balanced'
 }
 
-// ── Narrative report (templated) ─────────────────────────────────────────────
-// A short scouting blurb composed at runtime from the grade, archetype, scheme
-// fit, and the player's strongest / weakest scouted attributes. No authored
-// per-archetype prose — everything is generated, so every archetype is covered.
+// ── Grade breakdown ──────────────────────────────────────────────────────────
+// A transparent, recomputed view of how a player's score was reached — the
+// weighted base, the attributes that drove it, and each adjustment. Mirrors
+// computeScoutScore() exactly so the parts always sum to the published grade.
+/**
+ * @returns {null | {
+ *   score, tier, letter, base, usesWeights, hasDev,
+ *   factors:    Array<{ name, value, weight, share }>,   // attributes feeding the base
+ *   adjustments: Array<{ label, value, note, kind }>,     // base + each modifier
+ * }}
+ */
+export function gradeBreakdown(player) {
+  if (!hasAnyAttrs(player)) return null
+  const attrs = player.attributes || {}
+  const present = Object.keys(attrs).filter((k) => Number.isFinite(Number(attrs[k])))
+  if (!present.length) return null
+  const weights = SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)]
+
+  let base, usesWeights = false, factors = []
+  const keyed = weights ? present.filter((k) => (weights[k] || 0) > 0) : []
+  const totalW = keyed.reduce((a, k) => a + weights[k], 0)
+  if (weights && totalW > 0) {
+    usesWeights = true
+    base = keyed.reduce((a, k) => a + Number(attrs[k]) * weights[k], 0) / totalW
+    factors = keyed
+      .map((k) => ({ name: k, value: Number(attrs[k]), weight: weights[k], share: weights[k] / totalW }))
+      .sort((a, b) => (b.weight - a.weight) || (b.value - a.value))
+  } else {
+    base = present.reduce((a, k) => a + Number(attrs[k]), 0) / present.length
+    factors = present
+      .map((k) => ({ name: k, value: Number(attrs[k]), weight: 0, share: 1 / present.length }))
+      .sort((a, b) => b.value - a.value)
+  }
+
+  const dev = devAdj(player)
+  const star = STAR_ADJ[parseInt(player.stars, 10)] ?? 0
+  const phys = physBonus(player)
+  const score = Math.max(0, Math.min(99, Math.round(base + dev + star + phys)))
+  const tier = scoutTier(score)
+  const hasDev = !!(player.devTrait && DEV_ADJ[player.devTrait] != null)
+  const stars = parseInt(player.stars, 10) || 3
+
+  const adjustments = [
+    { kind: 'base', label: usesWeights ? 'Weighted attribute base' : 'Attribute average', value: Math.round(base),
+      note: usesWeights ? `${keyed.length} archetype attribute${keyed.length === 1 ? '' : 's'}` : 'flat average (no archetype profile)' },
+    { kind: 'dev', label: 'Development', value: dev,
+      note: hasDev ? `${player.devTrait} dev trait` : `projected from ${stars}★ (dev trait hidden)` },
+    { kind: 'star', label: 'Recruit ranking', value: star, note: `${stars}-star prospect` },
+    { kind: 'phys', label: 'Physical tools', value: phys, note: phys > 0 ? 'elite measurables bonus' : 'no elite-tool bonus' },
+  ]
+  return { score, tier, letter: scoutLetter(score), base: Math.round(base), usesWeights, hasDev, factors, adjustments }
+}
+
+// ── Narrative dossier (templated) ────────────────────────────────────────────
+// A full scouting write-up composed at runtime — projection, strengths, gaps,
+// physical profile, scheme fit, development outlook, and a bottom line. No
+// authored per-archetype prose, so every archetype is covered. scoutReport()
+// flattens it to a single string for compact callers.
 const TIER_WORD = {
   elite:   'A blue-chip',
   premium: 'A high-major',
@@ -238,62 +292,144 @@ const TIER_WORD = {
   depth:   'A developmental',
 }
 const DEV_LINE = {
-  Elite:  'An Elite dev trait gives him program-altering upside.',
-  Star:   'A Star dev trait points to a fast, high-ceiling rise.',
-  Impact: 'An Impact dev trait should speed his climb up the depth chart.',
-  Normal: 'A Normal dev trait means his growth will track his reps.',
+  Elite:  'With an Elite dev trait, he carries program-altering upside and should reach his ceiling quickly.',
+  Star:   'A Star dev trait points to a high ceiling and a fast climb up the depth chart.',
+  Impact: 'An Impact dev trait gives him better-than-average growth and a quicker path to contributing.',
+  Normal: 'A Normal dev trait means steady, rep-driven growth rather than a rapid rise.',
 }
+// Noun-phrase for each attribute, so the prose reads like a scout, not a stat sheet.
+const ATTR_BLURB = {
+  Awareness: 'football IQ', Speed: 'top-end speed', Acceleration: 'burst', Strength: 'play strength',
+  Agility: 'short-area quickness', 'Change of Direction': 'change-of-direction',
+  'Throw Power': 'arm strength', 'Short Accuracy': 'short-area accuracy', 'Medium Accuracy': 'intermediate accuracy',
+  'Deep Accuracy': 'deep-ball touch', 'Throw On Run': 'throwing on the move', 'Under Pressure': 'poise under pressure',
+  'Break Sack': 'escapability', Carrying: 'ball security', 'Break Tackle': 'contact balance', 'Juke Move': 'open-field juke',
+  'Spin Move': 'spin move', 'BC Vision': 'vision as a ball carrier', Catching: 'hands', 'Catch In Traffic': 'catching in traffic',
+  'Spectacular Catch': 'highlight ball skills', 'Short Route': 'short-route polish', 'Medium Route': 'intermediate routes',
+  'Deep Route': 'vertical route-running', Release: 'release off the line', 'Run Block': 'run blocking',
+  'Run Block Power': 'drive-block power', 'Run Block Finesse': 'run-block technique', 'Pass Block': 'pass protection',
+  'Pass Block Power': 'anchor in pass pro', 'Pass Block Finesse': 'pass-set technique', 'Impact Blocking': 'finishing blocks',
+  'Block Shedding': 'block-shedding', Tackle: 'tackling', 'Hit Power': 'pop on contact', 'Power Moves': 'power rush',
+  'Finesse Moves': 'finesse rush', Pursuit: 'pursuit and motor', 'Play Recognition': 'play recognition',
+  'Man Coverage': 'man coverage', 'Zone Coverage': 'zone instincts', Press: 'press technique',
+  'Kick Power': 'leg strength', 'Kick Accuracy': 'kicking accuracy', 'Punt Power': 'punt leg', 'Punt Accuracy': 'punt placement',
+}
+const blurb = (name) => ATTR_BLURB[name] || String(name).toLowerCase()
+const gradeWord = (v) => (v >= 92 ? 'elite' : v >= 85 ? 'plus' : v >= 78 ? 'solid' : v >= 70 ? 'average' : 'below-average')
+const role = (s) =>
+  s >= 90 ? 'a Day-One impact starter and a cornerstone to build around'
+  : s >= 83 ? 'an early contributor who should push for a starting job as a freshman'
+  : s >= 76 ? 'a rotational piece with the upside to start once he develops'
+  : s >= 68 ? 'a developmental addition who needs a year or two in the program'
+  : 'a long-term project — a bet on traits over present polish'
 
 const lc = (s) => String(s || '').toLowerCase()
-function listPhrase(arr) {
-  const xs = arr.map((a) => lc(a.name))
+function listPhrase(xs) {
   if (xs.length <= 1) return xs[0] || ''
   if (xs.length === 2) return `${xs[0]} and ${xs[1]}`
   return `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`
 }
 
-// Strongest / weakest of the archetype's *defining* attributes the player has.
-function strengthsAndGaps(player) {
+/**
+ * A structured scouting dossier — an array of { label, body } sections, or null
+ * when the player is unscouted.
+ * @param {object} player
+ * @param {'pass'|'run'|'balanced'} playStyle  the team's offensive identity
+ */
+export function scoutDossier(player, playStyle = 'balanced') {
+  const bd = gradeBreakdown(player)
+  if (!bd) return null
+  const { score, tier, letter, factors, hasDev } = bd
   const attrs = player.attributes || {}
-  const weights = SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)] || {}
-  const present = Object.keys(weights)
-    .filter((k) => attrs[k] != null && attrs[k] !== '' && Number.isFinite(Number(attrs[k])))
-    .map((k) => ({ name: k, value: Number(attrs[k]), weight: weights[k] }))
-  const byImportance = [...present].sort((a, b) => (b.weight - a.weight) || (b.value - a.value))
-  const hi = byImportance.filter((a) => a.value >= 80).slice(0, 3)
-  const strengths = hi.length ? hi : byImportance.slice(0, 2)
-  const strengthVerb = hi.length ? 'wins with' : 'leans on'
-  const gaps = present.filter((a) => a.weight >= 5 && a.value < 75)
-    .sort((a, b) => a.value - b.value).slice(0, 2)
-  return { strengths, strengthVerb, gaps }
+  const arch = (player.archetype || '').replace(/^ATH\s*-\s*/i, '').replace(/\s*\([A-Z]+\)\s*$/, '').trim()
+  const archPhrase = arch ? `${lc(arch)} ${player.position}` : (player.position || 'prospect')
+  const stars = parseInt(player.stars, 10) || 3
+  const out = []
+
+  // Projection
+  out.push({
+    label: 'Projection',
+    body: `${TIER_WORD[tier.key]} ${archPhrase} who projects as ${role(score)}. He grades out at ${letter} (${score} overall) against the demands of the ${arch || player.position || 'position'} archetype.`,
+  })
+
+  // Strengths
+  const strong = factors.filter((f) => f.value >= 80).slice(0, 4)
+  if (strong.length) {
+    const phrases = strong.map((f) => `${gradeWord(f.value)} ${blurb(f.name)} (${f.value})`)
+    const best = strong[0]
+    out.push({
+      label: 'Strengths',
+      body: `His game is built on ${listPhrase(phrases)}. His ${blurb(best.name)} is the trait scouts trust most to translate at the next level.`,
+    })
+  } else {
+    const top = factors.slice(0, 2)
+    out.push({
+      label: 'Strengths',
+      body: top.length
+        ? `Nothing grades as a true plus yet — his best marks are ${listPhrase(top.map((f) => `${blurb(f.name)} (${f.value})`))}, more steady than special.`
+        : 'No standout traits have been scouted yet.',
+    })
+  }
+
+  // Areas to develop
+  const gaps = factors.filter((f) => f.weight >= 5 && f.value < 75).sort((a, b) => a.value - b.value).slice(0, 3)
+  out.push({
+    label: 'Areas to develop',
+    body: gaps.length
+      ? `He'll need to clean up ${listPhrase(gaps.map((g) => `${blurb(g.name)} (${g.value})`))} to hit his ceiling${gaps.some((g) => g.value < 65) ? ' — those grade as real question marks right now.' : '.'}`
+      : 'There are no obvious holes in his profile for the position — the scouted marks come back clean across the board.',
+  })
+
+  // Physical profile
+  const size = [player.height, player.weight ? `${player.weight} lbs` : null].filter(Boolean).join(', ')
+  const spd = Number(attrs.Speed)
+  const str = Number(attrs.Strength)
+  const physBits = []
+  if (Number.isFinite(spd)) physBits.push(`${gradeWord(spd)} timed speed (${spd})`)
+  if (Number.isFinite(str)) physBits.push(`${gradeWord(str)} play strength (${str})`)
+  if (size || physBits.length) {
+    out.push({
+      label: 'Physical profile',
+      body: `${size ? `Measures in at ${size}. ` : ''}${physBits.length ? `${size ? 'He shows ' : 'Shows '}${listPhrase(physBits)}.` : ''}`.trim(),
+    })
+  }
+
+  // Scheme fit
+  const fit = schemeFits(player.archetype, playStyle)
+  const scheme = playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'
+  if (fit === true) {
+    out.push({ label: 'Scheme fit', body: `His skill set is a clean fit for your ${scheme} offense — the archetype is exactly what that scheme asks for.` })
+  } else if (fit === false) {
+    out.push({ label: 'Scheme fit', body: `He's a scheme-stretch for your ${scheme} identity; you'd be adapting to his strengths rather than dropping him into a defined role.` })
+  }
+
+  // Development outlook
+  out.push({
+    label: 'Development outlook',
+    body: hasDev
+      ? `${DEV_LINE[player.devTrait]}`
+      : `His dev trait isn't visible yet — common before signing day — so the grade leans on his ${stars}-star billing and projects his growth conservatively. A hidden Impact-or-better trait would push this projection up.`,
+  })
+
+  // Bottom line
+  out.push({
+    label: 'Bottom line',
+    body: score >= 88 ? 'A priority target worth a hard push — he can change the trajectory of your roster.'
+      : score >= 81 ? 'A high-value get who should pay off early in his career.'
+      : score >= 74 ? 'A worthwhile addition with starter upside if the development hits.'
+      : 'A depth-and-upside swing — worth a scholarship if the board thins, but not over a higher-graded option.',
+  })
+
+  return out
 }
 
 /**
- * A generated scouting report paragraph for a player, or null with no attrs.
- * @param {object} player
- * @param {'pass'|'run'|'balanced'} playStyle  the team's offensive identity
+ * The dossier flattened to a single paragraph (for compact callers like cards).
  * @returns {string|null}
  */
 export function scoutReport(player, playStyle = 'balanced') {
-  const score = computeScoutScore(player)
-  if (score == null) return null
-  const tier = scoutTier(score)
-  const letter = scoutLetter(score)
-  const arch = (player.archetype || '').replace(/^ATH\s*-\s*/i, '').replace(/\s*\([A-Z]+\)\s*$/, '').trim()
-  const archPhrase = arch ? `${lc(arch)} ${player.position}` : (player.position || 'prospect')
-  const { strengths, strengthVerb, gaps } = strengthsAndGaps(player)
-
-  const out = [`${TIER_WORD[tier.key]} ${archPhrase}, grading out at ${letter} (${score}).`]
-  if (strengths.length) out.push(`He ${strengthVerb} his ${listPhrase(strengths)}.`)
-  if (gaps.length) out.push(`The book on him: ${listPhrase(gaps)} need work.`)
-
-  const fit = schemeFits(player.archetype, playStyle)
-  const scheme = playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'
-  if (fit === true) out.push(`His skill set fits cleanly into your ${scheme} scheme.`)
-  else if (fit === false) out.push(`He's more of a scheme-stretch for your ${scheme} identity.`)
-
-  if (player.devTrait && DEV_LINE[player.devTrait]) out.push(DEV_LINE[player.devTrait])
-  return out.join(' ')
+  const d = scoutDossier(player, playStyle)
+  return d ? d.map((s) => s.body).join(' ') : null
 }
 
 // The player's top scouted attributes by this archetype's emphasis (for display).
