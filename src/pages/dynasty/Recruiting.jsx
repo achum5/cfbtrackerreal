@@ -15,6 +15,7 @@ import { finePositionGroup } from '../../data/positionGroups'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import RecruitingTargetsTab from './RecruitingTargetsTab'
+import ScoutBoard from './ScoutBoard'
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
 
@@ -136,8 +137,8 @@ export default function Recruiting() {
   const setViewMode = (v) => setParam('view', v, defaultView)
 
   // Commitments / Targets tab (persisted in the URL like the other filters).
-  const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
-  const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
+  const activeTab = ['targets', 'scouting'].includes(searchParams.get('tab')) ? searchParams.get('tab') : 'commitments'
+  const setActiveTab = (t) => setParam('tab', (t === 'targets' || t === 'scouting') ? t : null, null)
 
   // In-app target resolution (Phase 4). openTargets is defined below, once
   // selectedYear exists.
@@ -1044,7 +1045,7 @@ export default function Recruiting() {
 
         {/* Commitments / Targets tabs — docked under the hero title */}
         <div className="flex gap-1 px-3 sm:px-5" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
-          {[{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }].map(t => (
+          {[{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }, { k: 'scouting', l: 'Scout Board' }].map(t => (
             <button
               key={t.k}
               type="button"
@@ -1236,6 +1237,8 @@ export default function Recruiting() {
           />
         </Card>
         )
+      ) : activeTab === 'scouting' ? (
+        <ScoutBoard dynasty={currentDynasty} year={selectedYear} userTid={selectedTid} pathPrefix={pathPrefix} />
       ) : (
         <>
           {!isViewOnly && openTargets.length > 0 && (
