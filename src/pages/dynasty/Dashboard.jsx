@@ -63,6 +63,7 @@ import FringeCaseClassModal from '../../components/FringeCaseClassModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
 const normalizePlayerName = (name) => {
@@ -2940,6 +2941,62 @@ export default function Dashboard() {
     await updateDynasty(currentDynasty.id, updates)
   }
 
+  // "No new targets" — per-week acknowledgment for the New Targets nudge. Mirrors
+  // handleNoCommitments but writes a targetsTouchedByWeek flag on the team/year
+  // (NOT recruitingCommitments — open targets never touch the class score, M1).
+  const handleNoTargets = async () => {
+    const year = offseasonDataYear
+    const weekKey = getCommitmentKey()
+    if (!weekKey) return
+    const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName
+    const tid = getTidFromAbbr(teamAbbr, currentDynasty)
+    if (!tid || !currentDynasty.teams) return
+    const existingTeams = currentDynasty.teams
+    const existingTeamData = existingTeams[tid] || {}
+    const existingByYear = existingTeamData.byYear || {}
+    const existingYearData = existingByYear[year] || {}
+    const touched = { ...(existingYearData.targetsTouchedByWeek || {}), [weekKey]: true }
+    await updateDynasty(currentDynasty.id, {
+      teams: {
+        ...existingTeams,
+        [tid]: {
+          ...existingTeamData,
+          byYear: { ...existingByYear, [year]: { ...existingYearData, targetsTouchedByWeek: touched } },
+        },
+      },
+    })
+  }
+
+  // The recurring "New Targets" dashboard todo (§7). Sits beside the existing
+  // recruiting-commitments row in every recruiting-active phase. Done when the
+  // week's targetsTouchedByWeek flag is set (via "No new targets" or a targets
+  // save). Derives its own week key + year, so each phase block just pushes it.
+  const buildNewTargetsTodo = () => {
+    const year = offseasonDataYear
+    const weekKey = getCommitmentKey()
+    const tid = getUserTeamTid(currentDynasty)
+    const touched = !!currentDynasty?.teams?.[tid]?.byYear?.[year]?.targetsTouchedByWeek?.[weekKey]
+    const openCount = (currentDynasty?.players || [])
+      .filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(year)).length
+    const targetsUrl = tid ? `${pathPrefix}/recruiting/${tid}/${year}?tab=targets` : null
+    const todo = {
+      key: `new-targets-${weekKey}`,
+      done: touched,
+      title: 'New Targets',
+      subtitle: touched
+        ? (openCount > 0 ? `${openCount} open target${openCount === 1 ? '' : 's'} on your board` : 'No new targets this week')
+        : 'Add or scout new recruiting targets',
+      inlineAction: !touched && !isViewOnly ? { label: 'No new targets', onClick: handleNoTargets } : null,
+    }
+    if (touched) {
+      todo.viewTo = targetsUrl
+    } else if (targetsUrl) {
+      todo.onAction = () => navigate(targetsUrl)
+      todo.actionLabel = 'Add'
+    }
+    return todo
+  }
+
   // Get all previous commitments for the current team/year (to pre-populate sheet) - TID-BASED
   const getAllPreviousCommitments = () => {
     // Use offseasonDataYear to handle year flip on Signing Day (week 6)
@@ -3520,6 +3577,7 @@ export default function Dashboard() {
                   onClick: handleNoCommitments,
                 } : null,
               })
+              todos.push(buildNewTargetsTodo())
             }
 
             // Preseason Top 25
@@ -3818,6 +3876,7 @@ export default function Dashboard() {
                     onClick: handleNoCommitments,
                   } : null,
                 })
+                todos.push(buildNewTargetsTodo())
               }
 
               // Row 2: Last Week's Scores — needs a real previous week to
@@ -4134,6 +4193,7 @@ export default function Dashboard() {
                   onClick: handleNoCommitments,
                 } : null,
               })
+              todos.push(buildNewTargetsTodo())
             }
 
             // Task: Enter Week 14 Scores. CCG week always follows Week 14
@@ -4988,6 +5048,7 @@ export default function Dashboard() {
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw1UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
               })
+              todos.push(buildNewTargetsTodo())
 
               return (
                 <>
@@ -5340,6 +5401,7 @@ export default function Dashboard() {
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw2UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
               })
+              todos.push(buildNewTargetsTodo())
 
               return (
                 <>
@@ -6035,6 +6097,7 @@ export default function Dashboard() {
                 onClick: () => navigate(`${pathPrefix}/recruiting/${w34UserTidForCommits}/${currentDynasty.currentYear}`),
               } : null,
             })
+            todos.push(buildNewTargetsTodo())
 
             return (
               <>
@@ -6317,6 +6380,7 @@ export default function Dashboard() {
                     onClick: handleNoCommitments,
                   } : null,
                 })
+                todos.push(buildNewTargetsTodo())
               }
 
               // Task 2: Draft Results (Recruiting Week 1 only)
