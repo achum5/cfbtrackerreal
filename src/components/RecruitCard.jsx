@@ -4,6 +4,7 @@ import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
+import { scoutGrade } from '../utils/scoutGrade'
 
 // Madden-style rating color ramp for scouted attribute values.
 const ratingColor = (v) =>
@@ -47,6 +48,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
     .filter((name) => recruit.attributes?.[name] != null && recruit.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(recruit.attributes[name]) }))
   const hasAttrs = attrEntries.length > 0
+  const grade = scoutGrade(recruit) // { score, tier } — null score when unscouted
 
   const hometownText = recruit.hometown
     ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
@@ -138,6 +140,17 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
               </svg>
             ))}
           </span>
+          {/* Scout grade — score + tier, color-coded. Only when scouted. */}
+          {grade.score != null && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase mt-0.5"
+              style={{ letterSpacing: '0.08em', backgroundColor: grade.tier.color, color: '#0a0a0a' }}
+              title={`Scout grade ${grade.score} — ${grade.tier.label}`}
+            >
+              <span className="tabular-nums">{grade.score}</span>
+              <span style={{ opacity: 0.85 }}>{grade.tier.label}</span>
+            </span>
+          )}
         </div>
 
         {/* === RANK BAND === */}

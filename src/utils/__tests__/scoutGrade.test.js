@@ -1,0 +1,72 @@
+import { describe, it, expect } from 'vitest'
+import { computeScoutScore, scoutTier, scoutGrade, topScoutedAttrs, SCOUT_WEIGHTS } from '../scoutGrade'
+
+const player = (o) => ({ position: 'QB', archetype: 'Pocket Passer', stars: 4, devTrait: 'Impact', ...o })
+
+describe('scoutGrade — engine', () => {
+  it('returns null when no attributes are scouted', () => {
+    expect(computeScoutScore(player({ attributes: null }))).toBeNull()
+    expect(computeScoutScore(player({ attributes: {} }))).toBeNull()
+    expect(scoutGrade(player({ attributes: {} })).score).toBeNull()
+  })
+
+  it('weights the archetype\'s key attributes (accuracy-heavy QB scores ~its accuracy)', () => {
+    // Pocket Passer leans accuracy/throw power/awareness — all 90 → base ~90.
+    const s = computeScoutScore(player({
+      devTrait: 'Normal', stars: 3,
+      attributes: { 'Throw Power': 90, 'Short Accuracy': 90, 'Medium Accuracy': 90, 'Deep Accuracy': 90, 'Under Pressure': 90, Awareness: 90, Speed: 60, Acceleration: 60 },
+    }))
+    // base ~90, Normal dev -5, 3* +0 → ~85
+    expect(s).toBeGreaterThanOrEqual(82)
+    expect(s).toBeLessThanOrEqual(90)
+  })
+
+  it('low key attributes drag the score down even with good physicals', () => {
+    const s = computeScoutScore(player({
+      devTrait: 'Normal', stars: 3,
+      attributes: { 'Throw Power': 60, 'Short Accuracy': 60, 'Medium Accuracy': 60, 'Deep Accuracy': 60, 'Under Pressure': 60, Awareness: 60, Speed: 95, Acceleration: 95 },
+    }))
+    expect(s).toBeLessThan(74) // Depth tier
+  })
+
+  it('dev trait + stars raise the score', () => {
+    const attrs = { 'Throw Power': 85, 'Short Accuracy': 85, 'Medium Accuracy': 85, 'Deep Accuracy': 85, 'Under Pressure': 85, Awareness: 85 }
+    const elite = computeScoutScore(player({ devTrait: 'Elite', stars: 5, attributes: attrs }))
+    const normal = computeScoutScore(player({ devTrait: 'Normal', stars: 2, attributes: attrs }))
+    expect(elite).toBeGreaterThan(normal)
+    expect(elite - normal).toBeGreaterThanOrEqual(12) // ~ (10 - -5) + (2 - -1)
+  })
+
+  it('falls back to a flat average for an archetype with no weight table', () => {
+    const s = computeScoutScore({
+      position: 'K', archetype: 'Accurate', stars: 3, devTrait: 'Normal',
+      attributes: { 'Kick Power': 80, 'Kick Accuracy': 80 },
+    })
+    // base = avg(80,80)=80, Normal -5, 3* 0, no phys → 75
+    expect(s).toBe(75)
+  })
+
+  it('scoutTier maps scores to bands', () => {
+    expect(scoutTier(90).key).toBe('elite')
+    expect(scoutTier(84).key).toBe('premium')
+    expect(scoutTier(77).key).toBe('core')
+    expect(scoutTier(60).key).toBe('depth')
+    expect(scoutTier(null)).toBeNull()
+  })
+
+  it('topScoutedAttrs returns the highest-weighted scouted attributes', () => {
+    const top = topScoutedAttrs(player({
+      attributes: { 'Throw Power': 70, 'Short Accuracy': 95, 'Medium Accuracy': 92, Awareness: 60, Speed: 80 },
+    }), 2)
+    expect(top).toHaveLength(2)
+    // Short/Medium Accuracy are the heavily-weighted ones present
+    expect(top.map((t) => t.name)).toContain('Short Accuracy')
+  })
+
+  it('every weight table is keyed <BUCKET>_<Archetype> and has positive weights', () => {
+    for (const [key, w] of Object.entries(SCOUT_WEIGHTS)) {
+      expect(key).toMatch(/^[A-Z]+_/)
+      expect(Object.values(w).some((v) => v > 0)).toBe(true)
+    }
+  })
+})

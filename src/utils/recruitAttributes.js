@@ -103,6 +103,19 @@ export function attributeNamesFor(position, archetype) {
   return BASE_POSITION_CONFIG[pos] || null
 }
 
+// Normalize a stored archetype to its base name: "Raw Strength (OT)" → "Raw
+// Strength", "ATH - Thumper" → "Thumper".
+export function normalizeArch(archetype = '') {
+  return String(archetype).replace(/^ATH\s*-\s*/i, '').replace(/\s*\([A-Z]+\)\s*$/, '').trim()
+}
+
+// Canonical "<bucket>_<archetype>" key (e.g. "OT_Pass Protector") for grading
+// lookups — same position bucket + archetype the scouting form uses.
+export function archetypeKey(position, archetype) {
+  const pos = POS_ALIAS[(position || '').toUpperCase()] || (position || '').toUpperCase()
+  return `${pos}_${normalizeArch(archetype)}`
+}
+
 // Map up to 10 raw attribute-column values to a { attrName: number } map using
 // the canonical order for the row's position/archetype. Blank/non-numeric cells
 // are skipped. Returns null when nothing usable is present — an ungraded target
