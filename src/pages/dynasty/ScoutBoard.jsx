@@ -1,16 +1,17 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, EmptyState, Button } from '../../components/ui'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs, scoutLetter, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
-import { ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
+import { scoutGrade, topScoutedAttrs, scoutLetter, scoutReport, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
-// roster needs — styled to the app's records-leaderboard pattern (one media-card,
-// hairline-divided rows, restrained color).
+// roster needs. Styled to match the rest of the app — list rows like the
+// commitments view, restrained/neutral text, an expandable scouting drawer per
+// player, and a roster-needs strip that tucks away behind the header.
 
 const GRADUATING = new Set(['Sr', 'RS Sr', 'Senior'])
 const STAR = (n) => '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0)))
@@ -29,28 +30,33 @@ const POS_DEPTH = {
 const DEFAULT_DEPTH = { min: 3, start: 2 }
 const needLevel = (returning, group) => {
   const d = POS_DEPTH[group] || DEFAULT_DEPTH
-  if (returning < d.start) return { label: 'Need', color: 'var(--accent-error)', rank: 2 }
-  if (returning < d.min) return { label: 'Thin', color: 'var(--accent-warning)', rank: 1 }
-  return { label: null, color: 'var(--text-tertiary)', rank: 0 }
+  if (returning < d.start) return { label: 'Need', rank: 2 }
+  if (returning < d.min) return { label: 'Thin', rank: 1 }
+  return { label: null, rank: 0 }
 }
 
-const statusLabel = (s) => (s === 'committed_us' ? 'Committed' : s === 'committed_elsewhere' ? 'Lost' : 'Pursuing')
+const Chevron = ({ open }) => (
+  <svg
+    className="w-3.5 h-3.5 flex-shrink-0 transition-transform text-txt-tertiary"
+    style={{ transform: open ? 'rotate(180deg)' : 'none' }}
+    fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+  </svg>
+)
 
-// Gold / silver / bronze for the podium, plain text otherwise — the app's
-// leaderboard rank convention.
-const rankColor = (n) =>
-  n === 1 ? 'var(--accent-warning)'
-  : n === 2 ? 'rgba(192, 192, 192, 0.95)'
-  : n === 3 ? 'rgba(205, 127, 50, 0.95)'
-  : 'var(--text-tertiary)'
+function Row({ r, rank, pathPrefix, playStyle }) {
+  const { p, score, tier, need, fits, status } = r
+  const [open, setOpen] = useState(false)
+  const lost = status === 'committed_elsewhere'
+  const committed = status === 'committed_us'
+  const top = score != null ? topScoutedAttrs(p, 3) : []
+  const report = scoutReport(p, playStyle)
+  const attrEntries = ATTRIBUTE_COLUMNS
+    .filter((name) => p.attributes?.[name] != null && p.attributes[name] !== '')
+    .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(p.attributes[name]) }))
 
-function Row({ r, rank, pathPrefix }) {
-  const { p, score, tier } = r
-  const lost = r.status === 'committed_elsewhere'
-  const top = score != null ? topScoutedAttrs(p, 4) : []
-  const isFirst = rank === 1
-
-  // Sub-line: top scouted attributes if graded, else recruit info.
+  // Sub-line: top scouted attributes if graded, else recruit bio.
   let subline = ''
   if (top.length) {
     subline = top.map((a) => `${ATTRIBUTE_ABBR[a.name] || a.name} ${a.value}`).join('   ')
@@ -59,67 +65,109 @@ function Row({ r, rank, pathPrefix }) {
     if (p.nationalRank) m.push(`#${p.nationalRank} Nat`)
     const htwt = [p.height, p.weight ? `${p.weight} lbs` : null].filter(Boolean).join(', ')
     if (htwt) m.push(htwt)
-    if (p.hometown) m.push(`${p.hometown}${p.state ? `, ${p.state}` : ''}`)
     subline = m.join('   ')
   }
 
+  // Expanded meta (bio + ranks) shown above the attributes grid.
+  const meta = []
+  if (p.height || p.weight) meta.push([p.height, p.weight ? `${p.weight} lbs` : null].filter(Boolean).join(', '))
+  if (p.hometown) meta.push(`${p.hometown}${p.state ? `, ${p.state}` : ''}`)
+  if (p.nationalRank) meta.push(`#${p.nationalRank} National`)
+  if (p.positionRank) meta.push(`#${p.positionRank} ${p.position || 'POS'}`)
+
+  const schemeLine = fits === true
+    ? `Fits your ${playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'} scheme`
+    : fits === false
+      ? `Scheme stretch for your ${playStyle === 'pass' ? 'pass-heavy' : 'run-heavy'} offense`
+      : null
+  const needLine = need && need.rank > 0 ? `${p.position || 'Position'} is ${need.label.toLowerCase()} on next year's roster` : null
+
   return (
-    <Link
-      to={`${pathPrefix}/player/${p.pid}`}
-      className="flex items-center gap-3 sm:gap-3.5 hover:bg-surface-2 transition-colors"
-      style={{ padding: isFirst ? '14px 16px' : '11px 16px', borderTop: rank > 1 ? '1px solid var(--surface-4)' : 'none', opacity: lost ? 0.5 : 1 }}
-    >
-      <span
-        className="w-6 text-right tabular-nums font-display flex-shrink-0 leading-none"
-        style={{ fontSize: isFirst ? '1.45rem' : '1.05rem', fontWeight: isFirst ? 900 : 700, color: rankColor(rank) }}
+    <div style={{ borderTop: rank > 1 ? '1px solid var(--surface-4)' : 'none', opacity: lost ? 0.55 : 1 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 sm:gap-3.5 px-4 py-3 hover:bg-surface-2 transition-colors text-left"
       >
-        {rank}
-      </span>
+        <span className="w-5 text-right tabular-nums font-display flex-shrink-0 leading-none text-txt-secondary" style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+          {rank}
+        </span>
 
-      <div className={`flex-shrink-0 rounded-full flex items-center justify-center overflow-hidden ${isFirst ? 'w-11 h-11' : 'w-9 h-9'}`} style={{ backgroundColor: 'var(--surface-3)' }}>
-        {p.pictureUrl
-          ? <img src={proxyImageUrl(p.pictureUrl, 200)} alt="" className="w-full h-full object-cover" />
-          : <span className="text-[10px] font-black uppercase text-txt-secondary" style={{ letterSpacing: '0.04em' }}>{(p.position || 'ATH').slice(0, 3)}</span>}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-bold text-txt-primary truncate">{p.name}</span>
-          {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
+        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center overflow-hidden" style={{ backgroundColor: 'var(--surface-3)' }}>
+          {p.pictureUrl
+            ? <img src={proxyImageUrl(p.pictureUrl, 200)} alt="" className="w-full h-full object-cover" />
+            : <span className="text-[10px] font-black uppercase text-txt-secondary" style={{ letterSpacing: '0.04em' }}>{(p.position || 'ATH').slice(0, 3)}</span>}
         </div>
-        <div className="text-[11px] text-txt-tertiary truncate mt-0.5" style={{ letterSpacing: '0.3px' }}>
-          <span className="uppercase">{p.position || 'ATH'}{p.archetype ? ` · ${p.archetype}` : ''}</span>
-          {subline && <span className="text-txt-secondary tabular-nums">{'   '}{subline}</span>}
-        </div>
-      </div>
 
-      <div className="text-right flex-shrink-0 hidden sm:block w-20">
-        {r.fits === true && !lost && (
-          <div className="text-[10px] font-bold uppercase leading-none mb-1" style={{ color: 'var(--accent-success)', letterSpacing: '0.5px' }}>Fits</div>
-        )}
-        {r.need && r.need.rank > 0 && !lost && (
-          <div className="text-[10px] font-bold uppercase leading-none" style={{ color: r.need.color, letterSpacing: '0.5px' }}>{r.need.label}</div>
-        )}
-        <div className="text-[10px] uppercase text-txt-tertiary leading-none mt-1" style={{ letterSpacing: '0.5px' }}>{statusLabel(r.status)}</div>
-      </div>
-
-      <div className="text-right flex-shrink-0 w-12">
-        <div
-          className="tabular-nums font-display leading-none"
-          style={{ fontSize: isFirst ? '1.85rem' : '1.4rem', fontWeight: isFirst ? 900 : 800, color: tier ? tier.color : 'var(--text-tertiary)' }}
-          title={tier ? `${score} — ${tier.label}` : 'Unscouted'}
-        >
-          {score ?? '—'}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-bold text-txt-primary truncate">{p.name}</span>
+            {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
+            {committed && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Committed</span>}
+            {lost && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Lost</span>}
+          </div>
+          <div className="text-[11px] text-txt-tertiary truncate mt-0.5" style={{ letterSpacing: '0.3px' }}>
+            <span className="uppercase">{p.position || 'ATH'}{p.archetype ? ` · ${p.archetype}` : ''}</span>
+            {subline && <span className="text-txt-secondary tabular-nums">{'   '}{subline}</span>}
+          </div>
         </div>
-        {tier && <div className="text-[9px] font-black uppercase tracking-wide mt-0.5" style={{ color: tier.color }}>{scoutLetter(score)}</div>}
-      </div>
-    </Link>
+
+        <div className="text-right flex-shrink-0 w-10">
+          <div className="tabular-nums font-display leading-none text-txt-primary" style={{ fontSize: '1.4rem', fontWeight: 800 }} title={tier ? tier.label : 'Unscouted'}>
+            {score ?? '—'}
+          </div>
+          {score != null && <div className="text-[9px] font-bold uppercase tracking-wide mt-0.5 text-txt-tertiary">{scoutLetter(score)}</div>}
+        </div>
+
+        <Chevron open={open} />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 sm:pl-[4.5rem]">
+          {report && <p className="text-[12px] leading-relaxed text-txt-secondary">{report}</p>}
+
+          {(schemeLine || needLine) && (
+            <div className="mt-2 flex flex-col gap-0.5">
+              {schemeLine && <span className="text-[11px] text-txt-tertiary">{schemeLine}</span>}
+              {needLine && <span className="text-[11px] text-txt-tertiary">{needLine}</span>}
+            </div>
+          )}
+
+          {attrEntries.length > 0 && (
+            <div className="mt-3">
+              <div className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '1px' }}>Scouted Attributes</div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-2.5">
+                {attrEntries.map((e) => (
+                  <div key={e.name} className="text-center" title={e.name}>
+                    <div className="font-display font-black tabular-nums leading-none text-txt-primary" style={{ fontSize: '15px' }}>{e.value}</div>
+                    <div className="text-[8px] font-bold uppercase tracking-wide text-txt-tertiary mt-0.5">{e.abbr}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {meta.length > 0 && (
+            <div className="mt-3 text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</div>
+          )}
+
+          <Link
+            to={`${pathPrefix}/player/${p.pid}`}
+            className="inline-block mt-3 text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary"
+            style={{ letterSpacing: '0.5px' }}
+          >
+            View full profile →
+          </Link>
+        </div>
+      )}
+    </div>
   )
 }
 
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
   const currentYear = Number(dynasty?.currentYear)
+  const [needsOpen, setNeedsOpen] = useState(false)
 
   const needsByGroup = useMemo(() => {
     const out = {}
@@ -185,30 +233,37 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
   }
 
   return (
-    <div className="space-y-5">
-      {/* Roster needs */}
+    <div className="space-y-4">
+      {/* Roster needs — collapsed by default, tucks behind the header line. */}
       {needGroups.length > 0 && (
         <section className="media-card overflow-hidden">
-          <div className="px-4 sm:px-5 py-3 flex items-end justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
-            <div>
-              <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Returning next season</div>
-              <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Roster Needs</h3>
+          <button
+            type="button"
+            onClick={() => setNeedsOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 hover:bg-surface-2 transition-colors text-left"
+          >
+            <div className="flex items-baseline gap-2 min-w-0">
+              <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Returning next season</span>
+              <span className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Roster Needs</span>
+              {thinCount > 0 && (
+                <span className="text-[11px] text-txt-tertiary tabular-nums">{thinCount} thin</span>
+              )}
             </div>
-            {thinCount > 0 && (
-              <span className="text-[11px] font-bold uppercase tabular-nums" style={{ color: 'var(--accent-error)', letterSpacing: '0.5px' }}>{thinCount} thin</span>
-            )}
-          </div>
-          <div className="px-4 sm:px-5 py-3 flex flex-wrap gap-x-4 gap-y-2">
-            {needGroups.map((g) => (
-              <span key={g.group} className="inline-flex items-baseline gap-1.5 text-[12px]" title={`${g.depth} on roster, ${g.graduating} graduating`}>
-                <span className="font-bold uppercase text-txt-secondary" style={{ letterSpacing: '0.4px' }}>{g.group}</span>
-                <span className="tabular-nums font-display font-black text-txt-primary">{g.returning}</span>
-                {g.need.label && (
-                  <span className="text-[10px] font-bold uppercase" style={{ color: g.need.color, letterSpacing: '0.5px' }}>{g.need.label}</span>
-                )}
-              </span>
-            ))}
-          </div>
+            <Chevron open={needsOpen} />
+          </button>
+          {needsOpen && (
+            <div className="px-4 sm:px-5 pb-3 pt-1 flex flex-wrap gap-x-4 gap-y-2 border-t" style={{ borderColor: 'var(--surface-4)' }}>
+              {needGroups.map((g) => (
+                <span key={g.group} className="inline-flex items-baseline gap-1.5 text-[12px]" title={`${g.depth} on roster, ${g.graduating} graduating`}>
+                  <span className="font-bold uppercase text-txt-secondary" style={{ letterSpacing: '0.4px' }}>{g.group}</span>
+                  <span className="tabular-nums font-display font-black text-txt-primary">{g.returning}</span>
+                  {g.need.label && (
+                    <span className="text-[10px] font-bold uppercase text-txt-tertiary" style={{ letterSpacing: '0.5px' }}>{g.need.label}</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -220,11 +275,11 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
             <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
           </div>
           {onResolveTargets && (
-            <Button variant="secondary" size="sm" onClick={onResolveTargets}>Resolve ({resolveCount})</Button>
+            <Button variant="secondary" size="sm" onClick={onResolveTargets}>Commits ({resolveCount})</Button>
           )}
         </div>
         <div>
-          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} />)}
+          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} playStyle={playStyle} />)}
         </div>
       </section>
     </div>
