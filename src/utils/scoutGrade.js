@@ -179,6 +179,54 @@ export function scoutGrade(player) {
   return { score, tier: scoutTier(score) }
 }
 
+// ── Scheme fit ───────────────────────────────────────────────────────────────
+// Offensive archetypes' run/pass lean. Defensive archetypes are omitted — "fit"
+// against your OWN offensive identity only makes sense for offensive skill guys.
+export const ARCH_TENDENCY = {
+  // QB
+  'Pocket Passer': 'pass', 'Dual Threat': 'balanced', 'Backfield Creator': 'balanced', 'Pure Runner': 'run',
+  // HB
+  'Elusive Bruiser': 'run', 'East/West Playmaker': 'run', 'Contact Seeker': 'run',
+  'Backfield Threat': 'pass', 'North/South Receiver': 'pass', 'North/South Blocker': 'run',
+  // WR
+  'Speedster': 'pass', 'Route Artist': 'pass', 'Elusive Route Runner': 'pass',
+  'Physical Route Runner': 'pass', 'Gritty Possession': 'pass', 'Contested Specialist': 'pass', 'Gadget': 'balanced',
+  // TE
+  'Vertical Threat': 'pass', 'Pure Possession': 'pass', 'Pure Blocker': 'run',
+  // OL
+  'Pass Protector': 'pass', 'Raw Strength': 'run', 'Agile': 'balanced', 'Well Rounded': 'balanced',
+}
+
+export function archetypeTendency(archetype) {
+  return ARCH_TENDENCY[(archetype || '').replace(/^ATH\s*-\s*/i, '').replace(/\s*\([A-Z]+\)\s*$/, '').trim()] || null
+}
+
+// Infer a team's offensive identity from pass vs rush yards in the latest season
+// with stats. Returns 'pass' | 'run' | 'balanced'.
+export function inferPlayStyle(players, year) {
+  const y = [year - 1, year].reverse().find((yr) =>
+    (players || []).some((p) => p.statsByYear?.[yr]?.passing?.yds || p.statsByYear?.[yr]?.rushing?.yds))
+  if (y == null) return 'balanced'
+  let pass = 0, rush = 0
+  for (const p of players || []) {
+    pass += p.statsByYear?.[y]?.passing?.yds || 0
+    rush += p.statsByYear?.[y]?.rushing?.yds || 0
+  }
+  const total = pass + rush
+  if (!total) return 'balanced'
+  if (pass / total > 0.58) return 'pass'
+  if (rush / total > 0.48) return 'run'
+  return 'balanced'
+}
+
+// Does a target's archetype fit the team's identity? null when not applicable
+// (no tendency, or balanced scheme — everyone fits).
+export function schemeFits(archetype, playStyle) {
+  const t = archetypeTendency(archetype)
+  if (!t || playStyle === 'balanced') return null
+  return t === playStyle || t === 'balanced'
+}
+
 // The player's top scouted attributes by this archetype's emphasis (for display).
 export function topScoutedAttrs(player, n = 3) {
   const attrs = player.attributes || {}

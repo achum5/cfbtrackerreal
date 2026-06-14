@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs, scoutLetter } from '../../utils/scoutGrade'
+import { scoutGrade, topScoutedAttrs, scoutLetter, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
 import { ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
@@ -94,6 +94,9 @@ function Row({ r, rank, pathPrefix }) {
       </div>
 
       <div className="text-right flex-shrink-0 hidden sm:block w-20">
+        {r.fits === true && !lost && (
+          <div className="text-[10px] font-bold uppercase leading-none mb-1" style={{ color: 'var(--accent-success)', letterSpacing: '0.5px' }}>Fits</div>
+        )}
         {r.need && r.need.rank > 0 && !lost && (
           <div className="text-[10px] font-bold uppercase leading-none" style={{ color: r.need.color, letterSpacing: '0.5px' }}>{r.need.label}</div>
         )}
@@ -136,6 +139,13 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     return out
   }, [dynasty?.players, userTid, currentYear, dynasty])
 
+  // Team offensive identity (from pass/rush yards) → per-target scheme fit.
+  const playStyle = useMemo(() => {
+    const roster = (dynasty?.players || []).filter((p) => isPlayerOnRoster(p, userTid, currentYear, dynasty))
+    return inferPlayStyle(roster, currentYear)
+  }, [dynasty?.players, userTid, currentYear, dynasty])
+  const schemeLabel = playStyle === 'pass' ? 'Pass-heavy' : playStyle === 'run' ? 'Run-heavy' : 'Balanced'
+
   const ranked = useMemo(() => {
     const rows = []
     for (const p of dynasty?.players || []) {
@@ -143,7 +153,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       const { score, tier } = scoutGrade(p)
       const group = finePositionGroup(p.position)
       const need = group ? needsByGroup[group]?.need : null
-      rows.push({ p, score, tier, group, need, status: getTargetStatus(p, userTid) })
+      rows.push({ p, score, tier, group, need, fits: schemeFits(p.archetype, playStyle), status: getTargetStatus(p, userTid) })
     }
     rows.sort((a, b) => {
       const aLost = a.status === 'committed_elsewhere' ? 1 : 0
@@ -155,7 +165,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       return (Number(b.p.stars) || 0) - (Number(a.p.stars) || 0)
     })
     return rows
-  }, [dynasty?.players, yearN, userTid, needsByGroup])
+  }, [dynasty?.players, yearN, userTid, needsByGroup, playStyle])
 
   const needGroups = useMemo(
     () => Object.values(needsByGroup).sort((a, b) => b.need.rank - a.need.rank || a.group.localeCompare(b.group)),
@@ -206,7 +216,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       <section className="media-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
           <div>
-            <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>Ranked by scout grade · {ranked.length} target{ranked.length === 1 ? '' : 's'}</div>
+            <div className="label-xs text-txt-tertiary mb-0.5" style={{ letterSpacing: '1px' }}>{schemeLabel} scheme · {ranked.length} target{ranked.length === 1 ? '' : 's'}</div>
             <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
           </div>
           {onResolveTargets && (
