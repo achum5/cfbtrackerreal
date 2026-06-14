@@ -4,26 +4,117 @@ import { Card, EmptyState } from '../../components/ui'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade } from '../../utils/scoutGrade'
+import { scoutGrade, topScoutedAttrs } from '../../utils/scoutGrade'
+import { ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
-// Scout Board — your tracked targets ranked by scout grade and weighed against
-// your roster's needs. The need per position group is driven by how many players
-// you'll have RETURNING there next season (current depth minus graduating
-// seniors): thin groups are flagged so the highest-grade targets that ALSO fill
-// a need rise to the top of your attention.
+// Scout Board (the Targets tab): your tracked targets ranked by scout grade and
+// weighed against roster needs. Each row surfaces the grade, the player's top
+// scouted attributes (or recruit info when unscouted), whether they fill a need,
+// and their commitment status.
 
 const GRADUATING = new Set(['Sr', 'RS Sr', 'Senior'])
-
 const STAR = (n) => '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0)))
+const ratingColor = (v) =>
+  v >= 90 ? '#22c55e' : v >= 80 ? '#84cc16' : v >= 70 ? '#eab308' : v >= 60 ? '#f97316' : '#ef4444'
 
-// returning → need level.
+// returning next season → need level
 const needLevel = (returning) =>
   returning <= 1 ? { key: 'high', label: 'Need', color: '#ef4444', rank: 2 }
   : returning === 2 ? { key: 'med', label: 'Thin', color: '#f59e0b', rank: 1 }
   : { key: 'ok', label: 'Set', color: '#22c55e', rank: 0 }
 
-const statusLabel = (s) =>
-  s === 'committed_us' ? 'Committed' : s === 'committed_elsewhere' ? 'Elsewhere' : 'Pursuing'
+const statusMeta = (s) =>
+  s === 'committed_us' ? { label: 'Committed', color: '#22c55e' }
+  : s === 'committed_elsewhere' ? { label: 'Lost', color: 'var(--text-tertiary)' }
+  : { label: 'Pursuing', color: '#3b82f6' }
+
+function NeedChip({ g }) {
+  const filled = g.need.rank === 2
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold"
+      style={filled
+        ? { backgroundColor: g.need.color, color: '#0a0a0a' }
+        : { backgroundColor: 'var(--surface-2)', border: `1px solid ${g.need.color}55`, color: 'var(--text-primary)' }}
+      title={`${g.group}: ${g.depth} on roster, ${g.graduating} graduating → ${g.returning} returning`}
+    >
+      <span>{g.group}</span>
+      <span className="tabular-nums" style={{ opacity: filled ? 0.8 : 0.55 }}>{g.returning}</span>
+      <span className="uppercase" style={{ color: filled ? '#0a0a0a' : g.need.color, opacity: filled ? 0.85 : 1, letterSpacing: '0.04em' }}>{g.need.label}</span>
+    </span>
+  )
+}
+
+function TargetRow({ r, rank, pathPrefix }) {
+  const { p, score, tier } = r
+  const lost = r.status === 'committed_elsewhere'
+  const top = score != null ? topScoutedAttrs(p, 4) : []
+  const st = statusMeta(r.status)
+
+  const meta = []
+  if (p.nationalRank) meta.push(`#${p.nationalRank} Nat`)
+  if (p.positionRank) meta.push(`#${p.positionRank} ${p.position || 'Pos'}`)
+  const htwt = [p.height, p.weight ? `${p.weight} lbs` : null].filter(Boolean).join(', ')
+  if (htwt) meta.push(htwt)
+  if (p.hometown) meta.push(`${p.hometown}${p.state ? `, ${p.state}` : ''}`)
+
+  return (
+    <Link
+      to={`${pathPrefix}/player/${p.pid}`}
+      className="flex items-stretch rounded-xl overflow-hidden transition-all duration-150 hover:brightness-110"
+      style={{ backgroundColor: 'var(--surface-2)', opacity: lost ? 0.55 : 1, boxShadow: '0 1px 0 rgba(0,0,0,0.25)' }}
+    >
+      {/* tier accent rail */}
+      <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: tier ? tier.color : 'var(--surface-4)' }} />
+      <div className="flex items-center gap-3 sm:gap-4 py-2.5 pl-3 pr-3 sm:pr-4 flex-1 min-w-0">
+        <span className="w-5 text-right font-display font-black tabular-nums text-txt-tertiary text-[13px] flex-shrink-0">{rank}</span>
+
+        {/* grade block */}
+        <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
+          <span className="font-display font-black tabular-nums leading-none" style={{ fontSize: '24px', color: tier ? tier.color : 'var(--text-tertiary)' }}>
+            {score ?? '—'}
+          </span>
+          {tier
+            ? <span className="text-[8px] font-bold uppercase tracking-wide mt-0.5" style={{ color: tier.color, opacity: 0.85 }}>{tier.label}</span>
+            : <span className="text-[8px] font-bold uppercase tracking-wide mt-0.5 text-txt-tertiary">Unscouted</span>}
+        </div>
+
+        {/* identity + scouting info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[14px] font-bold text-txt-primary truncate">{p.name}</span>
+            {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
+          </div>
+          <div className="text-[10px] uppercase tracking-wide text-txt-tertiary truncate">
+            {p.position || 'ATH'}{p.archetype ? ` · ${p.archetype}` : ''}
+          </div>
+          {top.length > 0 ? (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {top.map((a) => (
+                <span key={a.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums" style={{ backgroundColor: 'var(--surface-3)' }} title={a.name}>
+                  <span className="text-txt-tertiary">{ATTRIBUTE_ABBR[a.name] || a.name}</span>
+                  <span style={{ color: ratingColor(a.value) }}>{a.value}</span>
+                </span>
+              ))}
+            </div>
+          ) : meta.length > 0 ? (
+            <div className="text-[10px] text-txt-tertiary truncate mt-1">{meta.join('  ·  ')}</div>
+          ) : null}
+        </div>
+
+        {/* need + status */}
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+          {r.need && r.need.rank > 0 && !lost && (
+            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded" style={{ color: r.need.color, border: `1px solid ${r.need.color}`, letterSpacing: '0.06em' }}>
+              {r.need.label}
+            </span>
+          )}
+          <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: st.color, letterSpacing: '0.04em' }}>{st.label}</span>
+        </div>
+      </div>
+    </Link>
+  )
+}
 
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
   const yearN = Number(year)
@@ -48,7 +139,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
     return out
   }, [dynasty?.players, userTid, currentYear, dynasty])
 
-  // Tracked targets for the class, graded + need-flagged, ranked by grade.
   const ranked = useMemo(() => {
     const rows = []
     for (const p of dynasty?.players || []) {
@@ -58,7 +148,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
       const need = group ? needsByGroup[group]?.need : null
       rows.push({ p, score, tier, group, need, status: getTargetStatus(p, userTid) })
     }
-    // Graded first (desc), ungraded after (by stars); committed-elsewhere sinks.
     rows.sort((a, b) => {
       const aLost = a.status === 'committed_elsewhere' ? 1 : 0
       const bLost = b.status === 'committed_elsewhere' ? 1 : 0
@@ -71,92 +160,51 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix }) {
     return rows
   }, [dynasty?.players, yearN, userTid, needsByGroup])
 
+  // Needs first (Need → Thin → Set), then alphabetical.
   const needGroups = useMemo(
     () => Object.values(needsByGroup).sort((a, b) => b.need.rank - a.need.rank || a.group.localeCompare(b.group)),
     [needsByGroup],
   )
+  const topNeeds = needGroups.filter((g) => g.need.rank > 0)
 
   if (ranked.length === 0) {
     return (
       <Card>
         <EmptyState
           title="No Targets to Scout"
-          message="Track prospects on the Targets tab (with scouted attributes) and they'll be ranked here by grade against your roster needs."
+          message="Track prospects via the recruiting sheet (set their Commitment to “Uncommitted” and fill in attributes), and they'll be ranked here by grade against your roster needs."
         />
       </Card>
     )
   }
 
   return (
-    <div className="space-y-5">
-      {/* Roster needs strip */}
+    <div className="space-y-6">
+      {/* Roster needs */}
       {needGroups.length > 0 && (
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="font-display font-bold uppercase text-txt-secondary text-[12px]" style={{ letterSpacing: '1.5px' }}>Roster Needs</span>
-            <span className="text-[11px] text-txt-tertiary">returning next season</span>
+          <div className="flex items-baseline gap-3 mb-2.5">
+            <span className="font-display font-black uppercase text-txt-primary text-[13px]" style={{ letterSpacing: '1.5px' }}>Roster Needs</span>
+            <span className="text-[11px] text-txt-tertiary">
+              {topNeeds.length ? `${topNeeds.length} thin spot${topNeeds.length === 1 ? '' : 's'} · returning next season` : 'returning next season'}
+            </span>
             <div className="flex-1 h-px" style={{ background: 'var(--surface-4)' }} />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {needGroups.map((g) => (
-              <span
-                key={g.group}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-bold"
-                style={{ backgroundColor: 'var(--surface-2)', border: `1px solid ${g.need.color}55` }}
-                title={`${g.group}: ${g.depth} on roster, ${g.graduating} graduating → ${g.returning} returning`}
-              >
-                <span className="text-txt-primary">{g.group}</span>
-                <span className="tabular-nums text-txt-tertiary">{g.returning}</span>
-                <span className="uppercase" style={{ color: g.need.color, letterSpacing: '0.04em' }}>{g.need.label}</span>
-              </span>
-            ))}
+            {needGroups.map((g) => <NeedChip key={g.group} g={g} />)}
           </div>
         </div>
       )}
 
-      {/* Ranked targets */}
+      {/* Big board */}
       <div>
-        <div className="flex items-center gap-3 mb-2">
-          <span className="font-display font-bold uppercase text-txt-secondary text-[12px]" style={{ letterSpacing: '1.5px' }}>Big Board</span>
-          <span className="text-[11px] tabular-nums text-txt-tertiary">{ranked.length}</span>
+        <div className="flex items-baseline gap-3 mb-2.5">
+          <span className="font-display font-black uppercase text-txt-primary text-[13px]" style={{ letterSpacing: '1.5px' }}>Big Board</span>
+          <span className="text-[11px] tabular-nums text-txt-tertiary">{ranked.length} target{ranked.length === 1 ? '' : 's'}</span>
           <div className="flex-1 h-px" style={{ background: 'var(--surface-4)' }} />
         </div>
-        <div className="space-y-1">
-          {ranked.map((r, i) => {
-            const fillsNeed = r.need && r.need.rank > 0 && r.status !== 'committed_elsewhere'
-            return (
-              <Link
-                key={r.p.pid}
-                to={`${pathPrefix}/player/${r.p.pid}`}
-                className="flex items-center gap-3 py-2 px-3 rounded-lg transition-colors hover:brightness-110"
-                style={{ backgroundColor: 'var(--surface-2)', opacity: r.status === 'committed_elsewhere' ? 0.5 : 1 }}
-              >
-                <span className="w-6 text-right font-display font-black tabular-nums text-txt-tertiary text-[13px] flex-shrink-0">{i + 1}</span>
-                {/* Grade */}
-                <span
-                  className="w-11 text-center font-display font-black tabular-nums text-[16px] flex-shrink-0"
-                  style={{ color: r.tier ? r.tier.color : 'var(--text-tertiary)' }}
-                  title={r.tier ? r.tier.label : 'Unscouted'}
-                >
-                  {r.score ?? '—'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-bold text-txt-primary truncate">{r.p.name}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-txt-tertiary truncate">
-                    {r.p.position || 'ATH'}{r.p.archetype ? ` · ${r.p.archetype}` : ''}{Number(r.p.stars) ? ` · ${STAR(r.p.stars)}` : ''}
-                  </div>
-                </div>
-                {fillsNeed && (
-                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: r.need.color, border: `1px solid ${r.need.color}`, letterSpacing: '0.06em' }}>
-                    {r.need.label}
-                  </span>
-                )}
-                <span className="text-[10px] uppercase tracking-wide text-txt-tertiary flex-shrink-0 hidden sm:block w-20 text-right">
-                  {statusLabel(r.status)}
-                </span>
-              </Link>
-            )
-          })}
+        <div className="space-y-1.5">
+          {ranked.map((r, i) => <TargetRow key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} />)}
         </div>
       </div>
     </div>
