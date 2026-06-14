@@ -4,7 +4,7 @@ import { proxyImageUrl } from '../utils/imageProxy'
 import { getTidFromAbbr } from '../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../data/teams'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
-import { scoutGrade } from '../utils/scoutGrade'
+import { scoutGrade, scoutLetter } from '../utils/scoutGrade'
 
 // Madden-style rating color ramp for scouted attribute values.
 const ratingColor = (v) =>
@@ -148,7 +148,7 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
               title={`Scout grade ${grade.score} — ${grade.tier.label}`}
             >
               <span className="tabular-nums">{grade.score}</span>
-              <span style={{ opacity: 0.85 }}>{grade.tier.label}</span>
+              <span style={{ opacity: 0.85 }}>{scoutLetter(grade.score)}</span>
             </span>
           )}
         </div>

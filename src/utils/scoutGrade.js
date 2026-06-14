@@ -159,6 +159,18 @@ export function scoutTier(score) {
   return SCOUT_TIERS.find((t) => score >= t.min) || SCOUT_TIERS[SCOUT_TIERS.length - 1]
 }
 
+// Letter grade — finer-grained label over the same score (A+ … F). Colored by
+// the score's tier so it doesn't introduce a new palette.
+const LETTER_CUTS = [
+  [95, 'A+'], [90, 'A'], [86, 'A-'], [82, 'B+'], [78, 'B'], [74, 'B-'],
+  [70, 'C+'], [66, 'C'], [62, 'C-'], [58, 'D+'], [54, 'D'], [50, 'D-'], [0, 'F'],
+]
+export function scoutLetter(score) {
+  if (score == null) return null
+  for (const [min, letter] of LETTER_CUTS) if (score >= min) return letter
+  return 'F'
+}
+
 /**
  * Convenience: { score, tier } for a player (tier is the SCOUT_TIERS entry).
  */

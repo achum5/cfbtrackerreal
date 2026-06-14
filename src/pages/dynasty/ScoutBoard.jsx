@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs } from '../../utils/scoutGrade'
+import { scoutGrade, topScoutedAttrs, scoutLetter } from '../../utils/scoutGrade'
 import { ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
@@ -15,10 +15,24 @@ import { ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 const GRADUATING = new Set(['Sr', 'RS Sr', 'Senior'])
 const STAR = (n) => '★'.repeat(Math.max(0, Math.min(5, Number(n) || 0)))
 
-const needLevel = (returning) =>
-  returning <= 1 ? { label: 'Need', color: 'var(--accent-error)', rank: 2 }
-  : returning === 2 ? { label: 'Thin', color: 'var(--accent-warning)', rank: 1 }
-  : { label: null, color: 'var(--text-tertiary)', rank: 0 }
+// Per-position depth targets (returning next season): below `start` you can't
+// field your starters (Need); below `min` you're under ideal depth (Thin). Keyed
+// to finePositionGroup names; unknown groups use DEFAULT_DEPTH.
+const POS_DEPTH = {
+  QB: { min: 2, start: 1 }, RB: { min: 4, start: 2 }, FB: { min: 1, start: 1 }, WR: { min: 6, start: 3 }, TE: { min: 3, start: 1 },
+  OT: { min: 4, start: 2 }, OG: { min: 4, start: 2 }, C: { min: 2, start: 1 },
+  EDGE: { min: 4, start: 2 }, DT: { min: 4, start: 2 },
+  OLB: { min: 3, start: 2 }, MIKE: { min: 2, start: 1 }, ILB: { min: 2, start: 1 }, LB: { min: 3, start: 2 },
+  CB: { min: 5, start: 3 }, SAFETY: { min: 4, start: 2 }, FS: { min: 2, start: 1 }, SS: { min: 2, start: 1 },
+  K: { min: 1, start: 1 }, P: { min: 1, start: 1 }, LS: { min: 1, start: 1 }, ATH: { min: 0, start: 0 },
+}
+const DEFAULT_DEPTH = { min: 3, start: 2 }
+const needLevel = (returning, group) => {
+  const d = POS_DEPTH[group] || DEFAULT_DEPTH
+  if (returning < d.start) return { label: 'Need', color: 'var(--accent-error)', rank: 2 }
+  if (returning < d.min) return { label: 'Thin', color: 'var(--accent-warning)', rank: 1 }
+  return { label: null, color: 'var(--text-tertiary)', rank: 0 }
+}
 
 const statusLabel = (s) => (s === 'committed_us' ? 'Committed' : s === 'committed_elsewhere' ? 'Lost' : 'Pursuing')
 
@@ -94,7 +108,7 @@ function Row({ r, rank, pathPrefix }) {
         >
           {score ?? '—'}
         </div>
-        {tier && <div className="text-[8px] font-bold uppercase tracking-wide mt-0.5" style={{ color: tier.color, opacity: 0.85 }}>{tier.label}</div>}
+        {tier && <div className="text-[9px] font-black uppercase tracking-wide mt-0.5" style={{ color: tier.color }}>{scoutLetter(score)}</div>}
       </div>
     </Link>
   )
@@ -117,7 +131,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     }
     for (const g of Object.values(out)) {
       g.returning = g.depth - g.graduating
-      g.need = needLevel(g.returning)
+      g.need = needLevel(g.returning, g.group)
     }
     return out
   }, [dynasty?.players, userTid, currentYear, dynasty])
