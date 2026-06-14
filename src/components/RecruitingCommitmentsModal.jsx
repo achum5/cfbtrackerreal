@@ -65,19 +65,21 @@ export default function RecruitingCommitmentsModal({
   // Prefill set = every commit PLUS every tracked target for this class, deduped
   // by pid. Targets carry their current Commitment status + attributes so the
   // board survives the weekly Save & Delete (the sheet is disposable; the player
-  // records are the source of truth). Plain commits keep a blank Commitment.
+  // records are the source of truth). Committed-to-you records show YOUR team's
+  // abbr in the Commitment column (clearer than blank, and reads back the same).
   // Defined before the prompts so they can point the AI at the right paste row.
   const prefillRecruits = useMemo(() => {
     const players = currentDynasty?.players || []
     const teams = currentDynasty?.teams || {}
     const userTid = Number(currentDynasty?.currentTid)
     const abbrOf = (tid) => teams[tid]?.abbr || ''
+    const userAbbr = abbrOf(userTid)
     const byPid = new Map()
     for (const p of players) {
       if (!p?.isTarget || Number(p.targetYear) !== Number(currentYear)) continue
       const commitment = p.commitmentTid == null
         ? '(Pursuing)'
-        : (Number(p.commitmentTid) === userTid ? '' : abbrOf(p.commitmentTid))
+        : (Number(p.commitmentTid) === userTid ? userAbbr : abbrOf(p.commitmentTid))
       byPid.set(p.pid, {
         name: p.name, class: p.class, position: p.position, archetype: p.archetype,
         stars: p.stars, nationalRank: p.nationalRank, stateRank: p.stateRank, positionRank: p.positionRank,
@@ -87,10 +89,12 @@ export default function RecruitingCommitmentsModal({
       })
     }
     // Add plain commits that aren't already represented by a tracked target.
+    // These live in recruitingCommitments, so they're commits to YOUR team —
+    // stamp the Commitment column with your abbr (was blank before).
     let anon = 0
     for (const c of existingCommitments) {
       if (c?.pid != null && byPid.has(c.pid)) continue
-      byPid.set(c?.pid != null ? c.pid : `c-${anon++}`, c)
+      byPid.set(c?.pid != null ? c.pid : `c-${anon++}`, { ...c, commitment: c.commitment || userAbbr })
     }
     return [...byPid.values()]
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, existingCommitments, currentYear])
