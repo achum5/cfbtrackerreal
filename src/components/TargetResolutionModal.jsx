@@ -25,6 +25,9 @@ export default function TargetResolutionModal({ isOpen, onClose, targets = [], d
     return out.sort((a, b) => a.name.localeCompare(b.name))
   }, [dynastyTeams, userTid])
 
+  // Your team's label for the commit button (e.g. "Commit to UK").
+  const userTeamLabel = dynastyTeams?.[userTid]?.abbr || dynastyTeams?.[userTid]?.name || 'me'
+
   const set = (pid, value) => setRes(prev => {
     const next = { ...prev }
     if (value == null) delete next[pid]
@@ -96,7 +99,7 @@ export default function TargetResolutionModal({ isOpen, onClose, targets = [], d
                       ? { backgroundColor: 'var(--accent-success)', color: '#fff' }
                       : { backgroundColor: 'var(--surface-3)', color: 'var(--text-secondary)' }}
                   >
-                    Commit to me
+                    Commit to {userTeamLabel}
                   </button>
                   <select
                     value={r?.kind === 'elsewhere' ? (r.tid ?? '') : ''}

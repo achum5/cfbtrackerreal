@@ -509,7 +509,15 @@ function PlayerInner() {
   // IMPORTANT: All hooks must be called before any early returns
   const teamColors = useTeamColors(playerTeamName, dynasty?.teams || dynasty?.customTeams)
 
-  const teamInfo = playerTeam ? {
+  const teamInfo = isUncommittedTarget ? {
+    // An uncommitted target has no team — render the hero in a neutral slate,
+    // never a team color (the empty-name color lookup would otherwise pick a
+    // default tint). Matches the grey target cards on the board.
+    name: 'Recruiting Target',
+    backgroundColor: '#3a3d47',
+    textColor: '#f3f4f6',
+    isTeambuilder: false
+  } : playerTeam ? {
     name: playerTeam.name,
     backgroundColor: playerTeam.primaryColor || teamColors.primary || '#1f2937',
     textColor: playerTeam.secondaryColor || teamColors.secondary || '#f3f4f6',
