@@ -5086,7 +5086,7 @@ export default function Dashboard() {
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw1UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
               })
-              todos.push(buildNewTargetsTodo())
+              bw1Todos.push(buildNewTargetsTodo())
 
               return (
                 <>
@@ -5439,7 +5439,7 @@ export default function Dashboard() {
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw2UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
               })
-              todos.push(buildNewTargetsTodo())
+              bw2Todos.push(buildNewTargetsTodo())
 
               return (
                 <>
@@ -6135,7 +6135,7 @@ export default function Dashboard() {
                 onClick: () => navigate(`${pathPrefix}/recruiting/${w34UserTidForCommits}/${currentDynasty.currentYear}`),
               } : null,
             })
-            todos.push(buildNewTargetsTodo())
+            w34Todos.push(buildNewTargetsTodo())
 
             return (
               <>
@@ -6418,7 +6418,7 @@ export default function Dashboard() {
                     onClick: handleNoCommitments,
                   } : null,
                 })
-                todos.push(buildNewTargetsTodo())
+                o26Todos.push(buildNewTargetsTodo())
               }
 
               // Task 2: Draft Results (Recruiting Week 1 only)
