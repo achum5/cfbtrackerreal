@@ -17,6 +17,7 @@ import { StatRings, CardSectionHeader } from '../../components/CfbUI'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { isOpenTarget } from '../../utils/recruitingTargets'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
@@ -2065,6 +2066,9 @@ function PlayerInner() {
               { key: 'gamelog', label: 'Game Log' },
               { key: 'timeline', label: 'Timeline' },
               { key: 'awards', label: 'Awards' },
+              ...(player.attributes && Object.keys(player.attributes).length > 0
+                ? [{ key: 'attributes', label: 'Attributes' }]
+                : []),
               ...((Array.isArray(player.highlights) ? player.highlights : []).filter(Boolean).length > 0
                 ? [{ key: 'highlights', label: 'Highlights' }]
                 : []),
@@ -2103,6 +2107,40 @@ function PlayerInner() {
 
       {/* Tab content — keyed so the whole subtree fades up on each switch */}
       <div key={activeTab} className="reveal">
+
+      {/* Attributes — scouted ratings entered via the recruiting sheet. Shown in
+          ATTRIBUTE_COLUMNS order so they group naturally (physical → passing →
+          … → special teams); only the scouted attributes appear. */}
+      {activeTab === 'attributes' && (() => {
+        const attrs = player.attributes || {}
+        const entries = ATTRIBUTE_COLUMNS
+          .filter((name) => attrs[name] != null && attrs[name] !== '')
+          .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(attrs[name]) }))
+        if (!entries.length) return null
+        const ratingColor = (v) =>
+          v >= 90 ? '#22c55e' : v >= 80 ? '#84cc16' : v >= 70 ? '#eab308' : v >= 60 ? '#f97316' : '#ef4444'
+        return (
+          <div className="mt-4 sm:mt-6">
+            <div className="media-card overflow-hidden">
+              <div className="px-5 sm:px-6 py-4 border-b flex items-end justify-between gap-3" style={{ borderColor: 'var(--surface-4)' }}>
+                <div>
+                  <div className="label-sm text-txt-tertiary mb-1">Scouting</div>
+                  <h2 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: 'clamp(18px,3vw,26px)' }}>Attributes</h2>
+                </div>
+                <div className="text-[11px] text-txt-tertiary tabular-nums">{entries.length} scouted</div>
+              </div>
+              <div className="px-5 sm:px-6 py-5 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 sm:gap-3">
+                {entries.map((e) => (
+                  <div key={e.name} className="rounded-lg px-2 py-2.5 text-center" style={{ backgroundColor: 'var(--surface-2)' }} title={e.name}>
+                    <div className="font-display font-black tabular-nums leading-none" style={{ fontSize: '22px', color: ratingColor(e.value) }}>{e.value}</div>
+                    <div className="text-[10px] font-bold uppercase text-txt-tertiary mt-1 tracking-wide truncate">{e.abbr}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Overview - 3-column summary with inline scoring highlights */}
       {activeTab === 'overview' && (() => {
