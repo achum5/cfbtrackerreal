@@ -3544,7 +3544,7 @@ export default function Dashboard() {
               todos.push({
                 key: 'preseason-recruiting',
                 done: recruitingDone,
-                title: 'Any commitments this week?',
+                title: 'Any new targets/commitments this week?',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
@@ -4158,7 +4158,7 @@ export default function Dashboard() {
               todos.push({
                 key: 'cc-recruiting',
                 done: recruitingDone,
-                title: 'Any commitments this week?',
+                title: 'Any new targets/commitments this week?',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
@@ -5009,7 +5009,7 @@ export default function Dashboard() {
               bw1Todos.push({
                 key: 'recruiting-bw1',
                 done: bw1HasCommitmentsData,
-                title: bw1HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                title: bw1HasCommitmentsData ? 'Recruiting Commitments' : 'Any new targets/commitments this week?',
                 subtitle: bw1HasCommitmentsData
                   ? bw1CommitmentsCount > 0
                     ? `${bw1CommitmentsCount} commitment${bw1CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -5362,7 +5362,7 @@ export default function Dashboard() {
               bw2Todos.push({
                 key: 'recruiting-bw2',
                 done: bw2HasCommitmentsData,
-                title: bw2HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                title: bw2HasCommitmentsData ? 'Recruiting Commitments' : 'Any new targets/commitments this week?',
                 subtitle: bw2HasCommitmentsData
                   ? bw2CommitmentsCount > 0
                     ? `${bw2CommitmentsCount} commitment${bw2CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6057,7 +6057,7 @@ export default function Dashboard() {
             w34Todos.push({
               key: 'recruiting-bw34',
               done: w34HasCommitmentsData,
-              title: w34HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+              title: w34HasCommitmentsData ? 'Recruiting Commitments' : 'Any new targets/commitments this week?',
               subtitle: w34HasCommitmentsData
                 ? w34CommitmentsCount > 0
                   ? `${w34CommitmentsCount} commitment${w34CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6342,7 +6342,7 @@ export default function Dashboard() {
                 o26Todos.push({
                   key: 'recruiting-week',
                   done: hasCommitmentsData,
-                  title: hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                  title: hasCommitmentsData ? 'Recruiting Commitments' : 'Any new targets/commitments this week?',
                   subtitle: hasCommitmentsData
                     ? commitmentsCount > 0
                       ? `${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
