@@ -79,6 +79,14 @@ function Row({ r, rank, pathPrefix, playStyle }) {
 
   const fmtAdj = (v) => (v > 0 ? `+${v}` : `${v}`)
 
+  // One attribute readout: order by archetype importance (weight), then value, so
+  // the grade-driving traits lead — no need for a separate weight column.
+  const weightOf = {}
+  if (breakdown) for (const f of breakdown.factors) weightOf[f.name] = f.weight
+  const orderedAttrs = [...attrEntries].sort(
+    (a, b) => (weightOf[b.name] || 0) - (weightOf[a.name] || 0) || b.value - a.value,
+  )
+
   return (
     <div style={{ borderTop: rank > 1 ? '1px solid var(--surface-4)' : 'none', opacity: lost ? 0.55 : 1 }}>
       <button
@@ -119,81 +127,77 @@ function Row({ r, rank, pathPrefix, playStyle }) {
       </button>
 
       {open && (
-        <div className="px-4 pb-5 pt-1 sm:pl-[4.5rem] space-y-4">
-          {/* Scouting report — flowing paragraphs */}
+        <div className="px-4 pb-6 pt-1 sm:pl-[4.5rem] sm:pr-8">
+          {/* The report reads as one piece: lead-styled prose, then a quiet
+              data ledger (attributes → grade rationale → bio), hairline-tied. */}
           {paragraphs.length > 0 && (
-            <div className="space-y-2.5">
-              <div className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Scouting Report</div>
+            <div className="max-w-[70ch] space-y-3">
               {paragraphs.map((para, i) => (
-                <p key={i} className="text-[12px] leading-relaxed text-txt-secondary">{para}</p>
+                <p
+                  key={i}
+                  className={i === 0
+                    ? 'text-[13.5px] leading-relaxed text-txt-primary'
+                    : 'text-[12.5px] leading-relaxed text-txt-secondary'}
+                >
+                  {para}
+                </p>
               ))}
             </div>
           )}
 
-          {/* How the grade is determined */}
-          {breakdown && (
-            <div className="rounded-md p-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
-              <div className="flex items-baseline justify-between mb-2">
-                <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>How this grade is built</span>
-                <span className="text-[12px] tabular-nums text-txt-secondary">
-                  {breakdown.letter} <span className="text-txt-primary font-bold">{breakdown.score}</span> overall
-                </span>
-              </div>
-              <div className="space-y-1">
-                {breakdown.adjustments.map((a) => (
-                  <div key={a.label} className="flex items-baseline gap-2 text-[11px]">
-                    <span className="text-txt-secondary w-40 flex-shrink-0">{a.label}</span>
-                    <span className="tabular-nums font-bold text-txt-primary w-9 text-right flex-shrink-0">{a.kind === 'base' ? a.value : fmtAdj(a.value)}</span>
-                    <span className="text-txt-tertiary truncate">{a.note}</span>
-                  </div>
-                ))}
-              </div>
-              {breakdown.factors.length > 0 && breakdown.usesWeights && (
-                <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--surface-4)' }}>
-                  <div className="label-xs text-txt-tertiary mb-1.5" style={{ letterSpacing: '1px' }}>Attributes driving the base (by weight)</div>
-                  <div className="flex flex-col gap-1.5">
-                    {breakdown.factors.map((f) => (
-                      <div key={f.name} className="flex items-center gap-2 text-[11px]">
-                        <span className="text-txt-secondary w-32 flex-shrink-0 truncate">{f.name}</span>
-                        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${Math.round(f.share * 100)}%`, backgroundColor: 'var(--text-tertiary)' }} />
-                        </div>
-                        <span className="tabular-nums text-txt-tertiary w-8 text-right flex-shrink-0">{Math.round(f.share * 100)}%</span>
-                        <span className="tabular-nums font-bold text-txt-primary w-7 text-right flex-shrink-0">{f.value}</span>
+          <div className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2 max-w-[70ch]">
+            {/* Attribute readout — a single clean set of bars, key traits first */}
+            {orderedAttrs.length > 0 && (
+              <div>
+                <div className="label-xs text-txt-tertiary mb-3" style={{ letterSpacing: '1.5px' }}>Attributes</div>
+                <div className="space-y-2">
+                  {orderedAttrs.map((e) => (
+                    <div key={e.name} className="flex items-center gap-3">
+                      <span className="text-[11px] text-txt-secondary w-28 flex-shrink-0 truncate" title={e.name}>{e.name}</span>
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round((e.value / 99) * 100))}%`, backgroundColor: 'var(--text-secondary)' }} />
                       </div>
-                    ))}
-                  </div>
+                      <span className="text-[12px] tabular-nums font-bold text-txt-primary w-6 text-right flex-shrink-0">{e.value}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Full scouted-attributes grid */}
-          {attrEntries.length > 0 && (
-            <div>
-              <div className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '1px' }}>Scouted Attributes</div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-2.5">
-                {attrEntries.map((e) => (
-                  <div key={e.name} className="text-center" title={e.name}>
-                    <div className="font-display font-black tabular-nums leading-none text-txt-primary" style={{ fontSize: '15px' }}>{e.value}</div>
-                    <div className="text-[8px] font-bold uppercase tracking-wide text-txt-tertiary mt-0.5">{e.abbr}</div>
-                  </div>
-                ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {meta.length > 0 && (
-            <div className="text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</div>
-          )}
+            {/* Grade rationale — borderless ledger, the math behind the letter */}
+            {breakdown && (
+              <div>
+                <div className="flex items-baseline justify-between mb-3">
+                  <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Grade Rationale</span>
+                  <span className="text-[11px] tabular-nums text-txt-tertiary">{breakdown.letter} · {breakdown.score} ovr</span>
+                </div>
+                <div className="space-y-2">
+                  {breakdown.adjustments.map((a) => (
+                    <div key={a.label} className="flex items-baseline gap-3">
+                      <span className="flex-1 min-w-0 text-[11px] leading-tight text-txt-secondary">
+                        {a.label}<span className="text-txt-tertiary"> · {a.note}</span>
+                      </span>
+                      <span className="text-[12px] tabular-nums font-bold text-txt-primary w-8 text-right flex-shrink-0">
+                        {a.kind === 'base' ? a.value : fmtAdj(a.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-          <Link
-            to={`${pathPrefix}/player/${p.pid}`}
-            className="inline-block text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary"
-            style={{ letterSpacing: '0.5px' }}
-          >
-            View full profile →
-          </Link>
+          {/* Bio + link — quiet footer rule */}
+          <div className="mt-6 pt-4 flex items-center justify-between gap-4 flex-wrap max-w-[70ch]" style={{ borderTop: '1px solid var(--surface-4)' }}>
+            <span className="text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</span>
+            <Link
+              to={`${pathPrefix}/player/${p.pid}`}
+              className="text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary whitespace-nowrap"
+              style={{ letterSpacing: '0.5px' }}
+            >
+              View full profile →
+            </Link>
+          </div>
         </div>
       )}
     </div>
