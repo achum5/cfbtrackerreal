@@ -3,6 +3,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useDynasty, getRecruitingCommitments, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
 import { inferPlayStyle } from '../../utils/scoutGrade'
+import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getOriginalTeamAbbr, getColorsFromTid } from '../../data/teamRegistry'
@@ -190,6 +191,10 @@ export default function Recruiting() {
     const roster = (currentDynasty?.players || []).filter(p => isPlayerOnRoster(p, selectedTid, yr, currentDynasty))
     return inferPlayStyle(roster, yr)
   }, [currentDynasty?.players, selectedTid, currentDynasty?.currentYear, currentDynasty])
+
+  // Self-calibrating scout model (learned from past recruit outcomes) so the
+  // commitment cards grade on the same sharpened scale as the Targets board.
+  const scoutModel = useMemo(() => scoutCalibration(currentDynasty?.players || []), [currentDynasty?.players])
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
@@ -1227,6 +1232,7 @@ export default function Recruiting() {
                 isAllSeasons={isAllSeasons}
                 interactive={!!linkPid}
                 playStyle={playStyle}
+                model={scoutModel}
               />
             )
 

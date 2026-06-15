@@ -80,20 +80,24 @@ export const SCOUT_WEIGHTS = {
 }
 
 // Adjustments — our own calibration (kept modest so scouted attributes dominate).
-const DEV_ADJ = { Elite: 10, Star: 5, Impact: 2, Normal: -5 }
+export const DEV_ADJ = { Elite: 10, Star: 5, Impact: 2, Normal: -5 }
 const STAR_ADJ = { 5: 2, 4: 1, 3: 0, 2: -1, 1: -2 }
+const HIDDEN_DEV_BY_STAR = { 5: 7, 4: 4, 3: 1, 2: -2, 1: -4 }
 const PHYS_ATTRS = ['Speed', 'Acceleration', 'Strength', 'Agility', 'Change of Direction']
 
-const hasAnyAttrs = (p) => p?.attributes && Object.keys(p.attributes).some((k) => p.attributes[k] != null && p.attributes[k] !== '')
+export const hasAnyAttrs = (p) => p?.attributes && Object.keys(p.attributes).some((k) => p.attributes[k] != null && p.attributes[k] !== '')
+// Position bucket (QB / WR / OT …) — the prefix of the archetype key.
+export const positionBucket = (player) => archetypeKey(player.position, player.archetype).split('_')[0]
 
 // Weighted base over the player's scouted attributes (0–99), normalized by the
 // summed weight of the attributes present. Falls back to a flat average when
-// the archetype has no weight table.
-function baseScore(player) {
+// the archetype has no weight table. `weightsOverride` lets the learning model
+// supply refined weights for an archetype.
+function baseScore(player, weightsOverride) {
   const attrs = player.attributes || {}
   const present = Object.keys(attrs).filter((k) => typeof Number(attrs[k]) === 'number' && Number.isFinite(Number(attrs[k])))
   if (!present.length) return null
-  const weights = SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)]
+  const weights = weightsOverride || SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)]
   if (!weights) {
     // No profile — flat average of scouted attributes.
     const sum = present.reduce((a, k) => a + Number(attrs[k]), 0)
@@ -126,23 +130,39 @@ function physBonus(player) {
   return Math.min(b, 6)
 }
 
-function devAdj(player) {
+// Dev-trait adjustment. For a hidden trait we estimate from stars — using the
+// learned per-star prior when the model has one, else the static heuristic.
+function devAdj(player, devPriors) {
   const d = player.devTrait
   if (d && DEV_ADJ[d] != null) return DEV_ADJ[d]
-  // Hidden / unknown dev — estimate conservatively from stars.
   const stars = parseInt(player.stars, 10) || 3
-  return ({ 5: 7, 4: 4, 3: 1, 2: -2, 1: -4 })[stars] ?? 1
+  if (devPriors && devPriors[stars] != null) return devPriors[stars]
+  return HIDDEN_DEV_BY_STAR[stars] ?? 1
+}
+
+// The learned calibration correction (position + archetype offsets) for a
+// player, or 0 when the model is inactive/absent.
+export function calibrationDelta(player, model) {
+  if (!model || !model.active) return 0
+  const key = archetypeKey(player.position, player.archetype)
+  const bucket = key.split('_')[0]
+  return (model.positionOffset?.[bucket] || 0) + (model.archetypeOffset?.[key] || 0)
 }
 
 /**
  * Full scout score for a player, or null if they have no scouted attributes.
+ * Pass a calibration `model` (from scoutLearning) to apply learned corrections.
  * @returns {number|null} 0–99
  */
-export function computeScoutScore(player) {
+export function computeScoutScore(player, model = null) {
   if (!hasAnyAttrs(player)) return null
-  const base = baseScore(player)
+  const key = archetypeKey(player.position, player.archetype)
+  const weights = (model?.active && model.learnedWeights?.[key]) || null
+  const base = baseScore(player, weights)
   if (base == null) return null
-  const raw = base + devAdj(player) + (STAR_ADJ[parseInt(player.stars, 10)] ?? 0) + physBonus(player)
+  const raw = base + devAdj(player, model?.active ? model.devPriors : null)
+    + (STAR_ADJ[parseInt(player.stars, 10)] ?? 0) + physBonus(player)
+    + calibrationDelta(player, model)
   return Math.max(0, Math.min(99, Math.round(raw)))
 }
 
@@ -173,9 +193,10 @@ export function scoutLetter(score) {
 
 /**
  * Convenience: { score, tier } for a player (tier is the SCOUT_TIERS entry).
+ * Pass a calibration `model` to grade with learned corrections.
  */
-export function scoutGrade(player) {
-  const score = computeScoutScore(player)
+export function scoutGrade(player, model = null) {
+  const score = computeScoutScore(player, model)
   return { score, tier: scoutTier(score) }
 }
 
@@ -238,12 +259,14 @@ export function schemeFits(archetype, playStyle) {
  *   adjustments: Array<{ label, value, note, kind }>,     // base + each modifier
  * }}
  */
-export function gradeBreakdown(player) {
+export function gradeBreakdown(player, model = null) {
   if (!hasAnyAttrs(player)) return null
   const attrs = player.attributes || {}
   const present = Object.keys(attrs).filter((k) => Number.isFinite(Number(attrs[k])))
   if (!present.length) return null
-  const weights = SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)]
+  const key = archetypeKey(player.position, player.archetype)
+  const learned = (model?.active && model.learnedWeights?.[key]) || null
+  const weights = learned || SCOUT_WEIGHTS[key]
 
   let base, usesWeights = false, factors = []
   const keyed = weights ? present.filter((k) => (weights[k] || 0) > 0) : []
@@ -261,23 +284,27 @@ export function gradeBreakdown(player) {
       .sort((a, b) => b.value - a.value)
   }
 
-  const dev = devAdj(player)
+  const dev = devAdj(player, model?.active ? model.devPriors : null)
   const star = STAR_ADJ[parseInt(player.stars, 10)] ?? 0
   const phys = physBonus(player)
-  const score = Math.max(0, Math.min(99, Math.round(base + dev + star + phys)))
+  const cal = calibrationDelta(player, model)
+  const score = Math.max(0, Math.min(99, Math.round(base + dev + star + phys + cal)))
   const tier = scoutTier(score)
   const hasDev = !!(player.devTrait && DEV_ADJ[player.devTrait] != null)
   const stars = parseInt(player.stars, 10) || 3
 
   const adjustments = [
-    { kind: 'base', label: usesWeights ? 'Weighted attribute base' : 'Attribute average', value: Math.round(base),
-      note: usesWeights ? `${keyed.length} archetype attribute${keyed.length === 1 ? '' : 's'}` : 'flat average (no archetype profile)' },
+    { kind: 'base', label: usesWeights ? (learned ? 'Learned attribute base' : 'Weighted attribute base') : 'Attribute average', value: Math.round(base),
+      note: usesWeights ? `${keyed.length} archetype attribute${keyed.length === 1 ? '' : 's'}${learned ? ', weights tuned from outcomes' : ''}` : 'flat average (no archetype profile)' },
     { kind: 'dev', label: 'Development', value: dev,
-      note: hasDev ? `${player.devTrait} dev trait` : `projected from ${stars}★ (dev trait hidden)` },
+      note: hasDev ? `${player.devTrait} dev trait` : `projected from ${stars}★ (dev trait hidden${model?.active && model.devPriors?.[stars] != null ? ', learned' : ''})` },
     { kind: 'star', label: 'Recruit ranking', value: star, note: `${stars}-star prospect` },
     { kind: 'phys', label: 'Physical tools', value: phys, note: phys > 0 ? 'elite measurables bonus' : 'no elite-tool bonus' },
   ]
-  return { score, tier, letter: scoutLetter(score), base: Math.round(base), usesWeights, hasDev, factors, adjustments }
+  if (Math.round(cal) !== 0) {
+    adjustments.push({ kind: 'cal', label: 'Scouting calibration', value: Math.round(cal), note: 'learned from your past classes' })
+  }
+  return { score, tier, letter: scoutLetter(score), base: Math.round(base), usesWeights, learned: !!learned, hasDev, calibration: Math.round(cal), factors, adjustments }
 }
 
 // ── Narrative dossier (templated) ────────────────────────────────────────────
@@ -349,8 +376,8 @@ const rated = (name, value) => `${blurb(name)} (${value})`
  *        need rank: 2 = below starters, 1 = thin, 0 = stocked). Omit for callers
  *        without roster context (e.g. cards).
  */
-export function scoutDossier(player, playStyle = 'balanced', depth = null) {
-  const bd = gradeBreakdown(player)
+export function scoutDossier(player, playStyle = 'balanced', depth = null, model = null) {
+  const bd = gradeBreakdown(player, model)
   if (!bd) return null
   const { score, tier, letter, factors, hasDev } = bd
   const attrs = player.attributes || {}
@@ -485,8 +512,8 @@ export function dossierParagraphs(sections) {
  * The dossier flattened to a single paragraph (for compact callers like cards).
  * @returns {string|null}
  */
-export function scoutReport(player, playStyle = 'balanced', depth = null) {
-  const d = scoutDossier(player, playStyle, depth)
+export function scoutReport(player, playStyle = 'balanced', depth = null, model = null) {
+  const d = scoutDossier(player, playStyle, depth, model)
   return d ? d.map((s) => s.body).join(' ') : null
 }
 

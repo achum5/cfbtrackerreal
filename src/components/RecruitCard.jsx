@@ -38,7 +38,7 @@ const stateFullNames = {
   DC: 'Washington, D.C.',
 }
 
-export default function RecruitCard({ recruit, player, bg, text, teamsData, isAllSeasons = false, interactive = false, playStyle = 'balanced' }) {
+export default function RecruitCard({ recruit, player, bg, text, teamsData, isAllSeasons = false, interactive = false, playStyle = 'balanced', model = null }) {
   const teamBgText = text
   const teamAccent = bg
   const teamsSource = teamsData || {}
@@ -48,8 +48,8 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
     .filter((name) => recruit.attributes?.[name] != null && recruit.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(recruit.attributes[name]) }))
   const hasAttrs = attrEntries.length > 0
-  const grade = scoutGrade(recruit) // { score, tier } — null score when unscouted
-  const report = scoutReport(recruit, playStyle) // generated blurb, null when unscouted
+  const grade = scoutGrade(recruit, model) // { score, tier } — null score when unscouted
+  const report = scoutReport(recruit, playStyle, null, model) // generated blurb, null when unscouted
 
   const hometownText = recruit.hometown
     ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`

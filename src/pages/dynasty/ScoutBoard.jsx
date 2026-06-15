@@ -6,6 +6,7 @@ import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyCo
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
 import { scoutGrade, topScoutedAttrs, scoutLetter, scoutDossier, dossierParagraphs, gradeBreakdown, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
+import { scoutCalibration } from '../../utils/scoutLearning'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
 // Scout Board (the Targets tab): tracked targets ranked by scout grade against
@@ -45,15 +46,15 @@ const Chevron = ({ open }) => (
   </svg>
 )
 
-function Row({ r, rank, pathPrefix, playStyle }) {
+function Row({ r, rank, pathPrefix, playStyle, model }) {
   const { p, score, tier, need, status } = r
   const [open, setOpen] = useState(false)
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
   const top = score != null ? topScoutedAttrs(p, 3) : []
   const depth = Number.isFinite(r.returning) ? { group: r.group || p.position, returning: r.returning, rank: need?.rank ?? 0 } : null
-  const paragraphs = open ? dossierParagraphs(scoutDossier(p, playStyle, depth)) : []
-  const breakdown = open ? gradeBreakdown(p) : null
+  const paragraphs = open ? dossierParagraphs(scoutDossier(p, playStyle, depth, model)) : []
+  const breakdown = open ? gradeBreakdown(p, model) : null
   const attrEntries = ATTRIBUTE_COLUMNS
     .filter((name) => p.attributes?.[name] != null && p.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(p.attributes[name]) }))
@@ -208,6 +209,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
   const yearN = Number(year)
   const currentYear = Number(dynasty?.currentYear)
   const [needsOpen, setNeedsOpen] = useState(false)
+  const [deptOpen, setDeptOpen] = useState(false)
 
   const needsByGroup = useMemo(() => {
     const out = {}
@@ -233,11 +235,15 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     return inferPlayStyle(roster, currentYear)
   }, [dynasty?.players, userTid, currentYear, dynasty])
 
+  // Self-calibrating model learned from how past scouted recruits actually
+  // turned out (predicted grade vs. initial OVR). Sharpens grades over time.
+  const model = useMemo(() => scoutCalibration(dynasty?.players || []), [dynasty?.players])
+
   const ranked = useMemo(() => {
     const rows = []
     for (const p of dynasty?.players || []) {
       if (!p.isTarget || Number(p.targetYear) !== yearN) continue
-      const { score, tier } = scoutGrade(p)
+      const { score, tier } = scoutGrade(p, model)
       const group = finePositionGroup(p.position)
       const need = group ? needsByGroup[group]?.need : null
       const returning = group ? needsByGroup[group]?.returning : null
@@ -253,7 +259,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       return (Number(b.p.stars) || 0) - (Number(a.p.stars) || 0)
     })
     return rows
-  }, [dynasty?.players, yearN, userTid, needsByGroup, playStyle])
+  }, [dynasty?.players, yearN, userTid, needsByGroup, playStyle, model])
 
   const needGroups = useMemo(
     () => Object.values(needsByGroup).sort((a, b) => b.need.rank - a.need.rank || a.group.localeCompare(b.group)),
@@ -300,6 +306,61 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
         </section>
       )}
 
+      {/* Scouting department — the self-learning calibration readout */}
+      {model && model.n > 0 && (
+        <section className="media-card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setDeptOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 hover:bg-surface-2 transition-colors text-left"
+          >
+            <div className="flex items-baseline gap-2 min-w-0">
+              <span className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Scouting Department</span>
+              <span className="text-[11px] text-txt-tertiary tabular-nums truncate">
+                {model.active ? `${model.n} graded · error down ${model.residualMAE.gainPct}%` : `learning · ${model.n} of 6 tracked`}
+              </span>
+            </div>
+            <Chevron open={deptOpen} />
+          </button>
+          {deptOpen && (
+            <div className="px-4 sm:px-5 pb-4 pt-2 border-t space-y-3" style={{ borderColor: 'var(--surface-4)' }}>
+              {!model.active ? (
+                <p className="text-[12px] text-txt-secondary leading-relaxed">
+                  Your grades calibrate themselves by checking past evaluations against how those recruits actually turned out.
+                  {' '}{model.n} scouted {model.n === 1 ? 'prospect has' : 'prospects have'} enrolled so far — a few more graduating classes and the board starts auto-correcting.
+                </p>
+              ) : (
+                <>
+                  <p className="text-[12px] text-txt-secondary leading-relaxed">
+                    Calibrated from {model.n} scouted recruits who have since enrolled. The learned corrections cut ranking error by {model.residualMAE.gainPct}% (average miss {model.residualMAE.after.toFixed(1)} pts). Your raw grades run about {Math.round(model.levelGap)} points above a freshman&apos;s initial OVR.
+                  </p>
+                  {model.topCorrections.length > 0 && (
+                    <div>
+                      <div className="label-xs text-txt-tertiary mb-2" style={{ letterSpacing: '1px' }}>Biggest learned adjustments</div>
+                      <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                        {model.topCorrections.map((c) => (
+                          <span key={c.scope + c.label} className="text-[12px] inline-flex items-baseline gap-1.5">
+                            <span className="text-txt-secondary">{c.label}</span>
+                            <span className="tabular-nums font-bold text-txt-primary">{c.value > 0 ? '+' : ''}{c.value.toFixed(1)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(Object.keys(model.learnedWeights).length > 0 || Object.keys(model.devPriors).length > 0) && (
+                    <div className="text-[11px] text-txt-tertiary">
+                      {Object.keys(model.learnedWeights).length > 0 && `${Object.keys(model.learnedWeights).length} archetype${Object.keys(model.learnedWeights).length === 1 ? '' : 's'} re-weighted from outcomes`}
+                      {Object.keys(model.learnedWeights).length > 0 && Object.keys(model.devPriors).length > 0 ? ' · ' : ''}
+                      {Object.keys(model.devPriors).length > 0 && `${Object.keys(model.devPriors).length} hidden-dev prior${Object.keys(model.devPriors).length === 1 ? '' : 's'} learned`}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Big board */}
       <section className="media-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
@@ -309,7 +370,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
           )}
         </div>
         <div>
-          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} playStyle={playStyle} />)}
+          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} playStyle={playStyle} model={model} />)}
         </div>
       </section>
     </div>
