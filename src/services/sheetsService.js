@@ -1851,7 +1851,7 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
         lastName: row[1] || '',                           // B: Last Name
         position: row[2] || 'QB',                         // C: Position
         year: row[3] || 'Fr',                             // D: Class
-        devTrait: row[4] || 'Normal',                     // E: Dev Trait
+        devTrait: row[4] || '',                           // E: Dev Trait (blank stays blank)
         jerseyNumber: row[5] || '',                       // F: Jersey #
         archetype: row[6] || '',                          // G: Archetype
         overall: parseInt(row[7]) || 0,                   // H: Overall
@@ -1890,7 +1890,7 @@ export async function prefillRosterSheet(spreadsheetId, players) {
         lastName,
         p.position || '',
         p.year || '',
-        p.devTrait || 'Normal',
+        p.devTrait || '',
         p.jerseyNumber || '',
         p.archetype || '',
         p.overall || '',
@@ -2207,7 +2207,7 @@ export async function readRosterFromSheet(spreadsheetId, dynastyTeams = null) {
         lastName: row[1] || '',                           // B: Last Name
         position: row[2] || 'QB',                         // C: Position
         year: row[3] || 'Fr',                             // D: Class
-        devTrait: row[4] || 'Normal',                     // E: Dev Trait
+        devTrait: row[4] || '',                           // E: Dev Trait (blank stays blank)
         jerseyNumber: row[5] || '',                       // F: Jersey #
         archetype: row[6] || '',                          // G: Archetype
         overall: parseInt(row[7]) || 0,                   // H: Overall
@@ -2291,7 +2291,7 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
         lastName,                             // B: Last Name
         player.position || '',                // C: Position
         player.year || '',                    // D: Class
-        player.devTrait || 'Normal',          // E: Dev Trait
+        player.devTrait || '',                // E: Dev Trait (blank stays blank)
         player.jerseyNumber || '',            // F: Jersey #
         player.archetype || '',               // G: Archetype
         player.overall || '',                 // H: Overall

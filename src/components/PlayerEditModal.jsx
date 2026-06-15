@@ -241,7 +241,7 @@ export default function PlayerEditModalNew({
         jerseyNumber: player.jerseyNumber || '',
         overall: player.overall || '',
         year: player.year || '',
-        devTrait: player.devTrait || 'Normal',
+        devTrait: player.devTrait || '', // blank stays blank — dev traits are often hidden
         height: player.height || '',
         weight: player.weight || '',
         hometown: player.hometown || '',
