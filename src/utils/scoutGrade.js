@@ -27,6 +27,10 @@ export const SCOUT_WEIGHTS = {
   'HB_Backfield Threat':    { Catching: 8, Speed: 7, Acceleration: 6, 'Juke Move': 6, 'BC Vision': 5, 'Change of Direction': 5, 'Break Tackle': 4, Carrying: 4 },
   'HB_North/South Receiver':{ Speed: 7, Catching: 7, Acceleration: 6, Carrying: 6, 'BC Vision': 6, 'Break Tackle': 5, Awareness: 4, 'Change of Direction': 4 },
   'HB_North/South Blocker': { Carrying: 8, 'Break Tackle': 7, 'BC Vision': 6, Awareness: 6, Speed: 4, Acceleration: 4, Catching: 3 },
+  'HB_Pure Runner':         { 'BC Vision': 7, Carrying: 7, 'Break Tackle': 7, Speed: 7, Acceleration: 6, 'Change of Direction': 5, 'Juke Move': 5, Awareness: 4 },
+  // FB (maps to the HB bucket; scouted on ball-carrier attributes).
+  'HB_Blocking':            { Carrying: 7, 'Break Tackle': 6, 'BC Vision': 6, Awareness: 5, Speed: 4, Acceleration: 4 },
+  'HB_Utility':             { Carrying: 6, Catching: 6, 'BC Vision': 5, 'Break Tackle': 5, Speed: 5, Acceleration: 5, Awareness: 4 },
   // ── WR ──
   'WR_Speedster':            { Speed: 9, Acceleration: 8, 'Deep Route': 7, 'Spectacular Catch': 6, Catching: 6, 'Medium Route': 4, 'Short Route': 3, 'Catch In Traffic': 3 },
   'WR_Route Artist':         { 'Short Route': 8, 'Medium Route': 8, 'Deep Route': 7, Catching: 7, Agility: 6, Awareness: 5, 'Catch In Traffic': 4, Speed: 3 },
@@ -38,6 +42,7 @@ export const SCOUT_WEIGHTS = {
   // ── TE ──
   'TE_Vertical Threat':      { Speed: 8, Acceleration: 7, 'Deep Route': 7, 'Medium Route': 6, Catching: 7, 'Catch In Traffic': 5, Awareness: 4, Strength: 3 },
   'TE_Pure Possession':      { Catching: 8, 'Catch In Traffic': 8, 'Short Route': 7, 'Medium Route': 6, Awareness: 6, Speed: 3, Strength: 3 },
+  'TE_Possession':           { Catching: 8, 'Catch In Traffic': 7, 'Short Route': 6, 'Medium Route': 6, 'Run Block': 4, Awareness: 5, Strength: 4, Speed: 3 },
   'TE_Gritty Possession':    { 'Catch In Traffic': 8, Catching: 6, 'Short Route': 6, Strength: 6, 'Run Block': 5, Awareness: 5, 'Medium Route': 4 },
   'TE_Physical Route Runner':{ 'Catch In Traffic': 8, 'Medium Route': 7, Catching: 7, Strength: 6, 'Short Route': 5, Awareness: 4, Speed: 4 },
   'TE_Pure Blocker':         { 'Run Block': 9, 'Pass Block': 7, Strength: 8, Awareness: 6, Catching: 3, 'Catch In Traffic': 3 },
@@ -48,6 +53,7 @@ export const SCOUT_WEIGHTS = {
     [`${p}_Pass Protector`]:{ 'Pass Block': 8, 'Pass Block Power': 7, 'Pass Block Finesse': 7, Awareness: 6, 'Run Block': 4, 'Impact Blocking': 4, Agility: 4 },
     [`${p}_Agile`]:         { 'Run Block Finesse': 8, 'Pass Block Finesse': 8, Agility: 7, Acceleration: 6, 'Run Block': 5, 'Pass Block': 5, Awareness: 5 },
     [`${p}_Raw Strength`]:  { 'Run Block Power': 9, 'Pass Block Power': 8, Strength: 8, 'Impact Blocking': 7, 'Run Block': 5, 'Pass Block': 5, Awareness: 4 },
+    [`${p}_Ground and Pound`]: { 'Run Block': 8, 'Run Block Power': 8, 'Impact Blocking': 7, Strength: 7, 'Run Block Finesse': 4, 'Pass Block': 5, 'Pass Block Power': 5, Awareness: 5 },
   }), {}),
   // ── DL (DE/DT share, + DT gap) ──
   ...['DE', 'DT'].reduce((o, p) => ({
@@ -58,6 +64,7 @@ export const SCOUT_WEIGHTS = {
     [`${p}_Pure Power`]:   { 'Power Moves': 9, Strength: 9, 'Block Shedding': 7, 'Hit Power': 6, Tackle: 4 },
   }), {}),
   'DT_Gap Specialist': { 'Block Shedding': 8, Strength: 8, Tackle: 7, 'Hit Power': 6, Awareness: 5, 'Power Moves': 5, Pursuit: 3 },
+  'DE_Gap Specialist': { 'Block Shedding': 8, Strength: 7, Tackle: 8, 'Hit Power': 6, Awareness: 5, 'Power Moves': 5, Pursuit: 4 },
   // ── LB (OLB/MIKE share) ──
   ...['OLB', 'MIKE'].reduce((o, p) => ({
     ...o,
@@ -209,13 +216,14 @@ export const ARCH_TENDENCY = {
   // HB
   'Elusive Bruiser': 'run', 'East/West Playmaker': 'run', 'Contact Seeker': 'run',
   'Backfield Threat': 'pass', 'North/South Receiver': 'pass', 'North/South Blocker': 'run',
+  'Blocking': 'run', 'Utility': 'balanced',
   // WR
   'Speedster': 'pass', 'Route Artist': 'pass', 'Elusive Route Runner': 'pass',
   'Physical Route Runner': 'pass', 'Gritty Possession': 'pass', 'Contested Specialist': 'pass', 'Gadget': 'balanced',
   // TE
-  'Vertical Threat': 'pass', 'Pure Possession': 'pass', 'Pure Blocker': 'run',
+  'Vertical Threat': 'pass', 'Pure Possession': 'pass', 'Possession': 'pass', 'Pure Blocker': 'run',
   // OL
-  'Pass Protector': 'pass', 'Raw Strength': 'run', 'Agile': 'balanced', 'Well Rounded': 'balanced',
+  'Pass Protector': 'pass', 'Raw Strength': 'run', 'Ground and Pound': 'run', 'Agile': 'balanced', 'Well Rounded': 'balanced',
 }
 
 export function archetypeTendency(archetype) {
