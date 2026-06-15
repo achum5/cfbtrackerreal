@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Card, EmptyState, Button } from '../../components/ui'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
@@ -48,6 +48,7 @@ const Chevron = ({ open }) => (
 
 function Row({ r, rank, pathPrefix, playStyle, model }) {
   const { p, score, tier, need, status } = r
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
@@ -107,7 +108,15 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-bold text-txt-primary truncate">{p.name}</span>
+            <span
+              role="link"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) } }}
+              className="text-sm font-bold text-txt-primary truncate hover:underline cursor-pointer"
+            >
+              {p.name}
+            </span>
             {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
             {committed && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Committed</span>}
             {lost && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Lost</span>}
@@ -128,17 +137,17 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
       </button>
 
       {open && (
-        <div className="px-4 pb-6 pt-1 sm:pl-[4.5rem] sm:pr-8">
+        <div className="px-4 pb-4 pt-0.5 sm:pl-[4.5rem] sm:pr-6">
           {/* The report reads as one piece: lead-styled prose, then a quiet
               data ledger (attributes → grade rationale → bio), hairline-tied. */}
           {paragraphs.length > 0 && (
-            <div className="max-w-[70ch] space-y-3">
+            <div className="max-w-[68ch] space-y-1.5">
               {paragraphs.map((para, i) => (
                 <p
                   key={i}
                   className={i === 0
-                    ? 'text-[13.5px] leading-relaxed text-txt-primary'
-                    : 'text-[12.5px] leading-relaxed text-txt-secondary'}
+                    ? 'text-[12.5px] leading-snug text-txt-primary'
+                    : 'text-[12px] leading-snug text-txt-secondary'}
                 >
                   {para}
                 </p>
@@ -146,16 +155,16 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
             </div>
           )}
 
-          <div className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2 max-w-[70ch]">
+          <div className="mt-3.5 grid gap-x-10 gap-y-3.5 sm:grid-cols-2 max-w-[68ch]">
             {/* Attribute readout — a single clean set of bars, key traits first */}
             {orderedAttrs.length > 0 && (
               <div>
-                <div className="label-xs text-txt-tertiary mb-3" style={{ letterSpacing: '1.5px' }}>Attributes</div>
-                <div className="space-y-2">
+                <div className="label-xs text-txt-tertiary mb-1.5" style={{ letterSpacing: '1.5px' }}>Attributes</div>
+                <div className="space-y-1">
                   {orderedAttrs.map((e) => (
                     <div key={e.name} className="flex items-center gap-3">
                       <span className="text-[11px] text-txt-secondary w-28 flex-shrink-0 truncate" title={e.name}>{e.name}</span>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
+                      <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
                         <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round((e.value / 99) * 100))}%`, backgroundColor: 'var(--text-secondary)' }} />
                       </div>
                       <span className="text-[12px] tabular-nums font-bold text-txt-primary w-6 text-right flex-shrink-0">{e.value}</span>
@@ -168,11 +177,11 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
             {/* Grade rationale — borderless ledger, the math behind the letter */}
             {breakdown && (
               <div>
-                <div className="flex items-baseline justify-between mb-3">
+                <div className="flex items-baseline justify-between mb-1.5">
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Grade Rationale</span>
                   <span className="text-[11px] tabular-nums text-txt-tertiary">{breakdown.letter} · {breakdown.score} ovr</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {breakdown.adjustments.map((a) => (
                     <div key={a.label} className="flex items-baseline gap-3">
                       <span className="flex-1 min-w-0 text-[11px] leading-tight text-txt-secondary">
@@ -188,17 +197,12 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
             )}
           </div>
 
-          {/* Bio + link — quiet footer rule */}
-          <div className="mt-6 pt-4 flex items-center justify-between gap-4 flex-wrap max-w-[70ch]" style={{ borderTop: '1px solid var(--surface-4)' }}>
-            <span className="text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</span>
-            <Link
-              to={`${pathPrefix}/player/${p.pid}`}
-              className="text-[11px] font-bold uppercase tracking-wide text-txt-secondary hover:text-txt-primary whitespace-nowrap"
-              style={{ letterSpacing: '0.5px' }}
-            >
-              View full profile →
-            </Link>
-          </div>
+          {/* Bio — quiet footer rule */}
+          {meta.length > 0 && (
+            <div className="mt-3.5 pt-2.5 max-w-[68ch]" style={{ borderTop: '1px solid var(--surface-4)' }}>
+              <span className="text-[11px] text-txt-tertiary tabular-nums">{meta.join('   ·   ')}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
