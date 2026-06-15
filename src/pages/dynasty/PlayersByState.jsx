@@ -4,6 +4,7 @@ import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamLogoByTid } from '../../data/teams'
 import { PageHero, Card, EmptyState, Select, Badge, Stat, Tabs } from '../../components/ui'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 
 const US_STATES = [
   { code: 'AL', name: 'Alabama' },
@@ -94,6 +95,7 @@ export default function PlayersByState() {
 
     const filtered = Object.values(currentDynasty.players)
       .filter(player => {
+        if (isOpenTarget(player)) return false  // uncommitted targets aren't roster players
         const playerState = player.state?.toUpperCase()
         return playerState === state.toUpperCase()
       })
@@ -115,6 +117,7 @@ export default function PlayersByState() {
 
     const counts = {}
     Object.values(currentDynasty.players).forEach(player => {
+      if (isOpenTarget(player)) return  // don't count uncommitted targets in state totals
       const playerState = player.state?.toUpperCase()
       if (playerState) {
         counts[playerState] = (counts[playerState] || 0) + 1

@@ -20,6 +20,7 @@ import {
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { ATTRIBUTE_COLUMNS } from '../utils/recruitAttributes'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -61,6 +62,43 @@ export default function RecruitingCommitmentsModal({
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
+  // Prefill set = every commit PLUS every tracked target for this class, deduped
+  // by pid. Targets carry their current Commitment status + attributes so the
+  // board survives the weekly Save & Delete (the sheet is disposable; the player
+  // records are the source of truth). Committed-to-you records show YOUR team's
+  // abbr in the Commitment column (clearer than blank, and reads back the same).
+  // Defined before the prompts so they can point the AI at the right paste row.
+  const prefillRecruits = useMemo(() => {
+    const players = currentDynasty?.players || []
+    const teams = currentDynasty?.teams || {}
+    const userTid = Number(currentDynasty?.currentTid)
+    const abbrOf = (tid) => teams[tid]?.abbr || ''
+    const userAbbr = abbrOf(userTid)
+    const byPid = new Map()
+    for (const p of players) {
+      if (!p?.isTarget || Number(p.targetYear) !== Number(currentYear)) continue
+      const commitment = p.commitmentTid == null
+        ? 'Uncommitted'
+        : (Number(p.commitmentTid) === userTid ? userAbbr : abbrOf(p.commitmentTid))
+      byPid.set(p.pid, {
+        name: p.name, class: p.class, position: p.position, archetype: p.archetype,
+        stars: p.stars, nationalRank: p.nationalRank, stateRank: p.stateRank, positionRank: p.positionRank,
+        height: p.height, weight: p.weight, hometown: p.hometown, state: p.state,
+        gemBust: p.gemBust, devTrait: p.devTrait, previousTeam: p.previousTeam,
+        commitment, attributes: p.attributes || null, pid: p.pid,
+      })
+    }
+    // Add plain commits that aren't already represented by a tracked target.
+    // These live in recruitingCommitments, so they're commits to YOUR team —
+    // stamp the Commitment column with your abbr (was blank before).
+    let anon = 0
+    for (const c of existingCommitments) {
+      if (c?.pid != null && byPid.has(c.pid)) continue
+      byPid.set(c?.pid != null ? c.pid : `c-${anon++}`, { ...c, commitment: c.commitment || userAbbr })
+    }
+    return [...byPid.values()]
+  }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, existingCommitments, currentYear])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting Commitments: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments".
@@ -82,7 +120,7 @@ CRITICAL RULES — read before anything else
 
 ═══════════════════════════════════════════════════════════
 TAB: "Commitments" — up to 35 rows × 15 columns
-Paste at cell A${(existingCommitments?.length || 0) + 2} of the "Commitments" tab — the first empty row, just below the ${existingCommitments?.length || 0} commitment(s) already entered. If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
+Paste at cell A${prefillRecruits.length + 2} of the "Commitments" tab — the first empty row, just below the ${prefillRecruits.length} row(s) already entered (commitments + tracked targets). If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
 ═══════════════════════════════════════════════════════════
 
 Row | Col | Header (protected)  | Your value                                                                            | Format
@@ -154,7 +192,7 @@ Column O — Prev Team: use ONLY abbreviations from the team mapping appended be
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== COMMITMENTS — paste at cell A${(existingCommitments?.length || 0) + 2} of "Commitments" tab ===
+=== COMMITMENTS — paste at cell A${prefillRecruits.length + 2} of "Commitments" tab ===
 <Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat. Rank>\\t<State Rank>\\t<Pos. Rank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev Trait>\\t<Prev Team>
 <next recruit row...>
 ...
@@ -173,7 +211,94 @@ FINAL CHECK before you send
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
     notes: 'Column O (Prev Team) applies ONLY to transfer-portal recruits (Class = Fr, RS Fr, So, RS So, Jr, or RS Jr) when the previous school is clearly visible. For HS/JUCO recruits OR when the previous school is unknown, leave column O BLANK. Use ONLY the team abbreviations in the mapping — never a full team name, never "Transfer Portal" or any placeholder.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams])
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, prefillRecruits])
+
+  // ── Targets + Attributes prompt ──────────────────────────────────────────
+  // Self-contained (does NOT depend on the Commitments prompt above) so the AI
+  // sees everything it needs. Adds two things to the standard recruiting row:
+  // Column P (Commitment status) and one column per scouted attribute. Attribute
+  // values come ONLY from a recruit's player-page "Attributes" tab — never the
+  // recruiting board/list — so the board screenshot fills A–P with attributes
+  // blank, and a player-page screenshot fills the attribute columns.
+  const ATTR_N = ATTRIBUTE_COLUMNS.length
+  const startRow = prefillRecruits.length + 2
+  const targetsPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Recruiting TARGETS + Attributes: ${recruitingLabel || ''}`.trim(),
+    structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots — paste BELOW the rows already entered; never re-output existing rows.
+
+TARGETS + ATTRIBUTES mode. You may get two kinds of screenshots — handle each:
+  • RECRUITING BOARD / commit list  → output each recruit's columns A–P (commit info + Commitment). Leave ALL attribute columns blank.
+  • A recruit's PLAYER PAGE "Attributes" tab → output that ONE recruit's full row: columns A–P PLUS the ${ATTR_N} attribute columns filled from the tab.
+Attributes appear ONLY on the player-page Attributes tab — NOT on the board. If you only have the board, every attribute stays blank (not every recruit is scouted — that's expected).
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES
+═══════════════════════════════════════════════════════════
+1. Output ONLY data rows for NEW recruits. NEVER output the header row or re-output existing rows.
+2. Tab-separated. Columns in EXACT order A→P (then the attribute columns when filling them).
+3. One row per recruit; keep screenshot order.
+4. NO COMMAS in numbers ("1234", not "1,234"). Integers have no decimal point. No quotes around numbers.
+5. BLANK for unknown — never guess, never 0/"-"/"N/A". Blank ≠ zero.
+6. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST be EXACTLY one of the listed values.
+7. Column E (Stars) uses ☆ symbols, NOT digits.
+8. Do NOT output the hidden "pid" column — the app fills it.
+
+═══════════════════════════════════════════════════════════
+COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first empty row below the ${prefillRecruits.length} already entered)
+═══════════════════════════════════════════════════════════
+ A Player     | Full name (text)
+ B Class      | Dropdown: HS, JUCO Fr, JUCO So, JUCO Jr, Fr, RS Fr, So, RS So, Jr, RS Jr
+ C Position   | Dropdown: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P, ATH
+ D Archetype  | Dropdown — exact archetype name (e.g. Pocket Passer, Speedster, Raw Strength, Power Rusher, Man Coverage…)
+ E Stars      | ☆  ☆☆  ☆☆☆  ☆☆☆☆  ☆☆☆☆☆   (symbols, blank if unknown)
+ F Nat. Rank  | integer        G State Rank | integer        H Pos. Rank | integer
+ I Height     | Dropdown: 5'5" … 7'0" (straight quotes)      J Weight | integer lbs
+ K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
+ N Dev Trait  | Elite, Star, Impact, Normal
+ O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
+ P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team ABBR they committed to (use YOUR team's abbr if they committed to you). Use ONLY abbreviations from the team mapping below.
+
+═══════════════════════════════════════════════════════════
+ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
+═══════════════════════════════════════════════════════════
+Archetype (D) — 44 values:
+  Backfield Creator, Dual Threat, Pocket Passer, Pure Runner, Backfield Threat, Contact Seeker, East/West Playmaker, Elusive Bruiser, North/South Receiver, North/South Blocker, Blocking, Utility, Contested Specialist, Elusive Route Runner, Gadget, Gritty Possession, Physical Route Runner, Route Artist, Speedster, Possession, Pure Blocker, Pure Possession, Vertical Threat, Agile, Pass Protector, Raw Strength, Ground and Pound, Well Rounded, Edge Setter, Gap Specialist, Power Rusher, Pure Power, Speed Rusher, Lurker, Signal Caller, Thumper, Boundary, Bump and Run, Field, Zone, Box Specialist, Coverage Specialist, Hybrid, Accurate, Power
+Height (I) — use a straight ASCII quote " (not curly):
+  5'5", 5'6", 5'7", 5'8", 5'9", 5'10", 5'11", 6'0", 6'1", 6'2", 6'3", 6'4", 6'5", 6'6", 6'7", 6'8", 6'9", 6'10", 6'11", 7'0"
+State (L) — 2-letter US codes:
+  AK, AL, AR, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NH, NJ, NM, NV, NY, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV, WY
+
+═══════════════════════════════════════════════════════════
+ATTRIBUTE COLUMNS (Q onward) — fill ONLY from a player-page "Attributes" tab. OPTIONAL.
+═══════════════════════════════════════════════════════════
+In THIS EXACT order, one column each (${ATTR_N} total):
+${ATTRIBUTE_COLUMNS.join(', ')}
+
+  - For each attribute shown on the tab, put its 0–99 rating in the matching named column (exact name match).
+  - The game shows only the position's relevant attributes — leave EVERY other attribute column blank.
+  - When you fill attributes, output ALL ${ATTR_N} attribute fields in the order above (blank where not applicable) — do not drop trailing blanks.
+
+═══════════════════════════════════════════════════════════
+OUTPUT FORMAT (TSV, paste at A${startRow})
+═══════════════════════════════════════════════════════════
+=== TARGETS — paste at cell A${startRow} of "Commitments" tab ===
+Board row (16 fields, A→P):
+<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>
+Scouted row (16 + ${ATTR_N} fields, A→P then the attribute columns in order):
+<...A→P...>\\t<${ATTRIBUTE_COLUMNS[0]}>\\t<${ATTRIBUTE_COLUMNS[1]}>\\t…\\t<${ATTRIBUTE_COLUMNS[ATTR_N - 1]}>
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK
+═══════════════════════════════════════════════════════════
+[ ] Board rows have exactly 16 tab-separated fields (15 tabs); fully-scouted rows have 16 + ${ATTR_N} fields
+[ ] No header row; no commas in numbers; Stars use ☆ symbols
+[ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
+[ ] Column P is "Uncommitted" or a team abbreviation
+[ ] Attributes filled ONLY from a player-page Attributes tab; blank when not scouted; pid column never output`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+    notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, ATTR_N, startRow, prefillRecruits])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -236,7 +361,7 @@ FINAL CHECK before you send
             currentDynasty?.teamName || 'Dynasty',
             currentYear,
             currentDynasty?.teams || null,
-            existingCommitments // Pass all previous commitments to pre-populate
+            prefillRecruits // commits + tracked targets (status + attributes), deduped by pid
           )
           setSheetId(sheetInfo.spreadsheetId)
 
@@ -258,7 +383,18 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, existingCommitments, authErrorOccurred, createAttempts])
+  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, prefillRecruits, authErrorOccurred, createAttempts])
+
+  // When the user re-authenticates (retryCount bumps via the AuthErrorModal's
+  // Refresh), clear the blocking flags so the sheet-creation effect above
+  // retries with the fresh token — instead of staying stuck on "Failed to
+  // create sheet" until the user manually closes and reopens this modal.
+  useEffect(() => {
+    if (auth.retryCount > 0) {
+      setAuthErrorOccurred(false)
+      setCreateAttempts(0)
+    }
+  }, [auth.retryCount])
 
   // Reset state when modal closes or commitmentKey changes
   useEffect(() => {
@@ -406,9 +542,9 @@ FINAL CHECK before you send
         {currentPhase !== 'offseason' && (
           <div className="mb-4 p-3 rounded-lg text-sm text-txt-primary" style={{ backgroundColor: 'var(--surface-3)' }}>
             <strong>Note:</strong> Weekly commitment entry is optional. You can also enter all commitments during Signing Day in the offseason.
-            {existingCommitments.length > 0 && (
+            {prefillRecruits.length > 0 && (
               <span className="block mt-1">
-                Previous commitments ({existingCommitments.length}) are pre-filled in the sheet.
+                Your existing commitments and tracked targets ({prefillRecruits.length}) are pre-filled in the sheet.
               </span>
             )}
           </div>
@@ -444,8 +580,11 @@ FINAL CHECK before you send
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden gap-3">
             <SheetModalAIHero
-              tagline="Skip the typing. Let AI fill the recruiting commitments."
-              buttons={[{ label: 'Copy AI Prompt', prompt: aiPrompt }]}
+              tagline="Skip the typing. Let AI fill the recruiting commitments — or track targets + attributes."
+              buttons={[
+                { label: 'Commitments', prompt: aiPrompt },
+                { label: 'Targets + Attributes', prompt: targetsPrompt },
+              ]}
             />
             {isMobile || !useEmbedded ? (
               <SheetManualEntry sheetId={sheetId} />

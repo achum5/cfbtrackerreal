@@ -16,6 +16,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings, CardSectionHeader } from '../../components/CfbUI'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
+import { isOpenTarget } from '../../utils/recruitingTargets'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
@@ -496,15 +497,27 @@ function PlayerInner() {
 
   // Get the full team name (prefer the registry team's name; fall back to
   // mascot resolution from the resolved abbr).
+  // An uncommitted recruiting target has no team. NEVER fall back to YOUR team
+  // name/logo/colors (that mislabel — and the resulting dead /team link — was
+  // the M2 bug). Render it neutrally as a target instead.
+  const isUncommittedTarget = isOpenTarget(player)
   const playerTeamName = playerTeam?.name
     || getMascotName(playerTeamAbbr, dynasty?.teams || dynasty?.customTeams)
-    || dynasty?.teamName
+    || (isUncommittedTarget ? '' : dynasty?.teamName)
     || ''
 
   // IMPORTANT: All hooks must be called before any early returns
   const teamColors = useTeamColors(playerTeamName, dynasty?.teams || dynasty?.customTeams)
 
-  const teamInfo = playerTeam ? {
+  const teamInfo = isUncommittedTarget ? {
+    // An uncommitted target has no team — render the hero in a neutral slate,
+    // never a team color (the empty-name color lookup would otherwise pick a
+    // default tint). Matches the grey target cards on the board.
+    name: 'Recruiting Target',
+    backgroundColor: '#3a3d47',
+    textColor: '#f3f4f6',
+    isTeambuilder: false
+  } : playerTeam ? {
     name: playerTeam.name,
     backgroundColor: playerTeam.primaryColor || teamColors.primary || '#1f2937',
     textColor: playerTeam.secondaryColor || teamColors.secondary || '#f3f4f6',
@@ -1814,6 +1827,16 @@ function PlayerInner() {
 
               {/* Team link + status badges */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
+                {isUncommittedTarget ? (
+                  // An uncommitted target has no team — show a neutral identity,
+                  // never a team logo or a (dead) /team link.
+                  <span
+                    className="inline-flex items-center gap-2 font-display font-bold"
+                    style={{ color: teamBgText, fontSize: 'clamp(0.95rem, 1.5vw, 1.1rem)' }}
+                  >
+                    Recruiting Target
+                  </span>
+                ) : (
                 <Link
                   to={`${pathPrefix}/team/${resolveTid(teamAbbr, currentDynasty?.teams || TEAMS)}/${currentYear}?tab=depthchart&player=${pid}&side=${sideOfPosition(player.position) || 'offense'}`}
                   className="inline-flex items-center gap-2 font-display font-bold hover:opacity-80 transition-opacity"
@@ -1826,6 +1849,7 @@ function PlayerInner() {
                   )}
                   <span className="truncate max-w-[180px] sm:max-w-none">{playerTeamName}</span>
                 </Link>
+                )}
                 {isUnenrolledRecruit && (
                   <span
                     className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em]"

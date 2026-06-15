@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useDynasty, getRecruitingCommitments, lookupByTeamYear } from '../../context/DynastyContext'
+import { useDynasty, getRecruitingCommitments, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
+import { inferPlayStyle } from '../../utils/scoutGrade'
+import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getOriginalTeamAbbr, getColorsFromTid } from '../../data/teamRegistry'
@@ -13,6 +15,10 @@ import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClass
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
+import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
+import ScoutBoard from './ScoutBoard'
+import TargetResolutionModal from '../../components/TargetResolutionModal'
+import RecruitCard from '../../components/RecruitCard'
 
 const stateFullNames = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -131,6 +137,14 @@ export default function Recruiting() {
   const viewMode = searchParams.get('view') || defaultView
   const setViewMode = (v) => setParam('view', v, defaultView)
 
+  // Commitments / Targets tab (persisted in the URL like the other filters).
+  const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
+  const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
+
+  // In-app target resolution (Phase 4). openTargets is defined below, once
+  // selectedYear exists.
+  const [showResolveModal, setShowResolveModal] = useState(false)
+
   // stars: ?stars=<n> (single tier) ; absent = All. Memoized so the array
   // identity is stable across renders (it feeds a useMemo dep below).
   const starsParam = Number(searchParams.get('stars'))
@@ -163,6 +177,24 @@ export default function Recruiting() {
   const team = baseTeam ? { ...baseTeam, ...dynastyTeam } : dynastyTeam
   const teamAbbr = team?.abbr || baseTeam?.abbr || currentTeamAbbr
   const selectedYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : currentDynasty?.currentYear)
+
+  // Open targets for this class — drives the "Resolve Targets" action + modal.
+  const openTargets = useMemo(
+    () => (currentDynasty?.players || []).filter(p => isOpenTarget(p) && Number(p.targetYear) === Number(selectedYear)),
+    [currentDynasty?.players, selectedYear],
+  )
+
+  // Offensive identity of the class's team (pass/run/balanced) → feeds the
+  // scheme-fit line in each card's generated scouting report.
+  const playStyle = useMemo(() => {
+    const yr = Number(currentDynasty?.currentYear)
+    const roster = (currentDynasty?.players || []).filter(p => isPlayerOnRoster(p, selectedTid, yr, currentDynasty))
+    return inferPlayStyle(roster, yr)
+  }, [currentDynasty?.players, selectedTid, currentDynasty?.currentYear, currentDynasty])
+
+  // Self-calibrating scout model (learned from past recruit outcomes) so the
+  // commitment cards grade on the same sharpened scale as the Targets board.
+  const scoutModel = useMemo(() => scoutCalibration(currentDynasty?.players || []), [currentDynasty?.players])
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
@@ -306,7 +338,18 @@ export default function Recruiting() {
     const updatedPlayers = [...existingPlayers]
     const newPlayers = []
 
-    recruits.forEach(recruit => {
+    // Targets routing: target-concern rows go to the safe reconciler; plain
+    // commit rows keep the existing portal/returning logic below. With no
+    // tracked targets and no Commitment column, every row is a commit row and
+    // this path runs byte-for-byte as before. See utils/recruitingTargets.js.
+    const { targetRows, commitRows } = partitionRecruitingRows(recruits, {
+      players: existingPlayers,
+      userTid: selectedTid,
+      classYear: selectedYear,
+      dynastyTeams: currentDynasty.teams,
+    })
+
+    commitRows.forEach(recruit => {
       if (!recruit.name) return
 
       const normalizedName = recruit.name.toLowerCase().trim()
@@ -320,7 +363,9 @@ export default function Recruiting() {
             ...updatedPlayers[playerIndex],
             position: updatedPlayers[playerIndex].position || recruit.position,
             archetype: updatedPlayers[playerIndex].archetype || recruit.archetype,
-            devTrait: recruit.devTrait || updatedPlayers[playerIndex].devTrait,
+            // Sheet is authoritative: a blank ('') clears the trait; only an
+            // omitted field (undefined) keeps the existing one.
+            devTrait: recruit.devTrait ?? updatedPlayers[playerIndex].devTrait,
             height: recruit.height || updatedPlayers[playerIndex].height,
             weight: recruit.weight || updatedPlayers[playerIndex].weight,
             hometown: recruit.hometown || updatedPlayers[playerIndex].hometown,
@@ -363,7 +408,7 @@ export default function Recruiting() {
             isRecruit: true,
             recruitYear: selectedYear,
             previousTeam: recruit.previousTeam || getOriginalTeamAbbr(previousTeamTid) || existingPlayer.previousTeam,
-            devTrait: recruit.devTrait || existingPlayer.devTrait,
+            devTrait: recruit.devTrait ?? existingPlayer.devTrait,
             stars: recruit.stars ?? existingPlayer.stars,
             nationalRank: recruit.nationalRank ?? existingPlayer.nationalRank,
             stateRank: recruit.stateRank ?? existingPlayer.stateRank,
@@ -381,7 +426,9 @@ export default function Recruiting() {
           position: recruit.position || '',
           year: classToYear[recruit.class] || 'Fr',
           jerseyNumber: '',
-          devTrait: recruit.devTrait || 'Normal',
+          // Dev traits are often hidden until signing day — leave blank when the
+          // user didn't enter one (don't presume Normal).
+          devTrait: recruit.devTrait || '',
           archetype: recruit.archetype || '',
           overall: null,
           height: recruit.height || '',
@@ -403,8 +450,27 @@ export default function Recruiting() {
       }
     })
 
-    const commitmentData = { edit: recruits }
-    const finalPlayers = [...updatedPlayers, ...newPlayers]
+    let finalPlayers = [...updatedPlayers, ...newPlayers]
+    let committedToUs = []
+    if (targetRows.length) {
+      const rec = reconcileRecruitingRows({
+        rows: targetRows,
+        players: finalPlayers,
+        userTid: selectedTid,
+        dynastyTeams: currentDynasty.teams,
+        classYear: selectedYear,
+        weekKey: null,
+        startPID: nextPID,
+      })
+      finalPlayers = rec.players
+      nextPID = rec.nextPID
+      committedToUs = rec.committedToUs
+    }
+
+    // recruitingCommitments holds ONLY commitments to this team (M1): plain
+    // commit rows plus any tracked target that resolved to us. Open / elsewhere
+    // targets are excluded so they never inflate the class score.
+    const commitmentData = { edit: [...commitRows, ...committedToUs] }
 
     const updates = {
       players: finalPlayers,
@@ -441,6 +507,57 @@ export default function Recruiting() {
         [selectedYear]: commitmentData
       },
       ...(selectedTid ? { [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData } } : {})
+    }
+
+    await updateDynasty(currentDynasty.id, updates)
+  }
+
+  // In-app target resolution (Phase 4). `resolutions` is { pid: commitmentTid }.
+  // Flips each target's player record with the SAME field-setting the sheet
+  // reconciler uses (resolveTargetCommitment → applyStatus), then — for any that
+  // committed to US — appends to recruitingCommitments so the class score counts
+  // them (M1: open / elsewhere targets never touch that store).
+  const handleResolveTargets = async (resolutions) => {
+    if (isViewOnly || !currentDynasty) return
+    const ids = Object.keys(resolutions || {})
+    if (!ids.length) return
+
+    const players = currentDynasty.players || []
+    const committedToUs = []
+    const newPlayers = players.map((p) => {
+      const tid = resolutions[p.pid]
+      if (tid == null) return p
+      const classYear = Number(p.targetYear) || Number(selectedYear)
+      const updated = resolveTargetCommitment(p, { commitmentTid: Number(tid), classYear, weekKey: null })
+      if (Number(tid) === Number(selectedTid)) committedToUs.push(buildCommitmentRecord(updated))
+      return updated
+    })
+
+    const updates = { players: newPlayers }
+
+    if (committedToUs.length && selectedTid && currentDynasty.teams) {
+      const existingTeams = currentDynasty.teams
+      const existingTeamData = existingTeams[selectedTid] || {}
+      const existingByYear = existingTeamData.byYear || {}
+      const existingYearData = existingByYear[selectedYear] || {}
+      const prevEdit = existingYearData.recruitingCommitments?.edit || []
+      const prevPids = new Set(prevEdit.map((c) => c.pid))
+      const merged = [...prevEdit, ...committedToUs.filter((c) => !prevPids.has(c.pid))]
+      const commitmentData = { edit: merged }
+
+      updates.teams = {
+        ...existingTeams,
+        [selectedTid]: {
+          ...existingTeamData,
+          byYear: { ...existingByYear, [selectedYear]: { ...existingYearData, recruitingCommitments: commitmentData } },
+        },
+      }
+      const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
+      updates.recruitingCommitmentsByTeamYear = {
+        ...existingByTeamYear,
+        [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [selectedYear]: commitmentData },
+        [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData },
+      }
     }
 
     await updateDynasty(currentDynasty.id, updates)
@@ -943,11 +1060,23 @@ export default function Recruiting() {
           )}
         </div>
 
-        {/* Toolbar merged into the hero — one unified team-color section,
-            divided from the title by a hairline. Numbers inherit the
-            contrast text color; labels use a translucent version (via the
-            --text-tertiary override); the Select pills keep their own dark
-            surface so they stay legible on any team color. */}
+        {/* Commitments / Targets tabs — docked under the hero title */}
+        <div className="flex gap-1 px-3 sm:px-5" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
+          {[{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }].map(t => (
+            <button
+              key={t.k}
+              type="button"
+              onClick={() => setActiveTab(t.k)}
+              className="relative px-3 sm:px-4 py-2.5 font-display font-bold uppercase whitespace-nowrap transition-opacity"
+              style={{ fontSize: '0.8rem', letterSpacing: '0.06em', color: teamBgText, opacity: activeTab === t.k ? 1 : 0.55 }}
+            >
+              {t.l}
+              {activeTab === t.k && <span aria-hidden className="absolute left-2 right-2 bottom-0 h-[2px] rounded-t-sm" style={{ backgroundColor: teamBgText }} />}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'commitments' && (
         <div
           className="relative"
           style={{
@@ -1077,9 +1206,11 @@ export default function Recruiting() {
           </div>
         </div>
       </div>
+        )}
       </section>
 
-      {allCommitments.length > 0 ? (
+      {activeTab === 'commitments' ? (
+        allCommitments.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 stagger-reveal">
           {allCommitments.map((recruit, index) => {
             const player = findPlayerByName(recruit.name, recruit.recruitYear)
@@ -1089,281 +1220,20 @@ export default function Recruiting() {
             // tile links to the recruit's player page.
             const linkPid = recruit.pid || player?.pid
             const teamsData = currentDynasty?.teams || currentDynasty?.customTeams
-            const transferTid = recruit.previousTeam ? getTidFromAbbr(recruit.previousTeam, teamsData) : null
-            const transferLogo = transferTid ? getTeamLogoByTid(transferTid, teamsData) : null
-
-            const hometownText = recruit.hometown
-              ? `${recruit.hometown}${recruit.state ? `, ${recruit.state}` : ''}`
-              : (recruit.state ? (stateFullNames[recruit.state] || recruit.state) : null)
-            const sizeText = (recruit.height || recruit.weight)
-              ? `${recruit.height || ''}${recruit.height && recruit.weight ? ', ' : ''}${recruit.weight ? `${recruit.weight} lbs` : ''}`
-              : null
-            const previousTeamTid = recruit.previousTeam ? getTidFromAbbr(recruit.previousTeam, teamsData) : null
-            // School only — strip the mascot ("Syracuse Orange" → "Syracuse")
-            // so the FROM chip stays compact.
-            const rawPreviousTeamName = previousTeamTid && teamsSource[previousTeamTid]?.name
-              ? teamsSource[previousTeamTid].name
-              : recruit.previousTeam
-            const previousTeamName = rawPreviousTeamName
-              ? (stripMascotFromName(rawPreviousTeamName) || rawPreviousTeamName)
-              : null
-            const devTraitKey = recruit.devTrait?.toLowerCase()
-            // FROM chip is portal-only — non-portal HS recruits with a
-            // previous-school field (e.g. their high school being filled
-            // in by the importer) shouldn't surface a transfer chip.
-            const isPortalRecruit = recruit.isPortal === true
-            const showFromChip = isPortalRecruit && !!previousTeamName
-            // Gem/bust is intentionally omitted from the tile — it adds
-            // visual noise and isn't load-bearing in the directory view.
-            // Dev trait now rides along inline in the identity row instead
-            // of sitting in its own footer chip. Footer chip is now a
-            // single unified marker: FROM-school for portal guys,
-            // "HIGH SCHOOL" for everyone else, so every tile ends with
-            // the same visual element.
-            const showHsMarker = !showFromChip
-            const showBottomChips = showFromChip || showHsMarker
-
-            const starCount = Number(recruit.stars) || 0
-            const archAndSize = [recruit.archetype, sizeText].filter(Boolean).join(' ')
-            // Scouting-report card. Three vertical bands separated by hairline
-            // rules so the eye can scan: identity → scouting → context.
-            const sizeOnly = (recruit.height || recruit.weight)
-              ? `${recruit.height || ''}${recruit.height && recruit.weight ? ', ' : ''}${recruit.weight ? `${recruit.weight} lbs` : ''}`
-              : null
+            // The card itself (identity → ranks → scouting → footer) is the
+            // shared RecruitCard; the Targets tab renders the exact same card.
             const cardContent = (
-              <Card
-                padding="none"
-                variant="bordered"
+              <RecruitCard
+                recruit={recruit}
+                player={player}
+                bg={teamAccent}
+                text={teamBgText}
+                teamsData={teamsData}
+                isAllSeasons={isAllSeasons}
                 interactive={!!linkPid}
-                className="h-full overflow-hidden group"
-                style={{
-                  color: teamBgText,
-                  borderColor: `${teamBgText}33`,
-                  backgroundColor: teamAccent,
-                  backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.30) 100%)',
-                }}
-              >
-                <div className="p-2 sm:p-3 flex flex-col h-full gap-1.5 sm:gap-2.5">
-                  {/* === IDENTITY BAND === photo + name + pos·class + stars,
-                      stacked and centered so the rhythm matches the
-                      centered rank band, scouting band, and footer chip
-                      below it. Mobile sizes are tightened down a notch
-                      from desktop so two cards fit per row without
-                      losing any of the info bands. */}
-                  <div className="flex flex-col items-center gap-1 sm:gap-1.5 text-center">
-                    {player?.pictureUrl ? (
-                      <img
-                        src={proxyImageUrl(player.pictureUrl, 300)}
-                        alt={recruit.name}
-                        className="w-11 h-11 sm:w-14 sm:h-14 object-cover rounded-md flex-shrink-0"
-                        style={{ border: `2px solid ${teamBgText}66` }}
-                      />
-                    ) : (
-                      <div
-                        className="w-11 h-11 sm:w-14 sm:h-14 rounded-md flex-shrink-0 flex items-center justify-center"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: `2px solid ${teamBgText}66` }}
-                      >
-                        <span
-                          className="text-xs sm:text-sm font-black uppercase tracking-wide tabular-nums"
-                          style={{ letterSpacing: '0.05em', color: teamBgText, opacity: 0.9 }}
-                        >
-                          {(recruit.position || 'ATH').slice(0, 3)}
-                        </span>
-                      </div>
-                    )}
-                    <h3
-                      className="font-display font-black text-txt-primary leading-tight truncate max-w-full"
-                      style={{ fontSize: 'clamp(13px, 3.4vw, 16px)', letterSpacing: '-0.02em', color: teamBgText }}
-                    >
-                      {recruit.name || 'Unknown'}
-                    </h3>
-                    <div
-                      className="flex items-center justify-center gap-1 sm:gap-1.5 label-xs text-txt-secondary flex-wrap"
-                      style={{ letterSpacing: '1.2px', fontSize: '9px', color: teamBgText, opacity: 0.85 }}
-                    >
-                      <span className="font-bold">{recruit.position || 'ATH'}</span>
-                      
-                      <span>{recruit.class || 'HS'}</span>
-                      {recruit.devTrait && (
-                        <>
-                          
-                          <span>{recruit.devTrait}</span>
-                        </>
-                      )}
-                      {isAllSeasons && recruit.recruitYear && (
-                        <>
-                          
-                          <span className="tabular-nums">{recruit.recruitYear}</span>
-                        </>
-                      )}
-                    </div>
-                    {/* Stars — broadcast-style yellow, more prominent than before */}
-                    <span className="flex items-center justify-center gap-0.5">
-                      {[...Array(5)].map((_, i) => (
-                        <svg
-                          key={i}
-                          className="w-2.5 h-2.5 sm:w-3 sm:h-3"
-                          fill={i < starCount ? 'var(--accent-warning, #f59e0b)' : 'var(--surface-4)'}
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                      ))}
-                    </span>
-                  </div>
-
-                  {/* === RANK BAND === editorial-magazine grid, no inner borders */}
-                  {(recruit.nationalRank || recruit.stateRank || recruit.positionRank) && (
-                    <div
-                      className="grid grid-cols-3 gap-1 sm:gap-2 py-1.5 sm:py-2"
-                      style={{
-                        borderTop: `1px solid ${teamBgText}33`,
-                        borderBottom: `1px solid ${teamBgText}33`,
-                      }}
-                    >
-                      <div className="text-center">
-                        <div
-                          className="label-xs text-txt-tertiary"
-                          style={{ letterSpacing: '1.2px', fontSize: '8px', color: teamBgText, opacity: 0.6 }}
-                        >
-                          NATL
-                        </div>
-                        <div
-                          className="font-display font-black tabular-nums text-txt-primary leading-none mt-0.5 sm:mt-1"
-                          style={{ fontSize: 'clamp(13px, 3.5vw, 17px)', letterSpacing: '-0.02em', color: teamBgText }}
-                        >
-                          {recruit.nationalRank ? `#${recruit.nationalRank}` : '—'}
-                        </div>
-                      </div>
-                      <div
-                        className="text-center"
-                        style={{
-                          borderLeft: `1px solid ${teamBgText}33`,
-                          borderRight: `1px solid ${teamBgText}33`,
-                        }}
-                      >
-                        <div
-                          className="label-xs text-txt-tertiary"
-                          style={{ letterSpacing: '1.2px', fontSize: '8px', color: teamBgText, opacity: 0.6 }}
-                        >
-                          {recruit.position || 'POS'}
-                        </div>
-                        <div
-                          className="font-display font-black tabular-nums text-txt-primary leading-none mt-0.5 sm:mt-1"
-                          style={{ fontSize: 'clamp(13px, 3.5vw, 17px)', letterSpacing: '-0.02em', color: teamBgText }}
-                        >
-                          {recruit.positionRank ? `#${recruit.positionRank}` : '—'}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div
-                          className="label-xs text-txt-tertiary"
-                          style={{ letterSpacing: '1.2px', fontSize: '8px', color: teamBgText, opacity: 0.6 }}
-                        >
-                          {recruit.state || 'ST'}
-                        </div>
-                        <div
-                          className="font-display font-black tabular-nums text-txt-primary leading-none mt-0.5 sm:mt-1"
-                          style={{ fontSize: 'clamp(13px, 3.5vw, 17px)', letterSpacing: '-0.02em', color: teamBgText }}
-                        >
-                          {recruit.stateRank ? `#${recruit.stateRank}` : '—'}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* === SCOUTING BAND === archetype, size, hometown.
-                      Centered so the rhythm matches the centered identity
-                      photo + name above and the centered footer chips
-                      below — left-aligned text in a centered card felt
-                      orphaned. */}
-                  {(recruit.archetype || sizeOnly || hometownText) && (
-                    <div className="text-[10px] sm:text-[12px] leading-snug space-y-0.5 text-center">
-                      {recruit.archetype && (
-                        <div className="font-semibold truncate" style={{ color: teamBgText }}>
-                          {recruit.archetype}
-                        </div>
-                      )}
-                      {sizeOnly && (
-                        <div className="tabular-nums truncate" style={{ color: teamBgText, opacity: 0.85 }}>
-                          {sizeOnly}
-                        </div>
-                      )}
-                      {hometownText && (
-                        <div className="truncate" style={{ color: teamBgText, opacity: 0.65 }}>{hometownText}</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* === CONTEXT BAND === one unified marker so every
-                      tile ends with the same shape:
-                        - Portal recruits: FROM-school chip (school logo + name)
-                        - HS recruits:     "HIGH SCHOOL" chip
-                      Dev trait moved up into the identity row, so this
-                      band is now a single centered chip on every card,
-                      keeping vertical heights in sync across the grid. */}
-                  {showBottomChips && (
-                    <div
-                      className="mt-auto pt-1.5 sm:pt-2 flex justify-center"
-                      style={{ borderTop: `1px solid ${teamBgText}33` }}
-                    >
-                      {showFromChip ? (() => {
-                        // Paint the FROM chip in the previous school's
-                        // own colors when we can resolve them — primary
-                        // as the fill, secondary for the school name.
-                        // The "FROM" label stays neutral so the school
-                        // is the headline. Falls back to the muted
-                        // surface treatment when colors are missing.
-                        const prevTeam = previousTeamTid ? teamsSource[previousTeamTid] : null
-                        const prevPrimary = prevTeam?.primaryColor
-                        const prevSecondary = prevTeam?.secondaryColor || '#ffffff'
-                        const themed = !!prevPrimary
-                        return (
-                          <span
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest min-w-0"
-                            style={{
-                              letterSpacing: '1.5px',
-                              color: themed ? prevSecondary : 'var(--text-secondary)',
-                              backgroundColor: themed ? prevPrimary : 'transparent',
-                              border: themed ? `1px solid ${prevPrimary}` : '1px solid var(--surface-5)',
-                            }}
-                          >
-                            <span
-                              className="flex-shrink-0"
-                              style={{ color: themed ? prevSecondary : 'var(--text-tertiary)', opacity: themed ? 0.7 : 1 }}
-                            >
-                              FROM
-                            </span>
-                            {transferLogo && (
-                              <img
-                                src={transferLogo}
-                                alt=""
-                                className="w-3.5 h-3.5 object-contain flex-shrink-0 rounded-sm"
-                                style={themed ? { backgroundColor: prevSecondary, padding: '1px' } : undefined}
-                              />
-                            )}
-                            <span className="truncate" style={{ color: themed ? prevSecondary : undefined }}>
-                              {previousTeamName}
-                            </span>
-                          </span>
-                        )
-                      })() : (
-                        <span
-                          className="inline-flex items-center px-1.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-widest"
-                          style={{
-                            letterSpacing: '1.5px',
-                            color: teamAccent,
-                            backgroundColor: teamBgText,
-                            border: `1px solid ${teamBgText}`,
-                          }}
-                        >
-                          High School
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Card>
+                playStyle={playStyle}
+                model={scoutModel}
+              />
             )
 
             return linkPid ? (
@@ -1385,7 +1255,26 @@ export default function Recruiting() {
             title={viewMode === 'portal' ? 'No Transfer Portal Commits' : viewMode === 'hs' ? 'No HS Commitments Yet' : 'No Commitments Yet'}
           />
         </Card>
+        )
+      ) : (
+        <ScoutBoard
+          dynasty={currentDynasty}
+          year={selectedYear}
+          userTid={selectedTid}
+          pathPrefix={pathPrefix}
+          onResolveTargets={!isViewOnly && openTargets.length > 0 ? () => setShowResolveModal(true) : null}
+          resolveCount={openTargets.length}
+        />
       )}
+
+      <TargetResolutionModal
+        isOpen={showResolveModal}
+        onClose={() => setShowResolveModal(false)}
+        targets={openTargets}
+        dynastyTeams={currentDynasty?.teams}
+        userTid={selectedTid}
+        onResolve={handleResolveTargets}
+      />
 
       <RecruitingCommitmentsModal
         isOpen={showEditModal}

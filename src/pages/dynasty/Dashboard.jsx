@@ -63,6 +63,7 @@ import FringeCaseClassModal from '../../components/FringeCaseClassModal'
 import { getAllBowlGamesList, isBowlInWeek1, isBowlInWeek2 } from '../../services/sheetsService'
 import { isSameYear } from '../../utils/compareUtils'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
+import { partitionRecruitingRows, reconcileRecruitingRows } from '../../utils/recruitingTargets'
 
 // Helper function to normalize player names for consistent lookup
 const normalizePlayerName = (name) => {
@@ -2270,6 +2271,18 @@ export default function Dashboard() {
     const teamTid = getCurrentTeamTid(currentDynasty)
     const existingPlayers = currentDynasty.players || []
 
+    // Targets routing (B1): split out target-concern rows so they go through the
+    // safe pid-first reconciler instead of the global-name returning/transfer
+    // detection below — which would otherwise hijack a same-named rostered player.
+    // With no targets + no Commitment column, EVERY row is a commit row and this
+    // path runs exactly as before. See utils/recruitingTargets.js.
+    const { targetRows, commitRows } = partitionRecruitingRows(recruits, {
+      players: existingPlayers,
+      userTid: teamTid,
+      classYear: year,
+      dynastyTeams: currentDynasty.teams,
+    })
+
     // Track players who left (leftTeam: true) OR are pending departure
     const leftPlayersMap = new Map()
     const pendingDepartureMap = new Map()
@@ -2310,8 +2323,9 @@ export default function Dashboard() {
       }
     })
 
-    // Find recruits that are POTENTIAL returning players OR transfers from other teams
-    const potentialReturning = recruits.filter(r => {
+    // Find recruits that are POTENTIAL returning players OR transfers from other teams.
+    // Only COMMIT rows are eligible — target rows are reconciled safely (B1).
+    const potentialReturning = commitRows.filter(r => {
       if (!r.name) return false
       const nameLower = r.name.toLowerCase().trim()
 
@@ -2360,10 +2374,13 @@ export default function Dashboard() {
       return { recruit, existingPlayer, departureReason, departureYear, currentTeamAbbr: teamAbbr }
     })
 
-    // If there are potential returning players, show confirmation modal
+    // If there are potential returning players, show confirmation modal.
+    // `recruits` carries ONLY commit rows from here on; targetRows ride alongside
+    // so the post-confirmation save reconciles them too.
     if (potentialReturning.length > 0) {
       setPendingRecruitingData({
-        recruits,
+        recruits: commitRows,
+        targetRows,
         year,
         commitmentKey,
         potentialReturning,
@@ -2377,11 +2394,11 @@ export default function Dashboard() {
     }
 
     // No potential returning players - process directly
-    await processRecruitingCommitmentsSave(recruits, year, commitmentKey, [], [])
+    await processRecruitingCommitmentsSave(commitRows, year, commitmentKey, [], [], targetRows)
   }
 
   // Process recruiting save after all confirmations are complete
-  const processRecruitingCommitmentsSave = async (recruits, year, commitmentKey, confirmedReturning, confirmedNew) => {
+  const processRecruitingCommitmentsSave = async (recruits, year, commitmentKey, confirmedReturning, confirmedNew, targetRows = []) => {
     // CRITICAL: Get tid directly - tid is the ONLY source of truth
     const teamTid = getCurrentTeamTid(currentDynasty)
     const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName // For display/key lookups only
@@ -2530,7 +2547,9 @@ export default function Dashboard() {
         position: recruit.position || '',
         year: enrollmentClass,
         jerseyNumber: '',
-        devTrait: recruit.devTrait || 'Normal',
+        // Dev traits are usually hidden until signing day — leave blank unless
+        // the user actually entered one.
+        devTrait: recruit.devTrait || '',
         archetype: recruit.archetype || '',
         overall: null, // Recruits don't have OVR until they enroll
         height: recruit.height || '',
@@ -2544,7 +2563,7 @@ export default function Dashboard() {
         // written here (syncDerivedFieldsFromV2 would strip it anyway).
         teamsByYear: { [enrollmentYear]: teamsByYearValue },
         classByYear: { [enrollmentYear]: enrollmentClass },
-        devTraitByYear: { [enrollmentYear]: recruit.devTrait || 'Normal' },
+        devTraitByYear: recruit.devTrait ? { [enrollmentYear]: recruit.devTrait } : {},
         movementByYear: {
           [year]: isPortalPlayer
             ? { type: 'arrival', arrival: 'transfer_in', fromTid: fromTeamTid }
@@ -2703,14 +2722,13 @@ export default function Dashboard() {
 
       const updated = { ...p }
 
-      // Dev trait — only overwrite when the sheet has a non-Normal pick
-      // OR the player has no dev trait at all. "Normal" is the default
-      // sheet value; a user who left it as Normal means "keep as-is."
-      // Stamp devTraitByYear[enrollYr] too so the player profile shows
-      // the right trait for the year they enroll.
-      const sheetTrait = (recruitData.devTrait || '').trim()
-      const isMeaningfulTrait = sheetTrait && sheetTrait !== 'Normal'
-      if (isMeaningfulTrait || (sheetTrait && !p.devTrait)) {
+      // Dev trait is authoritative from the sheet: a value sets it, a blank
+      // CLEARS it. Traits are hidden until signing day, so users routinely
+      // leave them empty — we must not presume Normal or keep a stale trait.
+      // Stamp devTraitByYear[enrollYr] too so the profile shows the right
+      // trait for the year they enroll.
+      if (recruitData.devTrait !== undefined) {
+        const sheetTrait = (recruitData.devTrait || '').trim()
         updated.devTrait = sheetTrait
         if (enrollYr != null) {
           updated.devTraitByYear = {
@@ -2776,13 +2794,33 @@ export default function Dashboard() {
       ...alreadyOnRosterRecruits.map(enrichCommitment)
     ]
 
+    // Targets: reconcile target-concern rows (pid-first) into the player list.
+    // Any that committed to US join the commitment list; open / elsewhere targets
+    // become tracked player records only (never recruitingCommitments — M1).
+    let finalPlayers = updatedPlayers
+    const committedRecruitsWithTargets = [...allCommittedRecruits]
+    if (targetRows && targetRows.length) {
+      const rec = reconcileRecruitingRows({
+        rows: targetRows,
+        players: finalPlayers,
+        userTid: teamTid,
+        dynastyTeams: currentDynasty.teams,
+        classYear: year,
+        weekKey: commitmentKey,
+        startPID: nextPID,
+      })
+      finalPlayers = rec.players
+      nextPID = rec.nextPID
+      committedRecruitsWithTargets.push(...rec.committedToUs)
+    }
+
     // Save if there are any recruits to record OR if player data changed
-    const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0
-    if (allCommittedRecruits.length > 0 || hasPlayerChanges) {
+    const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0 || (targetRows && targetRows.length > 0)
+    if (committedRecruitsWithTargets.length > 0 || hasPlayerChanges) {
       const tid = getTidFromAbbr(teamAbbr, currentDynasty)
       const commitmentData = {
         ...existingForYear,
-        [commitmentKey]: allCommittedRecruits
+        [commitmentKey]: committedRecruitsWithTargets
       }
 
       // Store in TEAM-CENTRIC structure - store all commits for this commitment key
@@ -2796,7 +2834,7 @@ export default function Dashboard() {
           },
           ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: commitmentData } } : {})
         },
-        players: updatedPlayers,
+        players: finalPlayers,
         nextPID: nextPID
       }
 
@@ -2832,6 +2870,7 @@ export default function Dashboard() {
 
     const {
       recruits,
+      targetRows = [],
       year,
       commitmentKey,
       potentialReturning,
@@ -2872,7 +2911,8 @@ export default function Dashboard() {
         year,
         commitmentKey,
         newConfirmedReturning,
-        newConfirmedNew
+        newConfirmedNew,
+        targetRows
       )
     }
   }
@@ -3505,7 +3545,7 @@ export default function Dashboard() {
               todos.push({
                 key: 'preseason-recruiting',
                 done: recruitingDone,
-                title: 'Any commitments this week?',
+                title: 'New targets/commitments?',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
@@ -4119,7 +4159,7 @@ export default function Dashboard() {
               todos.push({
                 key: 'cc-recruiting',
                 done: recruitingDone,
-                title: 'Any commitments this week?',
+                title: 'New targets/commitments?',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
@@ -4970,7 +5010,7 @@ export default function Dashboard() {
               bw1Todos.push({
                 key: 'recruiting-bw1',
                 done: bw1HasCommitmentsData,
-                title: bw1HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                title: bw1HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
                 subtitle: bw1HasCommitmentsData
                   ? bw1CommitmentsCount > 0
                     ? `${bw1CommitmentsCount} commitment${bw1CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -5323,7 +5363,7 @@ export default function Dashboard() {
               bw2Todos.push({
                 key: 'recruiting-bw2',
                 done: bw2HasCommitmentsData,
-                title: bw2HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                title: bw2HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
                 subtitle: bw2HasCommitmentsData
                   ? bw2CommitmentsCount > 0
                     ? `${bw2CommitmentsCount} commitment${bw2CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6018,7 +6058,7 @@ export default function Dashboard() {
             w34Todos.push({
               key: 'recruiting-bw34',
               done: w34HasCommitmentsData,
-              title: w34HasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+              title: w34HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
               subtitle: w34HasCommitmentsData
                 ? w34CommitmentsCount > 0
                   ? `${w34CommitmentsCount} commitment${w34CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6303,7 +6343,7 @@ export default function Dashboard() {
                 o26Todos.push({
                   key: 'recruiting-week',
                   done: hasCommitmentsData,
-                  title: hasCommitmentsData ? 'Recruiting Commitments' : 'Any commitments this week?',
+                  title: hasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
                   subtitle: hasCommitmentsData
                     ? commitmentsCount > 0
                       ? `${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
