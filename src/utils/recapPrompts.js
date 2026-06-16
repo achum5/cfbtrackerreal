@@ -187,7 +187,16 @@ function fmtGameLine(game, dynasty, confLookup) {
   if (s1 == null || s2 == null) {
     return `${r1}${t1Full} vs ${r2}${t2Full}${ot} — score not entered${loc}`
   }
-  return `${r1}${t1Full} ${s1}, ${r2}${t2Full} ${s2}${ot}${loc}`
+  // Explicit winner marker so the AI never has to infer the winner from score
+  // comparison. Without this, the AI pattern-matches "first team listed = winner"
+  // (which is how virtually all sports wire copy is written), producing fully
+  // inverted results on road wins — e.g. writing "North Texas knocked off #8 SMU
+  // 36-33" when SMU won 36-33 at North Texas. The (W) tag makes the winner
+  // unambiguous regardless of home/away order.
+  const winner = s1 > s2 ? 'team1' : s2 > s1 ? 'team2' : 'tie'
+  const w1 = winner === 'team1' ? ' (W)' : ''
+  const w2 = winner === 'team2' ? ' (W)' : ''
+  return `${r1}${t1Full} ${s1}${w1}, ${r2}${t2Full} ${s2}${w2}${ot}${loc}`
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +374,13 @@ You must not:
 - Describe any specific play, drive, or moment that isn't in the data
 - Reference any external real-world fact about these teams or players
 - Pretend to know how a player performed when their stat line is not in the data
+
+READING GAME LINES — MOST COMMON FACTUAL ERROR:
+Game lines list the HOME team first, NOT the winner first. The winner is always
+the team with (W) after their score. Example: "North Texas 33, SMU 36 (W) (at
+North Texas)" means SMU won 36-33 on the road. Writing "North Texas beat SMU"
+would be wrong. NEVER write that a team won unless they have (W) in their game
+line. NEVER assign the home team a win just because they appear first.
 `
 
 const OUTPUT_FORMAT = `
@@ -849,6 +865,19 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
   sections.push(`Week being recapped: ${weekLabel}`)
   sections.push('')
 
+  // Format key placed immediately before any game lines. This directly addresses
+  // the AI's strongest hallucination pattern: assuming "first team listed = winner"
+  // (standard in all wire-service / AP box-score writing the model trained on).
+  // Our format lists the HOME team first regardless of result, so on road wins the
+  // first-listed team LOST. The (W) tag makes the winner explicit and unambiguous.
+  sections.push(`GAME LINE FORMAT KEY (read before every game line)`)
+  sections.push(`  Format: [Team1] [Score1] [(W)], [Team2] [Score2] [(W)] [(OT)] [(at HomeTeam)]`)
+  sections.push(`  • (W) = WINNER. The team with (W) after their score WON. The team WITHOUT (W) LOST.`)
+  sections.push(`  • (at TeamName) = that team was the HOME team. Home team is listed first. HOME ≠ WINNER.`)
+  sections.push(`  • NEVER assume the first-listed team won. ALWAYS use the (W) marker to determine the winner.`)
+  sections.push(`  • Ties have no (W) marker (both teams finished level).`)
+  sections.push('')
+
   // Conference lookup for inline annotation in every game line.
   // Built once per recap so we don't rescan the alignment per game.
   const confLookup = makeConferenceLookup(dynasty, yearNum)
@@ -1272,6 +1301,7 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
     `   4. SCORE DUMP: any stretch of 3+ consecutive score-only sentences? If yes, group by theme or cut to fewer games with more texture.`,
     `   5. CLOSING: does the recap end on a fact — not a column-y oracle about months, brackets, or momentum? Does the closing restate rankings already covered in Poll Movement? If so, cut it.`,
     `   6. GAME DUPLICATION: scan for any team that appears in two different sections with the same game referenced. If found, remove the duplicate entirely.`,
+    `   7. WINNER CHECK — this is the single most common error: for every game you mention, confirm the team you say WON has the (W) marker in the game line. The first-listed team is the HOME team, NOT necessarily the winner. On road wins the HOME team is listed first but lost. If you wrote "X beat Y" and X does NOT have (W), you have it backwards — rewrite.`,
     ``,
     `If any check fails, rewrite the offending paragraph before sending.`,
     ``,
