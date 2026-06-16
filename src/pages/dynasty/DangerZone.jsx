@@ -543,7 +543,26 @@ export default function DangerZone() {
   const handleDuplicateGameCleanup = async () => {
     setDuplicateGameCleanupStatus('running')
     try {
-      const games = currentDynasty.games || []
+      // For cloud dynasties, read games DIRECTLY from the Firestore server so
+      // we never miss a duplicate that's in Firestore but not in stale React
+      // state. This is exactly the class of bug that creates duplicates: a
+      // save committed to Firestore but a background stale-read reverted the
+      // React state, so one of the two copies isn't visible locally.
+      let games = currentDynasty.games || []
+      const looksLikeCloud = typeof currentDynasty?.id === 'string' &&
+        currentDynasty.id.length >= 20 && !/^\d+$/.test(currentDynasty.id)
+      if (looksLikeCloud) {
+        try {
+          const gamesRef = collection(db, 'dynasties', currentDynasty.id, 'games')
+          const snap = await getDocsFromServer(gamesRef)
+          if (!snap.empty) {
+            games = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+            console.log(`[DuplicateCleanup] Read ${games.length} games fresh from Firestore server`)
+          }
+        } catch (serverReadErr) {
+          console.warn('[DuplicateCleanup] Server read failed, falling back to React state:', serverReadErr)
+        }
+      }
       const seenGames = new Map()
       const duplicateIds = []
 
@@ -556,14 +575,11 @@ export default function DangerZone() {
         gameType: g.gameType || 'regular',
         team1Tid: g.team1Tid,
         team2Tid: g.team2Tid,
-        userTid: g.userTid,
-        opponentTid: g.opponentTid,
-        userTeam: g.userTeam,
-        opponent: g.opponent,
-        team1: g.team1,
-        team2: g.team2,
+        source: g.source,
+        hasBoxScore: !!(g.boxScore && Object.keys(g.boxScore).length > 0),
         team1Score: g.team1Score,
         team2Score: g.team2Score,
+        updatedAt: g.updatedAt,
         isConferenceChampionship: g.isConferenceChampionship
       })))
 
@@ -724,8 +740,20 @@ export default function DangerZone() {
         return
       }
 
-      const cleanedGames = games.filter(g => !duplicateIds.includes(g.id))
-      await updateDynasty(currentDynasty.id, { games: cleanedGames })
+      // Use targeted delete (saveWeeklyGamesChanges with empty inserts + duplicate IDs
+      // to delete) rather than a full-array updateDynasty rewrite.  The full-rewrite
+      // path uses saveGamesToSubcollection with deleteOrphans=true, which has a 30%
+      // safety block that fires on large dynasties and silently skips the deletion.
+      // Targeted delete bypasses that check because we're only removing known bad docs.
+      if (looksLikeCloud) {
+        await saveWeeklyGamesChanges(currentDynasty.id, [], duplicateIds)
+        // Sync React state to match what we just deleted from Firestore.
+        const cleanedGames = games.filter(g => !duplicateIds.includes(g.id))
+        await updateDynasty(currentDynasty.id, { games: cleanedGames }, { skipGamesSubcollection: true })
+      } else {
+        const cleanedGames = games.filter(g => !duplicateIds.includes(g.id))
+        await updateDynasty(currentDynasty.id, { games: cleanedGames })
+      }
       setDuplicateGameCleanupStatus({ success: true, message: `Removed ${duplicateIds.length} duplicate(s)` })
     } catch (error) {
       setDuplicateGameCleanupStatus({ success: false, message: 'Cleanup failed: ' + error.message })
