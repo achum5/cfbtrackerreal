@@ -22,7 +22,7 @@ const IMGBB_ENDPOINT = 'https://api.imgbb.com/1/upload'
 const MAX_BYTES = 32 * 1024 * 1024 // imgbb's hard cap
 
 function getApiKey() {
-  return import.meta.env.VITE_IMGBB_API_KEY || '1369fa0365731b13c5330a26fedf569c'
+  return import.meta.env.VITE_IMGBB_API_KEY || ''
 }
 
 // Convert a raw base64 string (no data: prefix) to a Blob. JPEG is the
