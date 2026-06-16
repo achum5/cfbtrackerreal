@@ -589,6 +589,17 @@ export default function DangerZone() {
         if (game.boxScore && Object.keys(game.boxScore).length > 0) score += 50
         // Has team tids (better than legacy abbr-only)
         if (game.team1Tid && game.team2Tid) score += 5
+        // Prefer manually-entered games over auto-imported weekly-scores rows.
+        // When a user corrects a weekly-scores entry via addGame, we want
+        // to keep their manual edit (the more intentional record), not the
+        // auto-import. Use updatedAt as tiebreaker so the most recent save wins.
+        if (game.source !== 'weekly-scores') score += 3
+        // Fractional tiebreaker from updatedAt so the most recently saved record wins
+        // on equal quality (safe: always < 1, so can't flip the primary categories)
+        if (game.updatedAt || game.createdAt) {
+          const ts = new Date(game.updatedAt || game.createdAt).getTime()
+          if (!isNaN(ts)) score += Math.min(ts / 1e15, 0.9)
+        }
         return score
       }
 

@@ -6567,6 +6567,14 @@ export function DynastyProvider({ children }) {
             const dynId = dynasty.id
             const onFreshGames = (fresh) => {
               if (skipListenerUpdatesCountRef.current > 0) return
+              // Don't let a background server-read (kicked off before a local save)
+              // overwrite games that were just committed locally. The cache-first
+              // read in getDynastyGames dispatches a getDocsFromServer fetch BEFORE
+              // the save batch runs; if that server read wins the race against the
+              // write it returns pre-save data, which would revert the UI to blank
+              // and make subsequent addGame calls create duplicates.
+              if (lastGamesUpdateDynastyIdRef.current === dynId &&
+                  Date.now() - lastGamesUpdateTimestampRef.current < 15000) return
               setDynasties(prev => prev.map(d =>
                 String(d.id) === String(dynId) ? { ...d, games: fresh } : d
               ))
