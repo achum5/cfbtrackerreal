@@ -8,6 +8,7 @@ import ShareDynastyModal from './ShareDynastyModal'
 import { useToast } from './ui'
 import { preloadByNavName } from '../routes/lazyPages'
 import { useAuth } from '../context/AuthContext'
+import { getEditionConfig } from '../editions'
 
 export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, currentYear, isViewOnly, shareCode, dynasty: dynastyProp }) {
   const location = useLocation()
@@ -83,8 +84,15 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     + (currentDynasty?.userId && !(currentDynasty.editors || []).includes(currentDynasty.userId) ? 1 : 0)
   const showCoachesLink = totalEditors > 1
 
+  // Edition-gated nav: the Dynasty Blueprint hub only exists for editions
+  // that enable the Dynasty Points economy (CFB 27+). CFB 26 dynasties
+  // never see the link. Reads the resolved edition config off the dynasty.
+  const editionConfig = getEditionConfig(currentDynasty)
+  const showBlueprint = Boolean(editionConfig?.features?.dynastyPoints) && !isViewOnly
+
   const navItems = [
     { name: 'Dashboard', path: pathPrefix },
+    ...(showBlueprint ? [{ name: 'Dynasty Blueprint', path: `${pathPrefix}/team/${teamTid}/${currentYear}?tab=blueprint` }] : []),
     { name: 'Weekly Recap', path: `${pathPrefix}/weekly-scores` },
     { name: 'Top 25', path: `${pathPrefix}/rankings` },
     { name: 'CFP Bracket', path: `${pathPrefix}/cfp-bracket` },
@@ -103,7 +111,11 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     ...(showCoachesLink ? [{ name: 'Coaches', path: `${pathPrefix}/coaches` }] : []),
     ...(!isViewOnly ? [{ name: 'AI Prompts', path: `${pathPrefix}/ai-prompts` }] : []),
     ...(userCanSeeMembers ? [{ name: 'Members', path: `${pathPrefix}/league`, isAdmin: true }] : []),
-    { name: 'Danger Zone', path: `${pathPrefix}/admin`, isAdmin: true }
+    { name: 'Danger Zone', path: `${pathPrefix}/admin`, isAdmin: true },
+    // Personal dev tools — only ever shown to the dev account.
+    ...(!isViewOnly && user?.email === 'alex.guess1999@gmail.com'
+      ? [{ name: 'Dev Tools', path: `${pathPrefix}/dev`, isAdmin: true }]
+      : []),
   ]
 
   const isActive = (path) => {

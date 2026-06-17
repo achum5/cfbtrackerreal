@@ -16,6 +16,9 @@ import { SEED_TO_SLOT, getCFPGameId, DEFAULT_BOWL_CONFIG, getBowlForSlot } from 
 import { findMatchingPlayer, normalizePlayerName } from '../../utils/playerMatching'
 import { migrateDynastyToV2 } from '../../data/migrateDynastyV2'
 import { syncDerivedFieldsFromV2 } from '../../data/rosterModel'
+import { EDITIONS, getEditionKey, getEditionConfig } from '../../editions'
+import { migrateLegacyCoachesToCids } from '../../data/coachModel'
+import CalendarJumper from '../../components/CalendarJumper'
 import {
   PageHero,
   Card,
@@ -50,6 +53,51 @@ export default function DangerZone() {
   const [showTeambuilderEditModal, setShowTeambuilderEditModal] = useState(false)
   const [selectedTeambuilderTid, setSelectedTeambuilderTid] = useState(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [switchingEdition, setSwitchingEdition] = useState(false)
+  const [coachMigrateStatus, setCoachMigrateStatus] = useState(null)
+
+  // Build cid coach profiles from legacy OC/DC names across every season.
+  const handleMigrateCoaches = async () => {
+    if (isViewOnly) return
+    setCoachMigrateStatus('running')
+    try {
+      const { coaches, created, seasonsAdded } = migrateLegacyCoachesToCids(currentDynasty)
+      await updateDynasty(dynastyId, { coaches })
+      setCoachMigrateStatus('success')
+      toast.success(`Built ${created} coach profile${created === 1 ? '' : 's'} · ${seasonsAdded} season${seasonsAdded === 1 ? '' : 's'} added`)
+    } catch (e) {
+      console.error('[DangerZone] coach migration failed:', e)
+      setCoachMigrateStatus('error')
+      toast.error('Coach migration failed. Please try again.')
+    }
+  }
+
+  // Switch which game edition this dynasty is tracked as. This is a
+  // mislabel fix, not a migration: it only changes which features/rules
+  // apply going forward. Players, games, and stats are untouched, and it's
+  // reversible. Stored data (e.g. Dynasty Points) simply lies dormant when
+  // an edition that doesn't use it is selected.
+  const handleSwitchEdition = async (key) => {
+    const currentKey = getEditionKey(currentDynasty)
+    if (key === currentKey || switchingEdition) return
+    const target = getEditionConfig(key)
+    const ok = await confirm({
+      title: `Switch to ${target.label}?`,
+      message: `Track this dynasty as ${target.label}. This only changes which edition features and rules apply — your players, games, and stats are untouched. You can switch back anytime.`,
+      confirmLabel: `Switch to ${target.label}`,
+    })
+    if (!ok) return
+    setSwitchingEdition(true)
+    try {
+      await updateDynasty(dynastyId, { gameEdition: key })
+      toast.success(`Now tracking as ${target.label}`)
+    } catch (e) {
+      console.error('[DangerZone] edition switch failed:', e)
+      toast.error('Failed to switch edition. Please try again.')
+    } finally {
+      setSwitchingEdition(false)
+    }
+  }
 
   // Storage tier testing state
   const [currentStorageTier, setCurrentStorageTier] = useState(storageService.getTier())
@@ -1734,6 +1782,77 @@ export default function DangerZone() {
         </div>
       </Card>
 
+      {/* Game Edition — switch which edition this dynasty is tracked as.
+          Safe + reversible: only changes which features/rules apply (e.g.
+          CFB 27 Dynasty Points), never the underlying players/games/stats.
+          Lives here so a mis-pick at creation can be corrected. */}
+      {!isViewOnly && (
+        <div>
+          <SectionHeader
+            size="sm"
+            title="Game Edition"
+            subtitle="Switch the edition this dynasty is tracked as. Reversible; does not change your data."
+          />
+          <Card>
+            {(() => {
+              const currentKey = getEditionKey(currentDynasty)
+              return (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-xs text-txt-secondary m-0">
+                    Currently tracked as{' '}
+                    <strong className="text-txt-primary">{getEditionConfig(currentKey)?.label}</strong>.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {EDITIONS.map((ed) => {
+                      const active = ed.key === currentKey
+                      return (
+                        <Button
+                          key={ed.key}
+                          variant={active ? 'primary' : 'outline'}
+                          size="sm"
+                          disabled={active || switchingEdition}
+                          onClick={() => handleSwitchEdition(ed.key)}
+                        >
+                          {active ? `${ed.label} (current)` : `Switch to ${ed.label}`}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+          </Card>
+        </div>
+      )}
+
+      {/* Coaching Staff — build cid coach profiles from legacy coordinator
+          names so they get coach pages + year-by-year history. CFB 27 only. */}
+      {!isViewOnly && getEditionConfig(currentDynasty)?.features?.dynastyPoints && (
+        <div>
+          <SectionHeader
+            size="sm"
+            title="Coaching Staff"
+            subtitle="Build coach profiles from your recorded coordinators."
+          />
+          <Card>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-txt-secondary m-0 max-w-md">
+                Creates a coach profile — with year-by-year team &amp; role history — for every OC/DC name recorded across your seasons, so each gets a coach page. Salaries weren’t tracked historically, so they start blank; add them on each coach’s page. Safe to re-run.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleMigrateCoaches}
+                disabled={coachMigrateStatus === 'running'}
+              >
+                {coachMigrateStatus === 'running' ? 'Building…' : 'Build Coach Profiles'}
+              </Button>
+            </div>
+            <StatusLine status={coachMigrateStatus} />
+          </Card>
+        </div>
+      )}
+
       {/* Common Fixes — safe to run on any dynasty. These walk the
           canonical v2 stores and apply idempotent cleanup. */}
       <div>
@@ -2607,6 +2726,21 @@ export default function DangerZone() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Calendar / Phase Jumper — at the very bottom. Set the dynasty to any
+          season/phase/week, then open the Dashboard to see/edit that week. */}
+      {!isViewOnly && (
+        <div>
+          <SectionHeader
+            size="sm"
+            title="Calendar / Phase Jumper"
+            subtitle="Non-destructive preview — jump to any season/phase/week to test that point in the calendar. Nothing is saved."
+          />
+          <Card>
+            <CalendarJumper />
+          </Card>
         </div>
       )}
 

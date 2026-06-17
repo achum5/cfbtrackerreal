@@ -249,7 +249,7 @@ FINAL CHECK before you send
             isPlayerOnRoster(p, targetTeam, selectedYear, currentDynasty)
           )
           if (existingPlayers.length > 0) {
-            await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers)
+            await prefillRosterSheet(sheetInfo.spreadsheetId, existingPlayers, currentYear)
           }
 
           setSheetId(sheetInfo.spreadsheetId)

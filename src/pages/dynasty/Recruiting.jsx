@@ -16,6 +16,7 @@ import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
+import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
@@ -376,7 +377,16 @@ export default function Recruiting() {
             positionRank: recruit.positionRank ?? updatedPlayers[playerIndex].positionRank,
             gemBust: recruit.gemBust || updatedPlayers[playerIndex].gemBust,
             previousTeam: recruit.previousTeam || updatedPlayers[playerIndex].previousTeam,
-            isPortal: recruit.isPortal ?? updatedPlayers[playerIndex].isPortal ?? false
+            isPortal: recruit.isPortal ?? updatedPlayers[playerIndex].isPortal ?? false,
+            // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as
+            // the next-season roster floor (never clobbering an entered value).
+            ...(recruit.nil != null && !isNaN(Number(recruit.nil))
+              ? { nilByYear: {
+                  ...(updatedPlayers[playerIndex].nilByYear || {}),
+                  [selectedYear]: Number(recruit.nil),
+                  [selectedYear + 1]: (updatedPlayers[playerIndex].nilByYear?.[selectedYear + 1] ?? updatedPlayers[playerIndex].nilByYear?.[String(selectedYear + 1)] ?? Number(recruit.nil)),
+                } }
+              : {})
           }
         }
       } else if (anyTeamPlayer) {
@@ -413,7 +423,16 @@ export default function Recruiting() {
             nationalRank: recruit.nationalRank ?? existingPlayer.nationalRank,
             stateRank: recruit.stateRank ?? existingPlayer.stateRank,
             positionRank: recruit.positionRank ?? existingPlayer.positionRank,
-            gemBust: recruit.gemBust || existingPlayer.gemBust
+            gemBust: recruit.gemBust || existingPlayer.gemBust,
+            // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as
+            // the next-season roster floor (never clobbering an entered value).
+            ...(recruit.nil != null && !isNaN(Number(recruit.nil))
+              ? { nilByYear: {
+                  ...(existingPlayer.nilByYear || {}),
+                  [selectedYear]: Number(recruit.nil),
+                  [selectedYear + 1]: (existingPlayer.nilByYear?.[selectedYear + 1] ?? existingPlayer.nilByYear?.[String(selectedYear + 1)] ?? Number(recruit.nil)),
+                } }
+              : {})
           }
           console.log(`[Recruiting] Cross-team transfer detected: ${recruit.name} from tid ${previousTeamTid} to tid ${selectedTid}`)
         }
@@ -445,7 +464,12 @@ export default function Recruiting() {
           positionRank: recruit.positionRank || null,
           gemBust: recruit.gemBust || '',
           previousTeam: recruit.previousTeam || '',
-          isPortal: recruit.isPortal || false
+          isPortal: recruit.isPortal || false,
+          // Recruiting NIL offer (CFB 27+), absence-safe + carried forward as the
+          // next-season roster floor (new signee, so both years start at the offer).
+          ...(recruit.nil != null && !isNaN(Number(recruit.nil))
+            ? { nilByYear: { [selectedYear]: Number(recruit.nil), [selectedYear + 1]: Number(recruit.nil) } }
+            : {})
         })
       }
     })
@@ -528,8 +552,12 @@ export default function Recruiting() {
       const tid = resolutions[p.pid]
       if (tid == null) return p
       const classYear = Number(p.targetYear) || Number(selectedYear)
-      const updated = resolveTargetCommitment(p, { commitmentTid: Number(tid), classYear, weekKey: null })
-      if (Number(tid) === Number(selectedTid)) committedToUs.push(buildCommitmentRecord(updated))
+      let updated = resolveTargetCommitment(p, { commitmentTid: Number(tid), classYear, weekKey: null })
+      if (Number(tid) === Number(selectedTid)) {
+        // Signing with you carries the recruiting offer forward as next season's roster floor.
+        updated = carryRecruitingNilForward(updated, classYear)
+        committedToUs.push(buildCommitmentRecord(updated))
+      }
       return updated
     })
 

@@ -21,6 +21,7 @@
 
 import { normalizePlayerName } from './playerMatching'
 import { getTidFromTeamName, resolveTid } from '../data/teamRegistry'
+import { carryRecruitingNilForward } from '../data/playerNilModel'
 
 // Sentinel the Targets sheet/prompt uses in the Commitment column for an
 // uncommitted prospect. Blank is reserved for "committed to your team" so the
@@ -178,6 +179,8 @@ function toCommitmentRecord(p) {
     nationalRank: p.nationalRank, stateRank: p.stateRank, positionRank: p.positionRank,
     height: p.height, weight: p.weight, hometown: p.hometown, state: p.state,
     gemBust: p.gemBust, previousTeam: p.previousTeam, isPortal: p.isPortal,
+    // Carry NIL so a committed recruit round-trips its offer back into the sheet.
+    ...(p.nilByYear ? { nilByYear: p.nilByYear } : {}),
   }
 }
 
@@ -249,6 +252,16 @@ export function reconcileRecruitingRows({
     }
 
     record = applyStatus(record, { status, commitmentTid, classYear: yearN, weekKey })
+
+    // Recruiting NIL offer (CFB 27+): stamp this class year's nilByYear from the
+    // sheet's NIL column. Absence-safe — a blank cell never creates the map.
+    if (row.nil != null && !isNaN(Number(row.nil))) {
+      record = { ...record, nilByYear: { ...(record.nilByYear || {}), [yearN]: Number(row.nil) } }
+    }
+    // Signing with YOU carries the offer forward as next season's roster-NIL floor.
+    if (status === 'committed' && Number(commitmentTid) === Number(userTid)) {
+      record = carryRecruitingNilForward(record, yearN)
+    }
 
     if (idx !== -1) {
       next[idx] = record

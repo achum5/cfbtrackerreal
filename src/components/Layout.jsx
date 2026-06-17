@@ -23,7 +23,7 @@ const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek, updateDynasty } = useDynasty()
+  const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek, updateDynasty, phaseOverride, setPhaseOverride } = useDynasty()
   const [showV2Migration, setShowV2Migration] = useState(false)
   const [v2MigrationDismissed, setV2MigrationDismissed] = useState(false)
   const { user, signOut } = useAuth()
@@ -547,6 +547,21 @@ export default function Layout({ children }) {
     <div
       className="min-h-dvh flex flex-col surface-1 isolate"
     >
+      {/* Calendar-preview badge — app-wide banner so it's always obvious the
+          displayed phase/week is a non-destructive preview, with quick exit. */}
+      {phaseOverride && (
+        <button
+          type="button"
+          onClick={() => setPhaseOverride?.(null)}
+          className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[9998] flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg"
+          style={{ backgroundColor: 'var(--accent-warning)', color: '#1a1a1a' }}
+          title="Exit calendar preview"
+        >
+          PREVIEW · {phaseOverride.year} · {String(phaseOverride.phase).replace(/_/g, ' ')} · wk {phaseOverride.week}
+          <span className="underline">Exit</span>
+        </button>
+      )}
+
       {/* App-wide paper grain — a fixed layer that textures the background
           BEHIND content (z-index:-1 inside this isolated wrapper) so it never
           fuzzes images, cards, or player photos. */}

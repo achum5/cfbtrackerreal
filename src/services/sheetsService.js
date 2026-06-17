@@ -6,7 +6,7 @@ import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeam
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { OAuthError } from '../utils/authErrors'
-import { parseRecruitingRows, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL } from '../utils/recruitSheetParse'
+import { parseRecruitingRows, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL } from '../utils/recruitSheetParse'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
@@ -132,7 +132,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 13,
+                columnCount: 14,
                 frozenRowCount: 1
               }
             }
@@ -508,7 +508,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 13
+            endColumnIndex: 14
           },
           rows: [{
             values: [
@@ -524,7 +524,8 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
               { userEnteredValue: { stringValue: 'State' } },
-              { userEnteredValue: { stringValue: 'Image URL' } }
+              { userEnteredValue: { stringValue: 'Image URL' } },
+              { userEnteredValue: { stringValue: 'NIL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1093,7 +1094,7 @@ export async function createRosterSheet(dynastyName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 13,
+                columnCount: 14,
                 frozenRowCount: 1
               }
             }
@@ -1391,7 +1392,7 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: 0,
-            endColumnIndex: 13
+            endColumnIndex: 14
           },
           rows: [{
             values: [
@@ -1407,7 +1408,8 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
               { userEnteredValue: { stringValue: 'Weight' } },
               { userEnteredValue: { stringValue: 'Hometown' } },
               { userEnteredValue: { stringValue: 'State' } },
-              { userEnteredValue: { stringValue: 'Image URL' } }
+              { userEnteredValue: { stringValue: 'Image URL' } },
+              { userEnteredValue: { stringValue: 'NIL' } }
             ]
           }],
           fields: 'userEnteredValue'
@@ -1809,7 +1811,7 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
     const accessToken = await getAccessToken()
 
     const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:N100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -1859,7 +1861,8 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
         weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
         hometown: row[10] || '',                          // K: Hometown
         state: row[11] || '',                             // L: State
-        pictureUrl: row[12] || ''                          // M: Image URL
+        pictureUrl: row[12] || '',                         // M: Image URL
+        nil: (row[13] != null && String(row[13]).trim() !== '') ? parseInt(row[13]) : null  // N: NIL (CFB 27+)
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -1867,8 +1870,9 @@ export async function readRosterFromRosterSheet(spreadsheetId) {
   }
 }
 
-// Pre-fill roster data into a Roster-only sheet
-export async function prefillRosterSheet(spreadsheetId, players) {
+// Pre-fill roster data into a Roster-only sheet. `year` (optional) selects which
+// season's NIL to pre-fill into col N (CFB 27+); omitted → blank NIL column.
+export async function prefillRosterSheet(spreadsheetId, players, year = null) {
   try {
     // Get OAuth access token (works for both free and paid tiers)
     const accessToken = await getAccessToken()
@@ -1882,7 +1886,8 @@ export async function prefillRosterSheet(spreadsheetId, players) {
     }
 
     // Prepare roster data
-    // Columns: First Name | Last Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Image URL
+    // Columns: First Name | Last Name | Position | Class | Dev Trait | Jersey # | Archetype | Overall | Height | Weight | Hometown | State | Image URL | NIL
+    const nilFor = (p) => (year != null ? (p.nilByYear?.[year] ?? p.nilByYear?.[String(year)] ?? '') : '')
     const rosterValues = players.map(p => {
       const { firstName, lastName } = p.firstName ? { firstName: p.firstName, lastName: p.lastName || '' } : splitName(p.name)
       return [
@@ -1898,21 +1903,22 @@ export async function prefillRosterSheet(spreadsheetId, players) {
         p.weight || '',
         p.hometown || '',
         p.state || '',
-        p.pictureUrl || ''
+        p.pictureUrl || '',
+        nilFor(p)
       ]
     })
 
     // Add 5 extra empty rows for adding new players
     const EXTRA_ROWS = 5
     for (let i = 0; i < EXTRA_ROWS; i++) {
-      rosterValues.push(['', '', '', '', '', '', '', '', '', '', '', '', ''])
+      rosterValues.push(['', '', '', '', '', '', '', '', '', '', '', '', '', ''])
     }
 
     if (rosterValues.length === 0) return
 
     // Write roster data starting at row 2 (after header)
     const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:N${rosterValues.length + 1}?valueInputOption=RAW`,
       {
         method: 'PUT',
         headers: {
@@ -2139,7 +2145,7 @@ export async function readRosterFromSheet(spreadsheetId, dynastyTeams = null) {
     const accessToken = await getAccessToken()
 
     const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M100`,
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:N100`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -2215,7 +2221,8 @@ export async function readRosterFromSheet(spreadsheetId, dynastyTeams = null) {
         weight: row[9] ? parseInt(row[9]) : null,         // J: Weight
         hometown: row[10] || '',                          // K: Hometown
         state: row[11] || '',                             // L: State
-        pictureUrl: row[12] || ''                          // M: Image URL
+        pictureUrl: row[12] || '',                         // M: Image URL
+        nil: (row[13] != null && String(row[13]).trim() !== '') ? parseInt(row[13]) : null  // N: NIL (CFB 27+)
       }))
   } catch (error) {
     console.error('Error reading roster:', error)
@@ -2299,14 +2306,15 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
         player.weight || '',                  // J: Weight
         player.hometown || '',                // K: Hometown
         player.state || '',                   // L: State
-        player.pictureUrl || ''               // M: Image URL
+        player.pictureUrl || '',              // M: Image URL
+        ''                                    // N: NIL (filled by the user; CFB 27+)
       ]
     }) || []
 
     // Add 5 extra empty rows for adding new players
     const EXTRA_ROWS = 5
     for (let i = 0; i < EXTRA_ROWS; i++) {
-      rosterValues.push(['', '', '', '', '', '', '', '', '', '', '', '', ''])
+      rosterValues.push(['', '', '', '', '', '', '', '', '', '', '', '', '', ''])
     }
 
     // Batch update both sheets
@@ -2328,10 +2336,10 @@ export async function writeExistingDataToSheet(spreadsheetId, schedule, players,
       )
     }
 
-    // Write roster data (13 columns)
+    // Write roster data (14 columns)
     if (rosterValues.length > 0) {
       requests.push(
-        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:M${rosterValues.length + 1}?valueInputOption=RAW`, {
+        fetch(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:N${rosterValues.length + 1}?valueInputOption=RAW`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -11235,6 +11243,7 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
               { label: 'Commitment' },
               ...ATTRIBUTE_COLUMNS.map(name => ({ label: ATTRIBUTE_ABBR[name] || name, note: name })),
               { label: 'pid' },
+              { label: 'NIL', note: 'Recruiting NIL offer (CFB 27)' },
             ].map(h => ({
               userEnteredValue: { stringValue: h.label },
               userEnteredFormat: headerStyle,
@@ -11246,9 +11255,9 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
       }
     })
 
-    // Set column widths (A–O commit fields, then Commitment, the named attrs, pid)
+    // Set column widths (A–O commit fields, then Commitment, the named attrs, pid, NIL)
     const columnWidths = [150, 70, 70, 140, 80, 70, 70, 70, 60, 60, 120, 50, 70, 70, 80,
-      100, ...ATTRIBUTE_COLUMNS.map(() => 52), 50]
+      100, ...ATTRIBUTE_COLUMNS.map(() => 52), 50, 70]
     columnWidths.forEach((width, idx) => {
       requests.push({
         updateDimensionProperties: {
@@ -11405,9 +11414,10 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
     requests.push(...generateTeamFormattingRulesForRange(sheetId, 15, 1, totalRows + 1, dynastyTeams))
 
     // Hidden pid column (round-trip stability for the reconciler — users never touch it).
+    // Hide ONLY pid (endIndex = NIL_COL) so the trailing NIL column stays visible.
     requests.push({
       updateDimensionProperties: {
-        range: { sheetId, dimension: 'COLUMNS', startIndex: PID_COL, endIndex: TOTAL_COLS },
+        range: { sheetId, dimension: 'COLUMNS', startIndex: PID_COL, endIndex: NIL_COL },
         properties: { hiddenByUser: true },
         fields: 'hiddenByUser'
       }
@@ -11487,7 +11497,8 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
           { userEnteredValue: { stringValue: previousTeamAsAbbr(recruit.previousTeam) } },
           { userEnteredValue: { stringValue: str(recruit.commitment) } },
           ...ATTRIBUTE_COLUMNS.map(name => numOrBlank(recruit.attributes ? recruit.attributes[name] : undefined)),
-          numOrBlank(recruit.pid)
+          numOrBlank(recruit.pid),
+          numOrBlank(recruit.nilByYear?.[year] ?? recruit.nilByYear?.[String(year)])
         ]
       }))
 

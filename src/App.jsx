@@ -26,7 +26,7 @@ import {
   PlayersByState, AllTimeLineup, Recruiting, Leaders, Awards, AllAmericans,
   AllConference, DynastyRecords, Teams, TeamYear, BowlHistory,
   ConferenceChampionshipHistory, ConferenceStandings, CFPBracket, WeeklyScores, Game,
-  GameEdit, DangerZone, LeagueSettings, CardCollection, PromptStudio,
+  GameEdit, DangerZone, LeagueSettings, CardCollection, PromptStudio, DynastyBlueprint, CoachProfile, CoachEdit, DevTools,
 } from './routes/lazyPages'
 
 // Protected route wrapper
@@ -184,6 +184,10 @@ function AppRoutes() {
                   <Route path="admin" element={<DangerZone />} />
                   <Route path="league" element={<LeagueSettings />} />
                   <Route path="ai-prompts" element={<PromptStudio />} />
+                  <Route path="blueprint" element={<DynastyBlueprint />} />
+                  <Route path="coach/:cid" element={<CoachProfile />} />
+                  <Route path="coach/:cid/edit" element={<CoachEdit />} />
+                  <Route path="dev" element={<DevTools />} />
                 </Route>
               </Routes>
             </DynastyProvider>

@@ -15,6 +15,9 @@ import { getTeamLogo, teams } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
+import { getEditionConfig } from '../../editions'
+import { getSeasonBudget, setSeasonBudget, getSupportStaff, isSupportStaffSet, setSupportStaff, parseDp, getFacilities, getCarriedFacilityTier } from '../../data/dynastyPointsModel'
+import { getPlayerNil, sumPlayerNil } from '../../data/playerNilModel'
 import SearchableSelect from '../../components/SearchableSelect'
 import DropdownSelect from '../../components/DropdownSelect'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
@@ -23,6 +26,7 @@ import TeamRatingsModal from '../../components/TeamRatingsModal'
 // GameEntryModal and GameDetailModal removed - now using game pages instead
 import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 import CoachingStaffModal from '../../components/CoachingStaffModal'
+import SupportStaffModal from '../../components/SupportStaffModal'
 import BowlWeek1Modal from '../../components/BowlWeek1Modal'
 import BowlWeek2Modal from '../../components/BowlWeek2Modal'
 import WeeklyScoresModal from '../../components/WeeklyScoresModal'
@@ -151,7 +155,7 @@ function renderTodoList({ todos, isViewOnly }) {
 }
 
 export default function Dashboard() {
-  const { currentDynasty, loadingDynastyId, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, saveConferenceAlignment, addGame, saveGameSetChanges, saveCPUBowlGames, saveCFPGames, saveCPUConferenceChampionships, updateDynasty, updatePlayer, processHonorPlayers, isViewOnly, exportDynasty } = useDynasty()
+  const { currentDynasty, loadingDynastyId, saveSchedule, saveRoster, saveTeamRatings, saveCoachingStaff, saveConferences, saveConferenceAlignment, addGame, saveGameSetChanges, saveCPUBowlGames, saveCFPGames, saveCPUConferenceChampionships, updateDynasty, updatePlayer, processHonorPlayers, isViewOnly, exportDynasty, phaseOverride } = useDynasty()
 
   // Check if dynasty data is being lazily loaded
   const isLoadingDynastyData = loadingDynastyId === currentDynasty?.id
@@ -529,6 +533,10 @@ export default function Dashboard() {
   // Lets the same modal serve both preseason (week 0) and in-season recaps
   // without juggling two state booleans.
   const [recapModalContext, setRecapModalContext] = useState(null)
+  // Inline budget editing on the preseason "Enter Dynasty Points Budget" to-do.
+  const [dpBudgetEditing, setDpBudgetEditing] = useState(false)
+  const [dpBudgetInput, setDpBudgetInput] = useState('')
+  const [showSupportStaffModal, setShowSupportStaffModal] = useState(false)
   // Preseason Top 25 entry modal — opens for a specific year
   const [preseasonTop25Year, setPreseasonTop25Year] = useState(null)
 
@@ -761,6 +769,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!currentDynasty?.id) return
     if (isViewOnly) return
+    if (phaseOverride) return // calendar preview active — don't auto-write
     const byYear = currentDynasty.bowlEligibilityDataByYear
     // Don't mark done until data is actually present — lazy-loaded dynasties
     // would otherwise get blocked on the first (empty) run and never retry.
@@ -859,6 +868,7 @@ export default function Dashboard() {
   // This handles dynasties where seeds were saved before the shell system was implemented
   useEffect(() => {
     if (!currentDynasty?.id || isViewOnly) return
+    if (phaseOverride) return // calendar preview active — don't auto-create CFP shells
 
     // CRITICAL: Wait until dynasty data is fully loaded from subcollections
     // Without this guard, games array may be empty during lazy loading,
@@ -3473,6 +3483,59 @@ export default function Dashboard() {
             const preseasonUserTid = getUserTeamTid(currentDynasty)
             const preseasonYear = Number(currentDynasty.currentYear)
 
+            // Dynasty Points budget (CFB 27+ only). One preseason prompt to
+            // record the season's total budget; deep-links to the always-
+            // editable Dynasty Blueprint page. Gated by the edition feature
+            // flag so CFB 26 dynasties never see this row.
+            if (getEditionConfig(currentDynasty)?.features?.dynastyPoints) {
+              const dpBudget = getSeasonBudget(currentDynasty, preseasonYear)
+              const dpDone = dpBudget != null
+              const saveDpBudget = async () => {
+                const next = setSeasonBudget(currentDynasty, preseasonYear, parseDp(dpBudgetInput))
+                await updateDynasty(currentDynasty.id, { dynastyPoints: next })
+                setDpBudgetEditing(false)
+              }
+              todos.push({
+                key: 'dynasty-points-budget',
+                done: dpDone,
+                title: 'Enter Dynasty Points Budget',
+                subtitle: dpDone ? `${Number(dpBudget).toLocaleString()} points` : null,
+                // Inline edit: clicking the action turns the row into a text box
+                // with a green check to save (no navigation).
+                editing: dpBudgetEditing,
+                editValue: dpBudgetInput,
+                onEditChange: (v) => setDpBudgetInput(v),
+                onEditConfirm: saveDpBudget,
+                onEditCancel: () => setDpBudgetEditing(false),
+                onAction: () => { setDpBudgetInput(dpBudget != null ? String(dpBudget) : ''); setDpBudgetEditing(true) },
+                actionLabel: dpDone ? 'Edit' : 'Enter',
+                viewTo: `${pathPrefix}/team/${preseasonUserTid}/${preseasonYear}?tab=blueprint`,
+              })
+
+              // Support staff — hired in the preseason in-game; record them so
+              // their DP cost feeds the Staff budget lane. "Done" once the user
+              // has either recorded staff or explicitly marked none this year.
+              const ssList = getSupportStaff(currentDynasty, preseasonYear)
+              const ssDone = isSupportStaffSet(currentDynasty, preseasonYear)
+              todos.push({
+                key: 'support-staff',
+                done: ssDone,
+                title: 'Set Support Staff',
+                subtitle: ssDone
+                  ? (ssList.length > 0 ? `${ssList.length} support staff` : 'None this year')
+                  : null,
+                onAction: () => setShowSupportStaffModal(true),
+                actionLabel: ssDone ? 'Edit' : 'Set',
+                viewTo: `${pathPrefix}/team/${preseasonUserTid}/${preseasonYear}?tab=blueprint`,
+                inlineAction: !ssDone && !isViewOnly ? {
+                  label: 'None this year',
+                  onClick: async () => {
+                    await updateDynasty(currentDynasty.id, { dynastyPoints: setSupportStaff(currentDynasty, preseasonYear, []) })
+                  },
+                } : null,
+              })
+            }
+
             // Schedule
             const scheduledGameCount = (teamSchedule || []).filter(g =>
               !g.isBye && g.opponent?.toUpperCase() !== 'BYE'
@@ -3617,43 +3680,75 @@ export default function Dashboard() {
                         }}
                       />
                       <div className="min-w-0">
-                        <div
-                          className="font-display font-bold leading-tight text-txt-primary break-words"
-                          style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                        >
-                          {todo.title}
-                        </div>
-                        {todo.subtitle && (
-                          <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
-                            {todo.subtitle}
-                          </div>
-                        )}
-                        {todo.inlineAction && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); todo.inlineAction.onClick() }}
-                            className="mt-1 text-[11px] uppercase font-bold text-txt-tertiary hover:text-txt-secondary underline underline-offset-2 transition-colors"
-                            style={{ letterSpacing: '1.2px' }}
-                          >
-                            {todo.inlineAction.label}
-                          </button>
+                        {todo.editing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            autoFocus
+                            value={todo.editValue ?? ''}
+                            onChange={(e) => todo.onEditChange?.(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') todo.onEditConfirm?.()
+                              if (e.key === 'Escape') todo.onEditCancel?.()
+                            }}
+                            placeholder={todo.title}
+                            className="tabular w-44 max-w-full bg-surface-2 border border-surface-4 rounded-md px-2 py-1.5 text-sm text-txt-primary"
+                          />
+                        ) : (
+                          <>
+                            <div
+                              className="font-display font-bold leading-tight text-txt-primary break-words"
+                              style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                            >
+                              {todo.title}
+                            </div>
+                            {todo.subtitle && (
+                              <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
+                                {todo.subtitle}
+                              </div>
+                            )}
+                            {todo.inlineAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); todo.inlineAction.onClick() }}
+                                className="mt-1 text-[11px] uppercase font-bold text-txt-tertiary hover:text-txt-secondary underline underline-offset-2 transition-colors"
+                                style={{ letterSpacing: '1.2px' }}
+                              >
+                                {todo.inlineAction.label}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
                     {!isViewOnly && todo.actionLabel && (
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
-                        {todo.extraTools}
-                        {todo.viewTo && (
-                          <Link to={todo.viewTo} className="btn-refined text-center">
-                            View
-                          </Link>
+                        {todo.editing ? (
+                          <button
+                            onClick={todo.onEditConfirm}
+                            title="Save"
+                            aria-label="Save"
+                            className="flex items-center justify-center w-9 h-9 rounded-md text-white transition-opacity hover:opacity-90"
+                            style={{ backgroundColor: 'var(--accent-success)' }}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          </button>
+                        ) : (
+                          <>
+                            {todo.extraTools}
+                            {todo.viewTo && (
+                              <Link to={todo.viewTo} className="btn-refined text-center">
+                                View
+                              </Link>
+                            )}
+                            <button
+                              onClick={todo.onAction}
+                              className="btn-refined btn-refined--solid text-center"
+                            >
+                              {todo.actionLabel}
+                            </button>
+                          </>
                         )}
-                        <button
-                          onClick={todo.onAction}
-                          className="btn-refined btn-refined--solid text-center"
-                        >
-                          {todo.actionLabel}
-                        </button>
                       </div>
                     )}
                   </div>
@@ -4243,26 +4338,44 @@ export default function Dashboard() {
                         }}
                       />
                       <div className="min-w-0">
-                        <div
-                          className="font-display font-bold leading-tight text-txt-primary break-words"
-                          style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                        >
-                          {todo.title}
-                        </div>
-                        {todo.subtitle && (
-                          <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
-                            {todo.subtitle}
-                          </div>
-                        )}
-                        {todo.inlineAction && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); todo.inlineAction.onClick() }}
-                            className="mt-1 text-[11px] uppercase font-bold text-txt-tertiary hover:text-txt-secondary underline underline-offset-2 transition-colors"
-                            style={{ letterSpacing: '1.2px' }}
-                          >
-                            {todo.inlineAction.label}
-                          </button>
+                        {todo.editing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            autoFocus
+                            value={todo.editValue ?? ''}
+                            onChange={(e) => todo.onEditChange?.(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') todo.onEditConfirm?.()
+                              if (e.key === 'Escape') todo.onEditCancel?.()
+                            }}
+                            placeholder={todo.title}
+                            className="tabular w-44 max-w-full bg-surface-2 border border-surface-4 rounded-md px-2 py-1.5 text-sm text-txt-primary"
+                          />
+                        ) : (
+                          <>
+                            <div
+                              className="font-display font-bold leading-tight text-txt-primary break-words"
+                              style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                            >
+                              {todo.title}
+                            </div>
+                            {todo.subtitle && (
+                              <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
+                                {todo.subtitle}
+                              </div>
+                            )}
+                            {todo.inlineAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); todo.inlineAction.onClick() }}
+                                className="mt-1 text-[11px] uppercase font-bold text-txt-tertiary hover:text-txt-secondary underline underline-offset-2 transition-colors"
+                                style={{ letterSpacing: '1.2px' }}
+                              >
+                                {todo.inlineAction.label}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -5625,6 +5738,75 @@ export default function Dashboard() {
               const w5Year = currentDynasty.currentYear
               const w5Tid = currentDynasty.currentTid
               const w5TeamStats = w5Tid != null ? `${pathPrefix}/team/${w5Tid}/${w5Year}?tab=stats` : null
+
+              // Next season's Dynasty Points budget refreshes HERE (End of Season
+              // Recap), so this is where you record it. Year 1 has no prior recap,
+              // so that budget is entered in the preseason instead. CFB 27 only.
+              if (getEditionConfig(currentDynasty)?.features?.dynastyPoints && w5Tid != null) {
+                const nextYear = Number(w5Year) + 1
+                const nextBudget = getSeasonBudget(currentDynasty, nextYear)
+                const nbDone = nextBudget != null
+                const nextBlueprint = `${pathPrefix}/team/${w5Tid}/${nextYear}?tab=blueprint`
+                w5Todos.push({
+                  key: 'next-season-budget',
+                  done: nbDone,
+                  title: `Enter ${nextYear} Dynasty Points Budget`,
+                  subtitle: nbDone ? `${Number(nextBudget).toLocaleString()} points` : null,
+                  onAction: () => navigate(nextBlueprint),
+                  actionLabel: nbDone ? 'Edit' : 'Enter',
+                  viewTo: nbDone ? nextBlueprint : null,
+                })
+
+                // Facility upgrades/downgrades also happen at End of Season Recap
+                // (once per year; an upgrade completes the following preseason).
+                // Prompt the decision for next year. "Done" = a tier was explicitly
+                // recorded for nextYear (keeping the same tier still counts — you
+                // re-select it, which stores it).
+                const facTiers = getEditionConfig(currentDynasty)?.dynastyPoints?.facilities?.tiers ?? []
+                const nextFac = getFacilities(currentDynasty, nextYear)
+                const curTierKey = getCarriedFacilityTier(currentDynasty, Number(w5Year))
+                const facDone = !!nextFac.tier
+                const nextTierLabel = facTiers.find((t) => t.key === nextFac.tier)?.label
+                const curIdx = facTiers.findIndex((t) => t.key === curTierKey)
+                const nextIdx = facTiers.findIndex((t) => t.key === nextFac.tier)
+                const direction = facDone && curIdx >= 0 && nextIdx >= 0
+                  ? (nextIdx > curIdx ? 'Upgrade' : nextIdx < curIdx ? 'Downgrade' : 'No change')
+                  : null
+                const nextFacBlueprint = `${pathPrefix}/team/${w5Tid}/${nextYear}?tab=blueprint`
+                w5Todos.push({
+                  key: 'next-season-facility',
+                  done: facDone,
+                  title: `Set ${nextYear} Facility Tier`,
+                  subtitle: facDone
+                    ? `${nextTierLabel}${direction && direction !== 'No change' ? ` (${direction})` : ''}`
+                    : 'Upgrade, downgrade, or keep your facility for next season',
+                  onAction: () => navigate(nextFacBlueprint),
+                  actionLabel: facDone ? 'Edit' : 'Set',
+                  viewTo: facDone ? nextFacBlueprint : null,
+                })
+
+                // Roster NIL is reallocated at End of Season Recap too — adjust each
+                // returning player's NIL for next season (the game defaults them to
+                // expected; you increase to retain / decrease to risk losing them).
+                // "Done" = at least one next-year roster player has a NIL recorded.
+                const nextRoster = (currentDynasty.players || []).filter(
+                  (p) => isPlayerOnRoster(p, w5Tid, nextYear, currentDynasty)
+                )
+                const rnSet = nextRoster.filter((p) => getPlayerNil(p, nextYear) != null)
+                const rnTotal = sumPlayerNil(nextRoster, nextYear)
+                const rnDone = rnSet.length > 0
+                w5Todos.push({
+                  key: 'next-season-roster-nil',
+                  done: rnDone,
+                  title: `Set ${nextYear} Roster NIL`,
+                  subtitle: rnDone
+                    ? `${rnTotal.toLocaleString()} committed across ${rnSet.length} player${rnSet.length === 1 ? '' : 's'}`
+                    : "Adjust each returning player's NIL to retain them next season",
+                  onAction: () => navigate(nextBlueprint),
+                  actionLabel: rnDone ? 'Edit' : 'Set',
+                  viewTo: rnDone ? nextBlueprint : null,
+                })
+              }
 
               // Result first, then recap — you enter the championship result
               // before generating its recap, so it leads the list.
@@ -7902,6 +8084,12 @@ export default function Dashboard() {
         onSave={handleCoachingStaffSave}
         teamColors={teamColors}
         currentStaff={teamCoachingStaff}
+      />
+
+      <SupportStaffModal
+        isOpen={showSupportStaffModal}
+        onClose={() => setShowSupportStaffModal(false)}
+        year={currentDynasty.currentYear}
       />
 
       <NewJobEditModal

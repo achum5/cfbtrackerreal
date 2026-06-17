@@ -19,8 +19,12 @@ export const COMMITMENT_COL = 15
 export const ATTR_COL_START = 16
 export const ATTR_COL_END = ATTR_COL_START + ATTRIBUTE_COLUMNS.length // exclusive
 export const PID_COL = ATTR_COL_END
-// Total column count A..pid (used to size the sheet grid).
-export const TOTAL_COLS = PID_COL + 1
+// NIL (CFB 27+) sits AFTER the hidden pid column so PID_COL never shifts — a
+// pre-NIL sheet still round-trips its pid byte-for-byte (the parser just reads
+// nil:null). It's a visible trailing column the user fills with the offer.
+export const NIL_COL = PID_COL + 1
+// Total column count A..NIL (used to size the sheet grid).
+export const TOTAL_COLS = NIL_COL + 1
 
 // Convert a 0-based column index to an A1 letter (0→A, 26→AA, 58→BG).
 function colLetter(idx) {
@@ -31,8 +35,8 @@ function colLetter(idx) {
   return s
 }
 
-// Read range wide enough for A..pid and tall enough for a full season of targets.
-export const RECRUITING_READ_RANGE = `Commitments!A2:${colLetter(PID_COL)}600`
+// Read range wide enough for A..NIL and tall enough for a full season of targets.
+export const RECRUITING_READ_RANGE = `Commitments!A2:${colLetter(NIL_COL)}600`
 
 const NON_PORTAL_CLASSES = ['HS', 'JUCO Fr', 'JUCO So', 'JUCO Jr']
 
@@ -77,6 +81,7 @@ export function parseRecruitingRow(row) {
     commitment: trim(row[COMMITMENT_COL]),
     attributes: parseAttributes(row),
     pid: trim(pidRaw) !== '' ? Number(trim(pidRaw)) : undefined,
+    nil: intOrNull(row[NIL_COL]), // recruiting NIL offer (CFB 27+); null on a legacy sheet
   }
 }
 

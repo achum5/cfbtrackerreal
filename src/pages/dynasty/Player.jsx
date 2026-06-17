@@ -32,6 +32,9 @@ import { sortPlaysChronologically } from '../../utils/scoringPlayOrder'
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
+import { getEditionConfig } from '../../editions'
+import { getPlayerNil } from '../../data/playerNilModel'
+import nilIcon from '../../assets/blueprint/points.png'
 
 // Team-captain patch, shown beside the name in the hero when player.isCaptain.
 const CAPTAIN_PATCH_URL = 'https://i.imgur.com/wPIRWdW.png'
@@ -456,6 +459,10 @@ function PlayerInner() {
   // as source of truth. Value can be a tid (number, modern) or an abbr
   // (string, legacy) depending on when the entry was written.
   const currentYear = dynasty?.currentYear
+  // NIL (CFB 27+) — current-season earnings for the hero + per-year for timelines.
+  const nilEnabled = !!getEditionConfig(dynasty)?.features?.nil
+  const currentNil = nilEnabled ? getPlayerNil(player, currentYear) : null
+  const fmtNil = (n) => (n == null ? '—' : Number(n).toLocaleString())
   const playerTeamRaw = (() => {
     const tby = player?.teamsByYear
     if (tby) {
@@ -1973,6 +1980,16 @@ function PlayerInner() {
                   const dt = player.devTraitByYear?.[currentYear] || player.devTraitByYear?.[String(currentYear)] || player.devTrait
                   return dt && dt !== 'Normal' ? <><span style={{ opacity: 0.4 }}>•</span><span>{dt}</span></> : null
                 })()}
+                {nilEnabled && currentNil != null && (
+                  <>
+                    <span style={{ opacity: 0.4 }}>•</span>
+                    <span className="inline-flex items-center gap-1 normal-case">
+                      <img src={nilIcon} alt="" className="w-4 h-4 object-contain" style={{ opacity: 0.95 }} />
+                      <span className="tabular-nums">{fmtNil(currentNil)}</span>
+                      <span style={{ opacity: 0.6 }}>NIL</span>
+                    </span>
+                  </>
+                )}
                 {(player.height || player.weight) && (
                   <><span style={{ opacity: 0.4 }}>•</span><span className="normal-case">{player.height}{player.height && player.weight && ', '}{player.weight ? `${player.weight} lbs` : ''}</span></>
                 )}
@@ -2222,6 +2239,7 @@ function PlayerInner() {
                           const cls = getPlayerClassForYear(player, year)
                           const ovr = player.overallByYear?.[year]
                           const pos = player.positionByYear?.[year] || player.position
+                          const nil = nilEnabled ? getPlayerNil(player, year) : null
                           const transition = transitionForYear(year)
                           const inYear = inYearEvent(year)
                           return (
@@ -2235,8 +2253,13 @@ function PlayerInner() {
                                   <span className="ml-auto text-[11px] font-bold tabular-nums flex-shrink-0" style={{ color: primaryText }}>{ovr}</span>
                                 )}
                               </div>
-                              <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: secondaryText }}>
-                                {[cls, pos].filter(Boolean).join(' ') || '—'}
+                              <div className="text-[10px] uppercase tracking-wider mt-0.5 flex items-center justify-between gap-2" style={{ color: secondaryText }}>
+                                <span>{[cls, pos].filter(Boolean).join(' ') || '—'}</span>
+                                {nil != null && (
+                                  <span className="inline-flex items-center gap-0.5 flex-shrink-0 normal-case font-bold tabular-nums" style={{ color: primaryText }}>
+                                    <img src={nilIcon} alt="" className="w-3 h-3 object-contain" />{fmtNil(nil)}
+                                  </span>
+                                )}
                               </div>
                               {inYear && (
                                 <div className="mt-1 inline-block text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded" style={{ color: secondaryText, backgroundColor: 'var(--bg-surface-3, #1c1c22)' }}>
@@ -3019,6 +3042,7 @@ function PlayerInner() {
             devTrait: player.devTraitByYear?.[year] || player.devTraitByYear?.[String(year)]
               || (isCurrentYr ? player.devTrait : null),
             stats: player.statsByYear?.[year] || player.statsByYear?.[String(year)] || null,
+            nil: nilEnabled ? getPlayerNil(player, year) : null,
             movements: timelineEntries.filter(e => e.year === year),
           }
         })
@@ -3537,13 +3561,17 @@ function PlayerInner() {
                   </>
                 ) : null
 
-                const sub = quickStats.length > 0 ? (
+                const subItems = [
+                  ...quickStats,
+                  ...(nilEnabled && yd.nil != null ? [{ value: fmtNil(yd.nil), label: 'NIL', nil: true }] : []),
+                ]
+                const sub = subItems.length > 0 ? (
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mt-1">
-                    {quickStats.map((qs, i) => (
+                    {subItems.map((qs, i) => (
                       <div key={i} className="flex items-baseline gap-1.5">
                         <span
-                          className="text-base sm:text-lg font-black leading-none tabular text-txt-primary"
-                          style={{ fontFamily: "var(--font-display)", letterSpacing: '0.5px' }}
+                          className="text-base sm:text-lg font-black leading-none tabular"
+                          style={{ fontFamily: "var(--font-display)", letterSpacing: '0.5px', color: qs.nil ? '#22c55e' : 'var(--text-primary)' }}
                         >
                           {qs.value}
                         </span>

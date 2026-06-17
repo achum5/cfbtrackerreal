@@ -12,6 +12,7 @@ import BouncingLogos from '../components/BouncingLogos'
 import { Button, Badge, Modal, Input, LoadingState, ContactCTA } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
+import { getEditionConfig, getEditionKey, LEGACY_EDITION } from '../editions'
 
 function getDynastyTeamConference(dynasty) {
   if (!dynasty.teamName) return null
@@ -654,6 +655,14 @@ export default function Home() {
                     : 'Stored locally (this device only)'
                 const storageBadgeText = isCloudReadOnly ? 'Read-only' : dynasty.storageType === 'cloud' ? 'Cloud' : 'Local'
 
+                // Edition badge — only shown for non-legacy editions so the
+                // common CFB 26 card stays uncluttered. A CFB 27 (or later)
+                // dynasty gets a distinct label at a glance.
+                const editionKey = getEditionKey(dynasty)
+                const editionBadge = editionKey !== LEGACY_EDITION
+                  ? getEditionConfig(editionKey)?.label
+                  : null
+
                 return (
                   <div
                     key={dynasty.id}
@@ -719,13 +728,18 @@ export default function Home() {
                               {relativeTime}
                             </span>
                           )}
-                          <button
-                            type="button"
-                            onClick={(e) => handleStorageClick(e, dynasty)}
-                            title={storageBadgeTitle}
-                          >
-                            <Badge variant={storageBadgeVariant} size="sm">{storageBadgeText}</Badge>
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {editionBadge && (
+                              <Badge variant="success" size="sm" title="Game edition">{editionBadge}</Badge>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => handleStorageClick(e, dynasty)}
+                              title={storageBadgeTitle}
+                            >
+                              <Badge variant={storageBadgeVariant} size="sm">{storageBadgeText}</Badge>
+                            </button>
+                          </div>
                         </div>
 
                         {/* Scoreboard-style divider — separates data from controls */}

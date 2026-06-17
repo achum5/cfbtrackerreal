@@ -90,6 +90,7 @@ import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid } from '../data/leagueModel'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
+import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
 const DynastyContext = createContext()
 
@@ -5592,6 +5593,10 @@ export function DynastyProvider({ children }) {
   const { toast } = useToast()
   const [dynasties, setDynasties] = useState([])
   const [currentDynasty, setCurrentDynasty] = useState(null)
+  // Non-destructive calendar PREVIEW (dev jumper): { year, phase, week } | null.
+  // Overrides only the displayed currentYear/Phase/Week on the EXPOSED dynasty;
+  // never persisted. Cleared automatically when the real dynasty changes.
+  const [phaseOverride, setPhaseOverride] = useState(null)
   const [loading, setLoading] = useState(true)
   // True for signed-in users until the first Firestore snapshot lands.
   // Decoupled from `loading` (which drops as soon as the local read
@@ -5641,6 +5646,18 @@ export function DynastyProvider({ children }) {
   // CRITICAL: Track when we last updated games locally to prevent listener from overwriting
   const lastGamesUpdateTimestampRef = useRef(0)
   const lastGamesUpdateDynastyIdRef = useRef(null)
+  // GENERIC guard: track recently-written main-doc field names per dynasty so a
+  // stale Firestore snapshot delivered after the listener-skip window can't
+  // revert a field the user just saved. players/games/teams have their own refs
+  // above; this covers everything else (dynastyPoints, coaches, etc.). Keyed
+  // `${dynastyId}::${field}` -> write timestamp.
+  const recentMainDocFieldWritesRef = useRef({})
+
+  // Drop any active calendar preview when the real dynasty changes, so a
+  // preview from one dynasty never bleeds into another.
+  useEffect(() => {
+    setPhaseOverride(null)
+  }, [currentDynasty?.id])
   // Track which dynasties have had their migration data persisted this session
   // This prevents the auto-save from running multiple times for the same dynasty
   const persistedMigrationDynastiesRef = useRef(new Set())
@@ -6789,7 +6806,19 @@ export function DynastyProvider({ children }) {
         const recentGamesUpdate = lastGamesUpdateDynastyIdRef.current === prevCurrent.id &&
           (Date.now() - lastGamesUpdateTimestampRef.current) < 10000
 
-        if (recentPlayerUpdate || recentGamesUpdate) {
+        // Generic: any main-doc field written for THIS dynasty within the last
+        // 10s. Preserve the locally-saved value so a stale snapshot can't revert
+        // it (fixes dynastyPoints / coaches "didn't save" after refresh).
+        const recentFields = []
+        const fieldPrefix = `${prevCurrent.id}::`
+        for (const [k, ts] of Object.entries(recentMainDocFieldWritesRef.current)) {
+          if (k.startsWith(fieldPrefix) && (Date.now() - ts) < 10000) {
+            const field = k.slice(fieldPrefix.length)
+            if (prevCurrent[field] !== undefined) recentFields.push(field)
+          }
+        }
+
+        if (recentPlayerUpdate || recentGamesUpdate || recentFields.length > 0) {
           const preserved = {
             ...updated,
             ...(recentPlayerUpdate && prevCurrent.players ? { players: prevCurrent.players } : {}),
@@ -6808,6 +6837,9 @@ export function DynastyProvider({ children }) {
             ...(recentGamesUpdate && prevCurrent.teams ? { teams: prevCurrent.teams } : {}),
             ...(recentGamesUpdate && prevCurrent.weeklyScoresEntered ? { weeklyScoresEntered: prevCurrent.weeklyScoresEntered } : {}),
           }
+          // Generic recently-written fields (dynastyPoints, coaches, etc.) —
+          // keep the locally-saved value over a possibly-stale snapshot.
+          for (const field of recentFields) preserved[field] = prevCurrent[field]
           // Also reflect the preserved version in the dynasties array
           // so the home page doesn't briefly show stale Firestore data
           // for a dynasty the user just edited.
@@ -7141,6 +7173,11 @@ export function DynastyProvider({ children }) {
 
     const newDynastyData = {
       ...dynastyDataNoCustomTeams,
+      // Which game edition this dynasty tracks (CFB 26 vs 27). The form
+      // passes a choice; fall back to DEFAULT_EDITION and normalize so a
+      // bad/absent value can never become an unknown key. Untagged legacy
+      // dynasties never reach here — they resolve to cfb26 via getEditionKey.
+      gameEdition: normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION),
       currentTid, // Primary team identifier (tid) - kept for backwards compatibility
       currentYear: startYear,
       currentWeek: 0,
@@ -7443,6 +7480,17 @@ export function DynastyProvider({ children }) {
       // This prevents the 1MB document limit issue and ensures consistent data storage
       let mainDocUpdates = { ...updatesWithTimestamp }
       const subcollectionPromises = []
+
+      // Stamp every top-level field we're writing so the listener won't let a
+      // stale snapshot revert it for the next 10s (players/games have their own
+      // refs; this protects dynastyPoints, coaches, teams, etc.).
+      {
+        const writeTs = Date.now()
+        for (const key of Object.keys(updates || {})) {
+          if (key.includes('.') || key === 'players' || key === 'games' || key === 'lastModified') continue
+          recentMainDocFieldWritesRef.current[`${dynastyId}::${key}`] = writeTs
+        }
+      }
 
       // Route players to subcollection (unless skipPlayersSubcollection is
       // true — used by callers that already wrote the changed-only subset
@@ -13564,7 +13612,12 @@ export function DynastyProvider({ children }) {
           // IMMUTABLE overall history - records what overall player had each year
           overallByYear: updatedOverallByYear,
           // IMMUTABLE dev trait history - records what dev trait player had each year
-          devTraitByYear: updatedDevTraitByYear
+          devTraitByYear: updatedDevTraitByYear,
+          // IMMUTABLE NIL history (CFB 27+) — only written when the sheet provides
+          // a value, so CFB 26 players never gain an empty nilByYear map.
+          ...(player.nil != null && player.nil !== '' && !isNaN(parseInt(player.nil))
+            ? { nilByYear: { ...(existingPlayer.nilByYear || {}), [year]: parseInt(player.nil) } }
+            : {})
           // ALL other fields (recruitYear, yearStarted, isRecruit, isPortal, stars, etc.)
           // are automatically preserved from ...existingPlayer and NOT overwritten
         }
@@ -13590,6 +13643,10 @@ export function DynastyProvider({ children }) {
         overallByYear: player.overall ? { [year]: player.overall } : {},
         // IMMUTABLE dev trait history - record this player's dev trait for this year
         devTraitByYear: player.devTrait ? { [year]: player.devTrait } : {},
+        // IMMUTABLE NIL history (CFB 27+) — only when the sheet provides a value.
+        ...(player.nil != null && player.nil !== '' && !isNaN(parseInt(player.nil))
+          ? { nilByYear: { [year]: parseInt(player.nil) } }
+          : {}),
         // Canonical v2 movement record — was a legacy movements[] entry.
         movementByYear: {
           [year]: { type: 'arrival', arrival: 'transfer_in', fromTid: null },
@@ -16260,9 +16317,24 @@ export function DynastyProvider({ children }) {
     }
   })()
 
+  // Layer the non-destructive PREVIEW on top of the team-remap override. Only
+  // the calendar fields change, and only on the exposed object — the real
+  // currentDynasty state (used by all persistence) is untouched.
+  const previewedCurrentDynasty = (phaseOverride && overriddenCurrentDynasty)
+    ? {
+        ...overriddenCurrentDynasty,
+        ...(phaseOverride.year != null ? { currentYear: phaseOverride.year } : {}),
+        currentPhase: phaseOverride.phase,
+        currentWeek: phaseOverride.week,
+        __phasePreview: true,
+      }
+    : overriddenCurrentDynasty
+
   const value = {
     dynasties: dynastiesWithShared,
-    currentDynasty: overriddenCurrentDynasty,
+    currentDynasty: previewedCurrentDynasty,
+    phaseOverride,
+    setPhaseOverride,
     userTeams,
     activeUserTid,
     setActiveTeam,

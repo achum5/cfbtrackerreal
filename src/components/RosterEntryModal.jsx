@@ -203,7 +203,7 @@ FINAL CHECK before you send
           )
 
           if (currentRoster.length > 0) {
-            await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster)
+            await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster, currentYear)
           }
 
           // Save sheet ID to dynasty

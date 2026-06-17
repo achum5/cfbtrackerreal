@@ -9,6 +9,7 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button, Input } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
+import { EDITIONS, DEFAULT_EDITION } from '../editions'
 
 const newBlankTeambuilder = () => ({
   name: '',
@@ -32,6 +33,7 @@ export default function CreateDynasty() {
     coachName: '',
     coachPosition: 'HC',
     startYear: '2025',
+    gameEdition: DEFAULT_EDITION,
   })
 
   // The list of TeamBuilder teams in this dynasty.
@@ -314,10 +316,36 @@ export default function CreateDynasty() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <h1 className="display-lg text-txt-primary leading-none m-0">Create New Dynasty</h1>
-        <p className="mt-2 text-sm text-txt-secondary">Choose your team and coach to start a new dynasty.</p>
       </div>
 
       <Card padding="lg">
+        {/* Game edition — the highest-level choice. Picks which rule set
+            and feature set the dynasty tracks (e.g. CFB 27's Dynasty
+            Points / NIL). Locked once created, but switchable later if
+            mis-picked. */}
+        <div className="mb-6">
+          <p className="block text-sm font-medium text-txt-primary mb-2">Game Edition</p>
+          <div className="flex w-full rounded-lg p-1 bg-surface-2 border border-surface-4">
+            {EDITIONS.map((ed) => {
+              const active = formData.gameEdition === ed.key
+              return (
+                <button
+                  key={ed.key}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, gameEdition: ed.key })}
+                  aria-pressed={active}
+                  className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
+                    active ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'
+                  }`}
+                  style={active ? { backgroundColor: 'var(--surface-4)' } : undefined}
+                >
+                  {ed.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div className="mb-6 flex w-full rounded-lg p-1 bg-surface-2 border border-surface-4">
           {[
             { value: 'fbs', label: 'FBS Team' },

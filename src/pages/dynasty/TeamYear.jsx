@@ -2,6 +2,9 @@ import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { getEditionConfig } from '../../editions'
+import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
+import { getCoachByRole } from '../../data/coachModel'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings } from '../../components/CfbUI'
@@ -2809,68 +2812,42 @@ export default function TeamYear() {
                         onClick={() => setShowCoachingStaffPopup(false)}
                       />
                       <div
-                        className="fixed z-[9999] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl overflow-hidden card-elevated"
+                        className="fixed z-[9999] w-64 max-w-[calc(100vw-1.5rem)] rounded-lg overflow-hidden"
                         style={{
                           top: coachingStaffPopupPosition.top,
-                          right: coachingStaffPopupPosition.right
+                          right: coachingStaffPopupPosition.right,
+                          backgroundColor: 'var(--surface-1)',
+                          border: '1px solid var(--surface-4)',
+                          boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
                         }}
                       >
-                        <div className="px-4 py-3 bg-surface-2 border-b border-surface-4">
-                          <h4 className="font-display font-bold text-sm uppercase tracking-wide text-txt-primary">
-                            Coaching Staff
-                          </h4>
+                        <div className="px-4 py-2.5 border-b border-surface-3">
+                          <p className="label-xs text-txt-tertiary" style={{ letterSpacing: '1px' }}>Coaching Staff</p>
                         </div>
-                        <div className="p-4 space-y-3">
-                          {/* Head Coach */}
-                          {teamCoachingStaff?.hcName && (
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                                <span className="font-display text-xs font-bold text-txt-primary">HC</span>
-                              </div>
+                        <div>
+                          {[
+                            { role: 'HC', label: 'Head Coach', name: teamCoachingStaff?.hcName, cid: getCoachByRole(currentDynasty, tid, year, 'HC')?.coach?.cid },
+                            { role: 'OC', label: 'Offensive Coordinator', name: teamCoachingStaff?.ocName, cid: getCoachByRole(currentDynasty, tid, year, 'OC')?.coach?.cid },
+                            { role: 'DC', label: 'Defensive Coordinator', name: teamCoachingStaff?.dcName, cid: getCoachByRole(currentDynasty, tid, year, 'DC')?.coach?.cid },
+                          ].filter((r) => r.name).map((r) => (
+                            <div key={r.role} className="flex items-center gap-3 px-4 py-2.5 border-b border-surface-3 last:border-b-0">
+                              <span className="w-8 flex-shrink-0 text-xs font-bold text-txt-tertiary">{r.role}</span>
                               <div className="min-w-0 flex-1">
-                                <div className="font-display text-[10px] uppercase font-semibold tracking-wider text-txt-tertiary">
-                                  Head Coach
-                                </div>
-                                <div className="font-semibold truncate text-txt-primary">
-                                  {teamCoachingStaff.hcName}
-                                </div>
+                                <div className="label-xs text-txt-tertiary">{r.label}</div>
+                                {r.cid ? (
+                                  <Link
+                                    to={`/dynasty/${id}/coach/${r.cid}`}
+                                    onClick={() => setShowCoachingStaffPopup(false)}
+                                    className="text-sm font-semibold text-txt-primary hover:underline truncate block"
+                                  >
+                                    {r.name}
+                                  </Link>
+                                ) : (
+                                  <div className="text-sm font-semibold text-txt-primary truncate">{r.name}</div>
+                                )}
                               </div>
                             </div>
-                          )}
-
-                          {/* Offensive Coordinator */}
-                          {teamCoachingStaff?.ocName && (
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                                <span className="font-display text-xs font-bold text-txt-primary">OC</span>
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-display text-[10px] uppercase font-semibold tracking-wider text-txt-tertiary">
-                                  Offensive Coordinator
-                                </div>
-                                <div className="font-semibold truncate text-txt-primary">
-                                  {teamCoachingStaff.ocName}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Defensive Coordinator */}
-                          {teamCoachingStaff?.dcName && (
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                                <span className="font-display text-xs font-bold text-txt-primary">DC</span>
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-display text-[10px] uppercase font-semibold tracking-wider text-txt-tertiary">
-                                  Defensive Coordinator
-                                </div>
-                                <div className="font-semibold truncate text-txt-primary">
-                                  {teamCoachingStaff.dcName}
-                                </div>
-                              </div>
-                            </div>
-                          )}
+                          ))}
                         </div>
                       </div>
                     </>,
@@ -3179,6 +3156,11 @@ export default function TeamYear() {
           <div className="flex overflow-x-auto no-scrollbar">
             {[
               { key: 'home', label: 'Home' },
+              // Blueprint (Program Overview) — only on the user's own team and
+              // only for editions with the Dynasty Points economy (CFB 27+).
+              ...(isUserTeam && getEditionConfig(currentDynasty)?.features?.dynastyPoints
+                ? [{ key: 'blueprint', label: 'Blueprint' }]
+                : []),
               { key: 'schedule', label: 'Schedule' },
               { key: 'stats', label: 'Stats' },
               { key: 'depthchart', label: 'Depth Chart' },
@@ -3231,6 +3213,12 @@ export default function TeamYear() {
             background: `linear-gradient(to bottom, ${teamInfo.backgroundColor}24 0%, ${teamInfo.backgroundColor}0d 20%, transparent 55%)`,
           }}
         />
+      )}
+
+      {activeTab === 'blueprint' && (
+        <div className="px-3 sm:px-4 pt-4">
+          <DynastyBlueprintPanel year={year} tid={tid} />
+        </div>
       )}
 
       <div key={activeTab} className="reveal">
@@ -4045,10 +4033,23 @@ export default function TeamYear() {
                     {teamYearGames.slice(rowsFor2Col).map((game, index) => renderGameItem(game, rowsFor2Col + index))}
                   </div>
                 </div>
-                {/* Desktop (lg+): single column — this block lives in the
-                    narrow right rail of the three-column home layout, so
-                    the older 3-column layout doesn't fit. */}
-                <div className="hidden lg:block">
+                {/* Large (lg–xl): the home grid is still single-column at this
+                    width, so the schedule aside spans FULL width — use 3 columns
+                    (column-first) to fill it instead of one tall list. */}
+                <div className="hidden lg:grid xl:hidden grid-cols-3 gap-x-6">
+                  <div>
+                    {teamYearGames.slice(0, rowsFor3Col).map((game, index) => renderGameItem(game, index))}
+                  </div>
+                  <div>
+                    {teamYearGames.slice(rowsFor3Col, rowsFor3Col * 2).map((game, index) => renderGameItem(game, rowsFor3Col + index))}
+                  </div>
+                  <div>
+                    {teamYearGames.slice(rowsFor3Col * 2).map((game, index) => renderGameItem(game, rowsFor3Col * 2 + index))}
+                  </div>
+                </div>
+                {/* xl+: the schedule moves into the narrow 340px right rail of the
+                    three-column home layout — a single column fits best there. */}
+                <div className="hidden xl:block">
                   {teamYearGames.map((game, index) => renderGameItem(game, index))}
                 </div>
               </div>
