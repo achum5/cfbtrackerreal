@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { useDynasty, getTeamConferenceForDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
@@ -99,44 +99,61 @@ export default function Home() {
   const [shareDynasty, setShareDynasty] = useState(null)
   const [togglingFavoriteId, setTogglingFavoriteId] = useState(null)
   const [deletingDynastyId, setDeletingDynastyId] = useState(null)
+  const [showDuplicateCleanup, setShowDuplicateCleanup] = useState(false)
+  const [deletingDuplicates, setDeletingDuplicates] = useState(false)
   const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
   const nonStarredDynasties = dynasties.filter(d => !d.favorite)
   const hasNonStarred = nonStarredDynasties.length > 0
 
-  // One-shot guard: createDynasty is async, so the effect would re-run (param
-  // still 'true', data still in localStorage) on every re-render its state
-  // update triggers — spawning an unbounded number of copies. Disarm
-  // SYNCHRONOUSLY (consume the localStorage key + clear the URL param BEFORE
-  // the async call) and latch a ref so it can only ever fire once per mount.
+  const duplicateGroups = useMemo(() => {
+    const groups = {}
+    for (const d of dynasties) {
+      const key = `${d.teamName}||${d.startYear ?? ''}`
+      if (!groups[key]) groups[key] = []
+      groups[key].push(d)
+    }
+    return Object.values(groups).filter(g => g.length > 1)
+  }, [dynasties])
+  const totalDuplicatesToDelete = duplicateGroups.reduce((sum, g) => sum + g.length - 1, 0)
+
+  // Effect 1: consume localStorage immediately when ?importCopy=true fires —
+  // does NOT depend on createDynasty so the ref is always set and the payload
+  // always consumed before createDynasty is ready, preventing the old race
+  // where "if (!createDynasty) return" exited without latching the ref and
+  // the effect re-fired (and re-read localStorage) on the next render.
   const importCopyRanRef = useRef(false)
+  const [pendingCopyData, setPendingCopyData] = useState(null)
   useEffect(() => {
-    if (importCopyRanRef.current) return
     if (searchParams.get('importCopy') !== 'true') return
-    if (!createDynasty) return
+    if (importCopyRanRef.current) return
     importCopyRanRef.current = true
 
-    // Consume the payload immediately so nothing can re-read it.
-    const copyData = localStorage.getItem('dynastyCopyData')
+    const raw = localStorage.getItem('dynastyCopyData')
     localStorage.removeItem('dynastyCopyData')
     setSearchParams({}, { replace: true })
-    if (!copyData) return
-
-    let dynastyData
+    if (!raw) return
     try {
-      dynastyData = JSON.parse(copyData)
-    } catch (error) {
-      console.error('Error parsing dynasty copy data:', error)
-      return
+      setPendingCopyData(JSON.parse(raw))
+    } catch (err) {
+      console.error('Error parsing dynasty copy data:', err)
     }
-    createDynasty(dynastyData)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // Effect 2: create dynasty once both pending payload and createDynasty are ready.
+  useEffect(() => {
+    if (!pendingCopyData || !createDynasty) return
+    const data = pendingCopyData
+    setPendingCopyData(null)
+    createDynasty(data)
       .then((newDynasty) => { if (newDynasty?.id) navigate(`/dynasty/${newDynasty.id}`) })
       .catch((error) => {
         console.error('Error creating copied dynasty:', error)
         toast.error('Failed to copy dynasty. Please try again.')
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, createDynasty])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCopyData, createDynasty])
 
   const handleDeleteClick = (e, dynasty) => {
     e.preventDefault()
@@ -331,6 +348,30 @@ export default function Home() {
     setShowDeleteAllConfirm1(false)
     setShowDeleteAllConfirm2(false)
     setDeleteAllConfirmText('')
+  }
+
+  const handleDuplicateCleanup = async () => {
+    setDeletingDuplicates(true)
+    try {
+      const toDelete = []
+      for (const group of duplicateGroups) {
+        const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
+        toDelete.push(...sorted.slice(1))
+      }
+      for (let i = 0; i < toDelete.length; i++) {
+        await deleteDynasty(toDelete[i].id)
+        if (i < toDelete.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+      }
+      toast.success(`Deleted ${toDelete.length} duplicate ${toDelete.length === 1 ? 'dynasty' : 'dynasties'}.`)
+    } catch (error) {
+      console.error('Error deleting duplicate dynasties:', error)
+      toast.error('Failed to delete some duplicates. Please try again.')
+    } finally {
+      setDeletingDuplicates(false)
+      setShowDuplicateCleanup(false)
+    }
   }
 
   // Show the spinner while local is loading, OR while cloud is still
@@ -530,6 +571,15 @@ export default function Home() {
                 >
                   URL
                 </button>
+                {totalDuplicatesToDelete > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDuplicateCleanup(true)}
+                    className="btn-refined btn-refined--danger"
+                  >
+                    {totalDuplicatesToDelete === 1 ? '1 duplicate' : `${totalDuplicatesToDelete} duplicates`} — Clean up
+                  </button>
+                )}
                 {hasNonStarred && (
                   <button
                     type="button"
@@ -858,6 +908,53 @@ export default function Home() {
             {deletingAll ? 'Deleting...' : `Delete ${nonStarredDynasties.length} ${nonStarredDynasties.length === 1 ? 'Dynasty' : 'Dynasties'}`}
           </Button>
           <Button variant="outline" className="flex-1" onClick={handleCancelDeleteAll} disabled={deletingAll}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showDuplicateCleanup}
+        onClose={() => !deletingDuplicates && setShowDuplicateCleanup(false)}
+        title="Remove Duplicate Dynasties"
+        size="sm"
+      >
+        <p className="mb-4 text-txt-secondary">
+          The most recently modified copy in each group will be kept. All others will be permanently deleted.
+        </p>
+        <div className="rounded-lg p-3 mb-4 max-h-40 overflow-y-auto" style={{ backgroundColor: 'var(--surface-3)' }}>
+          <p className="label-xs text-txt-tertiary mb-2">Duplicate groups</p>
+          <ul className="text-sm space-y-1.5">
+            {duplicateGroups.map((group) => {
+              const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
+              return (
+                <li key={sorted[0].id} className="flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--accent-error)' }}></span>
+                  <span className="text-txt-primary font-medium">{sorted[0].teamName}</span>
+                  <span className="text-txt-tertiary">({group.length} copies — keep 1, delete {group.length - 1})</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+        <p className="text-sm mb-4 text-txt-muted">
+          This will permanently delete <strong style={{ color: 'var(--accent-error)' }}>{totalDuplicatesToDelete}</strong> {totalDuplicatesToDelete === 1 ? 'dynasty' : 'dynasties'} and cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="danger"
+            className="flex-1"
+            onClick={handleDuplicateCleanup}
+            disabled={deletingDuplicates}
+          >
+            {deletingDuplicates ? 'Cleaning up...' : `Delete ${totalDuplicatesToDelete} ${totalDuplicatesToDelete === 1 ? 'duplicate' : 'duplicates'}`}
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => setShowDuplicateCleanup(false)}
+            disabled={deletingDuplicates}
+          >
             Cancel
           </Button>
         </div>
