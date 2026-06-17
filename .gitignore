@@ -13,6 +13,9 @@ migrated-dynasty.json
 # Local Playwright preview artifacts (Claude Code MCP)
 .playwright-mcp/
 *.png
+# …but the bundled UI assets (imported by components) MUST be tracked.
+!src/assets/**/*.png
+!public/**/*.png
 
 # Playwright
 /test-results/
