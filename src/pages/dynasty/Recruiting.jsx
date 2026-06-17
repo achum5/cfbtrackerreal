@@ -548,6 +548,7 @@ export default function Recruiting() {
 
     const players = currentDynasty.players || []
     const committedToUs = []
+    const changedPids = []
     const newPlayers = players.map((p) => {
       const tid = resolutions[p.pid]
       if (tid == null) return p
@@ -558,6 +559,7 @@ export default function Recruiting() {
         updated = carryRecruitingNilForward(updated, classYear)
         committedToUs.push(buildCommitmentRecord(updated))
       }
+      changedPids.push(p.pid)
       return updated
     })
 
@@ -588,7 +590,10 @@ export default function Recruiting() {
       }
     }
 
-    await updateDynasty(currentDynasty.id, updates)
+    // Only the resolved players changed — persist just those (not the whole
+    // roster) so the save stays sub-second and the commitment fields written
+    // alongside don't get reverted by a stale listener snapshot mid-write.
+    await updateDynasty(currentDynasty.id, updates, { changedPlayerPids: changedPids })
   }
 
   const playersByName = useMemo(() => {

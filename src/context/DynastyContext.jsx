@@ -7361,7 +7361,7 @@ export function DynastyProvider({ children }) {
   }
 
   const updateDynasty = async (dynastyId, updates, options = {}) => {
-    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false } = options
+    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false, changedPlayerPids = null } = options
 
     // Read-only chokepoint: most mutations route through updateDynasty,
     // so guarding here catches every modal whose parent forgot to gate
@@ -7513,9 +7513,25 @@ export function DynastyProvider({ children }) {
         // the local-state update at the bottom of this function shows the
         // same normalized shape that was persisted to Firestore.
         updatesWithTimestamp.players = normalizedPlayers
-        subcollectionPromises.push(
-          savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite })
-        )
+        if (changedPlayerPids && changedPlayerPids.length) {
+          // Caller passed the FULL players array (for correct local state) but
+          // only a handful actually changed (e.g. resolving a few recruiting
+          // commitments). Persist just those by pid — no full-roster rewrite,
+          // no orphan-cleanup read. This keeps the save sub-second so the
+          // accompanying main-doc fields (teams / recruitingCommitments) land
+          // well inside the stale-snapshot guard window instead of racing it.
+          const pidSet = new Set(changedPlayerPids.map(String))
+          const subset = normalizedPlayers.filter(p => pidSet.has(String(p.pid)))
+          if (subset.length > 0) {
+            subcollectionPromises.push(
+              savePlayersToSubcollection(dynastyId, subset, { forceOverwrite })
+            )
+          }
+        } else {
+          subcollectionPromises.push(
+            savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite })
+          )
+        }
         // Don't save players to main doc - they're in subcollection now
         delete mainDocUpdates.players
         // Ensure subcollection flag is set
