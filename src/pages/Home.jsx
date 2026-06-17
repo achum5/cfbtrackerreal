@@ -101,6 +101,7 @@ export default function Home() {
   const [deletingDynastyId, setDeletingDynastyId] = useState(null)
   const [showDuplicateCleanup, setShowDuplicateCleanup] = useState(false)
   const [deletingDuplicates, setDeletingDuplicates] = useState(false)
+  const [duplicateDeleteSelection, setDuplicateDeleteSelection] = useState(new Set())
   const fileInputRef = useRef(null)
   const hasDynasties = dynasties.length > 0
   const nonStarredDynasties = dynasties.filter(d => !d.favorite)
@@ -350,27 +351,43 @@ export default function Home() {
     setDeleteAllConfirmText('')
   }
 
+  const openDuplicateCleanup = () => {
+    const toDelete = new Set()
+    for (const group of duplicateGroups) {
+      const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
+      sorted.slice(1).forEach(d => toDelete.add(d.id))
+    }
+    setDuplicateDeleteSelection(toDelete)
+    setShowDuplicateCleanup(true)
+  }
+
+  const toggleDuplicateSelection = (id) => {
+    setDuplicateDeleteSelection(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   const handleDuplicateCleanup = async () => {
+    const ids = [...duplicateDeleteSelection]
     setDeletingDuplicates(true)
     try {
-      const toDelete = []
-      for (const group of duplicateGroups) {
-        const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
-        toDelete.push(...sorted.slice(1))
-      }
-      for (let i = 0; i < toDelete.length; i++) {
-        await deleteDynasty(toDelete[i].id)
-        if (i < toDelete.length - 1) {
+      for (let i = 0; i < ids.length; i++) {
+        await deleteDynasty(ids[i])
+        if (i < ids.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 300))
         }
       }
-      toast.success(`Deleted ${toDelete.length} duplicate ${toDelete.length === 1 ? 'dynasty' : 'dynasties'}.`)
+      toast.success(`Deleted ${ids.length} duplicate ${ids.length === 1 ? 'dynasty' : 'dynasties'}.`)
     } catch (error) {
       console.error('Error deleting duplicate dynasties:', error)
       toast.error('Failed to delete some duplicates. Please try again.')
     } finally {
       setDeletingDuplicates(false)
       setShowDuplicateCleanup(false)
+      setDuplicateDeleteSelection(new Set())
     }
   }
 
@@ -574,7 +591,7 @@ export default function Home() {
                 {totalDuplicatesToDelete > 0 && (
                   <button
                     type="button"
-                    onClick={() => setShowDuplicateCleanup(true)}
+                    onClick={openDuplicateCleanup}
                     className="btn-refined btn-refined--danger"
                   >
                     {totalDuplicatesToDelete === 1 ? '1 duplicate' : `${totalDuplicatesToDelete} duplicates`} — Clean up
@@ -917,37 +934,67 @@ export default function Home() {
         isOpen={showDuplicateCleanup}
         onClose={() => !deletingDuplicates && setShowDuplicateCleanup(false)}
         title="Remove Duplicate Dynasties"
-        size="sm"
+        size="md"
       >
-        <p className="mb-4 text-txt-secondary">
-          The most recently modified copy in each group will be kept. All others will be permanently deleted.
+        <p className="mb-4 text-sm text-txt-secondary">
+          The <strong className="text-txt-primary">Primary</strong> copy (most recently modified) in each group is always kept. Uncheck any others you also want to keep.
         </p>
-        <div className="rounded-lg p-3 mb-4 max-h-40 overflow-y-auto" style={{ backgroundColor: 'var(--surface-3)' }}>
-          <p className="label-xs text-txt-tertiary mb-2">Duplicate groups</p>
-          <ul className="text-sm space-y-1.5">
-            {duplicateGroups.map((group) => {
-              const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
-              return (
-                <li key={sorted[0].id} className="flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--accent-error)' }}></span>
-                  <span className="text-txt-primary font-medium">{sorted[0].teamName}</span>
-                  <span className="text-txt-tertiary">({group.length} copies — keep 1, delete {group.length - 1})</span>
-                </li>
-              )
-            })}
-          </ul>
+        <div className="space-y-5 mb-4 max-h-80 overflow-y-auto pr-1">
+          {duplicateGroups.map((group) => {
+            const sorted = [...group].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))
+            const primary = sorted[0]
+            const rest = sorted.slice(1)
+            return (
+              <div key={primary.id}>
+                <p className="text-xs font-semibold text-txt-tertiary uppercase tracking-wider mb-2">{primary.teamName}</p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-md" style={{ backgroundColor: 'var(--surface-3)' }}>
+                    <span className="w-4 h-4 flex-shrink-0" />
+                    <div className="flex-1 min-w-0 text-sm text-txt-secondary">
+                      {primary.currentYear}{primary.currentPhase ? ` · ${formatPhase(primary.currentPhase)}` : ''}
+                      {primary.lastModified && <span className="text-txt-tertiary ml-2 text-xs">{getRelativeTime(primary.lastModified)}</span>}
+                    </div>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--surface-4)', color: 'var(--text-secondary)' }}>Primary</span>
+                  </div>
+                  {rest.map((d) => {
+                    const checked = duplicateDeleteSelection.has(d.id)
+                    return (
+                      <label
+                        key={d.id}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-colors"
+                        style={{ backgroundColor: checked ? 'color-mix(in srgb, var(--accent-error) 12%, var(--surface-3))' : 'var(--surface-3)' }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleDuplicateSelection(d.id)}
+                          disabled={deletingDuplicates}
+                          className="w-4 h-4 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0 text-sm text-txt-primary">
+                          {d.currentYear}{d.currentPhase ? ` · ${formatPhase(d.currentPhase)}` : ''}
+                          {d.lastModified && <span className="text-txt-tertiary ml-2 text-xs">{getRelativeTime(d.lastModified)}</span>}
+                        </div>
+                        {checked && <span className="text-xs font-medium flex-shrink-0" style={{ color: 'var(--accent-error)' }}>Delete</span>}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
         </div>
         <p className="text-sm mb-4 text-txt-muted">
-          This will permanently delete <strong style={{ color: 'var(--accent-error)' }}>{totalDuplicatesToDelete}</strong> {totalDuplicatesToDelete === 1 ? 'dynasty' : 'dynasties'} and cannot be undone.
+          <strong style={{ color: 'var(--accent-error)' }}>{duplicateDeleteSelection.size}</strong> {duplicateDeleteSelection.size === 1 ? 'dynasty' : 'dynasties'} selected for deletion. This cannot be undone.
         </p>
         <div className="flex gap-3">
           <Button
             variant="danger"
             className="flex-1"
             onClick={handleDuplicateCleanup}
-            disabled={deletingDuplicates}
+            disabled={deletingDuplicates || duplicateDeleteSelection.size === 0}
           >
-            {deletingDuplicates ? 'Cleaning up...' : `Delete ${totalDuplicatesToDelete} ${totalDuplicatesToDelete === 1 ? 'duplicate' : 'duplicates'}`}
+            {deletingDuplicates ? 'Cleaning up...' : `Delete ${duplicateDeleteSelection.size} ${duplicateDeleteSelection.size === 1 ? 'dynasty' : 'dynasties'}`}
           </Button>
           <Button
             variant="outline"
