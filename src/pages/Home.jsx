@@ -433,6 +433,12 @@ export default function Home() {
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {!hasDynasties ? (
           <div className="page-enter">
+            <p
+              className="font-display uppercase text-txt-tertiary mb-3"
+              style={{ fontWeight: 700, letterSpacing: '0.15em', fontSize: 'clamp(0.7rem, 1.6vw, 0.85rem)' }}
+            >
+              EA Sports College Football 27 · 26 · 25
+            </p>
             <h1
               className="font-display text-txt-primary leading-[0.9] mb-4"
               style={{
@@ -444,8 +450,9 @@ export default function Home() {
               Dynasty Tracker
             </h1>
             <p className="text-base sm:text-lg text-txt-secondary leading-relaxed max-w-2xl mb-8">
-              Track your EA College Football dynasty: box scores, recruiting,
-              postseason, all preserved across the years.
+              The dynasty tracker built for EA Sports College Football 27 — log box
+              scores, recruiting, the postseason, and player careers, all preserved
+              across the years. Works with CFB 27, 26, and 25.
             </p>
 
             {/* Three premium CTAs — refined buttons, not sharp ledger cells. */}
