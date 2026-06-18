@@ -4147,44 +4147,37 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
     return name.toLowerCase().trim().replace(/[^a-z0-9]/g, '')
   }
 
-  // Helper to count games from box scores for a player
-  const countGamesFromBoxScores = (playerName) => {
-    const normalizedPlayerName = normalizeName(playerName)
-    let gameCount = 0
-
-    // Filter to games for this year
-    const yearGames = games.filter(g => Number(g.year) === Number(year))
-
-    yearGames.forEach(game => {
-      const boxScore = game.boxScore
-      if (!boxScore) return
-
-      // Walk every team's stat block in either shape (canonical byTid
-      // or legacy home/away) — if the player appears on either team,
-      // count this as a game played.
-      const checkSlot = (slot) => {
-        if (!slot) return false
-        return Object.values(slot).some(category =>
-          Array.isArray(category) && category.some(p =>
-            normalizeName(p.playerName) === normalizedPlayerName
-          )
-        )
-      }
-
-      let found = false
-      if (boxScore.byTid && typeof boxScore.byTid === 'object') {
-        for (const slot of Object.values(boxScore.byTid)) {
-          if (checkSlot(slot)) { found = true; break }
+  // Pre-index every player name that appears in ANY box score this year, in a
+  // SINGLE pass over the games. The per-player check below is then an O(1) Set
+  // lookup. The old version re-ran `games.filter()` AND walked every box score
+  // for EACH active player — O(activePlayers × allGames × boxScore), which on a
+  // multi-season dynasty (the games array spans every season) made the Signing
+  // Day advance crawl/appear to hang.
+  const namesInBoxScoresThisYear = (() => {
+    const names = new Set()
+    const addSlot = (slot) => {
+      if (!slot) return
+      for (const category of Object.values(slot)) {
+        if (!Array.isArray(category)) continue
+        for (const p of category) {
+          const n = normalizeName(p?.playerName)
+          if (n) names.add(n)
         }
       }
-      if (!found && (checkSlot(boxScore.home) || checkSlot(boxScore.away))) {
-        found = true
+    }
+    for (const game of games) {
+      if (Number(game.year) !== Number(year)) continue
+      const bs = game.boxScore
+      if (!bs) continue
+      if (bs.byTid && typeof bs.byTid === 'object') {
+        for (const slot of Object.values(bs.byTid)) addSlot(slot)
       }
-      if (found) gameCount++
-    })
-
-    return gameCount
-  }
+      addSlot(bs.home)
+      addSlot(bs.away)
+    }
+    return names
+  })()
+  const hasBoxScoreThisYear = (playerName) => namesInBoxScoresThisYear.has(normalizeName(playerName))
 
   // Get active players for current team (not left, not recruits, not honor-only)
   // CRITICAL: Use isPlayerOnRoster which ONLY checks teamsByYear - no fallback to p.team
@@ -4233,8 +4226,7 @@ export function getPlayersNeedingClassConfirmation(dynasty) {
     }
 
     // Check if player has box score data - if so, we can derive games from that
-    const boxScoreGames = countGamesFromBoxScores(player.name)
-    if (boxScoreGames > 0) {
+    if (hasBoxScoreThisYear(player.name)) {
       // Player has box score data, so we know they played - no confirmation needed
       // (The actual gamesPlayed will be calculated from box scores during class advancement)
       return false
