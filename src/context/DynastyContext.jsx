@@ -6203,6 +6203,34 @@ export function DynastyProvider({ children }) {
         migrated._offseasonWeekCollapseV1 = true
       }
 
+      // Rescue saves caught by the short-lived "flip the year ON Signing Day"
+      // experiment (year flip at wk4→5). That model was reverted — Signing Day
+      // (wk5) is the LAST week of the OLD season again (pre-flip). A save that
+      // advanced through the experiment is now parked on offseason wk5 with the
+      // year ALREADY flipped: its roster has teamsByYear[currentYear] (carryover)
+      // and classProgressionDoneForYear === currentYear. The restored model
+      // treats wk5 as pre-flip, which would read/write the wrong (upcoming) year.
+      // Move such a save to wk6 (Training Results) — the consistent post-flip
+      // week — where its already-flipped state is correct. The user can revert
+      // wk6→wk5 to redo Signing Day on the proper (pre-flip) year if they want.
+      if (!migrated._offseasonRevertFlipExperimentV1) {
+        if (
+          migrated.currentPhase === 'offseason' &&
+          migrated.currentWeek === 5 &&
+          Number(migrated.classProgressionDoneForYear) === Number(migrated.currentYear)
+        ) {
+          // Double-check the flip really happened: at least one roster player
+          // carried into the current (post-flip) year. Guards against a stray
+          // classProgressionDoneForYear value on a genuinely pre-flip wk5 save.
+          const cy = migrated.currentYear
+          const flipped = (migrated.players || []).some(p =>
+            (p?.teamsByYear?.[cy] ?? p?.teamsByYear?.[String(cy)]) != null
+          )
+          if (flipped) migrated = { ...migrated, currentWeek: 6 }
+        }
+        migrated._offseasonRevertFlipExperimentV1 = true
+      }
+
       // Heal movementByYear at LOAD time so the in-memory player has clean
       // canonical entries before any render. Two cases:
       //   1. { type: 'unknown', legacyType, raw } poison shapes from an

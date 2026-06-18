@@ -1785,7 +1785,14 @@ function PlayerInner() {
                   alt={player.name}
                   className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl"
                   style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
-                  onError={(e) => { e.target.style.display = 'none' }}
+                  onError={(e) => {
+                    // wsrv hiccup (e.g. a cached error from an imgbb outage) →
+                    // fall back to the original URL, which often still loads.
+                    // Only hide if the original fails too. Same resilience
+                    // pattern used by the photo thumbnails + Game pages.
+                    if (e.currentTarget.src !== player.pictureUrl) e.currentTarget.src = player.pictureUrl
+                    else e.currentTarget.style.display = 'none'
+                  }}
                 />
               )}
               {/* Mobile Edit — tucked into the empty space under the photo. */}
