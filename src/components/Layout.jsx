@@ -245,10 +245,10 @@ export default function Layout({ children }) {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 3`
+      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       if (week === 5) return 'National Signing Day'
-      if (week === 6) return 'Signing Day Results'
-      if (week === 7) return 'Training Camp'
+      if (week === 6) return 'Training Results'
+      if (week === 7) return 'Offseason'
       return 'Off-Season'
     }
     const phases = {
@@ -687,10 +687,10 @@ export default function Layout({ children }) {
                          currentDynasty.currentPhase === 'preseason' ? `Pre ${currentDynasty.currentWeek}` :
                          currentDynasty.currentPhase === 'offseason' ? (
                            currentDynasty.currentWeek === 1 ? 'Leaving' :
-                           currentDynasty.currentWeek === 6 ? 'Signing' :
-                           currentDynasty.currentWeek === 7 ? 'Training' :
-                           currentDynasty.currentWeek === 8 ? 'Transfers' :
-                           currentDynasty.currentWeek >= 2 && currentDynasty.currentWeek <= 5 ? `Recruit ${currentDynasty.currentWeek - 1}` :
+                           currentDynasty.currentWeek === 5 ? 'Signing' :
+                           currentDynasty.currentWeek === 6 ? 'Training' :
+                           currentDynasty.currentWeek === 7 ? 'Transfers' :
+                           currentDynasty.currentWeek >= 2 && currentDynasty.currentWeek <= 4 ? `Recruit ${currentDynasty.currentWeek - 1}` :
                            `Off ${currentDynasty.currentWeek}`
                          ) : ''}
                       </span>

@@ -3,6 +3,8 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { useDynasty, getTeamConferenceForDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { getTeamLogo } from '../data/teams'
+import { getTeamColors } from '../data/teamColors'
+import { getContrastTextColor } from '../utils/colorUtils'
 import { getConferenceLogo } from '../data/conferenceLogos'
 import { TEAMS, getTidFromTeamName } from '../data/teamRegistry'
 import ConfirmModal from '../components/ConfirmModal'
@@ -64,10 +66,10 @@ function getWeekPhaseDisplay(dynasty) {
   }
   if (dynasty.currentPhase === 'offseason') {
     if (dynasty.currentWeek === 1) return 'Players Leaving'
-    if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1} of 3`
+    if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1} of 4`
     if (dynasty.currentWeek === 5) return 'National Signing Day'
-    if (dynasty.currentWeek === 6) return 'Signing Day Results'
-    if (dynasty.currentWeek === 7) return 'Training Camp'
+    if (dynasty.currentWeek === 6) return 'Training Results'
+    if (dynasty.currentWeek === 7) return 'Offseason'
     return 'Off-Season'
   }
   return `Week ${dynasty.currentWeek} • ${phase}`
@@ -425,8 +427,8 @@ export default function Home() {
       if (dynasty.currentWeek === 1) return 'Players Leaving'
       if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4) return `Recruiting Week ${dynasty.currentWeek - 1}`
       if (dynasty.currentWeek === 5) return 'National Signing Day'
-      if (dynasty.currentWeek === 6) return 'Signing Day Results'
-      if (dynasty.currentWeek === 7) return 'Training Camp'
+      if (dynasty.currentWeek === 6) return 'Training Results'
+      if (dynasty.currentWeek === 7) return 'Offseason'
     }
     return null
   }
@@ -667,10 +669,20 @@ export default function Home() {
                   ? getEditionConfig(editionKey)?.label
                   : null
 
+                // CFB 27 broadcast treatment — each card wears its team's colors
+                // with a faint logo watermark, matching the team/player hero.
+                const cardColors = getTeamColors(dynasty.teamName, teamsData)
+                const cardText = getContrastTextColor(cardColors.primary)
+
                 return (
                   <div
                     key={dynasty.id}
-                    className="media-card group relative"
+                    className="media-card group relative overflow-hidden cfb-texture cfb-texture-strong"
+                    style={{
+                      backgroundColor: cardColors.primary,
+                      backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%)',
+                      borderColor: 'rgba(0,0,0,0.28)',
+                    }}
                   >
                     {/* Whole-card click target sits behind the action affordances. */}
                     <Link
@@ -680,25 +692,30 @@ export default function Home() {
                     />
 
                     <div className="relative z-10 px-4 py-4 sm:px-5 sm:py-5 flex items-center gap-4 sm:gap-5 pointer-events-none">
-                      {/* Logo */}
+                      {/* Logo in a white disc so it pops on any team color */}
                       {logoUrl && (
-                        <img
-                          src={logoUrl}
-                          alt=""
-                          aria-hidden="true"
-                          className="w-12 h-12 sm:w-14 sm:h-14 object-contain flex-shrink-0"
-                        />
+                        <div
+                          className="flex items-center justify-center rounded-full bg-white flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16"
+                          style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
+                        >
+                          <img
+                            src={logoUrl}
+                            alt=""
+                            aria-hidden="true"
+                            className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+                          />
+                        </div>
                       )}
 
                       {/* Name + meta */}
                       <div className="flex-1 min-w-0">
                         <h2
-                          className="font-display font-bold text-txt-primary truncate leading-tight mb-1"
-                          style={{ fontSize: 'clamp(1.0625rem, 2.5vw, 1.375rem)', letterSpacing: '-0.015em' }}
+                          className="font-display font-bold truncate leading-tight mb-1"
+                          style={{ fontSize: 'clamp(1.0625rem, 2.5vw, 1.375rem)', letterSpacing: '-0.015em', color: cardText, textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}
                         >
                           {dynasty.teamName}
                         </h2>
-                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-txt-secondary tabular-nums truncate">
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm tabular-nums truncate" style={{ color: cardText, opacity: 0.9 }}>
                           {conference && getConferenceLogo(conference) && (
                             <img
                               src={getConferenceLogo(conference)}
@@ -728,7 +745,7 @@ export default function Home() {
                       <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0 pointer-events-auto">
                         <div className="hidden sm:flex flex-col items-end gap-1">
                           {relativeTime && (
-                            <span className="text-xs text-txt-tertiary tabular-nums">
+                            <span className="text-xs tabular-nums" style={{ color: cardText, opacity: 0.7 }}>
                               {relativeTime}
                             </span>
                           )}
@@ -747,13 +764,13 @@ export default function Home() {
                         </div>
 
                         {/* Scoreboard-style divider — separates data from controls */}
-                        <span aria-hidden="true" className="hidden sm:block self-stretch w-px bg-surface-4" />
+                        <span aria-hidden="true" className="hidden sm:block self-stretch w-px" style={{ backgroundColor: `color-mix(in srgb, ${cardText} 22%, transparent)` }} />
 
-                        <div className="flex items-center gap-0 sm:gap-0.5 text-txt-tertiary opacity-70 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0 sm:gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity" style={{ color: cardText }}>
                           <button
                             onClick={(e) => handleFavoriteClick(e, dynasty)}
                             disabled={togglingFavoriteId === dynasty.id}
-                            className="p-1.5 sm:p-2 rounded-md hover:bg-surface-4 hover:text-txt-primary transition-colors disabled:opacity-50"
+                            className="p-1.5 sm:p-2 rounded-md hover:bg-white/20 transition-colors disabled:opacity-50"
                             title={dynasty.favorite ? 'Remove from favorites' : 'Add to favorites'}
                           >
                             {togglingFavoriteId === dynasty.id ? (
@@ -774,7 +791,7 @@ export default function Home() {
 
                           <button
                             onClick={(e) => handleExportClick(e, dynasty)}
-                            className="p-1.5 sm:p-2 rounded-md hover:bg-surface-4 hover:text-txt-primary transition-colors hidden sm:block"
+                            className="p-1.5 sm:p-2 rounded-md hover:bg-white/20 transition-colors hidden sm:block"
                             title="Download backup"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -784,7 +801,7 @@ export default function Home() {
 
                           <button
                             onClick={(e) => handleShareClick(e, dynasty)}
-                            className="p-1.5 sm:p-2 rounded-md hover:bg-surface-4 hover:text-txt-primary transition-colors hidden sm:block"
+                            className="p-1.5 sm:p-2 rounded-md hover:bg-white/20 transition-colors hidden sm:block"
                             title="Share dynasty"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -795,7 +812,7 @@ export default function Home() {
                           <button
                             onClick={(e) => handleDeleteClick(e, dynasty)}
                             disabled={deletingDynastyId === dynasty.id}
-                            className="p-1.5 sm:p-2 rounded-md hover:bg-[color-mix(in_srgb,var(--accent-error)_15%,var(--surface-4))] hover:text-[color:var(--accent-error)] transition-colors disabled:opacity-50"
+                            className="p-1.5 sm:p-2 rounded-md hover:bg-white/20 hover:text-[color:var(--accent-error)] transition-colors disabled:opacity-50"
                             title="Delete dynasty"
                           >
                             {deletingDynastyId === dynasty.id ? (

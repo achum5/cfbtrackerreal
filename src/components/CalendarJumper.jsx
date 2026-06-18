@@ -23,7 +23,7 @@ function weekOptions(phase) {
   switch (phase) {
     case 'regular_season': return Array.from({ length: 16 }, (_, i) => i) // 0–15
     case 'postseason': return [1, 2, 3, 4, 5]
-    case 'offseason': return [1, 2, 3, 4, 5]
+    case 'offseason': return [1, 2, 3, 4, 5, 6, 7]
     default: return [0]
   }
 }

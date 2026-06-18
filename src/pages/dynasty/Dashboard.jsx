@@ -2262,8 +2262,8 @@ export default function Dashboard() {
     } else if (phase === 'postseason') {
       // Postseason weeks 1-4 = Bowl weeks 1-4
       return `bowl_${week}`
-    } else if (phase === 'offseason' && week >= 2 && week <= 6) {
-      return `signing_${week - 1}` // Week 2 = Recruiting Week 1, Week 6 = Signing Day
+    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
+      return `signing_${week - 1}` // Week 2 = Recruiting Week 1, Week 5 = Signing Day
     }
     return null
   }
@@ -3033,9 +3033,9 @@ export default function Dashboard() {
       if (week === 4) return 'National Championship Week'
       if (week === 5) return 'End of Season'
       return `Bowl Week ${week}`
-    } else if (phase === 'offseason' && week >= 2 && week <= 6) {
-      if (week === 6) return 'National Signing Day'
-      return `Recruiting Week ${week - 1}`
+    } else if (phase === 'offseason' && week >= 2 && week <= 5) {
+      if (week === 5) return 'National Signing Day'
+      return `Recruiting Week ${week - 1} of 4`
     }
     return 'Recruiting'
   }
@@ -3175,11 +3175,10 @@ export default function Dashboard() {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 3`
+      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 4`
       if (week === 5) return 'National Signing Day'
-      if (week === 6) return 'Signing Day Results'
-      if (week === 7) return 'Training Camp'
-      if (week === 8) return 'Offseason'
+      if (week === 6) return 'Training Results'
+      if (week === 7) return 'Offseason'
       return 'Off-Season'
     }
     const phases = {
@@ -6479,10 +6478,12 @@ export default function Dashboard() {
 
             // Offseason Weeks 2-6: Recruiting Weeks (Week 6 = National Signing
             // Day). Unified via renderTodoList — same row chrome as in-season.
-            if (week >= 2 && week <= 6) {
+            if (week >= 2 && week <= 5) {
               const recruitingWeekNum = week - 1
 
-              const offseasonDataYear = week === 6 ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+              // Weeks 2–5 are all PRE-flip (the year flips on the wk5→6 advance),
+              // so the data year is always the current (ending-season) year.
+              const offseasonDataYear = currentDynasty.currentYear
 
               const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[offseasonDataYear] || []
               const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
@@ -6507,7 +6508,7 @@ export default function Dashboard() {
               const o26Todos = []
 
               // Task 1: Recruiting Commitments (every recruiting week)
-              if (recruitingWeekNum === 5) {
+              if (recruitingWeekNum === 4) {
                 // Signing Day variant — single "Open" button, no Yes/No
                 o26Todos.push({
                   key: 'recruiting-signing-day',
@@ -6563,7 +6564,7 @@ export default function Dashboard() {
               }
 
               // Signing Day–only tasks (3–7)
-              if (recruitingWeekNum === 5) {
+              if (recruitingWeekNum === 4) {
                 // Transfer Destinations
                 const nonTransferReasons = ['Graduating', 'Pro Draft']
                 const transfersFromList = playersLeavingThisYear.filter(p =>
@@ -6734,15 +6735,15 @@ export default function Dashboard() {
               return (
                 <>
                   <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                    {recruitingWeekNum === 4 ? 'National Signing Day' : recruitingWeekNum === 5 ? 'Signing Day Results' : `Recruiting Week ${recruitingWeekNum} of 3`}
+                    {recruitingWeekNum === 4 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
                   </h3>
                   {renderTodoList({ todos: o26Todos, isViewOnly })}
                 </>
               )
             }
 
-            // Offseason Week 7: Training Camp. Unified via renderTodoList.
-            if (week === 7) {
+            // Offseason Week 6: Training Results (post-flip). Unified via renderTodoList.
+            if (week === 6) {
               const offseasonDataYear = currentDynasty.currentYear - 1
               const previousTeamAbbr = currentDynasty.coachTeamByYear?.[offseasonDataYear]?.team
               const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty)
@@ -6758,7 +6759,7 @@ export default function Dashboard() {
                 return (
                   <>
                     <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                      Training Camp
+                      Training Results
                     </h3>
                     {renderTodoList({ todos: skippedTodos, isViewOnly })}
                   </>
@@ -6843,15 +6844,15 @@ export default function Dashboard() {
               return (
                 <>
                   <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                    Training Camp
+                    Training Results
                   </h3>
                   {renderTodoList({ todos: w7Todos, isViewOnly })}
                 </>
               )
             }
 
-            // Offseason Week 8: Custom Conferences & Encourage Transfers. Unified via renderTodoList.
-            if (week === 8) {
+            // Offseason Week 7: Custom Conferences & Encourage Transfers. Unified via renderTodoList.
+            if (week === 7) {
               const userTid = getUserTeamTid(currentDynasty)
               const upcomingSeasonYear = currentDynasty.currentYear
               const hasConferencesSet = currentDynasty?.customConferencesByYear?.[upcomingSeasonYear] != null
