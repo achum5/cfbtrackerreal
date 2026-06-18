@@ -12883,10 +12883,14 @@ export function DynastyProvider({ children }) {
           const pastByName = new Map()
           for (const r of trainingResults) {
             if (!r?.playerName) continue
-            pastByName.set(String(r.playerName).toLowerCase().trim(), r.pastOverall ?? null)
+            // Match the WRITER's normalization (handleTrainingResultsSave uses
+            // normalizePlayerName) so names with curly apostrophes / double
+            // spaces (e.g. De'Andre) restore correctly instead of leaving
+            // player.overall stuck at the post-training value.
+            pastByName.set(normalizePlayerName(r.playerName), r.pastOverall ?? null)
           }
           basePlayers = basePlayers.map(p => {
-            const norm = (p.name || '').toLowerCase().trim()
+            const norm = normalizePlayerName(p.name || '')
             if (!pastByName.has(norm)) return p
             const past = pastByName.get(norm)
             const nextOverallByYear = { ...(p.overallByYear || {}) }

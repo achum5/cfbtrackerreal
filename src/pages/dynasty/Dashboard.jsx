@@ -328,8 +328,11 @@ export default function Dashboard() {
   const confWins = scheduleRecord?.confWins || 0
   const confLosses = scheduleRecord?.confLosses || 0
 
-  // IMPORTANT: On Signing Day (week 6) and Training Camp (week 7), the year has already flipped.
-  // Use offseasonDataYear for data that was entered during weeks 1-5 (playersLeaving, recruiting, etc.)
+  // IMPORTANT: the year flips on the wk5→6 advance, so on Training Results (week 6)
+  // and Conferences (week 7) the year has ALREADY flipped. offseasonDataYear pins
+  // the ending-season year S for data tied to the season just played (playersLeaving,
+  // recruiting, signing-day tasks) — it equals S at every offseason week (1–5 = currentYear,
+  // 6–7 = currentYear-1).
   const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 6
   const offseasonDataYear = isAfterYearFlip
     ? currentDynasty?.currentYear - 1
@@ -6521,6 +6524,7 @@ export default function Dashboard() {
                     : 'Enter your final recruiting class',
                   onAction: () => setShowRecruitingModal(true),
                   actionLabel: hasCommitmentsData ? 'Edit' : 'Open',
+                  viewTo: hasCommitmentsData ? `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}` : null,
                   extraTools: !hasCommitmentsData ? <SellVsSendButton onClick={() => setShowSellCalc(true)} /> : null,
                 })
               } else {
@@ -6605,6 +6609,7 @@ export default function Dashboard() {
                       : `Track where ${transfers.length} transfer${transfers.length !== 1 ? 's' : ''} committed`,
                   onAction: hasTransfers ? () => setShowTransferDestinationsModal(true) : undefined,
                   actionLabel: hasTransfers ? (hasTransferDestinationsData ? 'Edit' : 'Enter') : undefined,
+                  viewTo: hasTransferDestinationsData ? `${pathPrefix}/team/${userTidForCommits}/${offseasonDataYear}?tab=departures` : null,
                 })
 
                 // Recruiting Class Rank
@@ -6624,6 +6629,7 @@ export default function Dashboard() {
                     : 'Enter national recruiting class ranking',
                   onAction: () => setShowRecruitingClassRankModal(true),
                   actionLabel: hasClassRank ? 'Edit' : 'Enter',
+                  viewTo: hasClassRank ? `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}` : null,
                 })
 
                 // Position Changes
@@ -6638,6 +6644,7 @@ export default function Dashboard() {
                     : 'Update player positions',
                   onAction: () => setShowPositionChangesModal(true),
                   actionLabel: hasPositionChanges ? 'Edit' : 'Open',
+                  viewTo: hasPositionChanges ? `${pathPrefix}/roster` : null,
                 })
 
                 // Recruiting Class Overalls
@@ -6663,6 +6670,7 @@ export default function Dashboard() {
                       : `Enter overalls for ${recruitingClassPlayers.length} recruit${recruitingClassPlayers.length !== 1 ? 's' : ''}`,
                     onAction: () => setShowRecruitOverallsModal(true),
                     actionLabel: hasRecruitOverallsData ? 'Edit' : 'Enter',
+                    viewTo: hasRecruitOverallsData ? `${pathPrefix}/recruiting/${userTidForCommits}/${offseasonDataYear}` : null,
                   })
                 }
 
@@ -6700,6 +6708,7 @@ export default function Dashboard() {
                         : `Assign classes for ${portalTransfersForClass.length} transfer${portalTransfersForClass.length !== 1 ? 's' : ''}`,
                   onAction: !hasPortalTransfers ? undefined : () => setShowPortalTransferClassModal(true),
                   actionLabel: !hasPortalTransfers ? undefined : (portalComplete ? 'Done' : 'Open'),
+                  viewTo: hasPortalTransferClassData ? `${pathPrefix}/recruiting/portal/${userTidForCommits}/${offseasonDataYear}` : null,
                 })
 
                 // Fringe Case Class Assignment
@@ -6729,6 +6738,7 @@ export default function Dashboard() {
                         : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`,
                   onAction: !hasFringeCases ? undefined : () => setShowFringeCaseClassModal(true),
                   actionLabel: !hasFringeCases ? undefined : (fringeComplete ? 'Done' : 'Open'),
+                  viewTo: hasFringeCaseClassData ? `${pathPrefix}/roster` : null,
                 })
               }
 

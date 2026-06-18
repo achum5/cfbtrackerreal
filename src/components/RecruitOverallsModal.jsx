@@ -55,8 +55,8 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, currentY
     rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
     structure: `WHERE TO FIND THE DATA IN EA CFB
 ═══════════════════════════════════════════════════════════
-Recruit overalls appear during the POSITION CHANGES phase (after Signing Day,
-before Training Camp). Browse each position group depth chart — incoming
+Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
+Browse each position group depth chart — incoming
 freshmen are shown with Year = "Fr". Their OVR column is their initial overall.
 
 TWO ways to find recruits in the screenshots:
