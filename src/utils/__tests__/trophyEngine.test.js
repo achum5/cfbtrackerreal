@@ -49,6 +49,24 @@ describe('trophyEngine — detection', () => {
     expect(getEarnedTrophies({ teams: {} }, stints)['citrus-bowl']).toBeTruthy()
   })
 
+  it('credits the bowl trophy for a CFP quarterfinal/semifinal won at a bowl site', () => {
+    const stints = [{ teamTid: uk, startYear: 2030, endYear: 2030, games: [
+      game({ year: 2030, isCFPQuarterfinal: true, bowlName: 'Fiesta Bowl' }),
+      game({ year: 2030, isCFPSemifinal: true, bowlName: 'Rose Bowl' }),
+    ] }]
+    const earned = getEarnedTrophies({ teams: {} }, stints)
+    expect(earned['fiesta-bowl']).toBeTruthy()
+    expect(earned['rose-bowl']).toBeTruthy()
+  })
+
+  it('does NOT credit a bowl trophy for the on-campus CFP first round (no bowlName)', () => {
+    const stints = [{ teamTid: uk, startYear: 2030, endYear: 2030, games: [
+      game({ year: 2030, isCFPFirstRound: true, bowlName: null }),
+    ] }]
+    const earned = getEarnedTrophies({ teams: {} }, stints)
+    expect(Object.keys(earned).filter(k => TROPHIES.find(t => t.id === k && t.category === 'bowl'))).toEqual([])
+  })
+
   it('does NOT credit an award when the winner was on another team', () => {
     const dynasty = { teams: {}, awardsByYear: { 2031: { heisman: { player: 'X', team: 'BAMA' } } } }
     const stints = [{ teamTid: uk, startYear: 2031, endYear: 2031, games: [] }]

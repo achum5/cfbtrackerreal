@@ -181,15 +181,18 @@ export function getEarnedTrophies(dynasty, stints) {
       if (!coachWon(g, tid)) continue
       const year = Number(g.year)
       const gt = g.gameType
-      // CFP playoff rounds are hosted AT bowl sites — don't mislabel a
-      // semifinal/quarterfinal/first-round win as winning that bowl's trophy.
-      const isCfpRound = g.isCFPSemifinal || g.isCFPQuarterfinal || g.isCFPFirstRound ||
-        gt === 'cfp_semifinal' || gt === 'cfp_quarterfinal' || gt === 'cfp_first_round'
+      // CFP quarterfinals & semifinals are played at — and named after — New
+      // Year's Six bowl sites (Rose, Sugar, Fiesta…), so winning one IS winning
+      // that bowl: credit its bowl trophy. The on-campus first round carries no
+      // bowlName (matchBowlTrophy no-ops), and the championship grants the
+      // national title below — neither should award a bowl trophy.
+      const isCfpQuarterOrSemi = g.isCFPSemifinal || g.isCFPQuarterfinal ||
+        gt === 'cfp_semifinal' || gt === 'cfp_quarterfinal'
       if (g.isCFPChampionship || gt === 'cfp_championship') {
         add('national-championship', year, { game: g, tid })
       } else if (g.isConferenceChampionship || gt === 'conference_championship') {
         add(CONFERENCE_TROPHY[g.conference], year, { game: g, tid, conference: g.conference })
-      } else if ((g.isBowlGame || gt === 'bowl') && !isCfpRound) {
+      } else if (g.isBowlGame || gt === 'bowl' || isCfpQuarterOrSemi) {
         add(matchBowlTrophy(g.bowlName), year, { game: g, tid, bowl: g.bowlName })
       }
       // rivalry — orthogonal: any win over a rival counts
