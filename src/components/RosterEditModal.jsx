@@ -74,13 +74,13 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} ${teamAbbr ? `${teamAbbr} ` : ''}Roster Edit`,
     roster: userRoster,
-    structure: `This sheet has ONE tab: "Roster". It has 13 columns (A–M) and up to 85 data rows (rows 2–86). Row 1 is the protected header row. The sheet may already be pre-filled with current roster rows — your output will REPLACE all data rows, so include every player on the roster (edits + unchanged players).
+    structure: `This sheet has ONE tab: "Roster". It has 14 columns (A–N) and up to 85 data rows (rows 2–86). Row 1 is the protected header row. The sheet may already be pre-filled with current roster rows — your output will REPLACE all data rows, so include every player on the roster (edits + unchanged players).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. Output ONLY the data rows (rows 2+). NEVER output the header row.
-2. Output EXACTLY 13 tab-separated columns per line in this order: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL.
+2. Output EXACTLY 14 tab-separated columns per line in this order: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL, NIL.
 3. One player per line. Maximum 85 lines total (rows 2 through 86).
 4. NO COMMAS anywhere — not in numbers, not in names. Weight "215" never "2,015".
 5. INTEGERS have no decimal point. Jersey # "7" not "7.0", Overall "88" not "88.0", Weight "210" not "210.0".
@@ -93,7 +93,7 @@ CRITICAL RULES — read before anything else
 TAB: "Roster" — paste at cell A2 of the "Roster" tab
 ═══════════════════════════════════════════════════════════
 
-Column layout (A→M), one player per line, tab-separated:
+Column layout (A→N), one player per line, tab-separated:
 
 Col | Header (row 1, protected) | Your value                     | Format / allowed values
 ----+---------------------------+--------------------------------+---------------------------------------------------
@@ -110,6 +110,7 @@ Col | Header (row 1, protected) | Your value                     | Format / allo
  K  | Hometown                  | City name                      | text
  L  | State                     | US state 2-letter code         | DROPDOWN (see list below) — exact literal
  M  | Image URL                 | Photo URL                      | blank unless a real URL is visible; never invent
+ N  | NIL                       | Player's NIL amount (CFB 27)   | integer, no commas — blank if not shown (e.g. CFB 26)
 
 ───────────────────────────────────────────────────────────
 COLUMN C — Position — MUST be one of these 21 values EXACTLY:
@@ -154,14 +155,14 @@ AL | AK | AZ | AR | CA | CO | CT | DE | FL | GA | HI | ID | IL | IN | IA | KS | 
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === ROSTER — paste at cell A2 of "Roster" tab ===
-<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>
-<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>
+<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>
+<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>
 …one line per player, up to 85 total
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Every line has exactly 13 tab-separated columns (12 tab characters)
+[ ] Every line has exactly 14 tab-separated columns (13 tab characters)
 [ ] No header row, no totals row, no commentary INSIDE the data (the paste-target label above the fence is required, see Method A/B rules above)
 [ ] No commas in any number (Jersey, Overall, Weight)
 [ ] No decimals on integers (Jersey / Overall / Weight)

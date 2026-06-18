@@ -26,9 +26,13 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
+// MUST match the sheet's column-A prefill order (CC_HISTORY_CONFERENCES in
+// sheetsService.js). Conferences are read back BY ROW from the protected
+// column A, so any divergence misfiles a result onto the wrong conference's
+// row. American is row 1, ACC is row 2 (NOT alphabetical for the first two).
 const HISTORY_CONFERENCES = [
-  'ACC',
   'American',
+  'ACC',
   'Big 12',
   'Big Ten',
   'Conference USA',

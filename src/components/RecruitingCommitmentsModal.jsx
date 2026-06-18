@@ -108,18 +108,18 @@ The header row (row 1) is pre-filled and PROTECTED. Commitments already entered 
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. Output ONLY the data rows for the NEW recruits in this request. NEVER output the header row, and never re-output commitments already entered in the sheet.
-2. Output ALL 15 columns per row, tab-separated, in the exact order A→O below.
+2. Output ALL 16 columns per row, tab-separated, in the exact order A→P below.
 3. One row per recruit. Do not reorder rows arbitrarily; keep the same order as the screenshots.
 4. NO COMMAS in numbers. Output "1234" — never "1,234".
 5. INTEGERS have no decimal point. No quotes around numbers.
 6. BLANK cell for unknown values — never guess, never use 0, "-", or "N/A". Blank ≠ zero.
-7. Dropdown columns (B, C, D, E, I, L, M, N, O) MUST use EXACTLY one of the literal values listed. Wrong spelling or casing will be rejected.
+7. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST use EXACTLY one of the literal values listed. Wrong spelling or casing will be rejected.
 8. Column E (Stars) uses ☆ symbols, NOT digits. One symbol = 1 star, five symbols = 5 stars.
 9. Column O (Prev Team) MUST be a team abbreviation from the mapping below, or BLANK. Blank for HS/JUCO recruits AND for transfers whose previous school is not visible. NEVER write "Transfer Portal" or any placeholder — if the school is unknown, leave it BLANK.
 10. No header row, no totals, no commentary INSIDE the data. ONE TSV block, preceded by the required paste-target label line above the fence (see Method A/B rules above).
 
 ═══════════════════════════════════════════════════════════
-TAB: "Commitments" — up to 35 rows × 15 columns
+TAB: "Commitments" — up to 35 rows × 16 columns
 Paste at cell A${prefillRecruits.length + 2} of the "Commitments" tab — the first empty row, just below the ${prefillRecruits.length} row(s) already entered (commitments + tracked targets). If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
 ═══════════════════════════════════════════════════════════
 
@@ -140,6 +140,7 @@ Row | Col | Header (protected)  | Your value                                    
  2+ |  M  | Gem/Bust            | Dropdown — exactly "Gem" or "Bust", or blank                                          | dropdown
  2+ |  N  | Dev Trait           | Dropdown — exactly one of: Elite, Star, Impact, Normal                                | dropdown
  2+ |  O  | Prev Team           | Team abbreviation from mapping (transfers only); BLANK for HS/JUCO or unknown school   | dropdown
+ 2+ |  P  | Commitment          | Team ABBR the recruit committed to (YOUR team's abbr for commits to you); "Uncommitted" if open | dropdown
 
 ═══════════════════════════════════════════════════════════
 ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
@@ -189,28 +190,31 @@ Column N — Dev Trait (4 values):
 
 Column O — Prev Team: use ONLY abbreviations from the team mapping appended below. Leave BLANK for HS/JUCO recruits AND for any transfer whose previous school is not clearly visible in the screenshots. NEVER write "Transfer Portal", "Unknown", or any other placeholder text — unknown = blank.
 
+Column P — Commitment: the team ABBR the recruit committed to. Use ONLY abbreviations from the team mapping appended below. Use YOUR team's abbreviation for any recruit who committed to your program. Write "Uncommitted" only if the recruit is still open/being recruited. These are COMMITMENTS, so this column is normally a team abbreviation (rarely "Uncommitted").
+
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === COMMITMENTS — paste at cell A${prefillRecruits.length + 2} of "Commitments" tab ===
-<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat. Rank>\\t<State Rank>\\t<Pos. Rank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev Trait>\\t<Prev Team>
+<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat. Rank>\\t<State Rank>\\t<Pos. Rank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev Trait>\\t<Prev Team>\\t<Commitment>
 <next recruit row...>
 ...
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Exactly 15 tab-separated values per line (count the tabs: there must be 14 tabs between 15 values)
+[ ] Exactly 16 tab-separated values per line (count the tabs: there must be 15 tabs between 16 values)
 [ ] No header row in output
 [ ] No commas in any number
 [ ] Stars column uses ☆ symbols (never digits)
-[ ] Every value in columns B, C, D, E, I, L, M, N, O is a LITERAL MATCH of an enumerated dropdown value
+[ ] Every value in columns B, C, D, E, I, L, M, N, O, P is a LITERAL MATCH of an enumerated dropdown value
 [ ] Heights use straight ASCII quote " not curly quote
 [ ] Prev Team is blank for HS/JUCO recruits AND for transfers with unknown/invisible previous school — never "Transfer Portal" or any placeholder
+[ ] Column P (Commitment) is a team abbreviation from the mapping (your team's abbr for commits to you), or "Uncommitted"
 [ ] Blank cells for unknowns — invented nothing`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-    notes: 'Column O (Prev Team) applies ONLY to transfer-portal recruits (Class = Fr, RS Fr, So, RS So, Jr, or RS Jr) when the previous school is clearly visible. For HS/JUCO recruits OR when the previous school is unknown, leave column O BLANK. Use ONLY the team abbreviations in the mapping — never a full team name, never "Transfer Portal" or any placeholder.',
+    notes: 'Column O (Prev Team) applies ONLY to transfer-portal recruits (Class = Fr, RS Fr, So, RS So, Jr, or RS Jr) when the previous school is clearly visible. For HS/JUCO recruits OR when the previous school is unknown, leave column O BLANK. Column P (Commitment) is the team abbreviation the recruit committed to — use YOUR team\'s abbreviation for commits to your program, or "Uncommitted" if still open. Use ONLY the team abbreviations in the mapping — never a full team name, never "Transfer Portal" or any placeholder. Output STOPS at column P: the attribute columns, hidden pid, and trailing NIL column that follow are filled separately (by the app or by hand), never in this 16-column output.',
   }), [currentYear, recruitingLabel, currentDynasty?.teams, prefillRecruits])
 
   // ── Targets + Attributes prompt ──────────────────────────────────────────
@@ -241,7 +245,7 @@ CRITICAL RULES
 5. BLANK for unknown — never guess, never 0/"-"/"N/A". Blank ≠ zero.
 6. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST be EXACTLY one of the listed values.
 7. Column E (Stars) uses ☆ symbols, NOT digits.
-8. Do NOT output the hidden "pid" column — the app fills it.
+8. Do NOT output the hidden "pid" column, nor the trailing "NIL" column after it — the app fills pid, and NIL is the recruiting-offer column the user enters by hand.
 
 ═══════════════════════════════════════════════════════════
 COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first empty row below the ${prefillRecruits.length} already entered)
