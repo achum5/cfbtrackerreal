@@ -3175,10 +3175,11 @@ export default function Dashboard() {
     }
     if (phase === 'offseason') {
       if (week === 1) return 'Players Leaving'
-      if (week === 6) return 'National Signing Day'
+      if (week >= 2 && week <= 4) return `Recruiting Week ${week - 1} of 3`
+      if (week === 5) return 'National Signing Day'
+      if (week === 6) return 'Signing Day Results'
       if (week === 7) return 'Training Camp'
       if (week === 8) return 'Offseason'
-      if (week >= 2 && week <= 5) return `Recruiting Week ${week - 1} of 4`
       return 'Off-Season'
     }
     const phases = {
@@ -6733,7 +6734,7 @@ export default function Dashboard() {
               return (
                 <>
                   <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                    {recruitingWeekNum === 5 ? 'National Signing Day' : `Recruiting Week ${recruitingWeekNum} of 4`}
+                    {recruitingWeekNum === 4 ? 'National Signing Day' : recruitingWeekNum === 5 ? 'Signing Day Results' : `Recruiting Week ${recruitingWeekNum} of 3`}
                   </h3>
                   {renderTodoList({ todos: o26Todos, isViewOnly })}
                 </>
