@@ -445,7 +445,6 @@ export default function CreateDynasty() {
               name="startYear"
               value={formData.startYear}
               onChange={handleChange}
-              min="2024"
               max="2099"
               required
               className="tabular"
