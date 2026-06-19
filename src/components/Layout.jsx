@@ -460,9 +460,11 @@ export default function Layout({ children }) {
       }
     }
 
-    // Check if advancing from offseason week 5 to week 6 (Signing Day - year flip and class progression)
-    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 5) {
-      console.log('[Layout:handleAdvanceWeek] At offseason week 5 - checking for class confirmations')
+    // The year flip + class progression now happen ENTERING National Signing Day
+    // (wk4→5), so Signing Day is the first week of the new season. Confirm class
+    // advancement BEFORE the flip — i.e. at week 4.
+    if (currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek === 4) {
+      console.log('[Layout:handleAdvanceWeek] At offseason week 4 - checking for class confirmations')
       // Check for players needing class confirmation BEFORE class progression happens
       const playersNeeding = getPlayersNeedingClassConfirmation(currentDynasty)
       console.log('[Layout:handleAdvanceWeek] Players needing confirmation:', playersNeeding.length)

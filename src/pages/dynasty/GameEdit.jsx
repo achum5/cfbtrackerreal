@@ -209,7 +209,7 @@ function resolveRankWeek(game) {
   if (!game) return null
   const n = typeof game.week === 'number' ? game.week : parseInt(game.week, 10)
   if (Number.isFinite(n)) return n
-  if (game.isConferenceChampionship || game.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP || game.week === 'CCG') return 15
+  if (game.isConferenceChampionship || game.gameType === GAME_TYPES.CONFERENCE_CHAMPIONSHIP || game.week === 'CCG') return 16
   return null
 }
 
@@ -2176,7 +2176,7 @@ export default function GameEdit() {
       {(() => {
         const WEEK_OPTIONS = [
           { value: '', label: '— Select week —' },
-          ...Array.from({ length: 15 }, (_, i) => ({ value: String(i), label: `Week ${i}` })),
+          ...Array.from({ length: 16 }, (_, i) => ({ value: String(i), label: `Week ${i}` })),
           { value: 'CCG', label: 'Conference Championship' },
           { value: 'BW1', label: 'Bowl Week 1' },
           { value: 'BW2', label: 'Bowl Week 2' },

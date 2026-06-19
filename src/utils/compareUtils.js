@@ -24,7 +24,7 @@ export function isSameWeek(a, b) {
 
 /**
  * Stable sort key for game.week. Numeric weeks return their number;
- * CCG games sort just after Week 14 (chronologically); other strings
+ * CCG games sort just after Week 15 (chronologically); other strings
  * sort at the end. Use as `games.sort((a,b) => weekSortKey(a.week) -
  * weekSortKey(b.week))`.
  */
@@ -33,7 +33,7 @@ export function weekSortKey(week) {
   const n = Number(week)
   if (Number.isFinite(n)) return n
   const upper = String(week).toUpperCase()
-  if (upper === 'CCG' || upper === 'CC') return 14.5
+  if (upper === 'CCG' || upper === 'CC') return 15.5
   return Number.POSITIVE_INFINITY
 }
 

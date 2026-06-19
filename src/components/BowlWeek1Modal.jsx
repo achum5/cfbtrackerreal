@@ -30,13 +30,13 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-// Rankings week slots: 15=CCG, 16=BowlWk1, 17=BowlWk2, 18=NatChamp
+// Rankings week slots: 16=CCG, 17=BowlWk1, 18=BowlWk2, 19=CFP Semis, 20=NatChamp
 const RANK_WEEK_OPTIONS = [
-  { value: 15, label: 'Conf Champ Week' },
-  { value: 16, label: 'Bowl Week 1' },
-  { value: 17, label: 'Bowl Week 2' },
-  { value: 18, label: 'Bowl Week 3 (CFP Semis)' },
-  { value: 19, label: 'National Championship' },
+  { value: 16, label: 'Conf Champ Week' },
+  { value: 17, label: 'Bowl Week 1' },
+  { value: 18, label: 'Bowl Week 2' },
+  { value: 19, label: 'Bowl Week 3 (CFP Semis)' },
+  { value: 20, label: 'National Championship' },
 ]
 
 export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, teamColors }) {
@@ -59,13 +59,13 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
 
   // Rankings week — default to the current dynasty postseason week slot
   // (same pattern as WeeklyScoresModal). In postseason week N the poll
-  // that comes out corresponds to slot 15+N, so when in BW2 the rankings
-  // should land in slot 17 by default, not slot 16.
+  // that comes out corresponds to slot 16+N, so when in BW2 the rankings
+  // should land in slot 18 by default, not slot 17.
   const effectiveRankWeek = (() => {
     const phase = currentDynasty?.currentPhase
     const week = Number(currentDynasty?.currentWeek)
-    if (phase === 'postseason' && Number.isFinite(week)) return 15 + week
-    return 16
+    if (phase === 'postseason' && Number.isFinite(week)) return 16 + week
+    return 17
   })()
   const [rankWeek, setRankWeek] = useState(effectiveRankWeek)
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
     if (!currentDynasty) return ''
     const yearNum = Number(currentYear)
     const teams = currentDynasty.teams || {}
-    const priorSlot = (Number.isFinite(effectiveRankWeek) ? effectiveRankWeek : 16) - 1
+    const priorSlot = (Number.isFinite(effectiveRankWeek) ? effectiveRankWeek : 17) - 1
     const buildForSlot = (slot) => {
       const slotMap = new Map()
       for (const team of Object.values(teams)) {

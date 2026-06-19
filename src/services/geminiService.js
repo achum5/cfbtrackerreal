@@ -2580,7 +2580,7 @@ function getOpponentSeasonResults(allGames, opponentAbbr, year, currentGameOrder
     })
   }
 
-  // Numeric weeks sort first (0..14), CCG just after (14.5), other
+  // Numeric weeks sort first (0..15), CCG just after (15.5), other
   // non-numeric weeks at the end. Plain (a.week || 0) - (b.week || 0)
   // produces NaN for CCG games and leaves them at arbitrary positions.
   const _wkOrd = (w) => {
@@ -2588,7 +2588,7 @@ function getOpponentSeasonResults(allGames, opponentAbbr, year, currentGameOrder
     const n = Number(w)
     if (Number.isFinite(n)) return n
     const s = String(w).toUpperCase()
-    return (s === 'CCG' || s === 'CC') ? 14.5 : Number.POSITIVE_INFINITY
+    return (s === 'CCG' || s === 'CC') ? 15.5 : Number.POSITIVE_INFINITY
   }
   return results.sort((a, b) => _wkOrd(a.week) - _wkOrd(b.week))
 }
@@ -2959,7 +2959,7 @@ export function buildGameRecapContext(dynasty, game) {
   // Championship recap even though their post-SF poll ranks were in
   // rankByWeek.
   // Canonical postseason rank slots (matches TOP25_WEEK_KEYS in
-  // sheetsService.js): 15 = post-Week-14 / Conf Champ Week poll,
+  // sheetsService.js): 16 = post-Week-15 / Conf Champ Week poll,
   // 101 = post-FR / entering Bowl Week 1, 102 = entering Bowl Week 2 / QF,
   // 103 = entering Bowl Week 3 / SF, 104 = entering NC, 105 = Final Poll.
   // These are the slots WeeklyScoresModal + Top25SheetModal + final-poll
@@ -2972,14 +2972,14 @@ export function buildGameRecapContext(dynasty, game) {
     if (game.isBowlGame || game.gameType === 'bowl') {
       return game.bowlWeek === 'week2' ? 102 : 101
     }
-    if (game.isConferenceChampionship || game.gameType === 'conference_championship') return 15
+    if (game.isConferenceChampionship || game.gameType === 'conference_championship') return 16
     return null
   })()
   const rankSlotForGame = postseasonSlot != null
     ? postseasonSlot
     : (() => {
         const wk = Number(game.week)
-        return Number.isFinite(wk) && wk >= 0 && wk <= 14 ? wk : null
+        return Number.isFinite(wk) && wk >= 0 && wk <= 15 ? wk : null
       })()
   const fallbackRankFor = (tid) => {
     if (tid == null || rankSlotForGame == null) return null

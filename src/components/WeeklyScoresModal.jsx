@@ -81,7 +81,7 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
   // dynasty was in CCG week, which is what the user reported.
   const dynastyCurrentWeek = Number(currentDynasty?.currentWeek)
   const isCCGPhase = currentDynasty?.currentPhase === 'conference_championship'
-  const effectiveCurrentRankWeek = isCCGPhase ? 15 : dynastyCurrentWeek
+  const effectiveCurrentRankWeek = isCCGPhase ? 16 : dynastyCurrentWeek
 
   const [rankWeek, setRankWeek] = useState(null)
   useEffect(() => {
@@ -507,11 +507,11 @@ CRITICAL RULES — output format
 12. ${userAbbr ? `OPTIONAL — the user's own team is ${userAbbr}. If you can see their game in the screenshots, INCLUDE it; if not, that's fine — they enter their own game separately and any duplicate row is harmlessly preserved.` : `If the user's own team plays in this week, include the row anyway — duplicates with their separately-entered game are handled automatically.`}
 
 ═══════════════════════════════════════════════════════════
-WEEK SCOPE — REGULAR-SEASON ONLY (Week 0 through Week 14)
+WEEK SCOPE — REGULAR-SEASON ONLY (Week 0 through Week 15)
 ═══════════════════════════════════════════════════════════
-This flow is for REGULAR-SEASON weeks ONLY: Week 0 through Week 14. Conference championships are entered through a dedicated entry modal (not this one) and are NEVER auto-promoted from this sheet. If the screenshots include a CONF CHAMPIONSHIPS sub-screen, ignore those rows — the user enters them separately.
+This flow is for REGULAR-SEASON weeks ONLY: Week 0 through Week 15. Conference championships are entered through a dedicated entry modal (not this one) and are NEVER auto-promoted from this sheet. If the screenshots include a CONF CHAMPIONSHIPS sub-screen, ignore those rows — the user enters them separately.
 
-Week 14 is the LAST regular-season week. The Army-Navy Game lives here at a neutral site (Philadelphia / Foxborough / Soldier Field / etc.) — still mark column G "Y" because it IS a neutral-site game, but it is just a regular game, NOT a championship.
+Week 15 is the LAST regular-season week. The Army-Navy Game lives here at a neutral site (Philadelphia / Foxborough / Soldier Field / etc.) — still mark column G "Y" because it IS a neutral-site game, but it is just a regular game, NOT a championship.
 
 ═══════════════════════════════════════════════════════════
 DYNASTY CONFERENCE MAP — use this, not real-world assumptions
@@ -931,12 +931,11 @@ Don't just glance at this list. Physically execute each check on your draft.
   const headerLabel = `${year} Week ${week} Scores`
 
   const rankWeekOptions = useMemo(() => {
-    // Weeks 0-14 are the regular season; 15 is the slot for "after Week
-    // 14 / heading into CCG week" rank entry. Bowls / CFP have their
-    // own modals so we don't extend further. (Was 0-16 from when the
-    // app modeled a phantom Week 15 regular-season slot.)
+    // Weeks 0-15 are the regular season; 16 is the slot for "after Week
+    // 15 / heading into CCG week" rank entry. Bowls / CFP have their
+    // own modals so we don't extend further.
     const opts = []
-    for (let w = 0; w <= 15; w++) opts.push(w)
+    for (let w = 0; w <= 16; w++) opts.push(w)
     return opts
   }, [])
 
@@ -949,10 +948,10 @@ Don't just glance at this list. Physically execute each check on your draft.
       className="px-3 py-2 rounded-md bg-surface-2 border border-surface-4 hover:border-surface-5 text-txt-primary text-sm font-medium tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-3 disabled:opacity-60 transition-colors"
     >
       {rankWeekOptions.map(w => {
-        // Slot 15 isn't a real regular-season week — it's the rank-entry
-        // slot for the post-Week-14 / heading-into-CCG poll. Label it
-        // accordingly so users in CCG phase don't see a phantom "Week 15".
-        const label = w === 15 ? 'Conf Champ Week' : `Week ${w}`
+        // Slot 16 isn't a real regular-season week — it's the rank-entry
+        // slot for the post-Week-15 / heading-into-CCG poll. Label it
+        // accordingly so users in CCG phase don't see a phantom "Week 16".
+        const label = w === 16 ? 'Conf Champ Week' : `Week ${w}`
         return (
           <option key={w} value={w}>
             {label}{w === effectiveCurrentRankWeek ? ' (current)' : ''}

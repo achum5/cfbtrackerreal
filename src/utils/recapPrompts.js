@@ -90,12 +90,12 @@ function userPerspective(game, userTid) {
 // the records the recap shows (a CCG recap would feed pre-CCG records).
 function gameSlotFor(g) {
   if (!g) return 0
-  if (g.gameType === 'cfp_championship' || g.isCFPChampionship) return 19
-  if (g.gameType === 'cfp_semifinal' || g.isCFPSemifinal) return 18
-  if (g.gameType === 'cfp_quarterfinal' || g.isCFPQuarterfinal) return 17
-  if (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) return 16
-  if (g.gameType === 'bowl' || g.isBowlGame) return g.bowlWeek === 'week3' ? 18 : g.bowlWeek === 'week2' ? 17 : 16
-  if (g.gameType === 'conference_championship' || g.isConferenceChampionship) return 15
+  if (g.gameType === 'cfp_championship' || g.isCFPChampionship) return 20
+  if (g.gameType === 'cfp_semifinal' || g.isCFPSemifinal) return 19
+  if (g.gameType === 'cfp_quarterfinal' || g.isCFPQuarterfinal) return 18
+  if (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) return 17
+  if (g.gameType === 'bowl' || g.isBowlGame) return g.bowlWeek === 'week3' ? 19 : g.bowlWeek === 'week2' ? 18 : 17
+  if (g.gameType === 'conference_championship' || g.isConferenceChampionship) return 16
   const w = Number(g.week)
   return Number.isFinite(w) ? w : 0
 }
@@ -420,25 +420,25 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
   const yearNum = Number(year)
   const weekNum = Number(week)
 
-  // Human-readable label for postseason weeks (weeks 15-19 map to bowl/CFP rounds)
-  const weekLabel = weekNum === 15 ? 'Conference Championship Week'
-    : weekNum === 16 ? 'Bowl Week 1'
-    : weekNum === 17 ? 'Bowl Week 2'
-    : weekNum === 18 ? 'Bowl Week 3 / CFP Semifinals'
-    : weekNum === 19 ? 'National Championship'
+  // Human-readable label for postseason weeks (weeks 16-20 map to bowl/CFP rounds)
+  const weekLabel = weekNum === 16 ? 'Conference Championship Week'
+    : weekNum === 17 ? 'Bowl Week 1'
+    : weekNum === 18 ? 'Bowl Week 2'
+    : weekNum === 19 ? 'Bowl Week 3 / CFP Semifinals'
+    : weekNum === 20 ? 'National Championship'
     : `Week ${weekNum}`
-  // Bowl/CFP weeks (16+) get bowl-season framing + the CFP-lead structure.
-  // Conference Championship Week (15) is postseason for game-INCLUSION, but is
+  // Bowl/CFP weeks (17+) get bowl-season framing + the CFP-lead structure.
+  // Conference Championship Week (16) is postseason for game-INCLUSION, but is
   // recapped like a national week with the title games as the headline — it
   // has no CFP/bowl games to lead with, and its games don't fit the bowl
   // buckets, so routing it through the bowl path would emit zero games.
-  const isBowlWeek = weekNum >= 16
-  const isConfChampWeek = weekNum === 15
-  const isPostseason = weekNum >= 15
-  const cfpRoundLabel = weekNum === 16 ? 'CFP First Round'
-    : weekNum === 17 ? 'CFP Quarterfinals'
-    : weekNum === 18 ? 'CFP Semifinals'
-    : weekNum === 19 ? 'National Championship' : null
+  const isBowlWeek = weekNum >= 17
+  const isConfChampWeek = weekNum === 16
+  const isPostseason = weekNum >= 16
+  const cfpRoundLabel = weekNum === 17 ? 'CFP First Round'
+    : weekNum === 18 ? 'CFP Quarterfinals'
+    : weekNum === 19 ? 'CFP Semifinals'
+    : weekNum === 20 ? 'National Championship' : null
 
   const games = (dynasty?.games || []).filter(g => g && Number(g.year) === yearNum)
   const weekGames = games.filter(g => {
@@ -450,10 +450,10 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
     // (correctly) refuses to write it.
     if (isConfChampWeek && (g.isConferenceChampionship || g.gameType === 'conference_championship')) return true
     // Bowl/CFP games store week as 'Bowl' — include them based on bowlWeek/gameType
-    if (weekNum === 16 && (g.isCFPFirstRound || g.gameType === 'cfp_first_round' || (g.isBowlGame && g.bowlWeek === 'week1'))) return true
-    if (weekNum === 17 && (g.isCFPQuarterfinal || g.gameType === 'cfp_quarterfinal' || (g.isBowlGame && g.bowlWeek === 'week2'))) return true
-    if (weekNum === 18 && (g.isCFPSemifinal || g.gameType === 'cfp_semifinal' || (g.isBowlGame && g.bowlWeek === 'week3'))) return true
-    if (weekNum === 19 && (g.isCFPChampionship || g.gameType === 'cfp_championship')) return true
+    if (weekNum === 17 && (g.isCFPFirstRound || g.gameType === 'cfp_first_round' || (g.isBowlGame && g.bowlWeek === 'week1'))) return true
+    if (weekNum === 18 && (g.isCFPQuarterfinal || g.gameType === 'cfp_quarterfinal' || (g.isBowlGame && g.bowlWeek === 'week2'))) return true
+    if (weekNum === 19 && (g.isCFPSemifinal || g.gameType === 'cfp_semifinal' || (g.isBowlGame && g.bowlWeek === 'week3'))) return true
+    if (weekNum === 20 && (g.isCFPChampionship || g.gameType === 'cfp_championship')) return true
     return false
   })
 
@@ -584,11 +584,11 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
   const peekSnapshot = buildPeekSnapshot(weekNum + 1)
   const hasFreshPostWeekPoll = peekSnapshot.latestWeek === weekNum + 1
   const rankSnapshot = peekSnapshot.rows
-  const nextWeekLabel = weekNum + 1 === 15 ? 'Conference Championship Week'
-    : weekNum + 1 === 16 ? 'Bowl Week 1'
-    : weekNum + 1 === 17 ? 'Bowl Week 2'
-    : weekNum + 1 === 18 ? 'Bowl Week 3 / CFP Semifinals'
-    : weekNum + 1 === 19 ? 'National Championship'
+  const nextWeekLabel = weekNum + 1 === 16 ? 'Conference Championship Week'
+    : weekNum + 1 === 17 ? 'Bowl Week 1'
+    : weekNum + 1 === 18 ? 'Bowl Week 2'
+    : weekNum + 1 === 19 ? 'Bowl Week 3 / CFP Semifinals'
+    : weekNum + 1 === 20 ? 'National Championship'
     : `Week ${weekNum + 1}`
   const rankSnapshotLabel = hasFreshPostWeekPoll
     ? `POST-${weekLabel.toUpperCase()} TOP 25 (= the rankings teams ENTERED ${nextWeekLabel} with)`

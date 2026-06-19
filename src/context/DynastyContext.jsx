@@ -923,12 +923,12 @@ function getGameOrderForRecord(game) {
 // regular bowl played the SAME week — CFP rounds are concurrent with bowl
 // weeks, they don't get their own calendar slots:
 //
-//   1–14  Regular season
-//   15    Conference Championship Week
-//   16    Bowl Week 1   (regular bowls + CFP First Round live here)
-//   17    Bowl Week 2   (regular bowls + CFP Quarterfinals)
-//   18    Bowl Week 3   (regular bowls + CFP Semifinals)
-//   19    National Championship
+//   0–15  Regular season
+//   16    Conference Championship Week
+//   17    Bowl Week 1   (regular bowls + CFP First Round live here)
+//   18    Bowl Week 2   (regular bowls + CFP Quarterfinals)
+//   19    Bowl Week 3   (regular bowls + CFP Semifinals)
+//   20    National Championship
 //
 // This reads BOTH the new shape (gameType + numeric week) AND every legacy
 // shape (string week 'CCG' / 'Bowl' / 'Bowl 1'…, or the boolean is* flags),
@@ -939,13 +939,13 @@ export function gameSlot(game) {
   if (!game) return null
   const type = detectGameType(game)
   switch (type) {
-    case GAME_TYPES.CONFERENCE_CHAMPIONSHIP: return 15
-    case GAME_TYPES.CFP_FIRST_ROUND: return 16
-    case GAME_TYPES.CFP_QUARTERFINAL: return 17
-    case GAME_TYPES.CFP_SEMIFINAL: return 18
-    case GAME_TYPES.CFP_CHAMPIONSHIP: return 19
+    case GAME_TYPES.CONFERENCE_CHAMPIONSHIP: return 16
+    case GAME_TYPES.CFP_FIRST_ROUND: return 17
+    case GAME_TYPES.CFP_QUARTERFINAL: return 18
+    case GAME_TYPES.CFP_SEMIFINAL: return 19
+    case GAME_TYPES.CFP_CHAMPIONSHIP: return 20
     case GAME_TYPES.BOWL:
-      return game.bowlWeek === 'week3' ? 18 : game.bowlWeek === 'week2' ? 17 : 16
+      return game.bowlWeek === 'week3' ? 19 : game.bowlWeek === 'week2' ? 18 : 17
     default: {
       const w = Number(game.week)
       return Number.isFinite(w) ? w : 0
@@ -1496,12 +1496,12 @@ export function migrateRanksToRankByWeek(dynasty, options = {}) {
     if (g.isCFPSemifinal) return 103
     if (g.isCFPQuarterfinal) return 102
     if (g.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 15, Bowl Week 1 = 16,
-    // Bowl Week 2 = 17 (matches getGameOrderForRecord + the Rankings
+    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
+    // Bowl Week 2 = 18 (matches getGameOrderForRecord + the Rankings
     // labels). The old shared "100" slot collided CCG with bowls and
     // surfaced as a bogus "Week 100" in the Top 25 week picker.
-    if (g.isConferenceChampionship) return 15
-    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 17 : 16
+    if (g.isConferenceChampionship) return 16
+    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 18 : 17
     const w = Number(g.week)
     return Number.isFinite(w) ? w : null
   }
@@ -1679,12 +1679,12 @@ export function rebuildRankByWeekFromCurrentState(dynasty) {
     if (g.isCFPSemifinal) return 103
     if (g.isCFPQuarterfinal) return 102
     if (g.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 15, Bowl Week 1 = 16,
-    // Bowl Week 2 = 17 (matches getGameOrderForRecord + the Rankings
+    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
+    // Bowl Week 2 = 18 (matches getGameOrderForRecord + the Rankings
     // labels). The old shared "100" slot collided CCG with bowls and
     // surfaced as a bogus "Week 100" in the Top 25 week picker.
-    if (g.isConferenceChampionship) return 15
-    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 17 : 16
+    if (g.isConferenceChampionship) return 16
+    if (g.isBowlGame) return g.bowlWeek === 'week2' ? 18 : 17
     const w = Number(g.week)
     return Number.isFinite(w) ? w : null
   }
@@ -1762,10 +1762,10 @@ export function applyGameRanksToTeams(dynasty, game) {
     if (game.isCFPSemifinal) return 103
     if (game.isCFPQuarterfinal) return 102
     if (game.isCFPFirstRound) return 101
-    // Canonical rankByWeek slots: Conf Champ = 15, Bowl Week 1 = 16,
-    // Bowl Week 2 = 17 (see weekKeyOf above).
-    if (game.isConferenceChampionship) return 15
-    if (game.isBowlGame) return game.bowlWeek === 'week2' ? 17 : 16
+    // Canonical rankByWeek slots: Conf Champ = 16, Bowl Week 1 = 17,
+    // Bowl Week 2 = 18 (see weekKeyOf above).
+    if (game.isConferenceChampionship) return 16
+    if (game.isBowlGame) return game.bowlWeek === 'week2' ? 18 : 17
     const w = Number(game.week)
     return Number.isFinite(w) ? w : null
   })()
@@ -2026,8 +2026,8 @@ export function getTeamRanking(dynasty, tidOrAbbr, year) {
       // when no Final Poll is saved yet (still mid-postseason).
       // Final Poll (105) is the canonical "end-of-season" rank; CFP
       // rounds 101-104 are the per-round polls (post-FR through
-      // post-NC); slot 15 is the post-Week-14 Conf-Champ-Week poll.
-      const POSTSEASON_SLOTS = [105, 104, 103, 102, 101, 15]
+      // post-NC); slot 16 is the post-Week-15 Conf-Champ-Week poll.
+      const POSTSEASON_SLOTS = [105, 104, 103, 102, 101, 16]
       const pickPostseasonRank = () => {
         for (const slot of POSTSEASON_SLOTS) {
           const v = rankByWeek[slot] ?? rankByWeek[String(slot)]
@@ -2085,11 +2085,11 @@ export function getTeamRanking(dynasty, tidOrAbbr, year) {
         //
         // During CCG phase, dynasty.currentWeek = 1 (CCG is its own
         // phase, indexed week 1 within the phase) but the semantic
-        // rank slot is 15 (post-Week-14 / pre-CCG poll). Anchoring to
+        // rank slot is 16 (post-Week-15 / pre-CCG poll). Anchoring to
         // currentWeek=1 would surface every team's preseason rank on
-        // every team page during CCG week — override to slot 15.
+        // every team page during CCG week — override to slot 16.
         const isCCGPhase = phase === 'conference_championship'
-        const cw = isCCGPhase ? 15 : Number(dynasty.currentWeek)
+        const cw = isCCGPhase ? 16 : Number(dynasty.currentWeek)
         let snapshotWeek = -Infinity
         if (Number.isFinite(cw) && cw >= 0) {
           // Confirm at least one team has data for currentWeek; if not,
@@ -6030,7 +6030,10 @@ export function DynastyProvider({ children }) {
         let touched = false
         const next = { ...migrated }
 
-        if (next.currentPhase === 'regular_season' && Number(next.currentWeek) > 14) {
+        // Regular season is now 0–15 (16 weeks). Only weeks BEYOND 15 are
+        // invalid; bump those into the Conference Championship phase. A real
+        // Week 15 is left in place.
+        if (next.currentPhase === 'regular_season' && Number(next.currentWeek) > 15) {
           next.currentPhase = 'conference_championship'
           next.currentWeek = 1
           touched = true
@@ -6111,6 +6114,54 @@ export function DynastyProvider({ children }) {
         migrated = touched
           ? { ...migrated, teams: nextTeams, _rankSlot100MigratedV1: true }
           : { ...migrated, _rankSlot100MigratedV1: true }
+      }
+
+      // Adding a real regular-season Week 15 pushed every postseason rankByWeek
+      // slot up by one: Conf Champ 15→16, Bowl Week 1 16→17, Bowl Week 2 17→18,
+      // Bowl Week 3/Semis 18→19, Natl Champ 19→20. Shift any stored rank data so
+      // the freed slot 15 can hold the new Week 15 poll. Regular weeks 0–14 and
+      // CFP slots (101–105) are untouched. Shift in DESCENDING order so a
+      // destination is never clobbered before it's moved (slot 20 was unused).
+      // Runs AFTER the slot-100 collapse (which lands CCG data at slot 15).
+      // Idempotent — gated by _week15RankShiftV1.
+      if (!migrated._week15RankShiftV1) {
+        const teamsObj = migrated.teams || {}
+        let touched = false
+        const nextTeams = {}
+        for (const [tidKey, team] of Object.entries(teamsObj)) {
+          if (!team?.byYear) { nextTeams[tidKey] = team; continue }
+          let teamTouched = false
+          const nextByYear = {}
+          for (const [yearKey, yearEntry] of Object.entries(team.byYear)) {
+            const rbw = yearEntry?.rankByWeek
+            const has = (k) => rbw && (k in rbw || String(k) in rbw)
+            // The CC/bowl rank slots span 15–19 (CC=15, BW1=16, BW2=17, BW3/Semis=18,
+            // NatChamp=19 — bowl modals offer all of these; older CPU-game writes
+            // also populated 18). They ALL shift up one (→16–20). CFP poll slots
+            // (101–105) and regular weeks 0–14 are untouched. Slot 20 was unused.
+            if (!rbw || ![15, 16, 17, 18, 19].some(has)) {
+              nextByYear[yearKey] = yearEntry
+              continue
+            }
+            const get = (k) => rbw[k] ?? rbw[String(k)]
+            const v15 = get(15), v16 = get(16), v17 = get(17), v18 = get(18), v19 = get(19)
+            const nextRbw = { ...rbw }
+            ;[15, 16, 17, 18, 19].forEach(k => { delete nextRbw[k]; delete nextRbw[String(k)] })
+            // Assign HIGH→LOW so no destination is overwritten before it's moved.
+            if (v19 != null) nextRbw[20] = v19
+            if (v18 != null) nextRbw[19] = v18
+            if (v17 != null) nextRbw[18] = v17
+            if (v16 != null) nextRbw[17] = v16
+            if (v15 != null) nextRbw[16] = v15
+            nextByYear[yearKey] = { ...yearEntry, rankByWeek: nextRbw }
+            teamTouched = true
+          }
+          nextTeams[tidKey] = teamTouched ? { ...team, byYear: nextByYear } : team
+          if (teamTouched) touched = true
+        }
+        migrated = touched
+          ? { ...migrated, teams: nextTeams, _week15RankShiftV1: true }
+          : { ...migrated, _week15RankShiftV1: true }
       }
 
       // Apply stats migration if needed
@@ -6203,31 +6254,15 @@ export function DynastyProvider({ children }) {
         migrated._offseasonWeekCollapseV1 = true
       }
 
-      // Rescue saves caught by the short-lived "flip the year ON Signing Day"
-      // experiment (year flip at wk4→5). That model was reverted — Signing Day
-      // (wk5) is the LAST week of the OLD season again (pre-flip). A save that
-      // advanced through the experiment is now parked on offseason wk5 with the
-      // year ALREADY flipped: its roster has teamsByYear[currentYear] (carryover)
-      // and classProgressionDoneForYear === currentYear. The restored model
-      // treats wk5 as pre-flip, which would read/write the wrong (upcoming) year.
-      // Move such a save to wk6 (Training Results) — the consistent post-flip
-      // week — where its already-flipped state is correct. The user can revert
-      // wk6→wk5 to redo Signing Day on the proper (pre-flip) year if they want.
+      // NOTE: the "flip the year ON Signing Day" model is the ACTIVE model again
+      // (year flip at wk4→5; Signing Day wk5 is the FIRST week of the new season,
+      // post-flip). A save parked on offseason wk5 with the year already flipped
+      // (classProgressionDoneForYear === currentYear) is now in the CORRECT state
+      // and must be left exactly where it is. This migration — which previously
+      // shoved such saves forward to wk6 to rescue them under the reverted
+      // collapse model — is therefore a no-op. We keep the flag so the one-time
+      // pass is recorded and never re-evaluates.
       if (!migrated._offseasonRevertFlipExperimentV1) {
-        if (
-          migrated.currentPhase === 'offseason' &&
-          migrated.currentWeek === 5 &&
-          Number(migrated.classProgressionDoneForYear) === Number(migrated.currentYear)
-        ) {
-          // Double-check the flip really happened: at least one roster player
-          // carried into the current (post-flip) year. Guards against a stray
-          // classProgressionDoneForYear value on a genuinely pre-flip wk5 save.
-          const cy = migrated.currentYear
-          const flipped = (migrated.players || []).some(p =>
-            (p?.teamsByYear?.[cy] ?? p?.teamsByYear?.[String(cy)]) != null
-          )
-          if (flipped) migrated = { ...migrated, currentWeek: 6 }
-        }
         migrated._offseasonRevertFlipExperimentV1 = true
       }
 
@@ -10450,7 +10485,7 @@ export function DynastyProvider({ children }) {
       additionalUpdates.scheduleSheetId = null
       additionalUpdates.rosterSheetId = null
       additionalUpdates.rosterEditSheetId = null
-    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 14) {
+    } else if (dynasty.currentPhase === 'regular_season' && nextWeek > 15) {
       // After Week 14, move to Conference Championship Week. EA's calendar
       // is 15 regular-season weeks (0-14), then a dedicated CCG week, then
       // bowls/CFP. The earlier `nextWeek > 15` cap was off-by-one and let
@@ -10935,7 +10970,7 @@ export function DynastyProvider({ children }) {
         // Clear newJobData
         additionalUpdates.newJobData = null
       }
-    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 5 && nextWeek === 6) {
+    } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 4 && nextWeek === 5) {
       console.log('[advanceWeek] *** ENTERING WEEK 5→6 TRANSITION (SIGNING DAY / YEAR FLIP) ***')
 
       // YEAR FLIP - Happens when entering Signing Day (week 6)
@@ -12201,7 +12236,7 @@ export function DynastyProvider({ children }) {
       // slot would land the user in a state the migration would just
       // bump back into CCG on next load.)
       prevPhase = 'regular_season'
-      prevWeek = 14
+      prevWeek = 15
     } else if (currentPhase === 'postseason') {
       if (currentWeek <= 1) {
         // Postseason Week 1 → Conference Championship Week 1
@@ -12881,7 +12916,7 @@ export function DynastyProvider({ children }) {
           // Clear previousJobData since we've restored it
           additionalUpdates.previousJobData = null
         }
-      } else if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 5 && prevWeek === dynasty.currentWeek - 1) {
+      } else if (dynasty.currentWeek >= 2 && dynasty.currentWeek <= 4 && prevWeek === dynasty.currentWeek - 1) {
         // Reverting within recruiting weeks (2-5)
         // Clear recruiting commitments that were added in current week
         // Note: We don't delete recruits here, just clear sheet IDs as the actual
@@ -12889,19 +12924,9 @@ export function DynastyProvider({ children }) {
         additionalUpdates.recruitingSheetId = null
       } else if (dynasty.currentWeek === 6 && prevWeek === 5) {
         // Reverting FROM Training Results (week 6) TO National Signing Day (week 5).
-        // This transition crosses the year flip, so we do TWO things, in order:
-        //   (1) restore the player overalls the Training Results modal wrote at
-        //       wk6 (post-flip), then
-        //   (2) undo the year flip + class progression.
-        // currentYear is the NEW year (post-flip), prevYear will be currentYear - 1
-        prevYear = currentYear - 1
-        const newSeasonYear = currentYear // The year we're leaving
-        const previousSeasonYear = prevYear // The year we're going back to
-
-        // ---- (1) Restore Training Results overalls (entered at wk6) ----
-        // Folded in from the old standalone wk7→wk6 revert: Training Results
-        // moved to wk6, so reverting it now crosses the flip. Training data is
-        // keyed by the new (post-flip) year.
+        // With the flip at wk4→5, BOTH weeks are POST-flip — this does NOT cross
+        // the year flip. So we only restore the Training Results overalls the
+        // modal wrote at wk6 (year-keyed by the post-flip year).
         const trainingYear = currentYear
         let basePlayers = dynasty.players || []
         const trainingResults = dynasty.trainingResultsByYear?.[trainingYear]
@@ -12953,14 +12978,23 @@ export function DynastyProvider({ children }) {
             }
           }
         }
-        if (dynasty.recruitOverallsByYear) {
-          additionalUpdates.recruitOverallsByYear = deleteYearKeys(
-            dynasty.recruitOverallsByYear, trainingYear
-          )
-        }
+        // NOTE: do NOT clear recruitOverallsByYear here. Recruit Overalls is a
+        // Signing-Day (wk5) task keyed under the ending year S, not Training-
+        // Results (wk6) data. Reverting wk6→wk5 lands the user back ON Signing
+        // Day, so that data must survive.
 
-        // ---- (2) Undo year flip + class progression (over the training-restored roster) ----
-        const players = basePlayers
+        // Persist the training-overall restoration (no class-progression change here).
+        if (basePlayers.some((p, i) => p !== (dynasty.players || [])[i])) {
+          additionalUpdates.players = basePlayers
+        }
+      } else if (dynasty.currentWeek === 5 && prevWeek === 4) {
+        // Reverting FROM National Signing Day (week 5, POST-flip) TO Recruiting
+        // Week 3 (week 4, PRE-flip). This crosses the year flip → undo the flip
+        // + class progression. currentYear is the NEW year (post-flip).
+        prevYear = currentYear - 1
+        const newSeasonYear = currentYear // The year we're leaving
+        const previousSeasonYear = prevYear // The year we're going back to
+        const players = dynasty.players || []
 
         // Reverse class progression for all players
         // Remove teamsByYear[newSeasonYear] and classByYear[newSeasonYear] entries
@@ -13106,10 +13140,7 @@ export function DynastyProvider({ children }) {
           }
         })
 
-        // Compare against the ORIGINAL roster (not the training-restored
-        // basePlayers) so changes from EITHER step (1) or (2) get persisted.
-        const origPlayers = dynasty.players || []
-        if (updatedPlayers.some((p, i) => p !== origPlayers[i])) {
+        if (updatedPlayers.some((p, i) => p !== players[i])) {
           additionalUpdates.players = updatedPlayers
         }
 
@@ -13186,12 +13217,14 @@ export function DynastyProvider({ children }) {
         }
 
         // NOTE: We intentionally do NOT clear recruitingClassRankByTeamYear or
-        // draftResultsByTeamYear here. In the collapsed 7-week model those are
-        // entered PRE-flip (Class Rank on National Signing Day = wk5; Draft
-        // Results on Recruiting Week 1 = wk2). Reverting wk6→wk5 lands the user
-        // back ON Signing Day, so that data must survive — clearing it would
-        // silently wipe their entries. (In the old model these were post-flip,
-        // so the old un-flip cleared them.)
+        // draftResultsByTeamYear here. In the flip-on-Signing-Day model these are
+        // keyed under the ENDING season year S (= previousSeasonYear after this
+        // un-flip): Class Rank is a Signing-Day (wk5) task whose data year is
+        // currentYear-1, and Draft Results are entered earlier in the offseason
+        // under the same year. Un-flipping wk5→wk4 rolls the year back to S but
+        // leaves that S-keyed data in place, so re-advancing into Signing Day
+        // surfaces the user's entries again. Clearing it would silently wipe
+        // them.
       }
     }
 

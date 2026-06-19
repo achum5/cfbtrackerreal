@@ -79,11 +79,11 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
       : buildWeekRecapPrompt(currentDynasty, yearNum, weekNum)
   }, [currentDynasty, yearNum, weekNum, isPreseason])
 
-  const weekLabel = weekNum === 15 ? 'Conference Championship Week'
-    : weekNum === 16 ? 'Bowl Week 1'
-    : weekNum === 17 ? 'Bowl Week 2'
-    : weekNum === 18 ? 'Bowl Week 3 / CFP Semifinals'
-    : weekNum === 19 ? 'National Championship'
+  const weekLabel = weekNum === 16 ? 'Conference Championship Week'
+    : weekNum === 17 ? 'Bowl Week 1'
+    : weekNum === 18 ? 'Bowl Week 2'
+    : weekNum === 19 ? 'Bowl Week 3 / CFP Semifinals'
+    : weekNum === 20 ? 'National Championship'
     : `Week ${weekNum}`
 
   const heading = isPreseason

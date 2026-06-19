@@ -220,8 +220,8 @@ export default function Dashboard() {
     // names / scores in a postseason recap never become clickable).
     let prevSlot = null
     if (phase === 'regular_season') { if (cw >= 2) prevSlot = cw - 1 }
-    else if (phase === 'conference_championship') prevSlot = 14
-    else if (phase === 'postseason') prevSlot = Math.max(15, 14 + cw)
+    else if (phase === 'conference_championship') prevSlot = 15
+    else if (phase === 'postseason') prevSlot = Math.max(16, 15 + cw)
     if (prevSlot == null) return null
     const lastWeekText = currentDynasty?.weekRecapsByYear?.[yr]?.[prevSlot]?.text
     if (!lastWeekText) return null
@@ -333,7 +333,7 @@ export default function Dashboard() {
   // the ending-season year S for data tied to the season just played (playersLeaving,
   // recruiting, signing-day tasks) — it equals S at every offseason week (1–5 = currentYear,
   // 6–7 = currentYear-1).
-  const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 6
+  const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 5
   const offseasonDataYear = isAfterYearFlip
     ? currentDynasty?.currentYear - 1
     : currentDynasty?.currentYear
@@ -994,9 +994,9 @@ export default function Dashboard() {
     if (phase === 'regular_season') {
       if (cw >= 2) prevSlot = cw - 1
     } else if (phase === 'conference_championship') {
-      prevSlot = 14
+      prevSlot = 15
     } else if (phase === 'postseason') {
-      prevSlot = Math.max(15, 14 + cw)
+      prevSlot = Math.max(16, 15 + cw)
     }
     if (prevSlot == null) return null
     return currentDynasty.weekRecapsByYear?.[yr]?.[prevSlot] || null
@@ -1753,7 +1753,7 @@ export default function Dashboard() {
   // CLEAN SYSTEM: Only updates teamsByYear and movements - no legacy departure fields
   const handleTransferDestinationsSave = async (destinations) => {
     // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const nextYear = year + 1
     // CRITICAL: Get tid directly - tid is the ONLY source of truth
@@ -1879,8 +1879,9 @@ export default function Dashboard() {
 
   // Handle recruiting class rank save (National Signing Day)
   const handleRecruitingClassRankSave = async (rank) => {
-    // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    // The year flips ENTERING Signing Day (wk5), so from wk5 on the class being
+    // ranked belongs to the prior season (currentYear-1).
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName
     const existingRanks = currentDynasty.recruitingClassRankByTeamYear || {}
@@ -1926,7 +1927,7 @@ export default function Dashboard() {
   // Handle position changes save (National Signing Day)
   const handlePositionChangesSave = async (changes) => {
     // On Signing Day (week 6) or Training Camp (week 7), year has already flipped, so use previous year
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const existingChangesAll = currentDynasty.positionChangesByYear || {}
     const teamTid = getCurrentTeamTid(currentDynasty)
@@ -2054,7 +2055,7 @@ export default function Dashboard() {
   // Handle recruiting class overalls save
   const handleRecruitOverallsSave = async (results) => {
     // On Training Camp (week 7), the year has flipped, but recruits have recruitYear from before the flip
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
 
     // Update recruit overalls and jersey numbers in the players array
@@ -2103,7 +2104,7 @@ export default function Dashboard() {
   // Handle portal transfer class assignment save
   const handlePortalTransferClassSave = async (classSelections) => {
     // On Signing Day (week 6), the year has already flipped
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     // Portal transfers join in the year AFTER recruitment
     const joiningYear = isAfterYearFlip ? currentDynasty.currentYear : year + 1
@@ -2184,7 +2185,7 @@ export default function Dashboard() {
   // Handle fringe case class assignment save
   const handleFringeCaseClassSave = async (classSelections) => {
     // On Signing Day (week 6), the year has already flipped
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
 
     // Update player classes in the players array
@@ -2275,7 +2276,7 @@ export default function Dashboard() {
   // This function detects potential returning players AND players from other teams who might be transferring
   const handleRecruitingCommitmentsSave = async (recruits) => {
     // On Signing Day (week 6), year has already flipped, so use previous year for recruiting data
-    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 6
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
     const commitmentKey = getCommitmentKey()
     if (!commitmentKey) return
@@ -4281,7 +4282,7 @@ export default function Dashboard() {
             // since CCG week itself is unnumbered.
             {
               const yearNum = Number(currentDynasty.currentYear)
-              const prevWeek = 14
+              const prevWeek = 15
               const weeklyEntered = currentDynasty.weeklyScoresEntered?.[yearNum]?.[prevWeek]
               const savedCount = (currentDynasty.games || []).filter(g =>
                 g && Number(g.year) === yearNum && Number(g.week) === prevWeek
@@ -4289,13 +4290,13 @@ export default function Dashboard() {
               ).length
               const done = !!weeklyEntered || savedCount > 0
               todos.push({
-                key: 'cc-week14-scores',
+                key: 'cc-week15-scores',
                 done,
                 title: done
                   ? `${savedCount} Week ${prevWeek} Game${savedCount === 1 ? '' : 's'} Logged`
                   : `Enter Week ${prevWeek} Scores`,
                 subtitle: done
-                  ? 'Across-the-country Week 14 results saved'
+                  ? 'Across-the-country Week 15 results saved'
                   : 'Log results to update records & rankings',
                 viewTo: `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}`,
                 onAction: () => setWeeklyScoresModalWeek(prevWeek),
@@ -4306,16 +4307,16 @@ export default function Dashboard() {
             // Task: Generate Week 14 Recap.
             {
               const yearNum = Number(currentDynasty.currentYear)
-              const prevWeek = 14
+              const prevWeek = 15
               const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[prevWeek]
               const done = !!recap?.text
               todos.push({
-                key: 'cc-week14-recap',
+                key: 'cc-week15-recap',
                 done,
                 title: done ? `Week ${prevWeek} Recap Saved` : `Generate Week ${prevWeek} Recap`,
                 subtitle: done
                   ? 'Narrative recap stored for this week'
-                  : 'Generate the AI recap of Week 14',
+                  : 'Generate the AI recap of Week 15',
                 viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/${prevWeek}?tab=recap` : null,
                 onAction: () => setRecapModalContext({ year: yearNum, week: prevWeek }),
                 actionLabel: done ? 'Edit' : 'Generate',
@@ -4808,14 +4809,14 @@ export default function Dashboard() {
                 subtitle: hasCCData
                   ? `${ccGamesWithScores} of ${totalCCGames} conference championship games entered`
                   : 'Log all conference championship results',
-                viewTo: `${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/15`,
+                viewTo: `${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/16`,
                 onAction: () => setShowCCModal(true),
                 actionLabel: hasCCData ? 'Edit' : 'Enter',
               })
 
               {
                 const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[15]
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[16]
                 const done = !!recap?.text
                 bw1Todos.push({
                   key: 'cc-recap',
@@ -4824,8 +4825,8 @@ export default function Dashboard() {
                   subtitle: done
                     ? 'Narrative recap stored for Conference Championship Week'
                     : 'Generate the AI recap of Conference Championship Week',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/15?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 15 }),
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/16?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 16 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
@@ -5225,20 +5226,20 @@ export default function Dashboard() {
                   : `${totalEnteredWeek1}/29 games entered (incl. CFP First Round)`,
                 onAction: () => setShowBowlWeek1Modal(true),
                 actionLabel: hasBowlWeek1Data ? 'Edit' : 'Enter',
-                viewTo: hasBowlWeek1Data ? `${pathPrefix}/weekly-scores/${year}/16` : null,
+                viewTo: hasBowlWeek1Data ? `${pathPrefix}/weekly-scores/${year}/17` : null,
               })
 
               {
                 const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[16]
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[17]
                 const done = !!recap?.text
                 bw2Todos.push({
                   key: 'bw1-recap',
                   done,
                   title: done ? 'Bowl Week 1 Recap Saved' : 'Generate Bowl Week 1 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 1' : 'Generate the AI recap of Bowl Week 1',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/16?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 16 }),
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/17?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 17 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
@@ -5849,15 +5850,15 @@ export default function Dashboard() {
 
               {
                 const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[19]
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[20]
                 const done = !!recap?.text
                 w5Todos.push({
                   key: 'nc-recap',
                   done,
                   title: done ? 'National Championship Recap Saved' : 'Generate National Championship Recap',
                   subtitle: done ? 'Narrative recap stored for the National Championship' : 'Generate the AI recap of the National Championship',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/20?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 20 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
@@ -5984,20 +5985,20 @@ export default function Dashboard() {
                   : `${totalEnteredWeek2}/13 games entered (incl. CFP Quarterfinals)`,
                 onAction: () => setShowBowlWeek2Modal(true),
                 actionLabel: hasBowlWeek2Data ? 'Edit' : 'Enter',
-                viewTo: hasBowlWeek2Data ? `${pathPrefix}/weekly-scores/${year}/17` : null,
+                viewTo: hasBowlWeek2Data ? `${pathPrefix}/weekly-scores/${year}/18` : null,
               })
 
               {
                 const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[17]
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[18]
                 const done = !!recap?.text
                 w34Todos.push({
                   key: 'bw2-recap',
                   done,
                   title: done ? 'Bowl Week 2 Recap Saved' : 'Generate Bowl Week 2 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 2' : 'Generate the AI recap of Bowl Week 2',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/17?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 17 }),
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/18?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 18 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
@@ -6055,15 +6056,15 @@ export default function Dashboard() {
 
               {
                 const yearNum = Number(currentDynasty.currentYear)
-                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[18]
+                const recap = currentDynasty.weekRecapsByYear?.[yearNum]?.[19]
                 const done = !!recap?.text
                 w34Todos.push({
                   key: 'bw3-recap',
                   done,
                   title: done ? 'Bowl Week 3 Recap Saved' : 'Generate Bowl Week 3 Recap',
                   subtitle: done ? 'Narrative recap stored for Bowl Week 3' : 'Generate the AI recap of Bowl Week 3',
-                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/18?tab=recap` : null,
-                  onAction: () => setRecapModalContext({ year: yearNum, week: 18 }),
+                  viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
+                  onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
                   actionLabel: done ? 'Edit' : 'Generate',
                 })
               }
@@ -6484,9 +6485,12 @@ export default function Dashboard() {
             if (week >= 2 && week <= 5) {
               const recruitingWeekNum = week - 1
 
-              // Weeks 2–5 are all PRE-flip (the year flips on the wk5→6 advance),
-              // so the data year is always the current (ending-season) year.
-              const offseasonDataYear = currentDynasty.currentYear
+              // The year flips ENTERING Signing Day (wk4→5), so Signing Day is the
+              // first week of the new season. Weeks 2–4 are pre-flip (data year =
+              // currentYear); Signing Day (wk5) is POST-flip, so its data year is
+              // currentYear-1 — the recruiting class being signed belongs to the
+              // season just played, not the new one.
+              const offseasonDataYear = week === 5 ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
 
               const playersLeavingThisYear = currentDynasty?.playersLeavingByYear?.[offseasonDataYear] || []
               const draftDeclarees = playersLeavingThisYear.filter(p => p.reason === 'Pro Draft')
@@ -7127,10 +7131,10 @@ export default function Dashboard() {
         <div className="divide-y divide-surface-4 stagger-reveal">
           {teamSchedule && teamSchedule.length > 0 ? (
             <>
-              {/* Render all weeks 0-14 (15 regular-season weeks), showing
+              {/* Render all weeks 0-15 (16 regular-season weeks), showing
                   bye weeks for missing entries. Conference championships
                   live in their own phase, not in the regular schedule. */}
-              {Array.from({ length: 15 }, (_, weekNum) => {
+              {Array.from({ length: 16 }, (_, weekNum) => {
                 const entry = teamSchedule.find(e => Number(e.week) === weekNum)
 
                 // Handle BYE weeks - explicit bye, missing entry, or no opponent

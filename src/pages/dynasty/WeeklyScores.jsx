@@ -19,19 +19,19 @@ import buildRecapLinks from '../../utils/buildRecapLinks'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { useTeamColors } from '../../hooks/useTeamColors'
 
-const REGULAR_SEASON_WEEKS = Array.from({ length: 15 }, (_, i) => i)  // 0-14
+const REGULAR_SEASON_WEEKS = Array.from({ length: 16 }, (_, i) => i)  // 0-15
 
-// -1 = preseason preview (before week 0 games). Post-season: 15 = Conference
-// Championship, 16-19 = Bowl Weeks 1-4 (incl. CFP bracket).
-const ALL_WEEKS = [-1, ...REGULAR_SEASON_WEEKS, 15, 16, 17, 18, 19]
+// -1 = preseason preview (before week 0 games). Post-season: 16 = Conference
+// Championship, 17-20 = Bowl Weeks 1-4 (incl. CFP bracket).
+const ALL_WEEKS = [-1, ...REGULAR_SEASON_WEEKS, 16, 17, 18, 19, 20]
 
 const WEEK_LABELS = {
   [-1]: 'Preseason',
-  15: 'Conf Champ',
-  16: 'Bowl Week 1',
-  17: 'Bowl Week 2',
-  18: 'Bowl Week 3',
-  19: 'Natl Champ',
+  16: 'Conf Champ',
+  17: 'Bowl Week 1',
+  18: 'Bowl Week 2',
+  19: 'Bowl Week 3',
+  20: 'Natl Champ',
 }
 
 // Returns a human-readable label; regular weeks stay as "Week N".
@@ -39,20 +39,20 @@ const weekLabelFor = (wk) => WEEK_LABELS[wk] ?? `Week ${wk}`
 
 // Maps a game to the numeric week slot used as the key in gamesByWeek.
 // Regular weeks 0-14 come from game.week. Post-season slots:
-//   15 = Conference Championship
-//   16 = Bowl Week 1 + CFP First Round
-//   17 = Bowl Week 2 + CFP Quarterfinal
-//   18 = Bowl Week 3 / CFP Semifinal
-//   19 = National Championship
+//   16 = Conference Championship
+//   17 = Bowl Week 1 + CFP First Round
+//   18 = Bowl Week 2 + CFP Quarterfinal
+//   19 = Bowl Week 3 / CFP Semifinal
+//   20 = National Championship
 const weekBucketFor = (g) => {
   const type = detectGameType(g)
-  if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 15
-  if (type === GAME_TYPES.CFP_FIRST_ROUND) return 16
-  if (type === GAME_TYPES.CFP_QUARTERFINAL) return 17
-  if (type === GAME_TYPES.CFP_SEMIFINAL) return 18
-  if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 19
+  if (type === GAME_TYPES.CONFERENCE_CHAMPIONSHIP) return 16
+  if (type === GAME_TYPES.CFP_FIRST_ROUND) return 17
+  if (type === GAME_TYPES.CFP_QUARTERFINAL) return 18
+  if (type === GAME_TYPES.CFP_SEMIFINAL) return 19
+  if (type === GAME_TYPES.CFP_CHAMPIONSHIP) return 20
   if (type === GAME_TYPES.BOWL) {
-    return g.bowlWeek === 'week2' ? 17 : 16
+    return g.bowlWeek === 'week2' ? 18 : 17
   }
   const wk = Number(g.week)
   return Number.isFinite(wk) ? wk : null
@@ -414,14 +414,14 @@ export default function WeeklyScores() {
     const week = Number(currentDynasty?.currentWeek)
     if (phase === 'preseason') return -1
     if (phase === 'regular_season') return Math.max(0, week - 1)
-    if (phase === 'conference_championship') return 15
-    // postseason week 1 → show CCG (15), week 2 → BW1 (16), week 3 → BW2 (17), etc.
+    if (phase === 'conference_championship') return 16
+    // postseason week 1 → show CCG (16), week 2 → BW1 (17), week 3 → BW2 (18), etc.
     // mirrors regular season "show the last completed week" pattern
-    if (phase === 'postseason') return Math.max(15, 14 + week)
+    if (phase === 'postseason') return Math.max(16, 15 + week)
     // offseason / anything past the postseason: the season is fully played, so
     // land on the most recent week that has results — the final bowl/CFP week,
-    // not Conf Champ. Falls back to 15 if somehow nothing's been played.
-    return latestPlayedWeekForYear(currentDynasty?.games, displayYear) ?? 15
+    // not Conf Champ. Falls back to 16 if somehow nothing's been played.
+    return latestPlayedWeekForYear(currentDynasty?.games, displayYear) ?? 16
   })()
 
   // Tab state lives in the URL (?tab=scores|recap) so deep-links from the
@@ -519,7 +519,7 @@ export default function WeeklyScores() {
         const rankSlot = (() => {
           const phase = currentDynasty?.currentPhase
           const wk = Number(currentDynasty?.currentWeek)
-          return phase === 'postseason' && Number.isFinite(wk) ? 15 + wk : 16
+          return phase === 'postseason' && Number.isFinite(wk) ? 16 + wk : 17
         })()
         await saveRankings(currentDynasty.id, pollEntries, year, rankSlot)
       }
@@ -554,7 +554,7 @@ export default function WeeklyScores() {
         const rankSlot = (() => {
           const phase = currentDynasty?.currentPhase
           const wk = Number(currentDynasty?.currentWeek)
-          return phase === 'postseason' && Number.isFinite(wk) ? 15 + wk : 17
+          return phase === 'postseason' && Number.isFinite(wk) ? 16 + wk : 18
         })()
         await saveRankings(currentDynasty.id, pollEntries, year, rankSlot)
       }
@@ -790,7 +790,7 @@ export default function WeeklyScores() {
                 onChange={handleYearChange}
                 ariaLabel="Select year"
               />
-              {displayWeek >= 0 && displayWeek < 15 && <span>Week</span>}
+              {displayWeek >= 0 && displayWeek < 16 && <span>Week</span>}
               <InlineYearSelect
                 value={displayWeek}
                 years={ALL_WEEKS}
@@ -819,22 +819,22 @@ export default function WeeklyScores() {
               </select>
               {!isViewOnly && (
                 <>
-                  {displayWeek <= 14 && (
+                  {displayWeek <= 15 && (
                     <button type="button" onClick={() => setEditing(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title={`Edit ${weekLabelFor(displayWeek)} scores`}>
                       Edit Scores
                     </button>
                   )}
-                  {displayWeek === 15 && (
+                  {displayWeek === 16 && (
                     <button type="button" onClick={() => setCcModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Conference Championship scores">
                       Enter Scores
                     </button>
                   )}
-                  {displayWeek === 16 && (
+                  {displayWeek === 17 && (
                     <button type="button" onClick={() => setBowlWeek1Open(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Bowl Week 1 scores">
                       Enter Scores
                     </button>
                   )}
-                  {displayWeek === 17 && (
+                  {displayWeek === 18 && (
                     <button type="button" onClick={() => setBowlWeek2Open(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Enter Bowl Week 2 scores">
                       Enter Scores
                     </button>
@@ -925,7 +925,7 @@ export default function WeeklyScores() {
               message={
                 isViewOnly
                   ? `The dynasty owner hasn't entered ${weekLabelFor(displayWeek)} scores for ${displayYear} yet.`
-                  : displayWeek <= 14
+                  : displayWeek <= 15
                     ? `Click "Edit Scores" to enter results from across the country.`
                     : `Click "Enter Scores" to add ${weekLabelFor(displayWeek)} results.`
               }

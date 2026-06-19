@@ -329,10 +329,10 @@ export default function GameEntryModal({
     // Helper to get a numeric order for any phase/week combination
     const getOrder = (phase, week, gameFlags = {}) => {
       if (phase === 'preseason') return 0
-      if (phase === 'regular_season') return week // 1-14
+      if (phase === 'regular_season') return week // 0-15
       if (phase === 'postseason') {
-        // Postseason weeks 1-4 map to orders 15-18
-        return 14 + week
+        // Postseason weeks 1-4 map to orders 16-19
+        return 15 + week
       }
       if (phase === 'offseason') return 100
       return 0

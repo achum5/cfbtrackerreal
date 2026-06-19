@@ -17,7 +17,7 @@ describe('parseRecruitingRow — legacy A–O parity', () => {
       gemBust: '', devTrait: 'Elite', previousTeam: '',
       isPortal: false,
       // new fields default harmlessly on a legacy sheet:
-      commitment: '', attributes: null, pid: undefined,
+      commitment: '', attributes: null, pid: undefined, nil: null,
     })
   })
 

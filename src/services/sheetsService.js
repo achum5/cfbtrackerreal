@@ -1134,10 +1134,10 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
     const userTeamAbbr = getAbbrFromTeamName(userTeamName, dynastyTeams)
 
     // Build schedule data rows - either from existing schedule or empty.
-    // Week 0-14 = 15 weeks of regular season. Conference championship
+    // Week 0-15 = 16 weeks of regular season. Conference championship
     // week is its own phase, not a numbered regular-season week.
-    const scheduleRows = Array.from({ length: 15 }, (_, i) => {
-      const week = i  // Week 0-14
+    const scheduleRows = Array.from({ length: 16 }, (_, i) => {
+      const week = i  // Week 0-15
       const existingGame = existingSchedule.find(g => Number(g.week) === week)
 
       // Convert location to Site format (Home/Road/Neutral)
@@ -1185,7 +1185,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           range: {
             sheetId: scheduleSheetId,
             startRowIndex: 1,
-            endRowIndex: 16,  // 15 data rows (weeks 0-14) + 1 header
+            endRowIndex: 17,  // 16 data rows (weeks 0-15) + 1 header
             startColumnIndex: 0,
             endColumnIndex: 4
           },
@@ -1792,12 +1792,9 @@ export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams 
           location
         }
       })
-      // Drop any row claiming to be Week 15+: regular season is Week
-      // 0-14 under the new model. CCG / bowls / CFP are entered through
-      // dedicated flows. An old sheet that still has a Week 15 row
-      // would otherwise import as a phantom Week 15 schedule entry that
-      // never displays in the schedule UI.
-      .filter(entry => entry.week >= 0 && entry.week <= 14)
+      // Drop any row claiming to be Week 16+: regular season is Week
+      // 0-15. CCG / bowls / CFP are entered through dedicated flows.
+      .filter(entry => entry.week >= 0 && entry.week <= 15)
   } catch (error) {
     console.error('Error reading schedule:', error)
     throw error
@@ -15414,10 +15411,10 @@ export async function readFringeCaseClassFromSheet(spreadsheetId, dynastyTeams =
 // users to enter CCG rankings into a dead column. Dropped here so the
 // sheet exposes ONE clearly-labeled CCG column at slot 15, and any
 // stray slot-100 data is migrated to slot 15 in the dynasty loader.
-const TOP25_WEEK_KEYS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 101, 102, 103, 104, 105]
+const TOP25_WEEK_KEYS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 101, 102, 103, 104, 105]
 const TOP25_WEEK_LABELS = {
   0: 'Preseason',
-  15: 'CCG',
+  16: 'CCG',
   101: 'CFP-1',
   102: 'CFP-Q',
   103: 'CFP-S',

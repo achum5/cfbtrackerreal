@@ -804,7 +804,7 @@ export default function TeamYear() {
     .sort((a, b) => weekSortKey(a.week) - weekSortKey(b.week))
 
   // Get user's team record for this year (if viewing user's team page)
-  // Sort by game phase order: regular season (1-14), CC (15), CFP R1 (16), CFP QF (17), CFP SF (18), CFP Champ (19), other bowls (20)
+  // Sort by game phase order: regular season (0-15), CC (16), CFP R1 (17), CFP QF (18), CFP SF (19), CFP Champ (20), other bowls (21)
   const getGameSortOrder = (game) => {
     // Regular season games
     if (!game.isConferenceChampionship && !game.isBowlGame && !game.isPlayoff &&
@@ -812,16 +812,16 @@ export default function TeamYear() {
       return game.week || 0
     }
     // Conference Championship
-    if (game.isConferenceChampionship) return 15
+    if (game.isConferenceChampionship) return 16
     // CFP games in order
-    if (game.isCFPFirstRound) return 16
-    if (game.isCFPQuarterfinal) return 17
-    if (game.isCFPSemifinal) return 18
-    if (game.isCFPChampionship) return 19
+    if (game.isCFPFirstRound) return 17
+    if (game.isCFPQuarterfinal) return 18
+    if (game.isCFPSemifinal) return 19
+    if (game.isCFPChampionship) return 20
     // Other bowl games (non-CFP)
-    if (game.isBowlGame) return 20
+    if (game.isBowlGame) return 21
     // Fallback for other playoff games
-    if (game.isPlayoff) return 20 + (game.week || 0)
+    if (game.isPlayoff) return 21 + (game.week || 0)
     return 99
   }
   // Get games for THIS TEAM from games array
@@ -1277,12 +1277,12 @@ export default function TeamYear() {
       .sort((a, b) => {
         // Sort by week/game order to get the most recent
         const getOrder = (g) => {
-          if (g.isConferenceChampionship) return 15
-          if (g.isBowlGame) return 16 + (parseInt(String(g.bowlWeek).replace('week', '') || '0'))
-          if (g.isCFPFirstRound) return 20
-          if (g.isCFPQuarterfinal) return 21
-          if (g.isCFPSemifinal) return 22
-          if (g.isCFPChampionship) return 23
+          if (g.isConferenceChampionship) return 16
+          if (g.isBowlGame) return 17 + (parseInt(String(g.bowlWeek).replace('week', '') || '0'))
+          if (g.isCFPFirstRound) return 21
+          if (g.isCFPQuarterfinal) return 22
+          if (g.isCFPSemifinal) return 23
+          if (g.isCFPChampionship) return 24
           return g.week || 0
         }
         return getOrder(b) - getOrder(a) // Descending - most recent first

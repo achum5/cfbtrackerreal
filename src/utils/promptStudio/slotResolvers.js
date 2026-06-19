@@ -643,7 +643,7 @@ export function resolveYearSlot(dynasty, year, options = {}) {
   const userTid = dynasty?.currentTid
   const userName = userTid != null ? teamLabel(dynasty, userTid) : '—'
   const userRec = userTid != null ? formatRecord(getTeamRecord(dynasty, userTid, year)) : '—'
-  const userRank = userTid != null ? getTeamRankForWeek(dynasty, userTid, year, 15) : null
+  const userRank = userTid != null ? getTeamRankForWeek(dynasty, userTid, year, 16) : null
 
   const out = []
   out.push(`### Year: ${year}`)

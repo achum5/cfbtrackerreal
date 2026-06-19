@@ -6,6 +6,7 @@ import { inferPlayStyle } from '../../utils/scoutGrade'
 import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
+import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getOriginalTeamAbbr, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../../data/teams'
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -167,6 +168,7 @@ export default function Recruiting() {
   }
   const [showEditModal, setShowEditModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [showRankModal, setShowRankModal] = useState(false)
 
   const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty?.teamName
   const currentTeamTid = resolveTid(currentTeamAbbr, TEAMS)
@@ -308,6 +310,72 @@ export default function Recruiting() {
   }
 
   const isAllSeasons = selectedYear === 'all'
+
+  // Edit the national class rank for the CURRENTLY-SELECTED team + year (the
+  // dropdowns above). Unlike the Dashboard's Signing-Day modal — which is hard-
+  // wired to the offseason data year — this lets the user correct a rank that
+  // landed on the wrong season (e.g. a 2036 class that should have been 2035).
+  // Pass rank = null to clear the year's rank entirely.
+  const handleRankSave = async (rank) => {
+    if (!currentDynasty?.id || isAllSeasons) return
+    const year = selectedYear
+    const tid = selectedTid
+    const abbr = teamAbbr
+    const existingRanks = currentDynasty.recruitingClassRankByTeamYear || {}
+
+    // A rank can be stored under several aliases for the same team (current
+    // abbr, numeric tid, a renamed-team's old abbr). lookupByTeamYear reads ALL
+    // of them via drift-recovery, so a clear must scrub the year from every key
+    // that resolves to this tid — otherwise the old value re-surfaces and it
+    // looks like "nothing happened." A set scrubs the aliases too, then writes
+    // the canonical abbr + tid keys, so no conflicting stale value lingers.
+    const keyResolvesToTid = (key) => {
+      if (tid == null) return false
+      if (/^\d+$/.test(String(key))) return Number(key) === Number(tid)
+      const k = getTidFromAbbr(key, currentDynasty)
+      return k != null && Number(k) === Number(tid)
+    }
+
+    const nextRanks = {}
+    for (const [key, sub] of Object.entries(existingRanks)) {
+      if (keyResolvesToTid(key)) {
+        const copy = { ...(sub || {}) }
+        delete copy[year]
+        delete copy[String(year)]
+        nextRanks[key] = copy
+      } else {
+        nextRanks[key] = sub
+      }
+    }
+    if (rank != null) {
+      if (abbr) nextRanks[abbr] = { ...(nextRanks[abbr] || {}), [year]: rank }
+      if (tid != null) nextRanks[tid] = { ...(nextRanks[tid] || {}), [year]: rank }
+    }
+    const updates = { recruitingClassRankByTeamYear: nextRanks }
+
+    // Mirror into the tid-based teams[tid].byYear[year].recruitingClassRank store.
+    if (tid != null && currentDynasty.teams?.[tid]) {
+      const existingTeams = currentDynasty.teams
+      const existingTeamData = existingTeams[tid] || {}
+      const existingByYear = existingTeamData.byYear || {}
+      const existingYearData = existingByYear[year] || existingByYear[String(year)] || {}
+      const nextYearData = { ...existingYearData }
+      if (rank == null) {
+        delete nextYearData.recruitingClassRank
+      } else {
+        nextYearData.recruitingClassRank = rank
+      }
+      updates.teams = {
+        ...existingTeams,
+        [tid]: {
+          ...existingTeamData,
+          byYear: { ...existingByYear, [year]: nextYearData },
+        },
+      }
+    }
+
+    await updateDynasty(currentDynasty.id, updates)
+  }
 
   const handleRecruitingSave = async (recruits) => {
     if (!currentDynasty?.id) return
@@ -1083,13 +1151,22 @@ export default function Recruiting() {
             </div>
           </div>
           {!isViewOnly && !isAllSeasons && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="self-start sm:self-center flex-shrink-0 px-4 py-1.5 rounded-lg font-display font-bold uppercase tracking-wide text-sm hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: teamBgText, color: teamAccent }}
-            >
-              Edit
-            </button>
+            <div className="self-start sm:self-center flex-shrink-0 flex items-center gap-2">
+              <button
+                onClick={() => setShowRankModal(true)}
+                className="px-4 py-1.5 rounded-lg font-display font-bold uppercase tracking-wide text-sm hover:opacity-90 transition-opacity border"
+                style={{ borderColor: teamBgText, color: teamBgText, backgroundColor: 'transparent' }}
+              >
+                Edit Rank
+              </button>
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="px-4 py-1.5 rounded-lg font-display font-bold uppercase tracking-wide text-sm hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: teamBgText, color: teamAccent }}
+              >
+                Edit
+              </button>
+            </div>
           )}
         </div>
 
@@ -1320,6 +1397,15 @@ export default function Recruiting() {
         recruitingLabel={`${selectedYear} Recruiting Class`}
         existingCommitments={allCommitmentsUnfiltered}
         teamColors={{ primary: 'var(--text-primary)', secondary: 'var(--team-secondary)' }}
+      />
+
+      <RecruitingClassRankModal
+        isOpen={showRankModal}
+        onClose={() => setShowRankModal(false)}
+        onSave={handleRankSave}
+        currentRank={nationalRank}
+        seasonLabel={!isAllSeasons ? `${selectedYear} ${teamFullName}` : ''}
+        teamColors={teamColorsRaw}
       />
 
       <Modal

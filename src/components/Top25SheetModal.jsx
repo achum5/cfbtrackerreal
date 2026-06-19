@@ -489,7 +489,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
 function Top25DiffConfirmModal({ summary, yearTotals, unknownAbbrs, alsoDelete, onCancel, onConfirm, applying }) {
   const weekLabel = (w) => {
     if (w === 0) return 'Preseason'
-    if (w === 15) return 'CCG'
+    if (w === 16) return 'CCG'
     if (w === 101) return 'CFP-1'
     if (w === 102) return 'CFP-Q'
     if (w === 103) return 'CFP-S'
