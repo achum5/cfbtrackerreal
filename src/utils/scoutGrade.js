@@ -84,7 +84,19 @@ export const SCOUT_WEIGHTS = {
     [`${p}_Coverage Specialist`]: { 'Man Coverage': 8, 'Zone Coverage': 8, Speed: 7, Acceleration: 6, Catching: 6, 'Change of Direction': 5, Agility: 5, Awareness: 5 },
     [`${p}_Hybrid`]:              { 'Man Coverage': 6, 'Zone Coverage': 6, Tackle: 6, Speed: 6, Awareness: 6, Acceleration: 5, 'Change of Direction': 4, Press: 4 },
   }), {}),
+  // ── K / P (specialists are graded on leg attributes ONLY — speed, throwing,
+  // tackling etc. are noise for a kicker/punter and must not drag the score) ──
+  ...['K', 'P'].reduce((o, p) => ({
+    ...o,
+    [`${p}_Accurate`]: { 'Kick Accuracy': 9, 'Punt Accuracy': 9, 'Kick Power': 6, 'Punt Power': 6, Awareness: 3 },
+    [`${p}_Power`]:    { 'Kick Power': 9, 'Punt Power': 9, 'Kick Accuracy': 6, 'Punt Accuracy': 6, Awareness: 3 },
+  }), {}),
 }
+
+// Leg-only fallback for a K/P recruit whose archetype is blank/unrecognized, so
+// the grade still ignores non-kicking attributes instead of flat-averaging them.
+const KP_FALLBACK_WEIGHTS = { 'Kick Power': 8, 'Kick Accuracy': 8, 'Punt Power': 8, 'Punt Accuracy': 8, Awareness: 3 }
+const isKickerPunter = (player) => ['K', 'P'].includes((player?.position || '').toUpperCase())
 
 // Adjustments — our own calibration (kept modest so scouted attributes dominate).
 export const DEV_ADJ = { Elite: 10, Star: 5, Impact: 2, Normal: -5 }
@@ -105,6 +117,7 @@ function baseScore(player, weightsOverride) {
   const present = Object.keys(attrs).filter((k) => typeof Number(attrs[k]) === 'number' && Number.isFinite(Number(attrs[k])))
   if (!present.length) return null
   const weights = weightsOverride || SCOUT_WEIGHTS[archetypeKey(player.position, player.archetype)]
+    || (isKickerPunter(player) ? KP_FALLBACK_WEIGHTS : null)
   if (!weights) {
     // No profile — flat average of scouted attributes.
     const sum = present.reduce((a, k) => a + Number(attrs[k]), 0)
@@ -137,11 +150,25 @@ function physBonus(player) {
   return Math.min(b, 6)
 }
 
-// Dev-trait adjustment. For a hidden trait we estimate from stars — using the
-// learned per-star prior when the model has one, else the static heuristic.
+// When the dev trait is still hidden, a Gem/Bust scouting read is the strongest
+// hint we have: a Gem out-develops its stars (project Star, or Elite for a
+// blue-chip), a Bust under-develops (project Normal). Returns the projected
+// trait label, or null when there's no gem/bust read to go on.
+export function gemBustProjectedDev(player) {
+  const gb = String(player?.gemBust || '').trim().toLowerCase()
+  if (gb === 'gem') return (parseInt(player?.stars, 10) || 3) >= 4 ? 'Elite' : 'Star'
+  if (gb === 'bust') return 'Normal'
+  return null
+}
+
+// Dev-trait adjustment. A known trait wins. Otherwise a Gem/Bust read projects a
+// trait; failing that we estimate from stars — the learned per-star prior when
+// the model has one, else the static heuristic.
 function devAdj(player, devPriors) {
   const d = player.devTrait
   if (d && DEV_ADJ[d] != null) return DEV_ADJ[d]
+  const proj = gemBustProjectedDev(player)
+  if (proj) return DEV_ADJ[proj]
   const stars = parseInt(player.stars, 10) || 3
   if (devPriors && devPriors[stars] != null) return devPriors[stars]
   return HIDDEN_DEV_BY_STAR[stars] ?? 1
@@ -205,6 +232,30 @@ export function scoutLetter(score) {
 export function scoutGrade(player, model = null) {
   const score = computeScoutScore(player, model)
   return { score, tier: scoutTier(score) }
+}
+
+// Realistic INCOMING-FRESHMAN overall projection. This is NOT the scout grade
+// (a 0–99 prospect grade that runs into the 90s); it's the OVR a recruit would
+// actually carry as a true freshman. Anchored on star rating — the strongest
+// real-world predictor — within bands observed in CFB 26 (the very best
+// freshmen in a class top out around 82–84; typical 5-stars land high-70s/low-
+// 80s, 4-stars low-mid 70s, 3-stars high-60s/low-70s), nudged a little by how
+// the prospect grades within his star. `model.levelGap`, once the calibration
+// model is active, refines the nudge toward this dynasty's observed reality.
+const FRESHMAN_OVR_BASE = { 5: 79, 4: 74, 3: 70, 2: 66, 1: 62 }
+const FRESHMAN_OVR_BAND = { 5: [76, 84], 4: [71, 79], 3: [66, 74], 2: [61, 70], 1: [57, 66] }
+export function projectFreshmanOvr(player, score, model = null) {
+  if (score == null) return null
+  const stars = Math.max(1, Math.min(5, parseInt(player?.stars, 10) || 3))
+  const base = FRESHMAN_OVR_BASE[stars]
+  const [lo, hi] = FRESHMAN_OVR_BAND[stars]
+  // Within-star nudge from grade (centered on a solid ~80 grade). If the model
+  // has learned this dynasty's grade→OVR gap, anchor the nudge on that instead.
+  const gap = model?.active && Number.isFinite(model.levelGap) ? model.levelGap : null
+  const nudge = gap != null
+    ? (score - gap) - base            // model-anchored: how far the calibrated projection sits off the star base
+    : (score - 80) * 0.2              // prior: gentle slope, band clamps outliers
+  return Math.max(lo, Math.min(hi, Math.round(base + Math.max(-6, Math.min(6, nudge)))))
 }
 
 // ── Scheme fit ───────────────────────────────────────────────────────────────
@@ -275,6 +326,7 @@ export function gradeBreakdown(player, model = null) {
   const key = archetypeKey(player.position, player.archetype)
   const learned = (model?.active && model.learnedWeights?.[key]) || null
   const weights = learned || SCOUT_WEIGHTS[key]
+    || (isKickerPunter(player) ? KP_FALLBACK_WEIGHTS : null)
 
   let base, usesWeights = false, factors = []
   const keyed = weights ? present.filter((k) => (weights[k] || 0) > 0) : []
@@ -305,7 +357,11 @@ export function gradeBreakdown(player, model = null) {
     { kind: 'base', label: usesWeights ? (learned ? 'Learned attribute base' : 'Weighted attribute base') : 'Attribute average', value: Math.round(base),
       note: usesWeights ? `${keyed.length} archetype attribute${keyed.length === 1 ? '' : 's'}${learned ? ', weights tuned from outcomes' : ''}` : 'flat average (no archetype profile)' },
     { kind: 'dev', label: 'Development', value: dev,
-      note: hasDev ? `${player.devTrait} dev trait` : `projected from ${stars}★ (dev trait hidden${model?.active && model.devPriors?.[stars] != null ? ', learned' : ''})` },
+      note: hasDev
+        ? `${player.devTrait} dev trait`
+        : gemBustProjectedDev(player)
+          ? `projected ${gemBustProjectedDev(player)} (${cap(String(player.gemBust).toLowerCase())} read, dev trait hidden)`
+          : `projected from ${stars}★ (dev trait hidden${model?.active && model.devPriors?.[stars] != null ? ', learned' : ''})` },
     { kind: 'star', label: 'Recruit ranking', value: star, note: `${stars}-star prospect` },
     { kind: 'phys', label: 'Physical tools', value: phys, note: phys > 0 ? 'elite measurables bonus' : 'no elite-tool bonus' },
   ]
@@ -373,16 +429,26 @@ function listPhrase(xs) {
 // "trait (value)" — the standard way ratings are laid out in the prose.
 const rated = (name, value) => `${blurb(name)} (${value})`
 
+const ordinal = (n) => {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+// "Name (84 OVR, Jr)" — how a returning roster player is cited in the slotting line.
+const roomMember = (x) => `${x.name} (${x.ovr} OVR${x.cls ? `, ${x.cls}` : ''})`
+
 /**
  * A structured scouting dossier — an array of { group, label, body } sentences,
  * or null when the player is unscouted. `group` ('overview' | 'fit' | 'verdict')
  * lets callers fold the sentences into flowing paragraphs.
  * @param {object} player
  * @param {'pass'|'run'|'balanced'} playStyle  the team's offensive identity
- * @param {null | { group?: string, returning: number, rank?: number }} depth
- *        next-season depth at the player's position group (returning headcount +
- *        need rank: 2 = below starters, 1 = thin, 0 = stocked). Omit for callers
- *        without roster context (e.g. cards).
+ * @param {null | { group?: string, returning: number, rank?: number,
+ *          room?: Array<{ name: string, ovr: number|null, cls?: string }>,
+ *          projOvr?: number }} depth
+ *        next-season depth at the player's position group: returning headcount,
+ *        the actual returning ROOM (name/OVR/class, for slotting), and the
+ *        recruit's projected freshman OVR. Omit for callers without roster
+ *        context (e.g. cards).
  */
 export function scoutDossier(player, playStyle = 'balanced', depth = null, model = null) {
   const bd = gradeBreakdown(player, model)
@@ -472,27 +538,55 @@ export function scoutDossier(player, playStyle = 'balanced', depth = null, model
     out.push({ group: 'fit', label: 'Scheme fit', body: `Schematically he is a stretch for your ${scheme} offense; you would be tailoring usage to his strengths rather than plugging him into a defined role.` })
   }
 
-  // Depth-chart fit — against your ACTUAL returning headcount next season.
+  // Depth-chart fit — slot his PROJECTED freshman OVR into your ACTUAL returning
+  // room at the position, naming the players he would sit behind and ahead of.
   if (depth && Number.isFinite(depth.returning)) {
     const g = depth.group || posLabel
-    const n = depth.returning
-    const rank = depth.rank ?? 0
+    const room = (depth.room || []).filter((x) => Number.isFinite(x.ovr)).sort((a, b) => b.ovr - a.ovr)
+    const proj = Number.isFinite(depth.projOvr) ? depth.projOvr : null
     let body
-    if (n <= 0) body = `With nobody returning at ${g} next season, he would have a clear runway to early snaps.`
-    else if (rank >= 2) body = `You return just ${n} at ${g} next season — short of a full starting group — so he would push into the two-deep immediately.`
-    else if (rank === 1) body = `You return ${n} at ${g} next season, thin depth, so he would add a needed body to the rotation.`
-    else body = `You are stocked at ${g} with ${n} returning next season, so he would likely develop behind an established room before earning snaps.`
+    if (depth.returning <= 0 || room.length === 0) {
+      // Nobody (rated) returns: open competition.
+      body = depth.returning <= 0
+        ? `With nobody returning at ${g} next season, the job is open — he would have a clear runway to early snaps.`
+        : `Your ${depth.returning} returning ${g}${depth.returning === 1 ? '' : 's'} next season ${depth.returning === 1 ? 'is' : 'are'} unrated, but the room is thin enough that he could push for snaps right away.`
+    } else if (proj == null) {
+      body = `You return ${depth.returning} at ${g} next season; once he is scouted further we can project exactly where he slots.`
+    } else {
+      const ahead = room.filter((x) => x.ovr > proj)
+      const behind = room.filter((x) => x.ovr <= proj)
+      const slot = ordinal(ahead.length + 1)
+      if (ahead.length === 0) {
+        const top = room[0]
+        body = `Projecting around ${proj} OVR as a true freshman, he would walk in as your top ${g} from day one — above a returning room led by ${roomMember(top)}.`
+      } else {
+        const aheadNamed = ahead.slice(0, 3).map(roomMember)
+        const aheadPhrase = ahead.length > 3 ? `${listPhrase(aheadNamed)} and ${ahead.length - 3} more` : listPhrase(aheadNamed)
+        const tail = behind.length
+          ? ` and ahead of ${behind.length === 1 ? roomMember(behind[0]) : `${behind.length} others`}`
+          : ''
+        const role = ahead.length <= 1 ? 'right into the two-deep' : ahead.length === 2 ? 'into the rotation' : 'a likely redshirt-and-develop year before he factors'
+        body = `Projecting around ${proj} OVR as a true freshman, he would slot ${slot} at ${g} next season — behind ${aheadPhrase}${tail} — ${ahead.length <= 2 ? `pushing ${role}` : role}.`
+      }
+    }
     out.push({ group: 'fit', label: 'Depth-chart fit', body })
   }
 
   // ── VERDICT ────────────────────────────────────────────────────────────────
-  // Development outlook — the dev trait, or an honest note when it is still hidden.
-  out.push({
-    group: 'verdict', label: 'Development outlook',
-    body: hasDev
-      ? DEV_LINE[player.devTrait]
-      : `His dev trait is not yet visible — typical before signing day — so this grade leans on his ${stars}-star billing and projects his growth conservatively; a hidden Impact-or-better trait would raise it.`,
-  })
+  // Development outlook — the dev trait if known, a Gem/Bust-driven projection
+  // when scouts have a read, else an honest star-based estimate.
+  const projDev = gemBustProjectedDev(player)
+  let devBody
+  if (hasDev) {
+    devBody = DEV_LINE[player.devTrait]
+  } else if (projDev === 'Normal') {
+    devBody = `Scouts have flagged him a bust, so even with the dev trait still hidden we project ordinary Normal development — temper the upside against his ${stars}-star billing.`
+  } else if (projDev) {
+    devBody = `Scouts have flagged him a gem, so we project ${projDev}-tier growth before his dev trait is even revealed — he should out-develop his ${stars}-star billing.`
+  } else {
+    devBody = `His dev trait is not yet visible — typical before signing day — so this grade leans on his ${stars}-star billing and projects his growth conservatively; a hidden Impact-or-better trait would raise it.`
+  }
+  out.push({ group: 'verdict', label: 'Development outlook', body: devBody })
 
   // Bottom line — a recruiting recommendation, tied to grade and distinct from
   // the role projection so it never restates it.

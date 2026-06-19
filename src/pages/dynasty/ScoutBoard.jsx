@@ -5,7 +5,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../../context/DynastyContext'
 import { finePositionGroup } from '../../data/positionGroups'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { scoutGrade, topScoutedAttrs, scoutLetter, scoutDossier, dossierParagraphs, gradeBreakdown, inferPlayStyle, schemeFits } from '../../utils/scoutGrade'
+import { scoutGrade, scoutLetter, scoutDossier, dossierParagraphs, gradeBreakdown, inferPlayStyle, schemeFits, projectFreshmanOvr } from '../../utils/scoutGrade'
 import { scoutCalibration } from '../../utils/scoutLearning'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../../utils/recruitAttributes'
 
@@ -46,31 +46,27 @@ const Chevron = ({ open }) => (
   </svg>
 )
 
-function Row({ r, rank, pathPrefix, playStyle, model }) {
+function Row({ r, rank, pathPrefix, playStyle, model, room = [] }) {
   const { p, score, tier, need, status } = r
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const lost = status === 'committed_elsewhere'
   const committed = status === 'committed_us'
-  const top = score != null ? topScoutedAttrs(p, 3) : []
-  const depth = Number.isFinite(r.returning) ? { group: r.group || p.position, returning: r.returning, rank: need?.rank ?? 0 } : null
+  // Project his realistic first-year OVR (star-anchored, NOT the scout grade)
+  // so the depth-chart line can slot him against the real room.
+  const projOvr = projectFreshmanOvr(p, score, model)
+  const depth = Number.isFinite(r.returning) ? { group: r.group || p.position, returning: r.returning, rank: need?.rank ?? 0, room, projOvr } : null
   const paragraphs = open ? dossierParagraphs(scoutDossier(p, playStyle, depth, model)) : []
   const breakdown = open ? gradeBreakdown(p, model) : null
   const attrEntries = ATTRIBUTE_COLUMNS
     .filter((name) => p.attributes?.[name] != null && p.attributes[name] !== '')
     .map((name) => ({ name, abbr: ATTRIBUTE_ABBR[name] || name, value: Number(p.attributes[name]) }))
 
-  // Sub-line: top scouted attributes if graded, else recruit bio.
-  let subline = ''
-  if (top.length) {
-    subline = top.map((a) => `${ATTRIBUTE_ABBR[a.name] || a.name} ${a.value}`).join('   ')
-  } else {
-    const m = []
-    if (p.nationalRank) m.push(`#${p.nationalRank} Nat`)
-    const htwt = [p.height, p.weight ? `${p.weight} lbs` : null].filter(Boolean).join(', ')
-    if (htwt) m.push(htwt)
-    subline = m.join('   ')
-  }
+  // Sub-line: the recruit's national / position / state recruiting ranks.
+  const ranks = []
+  if (p.nationalRank) ranks.push({ v: p.nationalRank, l: 'Nat' })
+  if (p.positionRank) ranks.push({ v: p.positionRank, l: p.position || 'Pos' })
+  if (p.stateRank && p.state) ranks.push({ v: p.stateRank, l: p.state })
 
   // Expanded meta (bio + ranks) shown beneath the attributes grid.
   const meta = []
@@ -96,11 +92,11 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 sm:gap-3.5 px-4 py-3 hover:bg-surface-2 transition-colors text-left"
       >
-        <span className="w-5 text-right tabular-nums font-display flex-shrink-0 leading-none text-txt-secondary" style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+        <span className="w-5 text-right tabular-nums font-display flex-shrink-0 leading-none text-txt-tertiary" style={{ fontSize: '1rem', fontWeight: 700 }}>
           {rank}
         </span>
 
-        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center overflow-hidden" style={{ backgroundColor: 'var(--surface-3)' }}>
+        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center overflow-hidden border" style={{ backgroundColor: 'var(--surface-3)', borderColor: 'var(--surface-4)' }}>
           {p.pictureUrl
             ? <img src={proxyImageUrl(p.pictureUrl, 200)} alt="" className="w-full h-full object-cover" />
             : <span className="text-[10px] font-black uppercase text-txt-secondary" style={{ letterSpacing: '0.04em' }}>{(p.position || 'ATH').slice(0, 3)}</span>}
@@ -113,17 +109,27 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
               tabIndex={0}
               onClick={(e) => { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) } }}
-              className="text-sm font-bold text-txt-primary truncate hover:underline cursor-pointer"
+              className="text-[15px] font-bold text-txt-primary truncate hover:underline cursor-pointer"
             >
               {p.name}
             </span>
-            {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
+            {Number(p.stars) > 0 && <span className="text-[10px] flex-shrink-0 tracking-tight" style={{ color: 'var(--accent-warning)' }}>{STAR(p.stars)}</span>}
             {committed && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Committed</span>}
             {lost && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Lost</span>}
           </div>
-          <div className="text-[11px] text-txt-tertiary truncate mt-0.5" style={{ letterSpacing: '0.3px' }}>
-            <span className="uppercase">{p.position || 'ATH'}{p.archetype ? ` · ${p.archetype}` : ''}</span>
-            {subline && <span className="text-txt-secondary tabular-nums">{'   '}{subline}</span>}
+          <div className="flex items-baseline gap-x-3 truncate mt-1 text-[11px]" style={{ letterSpacing: '0.3px' }}>
+            <span className="uppercase text-txt-secondary font-semibold flex-shrink-0">{p.position || 'ATH'}</span>
+            {p.archetype && <span className="uppercase text-txt-tertiary flex-shrink-0">{p.archetype}</span>}
+            {ranks.length > 0 && (
+              <span className="inline-flex items-baseline gap-x-2.5 tabular-nums min-w-0 truncate">
+                {ranks.map((rk) => (
+                  <span key={rk.l} className="inline-flex items-baseline gap-1">
+                    <span className="font-bold text-txt-secondary">#{rk.v}</span>
+                    <span className="text-txt-tertiary uppercase">{rk.l}</span>
+                  </span>
+                ))}
+              </span>
+            )}
           </div>
         </div>
 
@@ -179,7 +185,7 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
               <div>
                 <div className="flex items-baseline justify-between mb-1.5">
                   <span className="label-xs text-txt-tertiary" style={{ letterSpacing: '1.5px' }}>Grade Rationale</span>
-                  <span className="text-[11px] tabular-nums text-txt-tertiary">{breakdown.letter} · {breakdown.score} ovr</span>
+                  <span className="text-[11px] tabular-nums text-txt-tertiary">{breakdown.letter} · {breakdown.score} grade</span>
                 </div>
                 <div className="space-y-1">
                   {breakdown.adjustments.map((a) => (
@@ -212,7 +218,6 @@ function Row({ r, rank, pathPrefix, playStyle, model }) {
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
   const currentYear = Number(dynasty?.currentYear)
-  const [needsOpen, setNeedsOpen] = useState(false)
   const [deptOpen, setDeptOpen] = useState(false)
 
   const needsByGroup = useMemo(() => {
@@ -230,6 +235,25 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       g.returning = g.depth - g.graduating
       g.need = needLevel(g.returning, g.group)
     }
+    return out
+  }, [dynasty?.players, userTid, currentYear, dynasty])
+
+  // The actual returning ROOM per position group next season — name, OVR, and
+  // class for each non-graduating active-roster player — so a recruit's dossier
+  // can slot his projected freshman OVR against real players, not a headcount.
+  const roomByGroup = useMemo(() => {
+    const out = {}
+    for (const p of dynasty?.players || []) {
+      if (!isPlayerOnRoster(p, userTid, currentYear, dynasty)) continue
+      const g = finePositionGroup(p.position)
+      if (!g) continue
+      const cls = getPlayerClassForYear(p, currentYear)
+      if (GRADUATING.has(cls)) continue // graduates — not in next year's room
+      const ovrRaw = p.overallByYear?.[currentYear] ?? p.overallByYear?.[String(currentYear)] ?? p.overall
+      const ovr = ovrRaw != null && ovrRaw !== '' ? Number(ovrRaw) : null
+      ;(out[g] || (out[g] = [])).push({ name: p.name, ovr, cls, pid: p.pid })
+    }
+    for (const g of Object.values(out)) g.sort((a, b) => (b.ovr ?? -1) - (a.ovr ?? -1))
     return out
   }, [dynasty?.players, userTid, currentYear, dynasty])
 
@@ -265,11 +289,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     return rows
   }, [dynasty?.players, yearN, userTid, needsByGroup, playStyle, model])
 
-  const needGroups = useMemo(
-    () => Object.values(needsByGroup).sort((a, b) => b.need.rank - a.need.rank || a.group.localeCompare(b.group)),
-    [needsByGroup],
-  )
-
   if (ranked.length === 0) {
     return (
       <Card>
@@ -283,33 +302,6 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
 
   return (
     <div className="space-y-4">
-      {/* Roster needs — collapsed by default, tucks behind the header line. */}
-      {needGroups.length > 0 && (
-        <section className="media-card overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setNeedsOpen((o) => !o)}
-            className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 hover:bg-surface-2 transition-colors text-left"
-          >
-            <span className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '13px', letterSpacing: '0.02em' }}>Roster Needs</span>
-            <Chevron open={needsOpen} />
-          </button>
-          {needsOpen && (
-            <div className="px-4 sm:px-5 pb-3 pt-1 flex flex-wrap gap-x-4 gap-y-2 border-t" style={{ borderColor: 'var(--surface-4)' }}>
-              {needGroups.map((g) => (
-                <span key={g.group} className="inline-flex items-baseline gap-1.5 text-[12px]" title={`${g.depth} on roster, ${g.graduating} graduating`}>
-                  <span className="font-bold uppercase text-txt-secondary" style={{ letterSpacing: '0.4px' }}>{g.group}</span>
-                  <span className="tabular-nums font-display font-black text-txt-primary">{g.returning}</span>
-                  {g.need.label && (
-                    <span className="text-[10px] font-bold uppercase text-txt-tertiary" style={{ letterSpacing: '0.5px' }}>{g.need.label}</span>
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
       {/* Scouting department — the self-learning calibration readout */}
       {model && model.n > 0 && (
         <section className="media-card overflow-hidden">
@@ -374,7 +366,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
           )}
         </div>
         <div>
-          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} playStyle={playStyle} model={model} />)}
+          {ranked.map((r, i) => <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} playStyle={playStyle} model={model} room={roomByGroup[r.group] || []} />)}
         </div>
       </section>
     </div>
