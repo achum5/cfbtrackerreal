@@ -3136,10 +3136,17 @@ export default function Dashboard() {
     )
   }
 
-  // Filter teams for CC opponent dropdown
+  // Filter teams for CC opponent dropdown. Source = dynasty.teams (the teams
+  // that actually exist in this dynasty) so removed teams never appear; static
+  // teamAbbreviations is only a fallback if the dynasty has no teams map.
   const getFilteredTeams = () => {
     const search = ccOpponentSearch.toLowerCase()
-    const allTeams = Object.entries(teamAbbreviations)
+    const dynTeams = currentDynasty?.teams
+    const allTeams = (dynTeams && Object.keys(dynTeams).length > 0)
+      ? Object.values(dynTeams)
+          .filter(t => t && t.abbr && t.name && !t.isFCS)
+          .map(t => [t.abbr, t])
+      : Object.entries(teamAbbreviations)
 
     if (!search) {
       // Show all teams sorted alphabetically by name when no search

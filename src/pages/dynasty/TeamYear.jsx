@@ -661,13 +661,14 @@ export default function TeamYear() {
   // (removed the early null-gate here — it was before the useMemo calls
   // below and caused hook-count mismatches. See the _dyn shadow above.)
 
-  // Merge TEAMS with dynasty.teams. The dynasty's stored slot is the
-  // source of truth for everything (name, abbr, colors, logo) — a
-  // TeamBuilder takeover is just a slot whose identity fields have
-  // been overwritten. Static TEAMS data is the FALLBACK for fields
-  // the slot doesn't carry.
-  const teamsSource = { ...TEAMS }
-  if (currentDynasty.teams) {
+  // Build the team universe from dynasty.teams — it's the source of truth for
+  // WHICH teams exist (so teams removed from the dynasty, e.g. by the NCAA 11
+  // migration, never appear in the picker). Static TEAMS data is used only as
+  // a per-slot FALLBACK for fields a present slot doesn't carry — never to
+  // resurrect a team that isn't in the dynasty. Falls back to static TEAMS
+  // wholesale only if the dynasty somehow has no teams map.
+  const teamsSource = {}
+  if (currentDynasty.teams && Object.keys(currentDynasty.teams).length > 0) {
     Object.entries(currentDynasty.teams).forEach(([key, dynastyTeamData]) => {
       const staticTeam = TEAMS[key]
       // Spread order: static first (defaults), dynasty second (wins).
@@ -678,6 +679,8 @@ export default function TeamYear() {
         tid: dynastyTeamData?.tid ?? staticTeam?.tid,
       }
     })
+  } else {
+    Object.assign(teamsSource, TEAMS)
   }
 
   // Get all FBS teams for dropdown (sorted alphabetically). FCS placeholder

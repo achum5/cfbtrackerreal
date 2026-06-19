@@ -7423,7 +7423,16 @@ export function DynastyProvider({ children }) {
       const dynastyWithFlag = { ...newDynasty, _subcollectionsMigrated: true, players: seededPlayers }
       // CRITICAL: Update both dynasties array AND currentDynasty
       // Without this, updateDynasty can't find the dynasty and routes players incorrectly
-      setDynasties(prev => [...prev, dynastyWithFlag])
+      //
+      // Dedupe by id: the onSnapshot listener can fire (and full-replace the
+      // array with the server list, already including this new doc) during the
+      // awaited savePlayersToSubcollection above. A blind append would then add
+      // a second copy with the same id — two identical cards on the home page
+      // and a React duplicate-key warning. Replace-or-append keeps it idempotent.
+      setDynasties(prev => [
+        ...prev.filter(d => String(d.id) !== String(dynastyWithFlag.id)),
+        dynastyWithFlag,
+      ])
       setCurrentDynasty(dynastyWithFlag)
       return dynastyWithFlag
     } catch (error) {
@@ -7433,7 +7442,7 @@ export function DynastyProvider({ children }) {
   }
 
   const updateDynasty = async (dynastyId, updates, options = {}) => {
-    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false, changedPlayerPids = null } = options
+    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false, changedPlayerPids = null, replaceTeams = false } = options
 
     // Read-only chokepoint: most mutations route through updateDynasty,
     // so guarding here catches every modal whose parent forgot to gate
@@ -7749,6 +7758,18 @@ export function DynastyProvider({ children }) {
       // Use original updatesWithTimestamp for local state (includes players/games)
       const expandedUpdates = expandDotNotation(updatesWithTimestamp)
 
+      // deepMerge merges the `teams` map key-by-key, so it can ADD or UPDATE a
+      // tid but never REMOVE one absent from the new map. Callers that delete
+      // teams (e.g. the NCAA 11 migration pruning non-2010 programs) pass
+      // replaceTeams so the local copy mirrors the wholesale field replace that
+      // updateDoc already does on the server — otherwise the removed teams
+      // linger in the UI until a hard reload.
+      const mergeUpdates = (base) => {
+        const merged = deepMerge(base, expandedUpdates)
+        if (replaceTeams && expandedUpdates.teams) merged.teams = expandedUpdates.teams
+        return merged
+      }
+
       // CRITICAL: use functional setters so back-to-back updateDynasty calls
       // (e.g. save data then clear the sheetId) don't race. Each call sees
       // the latest committed dynasties state rather than the stale value
@@ -7757,13 +7778,13 @@ export function DynastyProvider({ children }) {
         const dynastyInArray = prev.some(d => String(d.id) === String(dynastyId))
         if (dynastyInArray) {
           return prev.map(d =>
-            String(d.id) === String(dynastyId) ? deepMerge(d, expandedUpdates) : d
+            String(d.id) === String(dynastyId) ? mergeUpdates(d) : d
           )
         }
         // Dynasty just created and not in array yet — use currentDynasty as base.
         // currentDynasty may also be stale here, but expandedUpdates wins in deepMerge.
         if (String(currentDynasty?.id) === String(dynastyId)) {
-          return [...prev, deepMerge(currentDynasty, expandedUpdates)]
+          return [...prev, mergeUpdates(currentDynasty)]
         }
         return prev
       })
@@ -7772,9 +7793,9 @@ export function DynastyProvider({ children }) {
         // Same deal — functional setter so back-to-back writes merge correctly.
         setCurrentDynasty(prev => {
           if (prev && String(prev.id) === String(dynastyId)) {
-            return deepMerge(prev, expandedUpdates)
+            return mergeUpdates(prev)
           }
-          return deepMerge(currentDynasty, expandedUpdates)
+          return mergeUpdates(currentDynasty)
         })
       }
     } catch (error) {

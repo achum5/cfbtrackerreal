@@ -438,8 +438,12 @@ export default function GameEdit() {
   // Derive team data - merge dynasty.teams WITH TEAMS to preserve static team properties
   // dynasty.teams may have partial data (byYear, userId) that would overwrite complete team info
   const teamsSource = useMemo(() => {
-    const merged = { ...TEAMS }
-    if (currentDynasty?.teams) {
+    // Universe = dynasty.teams (source of truth for which teams exist, so
+    // teams removed from the dynasty don't reappear in opponent pickers).
+    // Static TEAMS is only a per-slot field fallback. Falls back wholesale
+    // only when the dynasty has no teams map.
+    const merged = {}
+    if (currentDynasty?.teams && Object.keys(currentDynasty.teams).length > 0) {
       Object.entries(currentDynasty.teams).forEach(([key, dynastyTeamData]) => {
         const staticTeam = TEAMS[key]
         if (staticTeam) {
@@ -456,6 +460,8 @@ export default function GameEdit() {
           merged[key] = dynastyTeamData
         }
       })
+    } else {
+      Object.assign(merged, TEAMS)
     }
     return merged
   }, [currentDynasty?.teams])

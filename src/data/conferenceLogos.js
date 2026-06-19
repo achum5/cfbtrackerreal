@@ -32,9 +32,17 @@ const conferenceLogoSlugs = {
   "Sun Belt": "sun_belt"
 }
 
+// Direct logo URLs for conferences not served by the ESPN CDN — e.g. the
+// historical Big East / WAC revived by the "Migrate to NCAA 11" tool.
+const customConferenceLogos = {
+  "Big East": "https://i.imgur.com/y4sTFs7.png",
+  "WAC": "https://i.imgur.com/LDbnHe3.png"
+}
+
 // Helper function to get conference logo URL
 // ESPN logo URL pattern: https://a.espncdn.com/i/teamlogos/ncaa_conf/500/{slug}.png
 export function getConferenceLogo(conferenceName) {
+  if (customConferenceLogos[conferenceName]) return customConferenceLogos[conferenceName]
   const slug = conferenceLogoSlugs[conferenceName]
   if (!slug) return null
   return `https://a.espncdn.com/i/teamlogos/ncaa_conf/500/${slug}.png`

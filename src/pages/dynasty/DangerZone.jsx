@@ -7,7 +7,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamName } from '../../data/teamAbbreviations'
-import { TEAMS, getOriginalTeamAbbr, getTidFromAbbr, resolveTid } from '../../data/teamRegistry'
+import { TEAMS, getOriginalTeamAbbr, getTidFromAbbr, resolveTid, getUserTeamTid, addCareerEntry } from '../../data/teamRegistry'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { storageService, STORAGE_TIER, indexedDBStorage } from '../../services/storage'
 import { swapBoxScoreTeams, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
@@ -33,6 +33,43 @@ import {
 import { doc, getDocFromServer, collection, getDocsFromServer } from 'firebase/firestore'
 import { db } from '../../config/firebase'
 import { saveWeeklyGamesChanges } from '../../services/dynastyService'
+
+// ── NCAA 11 (2010-era) conference alignment ─────────────────────────────────
+// Used by the "Migrate to NCAA 11" tool so dynasties built from older-game
+// rosters (NCAA 11 on PS2/Xbox360) match that season's conferences instead of
+// the modern 2024-25 default. Conference names reuse the app's canonical
+// labels where the conference still exists (so logos / championships keep
+// working); Big East and WAC are revived for this era. Teams that did not
+// exist as FBS programs in 2010 (e.g. DEL, APP, CHAR, JMU, ODU, SHSU, KENN,
+// LIB, GASO, GSU, JKST, CCU, TXST, USA, UTSA, MZST, MASS) are intentionally
+// left unassigned — they show under "Other" rather than forcing the user to
+// place phantom teams.
+const NCAA11_CONFERENCES = {
+  'ACC': ['BC', 'CLEM', 'DUKE', 'FSU', 'GT', 'UMD', 'MIA', 'UNC', 'NCST', 'UVA', 'VT', 'WAKE'],
+  'Big East': ['UC', 'CONN', 'LOU', 'PITT', 'RUTG', 'USF', 'SYR', 'WVU'],
+  'Big 12': ['BU', 'COLO', 'ISU', 'KU', 'KSU', 'MIZ', 'NEB', 'OU', 'OKST', 'TEX', 'TAMU', 'TTU'],
+  'Big Ten': ['ILL', 'IU', 'IOWA', 'MICH', 'MSU', 'MINN', 'NU', 'OSU', 'PSU', 'PUR', 'WIS'],
+  'Conference USA': ['ECU', 'UAB', 'UCF', 'UH', 'MRSH', 'MEM', 'RICE', 'SMU', 'USM', 'TULN', 'TLSA', 'UTEP'],
+  'Independent': ['ND', 'NAVY', 'ARMY'],
+  'MAC': ['AKR', 'BALL', 'BGSU', 'BUFF', 'CMU', 'EMU', 'KENT', 'M-OH', 'NIU', 'OHIO', 'TEM', 'TOL', 'WMU'],
+  'Mountain West': ['AFA', 'BYU', 'CSU', 'UNM', 'SDSU', 'TCU', 'UTAH', 'WYO', 'UNLV'],
+  'Pac-12': ['ARIZ', 'ASU', 'CAL', 'ORE', 'ORST', 'STAN', 'UCLA', 'USC', 'WASH', 'WSU'],
+  'SEC': ['BAMA', 'ARK', 'AUB', 'FLA', 'UGA', 'UK', 'LSU', 'MISS', 'MSST', 'SCAR', 'UT', 'VAN'],
+  'Sun Belt': ['ARST', 'FAU', 'FIU', 'MTSU', 'UNT', 'TROY', 'UL', 'ULM', 'WKU'],
+  'WAC': ['BOIS', 'FRES', 'HAW', 'IDHO', 'LT', 'NEV', 'NMSU', 'SJSU', 'USU'],
+}
+
+// Idaho Vandals — dropped to FCS after the NCAA 11 era, so the team has no
+// slot in the modern registry. The migration injects it into dynasty.teams at
+// a fresh tid (it is NOT added to the global TEAMS list, so modern dynasties
+// stay clean). Colors: Vandal Gold (#B3A369) and black.
+const IDAHO_TEAM = {
+  abbr: 'IDHO',
+  name: 'Idaho Vandals',
+  primaryColor: '#B3A369',
+  secondaryColor: '#000000',
+  logo: 'https://i.imgur.com/Fk9sVs0.png',
+}
 
 export default function DangerZone() {
   const { currentDynasty, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame } = useDynasty()
@@ -142,6 +179,8 @@ export default function DangerZone() {
   // Class data fix state
   const [transferYearFixStatus, setTransferYearFixStatus] = useState(null)
   const [clearRosterStatus, setClearRosterStatus] = useState(null)
+  const [ncaa11Status, setNcaa11Status] = useState(null)
+  const [playAsIdaho, setPlayAsIdaho] = useState(false)
   const [advanceClassesStatus, setAdvanceClassesStatus] = useState(null)
   const [showAdvanceModal, setShowAdvanceModal] = useState(false)
   const [advanceSelections, setAdvanceSelections] = useState({}) // { pid: boolean }
@@ -503,6 +542,159 @@ export default function DangerZone() {
       setClearRosterStatus({ success: true, message: `Cleared ${removePids.size} player(s). Re-import via the Enter Roster task (use its Edit button).` })
     } catch (error) {
       setClearRosterStatus({ success: false, message: 'Clear failed: ' + error.message })
+    }
+  }
+
+  // Re-align an entire dynasty to the NCAA 11 (2010-era) conference layout and
+  // add the Idaho Vandals to the WAC. Writes the alignment directly into the
+  // dynasty's bulk conference store (customConferencesByYear) so it bypasses
+  // the Conference Realignment modal's "place every team" requirement. Best
+  // run on a brand-new dynasty before games are entered.
+  const handleMigrateToNCAA11 = async () => {
+    if (!currentDynasty) return
+    const startYear = Number(currentDynasty.startYear) || 2024
+    const currentYear = Number(currentDynasty.currentYear) || startYear
+
+    const ok = await confirm({
+      title: 'Migrate this dynasty to NCAA 11?',
+      message: `Re-aligns every conference to the 2010 NCAA 11 layout (revives the Big East and WAC, restores the old Big 12 / Pac-12 / Mountain West) and adds the Idaho Vandals to the WAC.${playAsIdaho ? ' Your controlled team is switched to the Idaho Vandals.' : ''} It also clears ${playAsIdaho ? "the auto-seeded roster" : "your team's auto-seeded roster"} so you can import a fresh roster from the old game. Best run on a brand-new dynasty before entering games. Programs that were not FBS in 2010 (App State, Delaware, Charlotte, UTSA, etc.) are removed from the dynasty entirely. This cannot be undone automatically.`,
+      confirmLabel: 'Migrate to NCAA 11',
+      variant: 'danger',
+    })
+    if (!ok) return
+
+    setNcaa11Status('running')
+    try {
+      const teams = { ...(currentDynasty.teams || {}) }
+
+      // 1. Inject Idaho if it isn't already present (match by abbr).
+      let idahoTid = Object.keys(teams).find(tid => teams[tid]?.abbr === IDAHO_TEAM.abbr)
+      if (!idahoTid) {
+        const maxTid = Object.keys(teams).reduce((m, tid) => Math.max(m, Number(tid) || 0), 0)
+        idahoTid = String(Math.max(maxTid + 1, 142))
+        teams[idahoTid] = {
+          ...IDAHO_TEAM,
+          tid: Number(idahoTid),
+          byYear: {},
+          isCustom: true,
+        }
+      }
+      idahoTid = String(idahoTid)
+
+      // Determine the controlled team up front so we never delete it.
+      const oldUserTid = getUserTeamTid(currentDynasty)
+      const oldPosition = (oldUserTid && teams[oldUserTid]?.coachPosition)
+        || currentDynasty.coachPosition || 'HC'
+      const controlledTid = playAsIdaho ? idahoTid : (oldUserTid != null ? String(oldUserTid) : null)
+
+      // 2. Remove every FBS program that wasn't in NCAA 11 (App State,
+      //    Charlotte, UTSA, Delaware, etc.) from the dynasty entirely. Because
+      //    every team list in the app derives from dynasty.teams, deleting the
+      //    slots hides them everywhere — Teams page, schedule/opponent pickers,
+      //    standings, recruiting. FCS generics (137-141) stay for scheduling,
+      //    and the user's controlled team is never removed even if it isn't an
+      //    NCAA 11 program.
+      const placedAbbrs = new Set(Object.values(NCAA11_CONFERENCES).flat())
+      const removedAbbrs = new Set()
+      for (const tid of Object.keys(teams)) {
+        const t = teams[tid]
+        if (t?.isFCS || !t?.abbr) continue
+        if (placedAbbrs.has(t.abbr)) continue
+        if (String(tid) === String(controlledTid)) continue
+        removedAbbrs.add(t.abbr)
+        delete teams[tid]
+      }
+
+      // 3. Build the conference snapshot and apply it from startYear →
+      //    currentYear so the base map covers the whole dynasty regardless of
+      //    where getCustomConferencesForYear's walk-back lands. Any pre-existing
+      //    (modern) yearly snapshots are overwritten.
+      const snapshot = {}
+      for (const [conf, abbrs] of Object.entries(NCAA11_CONFERENCES)) {
+        snapshot[conf] = [...abbrs]
+      }
+      const customConferencesByYear = { ...(currentDynasty.customConferencesByYear || {}) }
+      for (const y of Object.keys(customConferencesByYear)) {
+        customConferencesByYear[y] = snapshot
+      }
+      for (let y = startYear; y <= currentYear; y++) {
+        customConferencesByYear[y] = snapshot
+      }
+
+      // 4. Belt-and-suspenders: set each placed team's top-level conference so
+      //    the per-team overlay agrees with the bulk map (Idaho included).
+      const abbrToConf = {}
+      for (const [conf, abbrs] of Object.entries(NCAA11_CONFERENCES)) {
+        for (const a of abbrs) abbrToConf[a] = conf
+      }
+      for (const tid of Object.keys(teams)) {
+        const conf = abbrToConf[teams[tid]?.abbr]
+        if (conf) teams[tid] = { ...teams[tid], conference: conf }
+      }
+
+      const updates = { teams, customConferencesByYear }
+
+      // Clear the auto-seeded roster on the team we're leaving (or keeping, if
+      // not switching) so a fresh NCAA 11 roster can be imported without the
+      // default roster repopulating, and drop anyone on a team that no longer
+      // exists. Honor-only players are preserved.
+      const players = currentDynasty.players || []
+      if (players.length > 0) {
+        const remaining = players.filter(p => {
+          if (p.isHonorOnly) return true
+          if (oldUserTid != null && isPlayerOnRoster(p, oldUserTid, currentYear, currentDynasty)) return false
+          if (p.team && removedAbbrs.has(p.team)) return false
+          return true
+        })
+        if (remaining.length !== players.length) updates.players = remaining
+      }
+
+      if (playAsIdaho) {
+        // Move the userId flag off every other slot and onto Idaho.
+        for (const tid of Object.keys(teams)) {
+          if (teams[tid]?.userId === 'currentUser' && tid !== idahoTid) {
+            const { userId, ...rest } = teams[tid]
+            teams[tid] = rest
+          }
+        }
+        teams[idahoTid] = { ...teams[idahoTid], userId: 'currentUser', coachPosition: oldPosition }
+
+        updates.currentTid = Number(idahoTid)
+        updates.teamName = IDAHO_TEAM.name
+        updates.coachTeamByYear = {
+          ...(currentDynasty.coachTeamByYear || {}),
+          [currentYear]: { tid: Number(idahoTid), team: IDAHO_TEAM.abbr, teamName: IDAHO_TEAM.name },
+        }
+        updates.coachCareer = addCareerEntry(currentDynasty.coachCareer || [], currentYear, Number(idahoTid), oldPosition)
+
+        if (user?.uid) {
+          updates.memberTeams = { ...(currentDynasty.memberTeams || {}), [user.uid]: [Number(idahoTid)] }
+          updates.memberTeamHistory = {
+            ...(currentDynasty.memberTeamHistory || {}),
+            [user.uid]: {
+              ...((currentDynasty.memberTeamHistory || {})[user.uid] || {}),
+              [currentYear]: [Number(idahoTid)],
+            },
+          }
+        }
+      }
+
+      // Keep dynasty.conference in sync with the controlled team's new league.
+      const controlledConf = controlledTid && abbrToConf[teams[controlledTid]?.abbr]
+      if (controlledConf) updates.conference = controlledConf
+
+      // replaceTeams: deleting the non-NCAA-11 slots only sticks if local state
+      // replaces the teams map wholesale — deepMerge alone can't drop keys.
+      await updateDynasty(currentDynasty.id, updates, { replaceTeams: true })
+
+      setNcaa11Status({
+        success: true,
+        message: playAsIdaho
+          ? 'Migrated to NCAA 11. You are now the Idaho Vandals (WAC). Reload to see the new conferences.'
+          : 'Migrated to NCAA 11 alignment. Idaho added to the WAC. Open the Teams page to see the new conferences.',
+      })
+    } catch (error) {
+      setNcaa11Status({ success: false, message: 'Migration failed: ' + error.message })
     }
   }
 
@@ -2405,6 +2597,36 @@ export default function DangerZone() {
             onClick={handleClearRoster}
             status={clearRosterStatus}
           />
+          <Card className="flex flex-col h-full">
+            <div className="mb-3">
+              <h3 className="label-sm text-txt-primary m-0">Migrate to NCAA 11</h3>
+              <p className="text-xs mt-1 text-txt-tertiary leading-relaxed m-0">
+                Re-aligns the whole dynasty to the 2010 NCAA 11 conference layout — revives the Big East and WAC, restores the old Big 12 / Pac-12 / Mountain West, and adds the Idaho Vandals to the WAC. Also clears your team's auto-seeded roster so you can import a fresh one from the old game. Tick the box below to also take over the Idaho Vandals. Best on a brand-new dynasty before entering games. Programs that weren't FBS in 2010 (App State, Delaware, Charlotte, UTSA, etc.) are removed from the dynasty entirely.
+              </p>
+            </div>
+            <div className="mt-auto">
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <input
+                  type="checkbox"
+                  checked={playAsIdaho}
+                  onChange={(e) => setPlayAsIdaho(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded"
+                  style={{ accentColor: 'var(--text-primary)' }}
+                />
+                <span className="text-xs text-txt-secondary">Play as the Idaho Vandals</span>
+              </label>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleMigrateToNCAA11}
+                disabled={ncaa11Status === 'running'}
+                className="w-full"
+              >
+                {ncaa11Status === 'running' ? 'Running...' : 'Migrate to NCAA 11'}
+              </Button>
+              <StatusLine status={ncaa11Status} />
+            </div>
+          </Card>
           <ActionCard
             danger
             title="Advance Classes"

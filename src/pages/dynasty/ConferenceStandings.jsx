@@ -246,7 +246,37 @@ export default function ConferenceStandings() {
   const handleYearChange = (year) => navigate(`${pathPrefix}/conference-standings/${year}`)
   const yearStandings = standingsByYear[displayYear] || {}
 
-  const filteredConferences = CONFERENCE_ORDER.filter(conf => {
+  // The list of conferences to show is derived from the dynasty's ACTUAL
+  // alignment (the single source of truth) — not a hardcoded set — so revived
+  // / custom conferences like the NCAA 11 Big East and WAC appear, and empty
+  // ones (e.g. American after a realignment) drop out. Order: the curated
+  // CONFERENCE_ORDER first, then any extras alphabetically. Falls back to the
+  // default modern order for a legacy dynasty with no custom alignment.
+  const customConfsForYear = getCustomConferencesForYear(currentDynasty, displayYear)
+  // A team's presence in dynasty.teams is the source of truth. The conference
+  // alignment only positions teams that EXIST — so a team removed from the
+  // dynasty (e.g. the non-2010 programs pruned by the NCAA 11 migration) drops
+  // out of standings even if a stale alignment entry still lists it, and an
+  // all-removed conference disappears entirely. This also sidesteps the fact
+  // that customConferencesByYear is a merge-written seasonal field whose stale
+  // keys can't be cleared by a normal save.
+  const liveTeamAbbrs = useMemo(() => {
+    const src = currentDynasty?.teams || currentDynasty?.customTeams || {}
+    return new Set(Object.values(src).map(t => t?.abbr).filter(Boolean))
+  }, [currentDynasty?.teams, currentDynasty?.customTeams])
+  const conferenceHasLiveTeams = (abbrs) =>
+    Array.isArray(abbrs) && abbrs.some(a => liveTeamAbbrs.has(a))
+
+  const orderIndex = (name) => {
+    const i = CONFERENCE_ORDER.indexOf(name)
+    return i === -1 ? CONFERENCE_ORDER.length : i
+  }
+  const allConferenceNames = (customConfsForYear
+    ? Object.keys(customConfsForYear).filter(c => conferenceHasLiveTeams(customConfsForYear[c]))
+    : [...CONFERENCE_ORDER]
+  ).sort((a, b) => (orderIndex(a) - orderIndex(b)) || a.localeCompare(b))
+
+  const filteredConferences = allConferenceNames.filter(conf => {
     if (searchQuery === '') return true
     return conf.toLowerCase().includes(searchQuery.toLowerCase())
   })
@@ -462,7 +492,6 @@ export default function ConferenceStandings() {
   // pass below populates them from games[] so an in-progress season
   // shows real records as soon as scores are entered.
   const teamsSource = currentDynasty?.teams || currentDynasty?.customTeams
-  const customConfsForYear = getCustomConferencesForYear(currentDynasty, displayYear)
 
   // Lazy records-by-tid cache. Without this, EVERY ConferenceCard
   // re-render runs getTeamRecord + calculateTeamRecordFromGames TWICE
@@ -488,7 +517,10 @@ export default function ConferenceStandings() {
   }
 
   const buildConferenceRoster = (conferenceName) => {
+    // Only show teams that exist in the dynasty (source of truth), so removed
+    // teams never appear even if saved standings / alignment still reference them.
     const saved = getConferenceData(yearStandings, conferenceName)
+      .filter(row => row?.team == null || liveTeamAbbrs.has(row.team))
     if (saved.length > 0) return saved
 
     const confMap = customConfsForYear || DEFAULT_CONFERENCE_TEAMS
@@ -500,10 +532,12 @@ export default function ConferenceStandings() {
         break
       }
     }
-    return teamAbbrs.map(abbr => {
-      const tid = resolveTid(abbr, teamsSource || TEAMS)
-      return { team: abbr, tid: tid != null ? Number(tid) : null, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }
-    })
+    return teamAbbrs
+      .filter(abbr => liveTeamAbbrs.has(abbr))
+      .map(abbr => {
+        const tid = resolveTid(abbr, teamsSource || TEAMS)
+        return { team: abbr, tid: tid != null ? Number(tid) : null, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }
+      })
   }
 
   // Conference card component
