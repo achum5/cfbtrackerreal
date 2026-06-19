@@ -324,13 +324,43 @@ export default function BoxScoreSheetModal({
     const awayGameRoster = getGameRosterObjectsForTeamByTid(awayTeamTid)
     const homeGameRoster = getGameRosterObjectsForTeamByTid(homeTeamTid)
 
+    // If roster data is missing for a team, extract known player names from
+    // the game's scoring summary so the AI can still assign col A correctly.
+    // Scoring plays already identify which team each scorer belongs to, making
+    // them a reliable team-assignment signal even when no dynasty roster exists.
+    const getScoringPlayersForTeam = (abbr) => {
+      if (!abbr) return []
+      const plays = game?.scoringSummary || game?.boxScore?.scoringSummary || []
+      const names = new Set()
+      for (const play of plays) {
+        if (play?.team !== abbr) continue
+        if (play.scorer?.trim()) names.add(play.scorer.trim())
+        if (play.passer?.trim()) names.add(play.passer.trim())
+      }
+      return Array.from(names).filter(Boolean).sort().map(name => ({ name }))
+    }
+
+    const awayRosterForPrompt = awayGameRoster.length > 0
+      ? awayGameRoster
+      : getScoringPlayersForTeam(awayTeamAbbr)
+    const homeRosterForPrompt = homeGameRoster.length > 0
+      ? homeGameRoster
+      : getScoringPlayersForTeam(homeTeamAbbr)
+
+    const awayScoringFallback = awayGameRoster.length === 0 && awayRosterForPrompt.length > 0
+    const homeScoringFallback = homeGameRoster.length === 0 && homeRosterForPrompt.length > 0
+
     if (sheetType === 'scoring') {
       const allPlaysPrompt = buildAIPrompt({
         title: `${baseTitle} — All Plays`,
-        roster: awayGameRoster,
-        opponentRoster: homeGameRoster,
-        rosterLabel: `${awayTeamAbbr} ROSTER (for team-assignment, see below)`,
-        opponentRosterLabel: `${homeTeamAbbr} ROSTER (for team-assignment, see below)`,
+        roster: awayRosterForPrompt,
+        opponentRoster: homeRosterForPrompt,
+        rosterLabel: awayScoringFallback
+          ? `${awayTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for team-assignment)`
+          : `${awayTeamAbbr} ROSTER (for team-assignment, see below)`,
+        opponentRosterLabel: homeScoringFallback
+          ? `${homeTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for team-assignment)`
+          : `${homeTeamAbbr} ROSTER (for team-assignment, see below)`,
         structure: `This is an OCR task: extract structured data from images into TSV. Prioritize responding quickly rather than thinking deeply. Extended thinking adds latency and is NOT helpful here — when in doubt, respond directly. Skip every preamble and begin output immediately with the first row's first character.
 
 Output the full play-by-play of this game as 13-col TSV — one row per highlight line, chronological order (earliest first). The user will copy your reply and paste it at cell A2 of the "Scoring Summary" tab in Google Sheets, so the DATA block must contain ONLY tab-separated rows. No XML, no header row inside the data, no preamble or commentary other than the required paste-target label line above the fence (see Method A/B rules above).
@@ -681,10 +711,14 @@ checks. Do not send output that fails any of them.`,
 
       const scoringSummaryPrompt = buildAIPrompt({
         title: `${baseTitle} — Scoring Summary`,
-        roster: awayGameRoster,
-        opponentRoster: homeGameRoster,
-        rosterLabel: `${awayTeamAbbr} ROSTER (disambiguation reference for abbreviated names)`,
-        opponentRosterLabel: `${homeTeamAbbr} ROSTER (disambiguation reference for abbreviated names)`,
+        roster: awayRosterForPrompt,
+        opponentRoster: homeRosterForPrompt,
+        rosterLabel: awayScoringFallback
+          ? `${awayTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for name disambiguation)`
+          : `${awayTeamAbbr} ROSTER (disambiguation reference for abbreviated names)`,
+        opponentRosterLabel: homeScoringFallback
+          ? `${homeTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for name disambiguation)`
+          : `${homeTeamAbbr} ROSTER (disambiguation reference for abbreviated names)`,
         structure: `This sheet has ONE tab: "Scoring Summary". It has 30 rows (one per scoring play, unused rows blank) and 9 columns.
 
 ═══════════════════════════════════════════════════════════
