@@ -99,141 +99,26 @@ export default function RecruitingCommitmentsModal({
     return [...byPid.values()]
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, existingCommitments, currentYear])
 
-  const aiPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Recruiting Commitments: ${recruitingLabel || ''}`.trim(),
-    structure: `This sheet has ONE tab: "Commitments".
-The header row (row 1) is pre-filled and PROTECTED. Commitments already entered occupy the rows above the paste point. Output ONLY the NEW commitments visible in the screenshots attached to THIS request — one row per new recruit (up to 35 total per class). Do NOT re-output commitments that are already in the sheet or from a prior week; the user pastes your rows BELOW the ones already entered.
-
-═══════════════════════════════════════════════════════════
-CRITICAL RULES — read before anything else
-═══════════════════════════════════════════════════════════
-1. Output ONLY the data rows for the NEW recruits in this request. NEVER output the header row, and never re-output commitments already entered in the sheet.
-2. Output ALL 16 columns per row, tab-separated, in the exact order A→P below.
-3. One row per recruit. Do not reorder rows arbitrarily; keep the same order as the screenshots.
-4. NO COMMAS in numbers. Output "1234" — never "1,234".
-5. INTEGERS have no decimal point. No quotes around numbers.
-6. BLANK cell for unknown values — never guess, never use 0, "-", or "N/A". Blank ≠ zero.
-7. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST use EXACTLY one of the literal values listed. Wrong spelling or casing will be rejected.
-8. Column E (Stars) uses ☆ symbols, NOT digits. One symbol = 1 star, five symbols = 5 stars.
-9. Column O (Prev Team) MUST be a team abbreviation from the mapping below, or BLANK. Blank for HS/JUCO recruits AND for transfers whose previous school is not visible. NEVER write "Transfer Portal" or any placeholder — if the school is unknown, leave it BLANK.
-10. No header row, no totals, no commentary INSIDE the data. ONE TSV block, preceded by the required paste-target label line above the fence (see Method A/B rules above).
-
-═══════════════════════════════════════════════════════════
-TAB: "Commitments" — up to 35 rows × 16 columns
-Paste at cell A${prefillRecruits.length + 2} of the "Commitments" tab — the first empty row, just below the ${prefillRecruits.length} row(s) already entered (commitments + tracked targets). If your sheet has a different number of rows filled, paste at the first empty row in column A instead.
-═══════════════════════════════════════════════════════════
-
-Row | Col | Header (protected)  | Your value                                                                            | Format
-----+-----+---------------------+---------------------------------------------------------------------------------------+----------
- 2+ |  A  | Player              | Full player name, text                                                                | text
- 2+ |  B  | Class               | Dropdown — exactly one of the 10 values below                                         | dropdown
- 2+ |  C  | Position            | Dropdown — exactly one of the 22 values below                                         | dropdown
- 2+ |  D  | Archetype           | Dropdown — exactly one of the 44 values below                                         | dropdown
- 2+ |  E  | Stars               | Dropdown — exactly one of: ☆  ☆☆  ☆☆☆  ☆☆☆☆  ☆☆☆☆☆   (blank if unknown)               | dropdown (symbols)
- 2+ |  F  | Nat. Rank           | Integer (national recruiting rank)                                                    | integer
- 2+ |  G  | State Rank          | Integer (rank within state)                                                           | integer
- 2+ |  H  | Pos. Rank           | Integer (rank at position)                                                            | integer
- 2+ |  I  | Height              | Dropdown — exactly one of the 20 values below (feet'inches" with straight quotes)     | dropdown
- 2+ |  J  | Weight              | Integer in lbs, no unit suffix                                                        | integer
- 2+ |  K  | Hometown            | City name, text                                                                       | text
- 2+ |  L  | State               | Dropdown — exactly one of the 51 two-letter codes below                               | dropdown
- 2+ |  M  | Gem/Bust            | Dropdown — exactly "Gem" or "Bust", or blank                                          | dropdown
- 2+ |  N  | Dev Trait           | Dropdown — exactly one of: Elite, Star, Impact, Normal                                | dropdown
- 2+ |  O  | Prev Team           | Team abbreviation from mapping (transfers only); BLANK for HS/JUCO or unknown school   | dropdown
- 2+ |  P  | Commitment          | Team ABBR the recruit committed to (YOUR team's abbr for commits to you); "Uncommitted" if open | dropdown
-
-═══════════════════════════════════════════════════════════
-ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
-═══════════════════════════════════════════════════════════
-
-Column B — Class (10 values):
-  HS, JUCO Fr, JUCO So, JUCO Jr, Fr, RS Fr, So, RS So, Jr, RS Jr
-
-Column C — Position (22 values):
-  QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P, ATH
-
-Column D — Archetype (44 values — copy EXACTLY, including capitalization and slashes):
-  Backfield Creator, Dual Threat, Pocket Passer, Pure Runner,
-  Backfield Threat, Contact Seeker, East/West Playmaker, Elusive Bruiser, North/South Receiver, North/South Blocker,
-  Blocking, Utility,
-  Contested Specialist, Elusive Route Runner, Gadget, Gritty Possession, Physical Route Runner, Route Artist, Speedster,
-  Possession, Pure Blocker, Pure Possession, Vertical Threat,
-  Agile, Pass Protector, Raw Strength, Ground and Pound, Well Rounded,
-  Edge Setter, Gap Specialist, Power Rusher, Pure Power, Speed Rusher,
-  Lurker, Signal Caller, Thumper,
-  Boundary, Bump and Run, Field, Zone,
-  Box Specialist, Coverage Specialist, Hybrid,
-  Accurate, Power
-
-Column E — Stars (5 values, star symbol only — NOT digits, NOT "5 stars"):
-  ☆        (1 star)
-  ☆☆       (2 stars)
-  ☆☆☆      (3 stars)
-  ☆☆☆☆     (4 stars)
-  ☆☆☆☆☆    (5 stars)
-
-Column I — Height (20 values — foot mark ' then inches then straight ASCII quote "):
-  5'5"  5'6"  5'7"  5'8"  5'9"  5'10"  5'11"
-  6'0"  6'1"  6'2"  6'3"  6'4"  6'5"  6'6"  6'7"  6'8"  6'9"  6'10"  6'11"
-  7'0"
-
-Column L — State (51 two-letter US codes):
-  AK, AL, AR, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA,
-  MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NH, NJ, NM, NV, NY, OH, OK, OR, PA, RI,
-  SC, SD, TN, TX, UT, VA, VT, WA, WI, WV, WY
-
-Column M — Gem/Bust:
-  Gem, Bust   (or leave BLANK if neither)
-
-Column N — Dev Trait (4 values):
-  Elite, Star, Impact, Normal
-
-Column O — Prev Team: use ONLY abbreviations from the team mapping appended below. Leave BLANK for HS/JUCO recruits AND for any transfer whose previous school is not clearly visible in the screenshots. NEVER write "Transfer Portal", "Unknown", or any other placeholder text — unknown = blank.
-
-Column P — Commitment: the team ABBR the recruit committed to. Use ONLY abbreviations from the team mapping appended below. Use YOUR team's abbreviation for any recruit who committed to your program. Write "Uncommitted" only if the recruit is still open/being recruited. These are COMMITMENTS, so this column is normally a team abbreviation (rarely "Uncommitted").
-
-═══════════════════════════════════════════════════════════
-REQUIRED OUTPUT FORMAT
-═══════════════════════════════════════════════════════════
-=== COMMITMENTS — paste at cell A${prefillRecruits.length + 2} of "Commitments" tab ===
-<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat. Rank>\\t<State Rank>\\t<Pos. Rank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev Trait>\\t<Prev Team>\\t<Commitment>
-<next recruit row...>
-...
-
-═══════════════════════════════════════════════════════════
-FINAL CHECK before you send
-═══════════════════════════════════════════════════════════
-[ ] Exactly 16 tab-separated values per line (count the tabs: there must be 15 tabs between 16 values)
-[ ] No header row in output
-[ ] No commas in any number
-[ ] Stars column uses ☆ symbols (never digits)
-[ ] Every value in columns B, C, D, E, I, L, M, N, O, P is a LITERAL MATCH of an enumerated dropdown value
-[ ] Heights use straight ASCII quote " not curly quote
-[ ] Prev Team is blank for HS/JUCO recruits AND for transfers with unknown/invisible previous school — never "Transfer Portal" or any placeholder
-[ ] Column P (Commitment) is a team abbreviation from the mapping (your team's abbr for commits to you), or "Uncommitted"
-[ ] Blank cells for unknowns — invented nothing`,
-    includeTeamMap: true,
-    dynastyTeams: currentDynasty?.teams,
-    notes: 'Column O (Prev Team) applies ONLY to transfer-portal recruits (Class = Fr, RS Fr, So, RS So, Jr, or RS Jr) when the previous school is clearly visible. For HS/JUCO recruits OR when the previous school is unknown, leave column O BLANK. Column P (Commitment) is the team abbreviation the recruit committed to — use YOUR team\'s abbreviation for commits to your program, or "Uncommitted" if still open. Use ONLY the team abbreviations in the mapping — never a full team name, never "Transfer Portal" or any placeholder. Output STOPS at column P: the attribute columns, hidden pid, and trailing NIL column that follow are filled separately (by the app or by hand), never in this 16-column output.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams, prefillRecruits])
-
-  // ── Targets + Attributes prompt ──────────────────────────────────────────
-  // Self-contained (does NOT depend on the Commitments prompt above) so the AI
-  // sees everything it needs. Adds two things to the standard recruiting row:
-  // Column P (Commitment status) and one column per scouted attribute. Attribute
-  // values come ONLY from a recruit's player-page "Attributes" tab — never the
-  // recruiting board/list — so the board screenshot fills A–P with attributes
-  // blank, and a player-page screenshot fills the attribute columns.
+  // ── Recruiting prompt (single, unified) ──────────────────────────────────
+  // ONE prompt covers every recruiting screenshot: a board, a weekly commit
+  // list, or a recruit's player-page "Attributes" tab. It outputs the standard
+  // A–P row, classifies the Commitment column (a team abbr if committed, the
+  // literal "Uncommitted" if still being recruited), and OPTIONALLY fills the
+  // per-attribute columns when a player-page Attributes tab is shown. The
+  // commit-only and target-tracking flows were two prompts before; they only
+  // ever differed by the attribute columns and the "Uncommitted" sentinel, so
+  // the superset prompt does both. (A BLANK Commitment still means "committed
+  // to your team" for back-compat — see classifyCommitment.)
   const ATTR_N = ATTRIBUTE_COLUMNS.length
   const startRow = prefillRecruits.length + 2
-  const targetsPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Recruiting TARGETS + Attributes: ${recruitingLabel || ''}`.trim(),
-    structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots — paste BELOW the rows already entered; never re-output existing rows.
+  const recruitingPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Recruiting: ${recruitingLabel || ''}`.trim(),
+    structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots, pasted BELOW the rows already entered; never re-output existing rows.
 
-TARGETS + ATTRIBUTES mode. You may get two kinds of screenshots — handle each:
-  • RECRUITING BOARD / commit list  → output each recruit's columns A–P (commit info + Commitment). Leave ALL attribute columns blank.
-  • A recruit's PLAYER PAGE "Attributes" tab → output that ONE recruit's full row: columns A–P PLUS the ${ATTR_N} attribute columns filled from the tab.
-Attributes appear ONLY on the player-page Attributes tab — NOT on the board. If you only have the board, every attribute stays blank (not every recruit is scouted — that's expected).
+You may get any of these screenshots. Handle each:
+  • A RECRUITING BOARD or weekly COMMIT LIST: output each recruit's columns A–P (recruit info + Commitment). Leave ALL attribute columns blank.
+  • A recruit's PLAYER PAGE "Attributes" tab: output that ONE recruit's full row, columns A–P PLUS the ${ATTR_N} attribute columns filled from the tab.
+Attributes appear ONLY on the player-page Attributes tab, never on the board. If you only have the board, every attribute stays blank (not every recruit is scouted, and that is expected).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES
@@ -584,10 +469,9 @@ FINAL CHECK
         ) : sheetId ? (
           <div className="flex-1 flex flex-col overflow-hidden gap-3">
             <SheetModalAIHero
-              tagline="Skip the typing. Let AI fill the recruiting commitments — or track targets + attributes."
+              tagline="Skip the typing. Let AI read your recruiting screenshots (board, commit list, or a recruit's Attributes tab) and fill the sheet."
               buttons={[
-                { label: 'Commitments', prompt: aiPrompt },
-                { label: 'Targets + Attributes', prompt: targetsPrompt },
+                { label: 'Fill with AI', prompt: recruitingPrompt },
               ]}
             />
             {isMobile || !useEmbedded ? (

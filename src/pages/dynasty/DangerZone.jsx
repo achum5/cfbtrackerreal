@@ -141,6 +141,7 @@ export default function DangerZone() {
 
   // Class data fix state
   const [transferYearFixStatus, setTransferYearFixStatus] = useState(null)
+  const [clearRosterStatus, setClearRosterStatus] = useState(null)
   const [advanceClassesStatus, setAdvanceClassesStatus] = useState(null)
   const [showAdvanceModal, setShowAdvanceModal] = useState(false)
   const [advanceSelections, setAdvanceSelections] = useState({}) // { pid: boolean }
@@ -462,6 +463,46 @@ export default function DangerZone() {
       setTransferYearFixStatus({ success: true, message: `Backfilled ${fixedYears} year(s) across ${fixedPlayers} player(s).` })
     } catch (error) {
       setTransferYearFixStatus({ success: false, message: 'Fix failed: ' + error.message })
+    }
+  }
+
+  // Wipe the user team's CURRENT-year roster so a fresh roster can be imported.
+  // Roster import always MERGES (it never deletes players missing from the
+  // sheet), so re-importing a corrected roster leaves the old names behind.
+  // This removes every player on the user team's current roster (same filter as
+  // the Roster page). Other teams' players and honor-only entries are untouched.
+  // The Enter Roster task stays reachable via its Edit button to re-import.
+  const handleClearRoster = async () => {
+    const players = currentDynasty?.players || []
+    const currentYear = currentDynasty?.currentYear || new Date().getFullYear()
+    const userTid = currentDynasty?.currentTid
+
+    const removePids = new Set(
+      players
+        .filter(p => !p.isHonorOnly && isPlayerOnRoster(p, userTid, currentYear, currentDynasty))
+        .map(p => p.pid)
+    )
+
+    if (removePids.size === 0) {
+      setClearRosterStatus({ success: true, message: 'Your team has no players on the current roster — nothing to clear.' })
+      return
+    }
+
+    const ok = await confirm({
+      title: `Clear your team's roster?`,
+      message: `This permanently deletes the ${removePids.size} player(s) on your current roster (${currentYear}) so you can re-import a fresh one. Other teams' rosters are untouched. This cannot be undone.`,
+      confirmLabel: 'Clear Roster',
+      variant: 'danger',
+    })
+    if (!ok) return
+
+    setClearRosterStatus('running')
+    try {
+      const remaining = players.filter(p => !removePids.has(p.pid))
+      await updateDynasty(currentDynasty.id, { players: remaining })
+      setClearRosterStatus({ success: true, message: `Cleared ${removePids.size} player(s). Re-import via the Enter Roster task (use its Edit button).` })
+    } catch (error) {
+      setClearRosterStatus({ success: false, message: 'Clear failed: ' + error.message })
     }
   }
 
@@ -2355,6 +2396,14 @@ export default function DangerZone() {
             buttonText="Fix Transfers"
             onClick={handleFixTransferYears}
             status={transferYearFixStatus}
+          />
+          <ActionCard
+            danger
+            title="Clear Roster"
+            description="Permanently deletes every player on YOUR team's current roster so you can import a fresh one. Roster import always merges (it never removes players missing from the sheet), so re-importing leaves old names behind — clear first, then re-import. Other teams' rosters are untouched."
+            buttonText="Clear Roster"
+            onClick={handleClearRoster}
+            status={clearRosterStatus}
           />
           <ActionCard
             danger
