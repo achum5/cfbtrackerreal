@@ -6744,7 +6744,7 @@ export default function Dashboard() {
                         : `${fringeCasePlayers.length} player${fringeCasePlayers.length !== 1 ? 's' : ''} with 5-9 games`,
                   onAction: !hasFringeCases ? undefined : () => setShowFringeCaseClassModal(true),
                   actionLabel: !hasFringeCases ? undefined : (fringeComplete ? 'Done' : 'Open'),
-                  viewTo: hasFringeCaseClassData ? `${pathPrefix}/roster` : null,
+                  viewTo: hasFringeCaseClassData ? `${pathPrefix}/team/${teamTidF}/${offseasonDataYear}?tab=roster` : null,
                 })
               }
 
