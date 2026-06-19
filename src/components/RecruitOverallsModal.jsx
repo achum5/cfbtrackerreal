@@ -46,7 +46,7 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, currentY
   const [regenerating, setRegenerating] = useState(false)
 
   const aiPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Recruiting Class Overalls`,
+    title: `${currentYear} Incoming Freshmen Overalls`,
     roster: (recruits || []).map(p => ({
       name: p.name,
       jerseyNumber: p.jerseyNumber,
@@ -331,7 +331,7 @@ FINAL CHECK before you send
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <SheetModalHeader eyebrow="Recruiting" title="Class Overalls" onClose={handleClose} />
+        <SheetModalHeader eyebrow="Recruiting" title="Incoming Freshmen Overalls" onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
 

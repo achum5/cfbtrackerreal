@@ -12182,7 +12182,7 @@ export async function createRecruitOverallsSheet(dynastyName, year, recruits) {
       },
       body: JSON.stringify({
         properties: {
-          title: `${dynastyName} - Recruiting Class Overalls ${year}`
+          title: `${dynastyName} - Incoming Freshmen Overalls ${year}`
         },
         sheets: [
           {
