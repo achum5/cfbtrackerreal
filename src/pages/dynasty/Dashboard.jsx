@@ -6648,7 +6648,9 @@ export default function Dashboard() {
                     : 'Update player positions',
                   onAction: () => setShowPositionChangesModal(true),
                   actionLabel: hasPositionChanges ? 'Edit' : 'Open',
-                  viewTo: hasPositionChanges ? `${pathPrefix}/roster` : null,
+                  viewTo: hasPositionChanges
+                    ? `${pathPrefix}/team/${getUserTeamTid(currentDynasty)}/${offseasonDataYear}?tab=depthchart`
+                    : null,
                 })
 
                 // Recruiting Class Overalls
