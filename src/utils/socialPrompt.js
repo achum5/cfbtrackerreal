@@ -166,6 +166,57 @@ One ${post} per line. No numbering. No commentary inside the block.`
 const META_KEYS = new Set(['name', 'playerName', 'position', 'pos', 'pid', 'tid', 'jerseyNumber', 'jersey', 'id', 'team', 'teamTid', 'teamAbbr'])
 const num = (v) => Number(v) || 0
 
+function gameTypeLabel(game) {
+  if (game.isCFPChampionship) return 'CFP NATIONAL CHAMPIONSHIP'
+  if (game.isCFPSemifinal) return 'CFP SEMIFINAL'
+  if (game.isCFPQuarterfinal) return 'CFP QUARTERFINAL'
+  if (game.isCFPFirstRound) return 'CFP FIRST ROUND'
+  if (game.isConferenceChampionship) return `CONFERENCE CHAMPIONSHIP${game.conference ? ` — ${game.conference}` : ''}`
+  if (game.isBowlGame) return `BOWL GAME${game.bowlName ? ` — ${game.bowlName}` : ''}`
+  if (game.week === 'CCG') return 'CONFERENCE CHAMPIONSHIP'
+  if (game.week === 'Bowl') return 'BOWL GAME'
+  if (game.week === 'NatChamp') return 'NATIONAL CHAMPIONSHIP'
+  if (game.isConferenceGame) return 'CONFERENCE REGULAR SEASON GAME'
+  return 'REGULAR SEASON GAME'
+}
+
+function weekDisplay(year, week) {
+  if (!year) return ''
+  const wLabel = week === 'CCG' ? 'Conference Championship'
+    : week === 'Bowl' ? 'Bowl Season'
+    : week === 'NatChamp' ? 'National Championship'
+    : week ? `Week ${week}` : ''
+  return wLabel ? `Year ${year}, ${wLabel}` : `Year ${year}`
+}
+
+function getHCName(dynasty, tid, year) {
+  if (dynasty?.coaches) {
+    const yearN = Number(year)
+    const coach = Object.values(dynasty.coaches).find(c =>
+      c.status !== 'departed' && c.byYear?.[yearN]?.teamTid === Number(tid) && c.byYear?.[yearN]?.role === 'HC'
+    )
+    if (coach?.name) return coach.name
+  }
+  const slot = dynasty?.teams?.[tid] ?? dynasty?.teams?.[String(tid)]
+  return slot?.byYear?.[year]?.coachingStaff?.hcName || null
+}
+
+function formatQuarterScores(game, t1abbr, t2abbr) {
+  const q = game.quarters
+  if (!q?.team1 || !q?.team2) return null
+  const t1q = q.team1; const t2q = q.team2
+  let r1 = `  ${t1abbr}: Q1 ${t1q.Q1 ?? 0} | Q2 ${t1q.Q2 ?? 0} | Q3 ${t1q.Q3 ?? 0} | Q4 ${t1q.Q4 ?? 0}`
+  let r2 = `  ${t2abbr}: Q1 ${t2q.Q1 ?? 0} | Q2 ${t2q.Q2 ?? 0} | Q3 ${t2q.Q3 ?? 0} | Q4 ${t2q.Q4 ?? 0}`
+  if (Array.isArray(game.overtimes) && game.overtimes.length) {
+    game.overtimes.forEach((ot, i) => {
+      const label = i === 0 ? 'OT' : `OT${i + 1}`
+      r1 += ` | ${label} ${ot.team1 ?? 0}`
+      r2 += ` | ${label} ${ot.team2 ?? 0}`
+    })
+  }
+  return [r1, r2]
+}
+
 // Player rows are grouped { passing, rushing, receiving, defense, kicking },
 // each an array whose rows use `playerName` + the sheet's camelCase stat keys.
 function formatPlayerRows(boxSide) {
@@ -249,10 +300,65 @@ function gameDataBlock(dynasty, game) {
   else if (game.homeTeamTid === game.team2Tid) site = ` (at ${t2.abbr})`
   else site = ` (at ${t1.abbr})`
   const ot = game.ot ? ' (OT)' : ''
-  const weekLabel = game.year && game.week ? `Year ${game.year}, Week ${game.week} — ` : ''
+  const wkDisp = weekDisplay(game.year, game.week)
 
-  const lines = [`${weekLabel}FINAL: ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${winner ? ` — ${winner.name} win` : ''}`]
+  const lines = [
+    wkDisp ? `${wkDisp} — ${gameTypeLabel(game)}` : gameTypeLabel(game),
+    `FINAL: ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${winner ? ` — ${winner.name} win` : ''}`,
+  ]
 
+  // CFP seeds
+  if (game.seed1 || game.seed2) {
+    lines.push(`CFP Seeds: ${t1.abbr} #${game.seed1 ?? '?'} vs ${t2.abbr} #${game.seed2 ?? '?'}`)
+  }
+
+  // Records
+  const rec1 = [game.team1Record, game.team1ConfRecord ? `(${game.team1ConfRecord} conf)` : ''].filter(Boolean).join(' ')
+  const rec2 = [game.team2Record, game.team2ConfRecord ? `(${game.team2ConfRecord} conf)` : ''].filter(Boolean).join(' ')
+  if (rec1 || rec2) {
+    lines.push(`RECORDS: ${t1.abbr} ${rec1 || '—'} | ${t2.abbr} ${rec2 || '—'}`)
+  }
+
+  // Team ratings
+  if (game.team1Overall || game.team2Overall) {
+    const r1 = [`${game.team1Overall ?? '?'} OVR`, game.team1Offense && `${game.team1Offense} OFF`, game.team1Defense && `${game.team1Defense} DEF`].filter(Boolean).join(' / ')
+    const r2 = [`${game.team2Overall ?? '?'} OVR`, game.team2Offense && `${game.team2Offense} OFF`, game.team2Defense && `${game.team2Defense} DEF`].filter(Boolean).join(' / ')
+    lines.push(`TEAM RATINGS: ${t1.abbr} ${r1} | ${t2.abbr} ${r2}`)
+  }
+
+  // Head coaches
+  const hc1 = getHCName(dynasty, game.team1Tid, game.year)
+  const hc2 = getHCName(dynasty, game.team2Tid, game.year)
+  if (hc1 || hc2) {
+    lines.push(`HEAD COACHES: ${t1.abbr} — ${hc1 || 'Unknown'} | ${t2.abbr} — ${hc2 || 'Unknown'}`)
+  }
+
+  // Quarter scores
+  const qLines = formatQuarterScores(game, t1.abbr, t2.abbr)
+  if (qLines) {
+    lines.push('', 'SCORING BY QUARTER:', ...qLines)
+  }
+
+  // Players of the week
+  const pows = [
+    game.conferencePOW && `Conference Offense: ${game.conferencePOW}`,
+    game.confDefensePOW && `Conference Defense: ${game.confDefensePOW}`,
+    game.nationalPOW && `National Offense: ${game.nationalPOW}`,
+    game.natlDefensePOW && `National Defense: ${game.natlDefensePOW}`,
+  ].filter(Boolean)
+  if (pows.length) {
+    lines.push('', 'PLAYERS OF THE WEEK:', ...pows.map(p => `  ${p}`))
+  }
+
+  // AI recap and user notes — give the AI narrative context
+  if (game.aiRecap?.trim()) {
+    lines.push('', 'GAME RECAP:', game.aiRecap.trim())
+  }
+  if (game.gameNote?.trim()) {
+    lines.push('', 'GAME NOTES:', game.gameNote.trim())
+  }
+
+  // Box score: player stats, team totals, scoring plays
   const bs = canonicalBoxScore(game, dynasty?.teams)
   if (bs) {
     for (const [tid, label] of [[game.team1Tid, t1.name], [game.team2Tid, t2.name]]) {
@@ -265,6 +371,7 @@ function gameDataBlock(dynasty, game) {
     const scoring = formatScoringPlays(bs.scoringSummary)
     if (scoring.length) lines.push('', 'Scoring:', ...scoring)
   }
+
   return lines.join('\n')
 }
 
@@ -298,8 +405,9 @@ SOCIAL POSTS (${platform.name}) — a SECOND output block
 ═══════════════════════════════════════════════════════════
 ${platform.name} is a fictional social media platform. Write in-character as the accounts below.
 - Write ${count} ${post}s about this game. Mix the two teams' beat and fan accounts with a few national voices.
-- DIG INTO THE DETAIL: reference specific players, stat lines, and scoring plays from the GAME DATA below. Invent nothing.
-- Match each account's personality. Vary tone and length; keep each ${post} realistic.
+- DIG INTO THE DETAIL: pull from every section of GAME DATA — the score, records, team ratings, coaches, quarter-by-quarter flow, player stats, scoring drives, and any recap/notes provided. The richer your references, the better.
+- Calibrate tone to the game type and stakes: bowl games / CFP rounds / conference championships warrant urgency and national attention; regular season blowouts produce frustration or swagger; close finishes produce disbelief and drama.
+- Match each account's personality. Vary tone and length; keep each ${post} realistic. Invent nothing outside the data provided.
 
 GAME DATA:
 ${gameDataBlock(dynasty, game)}
@@ -328,8 +436,10 @@ One ${post} per line. No numbering, no commentary inside the block.`
  */
 export function buildGameSocialPrompt(dynasty, game, { count = 8 } = {}) {
   const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
-  const weekCtx = game?.year && game?.week ? ` (Year ${game.year}, Week ${game.week})` : ''
-  const prompt = `You are generating ${platform.name} posts about ONE college football game${weekCtx}. Use the week number to calibrate the tone — early weeks (1-4) are September/season-opener energy; mid-season weeks feel like conference grind; late weeks (10+) carry playoff/championship stakes and end-of-season urgency.
+  const wkDisp = weekDisplay(game?.year, game?.week)
+  const gtLabel = game ? gameTypeLabel(game) : ''
+  const ctx = [wkDisp, gtLabel].filter(Boolean).join(' — ')
+  const prompt = `You are generating ${platform.name} posts about ONE college football game${ctx ? ` (${ctx})` : ''}. Use the week number and game type in GAME DATA to calibrate tone — early season is opener energy, late regular season is conference crunch time, bowl/CFP games are high-stakes elimination pressure.
 
 ${buildGameSocialSection(dynasty, game, count)}
 
