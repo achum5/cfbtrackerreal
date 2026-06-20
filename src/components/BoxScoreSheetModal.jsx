@@ -361,9 +361,56 @@ export default function BoxScoreSheetModal({
         opponentRosterLabel: homeScoringFallback
           ? `${homeTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for team-assignment)`
           : `${homeTeamAbbr} ROSTER (for team-assignment, see below)`,
-        structure: `This is an OCR task: extract structured data from images into TSV. Prioritize responding quickly rather than thinking deeply. Extended thinking adds latency and is NOT helpful here — when in doubt, respond directly. Skip every preamble and begin output immediately with the first row's first character.
+        structure: `This is an OCR task: extract structured data from images into TSV. Output the full play-by-play of this game as 13-col TSV — one row per highlight line, chronological order (earliest first). Paste target: cell A2 of the "Scoring Summary" tab.
 
-Output the full play-by-play of this game as 13-col TSV — one row per highlight line, chronological order (earliest first). The user will copy your reply and paste it at cell A2 of the "Scoring Summary" tab in Google Sheets, so the DATA block must contain ONLY tab-separated rows. No XML, no header row inside the data, no preamble or commentary other than the required paste-target label line above the fence (see Method A/B rules above).
+═══════════════════════════════════════════════════════════
+USE CODE EXECUTION — NOT MANUAL TAB COUNTING
+═══════════════════════════════════════════════════════════
+Column-shift (Quarter leaking into Score Type, Time Left into PAT Result)
+is the #1 failure mode for this sheet. It happens when empty cells are
+collapsed by hand instead of emitted as true empty fields.
+
+MANDATORY: use Python to build and emit every row. The csv module
+guarantees exactly 12 tab characters per row regardless of how many
+fields are blank — making column-shift structurally impossible.
+
+COLS = [
+    'team', 'scorer', 'passer', 'yards', 'score_type', 'pat_result',
+    'quarter', 'time_left', 'video_link',
+    'down', 'distance', 'field_pos', 'play_type'
+]
+
+Step 1 — parse every play from all screenshots into a Python list of dicts.
+Every dict must have ALL 13 keys; use '' (empty string) for blank fields.
+Example dict for a penalty (many blank fields — code still emits 12 tabs):
+  {'team':'${awayTeamAbbr}','scorer':'','passer':'','yards':'',
+   'score_type':'','pat_result':'','quarter':'2','time_left':'11:40',
+   'video_link':'','down':'2','distance':'5',
+   'field_pos':'${awayTeamAbbr} 25','play_type':'Penalty'}
+
+Step 2 — sort chronologically:
+  plays.sort(key=lambda p: (
+      {'1':1,'2':2,'3':3,'4':4,'OT':5,'2OT':6,'3OT':7,'4OT':8}.get(p['quarter'], 9),
+      -time_to_sec(p['time_left'])   # helper: MM:SS → seconds, negate for DESC
+  ))
+
+Step 3 — emit with csv.writer (NOT f-strings or manual join):
+  import csv, io
+  buf = io.StringIO()
+  w = csv.writer(buf, delimiter='\\t', lineterminator='\\n',
+                 quoting=csv.QUOTE_NONE, escapechar='\\\\')
+  for p in plays:
+      w.writerow([p[c] for c in COLS])
+  print(buf.getvalue(), end='')
+
+WHY THIS IS NON-NEGOTIABLE: csv.writer always emits len(COLS)−1 = 12
+tabs. An empty string between two delimiters is still a delimiter — the
+column slot is preserved. Manually padding tabs by eye is where the bug
+lives. The code approach eliminates it entirely.
+
+If code execution is unavailable: write each row as a 13-element Python
+list literal and verify len(row) == 13 before converting — never join
+until the list is confirmed complete.
 
 ═══════════════════════════════════════════════════════════
 TRANSCRIBE, DON'T REASON
@@ -608,34 +655,23 @@ REFERENCE ROWS (templates — note how col A is decided)
 Notice: rows 2, 3, and 4 all have a Field Pos that names a team ≠ col A. That's the normal case, not the exception. Decide col A from the PLAYER, every time.
 
 ═══════════════════════════════════════════════════════════
-🚨 COLUMN ALIGNMENT — every row MUST have EXACTLY 12 tabs (13 cells) 🚨
+COLUMN ALIGNMENT — handled by code, not by eye
 ═══════════════════════════════════════════════════════════
-This is the #3 failure mode and it silently corrupts the sheet.
+If you followed the USE CODE EXECUTION section above, column alignment
+is already guaranteed — csv.writer never collapses empty fields.
 
-When a play has no Scorer, no Passer, no Yards, no Score Type, and no
-PAT Result — like a Penalty or a generic "Other" row — you MUST still
-emit the EMPTY cells with their tabs. Do NOT collapse them.
+For reference, the column-shift failure looks like this:
+  ❌ WRONG — penalty row hand-typed with collapsed empties (9 tabs):
+     ${awayTeamAbbr}				2	11:40		2	5	${awayTeamAbbr} 25	Penalty
+     Result: Score Type = "2", PAT Result = "11:40" — front-end renders ghost scoring cards.
 
-❌ WRONG (penalty row with collapsed empty cells — only 9 tabs):
-   ${awayTeamAbbr}				2	11:40		2	5	${awayTeamAbbr} 25	Penalty
-   What ends up in the sheet:
-     Score Type = "2"   ← quarter number leaked into col E
-     PAT Result = "11:40"  ← time leaked into col F
-   The front-end then thinks "2" is a scoring play and renders a
-   ghost scoring card. THIS BREAKS THE PLAYS TAB.
+  ✅ RIGHT — same row from csv.writer (12 tabs, empty strings preserved):
+     ${awayTeamAbbr}						2	11:40		2	5	${awayTeamAbbr} 25	Penalty
 
-✅ RIGHT (penalty row with EVERY empty cell tabbed — 12 tabs):
-   ${awayTeamAbbr}						2	11:40		2	5	${awayTeamAbbr} 25	Penalty
-   Six leading empty cells (Scorer, Passer, Yards, Score Type, PAT,
-   then Quarter starts at col G). Count the tabs: 12.
-
-Rule: BEFORE EMITTING ANY ROW, count tab characters. The count must
-be EXACTLY 12. If it's less, you collapsed empty cells — go back and
-add the missing tabs.
-
-Score Type column (col E): if the play is NOT a score, this cell is
-EMPTY. Never a quarter number. Never a yardage. Never a time. Empty.
-Same for PAT Result (col F) — empty unless it's a TD/PAT/2PT row.
+The code-first workflow makes the ❌ case impossible. Score Type (col E)
+is empty on every non-scoring play. PAT Result (col F) is empty on every
+non-TD row. These are just empty-string fields in the dict — the writer
+handles the tabs automatically.
 
 ═══════════════════════════════════════════════════════════
 CELL FORMAT — exact strings, no paraphrasing
@@ -677,34 +713,32 @@ run each check. Misalignment is the highest-impact failure for this
 sheet because it shows up in the user's Plays tab as garbage they
 have to delete by hand.
 
-[ ] TAB COUNT: every row has EXACTLY 12 tab characters. Count by
-    eye on the suspicious rows — Penalty, Other, Sack, Kickoff
-    Return without a named returner. Each of those has many empty
-    cells; each empty cell still costs one tab.
+[ ] CODE PATH USED: confirm you built the output via csv.writer, not
+    by manually joining strings. If you typed the TSV by hand, stop —
+    rebuild with the Python template in the USE CODE EXECUTION section.
 
-[ ] SCORE TYPE WHITELIST: scan col E across every row. Each value
-    is EXACTLY one of the 9 valid scoring strings, or empty. NEVER
-    "PAT" (extra points live in column F, not column E), NEVER a
-    digit ("2"), NEVER a time ("11:40"), NEVER a paraphrase
-    ("Interception TD", "Kickoff Return TD", "FG").
+[ ] TAB COUNT (spot-check): pick 3 rows at random and assert
+    len(row.split('\\t')) == 13. A mismatch means a collapsed empty
+    cell — fix the source dict, not the string.
 
-[ ] PAT COLLAPSED: every TD row has col F filled (Made XP / Missed
-    XP / Blocked XP / Converted 2PT / Failed 2PT). NO row has E="PAT"
-    or Play Type="PAT". The XP attempt lives only in the TD row's
-    column F — no separate row for the kicker.
+[ ] SCORE TYPE WHITELIST: assert every score_type value in your play
+    dicts is exactly one of the 9 valid strings or ''. NEVER a digit,
+    a time, "PAT", or a paraphrase like "Interception TD".
 
-[ ] QUARTER / TIME on every row: col G is one of the 8 valid quarter
-    strings (NOT empty, NOT "Q1"). Col H is MM:SS with leading zeros.
+[ ] PAT MERGED: every TD dict has pat_result filled. No separate dict
+    has play_type='PAT'. The kicker's extra point lives in the TD
+    dict's pat_result field only.
 
-[ ] NO NEWLINES INSIDE CELLS: split your draft on newlines. The
-    count equals the number of plays you intended to emit. If it's
-    higher, you let a cell value wrap.
+[ ] QUARTER / TIME: every dict has quarter in ['1','2','3','4','OT',
+    '2OT','3OT','4OT'] and time_left matching MM:SS with leading zeros.
 
-[ ] TEAM ATTRIBUTION: col A is the team of the PLAYER named in B
-    (or C for sacks). NOT the team in Field Pos.
+[ ] NO NEWLINES IN VALUES: assert no dict value contains '\\n' or '\\t'.
 
-If ANY of these fails, fix the offending row(s) and re-run the
-checks. Do not send output that fails any of them.`,
+[ ] TEAM ATTRIBUTION: col A (team) = the team of the PLAYER in scorer
+    (or passer for sacks). Never the team named in field_pos.
+
+If ANY check fails, fix the source dict and re-run the writer — do
+not patch the raw TSV string by hand.`,
         includeTeamMap: true,
         dynastyTeams: currentDynasty?.teams,
       })
