@@ -182,6 +182,7 @@ export default function Layout({ children }) {
   const isHomePage = location.pathname === '/' || location.pathname === '/home'
   const isAccountPage = location.pathname === '/account'
   const useTeamTheme = isDynastyPage && currentDynasty
+  const isSocialPage = location.pathname.includes('/social/')
   const isCFPBracketPage = location.pathname.includes('/cfp-bracket')
   const isGamePage = location.pathname.includes('/game/')
   const isCoachCareerPage = location.pathname.includes('/coach-career')
@@ -863,7 +864,7 @@ export default function Layout({ children }) {
       {/* Spacer reserving the fixed header's height (keeps content in place). */}
       <div aria-hidden="true" style={{ height: headerHeight }} />
 
-      <main id="main" tabIndex={-1} className={`flex-1 [overflow-x:clip] ${isHomePage || isAccountPage ? '' : 'px-4 py-6'} ${isDynastyPage || isHomePage || isAccountPage ? '' : 'container mx-auto'}`}>
+      <main id="main" tabIndex={-1} className={`flex-1 [overflow-x:clip] ${isHomePage || isAccountPage || isSocialPage ? '' : 'px-4 py-6'} ${isDynastyPage || isHomePage || isAccountPage ? '' : 'container mx-auto'}`}>
         {isDynastyPage ? (
           <div key={location.pathname} className="max-w-[1440px] mx-auto w-full page-enter">
             {children}

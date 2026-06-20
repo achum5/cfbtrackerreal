@@ -29,6 +29,22 @@ function Verified({ color = '#1d9bf0', size = 20 }) {
   )
 }
 
+// Twitter/X-style count abbreviation for both thousands and millions:
+// 1,217 -> 1.2K, 30,300 -> 30.3K, 2,806,454 -> 2.8M. One decimal under
+// 100, dropped when it would be .0, whole numbers at/above 100 of a unit.
+function formatCount(n) {
+  const num = Number(n) || 0
+  if (num >= 1_000_000) {
+    const m = num / 1_000_000
+    return (m >= 100 ? Math.round(m) : Number(m.toFixed(1))) + 'M'
+  }
+  if (num >= 1_000) {
+    const k = num / 1_000
+    return (k >= 100 ? Math.round(k) : Number(k.toFixed(1))) + 'K'
+  }
+  return num.toLocaleString()
+}
+
 const weekLabel = (week) => {
   const w = Number(week)
   if (w === 0) return 'Week 0'
@@ -153,8 +169,8 @@ export default function SocialCharacter() {
         </div>
 
         <div className="mt-3 flex gap-4 text-sm">
-          <span className="text-txt-primary font-semibold">{(character.followingCount || 0).toLocaleString()} <span className="text-txt-tertiary font-normal">Following</span></span>
-          <span className="text-txt-primary font-semibold">{(character.followerCount || 0).toLocaleString()} <span className="text-txt-tertiary font-normal">Followers</span></span>
+          <span className="text-txt-primary font-semibold">{formatCount(character.followingCount)} <span className="text-txt-tertiary font-normal">Following</span></span>
+          <span className="text-txt-primary font-semibold">{formatCount(character.followerCount)} <span className="text-txt-tertiary font-normal">Followers</span></span>
         </div>
       </div>
 
