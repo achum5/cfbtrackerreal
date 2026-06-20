@@ -7,6 +7,8 @@ import { useDynasty, GAME_TYPES, getCurrentCustomConferences, buildRecordUpdateP
 import { useAuth } from '../../context/AuthContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getFullRecapPrompt } from '../../services/geminiService'
+import { buildGameSocialSection, gameSocialTagMap } from '../../utils/socialPrompt'
+import { extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex, getEffectiveCharacters, ensureUniverseLoaded } from '../../data/socialModel'
 import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -18,6 +20,7 @@ import { PageHero, Card, Button, EmptyState, Input, Select, Textarea, SectionHea
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { useToast } from '../../components/ui/Toast'
 import RecapSettingsModal from '../../components/RecapSettingsModal'
+import GameSocialModal from '../../components/GameSocialModal'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
 import { getTeamColors } from '../../data/teamColors'
 import { uploadImagesToImgBB } from '../../utils/imgbb'
@@ -218,7 +221,7 @@ export default function GameEdit() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentDynasty, updateDynasty, updateGame, addGame, deleteGame, isViewOnly } = useDynasty()
+  const { currentDynasty, updateDynasty, updateGame, addGame, deleteGame, isViewOnly, loadSocial, saveSocialPosts } = useDynasty()
   const { confirm } = useConfirm()
   const { toast } = useToast()
   const pathPrefix = usePathPrefix()
@@ -265,6 +268,7 @@ export default function GameEdit() {
   // section's screen real estate. Now it lives in a modal opened via
   // the expand button alongside Copy / Paste / Settings.
   const [showRecapEditModal, setShowRecapEditModal] = useState(false)
+  const [showSocialModal, setShowSocialModal] = useState(false)
   // Toast/feedback for the inline "Paste" button so the user knows
   // the clipboard read succeeded (or didn't — e.g. browser blocked it).
   const [recapPasteFeedback, setRecapPasteFeedback] = useState(null)
@@ -286,12 +290,16 @@ export default function GameEdit() {
     try { return localStorage.getItem('gameRecapDepth') || 'standard' } catch { return 'standard' }
   })
   const [showRecapSettings, setShowRecapSettings] = useState(false)
+  const [recapSocial, setRecapSocial] = useState(() => { try { return localStorage.getItem('gameRecapSocial') === '1' } catch { return false } })
+  const [recapSocialCount, setRecapSocialCount] = useState(() => { try { return Number(localStorage.getItem('gameRecapSocialCount')) || 8 } catch { return 8 } })
   useEffect(() => {
     try { localStorage.setItem('gameRecapPerspective', recapPerspective) } catch { /* ignored */ }
   }, [recapPerspective])
   useEffect(() => {
     try { localStorage.setItem('gameRecapDepth', recapDepth) } catch { /* ignored */ }
   }, [recapDepth])
+  useEffect(() => { try { localStorage.setItem('gameRecapSocial', recapSocial ? '1' : '0') } catch { /* ignored */ } }, [recapSocial])
+  useEffect(() => { try { localStorage.setItem('gameRecapSocialCount', String(recapSocialCount)) } catch { /* ignored */ } }, [recapSocialCount])
 
   // Form state
   const [formData, setFormData] = useState({
@@ -1831,7 +1839,13 @@ export default function GameEdit() {
         year: gameYear,
       }
 
-      const fullPrompt = getFullRecapPrompt(currentDynasty, gameForRecap, { perspective: recapPerspective, depth: recapDepth })
+      let fullPrompt = getFullRecapPrompt(currentDynasty, gameForRecap, { perspective: recapPerspective, depth: recapDepth })
+
+      // Optionally bake social posts into the same prompt (two-in-one).
+      if (recapSocial && currentDynasty) {
+        const socialSection = buildGameSocialSection(currentDynasty, gameForRecap, Number(recapSocialCount) || 8)
+        fullPrompt = `${fullPrompt}\n\nIMPORTANT: After your recap, ALSO output the SOCIAL POSTS block described below as a SEPARATE \`\`\`cfb-social fence (two sibling fenced blocks, recap first).\n\n${socialSection}`
+      }
 
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(fullPrompt)
@@ -2492,11 +2506,33 @@ export default function GameEdit() {
                 setTimeout(() => setRecapPasteFeedback(null), 2500)
                 return
               }
-              // Strip markdown markers so the recap renders as plain prose
-              // instead of pulling in bold/headings from the copied AI reply.
-              setFormData(prev => ({ ...prev, aiRecap: unwrapRecapFence(text) }))
-              setRecapPasteFeedback('Pasted.')
-              setTimeout(() => setRecapPasteFeedback(null), 1800)
+              // Split out any cfb-social block so it doesn't pollute the recap.
+              const { found: hasSocial, body: socialBody, recapWithoutBlock } = extractSocialBlock(text)
+              const recapText = hasSocial ? recapWithoutBlock : text
+              setFormData(prev => ({ ...prev, aiRecap: unwrapRecapFence(recapText) }))
+
+              let msg = 'Pasted.'
+              if (hasSocial && existingGame?.id) {
+                try {
+                  await loadSocial(currentDynasty.id)
+                  await ensureUniverseLoaded()
+                  const cmap = getEffectiveCharacters(currentDynasty)
+                  const { posts, newCharacters } = resolveSocialPosts({
+                    lines: parseSocialLines(socialBody),
+                    year: Number(existingGame.year), week: Number(existingGame.week),
+                    gameTagMap: gameSocialTagMap(existingGame),
+                    handleIndex: buildHandleIndex(cmap), charactersById: cmap,
+                    teamsById: currentDynasty.teams || {}, now: () => Date.now(),
+                  })
+                  const attached = posts.map(p => ({ ...p, gameId: existingGame.id }))
+                  if (attached.length) {
+                    await saveSocialPosts(currentDynasty.id, Number(existingGame.year), Number(existingGame.week), attached, newCharacters)
+                    msg = `Pasted. Added ${attached.length} social posts.`
+                  }
+                } catch (e) { console.warn('[GameEdit] social parse failed', e) }
+              }
+              setRecapPasteFeedback(msg)
+              setTimeout(() => setRecapPasteFeedback(null), 2500)
             } catch {
               setRecapPasteFeedback('Browser blocked clipboard. Open the editor and paste there.')
               setTimeout(() => setRecapPasteFeedback(null), 3500)
@@ -2581,6 +2617,10 @@ export default function GameEdit() {
                 onPerspectiveChange={setRecapPerspective}
                 depth={recapDepth}
                 onDepthChange={setRecapDepth}
+                socialEnabled={recapSocial}
+                onSocialEnabledChange={setRecapSocial}
+                socialCount={recapSocialCount}
+                onSocialCountChange={setRecapSocialCount}
               />
             </>
           )
@@ -2772,7 +2812,42 @@ export default function GameEdit() {
       })()}
 
         </div>
+
+        {/* Game Social — generate in-character posts about this game */}
+        {existingGame?.id && (
+          <Card>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="min-w-0">
+                <h3 className="label-sm text-txt-primary">Game Social</h3>
+                <p className="text-xs text-txt-tertiary mt-0.5">
+                  Generate in-character posts about this game from the social universe. Digs into the box score, scoring plays, and everything uploaded.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSocialModal(true)}
+                disabled={!formData.team1Score || !formData.team2Score}
+                className="px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40 flex-shrink-0"
+                style={{ background: 'var(--surface-2)', borderColor: 'var(--surface-5)' }}
+              >
+                Generate Social
+              </button>
+            </div>
+          </Card>
+        )}
       </div>
+
+      {showSocialModal && existingGame?.id && (
+        <GameSocialModal
+          isOpen={showSocialModal}
+          onClose={() => setShowSocialModal(false)}
+          game={{
+            ...existingGame,
+            team1Score: parseInt(formData.team1Score) || 0,
+            team2Score: parseInt(formData.team2Score) || 0,
+          }}
+        />
+      )}
 
       {/* Bottom Save/Cancel Buttons + Delete (only for existing games) */}
       <div className="flex items-center pb-4">

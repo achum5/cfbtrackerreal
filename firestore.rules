@@ -284,6 +284,39 @@ service cloud.firestore {
                      && request.auth.uid in parentDynasty().get('editors', []);
       }
 
+      // ─── Social Media feature subcollections ────────────────────
+      // socialFeed/{year-week} (posts) and socialCharacters/shard-N +
+      // _overrides (the per-dynasty character overlay). Same access
+      // vectors as weekRecaps: owner (premium) + invited editors write,
+      // owner / editors / public read.
+      match /socialFeed/{docId} {
+        allow read: if isSignedIn()
+                    && parentDynasty().userId == request.auth.uid;
+        allow read: if isSignedIn()
+                    && request.auth.uid in parentDynasty().get('editors', []);
+        allow read: if parentDynasty().isPublic == true;
+
+        allow write: if isPremium()
+                     && parentDynasty().userId == request.auth.uid;
+        allow write: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('editors', []);
+      }
+
+      match /socialCharacters/{docId} {
+        allow read: if isSignedIn()
+                    && parentDynasty().userId == request.auth.uid;
+        allow read: if isSignedIn()
+                    && request.auth.uid in parentDynasty().get('editors', []);
+        allow read: if parentDynasty().isPublic == true;
+
+        allow write: if isPremium()
+                     && parentDynasty().userId == request.auth.uid;
+        allow write: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('editors', []);
+      }
+
       // ─── Invite tokens (subcollection) ──────────────────────────
       // Token-keyed docs: dynasties/{id}/invites/{token}
       // Doc shape: { role, createdBy, createdAt, expiresAt?, label?,

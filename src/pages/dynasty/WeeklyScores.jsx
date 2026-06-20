@@ -15,6 +15,9 @@ import BowlWeek1Modal from '../../components/BowlWeek1Modal'
 import BowlWeek2Modal from '../../components/BowlWeek2Modal'
 import ConferenceChampionshipModal from '../../components/ConferenceChampionshipModal'
 import FormattedRecap from '../../components/FormattedRecap'
+import GenerateSocialModal from '../../components/GenerateSocialModal'
+import SocialFeed from '../../components/SocialFeed'
+import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/socialModel'
 import buildRecapLinks from '../../utils/buildRecapLinks'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -395,7 +398,7 @@ export default function WeeklyScores() {
   const { year: urlYear, week: urlWeek } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { currentDynasty, isViewOnly, saveCPUBowlGames, saveCFPGames, saveRankings, saveCPUConferenceChampionships, updateDynasty } = useDynasty()
+  const { currentDynasty, isViewOnly, saveCPUBowlGames, saveCFPGames, saveRankings, saveCPUConferenceChampionships, updateDynasty, loadSocial, replaceSocialWeek } = useDynasty()
   const pathPrefix = usePathPrefix()
   const [editing, setEditing] = useState(false)
   const [ccModalOpen, setCcModalOpen] = useState(false)
@@ -404,6 +407,7 @@ export default function WeeklyScores() {
   // Recap modal opens locally on this page too — no need to round-trip to
   // the dashboard. Same component handles preseason + in-season.
   const [recapModalOpen, setRecapModalOpen] = useState(false)
+  const [socialModalOpen, setSocialModalOpen] = useState(false)
 
   // Resolve display year/week BEFORE consumers like `tabParam` reference
   // them — both feed off URL params plus dynasty phase fallbacks.
@@ -427,7 +431,10 @@ export default function WeeklyScores() {
   // Tab state lives in the URL (?tab=scores|recap) so deep-links from the
   // dashboard's recap to-do land directly on the recap view, and so the
   // user's choice survives navigating into a game and back.
-  const tabParam = (searchParams.get('tab') === 'recap' || displayWeek === -1) ? 'recap' : 'scores'
+  const rawTab = searchParams.get('tab')
+  const tabParam = displayWeek === -1 ? 'recap'
+    : (rawTab === 'recap' || rawTab === 'social') ? rawTab
+    : 'scores'
   const setTab = (next) => {
     setSearchParams(prev => {
       const params = new URLSearchParams(prev)
@@ -436,6 +443,16 @@ export default function WeeklyScores() {
       return params
     }, { replace: true })
   }
+
+  // Lazy-load social data (characters + week feed) the first time the Social
+  // tab is opened for a dynasty — it's opt-in, so kept off the hot load path.
+  const socialLoadedRef = useRef(null)
+  useEffect(() => {
+    if (tabParam !== 'social' || !currentDynasty?.id) return
+    if (socialLoadedRef.current === currentDynasty.id) return
+    socialLoadedRef.current = currentDynasty.id
+    loadSocial(currentDynasty.id).catch(() => {})
+  }, [tabParam, currentDynasty?.id, loadSocial])
 
   // ESPN-style filter (?filter=all | top25 | <Conference Name>). Lives in
   // search params so the user's selection survives navigating into a game
@@ -842,6 +859,11 @@ export default function WeeklyScores() {
                   <button type="button" onClick={() => setRecapModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title={`Edit ${weekLabelFor(displayWeek)} recap`}>
                     Edit Recap
                   </button>
+                  {displayWeek !== -1 && (
+                    <button type="button" onClick={() => setSocialModalOpen(true)} className="px-2.5 py-1.5 text-[11px] font-semibold uppercase rounded border transition-colors flex-shrink-0 hover:bg-surface-4" style={btnStyle} title="Generate and edit social posts">
+                      Edit Social
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -855,6 +877,7 @@ export default function WeeklyScores() {
               {[
                 ...(displayWeek !== -1 ? [{ key: 'scores', label: 'Scores' }] : []),
                 { key: 'recap', label: displayWeek === -1 ? 'Preseason Recap' : 'Recap' },
+                ...(displayWeek !== -1 ? [{ key: 'social', label: 'Social' }] : []),
               ].map(tab => {
                 const isActive = tabParam === tab.key
                 return (
@@ -967,6 +990,19 @@ export default function WeeklyScores() {
           </Card>
         )
       })()}
+
+      {tabParam === 'social' && (() => {
+        const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(currentDynasty.socialPlatform || {}) }
+        const weekPosts = currentDynasty.socialFeedByYear?.[displayYear]?.[displayWeek] || []
+        const charactersById = getEffectiveCharacters(currentDynasty)
+        const gamesById = {}
+        for (const g of (currentDynasty.games || [])) { if (g?.id) gamesById[g.id] = g }
+        return (
+          <div className="max-w-2xl mx-auto">
+            <SocialFeed posts={weekPosts} charactersById={charactersById} platform={platform} gamesById={gamesById} teams={teams} dynasty={currentDynasty} year={displayYear} />
+          </div>
+        )
+      })()}
       </div>
 
       {editing && (
@@ -1013,6 +1049,15 @@ export default function WeeklyScores() {
         <WeekRecapModal
           isOpen={recapModalOpen}
           onClose={() => setRecapModalOpen(false)}
+          year={displayYear}
+          week={displayWeek}
+        />
+      )}
+
+      {socialModalOpen && (
+        <GenerateSocialModal
+          isOpen={socialModalOpen}
+          onClose={() => setSocialModalOpen(false)}
           year={displayYear}
           week={displayWeek}
         />

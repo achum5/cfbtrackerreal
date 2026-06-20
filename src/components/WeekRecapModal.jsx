@@ -3,6 +3,11 @@ import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
 import { buildWeekRecapPrompt, buildPreseasonRecapPrompt } from '../utils/recapPrompts'
+import { socialGameTagMap } from '../utils/socialPrompt'
+import {
+  extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex,
+  getEffectiveCharacters, ensureUniverseLoaded,
+} from '../data/socialModel'
 
 /**
  * Single-screen modal for generating and saving a Week Recap. The user copies
@@ -19,17 +24,20 @@ import { buildWeekRecapPrompt, buildPreseasonRecapPrompt } from '../utils/recapP
  *   onSaved — optional callback fired with the saved text after a successful save
  */
 export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved }) {
-  const { currentDynasty, saveWeekRecap, deleteWeekRecap, isViewOnly } = useDynasty()
+  const { currentDynasty, saveWeekRecap, deleteWeekRecap, isViewOnly, loadSocial, saveSocialPosts } = useDynasty()
   const { toast } = useToast()
   const yearNum = Number(year)
   const weekNum = Number(week)
   const isPreseason = weekNum === -1
+  // Social is baked into the recap for regular-season weeks (two-in-one).
+  const isRegularWeek = weekNum >= 0 && weekNum <= 15
   const promptTextareaRef = useRef(null)
 
   const existingRecap = currentDynasty?.weekRecapsByYear?.[yearNum]?.[weekNum]
   const [draft, setDraft] = useState(existingRecap?.text || '')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [includeSocial, setIncludeSocial] = useState(currentDynasty?.socialSettings?.enabled !== false)
 
   // Compute the "current rank snapshot" for the saved-week's poll —
   // the slice of rankByWeek[weekNum] across all teams. We compare
@@ -72,12 +80,19 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     setCopied(false)
   }, [isOpen, yearNum, weekNum, existingRecap?.text])
 
+  // Load the social universe + this dynasty's characters when the modal opens
+  // so the baked-in roster and the on-save parser resolve real @handles.
+  useEffect(() => {
+    if (!isOpen || !isRegularWeek || !currentDynasty?.id) return
+    loadSocial(currentDynasty.id).catch(() => {})
+  }, [isOpen, isRegularWeek, currentDynasty?.id, loadSocial])
+
   const prompt = useMemo(() => {
     if (!currentDynasty) return ''
     return isPreseason
       ? buildPreseasonRecapPrompt(currentDynasty, yearNum)
-      : buildWeekRecapPrompt(currentDynasty, yearNum, weekNum)
-  }, [currentDynasty, yearNum, weekNum, isPreseason])
+      : buildWeekRecapPrompt(currentDynasty, yearNum, weekNum, { includeSocial })
+  }, [currentDynasty, yearNum, weekNum, isPreseason, includeSocial])
 
   const weekLabel = weekNum === 16 ? 'Conference Championship Week'
     : weekNum === 17 ? 'Bowl Week 1'
@@ -119,13 +134,19 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     if (!currentDynasty) return
     setSaving(true)
     try {
+      // Two-in-one: if the pasted response carries a cfb-social block, strip it
+      // out of the saved recap text and parse the posts. The recap stores the
+      // prose-only text; the posts go to the social feed.
+      const { found: hasSocial, body: socialBody, recapWithoutBlock } = extractSocialBlock(trimmed)
+      const recapText = hasSocial ? recapWithoutBlock : trimmed
+
       // Merge into the existing year/week map. Build the full nested object so
       // local-storage and Firestore both get a clean replace at the parent.
       // Single-doc subcollection write — bypasses the 1 MB main-doc cap
       // that was breaking saves on long-running dynasties.
       await saveWeekRecap(currentDynasty.id, yearNum, weekNum, {
         generatedAt: Date.now(),
-        text: trimmed,
+        text: recapText,
         // Snapshot of rankByWeek[weekNum] at save time. We compare
         // this against the live snapshot when the recap is re-opened
         // — if any team's rank has changed since save, we surface a
@@ -133,8 +154,35 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
         // numbers. Cheap to store (one int per ranked team).
         rankSnapshot: currentRankSnapshot || {},
       })
-      toast.success('Recap saved.')
-      onSaved?.(trimmed)
+
+      // Parse + save the social posts (if any). Failure here never blocks the
+      // recap save — the recap is already persisted above.
+      let socialAdded = 0
+      if (hasSocial && isRegularWeek) {
+        try {
+          await ensureUniverseLoaded()
+          const lines = parseSocialLines(socialBody)
+          if (lines.length) {
+            const charactersById = getEffectiveCharacters(currentDynasty)
+            const { posts, newCharacters } = resolveSocialPosts({
+              lines, year: yearNum, week: weekNum,
+              gameTagMap: socialGameTagMap(currentDynasty, yearNum, weekNum),
+              handleIndex: buildHandleIndex(charactersById),
+              charactersById, teamsById: currentDynasty.teams || {},
+              now: () => Date.now(),
+            })
+            if (posts.length) {
+              await saveSocialPosts(currentDynasty.id, yearNum, weekNum, posts, newCharacters)
+              socialAdded = posts.length
+            }
+          }
+        } catch (e) {
+          console.warn('[WeekRecapModal] social parse failed:', e)
+        }
+      }
+
+      toast.success(socialAdded > 0 ? `Recap saved. Added ${socialAdded} social posts.` : 'Recap saved.')
+      onSaved?.(recapText)
       onClose?.()
     } catch (err) {
       console.error('[WeekRecapModal] save failed:', err)
@@ -203,30 +251,41 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
         {/* Body — scrollable. Stacks: prompt block, paste-back, preview. */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
           <section>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="text-sm font-semibold text-txt-primary">AI Prompt</label>
-              <button
-                onClick={handleCopyPrompt}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
-                style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-              >
-                {copied ? 'Copied!' : 'Copy prompt'}
-              </button>
+              <div className="flex items-center gap-3">
+                {isRegularWeek && (
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-txt-secondary">
+                    <input
+                      type="checkbox"
+                      checked={includeSocial}
+                      onChange={(e) => setIncludeSocial(e.target.checked)}
+                      className="w-4 h-4"
+                      style={{ accentColor: 'var(--text-primary)' }}
+                    />
+                    Include social posts
+                  </label>
+                )}
+                <button
+                  onClick={handleCopyPrompt}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+                  style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+                >
+                  {copied ? 'Copied!' : 'Copy prompt'}
+                </button>
+              </div>
             </div>
-            <textarea
-              ref={promptTextareaRef}
-              readOnly
-              value={prompt}
-              className="w-full h-48 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-xs font-mono p-3 resize-none focus:outline-none focus:ring-2 focus:ring-surface-5"
-            />
-            <p className="text-xs text-txt-tertiary mt-1">
-              Bundles every season fact we have. The guardrail tells the AI to skip anything it doesn't see in the data.
+            <p className="text-xs text-txt-tertiary">
+              Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and paste it below.{isRegularWeek && includeSocial ? ' The app splits it automatically — the recap saves here, and the social posts go to the Social tab.' : ''}
             </p>
+            {/* Off-screen mirror so the clipboard fallback (execCommand) still works. */}
+            <textarea ref={promptTextareaRef} readOnly value={prompt} aria-hidden="true" tabIndex={-1}
+              style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} />
           </section>
 
           <section>
             <div className="flex items-center justify-between mb-2 flex-wrap gap-y-1">
-              <label className="text-sm font-semibold text-txt-primary">Paste the AI's recap</label>
+              <label className="text-sm font-semibold text-txt-primary">{isRegularWeek && includeSocial ? "Paste the AI's full output" : "Paste the AI's recap"}</label>
               {existingRecap?.generatedAt && (
                 <span className="text-xs text-txt-tertiary">
                   Last saved {new Date(existingRecap.generatedAt).toLocaleString()}
@@ -257,7 +316,7 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
               placeholder="Paste the recap text here. Markdown is supported."
             />
             <p className="text-xs text-txt-tertiary mt-1">
-              Markdown (headings, bold, italic) renders when you save.
+              Markdown (headings, bold, italic) renders when you save.{isRegularWeek && includeSocial ? ' Paste the ENTIRE response — if it includes the cfb-social block, those posts are saved to the Social tab automatically (no separate step).' : ''}
             </p>
           </section>
         </div>

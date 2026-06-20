@@ -55,7 +55,7 @@ function unwrapCodeFence(text) {
 // which entry matched without a separate lookup table. Raw entries come
 // first in alternation order so more specific patterns ("#9 Alabama",
 // "(?<=Tennessee\\s+)56-35") get tried before bare literals ("Alabama").
-function compilePlayerRegex(playerLinks) {
+function compilePlayerRegex(playerLinks, caseInsensitive = false) {
   if (!playerLinks?.length) return null
   const sorted = [...playerLinks].sort((a, b) => {
     const ar = !!a.regex
@@ -71,7 +71,7 @@ function compilePlayerRegex(playerLinks) {
       : `\\b${escapeRegex(entry.pattern)}\\b`
     return `(?<g${i}>${source})`
   })
-  return { regex: new RegExp(parts.join('|'), 'g'), sorted }
+  return { regex: new RegExp(parts.join('|'), caseInsensitive ? 'gi' : 'g'), sorted }
 }
 
 function linkifyText(text, compiled, _lookup, keyPrefix, precedingContext = '') {
@@ -181,7 +181,7 @@ function renderInline(text, keyPrefix, playerRegex, lookup) {
   return out
 }
 
-function FormattedRecapImpl({ text, className = '', playerLinks = null }) {
+function FormattedRecapImpl({ text, className = '', playerLinks = null, caseInsensitive = false }) {
   if (!text) return null
 
   // `playerLinks` was the original prop name (back when it only auto-linked
@@ -191,7 +191,7 @@ function FormattedRecapImpl({ text, className = '', playerLinks = null }) {
   // Memoized: a recap card with hundreds of patterns recompiled the
   // combined regex on every render of the parent (Dashboard / WeeklyScores
   // / Game) and showed up as a perceptible lag during tab switches.
-  const playerRegex = useMemo(() => compilePlayerRegex(playerLinks), [playerLinks])
+  const playerRegex = useMemo(() => compilePlayerRegex(playerLinks, caseInsensitive), [playerLinks, caseInsensitive])
   const lookup = null // legacy arg slot — no longer used by linkifyText
 
   // Strip any outer ```markdown ... ``` wrapper added by the AI per our

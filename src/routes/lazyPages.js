@@ -36,6 +36,8 @@ export const WeeklyScores = lazyWithPreload(() => import('../pages/dynasty/Weekl
 export const CardCollection = lazyWithPreload(() => import('../pages/dynasty/CardCollection'))
 export const Game = lazyWithPreload(() => import('../pages/dynasty/Game'))
 export const GameEdit = lazyWithPreload(() => import('../pages/dynasty/GameEdit'))
+export const SocialCharacter = lazyWithPreload(() => import('../pages/dynasty/SocialCharacter'))
+export const LeaguePreferences = lazyWithPreload(() => import('../pages/dynasty/LeaguePreferences'))
 export const DangerZone = lazyWithPreload(() => import('../pages/dynasty/DangerZone'))
 export const LeagueSettings = lazyWithPreload(() => import('../pages/dynasty/LeagueSettings'))
 export const PromptStudio = lazyWithPreload(() => import('../pages/dynasty/PromptStudio'))

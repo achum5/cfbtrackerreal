@@ -1131,6 +1131,142 @@ function buildRecapsMap(docs) {
   return out
 }
 
+// ─── Social Media feature persistence ────────────────────────────────────────
+// Posts: one doc per (year, week) under `socialFeed`, mirroring weekRecaps —
+// keeps a 300+ post week well under the 1 MB doc cap and lazy-loadable.
+// Characters: a 1700+ universe sharded across `socialCharacters/shard-N` docs
+// (immutable import), plus a single `socialCharacters/_overrides` doc holding
+// runtime-added (auto-instantiated) and user-edited characters that overlay on
+// load. `_meta` records shardCount so stale shards from a smaller re-import
+// are ignored.
+
+const SOCIAL_FEED_SUBCOLLECTION = 'socialFeed'
+const SOCIAL_CHARACTERS_SUBCOLLECTION = 'socialCharacters'
+const SOCIAL_CHARS_PER_SHARD = 250
+
+const socialFeedDocId = (year, week) => `${Number(year)}-${Number(week)}`
+
+export async function saveSocialFeedToSubcollection(dynastyId, year, week, posts) {
+  const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_FEED_SUBCOLLECTION, socialFeedDocId(year, week))
+  const payload = sanitizeForFirestore({
+    year: Number(year),
+    week: Number(week),
+    posts: Array.isArray(posts) ? posts : [],
+    updatedAt: Date.now(),
+  })
+  const batch = writeBatch(db)
+  batch.set(ref, payload)
+  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  await batch.commit()
+}
+
+function buildSocialFeedMap(docs) {
+  const out = {}
+  for (const d of docs) {
+    if (d.id.startsWith('_')) continue
+    const data = d.data()
+    const y = Number(data.year)
+    const w = Number(data.week)
+    if (!Number.isFinite(y) || !Number.isFinite(w)) continue
+    if (!out[y]) out[y] = {}
+    out[y][w] = Array.isArray(data.posts) ? data.posts : []
+  }
+  return out
+}
+
+export async function getSocialFeedSubcollection(dynastyId, options = {}) {
+  const { onFresh = null } = options
+  const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_FEED_SUBCOLLECTION)
+  try {
+    const cached = await getDocsFromCache(ref)
+    if (!cached.empty) {
+      getDocsFromServer(ref).then(snap => {
+        if (!onFresh) return
+        try { onFresh(buildSocialFeedMap(snap.docs)) } catch (e) { console.error('social onFresh threw:', e) }
+      }).catch(() => {})
+      return buildSocialFeedMap(cached.docs)
+    }
+  } catch (_) { /* fall through */ }
+  try {
+    const snap = await getDocs(ref)
+    return buildSocialFeedMap(snap.docs)
+  } catch (error) {
+    console.error('Error fetching socialFeed subcollection:', error)
+    return {}
+  }
+}
+
+/** Write the imported universe as immutable shards (replaces any prior import). */
+export async function saveSocialCharacterShards(dynastyId, charactersById) {
+  const entries = Object.entries(charactersById || {})
+  const shardCount = Math.max(1, Math.ceil(entries.length / SOCIAL_CHARS_PER_SHARD))
+  // Firestore batches cap at 500 writes; shardCount is tiny (~7), so one batch.
+  const batch = writeBatch(db)
+  for (let s = 0; s < shardCount; s++) {
+    const chunk = {}
+    for (const [id, ch] of entries.slice(s * SOCIAL_CHARS_PER_SHARD, (s + 1) * SOCIAL_CHARS_PER_SHARD)) {
+      chunk[id] = ch
+    }
+    const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, `shard-${s}`)
+    batch.set(ref, sanitizeForFirestore({ chars: chunk }))
+  }
+  const metaRef = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, '_meta')
+  batch.set(metaRef, { shardCount, importedAt: Date.now() })
+  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  await batch.commit()
+}
+
+/** Merge runtime-added / user-edited characters into the overrides doc. */
+export async function saveSocialCharacterOverrides(dynastyId, characters) {
+  if (!characters || Object.keys(characters).length === 0) return
+  const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, '_overrides')
+  const chars = {}
+  for (const [id, ch] of Object.entries(characters)) chars[id] = ch
+  const batch = writeBatch(db)
+  batch.set(ref, sanitizeForFirestore({ chars }), { merge: true })
+  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  await batch.commit()
+}
+
+function mergeSocialCharacterDocs(docs) {
+  let shardCount = null
+  const shards = {}
+  let overrides = {}
+  for (const d of docs) {
+    if (d.id === '_meta') { shardCount = Number(d.data()?.shardCount) || null; continue }
+    if (d.id === '_overrides') { overrides = d.data()?.chars || {}; continue }
+    const m = d.id.match(/^shard-(\d+)$/)
+    if (m) shards[Number(m[1])] = d.data()?.chars || {}
+  }
+  const byId = {}
+  const max = shardCount != null ? shardCount : Object.keys(shards).length
+  for (let s = 0; s < max; s++) Object.assign(byId, shards[s] || {})
+  Object.assign(byId, overrides) // overrides win
+  return byId
+}
+
+export async function getSocialCharactersSubcollection(dynastyId, options = {}) {
+  const { onFresh = null } = options
+  const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION)
+  try {
+    const cached = await getDocsFromCache(ref)
+    if (!cached.empty) {
+      getDocsFromServer(ref).then(snap => {
+        if (!onFresh) return
+        try { onFresh(mergeSocialCharacterDocs(snap.docs)) } catch (e) { console.error('social chars onFresh threw:', e) }
+      }).catch(() => {})
+      return mergeSocialCharacterDocs(cached.docs)
+    }
+  } catch (_) { /* fall through */ }
+  try {
+    const snap = await getDocs(ref)
+    return mergeSocialCharacterDocs(snap.docs)
+  } catch (error) {
+    console.error('Error fetching socialCharacters subcollection:', error)
+    return {}
+  }
+}
+
 /**
  * One-shot migration for dynasties that still have the legacy
  * `weekRecapsByYear` map embedded on the main document. Writes each
@@ -1392,6 +1528,8 @@ export async function deleteDynastyWithSubcollections(dynastyId) {
       deleteSubcollection(dynastyId, WEEK_RECAPS_SUBCOLLECTION),
       deleteSubcollection(dynastyId, SEASONS_SUBCOLLECTION),
       deleteSubcollection(dynastyId, INVITES_SUBCOLLECTION),
+      deleteSubcollection(dynastyId, SOCIAL_FEED_SUBCOLLECTION),
+      deleteSubcollection(dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION),
     ])
     await deleteDoc(doc(db, DYNASTIES_COLLECTION, dynastyId))
   } catch (error) {

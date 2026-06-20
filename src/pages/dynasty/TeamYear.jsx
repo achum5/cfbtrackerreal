@@ -3659,7 +3659,6 @@ export default function TeamYear() {
                 const oppTid = teamIsTeam1 ? lastGame.team2Tid : lastGame.team1Tid
                 const userColor = teamInfo.backgroundColor
                 const oppColor = teamsSource?.[oppTid]?.primaryColor || '#374151'
-                const rivalryTrophy = getRivalryTrophyForTeams(currentDynasty, tid, oppTid)
                 return (
               <div
                 className="relative mb-5 rounded-xl overflow-hidden cfb-texture cfb-texture-strong"
@@ -3694,15 +3693,6 @@ export default function TeamYear() {
                   </div>
                 </div>
                 <div className="flex flex-col items-center justify-center gap-1 px-1 flex-shrink-0">
-                  {rivalryTrophy && (
-                    <img
-                      src={rivalryTrophy.image}
-                      alt={rivalryTrophy.gameName || rivalryTrophy.name}
-                      title={rivalryTrophy.gameName || rivalryTrophy.name}
-                      className="h-9 w-auto object-contain mb-0.5"
-                      style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.5))' }}
-                    />
-                  )}
                   <span
                     className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-md ${lastGameInfo.isWin ? 'bg-green-500/25 text-green-300' : 'bg-red-500/25 text-red-300'}`}
                     style={{ letterSpacing: '1px' }}

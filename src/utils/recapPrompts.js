@@ -35,6 +35,7 @@ import {
   getSeasonPOWTrail,
 } from '../services/geminiService'
 import { buildCFPProjection } from './cfpProjection'
+import { buildSocialSection } from './socialPrompt'
 
 const TWO_DIGIT = (y) => String(y).slice(-2)
 
@@ -416,7 +417,7 @@ These markers contaminate the saved recap and must never appear. The output is p
 // 1) WEEK RECAP — recapping a week that already finished.
 // ---------------------------------------------------------------------------
 
-export function buildWeekRecapPrompt(dynasty, year, week) {
+export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
   const yearNum = Number(year)
   const weekNum = Number(week)
 
@@ -1178,6 +1179,27 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
     namingRuleLines.push('')
   }
 
+  // Bake the social-feed section into the recap prompt (two-in-one) unless
+  // disabled. Regular-season weeks only (postseason games have no numeric
+  // week, so the tag map would be empty). Skipped when no games are present.
+  let socialBlock = ''
+  const socialEnabled = opts.includeSocial !== undefined
+    ? opts.includeSocial
+    : (dynasty?.socialSettings?.enabled !== false)
+  if (socialEnabled && weekNum >= 0 && weekNum <= 15) {
+    const built = buildSocialSection(dynasty, yearNum, weekNum)
+    if (built.gameCount > 0) socialBlock = built.section
+  }
+
+  // When social is baked in, rewrite the recap's "nothing after the closing
+  // fence" rule so it doesn't contradict the required second cfb-social block.
+  const outputFormatStr = socialBlock
+    ? OUTPUT_FORMAT.trim().replace(
+        'or after the closing fence — no preamble, no "Here\'s your recap:", no follow-up offer.',
+        'with no preamble. AFTER the recap\'s closing ``` fence, output the SOCIAL POSTS block described at the very end of this prompt — a SEPARATE ```cfb-social fence. Output exactly those two fenced blocks, recap first.'
+      )
+    : OUTPUT_FORMAT.trim()
+
   return [
     isBowlWeek
       ? `You are an ESPN.com college football writer filing the ${yearNum} ${weekLabel} recap. Voice: straight, news-forward, fact-driven. NOT a columnist. NOT The Athletic. NOT opinion-driven.`
@@ -1367,12 +1389,17 @@ export function buildWeekRecapPrompt(dynasty, year, week) {
     `- The CLOSING sentence of the recap is a FACT, not a kicker. Do NOT end on column-y oracles ("November punishes teams that..." / "the bracket looks more like an argument than a list"). End on an actual fact: top games next week, polls finalized, conference race standings, or just stop after the last section's reporting.`,
     ``,
     ...namingRuleLines,
-    OUTPUT_FORMAT.trim(),
+    outputFormatStr,
+    ...(socialBlock ? [
+      ``,
+      `REMINDER: After the recap's markdown fence, you MUST also output the separate SOCIAL POSTS block (a \`\`\`cfb-social fence) described at the very end of this prompt. Two sibling fenced blocks, the recap first.`,
+    ] : []),
     ``,
     `═══════════════════════════════════════════════════════════`,
     `DATA — every fact you may use`,
     `═══════════════════════════════════════════════════════════`,
     dataBlock,
+    ...(socialBlock ? [``, socialBlock] : []),
   ].join('\n')
 }
 

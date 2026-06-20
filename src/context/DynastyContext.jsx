@@ -29,7 +29,13 @@ import {
   saveWeekRecapToSubcollection,
   deleteWeekRecapFromSubcollection,
   getWeekRecapsSubcollection,
-  migrateWeekRecapsToSubcollection
+  migrateWeekRecapsToSubcollection,
+  // Social Media feature subcollections.
+  saveSocialFeedToSubcollection,
+  getSocialFeedSubcollection,
+  saveSocialCharacterShards,
+  saveSocialCharacterOverrides,
+  getSocialCharactersSubcollection
 } from '../services/dynastyService'
 import {
   PER_YEAR_FIELDS,
@@ -83,6 +89,7 @@ import {
   isFCSPlaceholderAbbr,
   isFCSPlaceholderTid,
 } from '../data/teamRegistry'
+import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
 import { buildDefaultRosterPlayers } from '../data/defaultRosterLoader'
@@ -5585,6 +5592,9 @@ export function DynastyProvider({ children }) {
   const { toast } = useToast()
   const [dynasties, setDynasties] = useState([])
   const [currentDynasty, setCurrentDynasty] = useState(null)
+  // Social Media data, kept OFF the dynasty object so the dynasty listener
+  // can't wipe it. Overlaid onto the exposed currentDynasty below.
+  const [socialByDynasty, setSocialByDynasty] = useState({})
   // Non-destructive calendar PREVIEW (dev jumper): { year, phase, week } | null.
   // Overrides only the displayed currentYear/Phase/Week on the EXPOSED dynasty;
   // never persisted. Cleared automatically when the real dynasty changes.
@@ -7920,6 +7930,163 @@ export function DynastyProvider({ children }) {
     if (String(currentDynasty?.id) === String(dynastyId)) {
       setCurrentDynasty(prev => prev ? apply(prev) : prev)
     }
+  }
+
+  // ─── Social Media feature ──────────────────────────────────────────────────
+  // Social data is loaded lazily (it's an opt-in tab) rather than threaded
+  // through the hot dynasty-load path. Cloud: subcollections (socialFeed +
+  // sharded socialCharacters). Local: embedded fields on the dynasty doc.
+  const socialFindDynasty = (dynastyId) =>
+    (String(currentDynasty?.id) === String(dynastyId) ? currentDynasty : null) ||
+    dynasties.find(d => String(d.id) === String(dynastyId))
+
+  const socialIsCloud = (dynasty, dynastyId) => {
+    const looksLikeFirebaseId = typeof dynastyId === 'string' && dynastyId.length >= 20 && !/^\d+$/.test(dynastyId)
+    return looksLikeFirebaseId || (dynasty?.storageType === 'cloud' && !!user)
+  }
+
+  // Social data lives in dedicated state (keyed by dynasty id), NOT on the
+  // dynasty object — the dynasty listener rebuilds currentDynasty constantly,
+  // which would wipe lazily-loaded social fields and re-trigger an infinite
+  // load loop. This state is overlaid onto the exposed currentDynasty at the
+  // context boundary, so it survives listener churn.
+  // Shape: { [dynastyId]: { characters: {...}, feed: {...} } }
+  const socialFetchedRef = useRef({}) // fetch-once-per-id guard
+
+  const getSocialFor = (dynastyId) => socialByDynasty[dynastyId] || { characters: {}, feed: {} }
+  const setSocialFor = (dynastyId, patch) => {
+    setSocialByDynasty(prev => {
+      const cur = prev[dynastyId] || { characters: {}, feed: {} }
+      return { ...prev, [dynastyId]: { ...cur, ...patch } }
+    })
+  }
+
+  // Fetch characters + feed into state. Call when the social UI mounts.
+  // Loads the bundled base universe (shared) first, then per-dynasty data.
+  const loadSocial = async (dynastyId) => {
+    await ensureUniverseLoaded()
+    const dynasty = socialFindDynasty(dynastyId)
+    if (!dynasty) return { socialCharacters: {}, socialFeedByYear: {} }
+
+    if (!socialIsCloud(dynasty, dynastyId)) {
+      const characters = dynasty.socialCharacters || {}
+      const feed = dynasty.socialFeedByYear || {}
+      setSocialByDynasty(prev => ({ ...prev, [dynastyId]: { characters, feed } }))
+      return { socialCharacters: characters, socialFeedByYear: feed }
+    }
+
+    // Cloud: fetch exactly once per id. The subcollection getters swallow
+    // their own errors (return {}), so a permission failure still resolves —
+    // we record the attempt and never spin.
+    if (socialFetchedRef.current[dynastyId]) {
+      const cur = getSocialFor(dynastyId)
+      return { socialCharacters: cur.characters, socialFeedByYear: cur.feed }
+    }
+    socialFetchedRef.current[dynastyId] = true
+    const [characters, feed] = await Promise.all([
+      getSocialCharactersSubcollection(dynastyId, { onFresh: (fresh) => setSocialFor(dynastyId, { characters: fresh }) }),
+      getSocialFeedSubcollection(dynastyId, { onFresh: (fresh) => setSocialFor(dynastyId, { feed: fresh }) }),
+    ])
+    setSocialByDynasty(prev => ({ ...prev, [dynastyId]: { characters, feed } }))
+    return { socialCharacters: characters, socialFeedByYear: feed }
+  }
+
+  // Import an externally-authored universe pack into this dynasty. By default
+  // it REPLACES the whole universe (the imported set becomes the dynasty's
+  // accounts, no bundled base merge), mirroring importing a league file.
+  const importSocialUniverse = async (dynastyId, rawArray, { replace = true } = {}) => {
+    if (blockIfReadOnly(dynastyId, 'import social universe')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    if (!dynasty) throw new Error('Dynasty not found')
+    const validTids = new Set(Object.keys(dynasty.teams || {}).map(Number).filter(Number.isFinite))
+    const { byId, count, skipped, dupHandles } = importUniverse(rawArray, { validTids })
+    if (socialIsCloud(dynasty, dynastyId)) {
+      await saveSocialCharacterShards(dynastyId, byId)
+      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true })
+    } else {
+      await updateDynasty(dynastyId, { socialCharacters: byId, ...(replace ? { socialUniverseReplaced: true } : {}) })
+    }
+    setSocialFor(dynastyId, { characters: byId })
+    return { count, skipped: skipped.length, dupHandles }
+  }
+
+  // Save a week's parsed posts (merged/deduped) plus any auto-created characters.
+  const saveSocialPosts = async (dynastyId, year, week, newPosts, newCharacters = {}) => {
+    if (blockIfReadOnly(dynastyId, 'save social posts')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    if (!dynasty) throw new Error('Dynasty not found')
+    const yearN = Number(year)
+    const weekN = Number(week)
+    const cur = getSocialFor(dynastyId)
+    const existingWeek = cur.feed?.[yearN]?.[weekN] || []
+    const mergedWeek = mergePosts(existingWeek, newPosts)
+    const hasNewChars = newCharacters && Object.keys(newCharacters).length > 0
+    const nextFeed = { ...cur.feed, [yearN]: { ...(cur.feed[yearN] || {}), [weekN]: mergedWeek } }
+    const nextChars = hasNewChars ? { ...cur.characters, ...newCharacters } : cur.characters
+
+    if (socialIsCloud(dynasty, dynastyId)) {
+      await saveSocialFeedToSubcollection(dynastyId, yearN, weekN, mergedWeek)
+      if (hasNewChars) await saveSocialCharacterOverrides(dynastyId, newCharacters)
+    } else {
+      const update = { socialFeedByYear: nextFeed }
+      if (hasNewChars) update.socialCharacters = nextChars
+      await updateDynasty(dynastyId, update)
+    }
+    setSocialFor(dynastyId, { feed: nextFeed, characters: nextChars })
+    return mergedWeek.length
+  }
+
+  // Replace a week's posts wholesale (used by the post manager to support
+  // delete / edit / manual-add, which merging can't do).
+  const replaceSocialWeek = async (dynastyId, year, week, posts, newCharacters = {}) => {
+    if (blockIfReadOnly(dynastyId, 'edit social posts')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    if (!dynasty) throw new Error('Dynasty not found')
+    const yearN = Number(year)
+    const weekN = Number(week)
+    const cur = getSocialFor(dynastyId)
+    const hasNewChars = newCharacters && Object.keys(newCharacters).length > 0
+    const nextFeed = { ...cur.feed, [yearN]: { ...(cur.feed[yearN] || {}), [weekN]: posts } }
+    const nextChars = hasNewChars ? { ...cur.characters, ...newCharacters } : cur.characters
+    if (socialIsCloud(dynasty, dynastyId)) {
+      await saveSocialFeedToSubcollection(dynastyId, yearN, weekN, posts)
+      if (hasNewChars) await saveSocialCharacterOverrides(dynastyId, newCharacters)
+    } else {
+      const update = { socialFeedByYear: nextFeed }
+      if (hasNewChars) update.socialCharacters = nextChars
+      await updateDynasty(dynastyId, update)
+    }
+    setSocialFor(dynastyId, { feed: nextFeed, characters: nextChars })
+    return posts.length
+  }
+
+  // Persist user edits / additions to characters (overrides).
+  const saveSocialCharacters = async (dynastyId, charsById) => {
+    if (blockIfReadOnly(dynastyId, 'save social characters')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    if (!dynasty || !charsById || Object.keys(charsById).length === 0) return
+    const cur = getSocialFor(dynastyId)
+    const nextChars = { ...cur.characters, ...charsById }
+    if (socialIsCloud(dynasty, dynastyId)) {
+      await saveSocialCharacterOverrides(dynastyId, charsById)
+    } else {
+      await updateDynasty(dynastyId, { socialCharacters: nextChars })
+    }
+    setSocialFor(dynastyId, { characters: nextChars })
+  }
+
+  const updateSocialSettings = async (dynastyId, patch) => {
+    if (blockIfReadOnly(dynastyId, 'update social settings')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    const cur = { ...DEFAULT_SOCIAL_SETTINGS, ...(dynasty?.socialSettings || {}) }
+    await updateDynasty(dynastyId, { socialSettings: { ...cur, ...patch } })
+  }
+
+  const updateSocialPlatform = async (dynastyId, patch) => {
+    if (blockIfReadOnly(dynastyId, 'update social platform')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    const cur = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
+    await updateDynasty(dynastyId, { socialPlatform: { ...cur, ...patch } })
   }
 
   const deleteDynasty = async (dynastyId) => {
@@ -16365,9 +16532,23 @@ export function DynastyProvider({ children }) {
       }
     : overriddenCurrentDynasty
 
+  // Overlay the dedicated social state onto the exposed currentDynasty so
+  // consumers read currentDynasty.socialCharacters / .socialFeedByYear as
+  // before, but the data survives every dynasty-listener rebuild.
+  const exposedCurrentDynasty = (() => {
+    if (!previewedCurrentDynasty) return previewedCurrentDynasty
+    const social = socialByDynasty[previewedCurrentDynasty.id]
+    if (!social) return previewedCurrentDynasty
+    return {
+      ...previewedCurrentDynasty,
+      socialCharacters: social.characters,
+      socialFeedByYear: social.feed,
+    }
+  })()
+
   const value = {
     dynasties: dynastiesWithShared,
-    currentDynasty: previewedCurrentDynasty,
+    currentDynasty: exposedCurrentDynasty,
     phaseOverride,
     setPhaseOverride,
     userTeams,
@@ -16382,6 +16563,14 @@ export function DynastyProvider({ children }) {
     updateDynasty,
     saveWeekRecap,
     deleteWeekRecap,
+    // Social Media feature
+    loadSocial,
+    importSocialUniverse,
+    saveSocialPosts,
+    replaceSocialWeek,
+    saveSocialCharacters,
+    updateSocialSettings,
+    updateSocialPlatform,
     deleteDynasty,
     selectDynasty,
     addGame,

@@ -27,6 +27,8 @@ import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid, listPlayer
 import ScoringHighlightsModal from '../../components/ScoringHighlightsModal'
 import InlineScoringHighlights from '../../components/InlineScoringHighlights'
 import FormattedRecap from '../../components/FormattedRecap'
+import SocialFeed from '../../components/SocialFeed'
+import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/socialModel'
 import { sortPlaysChronologically, collapsePatRowsIntoTDs } from '../../utils/scoringPlayOrder'
 import {
   PageHero,
@@ -354,7 +356,7 @@ export default function Game() {
   const navigate = useNavigate()
   const routeLocation = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { currentDynasty, loadingDynastyId, updateDynasty, addGame, isViewOnly } = useDynasty()
+  const { currentDynasty, loadingDynastyId, updateDynasty, addGame, isViewOnly, loadSocial } = useDynasty()
   const pathPrefix = usePathPrefix()
 
   // Check if dynasty data is being lazily loaded from Firebase
@@ -950,6 +952,22 @@ export default function Game() {
   const hasPhotosData = Array.isArray(game.photos) && game.photos.length > 0
   const hasScoreGraphicData = !!game.scoreGraphic
 
+  // Social posts attached to THIS game (loaded lazily). The tab only appears
+  // once posts exist for the game.
+  const gameSocialPosts = useMemo(() => {
+    const wk = currentDynasty?.socialFeedByYear?.[Number(game.year)]?.[Number(game.week)]
+    if (!Array.isArray(wk)) return []
+    return wk.filter(p => p.gameId === game.id)
+  }, [currentDynasty?.socialFeedByYear, game.year, game.week, game.id])
+  const hasSocialData = gameSocialPosts.length > 0
+
+  // Pull social data once per session (it sets socialFeedByYear even when empty,
+  // so this won't refetch on every game-page mount).
+  useEffect(() => {
+    if (!currentDynasty?.id || currentDynasty.socialFeedByYear) return
+    loadSocial(currentDynasty.id).catch(() => {})
+  }, [currentDynasty?.id, currentDynasty?.socialFeedByYear, loadSocial])
+
   // Resolve the active tab now that we know which tabs are visible.
   // URL param wins if present (shared-link compatibility); otherwise
   // pick by per-device preference; if that's "auto" pick the first
@@ -971,6 +989,7 @@ export default function Game() {
     if (hasAwardsData) return 'awards'
     if (hasCardsData) return 'cards'
     if (hasPhotosData || hasScoreGraphicData) return 'photos'
+    if (hasSocialData) return 'social'
     return 'gamecast' // empty state — gamecast will render its own placeholder
   })()
   // 'ratings' is no longer its own tab (ratings live in Gamecast). Coerce any
@@ -2062,6 +2081,7 @@ export default function Game() {
                 { key: 'boxscore', label: 'Box Score', shortLabel: 'Box', show: hasBoxForLeaders },
                 { key: 'scoring', label: 'Plays', shortLabel: 'Plays', show: hasScoringSummary },
                 { key: 'recap', label: 'Recap', shortLabel: 'Recap', show: hasRecap },
+                { key: 'social', label: 'Social', shortLabel: 'Social', show: hasSocialData },
                 { key: 'stats', label: 'Team Stats', shortLabel: 'Stats', show: hasTeamStatsData },
                 { key: 'awards', label: 'Awards', shortLabel: 'Awards', show: !isCPUGame && hasAwardsData },
                 { key: 'cards', label: 'Cards', shortLabel: 'Cards', show: hasCardsData },
@@ -3099,6 +3119,19 @@ export default function Game() {
                   )}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Social Tab — posts the AI generated about this game. */}
+          {activeTab === 'social' && (
+            <div className="px-3 py-4 sm:px-4 sm:py-5">
+              <SocialFeed
+                posts={gameSocialPosts}
+                charactersById={getEffectiveCharacters(currentDynasty)}
+                platform={{ ...DEFAULT_SOCIAL_PLATFORM, ...(currentDynasty.socialPlatform || {}) }}
+                dynasty={currentDynasty}
+                year={game.year}
+              />
             </div>
           )}
 

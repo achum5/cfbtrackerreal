@@ -110,6 +110,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'Card Collection', path: `${pathPrefix}/cards` },
     ...(showCoachesLink ? [{ name: 'Coaches', path: `${pathPrefix}/coaches` }] : []),
     ...(!isViewOnly ? [{ name: 'AI Prompts', path: `${pathPrefix}/ai-prompts` }] : []),
+    ...(!isViewOnly ? [{ name: 'League Preferences', path: `${pathPrefix}/preferences` }] : []),
     ...(userCanSeeMembers ? [{ name: 'Members', path: `${pathPrefix}/league`, isAdmin: true }] : []),
     { name: 'Danger Zone', path: `${pathPrefix}/admin`, isAdmin: true },
     // Personal dev tools — only ever shown to the dev account.
