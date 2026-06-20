@@ -81,6 +81,8 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
   const [draftText, setDraftText] = useState('')
   const [draftChar, setDraftChar] = useState('')
   const [selected, setSelected] = useState(() => new Set())
+  const [showPasteArea, setShowPasteArea] = useState(false)
+  const [pasteText, setPasteText] = useState('')
 
   useEffect(() => {
     if (!isOpen || !currentDynasty?.id || loadedRef.current) return
@@ -117,14 +119,16 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
     } catch { toast.error('Could not copy.') }
   }
 
-  const handlePaste = async () => {
+  const handleParseAndSave = async () => {
     if (isViewOnly) { toast.error('Read-only mode.'); return }
+    const text = pasteText.trim()
+    if (!text) { toast.error('Paste the AI response first.'); return }
+    const { found, body } = extractSocialBlock(text)
+    if (!found) { toast.error('No cfb-social block found in the pasted text.'); return }
+    const lines = parseSocialLines(body)
+    if (!lines.length) { toast.error('No valid post lines found in the block.'); return }
     setBusy(true)
     try {
-      const text = await navigator.clipboard.readText()
-      const { found, body } = extractSocialBlock(text || '')
-      if (!found) { toast.error('No cfb-social block on the clipboard.'); return }
-      const lines = parseSocialLines(body)
       await ensureUniverseLoaded()
       const cmap = getEffectiveCharacters(currentDynasty)
       const { posts, newCharacters } = resolveSocialPosts({
@@ -133,12 +137,15 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
         now: () => Date.now(),
       })
       const attached = posts.map(p => ({ ...p, gameId: game.id }))
-      if (!attached.length) { toast.error('No posts resolved from the clipboard.'); return }
+      if (!attached.length) { toast.error('No posts resolved (unknown handles / teams).'); return }
       const merged = mergePosts(gamePosts, attached)
       await replaceSocialWeek(currentDynasty.id, yearN, weekN, [...otherPosts, ...merged], newCharacters)
-      toast.success(`Added ${attached.length} posts.`)
+      toast.success(`Added ${attached.length} ${attached.length === 1 ? 'post' : 'posts'}.`)
+      setPasteText('')
+      setShowPasteArea(false)
     } catch (err) {
-      toast.error(err?.name === 'NotAllowedError' ? 'Clipboard blocked — copy the response, then click Paste.' : `Paste failed: ${err?.message || 'error'}`)
+      console.error('[GameSocialModal] parse/save failed:', err)
+      toast.error(`Could not save: ${err?.message || 'error'}`)
     } finally { setBusy(false) }
   }
 
@@ -199,13 +206,41 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
 
         {/* Generate controls */}
         {!isViewOnly && (
-          <div className="px-5 py-3 border-b border-surface-4 flex flex-wrap items-center gap-2">
-            <label className="text-xs text-txt-secondary">Generate</label>
-            <input type="number" min="1" max="60" value={count} onChange={(e) => setCount(e.target.value)} className="w-16 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm p-1.5 focus:outline-none" />
-            <span className="text-xs text-txt-tertiary">posts</span>
-            <button onClick={handleCopy} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}>{copied ? 'Copied!' : 'Copy prompt'}</button>
-            <button onClick={handlePaste} disabled={busy} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-surface-4 text-txt-primary hover:bg-surface-3 disabled:opacity-50">Paste response</button>
-            <span className="text-[11px] text-txt-tertiary ml-auto">Copy → run in your AI → Paste. Digs into the game's stats &amp; scoring.</span>
+          <div className="border-b border-surface-4">
+            <div className="px-5 py-3 flex flex-wrap items-center gap-2">
+              <label className="text-xs text-txt-secondary">Generate</label>
+              <input type="number" min="1" max="60" value={count} onChange={(e) => setCount(e.target.value)} className="w-16 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm p-1.5 focus:outline-none" />
+              <span className="text-xs text-txt-tertiary">posts</span>
+              <button onClick={handleCopy} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}>{copied ? 'Copied!' : 'Copy prompt'}</button>
+              <button
+                onClick={() => { setShowPasteArea(v => !v); setPasteText('') }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${showPasteArea ? 'border-surface-5 bg-surface-3 text-txt-primary' : 'border-surface-4 text-txt-primary hover:bg-surface-3'}`}
+              >
+                {showPasteArea ? 'Cancel paste' : 'Paste response'}
+              </button>
+              <span className="text-[11px] text-txt-tertiary ml-auto">Copy → run in your AI → Paste. Digs into the game's stats &amp; scoring.</span>
+            </div>
+            {showPasteArea && (
+              <div className="px-5 pb-3 space-y-2">
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  className="w-full h-44 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-mono p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+                  placeholder="Paste the AI's full response. We pull out the cfb-social block automatically."
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-txt-tertiary">Paste the whole response — only the fenced cfb-social block is read.</p>
+                  <button
+                    onClick={handleParseAndSave}
+                    disabled={busy || !pasteText.trim()}
+                    className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+                  >
+                    {busy ? 'Adding…' : 'Add posts'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
