@@ -249,8 +249,9 @@ function gameDataBlock(dynasty, game) {
   else if (game.homeTeamTid === game.team2Tid) site = ` (at ${t2.abbr})`
   else site = ` (at ${t1.abbr})`
   const ot = game.ot ? ' (OT)' : ''
+  const weekLabel = game.year && game.week ? `Year ${game.year}, Week ${game.week} — ` : ''
 
-  const lines = [`FINAL: ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${winner ? ` — ${winner.name} win` : ''}`]
+  const lines = [`${weekLabel}FINAL: ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${winner ? ` — ${winner.name} win` : ''}`]
 
   const bs = canonicalBoxScore(game, dynasty?.teams)
   if (bs) {
@@ -327,7 +328,8 @@ One ${post} per line. No numbering, no commentary inside the block.`
  */
 export function buildGameSocialPrompt(dynasty, game, { count = 8 } = {}) {
   const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
-  const prompt = `You are generating ${platform.name} posts about ONE college football game.
+  const weekCtx = game?.year && game?.week ? ` (Year ${game.year}, Week ${game.week})` : ''
+  const prompt = `You are generating ${platform.name} posts about ONE college football game${weekCtx}. Use the week number to calibrate the tone — early weeks (1-4) are September/season-opener energy; mid-season weeks feel like conference grind; late weeks (10+) carry playoff/championship stakes and end-of-season urgency.
 
 ${buildGameSocialSection(dynasty, game, count)}
 
