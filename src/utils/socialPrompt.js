@@ -15,6 +15,7 @@
 import { buildGameTagMap, getEffectiveCharacters, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM } from '../data/socialModel'
 import { canonicalBoxScore } from './boxScoreHelpers'
 import { collapsePatRowsIntoTDs, sortPlaysChronologically } from './scoringPlayOrder'
+import { getRecordAsOfGame } from '../context/DynastyContext'
 
 const NATIONAL_SAMPLE_SIZE = 40
 
@@ -312,11 +313,13 @@ function gameDataBlock(dynasty, game) {
     lines.push(`CFP Seeds: ${t1.abbr} #${game.seed1 ?? '?'} vs ${t2.abbr} #${game.seed2 ?? '?'}`)
   }
 
-  // Records
-  const rec1 = [game.team1Record, game.team1ConfRecord ? `(${game.team1ConfRecord} conf)` : ''].filter(Boolean).join(' ')
-  const rec2 = [game.team2Record, game.team2ConfRecord ? `(${game.team2ConfRecord} conf)` : ''].filter(Boolean).join(' ')
-  if (rec1 || rec2) {
-    lines.push(`RECORDS: ${t1.abbr} ${rec1 || '—'} | ${t2.abbr} ${rec2 || '—'}`)
+  // Records — use getRecordAsOfGame so it matches the game page header exactly
+  const r1 = getRecordAsOfGame(dynasty, game, game.team1Tid)
+  const r2 = getRecordAsOfGame(dynasty, game, game.team2Tid)
+  const recStr1 = [r1.overall, r1.conference && r1.conference !== '0-0' ? `(${r1.conference} conf)` : ''].filter(Boolean).join(' ')
+  const recStr2 = [r2.overall, r2.conference && r2.conference !== '0-0' ? `(${r2.conference} conf)` : ''].filter(Boolean).join(' ')
+  if (recStr1 || recStr2) {
+    lines.push(`RECORDS: ${t1.abbr} ${recStr1 || '—'} | ${t2.abbr} ${recStr2 || '—'}`)
   }
 
   // Team ratings
