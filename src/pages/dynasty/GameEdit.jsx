@@ -2604,6 +2604,22 @@ export default function GameEdit() {
                       </svg>
                     </button>
                   </div>
+
+                  {/* Edit socials — generate/edit in-character posts about this game.
+                      Lives here next to the recap since they're two outputs of the
+                      same game data (and can be generated together via settings). */}
+                  {existingGame?.id && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSocialModal(true)}
+                      disabled={!formData.team1Score || !formData.team2Score}
+                      title="Generate or edit social posts about this game"
+                      className="px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40"
+                      style={{ background: 'var(--surface-2)', borderColor: 'var(--surface-5)' }}
+                    >
+                      Edit socials
+                    </button>
+                  )}
                 </div>
               </div>
               {recapError && (
@@ -2812,29 +2828,6 @@ export default function GameEdit() {
       })()}
 
         </div>
-
-        {/* Game Social — generate in-character posts about this game */}
-        {existingGame?.id && (
-          <Card>
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="min-w-0">
-                <h3 className="label-sm text-txt-primary">Game Social</h3>
-                <p className="text-xs text-txt-tertiary mt-0.5">
-                  Generate in-character posts about this game from the social universe. Digs into the box score, scoring plays, and everything uploaded.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSocialModal(true)}
-                disabled={!formData.team1Score || !formData.team2Score}
-                className="px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40 flex-shrink-0"
-                style={{ background: 'var(--surface-2)', borderColor: 'var(--surface-5)' }}
-              >
-                Generate Social
-              </button>
-            </div>
-          </Card>
-        )}
       </div>
 
       {showSocialModal && existingGame?.id && (

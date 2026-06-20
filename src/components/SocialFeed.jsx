@@ -37,7 +37,12 @@ function MiniTeam({ tid, teams }) {
 function PostRow({ post, character, platform, game, teams, playerLinks }) {
   const pathPrefix = usePathPrefix()
   const navigate = useNavigate()
-  const gameHref = game ? `${pathPrefix}/game/${game.id}` : null
+  // Game posts open that game; general/national posts open that week's feed.
+  const rowHref = game
+    ? `${pathPrefix}/game/${game.id}`
+    : (post.year != null && post.week != null
+      ? `${pathPrefix}/weekly-scores/${post.year}/${post.week}?tab=social`
+      : null)
   const stop = (e) => e.stopPropagation()
   const name = character?.displayName || (post.charId || '').replace(/^[a-z]+:/, '')
   const handle = character?.handle || ''
@@ -57,9 +62,9 @@ function PostRow({ post, character, platform, game, teams, playerLinks }) {
 
   return (
     <div
-      className={`flex gap-3 px-4 py-3 border-b ${gameHref ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}
+      className={`flex gap-3 px-4 py-3 border-b ${rowHref ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}
       style={{ borderColor: 'var(--surface-4)' }}
-      onClick={gameHref ? () => navigate(gameHref) : undefined}
+      onClick={rowHref ? () => navigate(rowHref) : undefined}
     >
       {profileTo ? <Link to={profileTo} onClick={stop}>{Avatar}</Link> : Avatar}
       <div className="min-w-0 flex-1">
@@ -125,7 +130,7 @@ export default function SocialFeed({ posts, charactersById, platform, gamesById,
   }
 
   return (
-    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--surface-4)', background: 'var(--surface-1)' }}>
+    <div className="social-ui rounded-lg overflow-hidden" style={{ border: '1px solid var(--surface-4)', background: 'var(--surface-1)' }}>
       {ordered.map(post => (
         <PostRow
           key={post.id}

@@ -5,26 +5,33 @@ import { useToast } from './ui/Toast'
 import { buildSocialPrompt } from '../utils/socialPrompt'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex, getEffectiveCharacters,
+  DEFAULT_SOCIAL_SETTINGS,
 } from '../data/socialModel'
 
 /**
  * Generate Social Feed — copy/paste flow, decoupled from the Week Recap so the
- * recap stays light and this can run on a heavy model. The user copies the
- * prompt, pastes the AI's `cfb-social` block back, and we parse it into posts.
- * Supports multiple pastes (continuations merge/dedupe) for big 300+ weeks.
+ * recap stays light and this can run on a heavy model. The user tunes how many
+ * posts to ask for, copies the prompt, then hits Paste to pull the AI's
+ * `cfb-social` block straight off the clipboard. Multiple pastes merge/dedupe
+ * for big 300+ weeks. No giant prompt/response text blocks on screen.
  */
 export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
-  const { currentDynasty, loadSocial, saveSocialPosts, replaceSocialWeek, isViewOnly } = useDynasty()
+  const { currentDynasty, loadSocial, saveSocialPosts, replaceSocialWeek, updateSocialSettings, isViewOnly } = useDynasty()
   const { toast } = useToast()
   const yearNum = Number(year)
   const weekNum = Number(week)
-  const promptRef = useRef(null)
   const loadedFor = useRef(null)
 
-  const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   const [addedThisSession, setAddedThisSession] = useState(0)
+  const [showManual, setShowManual] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const settings = useMemo(
+    () => ({ ...DEFAULT_SOCIAL_SETTINGS, ...(currentDynasty?.socialSettings || {}) }),
+    [currentDynasty?.socialSettings],
+  )
 
   // Lazy-load the social data (characters + feed) when the modal opens, so the
   // prompt roster and the parser's handle index are populated.
@@ -34,6 +41,7 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
     if (loadedFor.current === key) return
     loadedFor.current = key
     setDraft('')
+    setShowManual(false)
     setAddedThisSession(0)
     loadSocial(currentDynasty.id).catch(() => {})
   }, [isOpen, currentDynasty?.id, yearNum, weekNum, loadSocial])
@@ -48,23 +56,29 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
     return Array.isArray(wk) ? wk.length : 0
   }, [currentDynasty?.socialFeedByYear, yearNum, weekNum])
 
+  const setSetting = (key, value) => {
+    if (isViewOnly || !currentDynasty?.id) return
+    updateSocialSettings(currentDynasty.id, { [key]: value }).catch(() => {})
+  }
+
   const handleCopy = async () => {
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(prompt)
-      else if (promptRef.current) { promptRef.current.select(); document.execCommand('copy') }
+      await navigator.clipboard.writeText(prompt)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('Could not copy. Select the text and copy manually.')
+      toast.error('Could not copy. Use "Paste manually" to work without clipboard access.')
+      setShowManual(true)
     }
   }
 
-  const handleParse = async () => {
+  // Shared ingest: pull the cfb-social block out of arbitrary text and save.
+  const ingest = async (text) => {
     if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
-    const text = draft.trim()
-    if (!text) { toast.error('Paste the AI response first.'); return }
-    const { found, body } = extractSocialBlock(text)
-    if (!found) { toast.error('No cfb-social block found in the pasted text.'); return }
+    const trimmed = (text || '').trim()
+    if (!trimmed) { toast.error('Nothing to read — copy the AI response first.'); return }
+    const { found, body } = extractSocialBlock(trimmed)
+    if (!found) { toast.error('No cfb-social block found in that text.'); return }
     const lines = parseSocialLines(body)
     if (!lines.length) { toast.error('No valid post lines found in the block.'); return }
 
@@ -94,6 +108,19 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
     }
   }
 
+  const handlePasteButton = async () => {
+    if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
+    let text = ''
+    try {
+      text = await navigator.clipboard.readText()
+    } catch {
+      toast.error('Clipboard access blocked — use "Paste manually" below.')
+      setShowManual(true)
+      return
+    }
+    await ingest(text)
+  }
+
   if (!isOpen) return null
 
   return createPortal(
@@ -103,7 +130,7 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
       onMouseDown={(e) => { e.stopPropagation(); onClose() }}
     >
       <div
-        className="card-elevated w-full sm:w-[min(880px,95vw)] max-h-[calc(100dvh-4rem)] sm:max-h-[88vh] flex flex-col overflow-hidden"
+        className="card-elevated w-full sm:w-[min(560px,95vw)] max-h-[calc(100dvh-4rem)] sm:max-h-[88vh] flex flex-col overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 sm:px-7 py-4 border-b border-surface-4">
@@ -125,44 +152,86 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
+          {/* How many posts to ask for */}
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-txt-primary">AI Prompt</label>
+            <label className="text-sm font-semibold text-txt-primary">How many posts</label>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-txt-tertiary">Per game</span>
+                <input
+                  type="number" min={1} max={20} inputMode="numeric"
+                  value={settings.postsPerGame}
+                  disabled={isViewOnly}
+                  onChange={(e) => setSetting('postsPerGame', Math.max(1, Number(e.target.value) || 1))}
+                  className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-txt-tertiary">National (per week)</span>
+                <input
+                  type="number" min={0} max={100} inputMode="numeric"
+                  value={settings.nationalCount}
+                  disabled={isViewOnly}
+                  onChange={(e) => setSetting('nationalCount', Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
+                />
+              </label>
+            </div>
+            <p className="text-xs text-txt-tertiary mt-2">
+              Covers {gameCount} {gameCount === 1 ? 'game' : 'games'} this week
+              {' '}(~{gameCount * (Number(settings.postsPerGame) || 0) + (Number(settings.nationalCount) || 0)} posts).
+              Big weeks need a strong model. Paste more than once if the reply gets cut off — duplicates are ignored.
+            </p>
+          </section>
+
+          {/* Copy / Paste actions */}
+          <section className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={handleCopy}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+                className="px-4 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
                 style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
               >
                 {copied ? 'Copied!' : 'Copy prompt'}
               </button>
+              <button
+                onClick={handlePasteButton}
+                disabled={busy || isViewOnly}
+                className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-surface-4 text-txt-primary hover:border-surface-5 hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy ? 'Adding…' : 'Paste response'}
+              </button>
             </div>
-            <textarea
-              ref={promptRef}
-              readOnly
-              value={prompt}
-              className="w-full h-44 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-xs font-mono p-3 resize-none focus:outline-none focus:ring-2 focus:ring-surface-5"
-            />
-            <p className="text-xs text-txt-tertiary mt-1">
-              Covers {gameCount} {gameCount === 1 ? 'game' : 'games'} this week. Big weeks produce a lot of posts — use a strong model. If the response gets cut off, paste the rest and parse again; duplicates are ignored.
-            </p>
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-y-1">
-              <label className="text-sm font-semibold text-txt-primary">Paste the AI response</label>
-              <span className="text-xs text-txt-tertiary">
+            <div className="flex items-center justify-between text-xs text-txt-tertiary">
+              <span>
                 {existingWeekCount} saved this week{addedThisSession > 0 ? ` (+${addedThisSession} just now)` : ''}
               </span>
+              <button
+                onClick={() => setShowManual(v => !v)}
+                className="underline hover:text-txt-secondary"
+              >
+                {showManual ? 'Hide manual paste' : 'Paste manually'}
+              </button>
             </div>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className="w-full h-56 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-mono p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
-              placeholder="Paste the AI's full response. We pull out the cfb-social block automatically."
-            />
-            <p className="text-xs text-txt-tertiary mt-1">
-              Paste the whole response — only the fenced cfb-social block is read.
-            </p>
+
+            {showManual && (
+              <div className="space-y-2 pt-1">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="w-full h-40 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-mono p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+                  placeholder="Paste the AI's full response here, then Add posts. Only the cfb-social block is read."
+                />
+                <button
+                  onClick={() => ingest(draft)}
+                  disabled={busy || !draft.trim() || isViewOnly}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+                >
+                  {busy ? 'Adding…' : 'Add posts'}
+                </button>
+              </div>
+            )}
           </section>
         </div>
 
@@ -178,22 +247,12 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
               Delete all
             </button>
           ) : <span />}
-          <div className="flex gap-2">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm font-medium border border-surface-4 text-txt-secondary hover:text-txt-primary hover:border-surface-5 transition-colors bg-transparent"
           >
             Close
           </button>
-          <button
-            onClick={handleParse}
-            disabled={busy || !draft.trim() || isViewOnly}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-          >
-            {busy ? 'Adding…' : 'Add posts'}
-          </button>
-          </div>
         </div>
       </div>
     </div>,

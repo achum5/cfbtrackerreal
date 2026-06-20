@@ -29,7 +29,9 @@ export const DEFAULT_SOCIAL_SETTINGS = {
 }
 
 export const DEFAULT_SOCIAL_PLATFORM = {
-  name: 'The Sideline', // neutral fictional default; users rename per dynasty
+  // Intentionally unbranded — prompts describe it generically as "a mock social
+  // media platform similar to X/Twitter" rather than inventing a brand name.
+  name: '',
   postNoun: 'post',
   repostNoun: 'repost',
   likeNoun: 'like',

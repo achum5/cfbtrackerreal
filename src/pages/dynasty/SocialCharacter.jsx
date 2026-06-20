@@ -113,7 +113,7 @@ export default function SocialCharacter() {
   const handle = character.handle || ''
 
   return (
-    <div className="max-w-2xl mx-auto pb-10">
+    <div className="social-ui max-w-2xl mx-auto pb-10">
       {/* Header bar */}
       <div className="sticky top-0 z-10 flex items-center gap-4 px-4 py-2" style={{ background: 'color-mix(in srgb, var(--surface-1) 85%, transparent)', backdropFilter: 'blur(6px)' }}>
         <button onClick={() => navigate(-1)} aria-label="Back" className="text-txt-primary p-1.5 rounded-full hover:bg-surface-3">
@@ -187,8 +187,20 @@ export default function SocialCharacter() {
         <div className="text-center text-txt-tertiary py-16 text-sm">No {platform.postNoun}s yet.</div>
       ) : (
         <div>
-          {posts.map(p => (
-            <div key={p.id} className="px-4 py-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
+          {posts.map(p => {
+            // Game posts open that game; general/national posts open that week's feed.
+            const rowHref = p.gameId
+              ? `${pathPrefix}/game/${p.gameId}`
+              : (p.year != null && p.week != null
+                ? `${pathPrefix}/weekly-scores/${p.year}/${p.week}?tab=social`
+                : null)
+            return (
+            <div
+              key={p.id}
+              className={`px-4 py-3 border-b ${rowHref ? 'cursor-pointer hover:bg-surface-2/40' : ''}`}
+              style={{ borderColor: 'var(--surface-4)' }}
+              onClick={rowHref ? (e) => { if (!e.target.closest('a')) navigate(rowHref) } : undefined}
+            >
               <div className="flex items-center gap-1.5 text-sm">
                 <span className="font-semibold text-txt-primary">{character.displayName}</span>
                 {character.verified && <Verified color={platform.brandColor} size={14} />}
@@ -199,7 +211,8 @@ export default function SocialCharacter() {
                 <FormattedRecap text={p.text} playerLinks={playerLinks} caseInsensitive className="text-txt-primary" />
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

@@ -131,9 +131,9 @@ export function buildSocialSection(dynasty, year, week) {
   const post = platform.postNoun || 'post'
 
   const section = `═══════════════════════════════════════════════════════════
-SOCIAL POSTS (${platform.name}) — a SECOND output block
+SOCIAL POSTS — a SECOND output block
 ═══════════════════════════════════════════════════════════
-${platform.name} is a fictional social media platform. Write in-character as the accounts below.
+These are posts on a mock social media platform similar to X/Twitter. Write in-character as the accounts below.
 - For EACH game tag, write ${settings.postsPerGame} ${post}s from accounts that would care (the two teams' beat and fan accounts, plus an occasional national voice for notable results).
 - Then write ${settings.nationalCount} national ${post}s reacting to the week overall (rankings, playoff race, standout performances).
 - Match each account's personality. Keep each ${post} realistic (a sentence or two). Only react to the games/scores shown; invent nothing.
@@ -404,9 +404,9 @@ export function buildGameSocialSection(dynasty, game, count = 8) {
   const nationalLines = nationalSample(charactersById, NATIONAL_SAMPLE_SIZE).map(rosterLine).join('\n')
 
   return `═══════════════════════════════════════════════════════════
-SOCIAL POSTS (${platform.name}) — a SECOND output block
+SOCIAL POSTS — a SECOND output block
 ═══════════════════════════════════════════════════════════
-${platform.name} is a fictional social media platform. Write in-character as the accounts below.
+These are posts on a mock social media platform similar to X/Twitter. Write in-character as the accounts below.
 - Write ${count} ${post}s about this game. Mix the two teams' beat and fan accounts with a few national voices.
 - DIG INTO THE DETAIL: pull from every section of GAME DATA — the score, records, team ratings, coaches, quarter-by-quarter flow, player stats, scoring drives, and any recap/notes provided. The richer your references, the better.
 - Calibrate tone to the game type and stakes: bowl games / CFP rounds / conference championships warrant urgency and national attention; regular season blowouts produce frustration or swagger; close finishes produce disbelief and drama.
@@ -438,11 +438,10 @@ One ${post} per line. No numbering, no commentary inside the block.`
  * Returns { prompt, gameTagMap }.
  */
 export function buildGameSocialPrompt(dynasty, game, { count = 8 } = {}) {
-  const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
   const wkDisp = weekDisplay(game?.year, game?.week)
   const gtLabel = game ? gameTypeLabel(game) : ''
   const ctx = [wkDisp, gtLabel].filter(Boolean).join(' — ')
-  const prompt = `You are generating ${platform.name} posts about ONE college football game${ctx ? ` (${ctx})` : ''}. Use the week number and game type in GAME DATA to calibrate tone — early season is opener energy, late regular season is conference crunch time, bowl/CFP games are high-stakes elimination pressure.
+  const prompt = `You are generating posts for a mock social media platform (similar to X/Twitter) about ONE college football game${ctx ? ` (${ctx})` : ''}. Use the week number and game type in GAME DATA to calibrate tone — early season is opener energy, late regular season is conference crunch time, bowl/CFP games are high-stakes elimination pressure.
 
 ${buildGameSocialSection(dynasty, game, count)}
 
@@ -455,9 +454,8 @@ Output ONLY the cfb-social fenced block. No preamble, no commentary.`
  * Returns { prompt, gameTagMap, gameCount }.
  */
 export function buildSocialPrompt(dynasty, year, week) {
-  const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
   const { section, gameTagMap, gameCount } = buildSocialSection(dynasty, year, week)
-  const prompt = `You are generating ${platform.name} posts reacting to a week of college football results.
+  const prompt = `You are generating posts for a mock social media platform (similar to X/Twitter) reacting to a week of college football results.
 
 ${section}
 

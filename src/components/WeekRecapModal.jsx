@@ -6,7 +6,7 @@ import { buildWeekRecapPrompt, buildPreseasonRecapPrompt } from '../utils/recapP
 import { socialGameTagMap } from '../utils/socialPrompt'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex,
-  getEffectiveCharacters, ensureUniverseLoaded,
+  getEffectiveCharacters, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS,
 } from '../data/socialModel'
 
 /**
@@ -24,7 +24,7 @@ import {
  *   onSaved — optional callback fired with the saved text after a successful save
  */
 export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved }) {
-  const { currentDynasty, saveWeekRecap, deleteWeekRecap, isViewOnly, loadSocial, saveSocialPosts } = useDynasty()
+  const { currentDynasty, saveWeekRecap, deleteWeekRecap, isViewOnly, loadSocial, saveSocialPosts, updateSocialSettings } = useDynasty()
   const { toast } = useToast()
   const yearNum = Number(year)
   const weekNum = Number(week)
@@ -37,7 +37,17 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
   const [draft, setDraft] = useState(existingRecap?.text || '')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showManual, setShowManual] = useState(false)
   const [includeSocial, setIncludeSocial] = useState(currentDynasty?.socialSettings?.enabled !== false)
+
+  const socialSettings = useMemo(
+    () => ({ ...DEFAULT_SOCIAL_SETTINGS, ...(currentDynasty?.socialSettings || {}) }),
+    [currentDynasty?.socialSettings],
+  )
+  const setSocialSetting = (key, value) => {
+    if (isViewOnly || !currentDynasty?.id) return
+    updateSocialSettings(currentDynasty.id, { [key]: value }).catch(() => {})
+  }
 
   // Compute the "current rank snapshot" for the saved-week's poll —
   // the slice of rankByWeek[weekNum] across all teams. We compare
@@ -78,6 +88,7 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     if (!isOpen) return
     setDraft(existingRecap?.text || '')
     setCopied(false)
+    setShowManual(false)
   }, [isOpen, yearNum, weekNum, existingRecap?.text])
 
   // Load the social universe + this dynasty's characters when the modal opens
@@ -121,14 +132,17 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     }
   }
 
-  const handleSave = async () => {
+  // Shared save: take the AI's full output (from the Paste button's clipboard
+  // read or the manual textarea), split off any cfb-social block, save the
+  // prose recap here and the posts to the Social tab.
+  const saveOutput = async (text) => {
     if (isViewOnly) {
       toast.error('Read-only mode, cannot save.')
       return
     }
-    const trimmed = draft.trim()
+    const trimmed = (text || '').trim()
     if (!trimmed) {
-      toast.error('Paste the recap first, then save.')
+      toast.error('Nothing to save — copy the AI output first.')
       return
     }
     if (!currentDynasty) return
@@ -200,6 +214,19 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     }
   }
 
+  const handlePasteSave = async () => {
+    if (isViewOnly) { toast.error('Read-only mode, cannot save.'); return }
+    let text = ''
+    try {
+      text = await navigator.clipboard.readText()
+    } catch {
+      toast.error('Clipboard access blocked — use "Paste manually" below.')
+      setShowManual(true)
+      return
+    }
+    await saveOutput(text)
+  }
+
   const handleDelete = async () => {
     if (isViewOnly || !currentDynasty || !existingRecap) return
     if (!window.confirm('Delete this saved recap? You can regenerate it any time.')) return
@@ -253,48 +280,87 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
           <section>
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="text-sm font-semibold text-txt-primary">AI Prompt</label>
-              <div className="flex items-center gap-3">
-                {isRegularWeek && (
-                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-txt-secondary">
-                    <input
-                      type="checkbox"
-                      checked={includeSocial}
-                      onChange={(e) => setIncludeSocial(e.target.checked)}
-                      className="w-4 h-4"
-                      style={{ accentColor: 'var(--text-primary)' }}
-                    />
-                    Include social posts
-                  </label>
-                )}
-                <button
-                  onClick={handleCopyPrompt}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
-                  style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-                >
-                  {copied ? 'Copied!' : 'Copy prompt'}
-                </button>
-              </div>
+              {isRegularWeek && (
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs text-txt-secondary">
+                  <input
+                    type="checkbox"
+                    checked={includeSocial}
+                    onChange={(e) => setIncludeSocial(e.target.checked)}
+                    className="w-4 h-4"
+                    style={{ accentColor: 'var(--text-primary)' }}
+                  />
+                  Include social posts
+                </label>
+              )}
             </div>
             <p className="text-xs text-txt-tertiary">
-              Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and paste it below.{isRegularWeek && includeSocial ? ' The app splits it automatically — the recap saves here, and the social posts go to the Social tab.' : ''}
+              Copy the prompt, run it in your AI, then copy the <strong className="text-txt-secondary">entire</strong> output and hit Paste &amp; save.{isRegularWeek && includeSocial ? ' The app splits it automatically — the recap saves here, and the social posts go to the Social tab.' : ''}
             </p>
+            {isRegularWeek && includeSocial && (
+              <div className="mt-3 rounded-md border border-surface-4 bg-surface-2/50 px-3 py-2.5">
+                <span className="text-xs font-semibold text-txt-secondary">Social posts to generate</span>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-txt-tertiary">Per game</span>
+                    <input
+                      type="number" min={1} max={20} inputMode="numeric"
+                      value={socialSettings.postsPerGame}
+                      disabled={isViewOnly}
+                      onChange={(e) => setSocialSetting('postsPerGame', Math.max(1, Number(e.target.value) || 1))}
+                      className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-txt-tertiary">National (per week)</span>
+                    <input
+                      type="number" min={0} max={100} inputMode="numeric"
+                      value={socialSettings.nationalCount}
+                      disabled={isViewOnly}
+                      onChange={(e) => setSocialSetting('nationalCount', Math.max(0, Number(e.target.value) || 0))}
+                      className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
             {/* Off-screen mirror so the clipboard fallback (execCommand) still works. */}
             <textarea ref={promptTextareaRef} readOnly value={prompt} aria-hidden="true" tabIndex={-1}
               style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }} />
           </section>
 
-          <section>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-y-1">
-              <label className="text-sm font-semibold text-txt-primary">{isRegularWeek && includeSocial ? "Paste the AI's full output" : "Paste the AI's recap"}</label>
-              {existingRecap?.generatedAt && (
-                <span className="text-xs text-txt-tertiary">
-                  Last saved {new Date(existingRecap.generatedAt).toLocaleString()}
-                </span>
-              )}
+          <section className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleCopyPrompt}
+                className="px-4 py-2.5 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+              >
+                {copied ? 'Copied!' : 'Copy prompt'}
+              </button>
+              <button
+                onClick={handlePasteSave}
+                disabled={saving || isViewOnly}
+                className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-surface-4 text-txt-primary hover:border-surface-5 hover:bg-surface-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Saving…' : 'Paste & save'}
+              </button>
             </div>
+
+            <div className="flex items-center justify-between text-xs text-txt-tertiary">
+              <span>
+                {existingRecap?.generatedAt ? `Last saved ${new Date(existingRecap.generatedAt).toLocaleString()}` : 'Not saved yet'}
+              </span>
+              <button
+                onClick={() => setShowManual(v => !v)}
+                className="underline hover:text-txt-secondary"
+              >
+                {showManual ? 'Hide manual paste' : 'Paste manually'}
+              </button>
+            </div>
+
             {recapDrift && (
               <div
-                className="mb-2 rounded-md px-3 py-2 text-xs flex items-start gap-2"
+                className="rounded-md px-3 py-2 text-xs flex items-start gap-2"
                 style={{
                   backgroundColor: 'rgba(251, 191, 36, 0.10)',
                   border: '1px solid rgba(251, 191, 36, 0.30)',
@@ -305,24 +371,37 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
                 <span>
                   Rankings have changed for {recapDrift.count}{' '}
                   team{recapDrift.count === 1 ? '' : 's'} since this recap was generated.
-                  The text below may reference outdated rank numbers; regenerate to refresh.
+                  Regenerate to refresh the rank numbers.
                 </span>
               </div>
             )}
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className="w-full h-56 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-sans p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
-              placeholder="Paste the recap text here. Markdown is supported."
-            />
-            <p className="text-xs text-txt-tertiary mt-1">
-              Markdown (headings, bold, italic) renders when you save.{isRegularWeek && includeSocial ? ' Paste the ENTIRE response — if it includes the cfb-social block, those posts are saved to the Social tab automatically (no separate step).' : ''}
-            </p>
+
+            {showManual && (
+              <div className="space-y-2 pt-1">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="w-full h-44 rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm font-sans p-3 resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+                  placeholder="Paste the AI's full output here, then Save. Markdown is supported."
+                />
+                <p className="text-xs text-txt-tertiary">
+                  Markdown renders when you save.{isRegularWeek && includeSocial ? ' Any cfb-social block in the paste is split out to the Social tab automatically.' : ''}
+                </p>
+                <button
+                  onClick={() => saveOutput(draft)}
+                  disabled={saving || !draft.trim() || isViewOnly}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+                >
+                  {saving ? 'Saving…' : 'Save recap'}
+                </button>
+              </div>
+            )}
           </section>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-surface-4 px-5 sm:px-6 py-4 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+        <div className="border-t border-surface-4 px-5 sm:px-6 py-4 flex items-center justify-between gap-2">
           <div>
             {existingRecap && (
               <button
@@ -334,22 +413,12 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
               </button>
             )}
           </div>
-          <div className="flex gap-2 items-stretch sm:items-center sm:justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium border border-surface-4 text-txt-secondary hover:text-txt-primary hover:border-surface-5 transition-colors bg-transparent"
-            >
-              Close
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !draft.trim() || isViewOnly}
-              className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-            >
-              {saving ? 'Saving…' : 'Save recap'}
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium border border-surface-4 text-txt-secondary hover:text-txt-primary hover:border-surface-5 transition-colors bg-transparent"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>,
