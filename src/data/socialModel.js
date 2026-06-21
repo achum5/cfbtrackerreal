@@ -275,20 +275,36 @@ export function buildGameTagMap(weekGames) {
 
 // ─── Recap social-block extraction & parsing ──────────────────────────────────
 
-const SOCIAL_FENCE_RE = /```\s*cfb-social\s*\n?([\s\S]*?)```/i
+// Matches a properly closed block
+const SOCIAL_FENCE_CLOSED_RE = /```\s*cfb-social\s*\n?([\s\S]*?)```/i
+// Matches an open/truncated block (AI cut off before the closing ```)
+const SOCIAL_FENCE_OPEN_RE = /```\s*cfb-social\s*\n?([\s\S]+)/i
 
 /**
- * Pull the cfb-social fenced block out of a pasted recap response.
+ * Pull the cfb-social fenced block out of a pasted AI response.
+ * Handles: properly closed blocks, truncated responses (no closing ```),
+ * spaces between backticks and language name, and case variations.
  * @returns {{ found, body, recapWithoutBlock }}
  */
 export function extractSocialBlock(recapText) {
   const text = String(recapText ?? '')
-  const m = text.match(SOCIAL_FENCE_RE)
-  if (!m) return { found: false, body: '', recapWithoutBlock: text }
-  const recapWithoutBlock = (text.slice(0, m.index) + text.slice(m.index + m[0].length))
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  return { found: true, body: m[1] || '', recapWithoutBlock }
+
+  // 1. Prefer a properly closed block
+  const closed = text.match(SOCIAL_FENCE_CLOSED_RE)
+  if (closed) {
+    const recapWithoutBlock = (text.slice(0, closed.index) + text.slice(closed.index + closed[0].length))
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    return { found: true, body: closed[1] || '', recapWithoutBlock }
+  }
+
+  // 2. Accept a truncated block — AI ran out of tokens before closing ```
+  const open = text.match(SOCIAL_FENCE_OPEN_RE)
+  if (open) {
+    return { found: true, body: open[1] || '', recapWithoutBlock: text.slice(0, open.index).trim() }
+  }
+
+  return { found: false, body: '', recapWithoutBlock: text }
 }
 
 /**
