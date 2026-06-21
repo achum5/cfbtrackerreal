@@ -313,10 +313,13 @@ export async function getDynasty(dynastyId) {
 // Get a public dynasty by share code (no authentication required)
 export async function getPublicDynastyByShareCode(shareCode) {
   try {
+    // Query only on shareCode — a composite index on (shareCode, isPublic) would
+    // be required for a two-field query but was never created, causing silent empty
+    // results. Single-field indexes are auto-created by Firestore; check isPublic
+    // in code instead.
     const q = query(
       collection(db, DYNASTIES_COLLECTION),
-      where('shareCode', '==', shareCode),
-      where('isPublic', '==', true)
+      where('shareCode', '==', shareCode)
     )
     const snapshot = await getDocs(q)
 
@@ -326,6 +329,12 @@ export async function getPublicDynastyByShareCode(shareCode) {
 
     const docSnap = snapshot.docs[0]
     const data = docSnap.data()
+
+    // Sharing must be explicitly enabled — treat missing field as disabled
+    if (!data.isPublic) {
+      return null
+    }
+
     // Remove any 'id' field from data to avoid conflicts with Firestore doc ID
     const { id: _, ...cleanData } = data
     return {
@@ -1388,11 +1397,13 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
     // recap subcollections to dodge Firestore's 1 MB cap). Public
     // share viewers were stuck on the pre-migration shape and
     // silently lost everything that had been migrated.
-    const [players, games, weekRecaps, seasonalRehydrated] = await Promise.all([
+    const [players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData] = await Promise.all([
       getPlayersSubcollection(mainDoc.id),
       getGamesSubcollection(mainDoc.id),
       getWeekRecapsSubcollection(mainDoc.id),
       getSeasonsSubcollection(mainDoc.id),
+      getSocialFeedSubcollection(mainDoc.id),
+      getSocialCharactersSubcollection(mainDoc.id),
     ])
 
     // Merge weekRecaps: legacy main-doc `weekRecapsByYear` UNION
@@ -1452,6 +1463,8 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
       players: playersOut,
       games: gamesOut,
       weekRecapsByYear,
+      socialFeedByYear: socialFeedData || {},
+      socialCharacters: socialCharData || {},
     }
   } catch (error) {
     console.error('Error fetching public dynasty with subcollections:', error)

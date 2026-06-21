@@ -7,34 +7,22 @@ import DynastyContext from './DynastyContext'
 const ViewDynastyContext = createContext()
 
 /**
- * Universal hook that works in both regular and view-only modes
- * Use this in components that need to work in both contexts
+ * Universal hook that works in both regular and view-only modes.
+ * Use this in components that need to work in both contexts.
  */
 export function useDynastyCompat() {
   const viewContext = useContext(ViewDynastyContext)
   const dynastyContext = useContext(DynastyContext)
 
-  // If we're in view mode, use the view context
-  if (viewContext) {
-    return viewContext
-  }
-
-  // Otherwise, use the regular dynasty context
-  if (dynastyContext) {
-    return {
-      ...dynastyContext,
-      // Use the context's isViewOnly flag (cloud dynasties are read-only for non-premium users)
-      isViewOnly: dynastyContext.isViewOnly || false
-    }
-  }
-
-  // Not in any context
+  if (viewContext) return viewContext
+  if (dynastyContext) return { ...dynastyContext, isViewOnly: dynastyContext.isViewOnly || false }
   return null
 }
 
 /**
- * ViewDynastyProvider - Provides read-only dynasty data for public viewing
- * This is a simplified version of DynastyProvider that doesn't require authentication
+ * ViewDynastyProvider — read-only dynasty context for public shared links.
+ * Loads the full dynasty (including subcollections + social data) without auth.
+ * All mutation functions are no-ops so components never crash in view mode.
  */
 export function ViewDynastyProvider({ shareCode, children }) {
   const [dynasty, setDynasty] = useState(null)
@@ -48,13 +36,10 @@ export function ViewDynastyProvider({ shareCode, children }) {
         setLoading(false)
         return
       }
-
       try {
         setLoading(true)
         setError(null)
-        // Use the new function that also fetches from subcollections
         const dynastyData = await getPublicDynastyWithSubcollections(shareCode)
-
         if (!dynastyData) {
           setError('Dynasty not found or sharing is disabled')
         } else {
@@ -67,81 +52,120 @@ export function ViewDynastyProvider({ shareCode, children }) {
         setLoading(false)
       }
     }
-
     loadDynasty()
   }, [shareCode])
 
-  // No-op function that logs a warning - used for all mutation operations
+  // All write operations are silently blocked in view mode
   const viewOnlyNoOp = (fnName) => async () => {
-    console.warn(`Cannot ${fnName} in view-only mode`)
+    console.warn(`[ViewOnly] Cannot ${fnName} — read-only mode`)
     return null
   }
 
-  // Read-only context value
   const value = {
-    // Dynasty data (read-only)
+    // ── Dynasty data ──────────────────────────────────────────────────────────
     currentDynasty: dynasty,
     dynasties: dynasty ? [dynasty] : [],
     loading,
     error,
+    cloudSyncing: false,
+    loadingDynastyId: null,
+    phaseOverride: null,
+    setPhaseOverride: () => {},
+    userTeams: dynasty ? [{ tid: dynasty.currentTid, abbr: dynasty.teamName }] : [],
+    activeUserTid: dynasty?.currentTid ?? null,
+    setActiveTeam: () => {},
+    customTeams: dynasty?.customTeams || {},
 
-    // View-only flag - components MUST check this to hide edit buttons
+    // ── View-only flag ────────────────────────────────────────────────────────
     isViewOnly: true,
 
-    // ============================================
-    // NO-OP FUNCTIONS FOR ALL MUTATIONS
-    // These do nothing in view mode to prevent any data modification
-    // ============================================
+    // ── Social — data is pre-loaded in getPublicDynastyWithSubcollections ─────
+    // loadSocial is called by modals and feed components; return pre-loaded data.
+    loadSocial: async () => ({
+      socialCharacters: dynasty?.socialCharacters || {},
+      socialFeedByYear: dynasty?.socialFeedByYear || {},
+    }),
 
-    // Core CRUD operations
+    // ── All mutation functions — no-ops ───────────────────────────────────────
     createDynasty: viewOnlyNoOp('create dynasty'),
     updateDynasty: viewOnlyNoOp('update dynasty'),
     deleteDynasty: viewOnlyNoOp('delete dynasty'),
     importDynasty: viewOnlyNoOp('import dynasty'),
+    importDynastyFromUrl: viewOnlyNoOp('import dynasty from url'),
+    exportDynasty: viewOnlyNoOp('export dynasty'),
+    selectDynasty: viewOnlyNoOp('select dynasty'),
 
     // Game operations
     addGame: viewOnlyNoOp('add game'),
+    updateGame: viewOnlyNoOp('update game'),
     deleteGame: viewOnlyNoOp('delete game'),
+    patchGameFields: viewOnlyNoOp('patch game fields'),
+    saveGameSetChanges: viewOnlyNoOp('save game set changes'),
+    applyChangedPlayers: viewOnlyNoOp('apply changed players'),
     saveCPUBowlGames: viewOnlyNoOp('save CPU bowl games'),
     saveCPUConferenceChampionships: viewOnlyNoOp('save CPU conference championships'),
+    saveWeeklyScores: viewOnlyNoOp('save weekly scores'),
+    saveRankings: viewOnlyNoOp('save rankings'),
+    saveCFPGames: viewOnlyNoOp('save CFP games'),
+    saveConferenceChampionshipsHistoryFromSheet: viewOnlyNoOp('save CC history from sheet'),
 
-    // Week/Season progression
+    // Season progression
     advanceWeek: viewOnlyNoOp('advance week'),
     advanceToNewSeason: viewOnlyNoOp('advance to new season'),
     revertWeek: viewOnlyNoOp('revert week'),
 
-    // Schedule/Roster operations
+    // Schedule / roster
     saveSchedule: viewOnlyNoOp('save schedule'),
     saveRoster: viewOnlyNoOp('save roster'),
 
-    // Team data operations
+    // Team data
     saveTeamRatings: viewOnlyNoOp('save team ratings'),
     saveTeamYearInfo: viewOnlyNoOp('save team year info'),
     saveCoachingStaff: viewOnlyNoOp('save coaching staff'),
+    saveTeamFuture: viewOnlyNoOp('save team future'),
+    updateTeambuilderTeam: viewOnlyNoOp('update teambuilder team'),
+    addCustomTeam: viewOnlyNoOp('add custom team'),
 
-    // Player operations
+    // Players
     updatePlayer: viewOnlyNoOp('update player'),
     deletePlayer: viewOnlyNoOp('delete player'),
+    syncAllPlayersStats: viewOnlyNoOp('sync all players stats'),
 
-    // Google Sheets operations
+    // Recaps
+    saveWeekRecap: viewOnlyNoOp('save week recap'),
+    deleteWeekRecap: viewOnlyNoOp('delete week recap'),
+
+    // Social mutations
+    importSocialUniverse: viewOnlyNoOp('import social universe'),
+    saveSocialPosts: viewOnlyNoOp('save social posts'),
+    replaceSocialWeek: viewOnlyNoOp('replace social week'),
+    saveSocialCharacters: viewOnlyNoOp('save social characters'),
+    updateSocialSettings: viewOnlyNoOp('update social settings'),
+    updateSocialPlatform: viewOnlyNoOp('update social platform'),
+
+    // Google Sheets
     createGoogleSheetForDynasty: viewOnlyNoOp('create Google sheet'),
     createTempSheetWithData: viewOnlyNoOp('create temp sheet'),
     deleteSheetAndClearRefs: viewOnlyNoOp('delete sheet'),
     createConferencesSheetForDynasty: viewOnlyNoOp('create conferences sheet'),
+
+    // Conferences
     saveConferences: viewOnlyNoOp('save conferences'),
+    saveConferenceAlignment: viewOnlyNoOp('save conference alignment'),
+    migrateConferencesToPerTeam: viewOnlyNoOp('migrate conferences to per-team'),
 
-    // Honor/Awards operations
+    // Admin / maintenance
     processHonorPlayers: viewOnlyNoOp('process honor players'),
+    analyzeDocumentSize: viewOnlyNoOp('analyze document size'),
+    optimizeDocumentSize: viewOnlyNoOp('optimize document size'),
+    migrateToSubcollections: viewOnlyNoOp('migrate to subcollections'),
+    migrateDynastyStorage: viewOnlyNoOp('migrate dynasty storage'),
 
-    // Helper functions that work in view mode (read-only)
+    // ── Read-only helper functions (same logic as DynastyContext) ─────────────
     getCurrentSchedule: () => {
       if (!dynasty) return []
       const tid = getCurrentTeamTid(dynasty)
       const year = dynasty.currentYear
-      // Tid-based byYear is the primary source; legacy abbr-keyed
-      // schedulesByTeamYear is checked drift-aware via lookupByTeamYear so
-      // a teambuilder team renamed since the schedule was saved still
-      // surfaces its data.
       if (tid && dynasty.teams?.[tid]?.byYear?.[year]?.schedule) {
         return dynasty.teams[tid].byYear[year].schedule
       }
@@ -155,20 +179,14 @@ export function ViewDynastyProvider({ shareCode, children }) {
       const teamAbbr = getCurrentTeamAbbr(dynasty) || dynasty.teamName
       const teamTid = getTidFromAbbr(teamAbbr, dynasty)
       const currentYear = dynasty.currentYear
-      // Use unified isPlayerOnRoster check - teamsByYear is the ONLY source of truth
-      // Handle both tid (number) and legacy abbr (string) in teamsByYear
       return (dynasty.players || []).filter(p => {
         if (p.isHonorOnly) return false
         const playerTeam = p.teamsByYear?.[currentYear] ?? p.teamsByYear?.[String(currentYear)]
         if (playerTeam === undefined || playerTeam === null) return false
-        // Handle both tid (number) and legacy abbr (string)
-        if (typeof playerTeam === 'number') {
-          return playerTeam === teamTid
-        }
-        // Legacy: string comparison
+        if (typeof playerTeam === 'number') return playerTeam === teamTid
         return playerTeam === teamAbbr || playerTeam.toUpperCase() === teamAbbr?.toUpperCase()
       })
-    }
+    },
   }
 
   return (
@@ -183,9 +201,7 @@ export function ViewDynastyProvider({ shareCode, children }) {
 
 export function useViewDynasty() {
   const context = useContext(ViewDynastyContext)
-  if (!context) {
-    throw new Error('useViewDynasty must be used within a ViewDynastyProvider')
-  }
+  if (!context) throw new Error('useViewDynasty must be used within a ViewDynastyProvider')
   return context
 }
 
