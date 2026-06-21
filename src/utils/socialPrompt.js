@@ -44,7 +44,7 @@ function gameLine(tag, game, dynasty) {
   else site = ` (at ${t1.abbr})`
   const ot = game.ot ? ' OT' : ''
   const result = winner ? ` — ${winner.name} win` : ''
-  return `[${tag}] ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${result}`
+  return `${tag}: ${rankPrefix(game.team1Rank)}${t1.name} (${t1.abbr}) ${s1}, ${rankPrefix(game.team2Rank)}${t2.name} (${t2.abbr}) ${s2}${ot}${site}${result}`
 }
 
 function charsForTeam(charactersById, tid) {
@@ -138,7 +138,7 @@ These are posts on a mock social media platform similar to X/Twitter. Write in-c
 - Then write ${settings.nationalCount} national ${post}s reacting to the week overall (rankings, playoff race, standout performances).
 - Match each account's personality. Keep each ${post} realistic (a sentence or two). Only react to the games/scores shown; invent nothing.
 
-GAMES — use the bracket tag (e.g. G1) to attach a ${post} to that game:
+GAMES (use the tag exactly as shown, e.g. G1, as the first field in each output line):
 ${gameLines || '(no games this week)'}
 
 NATIONAL VOICES (reference by @handle; write in their personality):
@@ -154,7 +154,7 @@ G1 | beat:MIZ | another post about that same game
 N | @AnotherHandle | a national take about the week
 \`\`\`
 LINE GRAMMAR: <scope> | <author> | <text>
-- scope: a game tag (G1, G2, ...) to attach to that game, or N for a national post.
+- scope: the game tag exactly as listed above (G1, G2, ...) — NO brackets, just the tag. Or N for a national post.
 - author: an @handle from the lists above, OR beat:<ABBR> / fan:<ABBR> using a team abbreviation from the GAMES block.
 - text: the ${post}; everything after the second | is the text, so apostrophes and punctuation are fine.
 One ${post} per line. No numbering. No commentary inside the block.`

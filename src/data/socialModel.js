@@ -382,7 +382,8 @@ export function resolveSocialPosts({
   }
 
   const resolveScope = (scope) => {
-    const s = String(scope || '').trim().toUpperCase()
+    // Strip any brackets the AI may have copied from the games listing (e.g. [G1] → G1)
+    const s = String(scope || '').trim().toUpperCase().replace(/^\[|\]$/g, '')
     if (!s || s === 'N' || s === 'NATIONAL') return null
     if (gameTagMap[s] != null) return gameTagMap[s]
     return null // unknown tag -> treat as national rather than drop
