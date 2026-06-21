@@ -275,7 +275,7 @@ export function buildGameTagMap(weekGames) {
 
 // ─── Recap social-block extraction & parsing ──────────────────────────────────
 
-const SOCIAL_FENCE_RE = /```cfb-social\s*\n?([\s\S]*?)```/i
+const SOCIAL_FENCE_RE = /```\s*cfb-social\s*\n?([\s\S]*?)```/i
 
 /**
  * Pull the cfb-social fenced block out of a pasted recap response.
@@ -316,6 +316,7 @@ export function parseSocialLines(body) {
 
 /** Deterministic post id — re-pasting the same content dedupes/upserts. */
 export function postId(year, week, charId, gameId, text) {
+  // Normalize year/week to strings so type inconsistencies don't produce different hashes
   return 'p' + (hashStr(`${year}|${week}|${charId}|${gameId || ''}|${text}`) >>> 0).toString(36)
 }
 

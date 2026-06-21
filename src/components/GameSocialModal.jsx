@@ -5,7 +5,7 @@ import { useToast } from './ui/Toast'
 import { buildGameSocialPrompt, gameSocialTagMap } from '../utils/socialPrompt'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex,
-  getEffectiveCharacters, ensureUniverseLoaded, mergePosts,
+  getEffectiveCharacters, ensureUniverseLoaded, mergePosts, postId,
 } from '../data/socialModel'
 
 /**
@@ -94,7 +94,7 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
 
   const charactersById = useMemo(() => getEffectiveCharacters(currentDynasty), [currentDynasty])
   const yearN = Number(game?.year)
-  const weekN = Number(game?.week)
+  const weekN = game?.week  // preserve string sentinels ('CCG', 'Bowl', 'NatChamp')
 
   const weekPosts = currentDynasty?.socialFeedByYear?.[yearN]?.[weekN] || []
   const gamePosts = useMemo(() => weekPosts.filter(p => p.gameId === game?.id).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)), [weekPosts, game?.id])
@@ -159,7 +159,8 @@ export default function GameSocialModal({ isOpen, onClose, game }) {
   const saveEdit = async () => {
     if (!draftChar || !draftText.trim()) { toast.error('Pick a poster and write some text.'); return }
     if (editing === 'new') {
-      const np = { id: 'm' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), charId: draftChar, gameId: game.id, year: yearN, week: weekN, text: draftText.trim(), createdAt: Date.now() }
+      const trimmed = draftText.trim()
+      const np = { id: postId(yearN, weekN, draftChar, game.id, trimmed), charId: draftChar, gameId: game.id, year: yearN, week: weekN, text: trimmed, createdAt: Date.now() }
       await persist([...gamePosts, np])
     } else {
       await persist(gamePosts.map(p => p.id === editing ? { ...p, charId: draftChar, text: draftText.trim() } : p))

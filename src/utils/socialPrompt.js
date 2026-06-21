@@ -65,7 +65,8 @@ function rosterLine(c) {
 
 function playedGamesForWeek(dynasty, yearN, weekN) {
   return (dynasty?.games || []).filter(g => {
-    if (Number(g.year) !== yearN || Number(g.week) !== weekN) return false
+    // Use string comparison so sentinel weeks ('CCG', 'Bowl', 'NatChamp') match correctly
+    if (Number(g.year) !== Number(yearN) || String(g.week) !== String(weekN)) return false
     const s1 = Number(g.team1Score)
     const s2 = Number(g.team2Score)
     return Number.isFinite(s1) && Number.isFinite(s2) && (s1 > 0 || s2 > 0)
@@ -90,7 +91,7 @@ export function socialGameTagMap(dynasty, year, week) {
  */
 export function buildSocialSection(dynasty, year, week) {
   const yearN = Number(year)
-  const weekN = Number(week)
+  const weekN = week  // preserve string sentinels ('CCG', 'Bowl', 'NatChamp')
   const settings = { ...DEFAULT_SOCIAL_SETTINGS, ...(dynasty?.socialSettings || {}) }
   const platform = { ...DEFAULT_SOCIAL_PLATFORM, ...(dynasty?.socialPlatform || {}) }
   const charactersById = getEffectiveCharacters(dynasty)

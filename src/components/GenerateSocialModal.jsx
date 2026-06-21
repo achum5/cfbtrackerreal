@@ -19,7 +19,7 @@ export default function GenerateSocialModal({ isOpen, onClose, year, week }) {
   const { currentDynasty, loadSocial, saveSocialPosts, replaceSocialWeek, updateSocialSettings, isViewOnly } = useDynasty()
   const { toast } = useToast()
   const yearNum = Number(year)
-  const weekNum = Number(week)
+  const weekNum = week  // preserve string sentinels ('CCG', 'Bowl', 'NatChamp')
   const loadedFor = useRef(null)
 
   const [copied, setCopied] = useState(false)
