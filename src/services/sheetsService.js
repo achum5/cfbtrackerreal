@@ -12613,7 +12613,7 @@ export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, 
     // latency off the create flow.
     await Promise.all([
       initializeBoxScoreSheet(sheet.spreadsheetId, accessToken, sheetIds, isUserTeam, rosterPlayers),
-      initializeUnifiedAITab(sheet.spreadsheetId, accessToken, unifiedSheetId, isUserTeam, rosterPlayers),
+      initializeUnifiedAITab(sheet.spreadsheetId, accessToken, unifiedSheetId),
       shareSheetPublicly(sheet.spreadsheetId, accessToken),
     ])
 
@@ -12626,7 +12626,7 @@ export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, 
     if (existingData) {
       await Promise.all([
         prefillPlayerStatsData(sheet.spreadsheetId, accessToken, existingData),
-        prefillUnifiedAITab(sheet.spreadsheetId, accessToken, existingData),
+        prefillUnifiedAITab(sheet.spreadsheetId, accessToken, unifiedSheetId, existingData),
       ])
     }
 
@@ -12811,184 +12811,136 @@ async function prefillPlayerStatsData(spreadsheetId, accessToken, existingData) 
 // an AI) paste the entire team's stats in one go at cell A1.
 // ============================================
 
-// Initialize the unified AI tab: write banners, column headers, set
-// formatting, apply roster dropdown to each section's data rows.
-async function initializeUnifiedAITab(spreadsheetId, accessToken, sheetId, isUserTeam, rosterPlayers) {
+// Build the COMPACT unified-tab matrix. Sections are laid out contiguously
+// as: banner row, header row, then ONLY the data rows present in existingData
+// (none for a blank template). No blank padding between or within sections.
+//
+// This is what makes the AI paste reliable: every AI paste contains all 9
+// banner+header pairs PLUS its data, so it is always taller than this compact
+// template and overwrites it completely — leaving no stale banners behind.
+// The reader then finds each section by its banner text, so exact row numbers
+// never matter. Returns the matrix plus 0-indexed banner/header positions so
+// formatting can target them.
+function buildCompactUnifiedMatrix(existingData) {
   const layout = computeUnifiedTabLayout()
-  const requests = []
+  const rows = []
+  const placements = []
+  for (const section of layout.sections) {
+    const bannerIdx = rows.length
+    const banner = Array(layout.maxCols).fill('')
+    banner[0] = `═══ ${section.title.toUpperCase()} ═══`
+    rows.push(banner)
 
-  // Default cell formatting (consistent with the 9 individual tabs)
-  requests.push({
+    const headerIdx = rows.length
+    const header = Array(layout.maxCols).fill('')
+    section.headers.forEach((h, i) => { header[i] = h })
+    rows.push(header)
+
+    placements.push({ bannerIdx, headerIdx, headerLen: section.headers.length })
+
+    const tabData = existingData?.[section.key]
+    if (Array.isArray(tabData) && tabData.length) {
+      // Same alias-aware mapping the readers use, so RTG/Att/BT etc. survive.
+      const headerToKey = buildHeaderKeyMap(section.key, section.headers)
+      for (const playerStats of tabData) {
+        const r = Array(layout.maxCols).fill('')
+        section.headers.forEach((_, idx) => {
+          const v = playerStats[headerToKey[idx]]
+          r[idx] = (v !== null && v !== undefined) ? String(v) : ''
+        })
+        rows.push(r)
+      }
+    }
+  }
+  return { matrix: rows, placements, layout }
+}
+
+// Formatting for the unified tab: reset the whole sheet to a plain default
+// (also clears any stale bold/background), then bold banners and bold-italic
+// headers at their current contiguous positions.
+function unifiedFormatRequests(sheetId, placements, maxCols) {
+  const requests = [{
     repeatCell: {
       range: { sheetId },
       cell: {
         userEnteredFormat: {
-          textFormat: { fontFamily: 'Barlow', fontSize: 10 },
+          textFormat: { fontFamily: 'Barlow', fontSize: 10, bold: false, italic: false },
           horizontalAlignment: 'CENTER',
           verticalAlignment: 'MIDDLE',
+          backgroundColor: { red: 1, green: 1, blue: 1 },
         },
       },
-      fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment)',
+      fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)',
     },
-  })
-
-  for (const section of layout.sections) {
-    // Section banner: merge across the full width and write title centered
+  }]
+  for (const p of placements) {
     requests.push({
-      mergeCells: {
-        range: {
-          sheetId,
-          startRowIndex: section.bannerRow - 1,
-          endRowIndex: section.bannerRow,
-          startColumnIndex: 0,
-          endColumnIndex: layout.maxCols,
-        },
-        mergeType: 'MERGE_ALL',
+      repeatCell: {
+        range: { sheetId, startRowIndex: p.bannerIdx, endRowIndex: p.bannerIdx + 1, startColumnIndex: 0, endColumnIndex: maxCols },
+        cell: { userEnteredFormat: {
+          textFormat: { bold: true, fontSize: 12, fontFamily: 'Barlow' },
+          horizontalAlignment: 'CENTER',
+          backgroundColor: { red: 0.92, green: 0.92, blue: 0.95 },
+        } },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
       },
     })
     requests.push({
-      updateCells: {
-        range: {
-          sheetId,
-          startRowIndex: section.bannerRow - 1,
-          endRowIndex: section.bannerRow,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
-        },
-        rows: [
-          {
-            values: [
-              {
-                userEnteredValue: { stringValue: `═══ ${section.title.toUpperCase()} ═══` },
-                userEnteredFormat: {
-                  textFormat: { bold: true, fontSize: 12, fontFamily: 'Barlow' },
-                  horizontalAlignment: 'CENTER',
-                  backgroundColor: { red: 0.92, green: 0.92, blue: 0.95 },
-                },
-              },
-            ],
-          },
-        ],
-        fields: 'userEnteredValue,userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
+      repeatCell: {
+        range: { sheetId, startRowIndex: p.headerIdx, endRowIndex: p.headerIdx + 1, startColumnIndex: 0, endColumnIndex: p.headerLen },
+        cell: { userEnteredFormat: {
+          textFormat: { bold: true, italic: true, fontSize: 10, fontFamily: 'Barlow' },
+          horizontalAlignment: 'CENTER',
+          backgroundColor: { red: 0.97, green: 0.97, blue: 0.98 },
+        } },
+        fields: 'userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
       },
     })
-
-    // Column header row
-    requests.push({
-      updateCells: {
-        range: {
-          sheetId,
-          startRowIndex: section.headerRow - 1,
-          endRowIndex: section.headerRow,
-          startColumnIndex: 0,
-          endColumnIndex: section.headers.length,
-        },
-        rows: [
-          {
-            values: section.headers.map(h => ({
-              userEnteredValue: { stringValue: h },
-              userEnteredFormat: {
-                textFormat: { bold: true, italic: true, fontSize: 10, fontFamily: 'Barlow' },
-                horizontalAlignment: 'CENTER',
-                backgroundColor: { red: 0.97, green: 0.97, blue: 0.98 },
-              },
-            })),
-          },
-        ],
-        fields: 'userEnteredValue,userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
-      },
-    })
-
-    // Roster dropdown on column A across this section's data rows
-    if (isUserTeam && rosterPlayers.length > 0) {
-      requests.push({
-        setDataValidation: {
-          range: {
-            sheetId,
-            startRowIndex: section.dataStart - 1,
-            endRowIndex: section.dataEnd,
-            startColumnIndex: 0,
-            endColumnIndex: 1,
-          },
-          rule: {
-            condition: {
-              type: 'ONE_OF_LIST',
-              values: rosterPlayers.map(name => ({ userEnteredValue: name })),
-            },
-            showCustomUi: true,
-            strict: true,
-          },
-        },
-      })
-    }
   }
-
-  const batchResponse = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ requests }),
-  })
-
-  if (!batchResponse.ok) {
-    const error = await batchResponse.json()
-    console.error('Failed to initialize AI All-In-One tab:', error)
-    // Non-fatal: the 9 individual tabs are still usable.
-  }
+  return requests
 }
 
-// Pre-fill the unified tab with existing data (same shape as the 9-tab
-// prefill: existingData[key] is an array of player stat objects).
-async function prefillUnifiedAITab(spreadsheetId, accessToken, existingData) {
-  if (!existingData) return
-  const layout = computeUnifiedTabLayout()
-
-  // Build one full-tab values matrix (totalRows × maxCols)
-  const matrix = Array.from({ length: layout.totalRows }, () => Array(layout.maxCols).fill(''))
-
-  for (const section of layout.sections) {
-    const tabData = existingData[section.key]
-    if (!Array.isArray(tabData) || tabData.length === 0) continue
-
-    // Use the SAME alias-aware helper the readers use. Without this, the
-    // unified-tab writer also silently wipes RTG/Att/BT on every prefill.
-    const headerToKey = buildHeaderKeyMap(section.key, section.headers)
-
-    const capacity = section.dataEnd - section.dataStart + 1
-    const rows = tabData.slice(0, capacity).map(playerStats =>
-      section.headers.map((_, idx) => {
-        const v = playerStats[headerToKey[idx]]
-        return v !== null && v !== undefined ? String(v) : ''
-      })
-    )
-
-    rows.forEach((rowVals, idx) => {
-      const targetRow = section.dataStart - 1 + idx
-      rowVals.forEach((v, col) => {
-        matrix[targetRow][col] = v
-      })
-    })
-  }
-
+// Write the compact unified tab: values (banners + headers + optional data),
+// then banner/header formatting. Used by both init (template, no data) and
+// prefill (with existing data).
+async function writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData) {
+  const { matrix, placements, layout } = buildCompactUnifiedMatrix(existingData)
   const lastColLetter = String.fromCharCode(65 + layout.maxCols - 1)
-  const range = `'${AI_UNIFIED_TAB.title}'!A1:${lastColLetter}${layout.totalRows}`
-  const response = await fetchWithTimeout(
+  const range = `'${AI_UNIFIED_TAB.title}'!A1:${lastColLetter}${matrix.length}`
+
+  const valuesResp = await fetchWithTimeout(
     `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
     {
       method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ range, majorDimension: 'ROWS', values: matrix }),
     }
   )
-  if (!response.ok) {
-    const error = await response.json()
-    console.error('Failed to prefill AI All-In-One tab:', error)
+  if (!valuesResp.ok) {
+    console.error('Failed to write AI All-In-One values:', await valuesResp.json().catch(() => ({})))
+    return // Non-fatal: the 9 individual tabs are still usable.
   }
+
+  const fmtResp = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: unifiedFormatRequests(sheetId, placements, layout.maxCols) }),
+  })
+  if (!fmtResp.ok) {
+    console.error('Failed to format AI All-In-One tab:', await fmtResp.json().catch(() => ({})))
+  }
+}
+
+// Initialize the unified AI tab with the compact banner+header template.
+async function initializeUnifiedAITab(spreadsheetId, accessToken, sheetId) {
+  await writeUnifiedTab(spreadsheetId, accessToken, sheetId, null)
+}
+
+// Pre-fill the unified tab with existing data (existingData[key] is an array
+// of player stat objects), laid out compactly under each banner.
+async function prefillUnifiedAITab(spreadsheetId, accessToken, sheetId, existingData) {
+  if (!existingData) return
+  await writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData)
 }
 
 // Read the unified tab back into the same { passing: [...], rushing: [...], ... } shape
@@ -13011,24 +12963,50 @@ export async function readGameBoxScoreFromUnifiedTab(spreadsheetId) {
     const data = await response.json()
     const rows = data.values || []
 
-    const boxScore = {}
-    for (const section of layout.sections) {
-      const headerToKey = buildHeaderKeyMap(section.key, section.headers)
-      const sectionRows = []
-      for (let r = section.dataStart; r <= section.dataEnd; r++) {
-        const row = rows[r - 1] || []
-        const playerName = (row[0] || '').trim()
-        if (!playerName) continue
+    // Banner-anchored read: locate each section by its "═══ TITLE ═══"
+    // banner in column A and read the data rows that follow until the next
+    // banner — rather than trusting fixed row numbers. This tolerates an AI
+    // paste that has the wrong line count or no blank padding (the #1 failure
+    // mode), and stays backward-compatible with old fixed-layout sheets,
+    // whose banners still sit where this scan finds them.
+    const norm = (s) => String(s || '').replace(/═/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+    const titleToSection = {}
+    for (const section of layout.sections) titleToSection[norm(section.title)] = section
 
-        const entry = { playerName }
-        section.headers.forEach((header, idx) => {
-          if (idx === 0) return
-          const value = row[idx] || ''
-          entry[headerToKey[idx]] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
-        })
-        sectionRows.push(entry)
+    const boxScore = {}
+    for (const section of layout.sections) boxScore[section.key] = []
+
+    let current = null
+    const seen = new Set() // sections already read — ignore any later duplicate banner
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r] || []
+      const a = (row[0] || '').trim()
+      if (!a) continue
+
+      // Banner line: decorated with ═, or a bare section title on its own row.
+      const decorated = a.includes('═')
+      const asTitle = titleToSection[norm(a)]
+      const restEmpty = row.slice(1).every(c => !String(c || '').trim())
+      if (decorated || (asTitle && restEmpty)) {
+        // First occurrence of a known section wins; a duplicate banner (stale
+        // leftover from a re-paste) or an unrecognized decorated line stops
+        // attribution so its rows can't be misread into a section.
+        if (asTitle && !seen.has(asTitle.key)) { seen.add(asTitle.key); current = asTitle }
+        else current = null
+        continue
       }
-      boxScore[section.key] = sectionRows
+      if (!current) continue
+      // Skip the section's column-header row (column A === "Player Name").
+      if (a.toLowerCase() === String(current.headers[0]).toLowerCase()) continue
+
+      const headerToKey = buildHeaderKeyMap(current.key, current.headers)
+      const entry = { playerName: a }
+      current.headers.forEach((header, idx) => {
+        if (idx === 0) return
+        const value = row[idx] || ''
+        entry[headerToKey[idx]] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
+      })
+      boxScore[current.key].push(entry)
     }
     return boxScore
   } catch (error) {
