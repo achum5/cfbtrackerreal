@@ -5,6 +5,8 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
 import { getEffectiveCharacters } from '../../data/socialModel'
 import SocialCharacterEditModal from '../../components/SocialCharacterEditModal'
+import { readClipboardImageAsFile } from '../../utils/clipboardImage'
+import { uploadImage } from '../../utils/imageUpload'
 
 /**
  * League Preferences — dynasty-wide settings. First section: Social Media
@@ -98,6 +100,38 @@ export default function LeaguePreferences() {
   const clearSelection = () => setSelected(new Set())
 
   const editingChar = editingId ? characters[editingId] : null
+
+  // Per-row "paste image from clipboard" — same resolution + upload path as the
+  // editor's paste button, written straight into avatar/bannerImage so photos
+  // can be mass-entered without opening each account. `pasting` holds the key
+  // `${id}:${field}` of the row+slot currently uploading.
+  const [pasting, setPasting] = useState(null)
+  const pasteImageInto = async (c, field) => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    if (pasting) return
+    const key = `${c.id}:${field}`
+    setPasting(key)
+    try {
+      const result = await readClipboardImageAsFile()
+      if (!result.ok) {
+        if (result.reason === 'denied') toast.error('Browser blocked clipboard access. Open Edit and use the drop zone instead.')
+        else if (result.reason === 'auth_url') toast.error('That link needs login to load. Save the image and use the editor to upload.')
+        else if (result.reason === 'fetch_failed') { console.error('Clipboard URL fetch failed:', result.error); toast.error("Couldn't fetch that image. Save it and use the editor.") }
+        else toast.error('Nothing image-like in the clipboard.')
+        return
+      }
+      const url = await uploadImage(result.file)
+      const base = characters[c.id]
+      if (!base) { toast.error('Account not found.'); return }
+      await saveSocialCharacters(currentDynasty.id, { [c.id]: { ...base, [field]: url, customized: true } })
+      toast.success(`${field === 'avatar' ? 'Profile photo' : 'Cover photo'} set for ${base.displayName}.`)
+    } catch (err) {
+      console.error('[LeaguePreferences] paste image failed:', err)
+      toast.error(`Could not set image: ${err?.message || 'Unknown error'}`)
+    } finally {
+      setPasting(null)
+    }
+  }
 
   const applyBulk = async () => {
     if (isViewOnly) { toast.error('Read-only mode.'); return }
@@ -275,6 +309,29 @@ export default function LeaguePreferences() {
                   <div className="text-xs text-txt-tertiary truncate">{c.handle} · {c.category || c.role || c.kind}</div>
                 </div>
               </Link>
+              {c.xUrl && (
+                <a href={c.xUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">X</a>
+              )}
+              {!isViewOnly && (
+                <button
+                  onClick={() => pasteImageInto(c, 'avatar')}
+                  disabled={!!pasting}
+                  title="Paste profile photo from clipboard and upload"
+                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
+                >
+                  {pasting === `${c.id}:avatar` ? 'Uploading…' : 'Paste PFP'}
+                </button>
+              )}
+              {!isViewOnly && (
+                <button
+                  onClick={() => pasteImageInto(c, 'bannerImage')}
+                  disabled={!!pasting}
+                  title="Paste cover photo from clipboard and upload"
+                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
+                >
+                  {pasting === `${c.id}:bannerImage` ? 'Uploading…' : 'Paste Cover'}
+                </button>
+              )}
               {!isViewOnly && (
                 <button onClick={() => setEditingId(c.id)} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">Edit</button>
               )}

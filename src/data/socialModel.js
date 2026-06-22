@@ -68,6 +68,20 @@ function slugifyHandle(handle) {
   return String(handle ?? '').replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_]/g, '')
 }
 
+/**
+ * Normalize a real X/Twitter link. Accepts a full URL, an @handle, or a bare
+ * username and returns a canonical https://x.com/<user> URL. Returns '' for
+ * empty input. This is only ever set on real accounts (never auto-derived from
+ * a fictional account's generated handle).
+ */
+export function normalizeXUrl(input) {
+  const s = String(input ?? '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  const user = s.replace(/^@+/, '').replace(/^(?:x\.com|twitter\.com)\//i, '').replace(/[^a-z0-9_]/gi, '')
+  return user ? `https://x.com/${user}` : ''
+}
+
 // ─── Character normalization ─────────────────────────────────────────────────
 
 /**
@@ -102,6 +116,7 @@ export function normalizeCharacter(raw) {
     verified: !!raw.verified,
     location: raw.location ? String(raw.location) : '',
     website: raw.website ? String(raw.website) : null,
+    xUrl: raw.xUrl ? String(raw.xUrl) : null,
     joinedLabel: raw.joinedLabel ? String(raw.joinedLabel) : '',
     followingCount: Number.isFinite(Number(raw.followingCount)) ? Number(raw.followingCount) : 0,
     followerCount: Number.isFinite(Number(raw.followerCount)) ? Number(raw.followerCount) : 0,

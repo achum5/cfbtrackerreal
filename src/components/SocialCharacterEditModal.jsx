@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
 import ImageUpload from './ImageUpload'
-import { getEffectiveCharacters } from '../data/socialModel'
+import { getEffectiveCharacters, normalizeXUrl } from '../data/socialModel'
 
 /**
  * Edit one social character. Edits are saved as a per-dynasty OVERRIDE on top
@@ -36,6 +36,7 @@ export default function SocialCharacterEditModal({ isOpen, onClose, character, o
     category: character?.category || '',
     location: character?.location || '',
     website: character?.website || '',
+    xUrl: character?.xUrl || '',
     joinedLabel: character?.joinedLabel || '',
     followerCount: character?.followerCount || 0,
     followingCount: character?.followingCount || 0,
@@ -92,6 +93,7 @@ export default function SocialCharacterEditModal({ isOpen, onClose, character, o
         category: f.category,
         location: f.location,
         website: f.website || null,
+        xUrl: normalizeXUrl(f.xUrl) || null,
         joinedLabel: f.joinedLabel,
         followerCount: Number(f.followerCount) || 0,
         followingCount: Number(f.followingCount) || 0,
@@ -127,9 +129,21 @@ export default function SocialCharacterEditModal({ isOpen, onClose, character, o
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-4">
           <h2 className="text-lg font-bold text-txt-primary">{isNew ? 'New account' : 'Edit profile'}</h2>
-          <button aria-label="Close" onClick={onClose} className="text-txt-tertiary hover:text-txt-primary p-1.5 rounded-md hover:bg-surface-2">
+          <div className="flex items-center gap-2">
+            {normalizeXUrl(f.xUrl) && (
+              <a
+                href={normalizeXUrl(f.xUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary"
+              >
+                View on X
+              </a>
+            )}
+            <button aria-label="Close" onClick={onClose} className="text-txt-tertiary hover:text-txt-primary p-1.5 rounded-md hover:bg-surface-2">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -165,6 +179,7 @@ export default function SocialCharacterEditModal({ isOpen, onClose, character, o
             <Field label="Category"><input className={inputCls} value={f.category} onChange={(e) => set('category', e.target.value)} /></Field>
             <Field label="Location"><input className={inputCls} value={f.location} onChange={(e) => set('location', e.target.value)} /></Field>
             <Field label="Website"><input className={inputCls} value={f.website || ''} onChange={(e) => set('website', e.target.value)} /></Field>
+            <Field label="Real X / Twitter link (real accounts only)"><input className={inputCls} value={f.xUrl || ''} onChange={(e) => set('xUrl', e.target.value)} placeholder="@handle or x.com/handle" /></Field>
             <Field label="Joined"><input className={inputCls} value={f.joinedLabel} onChange={(e) => set('joinedLabel', e.target.value)} placeholder="Joined March 2016" /></Field>
             <Field label="Followers"><input type="number" className={inputCls} value={f.followerCount} onChange={(e) => set('followerCount', e.target.value)} /></Field>
             <Field label="Following"><input type="number" className={inputCls} value={f.followingCount} onChange={(e) => set('followingCount', e.target.value)} /></Field>

@@ -141,14 +141,26 @@ export default function SocialCharacter() {
           >
             {character.avatar ? <img src={character.avatar} alt="" className="w-full h-full object-cover" /> : initials(character.displayName)}
           </div>
-          {!isViewOnly && (
-            <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-1.5 rounded-full text-sm font-semibold border border-surface-5 text-txt-primary hover:bg-surface-3 transition-colors"
-            >
-              Edit profile
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {character.xUrl && (
+              <a
+                href={character.xUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-1.5 rounded-full text-sm font-semibold border border-surface-5 text-txt-primary hover:bg-surface-3 transition-colors"
+              >
+                View on X
+              </a>
+            )}
+            {!isViewOnly && (
+              <button
+                onClick={() => setEditing(true)}
+                className="px-4 py-1.5 rounded-full text-sm font-semibold border border-surface-5 text-txt-primary hover:bg-surface-3 transition-colors"
+              >
+                Edit profile
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-3">
