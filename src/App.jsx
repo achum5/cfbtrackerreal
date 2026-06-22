@@ -99,8 +99,6 @@ function AppRoutes() {
             <Route path="cards" element={<CardCollection />} />
             <Route path="game/:gameId" element={<Game />} />
             <Route path="social/:charId" element={<SocialCharacter />} />
-            <Route path="preferences" element={<LeaguePreferences />} />
-            <Route path="admin" element={<DangerZone />} />
           </Route>
 
           {/* All other routes wrapped in DynastyProvider */}
