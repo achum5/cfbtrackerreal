@@ -334,13 +334,18 @@ export async function getDynasty(dynastyId) {
 // Get a public dynasty by share code (no authentication required)
 export async function getPublicDynastyByShareCode(shareCode) {
   try {
-    // Query only on shareCode — a composite index on (shareCode, isPublic) would
-    // be required for a two-field query but was never created, causing silent empty
-    // results. Single-field indexes are auto-created by Firestore; check isPublic
-    // in code instead.
+    // Filter on BOTH shareCode and isPublic. This is required for security:
+    // an unauthenticated `list` query is only permitted if the rules can
+    // PROVE every result is readable, and the public read rule gates on
+    // `isPublic == true` — so the query must constrain isPublic or Firestore
+    // rejects it with permission-denied (which is what broke every /view link
+    // when this filter was removed). Two equality filters need no composite
+    // index — Firestore serves equality-only multi-field queries from the
+    // auto-created single-field indexes.
     const q = query(
       collection(db, DYNASTIES_COLLECTION),
-      where('shareCode', '==', shareCode)
+      where('shareCode', '==', shareCode),
+      where('isPublic', '==', true)
     )
     const snapshot = await getDocs(q)
 
