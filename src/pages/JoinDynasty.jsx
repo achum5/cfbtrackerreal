@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   getDynasty,
   updateDynasty as fsUpdateDynasty,
+  addEditorViaRedemption,
   getInviteDoc,
   redeemInviteDoc,
 } from '../services/dynastyService'
@@ -149,17 +150,12 @@ export default function JoinDynasty() {
       // points at our just-claimed invite.
       //
       // We send only the safe set of fields the redemption rule allows:
-      // editors, lastRedemption, and (if the invite was issued as
-      // cocommish) coCommishes via the regular editor write that's
-      // unlocked once we're an editor — DOES NOT WORK in the same call;
-      // splitting cocommish promotion to a follow-up call below.
-      // Dedup with a Set so a stale in-memory editors[] can't double-add us.
-      const existingEditors = Array.isArray(dynasty?.editors) ? dynasty.editors : []
-      const nextEditors = [...new Set([...existingEditors, user.uid])]
-      await fsUpdateDynasty(dynastyId, {
-        editors: nextEditors,
-        lastRedemption: { uid: user.uid, token, at: Date.now() },
-      })
+      // editors (via arrayUnion — the joiner can't read the doc to know the
+      // current list, and arrayUnion resolves server-side to old+[uid]) and
+      // lastRedemption. Using a dedicated service call avoids updateDynasty()'s
+      // `updatedAt` stamp, which would violate the rule's affectedKeys check.
+      await addEditorViaRedemption(dynastyId, user.uid, token)
+      const nextEditors = [...new Set([...(Array.isArray(dynasty?.editors) ? dynasty.editors : []), user.uid])]
 
       // Phase 3 (optional) — if the invite was issued as cocommish,
       // promote ourselves now that we're an editor (the editor-write

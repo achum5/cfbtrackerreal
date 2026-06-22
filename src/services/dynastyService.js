@@ -16,6 +16,7 @@ import {
   onSnapshot,
   serverTimestamp,
   deleteField,
+  arrayUnion,
   waitForPendingWrites
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -187,6 +188,26 @@ export async function updateDynasty(dynastyId, updates) {
     console.error('Error updating dynasty:', error)
     throw error
   }
+}
+
+/**
+ * Add the redeeming user to a dynasty's editors[] via the redemption rule.
+ *
+ * The Firestore redemption rule (see firestore.rules) is strict: it allows
+ * ONLY `editors` and `lastRedemption` to change in this write, and requires
+ * the new editors[] to be the old list with EXACTLY this uid appended. So we
+ * must NOT go through updateDynasty() (which appends `updatedAt` and would
+ * blow the `affectedKeys().hasOnly([...])` check), and we must NOT reconstruct
+ * editors[] client-side (the joiner can't read the doc, so they don't know the
+ * current list). `arrayUnion(uid)` resolves server-side to old+[uid], which
+ * satisfies the size()+1 and "uid in editors" checks without a prior read.
+ */
+export async function addEditorViaRedemption(dynastyId, uid, token) {
+  const docRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+  await updateDoc(docRef, {
+    editors: arrayUnion(uid),
+    lastRedemption: { uid, token, at: Date.now() },
+  })
 }
 
 // ─── Invite tokens ───────────────────────────────────────────────

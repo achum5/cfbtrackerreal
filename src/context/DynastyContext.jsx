@@ -95,7 +95,7 @@ import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rost
 import { buildDefaultRosterPlayers } from '../data/defaultRosterLoader'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
-import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid } from '../data/leagueModel'
+import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
@@ -7155,11 +7155,21 @@ export function DynastyProvider({ children }) {
   // writable (this returns false for them).
   const blockIfReadOnly = (dynastyId, actionLabel = 'this change') => {
     let dynasty = dynasties.find(d => String(d.id) === String(dynastyId))
+    if (!dynasty) dynasty = sharedDynasties.find(d => String(d.id) === String(dynastyId))
     if (!dynasty && String(currentDynasty?.id) === String(dynastyId)) {
       dynasty = currentDynasty
     }
     if (!dynasty) return false // unknown dynasty — let the caller decide
-    const readOnly = dynasty.storageType === 'cloud' && !isPremium
+    // Mirror isViewOnly's cloud model: an invited editor (uid in editors[],
+    // not the owner) can always write — the owner's premium pays for storage,
+    // so editors need not be premium themselves. Only the owner is gated on
+    // their own active premium. Without this carve-out, every invited-editor
+    // save was silently blocked even though the Firestore rules allow it.
+    const isInvitedEditor = !!user?.uid
+      && Array.isArray(dynasty.editors)
+      && dynasty.editors.includes(user.uid)
+      && dynasty.userId !== user.uid
+    const readOnly = dynasty.storageType === 'cloud' && !isPremium && !isInvitedEditor
     if (readOnly) {
       try {
         toast.error('This cloud dynasty is read-only without active premium. Renew premium to save changes.')
@@ -7167,6 +7177,27 @@ export function DynastyProvider({ children }) {
       console.warn(`[DynastyContext] blocked ${actionLabel} on ${dynastyId} (cloud + not premium)`)
     }
     return readOnly
+  }
+
+  // Gate league-wide calendar actions (advance/revert week, advance season) to
+  // the commissioner + co-commissioners in a genuinely shared dynasty. The
+  // owner is always the commish, so single-player and the owner's own play are
+  // never affected — this only stops a regular member from driving the calendar
+  // for everyone. Returns true (and toasts) when the action should be blocked.
+  const blockIfNotCommish = (dynastyId, actionLabel = 'do this') => {
+    let dynasty = dynasties.find(d => String(d.id) === String(dynastyId))
+    if (!dynasty) dynasty = sharedDynasties.find(d => String(d.id) === String(dynastyId))
+    if (!dynasty && String(currentDynasty?.id) === String(dynastyId)) dynasty = currentDynasty
+    if (!dynasty) return false
+    if (dynasty.storageType !== 'cloud') return false
+    const editors = Array.isArray(dynasty.editors) ? dynasty.editors : []
+    if (editors.length <= 1) return false // not actually shared yet
+    if (canManageMembers(dynasty, user?.uid)) return false
+    try {
+      toast.error(`Only the commissioner can ${actionLabel}.`)
+    } catch { /* toast may not be ready */ }
+    console.warn(`[DynastyContext] blocked non-commish ${actionLabel} on ${dynastyId}`)
+    return true
   }
 
   const createDynasty = async (dynastyData) => {
@@ -7808,6 +7839,14 @@ export function DynastyProvider({ children }) {
           return mergeUpdates(currentDynasty)
         })
       }
+
+      // Shared (non-owner editor) dynasties live in `sharedDynasties`, not
+      // `dynasties`. Patch there too so an editor's own write reflects in the
+      // home-list entry immediately — the setDynasties block above never
+      // matches a shared dynasty, and currentDynasty only covers the live view.
+      setSharedDynasties(prev => prev.some(d => String(d.id) === String(dynastyId))
+        ? prev.map(d => String(d.id) === String(dynastyId) ? mergeUpdates(d) : d)
+        : prev)
     } catch (error) {
       console.error('Error updating dynasty:', error)
       throw error
@@ -9949,23 +9988,19 @@ export function DynastyProvider({ children }) {
     const dynasty = await findDynastyById(dynastyId)
     if (!dynasty) return
     const yearNum = Number(year)
-    const teamsCopy = { ...(dynasty.teams || {}) }
 
+    // Write each ranked team's slot as a dot-path field so concurrent rank/team
+    // edits in a shared dynasty MERGE instead of overwriting the whole teams map
+    // (last-write-wins). updateDynasty expands dot-notation for local storage and
+    // passes it through as a Firestore field-path merge for cloud.
+    const updates = {}
     for (const { tid, rank } of rankings) {
       if (tid == null || typeof rank !== 'number' || rank < 1 || rank > 25) continue
-      const tidKey = String(tid)
-      const team = teamsCopy[tidKey] || teamsCopy[tid] || {}
-      const byYear = { ...(team.byYear || {}) }
-      const yearKey = String(yearNum)
-      const yearEntry = { ...(byYear[yearKey] || byYear[yearNum] || {}) }
-      const rankByWeek = { ...(yearEntry.rankByWeek || {}) }
-      rankByWeek[rankWeekNum] = rank
-      yearEntry.rankByWeek = rankByWeek
-      byYear[yearKey] = yearEntry
-      teamsCopy[tidKey] = { ...team, byYear }
+      updates[`teams.${tid}.byYear.${yearNum}.rankByWeek.${rankWeekNum}`] = rank
     }
+    if (!Object.keys(updates).length) return
 
-    await updateDynasty(dynastyId, { teams: teamsCopy })
+    await updateDynasty(dynastyId, updates)
   }
 
   // Save CFP games in unified format to games[] array
@@ -10583,6 +10618,7 @@ export function DynastyProvider({ children }) {
 
   const advanceWeek = async (dynastyId, classConfirmations = {}) => {
     if (blockIfReadOnly(dynastyId, 'advance week')) return
+    if (blockIfNotCommish(dynastyId, 'advance the week')) return
     console.log('[advanceWeek] ========== STARTING ==========')
     console.log('[advanceWeek] dynastyId:', dynastyId)
     console.log('[advanceWeek] classConfirmations:', classConfirmations)
@@ -11771,6 +11807,7 @@ export function DynastyProvider({ children }) {
    */
   const advanceToNewSeason = async (dynastyId) => {
     if (blockIfReadOnly(dynastyId, 'advance to new season')) return
+    if (blockIfNotCommish(dynastyId, 'advance to a new season')) return
     // CRITICAL: Set phase transition flag to prevent listener from overwriting data
     phaseTransitionInProgressRef.current = true
     console.log('[advanceToNewSeason] Phase transition flag SET')
@@ -12246,6 +12283,7 @@ export function DynastyProvider({ children }) {
 
   const revertWeek = async (dynastyId) => {
     if (blockIfReadOnly(dynastyId, 'revert week')) return
+    if (blockIfNotCommish(dynastyId, 'revert the week')) return
     const dynasty = dynasties.find(d => d.id === dynastyId)
     if (!dynasty) return
 
@@ -16410,6 +16448,41 @@ export function DynastyProvider({ children }) {
   // editors[] but not the owner). Merged into the main dynasties list
   // below so existing consumers keep working without changes.
   const [sharedDynasties, setSharedDynasties] = useState([])
+
+  // Re-pull a shared dynasty's subcollections and push fresh data into both
+  // the shared-list entry and currentDynasty. This is the live-sync path for
+  // editors: the shared-dynasty listener only carries main-doc metadata, so
+  // when the owner or another editor writes (which bumps lastModified), we
+  // reload players/games/recaps/seasons here so this editor sees the change.
+  // Skipped while a local save or phase transition is in flight to avoid
+  // clobbering in-progress edits.
+  const refreshSharedSubcollections = async (dynId) => {
+    if (!dynId) return
+    const guard = () => skipListenerUpdatesCountRef.current === 0 && !phaseTransitionInProgressRef.current
+    const apply = (patch) => {
+      if (!patch || !Object.keys(patch).length) return
+      setSharedDynasties(prev => prev.map(d => String(d.id) === String(dynId) ? { ...d, ...patch } : d))
+      setCurrentDynasty(prev => (prev && String(prev.id) === String(dynId)) ? { ...prev, ...patch } : prev)
+    }
+    try {
+      const [players, games, recaps, seasons] = await Promise.all([
+        getPlayersSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ players: fresh }) } }),
+        getGamesSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ games: fresh }) } }),
+        getWeekRecapsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ weekRecapsByYear: fresh }) } }),
+        getSeasonsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply(fresh) } }),
+      ])
+      if (!guard()) return
+      const patch = {}
+      if (Array.isArray(players) && players.length) patch.players = players
+      if (Array.isArray(games) && games.length) patch.games = games
+      if (recaps && Object.keys(recaps).length) patch.weekRecapsByYear = recaps
+      if (seasons && Object.keys(seasons).length) Object.assign(patch, seasons)
+      apply(patch)
+    } catch (e) {
+      console.warn('[shared sync] subcollection refresh failed:', e?.code || e?.message || e)
+    }
+  }
+
   useEffect(() => {
     if (!user?.uid) {
       setSharedDynasties([])
@@ -16419,7 +16492,41 @@ export function DynastyProvider({ children }) {
       const tagged = leagues
         .filter(d => d.userId !== user.uid)
         .map(d => ({ ...d, storageType: 'cloud' }))
-      setSharedDynasties(applyMigrations(tagged))
+      // Preserve already-hydrated subcollection fields so a metadata-only
+      // snapshot doesn't blank a loaded shared dynasty's roster/games.
+      setSharedDynasties(prev => {
+        const prevById = new Map(prev.map(d => [String(d.id), d]))
+        return applyMigrations(tagged.map(d => {
+          const old = prevById.get(String(d.id))
+          if (old && (old.players || old.games)) {
+            return { ...d, players: old.players, games: old.games, weekRecapsByYear: old.weekRecapsByYear }
+          }
+          return d
+        }))
+      })
+      // Live-sync the currently-open shared dynasty when another user writes.
+      const openId = currentDynastyIdRef.current
+      const openFresh = tagged.find(d => String(d.id) === String(openId))
+      if (openFresh
+          && skipListenerUpdatesCountRef.current === 0
+          && !phaseTransitionInProgressRef.current) {
+        // Sync main-doc fields (advanceReady, editors, currentWeek/phase/year,
+        // teams, etc.) into currentDynasty so editors see each other's main-doc
+        // changes live (the ready-up pill, calendar position, ...). Preserve
+        // subcollection-hydrated fields (players/games/recaps + seasonal) so
+        // the metadata-only snapshot doesn't blank them.
+        setCurrentDynasty(prev => {
+          if (!prev || String(prev.id) !== String(openId)) return prev
+          const merged = { ...prev }
+          for (const [k, v] of Object.entries(openFresh)) {
+            if (k === 'players' || k === 'games' || k === 'weekRecapsByYear') continue
+            if (ALL_SEASONAL_FIELD_NAMES.includes(k)) continue
+            merged[k] = v
+          }
+          return merged
+        })
+        refreshSharedSubcollections(openId)
+      }
     })
     return unsub
   }, [user?.uid])
@@ -16546,6 +16653,51 @@ export function DynastyProvider({ children }) {
     }
   })()
 
+  // ─── Advance ready-up (multiplayer) ──────────────────────────────
+  // Each editor can mark themselves "ready to advance". A user is ready when
+  // their entry in dynasty.advanceReady equals the CURRENT advance stamp
+  // (year|week|phase). The stamp changes on every advance, so all prior ready
+  // flags auto-expire — no cleanup write needed. Force-advance users
+  // (commish + co-commishes) can advance immediately; the owner's client
+  // auto-advances once every editor is ready (see Layout).
+  const advanceStampOf = (d) =>
+    d ? `${d.currentYear}|${d.currentWeek}|${d.currentPhase}` : ''
+
+  const advanceReadyInfo = (() => {
+    const d = currentDynasty
+    if (!d || d.storageType !== 'cloud') {
+      return { isShared: false, stamp: '', total: 0, readyCount: 0, allReady: false, iAmReady: false, canForceAdvance: true, isOwner: true, readyUids: [] }
+    }
+    const editors = Array.isArray(d.editors) ? d.editors : []
+    const stamp = advanceStampOf(d)
+    const ready = d.advanceReady || {}
+    const readyUids = editors.filter(uid => ready[uid] === stamp)
+    return {
+      isShared: editors.length > 1,
+      stamp,
+      total: editors.length,
+      readyCount: readyUids.length,
+      readyUids,
+      allReady: editors.length > 0 && readyUids.length === editors.length,
+      iAmReady: !!user?.uid && ready[user.uid] === stamp,
+      canForceAdvance: canManageMembers(d, user?.uid),
+      isOwner: d.userId === user?.uid,
+    }
+  })()
+
+  const toggleAdvanceReady = async (dynastyId, ready) => {
+    if (!user?.uid) return
+    const d = (String(currentDynasty?.id) === String(dynastyId))
+      ? currentDynasty
+      : (dynasties.find(x => String(x.id) === String(dynastyId))
+         || sharedDynasties.find(x => String(x.id) === String(dynastyId)))
+    if (!d) return
+    const stamp = advanceStampOf(d)
+    // Dot-notation so concurrent ready toggles merge into advanceReady rather
+    // than clobbering the whole map.
+    await updateDynasty(dynastyId, { [`advanceReady.${user.uid}`]: ready ? stamp : '' })
+  }
+
   const value = {
     dynasties: dynastiesWithShared,
     currentDynasty: exposedCurrentDynasty,
@@ -16554,6 +16706,8 @@ export function DynastyProvider({ children }) {
     userTeams,
     activeUserTid,
     setActiveTeam,
+    advanceReadyInfo,
+    toggleAdvanceReady,
     customTeams,
     loading,
     cloudSyncing,

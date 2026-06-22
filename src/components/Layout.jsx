@@ -23,7 +23,7 @@ const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek, updateDynasty, phaseOverride, setPhaseOverride } = useDynasty()
+  const { currentDynasty, advanceWeek, advanceToNewSeason, revertWeek, updateDynasty, phaseOverride, setPhaseOverride, advanceReadyInfo, toggleAdvanceReady } = useDynasty()
   const [showV2Migration, setShowV2Migration] = useState(false)
   const [v2MigrationDismissed, setV2MigrationDismissed] = useState(false)
   const { user, signOut } = useAuth()
@@ -41,6 +41,12 @@ export default function Layout({ children }) {
   // it repeatedly; the gate prevents duplicate calls and the spinner
   // makes it obvious work is happening.
   const [isAdvancing, setIsAdvancing] = useState(false)
+  const [readyBusy, setReadyBusy] = useState(false)
+  // Auto-advance fires once per advance stamp on the owner's client when every
+  // editor is ready. Guarding on the stamp prevents a re-fire loop if the
+  // advance pipeline returns early on a validation (the owner can then fix it
+  // and use Force Advance manually).
+  const autoAdvanceFiredStamp = useRef(null)
   const userMenuRef = useRef(null)
   // The header is `fixed` (not `sticky`) so it survives the modal scroll-lock
   // below: a `position: sticky` element breaks when an ancestor gets
@@ -527,6 +533,31 @@ export default function Layout({ children }) {
     }
   }
 
+  // Toggle the current user's "ready to advance" flag.
+  const handleToggleReady = async () => {
+    if (!currentDynasty || readyBusy) return
+    setReadyBusy(true)
+    try {
+      await toggleAdvanceReady(currentDynasty.id, !advanceReadyInfo?.iAmReady)
+    } catch (err) {
+      console.error('[Layout:handleToggleReady] failed:', err)
+    } finally {
+      setReadyBusy(false)
+    }
+  }
+
+  // Owner auto-advance: once every editor is ready, the owner's client runs the
+  // normal advance pipeline. Owner-only so two force-advance users don't both
+  // fire; co-commishes can still advance manually via the button.
+  useEffect(() => {
+    if (!advanceReadyInfo?.isShared || !advanceReadyInfo?.allReady || !advanceReadyInfo?.isOwner) return
+    if (isAdvancing) return
+    if (autoAdvanceFiredStamp.current === advanceReadyInfo.stamp) return
+    autoAdvanceFiredStamp.current = advanceReadyInfo.stamp
+    handleAdvanceWeek()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanceReadyInfo?.isShared, advanceReadyInfo?.allReady, advanceReadyInfo?.isOwner, advanceReadyInfo?.stamp, isAdvancing])
+
   const handleRevertWeek = async () => {
     if (!currentDynasty) return
 
@@ -724,14 +755,39 @@ export default function Layout({ children }) {
                     </svg>
                   </Link>
 
-                  {/* Advance Week Button with Dropdown */}
+                  {/* Ready-up pill (shared dynasties only). Every editor can
+                      mark ready; once all are ready the owner's client
+                      auto-advances. Members see only this control. */}
+                  {advanceReadyInfo?.isShared && (
+                    <button
+                      onClick={handleToggleReady}
+                      disabled={readyBusy}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
+                      style={{
+                        color: advanceReadyInfo.iAmReady ? '#fff' : headerText,
+                        background: advanceReadyInfo.iAmReady ? '#16a34a' : 'transparent',
+                        border: `1px solid ${advanceReadyInfo.iAmReady ? '#16a34a' : 'currentColor'}`,
+                      }}
+                      title={advanceReadyInfo.iAmReady ? 'Ready to advance (tap to undo)' : 'Mark ready to advance'}
+                      aria-pressed={advanceReadyInfo.iAmReady}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="tabular-nums">{advanceReadyInfo.readyCount}/{advanceReadyInfo.total}</span>
+                    </button>
+                  )}
+
+                  {/* Advance Week Button with Dropdown — force-advance users
+                      (commish + co-commishes) only in a shared dynasty. */}
+                  {(!advanceReadyInfo?.isShared || advanceReadyInfo?.canForceAdvance) && (<>
                   <div className="flex items-center">
                     <button
                       onClick={handleAdvanceWeek}
                       disabled={isAdvancing}
                       className="p-2 rounded-lg hover:opacity-70 transition-opacity disabled:opacity-60 disabled:cursor-wait"
                       style={{ color: headerText }}
-                      title={isAdvancing ? 'Advancing…' : 'Advance Week'}
+                      title={isAdvancing ? 'Advancing…' : (advanceReadyInfo?.isShared ? 'Force Advance' : 'Advance Week')}
                       aria-label={isAdvancing ? 'Advancing week' : 'Advance week'}
                       aria-busy={isAdvancing}
                     >
@@ -783,6 +839,7 @@ export default function Layout({ children }) {
                       </div>
                     </>
                   )}
+                  </>)}
                 </div>
               </>
             ) : (

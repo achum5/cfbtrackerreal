@@ -110,6 +110,16 @@ export default function MemberOnboardingModal() {
       toast.error('Pick a team to continue.')
       return
     }
+    // Don't let a new member silently take a team another coach already
+    // controls. Reassigning a held team is a commissioner action (League
+    // Settings), not something self-onboarding should do.
+    const alreadyTaken = Object.entries(currentDynasty.memberTeams || {}).some(
+      ([uid, tids]) => uid !== user.uid && Array.isArray(tids) && tids.map(Number).includes(tid)
+    )
+    if (alreadyTaken) {
+      toast.error('That team is already taken by another coach. Pick an open team, or ask the commissioner to assign it to you.')
+      return
+    }
     setBusy(true)
     try {
       const trimmed = (labelDraft || '').trim()
