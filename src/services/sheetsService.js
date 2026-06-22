@@ -12855,17 +12855,20 @@ function buildCompactUnifiedMatrix(existingData) {
   return { matrix: rows, placements, layout }
 }
 
-// Formatting for the unified tab: reset the whole sheet to a plain default
-// (also clears any stale bold/background), then bold banners and bold-italic
-// headers at their current contiguous positions.
-function unifiedFormatRequests(sheetId, placements, maxCols) {
-  const requests = [{
+// Formatting for the unified tab: ONE plain default across the whole sheet.
+// We intentionally do NOT bold or shade banner/header rows. Section positions
+// vary with a variable-length paste, so any fixed-position styling lands on
+// the wrong rows and bleeds bold/shading into the data the user pastes over
+// it. A plain tab also means a values paste inherits clean cells. The ═══
+// banners read fine as plain text.
+function unifiedFormatRequests(sheetId) {
+  return [{
     repeatCell: {
       range: { sheetId },
       cell: {
         userEnteredFormat: {
           textFormat: { fontFamily: 'Barlow', fontSize: 10, bold: false, italic: false },
-          horizontalAlignment: 'CENTER',
+          horizontalAlignment: 'LEFT',
           verticalAlignment: 'MIDDLE',
           backgroundColor: { red: 1, green: 1, blue: 1 },
         },
@@ -12873,38 +12876,13 @@ function unifiedFormatRequests(sheetId, placements, maxCols) {
       fields: 'userEnteredFormat(textFormat,horizontalAlignment,verticalAlignment,backgroundColor)',
     },
   }]
-  for (const p of placements) {
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: p.bannerIdx, endRowIndex: p.bannerIdx + 1, startColumnIndex: 0, endColumnIndex: maxCols },
-        cell: { userEnteredFormat: {
-          textFormat: { bold: true, fontSize: 12, fontFamily: 'Barlow' },
-          horizontalAlignment: 'CENTER',
-          backgroundColor: { red: 0.92, green: 0.92, blue: 0.95 },
-        } },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
-      },
-    })
-    requests.push({
-      repeatCell: {
-        range: { sheetId, startRowIndex: p.headerIdx, endRowIndex: p.headerIdx + 1, startColumnIndex: 0, endColumnIndex: p.headerLen },
-        cell: { userEnteredFormat: {
-          textFormat: { bold: true, italic: true, fontSize: 10, fontFamily: 'Barlow' },
-          horizontalAlignment: 'CENTER',
-          backgroundColor: { red: 0.97, green: 0.97, blue: 0.98 },
-        } },
-        fields: 'userEnteredFormat(textFormat,horizontalAlignment,backgroundColor)',
-      },
-    })
-  }
-  return requests
 }
 
 // Write the compact unified tab: values (banners + headers + optional data),
 // then banner/header formatting. Used by both init (template, no data) and
 // prefill (with existing data).
 async function writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData) {
-  const { matrix, placements, layout } = buildCompactUnifiedMatrix(existingData)
+  const { matrix, layout } = buildCompactUnifiedMatrix(existingData)
   const lastColLetter = String.fromCharCode(65 + layout.maxCols - 1)
   const range = `'${AI_UNIFIED_TAB.title}'!A1:${lastColLetter}${matrix.length}`
 
@@ -12924,7 +12902,7 @@ async function writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData
   const fmtResp = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ requests: unifiedFormatRequests(sheetId, placements, layout.maxCols) }),
+    body: JSON.stringify({ requests: unifiedFormatRequests(sheetId) }),
   })
   if (!fmtResp.ok) {
     console.error('Failed to format AI All-In-One tab:', await fmtResp.json().catch(() => ({})))
