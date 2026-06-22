@@ -75,6 +75,8 @@ export const teamColors = {
   "Missouri State Bears": { primary: "#5E0009", secondary: "#000000" },
   "Navy Midshipmen": { primary: "#00205b", secondary: "#c5b783" },
   "North Carolina State Wolfpack": { primary: "#CC0000", secondary: "#FFFFFF" },
+  "North Dakota State Bison": { primary: "#006633", secondary: "#FFC72C" },
+  "Sacramento State Hornets": { primary: "#00563F", secondary: "#C4B581" },
   "Notre Dame Fighting Irish": { primary: "#0C2340", secondary: "#C99700" },
   "Nebraska Cornhuskers": { primary: "#e41c38", secondary: "#fdf2d9" },
   "Nevada Wolf Pack": { primary: "#003366", secondary: "#807f84" },

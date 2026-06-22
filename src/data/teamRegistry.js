@@ -4,7 +4,8 @@
  * TID (Team ID) is the primary identifier for all teams.
  *
  * How it works:
- * 1. TEAMS defines all 140 teams with permanent tids (1-136 FBS, 137-140 FCS)
+ * 1. TEAMS defines all teams with permanent tids (1-136 + 142-143 FBS,
+ *    137-141 the five generic FCS placeholders)
  * 2. When a dynasty is created, dynasty.teams is initialized from TEAMS
  * 3. To create a teambuilder team, replace the data at that tid
  * 4. All app code references teams by tid, never by abbreviation
@@ -50,11 +51,16 @@
  *   const schedule = team.byYear[2025]?.schedule
  */
 
+import { EDITION_CONFIGS, LEGACY_EDITION } from '../editions'
+
 // ============================================================================
 // MASTER TEAM LIST - TID IS THE PRIMARY KEY
 // ============================================================================
 // Each team has a permanent tid that never changes.
 // Fields: tid, abbr, name, primaryColor, secondaryColor, logo, isFCS
+//   addedEdition (optional): the game edition a team first became playable in
+//     (e.g. 'cfb27'). A team tagged this way is excluded from dynasties on an
+//     earlier edition — see initializeDynastyTeams().
 
 export const TEAMS = {
   1: {
@@ -1196,6 +1202,28 @@ export const TEAMS = {
     secondaryColor: "#F0E68C",
     logo: "https://i.imgur.com/8qfTMIy.png",
     isFCS: true
+  },
+  // FBS additions for CFB 27 (2026 realignment): two FCS programs that
+  // reclassified up — North Dakota State (to the Mountain West) and
+  // Sacramento State (to the MAC). Full FBS members, so no isFCS flag.
+  // addedEdition gates them to CFB 27+ dynasties (they weren't FBS in CFB 26).
+  142: {
+    tid: 142,
+    abbr: "NDSU",
+    name: "North Dakota State Bison",
+    primaryColor: "#006633",
+    secondaryColor: "#FFC72C",
+    logo: "https://i.imgur.com/P6PRAnM.png",
+    addedEdition: "cfb27"
+  },
+  143: {
+    tid: 143,
+    abbr: "SAC",
+    name: "Sacramento State Hornets",
+    primaryColor: "#00563F",
+    secondaryColor: "#C4B581",
+    logo: "https://i.imgur.com/fyTmBgs.png",
+    addedEdition: "cfb27"
   }
 }
 
@@ -1369,16 +1397,30 @@ export function getAbbrFromTeamName(teamName, dynastyTeams = null) {
  *
  * @returns {Object} A copy of TEAMS for the dynasty to own, with byYear initialized
  */
-export function initializeDynastyTeams() {
-  // Deep copy so each dynasty has its own team data
+export function initializeDynastyTeams(editionKey = LEGACY_EDITION) {
+  // Deep copy so each dynasty has its own team data. Edition-gated teams
+  // (those tagged with `addedEdition`) are excluded when the dynasty's
+  // edition predates them — e.g. NDSU/Sac State reclassified to FBS in
+  // CFB 27, so a CFB 26 dynasty must not include them. Default editionKey
+  // is the legacy (oldest) edition, so an untagged caller gets the
+  // conservative base team set.
+  const dynastyYear = editionReleaseYear(editionKey)
   const teams = {}
   for (const [tid, team] of Object.entries(TEAMS)) {
+    if (team.addedEdition && dynastyYear < editionReleaseYear(team.addedEdition)) continue
     teams[tid] = {
       ...team,
       byYear: {}  // Initialize empty season data
     }
   }
   return teams
+}
+
+// Release year for an edition key, used to order editions for team gating.
+// Unknown/absent keys resolve to the legacy edition's year (the oldest).
+function editionReleaseYear(editionKey) {
+  const cfg = EDITION_CONFIGS[editionKey] || EDITION_CONFIGS[LEGACY_EDITION]
+  return cfg?.releaseYear || 0
 }
 
 /**
@@ -1589,9 +1631,10 @@ export function migrateAbbrToTid(abbr, dynastyTeams = null) {
 export function migrateDynastyToTidStructure(dynasty) {
   if (!dynasty) return dynasty
 
-  // Initialize teams if not present
+  // Initialize teams if not present (gate edition-specific teams to the
+  // dynasty's edition; undefined gameEdition falls back to legacy).
   if (!dynasty.teams) {
-    dynasty.teams = initializeDynastyTeams()
+    dynasty.teams = initializeDynastyTeams(dynasty.gameEdition)
   }
 
   // List of old structures to migrate

@@ -7211,8 +7211,10 @@ export function DynastyProvider({ children }) {
     }
 
     // Initialize the teams map from the master TEAMS list
-    // This is the single source of truth for all team data in this dynasty
-    const teams = initializeDynastyTeams()
+    // This is the single source of truth for all team data in this dynasty.
+    // Pass the edition so edition-gated teams (e.g. CFB 27's NDSU/Sac State)
+    // only appear in dynasties on that edition or later.
+    const teams = initializeDynastyTeams(normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION))
 
     // If there's a teambuilder team, replace the corresponding slot
     if (dynastyData.customTeams) {

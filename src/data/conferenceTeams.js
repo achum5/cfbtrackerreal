@@ -21,13 +21,13 @@ export const conferenceTeams = {
     "ARMY", "CHAR", "ECU", "FAU", "MEM", "NAVY", "UNT", "RICE", "TEM", "TULN", "TLSA", "UAB", "USF", "UTSA"
   ],
   "Mountain West": [
-    "AFA", "BOIS", "CSU", "FRES", "HAW", "NEV", "SDSU", "SJSU", "UNM", "UNLV", "USU", "WYO"
+    "AFA", "BOIS", "CSU", "FRES", "HAW", "NEV", "SDSU", "SJSU", "UNM", "UNLV", "USU", "WYO", "NDSU"
   ],
   "Sun Belt": [
     "APP", "ARST", "CCU", "GASO", "GSU", "JMU", "JKST", "ULM", "UL", "MRSH", "ODU", "USA", "USM", "TXST", "TROY"
   ],
   "MAC": [
-    "AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU"
+    "AKR", "BALL", "BGSU", "BUFF", "CMU", "EMU", "KENT", "M-OH", "NIU", "OHIO", "TOL", "WMU", "SAC"
   ],
   "Conference USA": [
     "DEL", "FIU", "KENN", "LIB", "LT", "MTSU", "MZST", "NMSU", "SHSU", "UTEP", "WKU"
