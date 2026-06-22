@@ -9,6 +9,7 @@ import {
   updateDynasty as updateDynastyInFirestore,
   deleteDynasty as deleteDynastyFromFirestore,
   deleteDynastyWithSubcollections,
+  leaveDynasty as leaveDynastyInFirestore,
   migrateLocalStorageData,
   // Subcollection functions
   getPlayersSubcollection,
@@ -8167,6 +8168,27 @@ export function DynastyProvider({ children }) {
       if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
       }
+      return
+    }
+
+    // Ownership guard: only the OWNER may run the destructive teardown.
+    // For a SHARED dynasty (a different userId — this user is just an
+    // invited editor), "delete" must mean LEAVE, not wipe. A non-owner
+    // can't delete the parent doc (owner-only rule) and can only delete a
+    // SUBSET of subcollections, so the teardown would partially destroy the
+    // owner's dynasty and then fail "Missing or insufficient permissions".
+    // Leaving drops this uid from the dynasty; the shared-dynasty listener
+    // then removes it from the list. A missing userId is treated as ours
+    // (legacy / pre-sharing dynasties).
+    const isOwner = !dynasty?.userId || String(dynasty.userId) === String(user.uid)
+    if (!isOwner) {
+      setSharedDynasties(prev => prev.filter(d => String(d.id) !== String(dynastyId)))
+      setDynasties(prev => prev.filter(d => String(d.id) !== String(dynastyId)))
+      if (String(currentDynasty?.id) === String(dynastyId)) setCurrentDynasty(null)
+      leaveDynastyInFirestore(dynastyId, user.uid).catch(error => {
+        console.error('Error leaving shared dynasty:', error)
+        try { toast.error('Failed to leave dynasty — it may reappear. Try again.') } catch {}
+      })
       return
     }
 

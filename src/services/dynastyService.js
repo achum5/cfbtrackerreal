@@ -17,6 +17,7 @@ import {
   serverTimestamp,
   deleteField,
   arrayUnion,
+  arrayRemove,
   waitForPendingWrites
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
@@ -207,6 +208,28 @@ export async function addEditorViaRedemption(dynastyId, uid, token) {
   await updateDoc(docRef, {
     editors: arrayUnion(uid),
     lastRedemption: { uid, token, at: Date.now() },
+  })
+}
+
+/**
+ * Remove the calling user from a shared dynasty they don't own ("leave").
+ *
+ * This is what a NON-OWNER's "delete" must do instead of the destructive
+ * teardown: a non-owner can't delete the parent doc (owner-only rule) and
+ * can only delete a subset of the subcollections, so running the teardown
+ * would partially wipe the OWNER's dynasty and then fail. Leaving just drops
+ * this uid from editors[] / coCommishes[] / memberTeams{uid}; the shared-
+ * dynasty listener (editors array-contains uid) then removes it from their
+ * list. Allowed by the editor-update rule (userId unchanged; the rule checks
+ * the OLD editors list, where this uid still appears).
+ */
+export async function leaveDynasty(dynastyId, uid) {
+  const docRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+  await updateDoc(docRef, {
+    editors: arrayRemove(uid),
+    coCommishes: arrayRemove(uid),
+    [`memberTeams.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
   })
 }
 

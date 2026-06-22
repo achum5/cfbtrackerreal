@@ -175,6 +175,11 @@ service cloud.firestore {
         // Owner write requires premium; invited editors don't.
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
@@ -203,6 +208,11 @@ service cloud.firestore {
         // Owner write — premium required.
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
 
         // Co-commish — any team, no premium required.
         allow write: if isSignedIn()
@@ -256,6 +266,11 @@ service cloud.firestore {
 
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
@@ -279,6 +294,11 @@ service cloud.firestore {
 
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
@@ -298,6 +318,11 @@ service cloud.firestore {
 
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
@@ -312,6 +337,11 @@ service cloud.firestore {
 
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
+        // Owner can always DELETE their own dynasty's docs (teardown),
+        // even if premium has lapsed. You can always remove your own
+        // data; premium only gates create/update (storage cost) above.
+        allow delete: if isSignedIn()
+                      && parentDynasty().userId == request.auth.uid;
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
