@@ -909,6 +909,23 @@ export default function Game() {
     return links.length ? links : null
   }, [game?.boxScore, playerPidByName, pathPrefix, currentDynasty?.teams])
 
+  // Social posts attached to THIS game (loaded lazily). Hoisted above the
+  // early-return guards below so the hook order stays stable across renders
+  // (the guards would otherwise skip these hooks and crash with React #310).
+  const gameSocialPosts = useMemo(() => {
+    if (!game) return []
+    const wk = currentDynasty?.socialFeedByYear?.[Number(game.year)]?.[Number(game.week)]
+    if (!Array.isArray(wk)) return []
+    return wk.filter(p => p.gameId === game.id)
+  }, [currentDynasty?.socialFeedByYear, game?.year, game?.week, game?.id])
+
+  // Pull social data once per session (it sets socialFeedByYear even when empty,
+  // so this won't refetch on every game-page mount).
+  useEffect(() => {
+    if (!currentDynasty?.id || currentDynasty.socialFeedByYear) return
+    loadSocial(currentDynasty.id).catch(() => {})
+  }, [currentDynasty?.id, currentDynasty?.socialFeedByYear, loadSocial])
+
   if (!currentDynasty) {
     return <LoadingState message="Loading dynasty..." />
   }
@@ -952,21 +969,10 @@ export default function Game() {
   const hasPhotosData = Array.isArray(game.photos) && game.photos.length > 0
   const hasScoreGraphicData = !!game.scoreGraphic
 
-  // Social posts attached to THIS game (loaded lazily). The tab only appears
-  // once posts exist for the game.
-  const gameSocialPosts = useMemo(() => {
-    const wk = currentDynasty?.socialFeedByYear?.[Number(game.year)]?.[Number(game.week)]
-    if (!Array.isArray(wk)) return []
-    return wk.filter(p => p.gameId === game.id)
-  }, [currentDynasty?.socialFeedByYear, game.year, game.week, game.id])
+  // Social posts attached to THIS game. The tab only appears once posts exist
+  // for the game. (gameSocialPosts is computed above, before the early-return
+  // guards, to keep hook order stable.)
   const hasSocialData = gameSocialPosts.length > 0
-
-  // Pull social data once per session (it sets socialFeedByYear even when empty,
-  // so this won't refetch on every game-page mount).
-  useEffect(() => {
-    if (!currentDynasty?.id || currentDynasty.socialFeedByYear) return
-    loadSocial(currentDynasty.id).catch(() => {})
-  }, [currentDynasty?.id, currentDynasty?.socialFeedByYear, loadSocial])
 
   // Resolve the active tab now that we know which tabs are visible.
   // URL param wins if present (shared-link compatibility); otherwise
