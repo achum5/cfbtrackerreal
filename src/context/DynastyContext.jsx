@@ -7994,6 +7994,7 @@ export function DynastyProvider({ children }) {
   // context boundary, so it survives listener churn.
   // Shape: { [dynastyId]: { characters: {...}, feed: {...} } }
   const socialFetchedRef = useRef({}) // fetch-once-per-id guard
+  const socialLoadedAtRef = useRef({}) // dynastyId -> socialUpdatedAt seen at last fetch
 
   const getSocialFor = (dynastyId) => socialByDynasty[dynastyId] || { characters: {}, feed: {} }
   const setSocialFor = (dynastyId, patch) => {
@@ -8025,6 +8026,7 @@ export function DynastyProvider({ children }) {
       return { socialCharacters: cur.characters, socialFeedByYear: cur.feed }
     }
     socialFetchedRef.current[dynastyId] = true
+    socialLoadedAtRef.current[dynastyId] = Number(dynasty.socialUpdatedAt || 0)
     const [characters, feed] = await Promise.all([
       getSocialCharactersSubcollection(dynastyId, { onFresh: (fresh) => setSocialFor(dynastyId, { characters: fresh }) }),
       getSocialFeedSubcollection(dynastyId, { onFresh: (fresh) => setSocialFor(dynastyId, { feed: fresh }) }),
@@ -8032,6 +8034,23 @@ export function DynastyProvider({ children }) {
     setSocialByDynasty(prev => ({ ...prev, [dynastyId]: { characters, feed } }))
     return { socialCharacters: characters, socialFeedByYear: feed }
   }
+
+  // Cross-device social sync: when another device writes social data it bumps
+  // socialUpdatedAt on the dynasty doc. If that's newer than what we last
+  // fetched, drop the fetch-once guard and reload (there's no live listener on
+  // the social subcollections, so this is how remote imports/edits propagate).
+  useEffect(() => {
+    const d = currentDynasty
+    if (!d?.id || !socialIsCloud(d, d.id)) return
+    if (!socialFetchedRef.current[d.id]) return // initial mount-load handles first fetch
+    const remote = Number(d.socialUpdatedAt || 0)
+    const loaded = Number(socialLoadedAtRef.current[d.id] || 0)
+    if (remote > loaded) {
+      socialFetchedRef.current[d.id] = false
+      loadSocial(d.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDynasty?.id, currentDynasty?.socialUpdatedAt])
 
   // Import an externally-authored universe pack into this dynasty. By default
   // it REPLACES the whole universe (the imported set becomes the dynasty's
@@ -8044,9 +8063,9 @@ export function DynastyProvider({ children }) {
     const { byId, count, skipped, dupHandles } = importUniverse(rawArray, { validTids })
     if (socialIsCloud(dynasty, dynastyId)) {
       await saveSocialCharacterShards(dynastyId, byId)
-      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [] })
+      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [], socialUpdatedAt: Date.now() })
     } else {
-      await updateDynasty(dynastyId, { socialCharacters: byId, ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [] } : {}) })
+      await updateDynasty(dynastyId, { socialCharacters: byId, socialUpdatedAt: Date.now(), ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [] } : {}) })
     }
     setSocialFor(dynastyId, { characters: byId })
     return { count, skipped: skipped.length, dupHandles }
@@ -8112,7 +8131,7 @@ export function DynastyProvider({ children }) {
     if (socialIsCloud(dynasty, dynastyId)) {
       await saveSocialCharacterOverrides(dynastyId, charsById)
     } else {
-      await updateDynasty(dynastyId, { socialCharacters: nextChars })
+      await updateDynasty(dynastyId, { socialCharacters: nextChars, socialUpdatedAt: Date.now() })
     }
     setSocialFor(dynastyId, { characters: nextChars })
   }
@@ -8128,7 +8147,7 @@ export function DynastyProvider({ children }) {
     if (!dynasty || idList.length === 0) return
     const prev = Array.isArray(dynasty.socialDeletedIds) ? dynasty.socialDeletedIds.map(String) : []
     const nextDeleted = Array.from(new Set([...prev, ...idList]))
-    await updateDynasty(dynastyId, { socialDeletedIds: nextDeleted })
+    await updateDynasty(dynastyId, { socialDeletedIds: nextDeleted, socialUpdatedAt: Date.now() })
     const cur = getSocialFor(dynastyId)
     const nextChars = { ...cur.characters }
     for (const id of idList) delete nextChars[id]

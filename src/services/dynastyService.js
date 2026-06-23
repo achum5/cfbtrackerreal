@@ -557,6 +557,15 @@ function bumpDynastyLastModifiedInBatch(batch, dynastyId) {
   batch.update(mainDocRef, { lastModified: Date.now() })
 }
 
+// Like the above, but also stamps socialUpdatedAt. Other devices watch this
+// field to know the social universe changed (import/edit/delete/posts) and
+// re-fetch the social subcollections — there's no live listener on them.
+function bumpSocialUpdatedAtInBatch(batch, dynastyId) {
+  const mainDocRef = doc(db, DYNASTIES_COLLECTION, dynastyId)
+  const now = Date.now()
+  batch.update(mainDocRef, { lastModified: now, socialUpdatedAt: now })
+}
+
 /**
  * Save a single player to the players subcollection
  * Uses player.pid as document ID for consistent updates
@@ -1232,7 +1241,7 @@ export async function saveSocialFeedToSubcollection(dynastyId, year, week, posts
   })
   const batch = writeBatch(db)
   batch.set(ref, payload)
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  bumpSocialUpdatedAtInBatch(batch, dynastyId)
   await batch.commit()
 }
 
@@ -1288,7 +1297,7 @@ export async function saveSocialCharacterShards(dynastyId, charactersById) {
   }
   const metaRef = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, '_meta')
   batch.set(metaRef, { shardCount, importedAt: Date.now() })
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  bumpSocialUpdatedAtInBatch(batch, dynastyId)
   await batch.commit()
 }
 
@@ -1311,7 +1320,7 @@ export async function saveSocialCharacterOverrides(dynastyId, characters) {
     const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, shardId)
     batch.set(ref, sanitizeForFirestore({ chars }), { merge: true })
   }
-  bumpDynastyLastModifiedInBatch(batch, dynastyId)
+  bumpSocialUpdatedAtInBatch(batch, dynastyId)
   await batch.commit()
 }
 
