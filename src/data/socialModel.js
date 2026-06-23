@@ -129,6 +129,13 @@ export function normalizeCharacter(raw) {
     pinnedPostId: raw.pinnedPostId || null,
     origin: raw.origin || 'import',
     customized: !!raw.customized,
+    // Marks an account that personifies a real-world person/brand (has a real
+    // PFP/cover or a real X link), as opposed to a fictional universe account.
+    // Preserved through import so the tag survives the user's export/edit/import
+    // workflow; falls back to inferring from the presence of an image/xUrl.
+    isReal: raw.isReal != null
+      ? !!raw.isReal
+      : !!((raw.avatar && String(raw.avatar).trim()) || (raw.bannerImage && String(raw.bannerImage).trim()) || (raw.xUrl && String(raw.xUrl).trim())),
   }
 }
 

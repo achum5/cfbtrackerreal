@@ -43,6 +43,7 @@ export default function LeaguePreferences() {
   const [search, setSearch] = useState('')
   const [kind, setKind] = useState('all')      // all | national | team | conference
   const [teamFilter, setTeamFilter] = useState('all')
+  const [realFilter, setRealFilter] = useState('all') // all | real | fake
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState(() => new Set())
   const [editingId, setEditingId] = useState(null)
@@ -78,15 +79,17 @@ export default function LeaguePreferences() {
     const list = Object.values(characters).filter(c => {
       if (kind !== 'all' && c.kind !== kind) return false
       if (teamFilter !== 'all' && Number(c.teamTid) !== Number(teamFilter)) return false
+      if (realFilter === 'real' && !c.isReal) return false
+      if (realFilter === 'fake' && c.isReal) return false
       if (q && !(`${c.displayName} ${c.handle} ${c.category} ${c.role}`.toLowerCase().includes(q))) return false
       return true
     })
     list.sort((a, b) => (b.followerCount || 0) - (a.followerCount || 0))
     return list
-  }, [characters, search, kind, teamFilter])
+  }, [characters, search, kind, teamFilter, realFilter])
 
   // Reset to page 0 whenever the filter set changes.
-  useEffect(() => { setPage(0) }, [search, kind, teamFilter])
+  useEffect(() => { setPage(0) }, [search, kind, teamFilter, realFilter])
 
   const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -130,6 +133,19 @@ export default function LeaguePreferences() {
       toast.error(`Could not set image: ${err?.message || 'Unknown error'}`)
     } finally {
       setPasting(null)
+    }
+  }
+
+  // Copy a fictional account's AI image-gen prompt so the user can paste it
+  // into an image generator, then paste the result back via "Paste PFP".
+  const copyPfpPrompt = async (c) => {
+    const prompt = (c.avatarPrompt || '').trim()
+    if (!prompt) { toast.error('No PFP prompt for this account.'); return }
+    try {
+      await navigator.clipboard.writeText(prompt)
+      toast.success(`PFP prompt copied for ${c.displayName}.`)
+    } catch {
+      toast.error('Could not copy — clipboard blocked by the browser.')
     }
   }
 
@@ -255,6 +271,11 @@ export default function LeaguePreferences() {
             <option value="all">All teams</option>
             {teamOptions.map(t => <option key={t.tid} value={t.tid}>{t.name}</option>)}
           </select>
+          <select className={inputCls} value={realFilter} onChange={(e) => setRealFilter(e.target.value)}>
+            <option value="all">Real &amp; fictional</option>
+            <option value="real">Real only</option>
+            <option value="fake">Fictional only</option>
+          </select>
         </div>
 
         {/* Selection / bulk bar */}
@@ -325,16 +346,14 @@ export default function LeaguePreferences() {
                     {pasting === `${c.id}:avatar` ? 'Uploading…' : 'Paste PFP'}
                   </button>
                 )}
-                {!isViewOnly && (
-                  <button
-                    onClick={() => pasteImageInto(c, 'bannerImage')}
-                    disabled={!!pasting}
-                    title="Paste cover photo from clipboard and upload"
-                    className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
-                  >
-                    {pasting === `${c.id}:bannerImage` ? 'Uploading…' : 'Paste Cover'}
-                  </button>
-                )}
+                <button
+                  onClick={() => copyPfpPrompt(c)}
+                  disabled={!c.avatarPrompt}
+                  title={c.avatarPrompt ? "Copy this account's AI PFP-generation prompt" : 'No PFP prompt (real account)'}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-40"
+                >
+                  Copy PFP Prompt
+                </button>
                 {!isViewOnly && (
                   <button onClick={() => setEditingId(c.id)} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">Edit</button>
                 )}
@@ -344,15 +363,38 @@ export default function LeaguePreferences() {
         </div>
 
         {/* Pagination */}
-        {filtered.length > PAGE_SIZE && (
-          <div className="px-4 py-3 flex items-center justify-between text-sm">
-            <span className="text-txt-tertiary text-xs">{filtered.length.toLocaleString()} results · page {page + 1} of {totalPages}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1 rounded border border-surface-4 text-txt-secondary disabled:opacity-40">Prev</button>
-              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1 rounded border border-surface-4 text-txt-secondary disabled:opacity-40">Next</button>
+        {filtered.length > PAGE_SIZE && (() => {
+          const goToPage = (val) => {
+            const n = parseInt(String(val).replace(/[^0-9]/g, ''), 10)
+            if (!Number.isFinite(n)) return
+            setPage(Math.min(totalPages - 1, Math.max(0, n - 1)))
+          }
+          return (
+            <div className="px-4 py-3 flex items-center justify-between gap-3 text-sm flex-wrap">
+              <span className="text-txt-tertiary text-xs flex items-center gap-1.5">
+                {filtered.length.toLocaleString()} results · page
+                {/* key={page} remounts the input with a fresh value when the
+                    page changes via Prev/Next, so it always reflects reality. */}
+                <input
+                  key={page}
+                  type="text"
+                  inputMode="numeric"
+                  defaultValue={page + 1}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); goToPage(e.target.value); e.target.blur() } }}
+                  onBlur={(e) => goToPage(e.target.value)}
+                  aria-label="Go to page"
+                  title="Type a page number and press Enter"
+                  className="w-12 px-1.5 py-0.5 rounded border border-surface-4 bg-surface-2 text-txt-primary text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-surface-5"
+                />
+                of {totalPages.toLocaleString()}
+              </span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1 rounded border border-surface-4 text-txt-secondary disabled:opacity-40">Prev</button>
+                <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="px-3 py-1 rounded border border-surface-4 text-txt-secondary disabled:opacity-40">Next</button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </section>
 
       {editingChar && (

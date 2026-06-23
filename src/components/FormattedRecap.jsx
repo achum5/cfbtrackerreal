@@ -63,6 +63,27 @@ function normalizeHeadings(text) {
   return text.replace(/([^\n]) *(#{1,3}) +/g, (_, before, hashes) => `${before}\n\n${hashes} `)
 }
 
+// Clean up stray / non-content hash markers before parsing. The AI reliably
+// emits a few artifacts that aren't real markdown:
+//   • a bare "#" appended to the end of a paragraph ("...title defense. #")
+//   • ATX closing sequences ("## Section ##")
+//   • a lone "#" / "##" on its own line
+//   • heading depths past ### (#### …) we don't render
+// Each rule is anchored so it only touches NON-content hashes: a real heading
+// marker ("# Title") keeps its text, and "#BBN" / "#5" style tokens (hashes
+// followed by word characters) are never matched.
+function stripStrayHashes(text) {
+  if (!text) return text
+  return text
+    // Collapse deeper ATX levels to ### (we render h2/h3/h4 only).
+    .replace(/^(#{4,6})(\s+)/gm, '###$2')
+    // Strip an ATX close / stray trailing run of hashes at a line's end,
+    // i.e. whitespace then only hashes then end-of-line.
+    .replace(/[ \t]+#{1,6}[ \t]*$/gm, '')
+    // Drop a line that is nothing but hash marks.
+    .replace(/^[ \t]*#{1,6}[ \t]*$/gm, '')
+}
+
 // Recap prompt instructs the AI to wrap its entire output in a fenced
 // markdown code block so the iOS Claude app preserves the markdown markers
 // when the user copies the text. Strip that wrapper here before parsing,
@@ -245,7 +266,7 @@ function FormattedRecapImpl({ text, className = '', playerLinks = null, caseInse
   // Strip any outer ```markdown ... ``` wrapper added by the AI per our
   // recap prompt before splitting into paragraphs. Then normalize any
   // inline heading markers so the block splitter treats them correctly.
-  const unwrapped = normalizeHeadings(unwrapCodeFence(text))
+  const unwrapped = normalizeHeadings(stripStrayHashes(unwrapCodeFence(text)))
   const blocks = unwrapped.split(/\n{2,}/)
 
   // Headings intentionally skip player linking. A linked name inside a bold
