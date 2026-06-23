@@ -2975,14 +2975,6 @@ export default function PlayerEdit() {
           const cardsDirty = JSON.stringify(savedCards) !== JSON.stringify(liveCards)
           return (
             <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-txt-secondary mb-1" style={{ letterSpacing: '1.5px' }}>
-                  Trading Cards
-                </h2>
-                <p className="text-xs text-txt-tertiary leading-relaxed max-w-3xl">
-                  Build a trading-card collection. Pick a real-world brand and year (1952 Bowman, 1989 Score, 2012 Prizm, etc.), the app fills the AI image-gen prompt with this player's data, you generate the front and back externally, and upload them here.
-                </p>
-              </div>
               <PlayerCards
                 cards={formData.cards || []}
                 onChange={(next) => setFormData(prev => ({ ...prev, cards: next }))}

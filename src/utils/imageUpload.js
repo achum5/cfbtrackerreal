@@ -67,18 +67,25 @@ function coerceToBlob(input) {
 }
 
 // Re-encode an image before upload so the STORED source is far smaller while
-// keeping its resolution. Full-res game screenshots (multi-MB PNGs) are the
-// cause of slow photo loads: the wsrv proxy must fetch the whole original to
-// serve any size, and the grid fires a dozen of those at once. Re-encoding to
-// webp turns a multi-MB PNG into a fraction of the size with no visible quality
-// loss — so the full-size view still shows full resolution, and thumbnails load
-// fast. We only downscale when an image exceeds 4000px (well past 4K) as a
-// canvas/memory safety bound. Defensive: any failure (or an animated GIF, which
-// a canvas would flatten) returns the original untouched.
-const MAX_UPLOAD_DIMENSION = 4000
-const UPLOAD_QUALITY = 0.92
+// keeping it sharp. Full-res game screenshots (multi-MB PNGs) are the cause of
+// both slow photo loads and storage cost: the wsrv proxy must fetch the whole
+// original to serve any size, and the grid fires a dozen of those at once.
+//
+// Sizing choices (tuned for storage cost over many years of uploads):
+//   • MAX_UPLOAD_DIMENSION 2560 — past any display size these photos/cards are
+//     shown at (the largest view, the enlarged card, renders ~1600px), so a
+//     2560 cap is visually lossless here while cutting 4K screenshots down hard.
+//   • UPLOAD_QUALITY 0.82 — webp at 0.82 is visually near-identical to the
+//     source for screenshots/photos but roughly half the bytes of 0.92.
+//
+// Defensive: any failure (or an animated GIF, which a canvas would flatten)
+// returns the original untouched, and we keep whichever blob is smaller.
+const MAX_UPLOAD_DIMENSION = 2560
+const UPLOAD_QUALITY = 0.82
 
-async function compressImageBlob(blob) {
+// Exported so the admin recompress tool can re-encode already-stored images
+// with these same settings.
+export async function compressImageBlob(blob) {
   try {
     if (typeof document === 'undefined' || typeof createImageBitmap !== 'function') return blob
     if (!blob || !blob.type || !blob.type.startsWith('image/')) return blob
