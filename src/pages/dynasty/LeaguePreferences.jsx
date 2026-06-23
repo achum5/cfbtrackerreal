@@ -44,6 +44,7 @@ export default function LeaguePreferences() {
   const [kind, setKind] = useState('all')      // all | national | team | conference
   const [teamFilter, setTeamFilter] = useState('all')
   const [realFilter, setRealFilter] = useState('all') // all | real | fake
+  const [pfpFilter, setPfpFilter] = useState('all')   // all | has | none
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState(() => new Set())
   const [editingId, setEditingId] = useState(null)
@@ -81,15 +82,18 @@ export default function LeaguePreferences() {
       if (teamFilter !== 'all' && Number(c.teamTid) !== Number(teamFilter)) return false
       if (realFilter === 'real' && !isRealAccount(c)) return false
       if (realFilter === 'fake' && isRealAccount(c)) return false
+      const hasPfp = !!(c.avatar && String(c.avatar).trim())
+      if (pfpFilter === 'has' && !hasPfp) return false
+      if (pfpFilter === 'none' && hasPfp) return false
       if (q && !(`${c.displayName} ${c.handle} ${c.category} ${c.role}`.toLowerCase().includes(q))) return false
       return true
     })
     list.sort((a, b) => (b.followerCount || 0) - (a.followerCount || 0))
     return list
-  }, [characters, search, kind, teamFilter, realFilter])
+  }, [characters, search, kind, teamFilter, realFilter, pfpFilter])
 
   // Reset to page 0 whenever the filter set changes.
-  useEffect(() => { setPage(0) }, [search, kind, teamFilter, realFilter])
+  useEffect(() => { setPage(0) }, [search, kind, teamFilter, realFilter, pfpFilter])
 
   const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -275,6 +279,11 @@ export default function LeaguePreferences() {
             <option value="all">Real &amp; fictional</option>
             <option value="real">Real only</option>
             <option value="fake">Fictional only</option>
+          </select>
+          <select className={inputCls} value={pfpFilter} onChange={(e) => setPfpFilter(e.target.value)}>
+            <option value="all">Any PFP</option>
+            <option value="has">Has PFP</option>
+            <option value="none">No PFP</option>
           </select>
         </div>
 
