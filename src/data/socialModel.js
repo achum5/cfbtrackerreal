@@ -183,6 +183,11 @@ export function importUniverse(rawArray, { validTids = null } = {}) {
 let _universeById = null
 let _universePromise = null
 
+// Bumped whenever the bundled universe (socialUniverse.json) gets a meaningful
+// refresh. Dynasties that imported an older universe compare their stored
+// socialUniverseVersion against this to offer an in-app upgrade.
+export const SOCIAL_UNIVERSE_VERSION = 2
+
 export async function ensureUniverseLoaded() {
   if (_universeById) return _universeById
   if (!_universePromise) {

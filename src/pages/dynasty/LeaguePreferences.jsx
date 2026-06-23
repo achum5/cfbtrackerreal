@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
-import { getEffectiveCharacters, isRealAccount } from '../../data/socialModel'
+import { getEffectiveCharacters, isRealAccount, SOCIAL_UNIVERSE_VERSION } from '../../data/socialModel'
 import SocialCharacterEditModal from '../../components/SocialCharacterEditModal'
 import { readClipboardImageAsFile } from '../../utils/clipboardImage'
 import { uploadImage } from '../../utils/imageUpload'
@@ -34,7 +34,7 @@ function Avatar({ c, size = 36 }) {
 const inputCls = 'rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm p-2 focus:outline-none focus:ring-2 focus:ring-surface-5'
 
 export default function LeaguePreferences() {
-  const { currentDynasty, loadSocial, saveSocialCharacters, deleteSocialCharacters, importSocialUniverse, isViewOnly } = useDynasty()
+  const { currentDynasty, loadSocial, saveSocialCharacters, deleteSocialCharacters, importSocialUniverse, upgradeSocialUniverseToLatest, isViewOnly } = useDynasty()
   const { toast } = useToast()
   const pathPrefix = usePathPrefix()
   const fileRef = useRef(null)
@@ -168,6 +168,27 @@ export default function LeaguePreferences() {
     }
   }
 
+  // Offer an upgrade only to dynasties on an OLDER imported universe. New
+  // dynasties (socialUniverseReplaced false) already use the live bundled
+  // default, so they're always current.
+  const showUpgrade = currentDynasty?.socialUniverseReplaced === true
+    && Number(currentDynasty?.socialUniverseVersion || 0) < SOCIAL_UNIVERSE_VERSION
+  const [upgrading, setUpgrading] = useState(false)
+  const handleUpgradeUniverse = async () => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    if (!window.confirm('Upgrade to the latest social universe?\n\nThis replaces your current accounts with the updated set (real media accounts, fleshed-out fictional accounts, and unique AI profile-picture prompts) and clears in-app overrides and deletions. Export first if you want a backup of your current universe.')) return
+    setUpgrading(true)
+    try {
+      await upgradeSocialUniverseToLatest(currentDynasty.id)
+      toast.success('Upgraded to the latest social universe.')
+    } catch (err) {
+      console.error('[LeaguePreferences] upgrade failed:', err)
+      toast.error(`Upgrade failed: ${err?.message || 'Unknown error'}`)
+    } finally {
+      setUpgrading(false)
+    }
+  }
+
   // Copy a fictional account's AI image-gen prompt so the user can paste it
   // into an image generator, then paste the result back via "Paste PFP".
   const copyPfpPrompt = async (c) => {
@@ -289,6 +310,24 @@ export default function LeaguePreferences() {
             )}
           </div>
         </div>
+
+        {/* Upgrade prompt — shown only when this dynasty is on an older universe */}
+        {showUpgrade && !isViewOnly && (
+          <div className="px-4 py-3 border-b border-surface-4 flex items-center justify-between gap-3 flex-wrap" style={{ background: 'color-mix(in srgb, var(--text-primary) 8%, transparent)' }}>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-txt-primary">A newer social universe is available</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">Now with real media accounts, fleshed-out fictional accounts, and a unique AI profile-picture prompt for every fake account.</div>
+            </div>
+            <button
+              onClick={handleUpgradeUniverse}
+              disabled={upgrading}
+              className="px-4 py-1.5 rounded-lg text-sm font-semibold flex-shrink-0 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
+            >
+              {upgrading ? 'Upgrading…' : 'Upgrade'}
+            </button>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="px-4 py-3 flex flex-wrap items-center gap-2 border-b border-surface-4">

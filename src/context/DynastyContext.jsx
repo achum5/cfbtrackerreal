@@ -91,7 +91,7 @@ import {
   isFCSPlaceholderAbbr,
   isFCSPlaceholderTid,
 } from '../data/teamRegistry'
-import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM } from '../data/socialModel'
+import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
 import { buildDefaultRosterPlayers } from '../data/defaultRosterLoader'
@@ -8067,12 +8067,22 @@ export function DynastyProvider({ children }) {
       // overrides first so they can't mask the freshly imported bios/avatars.
       if (replace) await clearSocialCharacterOverrides(dynastyId)
       await saveSocialCharacterShards(dynastyId, byId)
-      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [], socialUpdatedAt: Date.now() })
+      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [], socialUpdatedAt: Date.now(), socialUniverseVersion: SOCIAL_UNIVERSE_VERSION })
     } else {
-      await updateDynasty(dynastyId, { socialCharacters: byId, socialUpdatedAt: Date.now(), ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [] } : {}) })
+      await updateDynasty(dynastyId, { socialCharacters: byId, socialUpdatedAt: Date.now(), ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [], socialUniverseVersion: SOCIAL_UNIVERSE_VERSION } : {}) })
     }
     setSocialFor(dynastyId, { characters: byId })
     return { count, skipped: skipped.length, dupHandles }
+  }
+
+  // Replace this dynasty's social universe with the current bundled default
+  // (the "latest" universe). Used by the upgrade prompt for dynasties still on
+  // an older imported universe. Filtered to the dynasty's teams by import.
+  const upgradeSocialUniverseToLatest = async (dynastyId) => {
+    if (blockIfReadOnly(dynastyId, 'upgrade social universe')) return
+    const mod = await import('../data/socialUniverse.json')
+    const arr = mod?.default || mod
+    return importSocialUniverse(dynastyId, arr, { replace: true })
   }
 
   // Save a week's parsed posts (merged/deduped) plus any auto-created characters.
@@ -16786,6 +16796,7 @@ export function DynastyProvider({ children }) {
     // Social Media feature
     loadSocial,
     importSocialUniverse,
+    upgradeSocialUniverseToLatest,
     saveSocialPosts,
     replaceSocialWeek,
     saveSocialCharacters,
