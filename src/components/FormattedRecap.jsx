@@ -18,16 +18,33 @@ function escapeRegex(s) {
 // Words that reliably open a body sentence but almost never appear in a
 // heading title. Used by splitHeadingBody to detect where the AI ran a
 // heading and body text together on the same line.
+//
+// NOTE: 'No.' is deliberately NOT here. AP-style rankings ("No. 6 Clemson")
+// appear constantly INSIDE recap headlines, so treating 'No.' as a body
+// starter chopped legitimate titles in half ("Auburn topples" + the rest
+// spilling into the body).
 const SENTENCE_STARTERS = new Set([
   'The', 'A', 'An', 'Several', 'Many', 'Both', 'Each',
   'It', 'He', 'She', 'They', 'We', 'There', 'Despite',
-  'Although', 'While', 'No.',
+  'Although', 'While',
 ])
 
-// When the AI writes "## Heading Body sentence starts here" on one line,
-// split it into [headingTitle, bodyText]. Returns [text, null] when the
-// block looks like a heading-only line (short or no detectable sentence start).
+// Separate a heading line from any body text that shares its block, returning
+// [headingTitle, bodyText] (or [text, null] for a heading-only block).
+//
+// Two cases:
+//   1. Heading and body on SEPARATE lines (single newline, since the block
+//      splitter only breaks on blank lines). The newline is the reliable
+//      separator — split there. This is the common case and avoids guessing.
+//   2. AI ran "## Heading Body sentence starts here" on ONE line with no
+//      newline. Fall back to detecting where a body sentence starts.
 function splitHeadingBody(text) {
+  const nlIdx = text.indexOf('\n')
+  if (nlIdx !== -1) {
+    const title = text.slice(0, nlIdx).trim()
+    const body = text.slice(nlIdx + 1).trim()
+    return [title, body || null]
+  }
   const words = text.split(/\s+/)
   if (words.length <= 3) return [text, null]
   for (let i = 1; i < Math.min(words.length - 1, 8); i++) {

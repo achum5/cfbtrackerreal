@@ -294,7 +294,7 @@ export default function LeaguePreferences() {
           {pageItems.length === 0 ? (
             <div className="px-4 py-10 text-center text-txt-tertiary text-sm">{ready ? 'No accounts match.' : 'Loading…'}</div>
           ) : pageItems.map(c => (
-            <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 border-b border-surface-4">
+            <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 border-b border-surface-4">
               {!isViewOnly && (
                 <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="w-4 h-4 flex-shrink-0" style={{ accentColor: 'var(--text-primary)' }} />
               )}
@@ -304,37 +304,41 @@ export default function LeaguePreferences() {
                   <div className="flex items-center gap-1.5">
                     <span className="font-semibold text-txt-primary truncate group-hover:underline">{c.displayName}</span>
                     {c.verified && <span className="text-[10px]" style={{ color: '#1d9bf0' }}>✓</span>}
-                    {c.customized && <span className="text-[9px] px-1 rounded" style={{ background: 'var(--surface-3)', color: 'var(--text-tertiary)' }}>edited</span>}
+                    {c.customized && <span className="text-[9px] px-1 rounded flex-shrink-0" style={{ background: 'var(--surface-3)', color: 'var(--text-tertiary)' }}>edited</span>}
                   </div>
                   <div className="text-xs text-txt-tertiary truncate">{c.handle} · {c.category || c.role || c.kind}</div>
                 </div>
               </Link>
-              {c.xUrl && (
-                <a href={c.xUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">X</a>
-              )}
-              {!isViewOnly && (
-                <button
-                  onClick={() => pasteImageInto(c, 'avatar')}
-                  disabled={!!pasting}
-                  title="Paste profile photo from clipboard and upload"
-                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
-                >
-                  {pasting === `${c.id}:avatar` ? 'Uploading…' : 'Paste PFP'}
-                </button>
-              )}
-              {!isViewOnly && (
-                <button
-                  onClick={() => pasteImageInto(c, 'bannerImage')}
-                  disabled={!!pasting}
-                  title="Paste cover photo from clipboard and upload"
-                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
-                >
-                  {pasting === `${c.id}:bannerImage` ? 'Uploading…' : 'Paste Cover'}
-                </button>
-              )}
-              {!isViewOnly && (
-                <button onClick={() => setEditingId(c.id)} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">Edit</button>
-              )}
+              {/* Actions — wrap to their own full-width line on mobile, stay
+                  inline on sm+. Prevents the buttons overlapping the name. */}
+              <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0 w-full sm:w-auto">
+                {c.xUrl && (
+                  <a href={c.xUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">X</a>
+                )}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => pasteImageInto(c, 'avatar')}
+                    disabled={!!pasting}
+                    title="Paste profile photo from clipboard and upload"
+                    className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
+                  >
+                    {pasting === `${c.id}:avatar` ? 'Uploading…' : 'Paste PFP'}
+                  </button>
+                )}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => pasteImageInto(c, 'bannerImage')}
+                    disabled={!!pasting}
+                    title="Paste cover photo from clipboard and upload"
+                    className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-50"
+                  >
+                    {pasting === `${c.id}:bannerImage` ? 'Uploading…' : 'Paste Cover'}
+                  </button>
+                )}
+                {!isViewOnly && (
+                  <button onClick={() => setEditingId(c.id)} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">Edit</button>
+                )}
+              </div>
             </div>
           ))}
         </div>

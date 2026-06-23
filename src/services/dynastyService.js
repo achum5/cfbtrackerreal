@@ -1193,14 +1193,32 @@ function buildRecapsMap(docs) {
 // Posts: one doc per (year, week) under `socialFeed`, mirroring weekRecaps —
 // keeps a 300+ post week well under the 1 MB doc cap and lazy-loadable.
 // Characters: a 1700+ universe sharded across `socialCharacters/shard-N` docs
-// (immutable import), plus a single `socialCharacters/_overrides` doc holding
-// runtime-added (auto-instantiated) and user-edited characters that overlay on
-// load. `_meta` records shardCount so stale shards from a smaller re-import
-// are ignored.
+// (immutable import), plus runtime-added (auto-instantiated) and user-edited
+// characters that overlay on load. Those overrides are themselves sharded
+// across `_ov-{n}` docs (by hashed id) to stay under the 1 MB doc cap when a
+// large share of the universe is customized; a legacy single `_overrides` doc
+// is still read for backward compatibility. `_meta` records shardCount so
+// stale shards from a smaller re-import are ignored.
 
 const SOCIAL_FEED_SUBCOLLECTION = 'socialFeed'
 const SOCIAL_CHARACTERS_SUBCOLLECTION = 'socialCharacters'
 const SOCIAL_CHARS_PER_SHARD = 250
+
+// In-app character edits are spread across this many override docs (_ov-0..N)
+// keyed by a stable hash of the character id. A single override doc would hit
+// Firestore's 1 MB per-document ceiling once a large share of a 1,800-account
+// universe is customized; sharding keeps each doc small so heavy editing always
+// saves. 8 shards holds ~225 full character objects each before nearing 1 MB.
+const SOCIAL_OVERRIDE_SHARD_COUNT = 8
+
+function socialHashStr(s) {
+  let h = 0
+  const str = String(s)
+  for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+const socialOverrideShardId = (id) => `_ov-${socialHashStr(id) % SOCIAL_OVERRIDE_SHARD_COUNT}`
 
 const socialFeedDocId = (year, week) => `${Number(year)}-${Number(week)}`
 
@@ -1274,14 +1292,25 @@ export async function saveSocialCharacterShards(dynastyId, charactersById) {
   await batch.commit()
 }
 
-/** Merge runtime-added / user-edited characters into the overrides doc. */
+/**
+ * Merge runtime-added / user-edited characters into the override docs.
+ * Edits are sharded across `_ov-{n}` docs (by hashed id) so no single doc
+ * approaches Firestore's 1 MB limit even when most of a large universe is
+ * customized. merge:true preserves each shard's other character keys.
+ */
 export async function saveSocialCharacterOverrides(dynastyId, characters) {
   if (!characters || Object.keys(characters).length === 0) return
-  const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, '_overrides')
-  const chars = {}
-  for (const [id, ch] of Object.entries(characters)) chars[id] = ch
+  const byShard = {}
+  for (const [id, ch] of Object.entries(characters)) {
+    const shardId = socialOverrideShardId(id)
+    if (!byShard[shardId]) byShard[shardId] = {}
+    byShard[shardId][id] = ch
+  }
   const batch = writeBatch(db)
-  batch.set(ref, sanitizeForFirestore({ chars }), { merge: true })
+  for (const [shardId, chars] of Object.entries(byShard)) {
+    const ref = doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, shardId)
+    batch.set(ref, sanitizeForFirestore({ chars }), { merge: true })
+  }
   bumpDynastyLastModifiedInBatch(batch, dynastyId)
   await batch.commit()
 }
@@ -1289,17 +1318,21 @@ export async function saveSocialCharacterOverrides(dynastyId, characters) {
 function mergeSocialCharacterDocs(docs) {
   let shardCount = null
   const shards = {}
-  let overrides = {}
+  let legacyOverrides = {}          // old single `_overrides` doc
+  const overrideShards = {}         // new `_ov-{n}` docs
   for (const d of docs) {
     if (d.id === '_meta') { shardCount = Number(d.data()?.shardCount) || null; continue }
-    if (d.id === '_overrides') { overrides = d.data()?.chars || {}; continue }
-    const m = d.id.match(/^shard-(\d+)$/)
+    if (d.id === '_overrides') { legacyOverrides = d.data()?.chars || {}; continue }
+    let m = d.id.match(/^_ov-(\d+)$/)
+    if (m) { overrideShards[Number(m[1])] = d.data()?.chars || {}; continue }
+    m = d.id.match(/^shard-(\d+)$/)
     if (m) shards[Number(m[1])] = d.data()?.chars || {}
   }
   const byId = {}
   const max = shardCount != null ? shardCount : Object.keys(shards).length
-  for (let s = 0; s < max; s++) Object.assign(byId, shards[s] || {})
-  Object.assign(byId, overrides) // overrides win
+  for (let s = 0; s < max; s++) Object.assign(byId, shards[s] || {}) // imported base
+  Object.assign(byId, legacyOverrides)                              // legacy edits
+  for (const k of Object.keys(overrideShards)) Object.assign(byId, overrideShards[k]) // sharded edits win
   return byId
 }
 
