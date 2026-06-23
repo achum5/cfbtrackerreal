@@ -24,6 +24,7 @@ import GameSocialModal from '../../components/GameSocialModal'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
 import { getTeamColors } from '../../data/teamColors'
 import { uploadImagesToImgBB } from '../../utils/imgbb'
+import { readClipboardImageAsFile } from '../../utils/clipboardImage'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import ImageUpload from '../../components/ImageUpload'
 import { buildScoreGraphicPrompt } from '../../utils/scoreGraphicPrompt'
@@ -352,6 +353,76 @@ export default function GameEdit() {
   const [photoUploadDone, setPhotoUploadDone] = useState(0)
   const [photoUploadFailed, setPhotoUploadFailed] = useState(0)
   const photoUploadAbortRef = useRef(null)
+  // Transient message for the "Paste image" button (clipboard blocked, etc.).
+  const [photoPasteFeedback, setPhotoPasteFeedback] = useState(null)
+
+  // Shared upload pipeline for the Photos modal — used by both the file
+  // picker and the Paste button so progress/state/abort behave identically.
+  const runPhotoUpload = async (files) => {
+    if (!files || files.length === 0) return
+    const controller = new AbortController()
+    photoUploadAbortRef.current = controller
+    setPhotoUploadCount(files.length)
+    setPhotoUploadDone(0)
+    setPhotoUploadFailed(0)
+    try {
+      const { urls, errors } = await uploadImagesToImgBB(files, {
+        signal: controller.signal,
+        onProgress: ({ done, ok, url }) => {
+          setPhotoUploadDone(done)
+          if (ok && url) {
+            setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), url] }))
+          } else if (!ok) {
+            setPhotoUploadFailed(prev => prev + 1)
+          }
+        },
+      })
+      if (controller.signal.aborted) return
+      if (errors.length > 0) {
+        setToastMessage(
+          urls.length > 0
+            ? `Uploaded ${urls.length}; ${errors.length} failed (${errors[0].error.message})`
+            : `Upload failed: ${errors[0].error.message}`
+        )
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 4000)
+      } else if (urls.length > 0) {
+        setToastMessage(`Uploaded ${urls.length} photo${urls.length === 1 ? '' : 's'}`)
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 2000)
+      }
+    } finally {
+      photoUploadAbortRef.current = null
+      setPhotoUploadCount(0)
+      setPhotoUploadDone(0)
+      setPhotoUploadFailed(0)
+    }
+  }
+
+  // Read an image from the clipboard and push it through runPhotoUpload.
+  const handlePastePhoto = async () => {
+    if (photoUploadCount > 0) return
+    setPhotoPasteFeedback(null)
+    let result
+    try {
+      result = await readClipboardImageAsFile()
+    } catch {
+      result = { ok: false, reason: 'denied' }
+    }
+    if (!result?.ok) {
+      const msg = result?.reason === 'auth_url'
+        ? 'That image is behind a login — save it and use Click to select instead.'
+        : result?.reason === 'fetch_failed'
+          ? 'Could not fetch that image. Try copying the image itself.'
+          : result?.reason === 'empty'
+            ? 'No image found on the clipboard.'
+            : 'Clipboard blocked. Copy an image, then try again.'
+      setPhotoPasteFeedback(msg)
+      setTimeout(() => setPhotoPasteFeedback(null), 3500)
+      return
+    }
+    await runPhotoUpload([result.file])
+  }
   // URL of the photo whose tag-detail panel is open inside the Photos
   // modal (null = showing the grid). Lets you click a photo, see it big,
   // and tag the players in it.
@@ -3046,7 +3117,7 @@ export default function GameEdit() {
         <>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <p className="text-xs text-txt-tertiary m-0">
-            Upload one or many photos at once — each one is hosted on imgbb and shows up under the Photos tab on the game page.
+            Upload one or many photos at once, or paste one from your clipboard. Each shows up under the Photos tab on the game page.
           </p>
           <div className="flex items-center gap-2">
             <span className="label-xs text-txt-tertiary tabular-nums">
@@ -3066,8 +3137,9 @@ export default function GameEdit() {
           </div>
         </div>
 
+        <div className="flex items-stretch gap-2 mb-1">
         <label
-          className="relative flex items-center justify-center gap-2 px-4 py-3 rounded-lg cursor-pointer mb-3 transition-colors text-sm font-semibold overflow-hidden"
+          className="relative flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg cursor-pointer transition-colors text-sm font-semibold overflow-hidden"
           style={{
             backgroundColor: 'var(--surface-3)',
             border: '1.5px dashed var(--surface-5)',
@@ -3118,47 +3190,29 @@ export default function GameEdit() {
               const files = Array.from(e.target.files || [])
               e.target.value = ''
               e.target.blur()
-              if (files.length === 0) return
-              const controller = new AbortController()
-              photoUploadAbortRef.current = controller
-              setPhotoUploadCount(files.length)
-              setPhotoUploadDone(0)
-              setPhotoUploadFailed(0)
-              try {
-                const { urls, errors } = await uploadImagesToImgBB(files, {
-                  signal: controller.signal,
-                  onProgress: ({ done, ok, url }) => {
-                    setPhotoUploadDone(done)
-                    if (ok && url) {
-                      setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), url] }))
-                    } else if (!ok) {
-                      setPhotoUploadFailed(prev => prev + 1)
-                    }
-                  }
-                })
-                if (controller.signal.aborted) return
-                if (errors.length > 0) {
-                  setToastMessage(
-                    urls.length > 0
-                      ? `Uploaded ${urls.length}; ${errors.length} failed (${errors[0].error.message})`
-                      : `Upload failed: ${errors[0].error.message}`
-                  )
-                  setShowToast(true)
-                  setTimeout(() => setShowToast(false), 4000)
-                } else if (urls.length > 0) {
-                  setToastMessage(`Uploaded ${urls.length} photo${urls.length === 1 ? '' : 's'}`)
-                  setShowToast(true)
-                  setTimeout(() => setShowToast(false), 2000)
-                }
-              } finally {
-                photoUploadAbortRef.current = null
-                setPhotoUploadCount(0)
-                setPhotoUploadDone(0)
-                setPhotoUploadFailed(0)
-              }
+              await runPhotoUpload(files)
             }}
           />
         </label>
+          <button
+            type="button"
+            onClick={handlePastePhoto}
+            disabled={photoUploadCount > 0}
+            title="Paste an image from your clipboard (Ctrl+V)"
+            className="flex-shrink-0 flex items-center justify-center px-5 rounded-lg transition-colors text-sm font-semibold disabled:opacity-50 hover:bg-surface-4"
+            style={{
+              backgroundColor: 'var(--surface-3)',
+              border: '1.5px dashed var(--surface-5)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            Paste image
+          </button>
+        </div>
+        {photoPasteFeedback && (
+          <p className="text-xs text-txt-tertiary mb-3 mt-0">{photoPasteFeedback}</p>
+        )}
+        {!photoPasteFeedback && <div className="mb-3" />}
 
         {/* Bulk-tag bar — pick one player, then click every photo they're in */}
         {formData.photos.length > 0 && (() => {

@@ -24,9 +24,12 @@ import { verifyAuth } from './_verifyAuth.js';
  * can gracefully fall back to the legacy imgbb path during rollout.
  */
 
-// Browser origins allowed to call this endpoint and (separately) to PUT to R2.
-// Dev runs on Vite (port 5000) with VITE_API_BASE pointed at production, so the
-// dev origin must be allowed here for CORS preflight to pass.
+// Browser origins allowed to call this endpoint. Dev points VITE_API_BASE at
+// production, so the dev origin must be allowed here for CORS preflight to pass.
+// Local dev can run on Vite (localhost) or in a cloud IDE (Firebase Studio /
+// Cloud Workstations), whose origin has a dynamic hostname — matched by suffix.
+// Auth is the real gate (every call needs a valid Firebase token), so allowing
+// these dev origins for CORS is safe.
 const ALLOWED_ORIGINS = new Set([
   'https://dynastytracker.app',
   'https://www.dynastytracker.app',
@@ -34,6 +37,19 @@ const ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:5000',
   'http://localhost:3000',
 ]);
+
+const ALLOWED_ORIGIN_SUFFIXES = ['.cloudworkstations.dev', '.gitpod.io', '.app.github.dev'];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return ALLOWED_ORIGIN_SUFFIXES.some((suffix) => host.endsWith(suffix));
+  } catch {
+    return false;
+  }
+}
 
 // Only image types we actually produce/accept. webp is the common case
 // (compressImageBlob re-encodes to webp); the rest cover gif passthrough
@@ -51,7 +67,7 @@ const CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
+  if (isAllowedOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
