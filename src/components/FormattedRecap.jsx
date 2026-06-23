@@ -15,6 +15,37 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// Words that reliably open a body sentence but almost never appear in a
+// heading title. Used by splitHeadingBody to detect where the AI ran a
+// heading and body text together on the same line.
+const SENTENCE_STARTERS = new Set([
+  'The', 'A', 'An', 'Several', 'Many', 'Both', 'Each',
+  'It', 'He', 'She', 'They', 'We', 'There', 'Despite',
+  'Although', 'While', 'No.',
+])
+
+// When the AI writes "## Heading Body sentence starts here" on one line,
+// split it into [headingTitle, bodyText]. Returns [text, null] when the
+// block looks like a heading-only line (short or no detectable sentence start).
+function splitHeadingBody(text) {
+  const words = text.split(/\s+/)
+  if (words.length <= 3) return [text, null]
+  for (let i = 1; i < Math.min(words.length - 1, 8); i++) {
+    if (SENTENCE_STARTERS.has(words[i])) {
+      return [words.slice(0, i).join(' '), words.slice(i).join(' ')]
+    }
+  }
+  return [text, null]
+}
+
+// Insert \n\n before any heading marker (##, ###, #) that appears mid-line
+// so the block splitter sees it as its own paragraph. The AI sometimes writes
+// "paragraph text. ## Section header Body text." all on one line.
+function normalizeHeadings(text) {
+  if (!text) return text
+  return text.replace(/([^\n]) *(#{1,3}) +/g, (_, before, hashes) => `${before}\n\n${hashes} `)
+}
+
 // Recap prompt instructs the AI to wrap its entire output in a fenced
 // markdown code block so the iOS Claude app preserves the markdown markers
 // when the user copies the text. Strip that wrapper here before parsing,
@@ -195,8 +226,9 @@ function FormattedRecapImpl({ text, className = '', playerLinks = null, caseInse
   const lookup = null // legacy arg slot — no longer used by linkifyText
 
   // Strip any outer ```markdown ... ``` wrapper added by the AI per our
-  // recap prompt before splitting into paragraphs.
-  const unwrapped = unwrapCodeFence(text)
+  // recap prompt before splitting into paragraphs. Then normalize any
+  // inline heading markers so the block splitter treats them correctly.
+  const unwrapped = normalizeHeadings(unwrapCodeFence(text))
   const blocks = unwrapped.split(/\n{2,}/)
 
   // Headings intentionally skip player linking. A linked name inside a bold
@@ -213,23 +245,47 @@ function FormattedRecapImpl({ text, className = '', playerLinks = null, caseInse
         if (!trimmed) return null
 
         if (/^###\s+/.test(trimmed)) {
-          return (
+          const [title, body] = splitHeadingBody(trimmed.replace(/^###\s+/, ''))
+          return body ? (
+            <div key={bi}>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wide mt-4 mb-1.5 first:mt-0">
+                {renderInline(title, `h4-${bi}`, null, lookup)}
+              </h4>
+              <p className="mb-3 last:mb-0">{renderInline(body, `p${bi}-l0`, playerRegex, lookup)}</p>
+            </div>
+          ) : (
             <h4 key={bi} className="text-sm font-bold text-white uppercase tracking-wide mt-4 mb-1.5 first:mt-0">
-              {renderInline(trimmed.replace(/^###\s+/, ''), `h4-${bi}`, null, lookup)}
+              {renderInline(title, `h4-${bi}`, null, lookup)}
             </h4>
           )
         }
         if (/^##\s+/.test(trimmed)) {
-          return (
+          const [title, body] = splitHeadingBody(trimmed.replace(/^##\s+/, ''))
+          return body ? (
+            <div key={bi}>
+              <h3 className="text-base font-bold text-white mt-5 mb-2 first:mt-0">
+                {renderInline(title, `h3-${bi}`, null, lookup)}
+              </h3>
+              <p className="mb-3 last:mb-0">{renderInline(body, `p${bi}-l0`, playerRegex, lookup)}</p>
+            </div>
+          ) : (
             <h3 key={bi} className="text-base font-bold text-white mt-5 mb-2 first:mt-0">
-              {renderInline(trimmed.replace(/^##\s+/, ''), `h3-${bi}`, null, lookup)}
+              {renderInline(title, `h3-${bi}`, null, lookup)}
             </h3>
           )
         }
         if (/^#\s+/.test(trimmed)) {
-          return (
+          const [title, body] = splitHeadingBody(trimmed.replace(/^#\s+/, ''))
+          return body ? (
+            <div key={bi}>
+              <h2 className="text-lg font-bold text-white mt-6 mb-3 first:mt-0">
+                {renderInline(title, `h2-${bi}`, null, lookup)}
+              </h2>
+              <p className="mb-3 last:mb-0">{renderInline(body, `p${bi}-l0`, playerRegex, lookup)}</p>
+            </div>
+          ) : (
             <h2 key={bi} className="text-lg font-bold text-white mt-6 mb-3 first:mt-0">
-              {renderInline(trimmed.replace(/^#\s+/, ''), `h2-${bi}`, null, lookup)}
+              {renderInline(title, `h2-${bi}`, null, lookup)}
             </h2>
           )
         }

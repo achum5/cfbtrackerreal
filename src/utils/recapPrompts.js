@@ -398,7 +398,7 @@ The fence preserves markdown when the user copies the text on mobile. Do not inc
 
 Inside the fence:
 - Open with your HEADLINE as the H1 (e.g., "# Tennessee falls to Missouri; Georgia drops from top five"). The headline IS the title — do NOT add a separate "# YEAR Week N Recap" line above it. For the Season Preview, the H1 is the headline (e.g., "# 2034 season preview: Georgia, Ohio State headline a wide-open field").
-- Use H2/H3 for sections.
+- Use H2/H3 for sections. CRITICAL: every heading (# / ## / ###) must be on its own line with a blank line before it AND after it — never run a heading and body text together on the same line.
 - Keep paragraphs tight. Two to four short paragraphs per section is plenty.
 - Bold standout names and scores.
 - No tables, no bullet-point lists longer than ~5 items.
