@@ -189,11 +189,20 @@ export default function LeaguePreferences() {
     }
   }
 
+  // Build a fallback PFP prompt from account metadata when avatarPrompt is empty.
+  function buildFallbackPfpPrompt(c) {
+    const name = c.displayName || c.handle || 'CFB account'
+    const role = [c.role, c.category].filter(Boolean).join(' / ') || 'college football social media account'
+    const colorHint = c.color ? `, accent color ${c.color}` : ''
+    const personalityHint = c.personality ? ` ${c.personality.slice(0, 100).replace(/\.$/, '')}.` : ''
+    return `Social media profile picture for "${name}", a ${role}${colorHint}.${personalityHint} Clean, modern, square format, instantly readable as a small circular avatar.`.replace(/\s{2,}/g, ' ').trim()
+  }
+
   // Copy a fictional account's AI image-gen prompt so the user can paste it
   // into an image generator, then paste the result back via "Paste PFP".
+  // Falls back to a generated prompt when avatarPrompt is empty.
   const copyPfpPrompt = async (c) => {
-    const prompt = (c.avatarPrompt || '').trim()
-    if (!prompt) { toast.error('No PFP prompt for this account.'); return }
+    const prompt = (c.avatarPrompt || '').trim() || buildFallbackPfpPrompt(c)
     try {
       await navigator.clipboard.writeText(prompt)
       toast.success(`PFP prompt copied for ${c.displayName}.`)
@@ -427,9 +436,8 @@ export default function LeaguePreferences() {
                 )}
                 <button
                   onClick={() => copyPfpPrompt(c)}
-                  disabled={!c.avatarPrompt}
-                  title={c.avatarPrompt ? "Copy this account's AI PFP-generation prompt" : 'No PFP prompt (real account)'}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0 disabled:opacity-40"
+                  title={c.avatarPrompt ? "Copy this account's AI PFP-generation prompt" : 'Copy a generated PFP prompt based on account details'}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0"
                 >
                   Copy PFP Prompt
                 </button>
