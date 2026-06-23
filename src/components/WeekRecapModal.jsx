@@ -115,9 +115,13 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
 
   const prompt = useMemo(() => {
     if (!currentDynasty) return ''
+    // Strip saved recap text so the AI always generates fresh. weekRecapsByYear
+    // holds previously generated recaps — including them would bias the output.
+    // eslint-disable-next-line no-unused-vars
+    const { weekRecapsByYear: _stripped, ...dynastyForPrompt } = currentDynasty
     return isPreseason
-      ? buildPreseasonRecapPrompt(currentDynasty, yearNum)
-      : buildWeekRecapPrompt(currentDynasty, yearNum, weekNum, { includeSocial })
+      ? buildPreseasonRecapPrompt(dynastyForPrompt, yearNum)
+      : buildWeekRecapPrompt(dynastyForPrompt, yearNum, weekNum, { includeSocial })
   }, [currentDynasty, yearNum, weekNum, isPreseason, includeSocial])
 
   const weekLabel = weekNum === 16 ? 'Conference Championship Week'
