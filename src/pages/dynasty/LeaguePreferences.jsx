@@ -34,7 +34,7 @@ function Avatar({ c, size = 36 }) {
 const inputCls = 'rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm p-2 focus:outline-none focus:ring-2 focus:ring-surface-5'
 
 export default function LeaguePreferences() {
-  const { currentDynasty, loadSocial, saveSocialCharacters, importSocialUniverse, isViewOnly } = useDynasty()
+  const { currentDynasty, loadSocial, saveSocialCharacters, deleteSocialCharacters, importSocialUniverse, isViewOnly } = useDynasty()
   const { toast } = useToast()
   const pathPrefix = usePathPrefix()
   const fileRef = useRef(null)
@@ -137,6 +137,34 @@ export default function LeaguePreferences() {
       toast.error(`Could not set image: ${err?.message || 'Unknown error'}`)
     } finally {
       setPasting(null)
+    }
+  }
+
+  const deleteOne = async (c) => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    if (!window.confirm(`Delete ${c.displayName} (${c.handle})? This removes the account from your universe.`)) return
+    try {
+      await deleteSocialCharacters(currentDynasty.id, [c.id])
+      setSelected(prev => { const n = new Set(prev); n.delete(c.id); return n })
+      toast.success(`Deleted ${c.displayName}.`)
+    } catch (err) {
+      console.error('[LeaguePreferences] delete failed:', err)
+      toast.error(`Could not delete: ${err?.message || 'Unknown error'}`)
+    }
+  }
+
+  const deleteSelected = async () => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (!window.confirm(`Delete ${ids.length} selected account${ids.length === 1 ? '' : 's'}? This removes them from your universe.`)) return
+    try {
+      await deleteSocialCharacters(currentDynasty.id, ids)
+      clearSelection()
+      toast.success(`Deleted ${ids.length} account${ids.length === 1 ? '' : 's'}.`)
+    } catch (err) {
+      console.error('[LeaguePreferences] bulk delete failed:', err)
+      toast.error(`Could not delete: ${err?.message || 'Unknown error'}`)
     }
   }
 
@@ -293,6 +321,9 @@ export default function LeaguePreferences() {
             <button onClick={selectAllFiltered} className="px-2 py-1 rounded border border-surface-4 text-txt-secondary hover:text-txt-primary">Select all {filtered.length}</button>
             {selected.size > 0 && <button onClick={clearSelection} className="px-2 py-1 rounded border border-surface-4 text-txt-secondary hover:text-txt-primary">Clear</button>}
             <span className="text-txt-tertiary">{selected.size} selected</span>
+            {selected.size > 0 && (
+              <button onClick={deleteSelected} className="px-2 py-1 rounded border border-red-500/60 text-red-400 hover:bg-red-500/10 ml-auto">Delete {selected.size}</button>
+            )}
           </div>
         )}
 
@@ -365,6 +396,9 @@ export default function LeaguePreferences() {
                 </button>
                 {!isViewOnly && (
                   <button onClick={() => setEditingId(c.id)} className="px-3 py-1 rounded-lg text-xs font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary flex-shrink-0">Edit</button>
+                )}
+                {!isViewOnly && (
+                  <button onClick={() => deleteOne(c)} title="Delete this account" className="px-3 py-1 rounded-lg text-xs font-semibold border border-red-500/50 text-red-400 hover:bg-red-500/10 flex-shrink-0">Delete</button>
                 )}
               </div>
             </div>

@@ -8044,9 +8044,9 @@ export function DynastyProvider({ children }) {
     const { byId, count, skipped, dupHandles } = importUniverse(rawArray, { validTids })
     if (socialIsCloud(dynasty, dynastyId)) {
       await saveSocialCharacterShards(dynastyId, byId)
-      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true })
+      if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [] })
     } else {
-      await updateDynasty(dynastyId, { socialCharacters: byId, ...(replace ? { socialUniverseReplaced: true } : {}) })
+      await updateDynasty(dynastyId, { socialCharacters: byId, ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [] } : {}) })
     }
     setSocialFor(dynastyId, { characters: byId })
     return { count, skipped: skipped.length, dupHandles }
@@ -8115,6 +8115,25 @@ export function DynastyProvider({ children }) {
       await updateDynasty(dynastyId, { socialCharacters: nextChars })
     }
     setSocialFor(dynastyId, { characters: nextChars })
+  }
+
+  // Delete one or more accounts from the universe. Stored data (shards) can't
+  // drop a single key cleanly, so we record a tombstone id list on the dynasty
+  // and getEffectiveCharacters filters them out. Also drops them from local
+  // state for immediate feedback. Cleared on a fresh universe import.
+  const deleteSocialCharacters = async (dynastyId, ids) => {
+    if (blockIfReadOnly(dynastyId, 'delete social characters')) return
+    const dynasty = socialFindDynasty(dynastyId)
+    const idList = (Array.isArray(ids) ? ids : [ids]).map(String).filter(Boolean)
+    if (!dynasty || idList.length === 0) return
+    const prev = Array.isArray(dynasty.socialDeletedIds) ? dynasty.socialDeletedIds.map(String) : []
+    const nextDeleted = Array.from(new Set([...prev, ...idList]))
+    await updateDynasty(dynastyId, { socialDeletedIds: nextDeleted })
+    const cur = getSocialFor(dynastyId)
+    const nextChars = { ...cur.characters }
+    for (const id of idList) delete nextChars[id]
+    setSocialFor(dynastyId, { characters: nextChars })
+    return idList.length
   }
 
   const updateSocialSettings = async (dynastyId, patch) => {
@@ -16747,6 +16766,7 @@ export function DynastyProvider({ children }) {
     saveSocialPosts,
     replaceSocialWeek,
     saveSocialCharacters,
+    deleteSocialCharacters,
     updateSocialSettings,
     updateSocialPlatform,
     deleteDynasty,

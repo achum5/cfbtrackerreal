@@ -215,10 +215,24 @@ export function getLoadedUniverse() {
  */
 export function getEffectiveCharacters(dynasty) {
   const own = dynasty?.socialCharacters || {}
-  if (dynasty?.socialUniverseReplaced) return own
-  const base = getLoadedUniverse()
-  if (!Object.keys(base).length) return own
-  return { ...base, ...own }
+  let merged
+  if (dynasty?.socialUniverseReplaced) {
+    merged = own
+  } else {
+    const base = getLoadedUniverse()
+    merged = Object.keys(base).length ? { ...base, ...own } : own
+  }
+  // Tombstones: ids the user deleted. Filtered here (rather than removed from
+  // storage) so a deletion sticks even when the account lives in an immutable
+  // imported shard. Cleared on a fresh universe import.
+  const deleted = dynasty?.socialDeletedIds
+  if (Array.isArray(deleted) && deleted.length) {
+    const del = new Set(deleted.map(String))
+    const out = {}
+    for (const [id, c] of Object.entries(merged)) if (!del.has(String(id))) out[id] = c
+    return out
+  }
+  return merged
 }
 
 /**
