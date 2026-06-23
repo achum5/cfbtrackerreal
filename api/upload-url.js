@@ -1,5 +1,6 @@
 import { AwsClient } from 'aws4fetch';
 import { verifyAuth } from './_verifyAuth.js';
+import { setCors } from './_cors.js';
 
 /**
  * Mint a short-lived presigned PUT URL so the browser can upload an image
@@ -24,33 +25,6 @@ import { verifyAuth } from './_verifyAuth.js';
  * can gracefully fall back to the legacy imgbb path during rollout.
  */
 
-// Browser origins allowed to call this endpoint. Dev points VITE_API_BASE at
-// production, so the dev origin must be allowed here for CORS preflight to pass.
-// Local dev can run on Vite (localhost) or in a cloud IDE (Firebase Studio /
-// Cloud Workstations), whose origin has a dynamic hostname — matched by suffix.
-// Auth is the real gate (every call needs a valid Firebase token), so allowing
-// these dev origins for CORS is safe.
-const ALLOWED_ORIGINS = new Set([
-  'https://dynastytracker.app',
-  'https://www.dynastytracker.app',
-  'http://localhost:5000',
-  'http://127.0.0.1:5000',
-  'http://localhost:3000',
-]);
-
-const ALLOWED_ORIGIN_SUFFIXES = ['.cloudworkstations.dev', '.gitpod.io', '.app.github.dev'];
-
-function isAllowedOrigin(origin) {
-  if (!origin) return false;
-  if (ALLOWED_ORIGINS.has(origin)) return true;
-  try {
-    const host = new URL(origin).hostname;
-    return ALLOWED_ORIGIN_SUFFIXES.some((suffix) => host.endsWith(suffix));
-  } catch {
-    return false;
-  }
-}
-
 // Only image types we actually produce/accept. webp is the common case
 // (compressImageBlob re-encodes to webp); the rest cover gif passthrough
 // and the occasional un-recompressed jpeg/png.
@@ -64,17 +38,6 @@ const EXT_BY_TYPE = {
 
 const MAX_BYTES = 32 * 1024 * 1024;
 const CACHE_CONTROL = 'public, max-age=31536000, immutable';
-
-function setCors(req, res) {
-  const origin = req.headers.origin;
-  if (isAllowedOrigin(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Vary', 'Origin');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  res.setHeader('Access-Control-Max-Age', '86400');
-}
 
 function r2Configured() {
   return Boolean(

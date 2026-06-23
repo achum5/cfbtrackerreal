@@ -27,7 +27,7 @@ import {
   AllConference, DynastyRecords, Teams, TeamYear, BowlHistory,
   ConferenceChampionshipHistory, ConferenceStandings, CFPBracket, WeeklyScores, Game,
   GameEdit, DangerZone, LeagueSettings, CardCollection, PromptStudio, DynastyBlueprint, CoachProfile, CoachEdit, DevTools,
-  SocialCharacter, LeaguePreferences,
+  SocialCharacter, LeaguePreferences, ImageGallery,
 } from './routes/lazyPages'
 
 // Protected route wrapper
@@ -124,6 +124,15 @@ function AppRoutes() {
                   <ProtectedRoute>
                     <Layout>
                       <Account />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                {/* Admin-only live image feed (server enforces the admin
+                    allowlist; the page also hides itself for non-admins). */}
+                <Route path="/admin/images" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ImageGallery />
                     </Layout>
                   </ProtectedRoute>
                 } />
