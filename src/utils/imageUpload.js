@@ -1,25 +1,41 @@
-// Image upload helper — writes to imgbb and returns a hosted image URL.
-// Switched back from Firebase Storage on 2026-05-07 to control egress
-// cost on bulk uploads (a 21-photo game upload + the resulting
-// repeated-view fetches were the inflection point). Existing Firebase
-// Storage URLs already saved in dynasties continue to load fine — the
-// switch only affects new uploads.
+// Image upload helper — returns a hosted image URL.
 //
-// imgbb's known weakness: free tier has no SLA and the CDN occasionally
-// serves a "Service unavailable" placeholder for otherwise-valid URLs.
-// Consumers (FlippableCard, MediaList, etc.) already have onError
-// fallbacks for that case.
+// Backend is selectable via VITE_IMAGE_BACKEND:
+//   • 'r2'    → Cloudflare R2 via a presigned PUT. The browser uploads the
+//               blob DIRECTLY to R2 (bytes never touch our server); reads are
+//               served from the R2 public host through Cloudflare's CDN, so
+//               egress is free and repeat views are edge-cached. This is the
+//               path that replaces imgbb to escape its shared-key rate limits.
+//   • 'imgbb' → legacy host (default). Free tier, no SLA, rate-limited.
+//
+// Rollout is zero-risk: the default stays 'imgbb' until R2 is configured and
+// the flag is flipped. If 'r2' is selected but the server reports R2 isn't
+// configured yet (501), we transparently fall back to imgbb when a key exists.
+//
+// Existing Firebase-Storage / imgbb URLs already saved in dynasties keep
+// loading regardless — the backend choice only affects NEW uploads.
 //
 // Inputs accepted:
 //   • File / Blob       → uploaded as-is (preferred)
 //   • base64 string     → converted to Blob first (PlayerEdit's
 //                         compressImage path)
 //
-// Output: an imgbb-hosted image URL. Same sharing model Firebase
-// Storage provided (anyone with the link can load it).
+// Output: a hosted image URL (anyone with the link can load it). Stored as a
+// plain string, so local (IndexedDB) and cloud (Firestore) saves are identical.
+
+import { auth } from '../config/firebase'
 
 const IMGBB_ENDPOINT = 'https://api.imgbb.com/1/upload'
-const MAX_BYTES = 32 * 1024 * 1024 // imgbb's hard cap
+const MAX_BYTES = 32 * 1024 * 1024 // matches both imgbb's cap and the R2 endpoint's
+
+// Which backend new uploads go to. Defaults to imgbb so merging the R2 code
+// changes nothing until this flag is set to 'r2' (in Vercel + .env.local).
+const IMAGE_BACKEND = String(import.meta.env.VITE_IMAGE_BACKEND || 'imgbb').toLowerCase()
+
+// Base for our serverless API. '' = same-origin (production on Vercel). In
+// local dev (plain Vite, no serverless functions) set VITE_API_BASE to the
+// deployed origin so the presign endpoint is reachable.
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 function getApiKey() {
   return import.meta.env.VITE_IMGBB_API_KEY || ''
@@ -89,8 +105,65 @@ async function compressImageBlob(blob) {
   }
 }
 
+// Upload one (already compressed) blob to imgbb. Returns the hosted URL.
+async function uploadViaImgbb(blob, signal) {
+  const apiKey = getApiKey()
+  if (!apiKey) throw new Error('Image upload not configured (missing VITE_IMGBB_API_KEY)')
+
+  const formData = new FormData()
+  formData.append('image', blob)
+  formData.append('key', apiKey)
+
+  const response = await fetch(IMGBB_ENDPOINT, {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error?.message || `Upload failed (${response.status})`)
+  }
+  return data.data?.url || data.data?.display_url || ''
+}
+
+// Sentinel so the caller can detect "R2 not set up yet" and fall back to imgbb.
+class R2NotConfiguredError extends Error {
+  constructor() {
+    super('R2 storage not configured')
+    this.code = 'R2_NOT_CONFIGURED'
+  }
+}
+
+// Upload one (already compressed) blob directly to R2 via a presigned PUT.
+// Two hops: (1) ask our server to sign a URL, (2) PUT the bytes to R2.
+async function uploadViaR2(blob, signal) {
+  const user = auth.currentUser
+  if (!user) throw new Error('Sign in to upload images')
+  const token = await user.getIdToken()
+
+  const presignRes = await fetch(`${API_BASE}/api/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ contentType: blob.type || 'image/webp', size: blob.size }),
+    signal,
+  })
+
+  if (presignRes.status === 501) throw new R2NotConfiguredError()
+  if (!presignRes.ok) {
+    const info = await presignRes.json().catch(() => ({}))
+    throw new Error(info?.error || `Could not start upload (${presignRes.status})`)
+  }
+
+  const { uploadUrl, publicUrl, headers } = await presignRes.json()
+  const putRes = await fetch(uploadUrl, { method: 'PUT', body: blob, headers, signal })
+  if (!putRes.ok) {
+    throw new Error(`Upload failed (${putRes.status}) — image host rejected the file`)
+  }
+  return publicUrl
+}
+
 /**
- * Upload a single image to imgbb. Returns the hosted image URL.
+ * Upload a single image and return the hosted image URL.
  * Throws on failure — caller decides how to surface (toast, etc.).
  */
 export async function uploadImage(input, { signal } = {}) {
@@ -98,17 +171,11 @@ export async function uploadImage(input, { signal } = {}) {
   // Shrink the source before upload so it loads fast later (see compressImageBlob).
   blob = await compressImageBlob(blob)
   if (blob.size > MAX_BYTES) {
-    throw new Error(`Image must be ≤ ${Math.round(MAX_BYTES / 1024 / 1024)}MB (imgbb limit)`)
+    throw new Error(`Image must be ≤ ${Math.round(MAX_BYTES / 1024 / 1024)}MB`)
   }
   if (blob.type && !blob.type.startsWith('image/')) {
     throw new Error(`Not an image (${blob.type})`)
   }
-  const apiKey = getApiKey()
-  if (!apiKey) throw new Error('Image upload not configured (missing VITE_IMGBB_API_KEY)')
-
-  const formData = new FormData()
-  formData.append('image', blob)
-  formData.append('key', apiKey)
 
   // Abort after 30 seconds to prevent indefinite hangs on mobile or slow networks.
   const timer = AbortController ? new AbortController() : null
@@ -120,17 +187,19 @@ export async function uploadImage(input, { signal } = {}) {
     : (timer?.signal || signal || undefined)
 
   try {
-    const response = await fetch(IMGBB_ENDPOINT, {
-      method: 'POST',
-      body: formData,
-      signal: combinedSignal,
-    })
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok || !data?.success) {
-      throw new Error(data?.error?.message || `Upload failed (${response.status})`)
+    if (IMAGE_BACKEND === 'r2') {
+      try {
+        return await uploadViaR2(blob, combinedSignal)
+      } catch (err) {
+        // Only fall back when R2 simply isn't wired up yet AND imgbb is still
+        // available — a real R2 failure should surface, not silently reroute.
+        if (err?.code === 'R2_NOT_CONFIGURED' && getApiKey()) {
+          return await uploadViaImgbb(blob, combinedSignal)
+        }
+        throw err
+      }
     }
-    return data.data?.url || data.data?.display_url || ''
+    return await uploadViaImgbb(blob, combinedSignal)
   } catch (err) {
     if (err.name === 'AbortError') throw new Error('Upload timed out — check your connection and try again')
     throw err
