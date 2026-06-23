@@ -35,6 +35,7 @@ import {
   saveSocialFeedToSubcollection,
   getSocialFeedSubcollection,
   saveSocialCharacterShards,
+  clearSocialCharacterOverrides,
   saveSocialCharacterOverrides,
   getSocialCharactersSubcollection
 } from '../services/dynastyService'
@@ -8062,6 +8063,9 @@ export function DynastyProvider({ children }) {
     const validTids = new Set(Object.keys(dynasty.teams || {}).map(Number).filter(Number.isFinite))
     const { byId, count, skipped, dupHandles } = importUniverse(rawArray, { validTids })
     if (socialIsCloud(dynasty, dynastyId)) {
+      // On a replace import the file is authoritative — wipe stale per-account
+      // overrides first so they can't mask the freshly imported bios/avatars.
+      if (replace) await clearSocialCharacterOverrides(dynastyId)
       await saveSocialCharacterShards(dynastyId, byId)
       if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [], socialUpdatedAt: Date.now() })
     } else {

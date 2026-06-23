@@ -1324,6 +1324,21 @@ export async function saveSocialCharacterOverrides(dynastyId, characters) {
   await batch.commit()
 }
 
+/**
+ * Delete all character override docs (legacy `_overrides` + sharded `_ov-{n}`).
+ * Called on a fresh universe import so the imported shards become the single
+ * source of truth — otherwise stale overlays (e.g. an auto-saved account that
+ * posted) mask the newly imported bio/avatar/prompt for that account.
+ */
+export async function clearSocialCharacterOverrides(dynastyId) {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, '_overrides'))
+  for (let i = 0; i < SOCIAL_OVERRIDE_SHARD_COUNT; i++) {
+    batch.delete(doc(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION, `_ov-${i}`))
+  }
+  await batch.commit()
+}
+
 function mergeSocialCharacterDocs(docs) {
   let shardCount = null
   const shards = {}
