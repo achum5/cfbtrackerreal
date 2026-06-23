@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useDynasty } from '../context/DynastyContext'
 import { storageService } from '../services/storage'
 import BouncingLogos from '../components/BouncingLogos'
-import { PageHero, Card, Button, Badge, Input } from '../components/ui'
+import { Card, Button, Badge, Input } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { useConfirm } from '../components/ui/ConfirmDialog'
 import { PAYWALL_ENABLED, PREMIUM_PRICE, PREMIUM_PRICE_PER_MO } from '../config/billing'
@@ -235,8 +235,6 @@ export default function Account() {
       <BouncingLogos />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 py-6 space-y-4">
-        <PageHero title="Account" />
-
         {/* Profile Card */}
         <Card>
           <div className="flex items-center gap-3">
