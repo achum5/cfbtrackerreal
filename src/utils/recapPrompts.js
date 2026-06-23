@@ -413,6 +413,44 @@ ABSOLUTELY FORBIDDEN inside the markdown block:
 These markers contaminate the saved recap and must never appear. The output is pure prose markdown — nothing else.
 `
 
+// Output format used when social posts are baked into the same prompt.
+// Replaces OUTPUT_FORMAT entirely — the two-block structure must be stated
+// upfront and clearly, not buried in a modified sentence.
+const OUTPUT_FORMAT_SOCIAL = `
+═══════════════════════════════════════════════════════════
+OUTPUT FORMAT — TWO FENCED BLOCKS REQUIRED
+═══════════════════════════════════════════════════════════
+Output EXACTLY two fenced blocks in the order below. No text before the first block, no text between the blocks, no text after the second block.
+
+BLOCK 1 — the weekly recap:
+\`\`\`markdown
+# Your headline here
+...recap prose using markdown headings, **bold**, and paragraphs...
+\`\`\`
+
+BLOCK 2 — social posts (instructions at the very end of this prompt):
+\`\`\`cfb-social
+G1 | @Handle | post text here
+N | @Handle | national take here
+\`\`\`
+
+Rules for BLOCK 1 (the recap):
+- Open with your HEADLINE as the H1 (e.g., "# Tennessee falls to Missouri; Georgia drops from top five"). The headline IS the title — do NOT add a separate "# YEAR Week N Recap" line above it. For the Season Preview, the H1 is the headline (e.g., "# 2034 season preview: Georgia, Ohio State headline a wide-open field").
+- Use H2/H3 for sections. CRITICAL: every heading (# / ## / ###) must be on its own line with a blank line before it AND after it — never run a heading and body text together on the same line.
+- Keep paragraphs tight. Two to four short paragraphs per section is plenty.
+- Bold standout names and scores.
+- No tables, no bullet-point lists longer than ~5 items.
+- No emoji.
+
+ABSOLUTELY FORBIDDEN inside BLOCK 1 (the recap markdown):
+- Social-post pipe-separated lines ("G1 | @handle | text") — those belong ONLY in BLOCK 2.
+- ChatGPT/Claude citation markers like \`:contentReference[oaicite:0]{index=0}\`, \`[oaicite:N]\`, \`:contentReference\`, \`【...】\`, \`[1]\`, \`[2]\`, footnote-style references.
+- Source attributions, "according to the data block", "the data shows", or any meta-commentary.
+- HTML tags, curly-brace template variables, JSON fragments, or pseudo-code.
+
+BLOCK 1 ends when you write the closing \`\`\` fence. BLOCK 2 begins immediately after — same response, no gap.
+`
+
 // ---------------------------------------------------------------------------
 // 1) WEEK RECAP — recapping a week that already finished.
 // ---------------------------------------------------------------------------
@@ -1191,13 +1229,10 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
     if (built.gameCount > 0) socialBlock = built.section
   }
 
-  // When social is baked in, rewrite the recap's "nothing after the closing
-  // fence" rule so it doesn't contradict the required second cfb-social block.
+  // When social is baked in, use the explicit two-block format spec instead of
+  // the single-block one (avoids a fragile string-replace on OUTPUT_FORMAT).
   const outputFormatStr = socialBlock
-    ? OUTPUT_FORMAT.trim().replace(
-        'or after the closing fence — no preamble, no "Here\'s your recap:", no follow-up offer.',
-        'with no preamble. AFTER the recap\'s closing ``` fence, output the SOCIAL POSTS block described at the very end of this prompt — a SEPARATE ```cfb-social fence. Output exactly those two fenced blocks, recap first.'
-      )
+    ? OUTPUT_FORMAT_SOCIAL.trim()
     : OUTPUT_FORMAT.trim()
 
   return [
@@ -1392,7 +1427,7 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
     outputFormatStr,
     ...(socialBlock ? [
       ``,
-      `REMINDER: After the recap's markdown fence, you MUST also output the separate SOCIAL POSTS block (a \`\`\`cfb-social fence) described at the very end of this prompt. Two sibling fenced blocks, the recap first.`,
+      `REMINDER: Your response = two fenced blocks. BLOCK 1: \`\`\`markdown recap\`\`\` — BLOCK 2: \`\`\`cfb-social posts\`\`\`. The social posts instructions are at the very end of this prompt, after the DATA section. Finish the recap block completely, close its fence, then immediately open the cfb-social fence.`,
     ] : []),
     ``,
     `═══════════════════════════════════════════════════════════`,
