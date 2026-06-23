@@ -208,8 +208,17 @@ export async function uploadImage(input, { signal } = {}) {
   }
 }
 
+// Max images compressed+uploaded at once. Compression decodes each source
+// onto a canvas, which is memory-heavy for multi-MB game screenshots. Running
+// the whole batch at once (e.g. 50 photos) spikes memory until the canvas /
+// createImageBitmap calls throw — and compressImageBlob's catch then uploads
+// the ORIGINAL full-res file. A small pool keeps memory bounded so every image
+// actually gets compressed. Uploads themselves are fast (direct to R2), so the
+// throttle costs little wall-clock.
+const UPLOAD_CONCURRENCY = 3
+
 /**
- * Upload many images in parallel.
+ * Upload many images with bounded concurrency.
  * Returns: { urls: string[], errors: { file, error }[] }
  * Partial successes are kept.
  *
@@ -223,27 +232,37 @@ export async function uploadImages(files, { onProgress, signal } = {}) {
   if (total === 0) return { urls: [], errors: [] }
 
   let done = 0
-  const results = await Promise.allSettled(
-    list.map(async (file) => {
+  let next = 0
+  const results = new Array(total)
+
+  async function worker() {
+    while (true) {
+      if (signal?.aborted) return
+      const i = next++
+      if (i >= total) return
+      const file = list[i]
       try {
         const url = await uploadImage(file, { signal })
         done++
+        results[i] = { ok: true, value: url }
         try { onProgress?.({ done, total, ok: true, url, file }) } catch (_) { /* ignore listener errors */ }
-        return url
       } catch (err) {
         done++
         const error = err instanceof Error ? err : new Error(String(err))
+        results[i] = { ok: false, error }
         try { onProgress?.({ done, total, ok: false, error, file }) } catch (_) { /* ignore listener errors */ }
-        throw error
       }
-    })
-  )
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(UPLOAD_CONCURRENCY, total) }, () => worker())
+  await Promise.all(workers)
 
   const urls = []
   const errors = []
   results.forEach((r, i) => {
-    if (r.status === 'fulfilled' && r.value) urls.push(r.value)
-    else errors.push({ file: list[i], error: r.reason instanceof Error ? r.reason : new Error(String(r.reason)) })
+    if (r && r.ok && r.value) urls.push(r.value)
+    else errors.push({ file: list[i], error: r?.error instanceof Error ? r.error : new Error('Upload failed') })
   })
   return { urls, errors }
 }

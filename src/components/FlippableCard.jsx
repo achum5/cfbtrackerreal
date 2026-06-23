@@ -1,48 +1,80 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { proxyImageUrl } from '../utils/imageProxy'
 import { getCardStyle } from '../data/cardStyles'
 
-// Render width for card faces — matches the full-size photo treatment so
-// cards stay crisp at any on-screen size while gaining wsrv's resilience
-// (server-side fetch + cache) against imgbb dropping/placeholdering images.
+// Render width for the enlarged card face — high enough to stay crisp at full
+// screen while gaining wsrv's resilience (server-side fetch + cache) against a
+// host dropping/placeholdering an image.
 const CARD_W = 1600
+// Lighter width for the in-grid thumbnail (it only renders a few hundred px).
+const THUMB_W = 800
 
-// Treat a face as missing once the browser has reported a load error.
-// Old card art lived on imgbb, which has since started serving a
-// "Service unavailable" placeholder image for valid-looking URLs whose
-// underlying file has expired or is temporarily unavailable. Showing
-// that placeholder verbatim ruins the card grid; collapsing the face
-// to "No image" matches what the user sees for cards that were never
-// uploaded and is honest about the state.
+// Treat a face as missing once the browser reports a load error, so a dead
+// host URL doesn't show a "Service unavailable" placeholder tile.
 function ImageWithFallback({ src, onError, ...rest }) {
   return <img src={src} onError={onError} {...rest} />
 }
 
 /**
- * FlippableCard — click-to-flip 3D card preview used everywhere a
- * prompt-driven card needs to expose both faces (player profile,
- * Game page Cards tab, dynasty Card Collection page).
+ * FlippableCard — a trading-card preview used wherever a prompt-driven card
+ * needs to show its faces (player profile, Game page Cards tab, Card Collection).
  *
- * Behavior:
- *   • Both URLs present → renders a button that 3D-flips on click.
- *   • Only one URL present → renders that single image, no flip.
- *   • Neither URL present → renders a placeholder slot.
- *   • Image load fails  → that face is treated as missing, so a
- *     dead imgbb URL doesn't show the blue "Service unavailable" tile.
+ * Interaction:
+ *   • In the grid it shows the front (or only available) face.
+ *   • Clicking it opens an enlarged overlay with a pop-in animation.
+ *   • While enlarged, clicking the card flips front/back (when both faces
+ *     exist). Clicking the backdrop (or Esc) collapses it back to the grid.
  *
- * Aspect ratio is locked to 5:7 (real card proportion). The component
- * fills its container width.
+ * Aspect ratio comes from the card style (oversized sets are taller than the
+ * standard 5:7), falling back to 5:7 when unknown. Fills its container width.
  */
 export default function FlippableCard({ frontImageUrl, backImageUrl, styleId, className = '' }) {
   const [flipped, setFlipped] = useState(false)
+  const [expanded, setExpanded] = useState(false) // overlay mounted
+  const [shown, setShown] = useState(false)        // drives the open/close transition
   const [frontBroken, setFrontBroken] = useState(false)
   const [backBroken, setBackBroken] = useState(false)
-  // Card proportion comes from the style (oversized sets like the 1965
-  // "Tall Boys" are much taller than the standard 5:7), so the face isn't
-  // cropped to standard size. Falls back to standard when unknown.
+  const closeTimer = useRef(null)
+
   const aspectRatio = getCardStyle(styleId)?.aspectRatio || '5 / 7'
   const hasFront = !!frontImageUrl && !frontBroken
   const hasBack = !!backImageUrl && !backBroken
+  const canFlip = hasFront && hasBack
+
+  const open = useCallback(() => {
+    if (!hasFront && !hasBack) return
+    setFlipped(false)
+    setExpanded(true)
+  }, [hasFront, hasBack])
+
+  const close = useCallback(() => {
+    setShown(false)
+    clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setExpanded(false), 220)
+  }, [])
+
+  // Kick off the pop-in once the overlay has mounted (next frame).
+  useEffect(() => {
+    if (!expanded) return
+    const raf = requestAnimationFrame(() => setShown(true))
+    return () => cancelAnimationFrame(raf)
+  }, [expanded])
+
+  // Esc closes; lock background scroll while the overlay is open.
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (e) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [expanded, close])
+
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   if (!hasFront && !hasBack) {
     return (
@@ -60,82 +92,117 @@ export default function FlippableCard({ frontImageUrl, backImageUrl, styleId, cl
     )
   }
 
-  if (!hasBack || !hasFront) {
-    const showingFront = hasFront
-    const url = showingFront ? frontImageUrl : backImageUrl
-    return (
-      <div
-        className={`rounded-xl overflow-hidden shadow-2xl ${className}`}
-        style={{ aspectRatio }}
-      >
-        <ImageWithFallback
-          src={proxyImageUrl(url, CARD_W)}
-          alt=""
-          className="w-full h-full object-cover"
-          onError={() => (showingFront ? setFrontBroken(true) : setBackBroken(true))}
-        />
-      </div>
-    )
-  }
+  const collapsedUrl = hasFront ? frontImageUrl : backImageUrl
+  const markCollapsedBroken = () => (hasFront ? setFrontBroken(true) : setBackBroken(true))
 
-  return (
+  // In-grid thumbnail. Click opens the enlarged overlay.
+  const collapsed = (
     <button
       type="button"
-      onClick={() => setFlipped(f => !f)}
-      className={`w-full block text-left ${className}`}
-      style={{ aspectRatio, perspective: '1200px', cursor: 'pointer' }}
-      title={flipped ? 'Click to flip, front' : 'Click to flip, back'}
+      onClick={open}
+      className={`w-full block rounded-xl overflow-hidden shadow-2xl ${className}`}
+      style={{ aspectRatio, cursor: 'zoom-in' }}
+      title="Click to view"
     >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          transformStyle: 'preserve-3d',
-          transition: 'transform 600ms cubic-bezier(0.22, 1, 0.36, 1)',
-          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-        }}
-      >
-        {/* Front face */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            borderRadius: 12,
-            overflow: 'hidden',
-            boxShadow: '0 18px 42px rgba(0, 0, 0, 0.55)',
-          }}
-        >
-          <ImageWithFallback
-            src={proxyImageUrl(frontImageUrl, CARD_W)}
-            alt=""
-            className="w-full h-full object-cover"
-            onError={() => setFrontBroken(true)}
-          />
-        </div>
-        {/* Back face — pre-rotated so it shows when the parent flips. */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-            borderRadius: 12,
-            overflow: 'hidden',
-            boxShadow: '0 18px 42px rgba(0, 0, 0, 0.55)',
-          }}
-        >
-          <ImageWithFallback
-            src={proxyImageUrl(backImageUrl, CARD_W)}
-            alt=""
-            className="w-full h-full object-cover"
-            onError={() => setBackBroken(true)}
-          />
-        </div>
-      </div>
+      <ImageWithFallback
+        src={proxyImageUrl(collapsedUrl, THUMB_W)}
+        alt=""
+        className="w-full h-full object-cover"
+        onError={markCollapsedBroken}
+      />
     </button>
+  )
+
+  const faceShadow = '0 30px 70px rgba(0, 0, 0, 0.7)'
+
+  const overlay = expanded
+    ? createPortal(
+        <div
+          onClick={close}
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 flex items-center justify-center z-[9999] p-4"
+          style={{
+            margin: 0,
+            background: `rgba(0, 0, 0, ${shown ? 0.82 : 0})`,
+            transition: 'background 220ms ease',
+            cursor: 'zoom-out',
+          }}
+        >
+          <div
+            onClick={(e) => { e.stopPropagation(); if (canFlip) setFlipped(f => !f) }}
+            title={canFlip ? 'Click to flip' : ''}
+            style={{
+              aspectRatio,
+              width: 'min(92vw, 62vh)',
+              maxHeight: '88vh',
+              perspective: '1600px',
+              cursor: canFlip ? 'pointer' : 'default',
+              transform: shown ? 'scale(1)' : 'scale(0.88)',
+              opacity: shown ? 1 : 0,
+              transition: 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease',
+            }}
+          >
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                transformStyle: 'preserve-3d',
+                transition: 'transform 600ms cubic-bezier(0.22, 1, 0.36, 1)',
+                transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              }}
+            >
+              {/* Front (or the only available) face */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                  boxShadow: faceShadow,
+                }}
+              >
+                <ImageWithFallback
+                  src={proxyImageUrl(hasFront ? frontImageUrl : backImageUrl, CARD_W)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={() => (hasFront ? setFrontBroken(true) : setBackBroken(true))}
+                />
+              </div>
+              {/* Back face — pre-rotated; only present when both faces exist. */}
+              {canFlip && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    boxShadow: faceShadow,
+                  }}
+                >
+                  <ImageWithFallback
+                    src={proxyImageUrl(backImageUrl, CARD_W)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={() => setBackBroken(true)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null
+
+  return (
+    <>
+      {collapsed}
+      {overlay}
+    </>
   )
 }
