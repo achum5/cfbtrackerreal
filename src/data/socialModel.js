@@ -221,6 +221,22 @@ export function getEffectiveCharacters(dynasty) {
   return { ...base, ...own }
 }
 
+/**
+ * Whether an account personifies a real-world person/brand (vs a fictional
+ * universe account). Respects an explicit `isReal` tag when present, but falls
+ * back to inferring from a real PFP/cover/X-link — so the real/fictional split
+ * works even for universes stored before the tag existed (no re-import needed).
+ */
+export function isRealAccount(c) {
+  if (!c) return false
+  if (c.isReal != null) return !!c.isReal
+  return !!(
+    (c.avatar && String(c.avatar).trim()) ||
+    (c.bannerImage && String(c.bannerImage).trim()) ||
+    (c.xUrl && String(c.xUrl).trim())
+  )
+}
+
 /** Build a handle(lowercased) -> id index over an existing characters map. */
 export function buildHandleIndex(charactersById) {
   const idx = {}

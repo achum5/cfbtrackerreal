@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
-import { getEffectiveCharacters } from '../../data/socialModel'
+import { getEffectiveCharacters, isRealAccount } from '../../data/socialModel'
 import SocialCharacterEditModal from '../../components/SocialCharacterEditModal'
 import { readClipboardImageAsFile } from '../../utils/clipboardImage'
 import { uploadImage } from '../../utils/imageUpload'
@@ -79,8 +79,8 @@ export default function LeaguePreferences() {
     const list = Object.values(characters).filter(c => {
       if (kind !== 'all' && c.kind !== kind) return false
       if (teamFilter !== 'all' && Number(c.teamTid) !== Number(teamFilter)) return false
-      if (realFilter === 'real' && !c.isReal) return false
-      if (realFilter === 'fake' && c.isReal) return false
+      if (realFilter === 'real' && !isRealAccount(c)) return false
+      if (realFilter === 'fake' && isRealAccount(c)) return false
       if (q && !(`${c.displayName} ${c.handle} ${c.category} ${c.role}`.toLowerCase().includes(q))) return false
       return true
     })
