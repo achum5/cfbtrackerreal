@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, startTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
@@ -44,9 +44,24 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     () => ({ ...DEFAULT_SOCIAL_SETTINGS, ...(currentDynasty?.socialSettings || {}) }),
     [currentDynasty?.socialSettings],
   )
+
+  // Local string state so the user can backspace / type freely without the
+  // value snapping back while the field is mid-edit. We commit on blur.
+  const [perGameStr, setPerGameStr] = useState(String(socialSettings.postsPerGame ?? 1))
+  const [nationalStr, setNationalStr] = useState(String(socialSettings.nationalCount ?? 50))
+
+  // Keep local strings in sync when the stored setting changes from outside
+  // (e.g. initial dynasty load while the modal is already open).
+  useEffect(() => { setPerGameStr(String(socialSettings.postsPerGame ?? 1)) }, [socialSettings.postsPerGame])
+  useEffect(() => { setNationalStr(String(socialSettings.nationalCount ?? 50)) }, [socialSettings.nationalCount])
+
   const setSocialSetting = (key, value) => {
     if (isViewOnly || !currentDynasty?.id) return
-    updateSocialSettings(currentDynasty.id, { [key]: value }).catch(() => {})
+    // startTransition defers the Firestore write + the expensive prompt
+    // useMemo rebuild so they don't block the UI while the user is typing.
+    startTransition(() => {
+      updateSocialSettings(currentDynasty.id, { [key]: value }).catch(() => {})
+    })
   }
 
   // Compute the "current rank snapshot" for the saved-week's poll —
@@ -304,9 +319,14 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
                     <span className="text-xs text-txt-tertiary">Per game</span>
                     <input
                       type="number" min={1} max={20} inputMode="numeric"
-                      value={socialSettings.postsPerGame}
+                      value={perGameStr}
                       disabled={isViewOnly}
-                      onChange={(e) => setSocialSetting('postsPerGame', Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) => setPerGameStr(e.target.value)}
+                      onBlur={() => {
+                        const v = Math.max(1, Math.min(20, parseInt(perGameStr) || 1))
+                        setPerGameStr(String(v))
+                        setSocialSetting('postsPerGame', v)
+                      }}
                       className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
                     />
                   </label>
@@ -314,9 +334,14 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
                     <span className="text-xs text-txt-tertiary">National (per week)</span>
                     <input
                       type="number" min={0} max={100} inputMode="numeric"
-                      value={socialSettings.nationalCount}
+                      value={nationalStr}
                       disabled={isViewOnly}
-                      onChange={(e) => setSocialSetting('nationalCount', Math.max(0, Number(e.target.value) || 0))}
+                      onChange={(e) => setNationalStr(e.target.value)}
+                      onBlur={() => {
+                        const v = Math.max(0, Math.min(100, parseInt(nationalStr) || 0))
+                        setNationalStr(String(v))
+                        setSocialSetting('nationalCount', v)
+                      }}
                       className="w-full rounded-md border border-surface-4 bg-surface-2 text-txt-primary text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-surface-5"
                     />
                   </label>
