@@ -243,6 +243,8 @@ function FormattedRecapImpl({ text, className = '', playerLinks = null, caseInse
       {blocks.map((block, bi) => {
         const trimmed = block.trim()
         if (!trimmed) return null
+        // Skip bare heading markers with no text (e.g. a lone "#" the AI sometimes appends)
+        if (/^#{1,3}$/.test(trimmed)) return null
 
         if (/^###\s+/.test(trimmed)) {
           const [title, body] = splitHeadingBody(trimmed.replace(/^###\s+/, ''))
