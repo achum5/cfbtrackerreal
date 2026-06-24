@@ -147,6 +147,29 @@ const getPrimaryStatCategory = (position) => {
   return positionMap[position] || 'passing'
 }
 
+// Rough "how much did this player produce in this category" magnitude, used to
+// pick which single stat line represents a game in the game log. Keeps a
+// 0-stat row (e.g. a WR's empty rushing line) from outranking his real
+// production in another category.
+const statProduction = (category, s) => {
+  const yds = Number(s.yards ?? s.yds ?? 0)
+  switch (category) {
+    case 'defense': {
+      const tkl = (Number(s.solo) || 0) + (Number(s.assists) || 0)
+      return tkl + (Number(s.sack ?? s.sacks) || 0) * 2 + (Number(s.iNT ?? s.int) || 0) * 3 + (Number(s.tFL ?? s.tfl) || 0)
+    }
+    case 'kicking':
+      return (Number(s.fGM ?? s.fgm) || 0) * 3 + (Number(s.xPM ?? s.xpm) || 0)
+    case 'punting':
+      return (Number(s.punts ?? s.punt) || 0) || yds
+    case 'blocking':
+      return (Number(s.pancakes) || 0) - (Number(s.sacksAllowed) || 0)
+    default:
+      // passing / rushing / receiving / kickReturn / puntReturn → yardage proxy
+      return yds
+  }
+}
+
 function PlayerInner() {
   const { id: dynastyId, pid } = useParams()
   const { dynasties, currentDynasty, updatePlayer, syncAllPlayersStats, isViewOnly } = useDynasty()
@@ -610,23 +633,38 @@ function PlayerInner() {
       const byTidEntries = canon ? Object.entries(canon.byTid || {}) : []
       for (const [tidStr, sideBoxScore] of byTidEntries) {
         if (!sideBoxScore) continue
+        // Collect EVERY category this player has a row in on this side (in the
+        // fixed statCategories order), not just the first. A player can appear
+        // in multiple categories in one game — e.g. a WR with a 0-stat rushing
+        // row alongside his real receiving line.
+        const candidates = []
         for (const category of statCategories) {
           const categoryStats = sideBoxScore[category] || []
           const found = categoryStats.find(s => normalizeName(s.playerName) === normalizedPlayerName)
-          if (found) {
-            playerStats = { ...found, category }
-            // Map to 'home'/'away' for the downstream score blocks: the
-            // player's tid is the "home" slot if it's team1 AND team1 is
-            // home (or neutral, where team1 is treated as home), or if
-            // it's team2 AND team2 is home. Otherwise 'away'.
-            const playerTid = Number(tidStr)
-            const isTeam1Home = game.homeTeamTid === game.team1Tid || game.homeTeamTid == null
-            const isOnTeam1 = Number(game.team1Tid) === playerTid
-            foundInTeam = (isOnTeam1 ? isTeam1Home : !isTeam1Home) ? 'home' : 'away'
-            break
-          }
+          if (found) candidates.push({ ...found, category })
         }
-        if (playerStats) break
+        if (candidates.length === 0) continue
+        // Pick the line that best represents the game. Old logic took the first
+        // category found (passing→rushing→receiving→…), so a WR's empty rushing
+        // row showed "0 car" and hid his receiving production. Now prefer his
+        // position's primary category when he produced in it, then the category
+        // with the most production, then the primary even if empty, then first.
+        const primaryCat = getPrimaryStatCategory(player.position)
+        const prodOf = (c) => statProduction(c.category, c)
+        playerStats =
+          candidates.find(c => c.category === primaryCat && prodOf(c) > 0)
+          || candidates.slice().sort((a, b) => prodOf(b) - prodOf(a)).find(c => prodOf(c) > 0)
+          || candidates.find(c => c.category === primaryCat)
+          || candidates[0]
+
+        // Map to 'home'/'away' for the downstream score blocks: the player's
+        // tid is the "home" slot if it's team1 AND team1 is home (or neutral,
+        // where team1 is treated as home), or if it's team2 AND team2 is home.
+        const playerTid = Number(tidStr)
+        const isTeam1Home = game.homeTeamTid === game.team1Tid || game.homeTeamTid == null
+        const isOnTeam1 = Number(game.team1Tid) === playerTid
+        foundInTeam = (isOnTeam1 ? isTeam1Home : !isTeam1Home) ? 'home' : 'away'
+        break
       }
 
       if (playerStats) {

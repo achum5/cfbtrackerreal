@@ -220,6 +220,7 @@ export default function GamedayPicks({
   oppLogoUrl,
   year: yearProp,
   week: weekProp,
+  mini = false,
 }) {
   const [activeId, setActiveId] = useState(null)
 
@@ -264,12 +265,101 @@ export default function GamedayPicks({
   const userColor = getTeamColor(dynasty, userTid)
   const oppColor  = getTeamColor(dynasty, opponentTid)
 
+  // Mini mode — just the 5 tinted pick boxes (analyst name + picked-team logo),
+  // no quote strip / card chrome. Used inline under the dashboard game-entry row.
+  if (mini) {
+    return (
+      <div className="grid grid-cols-5 rounded-lg overflow-hidden" style={{ border: '1px solid var(--surface-3)' }}>
+        {picks.map((analyst, idx) => {
+          const pickUser = analyst.side === 'user'
+          const logoUrl  = pickUser ? userLogoUrl : oppLogoUrl
+          const teamColor = pickUser ? userColor : oppColor
+          const txt = getContrastTextColor(teamColor)
+          return (
+            <div
+              key={analyst.id}
+              className="flex flex-col items-center gap-1 py-2 px-0.5"
+              style={{
+                backgroundColor: teamColor,
+                borderRight: idx < 4 ? '1px solid rgba(0,0,0,0.18)' : 'none',
+              }}
+            >
+              <div
+                className="text-center"
+                style={{ fontSize: 8, fontWeight: 700, letterSpacing: '1px', color: txt, opacity: 0.85, textTransform: 'uppercase' }}
+              >
+                {analyst.name}
+              </div>
+              <div
+                className="flex items-center justify-center rounded-full flex-shrink-0 bg-white"
+                style={{ width: 28, height: 28, boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
+              >
+                {logoUrl
+                  ? <img src={logoUrl} alt="" style={{ width: 19, height: 19, objectFit: 'contain' }} />
+                  : <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 10, color: teamColor }}>?</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="media-card reveal">
 
+      {/* Quote strip — sits ABOVE the picks row */}
+      <div
+        style={{
+          minHeight: 44,
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          backgroundColor: 'var(--surface-1)',
+          borderBottom: '1px solid var(--surface-3)',
+          transition: 'background-color 0.15s ease',
+        }}
+      >
+        {activePick ? (
+          <div className="flex items-start gap-2.5">
+            <div className="flex-shrink-0 pt-0.5">
+              <div
+                className="label-xs font-bold"
+                style={{
+                  letterSpacing: '1.5px',
+                  fontSize: '9px',
+                  color: 'var(--text-tertiary)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {activePick.name.toUpperCase()}
+              </div>
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                lineHeight: 1.55,
+                fontStyle: 'italic',
+              }}
+            >
+              "{activePick.quip}"
+            </div>
+          </div>
+        ) : (
+          <div
+            className="label-xs text-center"
+            style={{ width: '100%', fontSize: '10px', color: 'var(--text-tertiary)', letterSpacing: '1px' }}
+          >
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Gameday Picks</span>
+            {' · Hover an analyst to hear their take'}
+          </div>
+        )}
+      </div>
+
       {/* Picks row — each analyst's column is tinted with the color of the
           team they picked; logo sits in a white circle. */}
-      <div className="grid grid-cols-5" style={{ borderBottom: '1px solid var(--surface-3)' }}>
+      <div className="grid grid-cols-5">
         {picks.map((analyst, idx) => {
           const pickUser = analyst.side === 'user'
           const logoUrl  = pickUser ? userLogoUrl : oppLogoUrl
@@ -357,50 +447,6 @@ export default function GamedayPicks({
         })}
       </div>
 
-      {/* Quote strip — renders inline below the picks, never clipped */}
-      <div
-        style={{
-          minHeight: 48,
-          padding: '10px 16px',
-          backgroundColor: 'var(--surface-1)',
-          transition: 'background-color 0.15s ease',
-        }}
-      >
-        {activePick ? (
-          <div className="flex items-start gap-2.5">
-            <div className="flex-shrink-0 pt-0.5">
-              <div
-                className="label-xs font-bold"
-                style={{
-                  letterSpacing: '1.5px',
-                  fontSize: '9px',
-                  color: 'var(--text-tertiary)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {activePick.name.toUpperCase()}
-              </div>
-            </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                lineHeight: 1.55,
-                fontStyle: 'italic',
-              }}
-            >
-              "{activePick.quip}"
-            </div>
-          </div>
-        ) : (
-          <div
-            className="label-xs text-center"
-            style={{ fontSize: '10px', color: 'var(--text-tertiary)', letterSpacing: '1px' }}
-          >
-            Hover an analyst to hear their take
-          </div>
-        )}
-      </div>
     </div>
   )
 }

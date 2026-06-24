@@ -30,6 +30,15 @@ import { getPlayerStatsForTid, getTeamStatsForTid, getPlayerStatsSheetIdForTid, 
 import { AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import SheetLoadingHint from './SheetLoadingHint'
 
+// Strict roster-name entry (prompt + sheet dropdown) only kicks in for teams
+// that actually have a tracked roster with plenty of players. This is the gate
+// that replaces the old user-vs-opponent check: most opponents (CPU/FCS) have
+// no tracked roster, so they fall back to free transcription, while any team
+// with a real roster — usually the user's, but not exclusively — gets strict
+// names. A full dynasty roster is ~70-85; an incidental/untracked team is 0 or
+// a handful, so 30 cleanly separates "real roster" from "no roster".
+const STRICT_ROSTER_MIN_PLAYERS = 30
+
 /**
  * BoxScoreSheetModal - A reusable modal for box score Google Sheets
  *
@@ -1103,11 +1112,11 @@ SELF-CHECK BEFORE YOU SEND — run every line
     // Player stats (sheetType === 'playerStats') — 9 tabs
     const teamAbbr = config.teamAbbr || ''
     const opponentAbbrLabel = config.opponentAbbr || ''
-    // Only pass roster when the tab is the user-controlled team — Column A
-    // is a strict roster dropdown only for the user's team. The roster
-    // belongs to the target team (the one this sheet is for), regardless
-    // of whether that team is home or away in the game.
-    const playerStatsRoster = config.isUserControlled ? targetRosterObjects : []
+    // Strict roster names whenever THIS team has a real tracked roster (size
+    // gate), not based on user-vs-opponent. Untracked opponents (no roster)
+    // fall back to verbatim screenshot transcription.
+    const playerStatsRoster = targetRosterObjects.length >= STRICT_ROSTER_MIN_PLAYERS ? targetRosterObjects : []
+    const hasRoster = playerStatsRoster.length > 0
     const layout = computeUnifiedTabLayout()
 
     return buildAIPrompt({
@@ -1146,7 +1155,7 @@ The user pastes screenshots from EA College Football 26's post-game stats screen
 4. RUSHING / RECEIVING ROWS: format is usually "CARRIES YDS AVG TD LONG". Skip AVG (not a column). 20+, BT, YAC, RAC, Drops come from the ADVANCED tab in CFB26; if they are not in the screenshot, leave those columns BLANK, do not guess.
 5. KICKING RANGE SPLITS: CFB26 shows FG attempts per distance range. Map to FGA 29/FGM 29 (0-29), FGA 39/FGM 39 (30-39), FGA 49/FGM 49 (40-49), FGA 50+/FGM 50+ (50+). If only one combined FG line is shown, fill FGM and FGA and leave the range columns BLANK.
 6. JERSEY NUMBERS: CFB26 shows "#12 J. Smith" style entries. Output the full roster name, NEVER "#12" or "J. Smith".
-7. FIRST NAMES: CFB26 tables show "F.Last" initials. The right-hand sidebar in each screenshot shows the highlighted player's full first name; check it before falling back to "F. Last". For ${teamAbbr} players, the roster block above is authoritative.
+7. FIRST NAMES: CFB26 tables show "F.Last" initials. The right-hand sidebar in each screenshot shows the highlighted player's full first name; check it before falling back to "F. Last".${hasRoster ? ` For ${teamAbbr} players, the roster block above is authoritative.` : ''}
 8. BLANKS, NOT ZEROS: a player not shown in a screenshot gets NO row. Do not invent zero-filled rows.
 
 ════════════════════════════════════════════════════════════
@@ -1167,7 +1176,7 @@ EXTRACTION RULES
 ════════════════════════════════════════════════════════════
 1. BANNER lines have ZERO tabs (column A only). HEADER lines use the exact column names for that section. DATA rows match the section's column count exactly (empty cells are tab-separated empty fields, not skipped tabs).
 2. ${teamAbbr} players ONLY. No ${opponentAbbrLabel} players anywhere in this output.
-3. Player names: for ${teamAbbr}, names MUST match the roster spelling above (strict dropdown). For any name shown as "F.Last", expand it to the full first name from the sidebar before falling back to "F. Last". NEVER output "#12" or "J. Smith" when a full name exists.
+3. Player names: ${hasRoster ? `for ${teamAbbr}, names MUST match the roster spelling in the roster block above (strict — column A is a roster dropdown).` : `${teamAbbr} has no tracked roster here, so transcribe each name exactly as the screenshots show it.`} For any name shown as "F.Last", expand it to the full first name from the sidebar before falling back to "F. Last". NEVER output "#12" or "J. Smith" when a full name exists.
 4. NO commas in numbers ("1234", not "1,234"). INTEGERS only, except: Passing Rtg (one decimal), Defense Sacks and Defense TFL (.5 half-credits when the screenshot shows them). Never invent a ".5".
 5. Do not reorder columns. Do not add columns past a section's spec.
 
@@ -1177,7 +1186,7 @@ FINAL CHECK before you send
 [ ] All 9 banners are present, in order, each as "═══ TITLE ═══" in column A with no tabs.
 [ ] Each banner is immediately followed by its HEADER line, then its DATA rows (or no data rows if none).
 [ ] Every DATA row has the right column count for its section, with no commas and only the allowed decimals.
-[ ] Every player is a ${teamAbbr} player, named to match the roster (no "#12", no "J. Smith").
+[ ] Every player is a ${teamAbbr} player${hasRoster ? ', named to match the roster' : ''} (no "#12", no "J. Smith").
 [ ] No blank separator rows, no padding rows, no zero-filled rows for players who did not appear.
 [ ] The output is just the paste-target label line and the one block, nothing else.`,
       includeTeamMap: true,
@@ -1304,18 +1313,20 @@ FINAL CHECK before you send
             // Player stats — read existing data for the target team via
             // the canonical byTid store (with legacy fallback).
             const existingPlayerStats = getPlayerStatsForTid(game, targetTidNum, currentDynasty?.teams || currentDynasty?.customTeams)
-            // Only enforce strict dropdown for user-controlled teams (current + past teams from coachTeamByYear)
-            // Opponent teams should allow free text entry even if they have some players in the dynasty
+            // Strict dropdown gates on whether THIS team has a real tracked
+            // roster (size), not user-vs-opponent. Untracked opponents (CPU/FCS,
+            // no roster) get free-text entry; any team with plenty of players
+            // gets the strict roster-name dropdown.
             const roster = config.roster || []
-            const isUserTeam = config.isUserControlled || false
+            const hasTrackedRoster = roster.length >= STRICT_ROSTER_MIN_PLAYERS
             sheetInfo = await createGameBoxScoreSheet(
               config.teamName,
               config.teamAbbr,
               config.opponentAbbr,
               year,
               week,
-              isUserTeam,  // Only true for user-controlled teams
-              isUserTeam ? roster : [],  // Only pass roster for user teams (enables dropdown)
+              hasTrackedRoster,                  // strict dropdown when a real roster exists
+              hasTrackedRoster ? roster : [],
               existingPlayerStats
             )
           }

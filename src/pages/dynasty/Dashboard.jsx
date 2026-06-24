@@ -3916,9 +3916,32 @@ export default function Dashboard() {
                     </div>
                   ),
                   subtitle: gameSubtitle,
-                  viewTo: gameDone ? `${pathPrefix}/game/${playedGame.id}` : null,
+                  // Link View to the game page whenever a game record exists —
+                  // including an upcoming/unplayed shell, so the user can open
+                  // the matchup page (Gameday Picks, etc.) before entering it.
+                  viewTo: (playedGame?.id || gameRecord?.id)
+                    ? `${pathPrefix}/game/${playedGame?.id || gameRecord.id}`
+                    : null,
                   onAction: handleEnterGame,
                   actionLabel: gameDone ? 'Edit' : 'Enter',
+                  // Mini Gameday Picks (5 analyst boxes) under an upcoming game.
+                  belowContent: (!gameDone && oppTid) ? (
+                    <GamedayPicks
+                      mini
+                      dynasty={currentDynasty}
+                      userTid={userTeamTid}
+                      opponentTid={oppTid}
+                      isHome={!userIsAway && !isNeutral}
+                      isNeutral={isNeutral}
+                      gameKey={`${currentDynasty.currentYear}-W${currentDynasty.currentWeek}-${userTeamTid}-${oppTid}-${gameRecord?.gamedayPicksSeed || 0}`}
+                      userTeamName={userTeamName}
+                      opponentName={opponentName}
+                      userLogoUrl={userLogoUrl}
+                      oppLogoUrl={oppLogoUrl}
+                      year={currentDynasty.currentYear}
+                      week={currentDynasty.currentWeek}
+                    />
+                  ) : null,
                 })
               }
               // Bye weeks for the user's team are no longer surfaced as a
@@ -4030,9 +4053,10 @@ export default function Dashboard() {
                   {todos.map((todo, idx) => (
                     <div
                       key={todo.key}
-                      className="px-3 py-2.5 sm:px-5 sm:py-4 flex items-center gap-2 sm:gap-4"
+                      className="px-3 py-2.5 sm:px-5 sm:py-4"
                       style={idx > 0 ? { borderTop: '1px solid var(--surface-4)' } : undefined}
                     >
+                     <div className="flex items-center gap-2 sm:gap-4">
                       <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3">
                         {/* Status dot — green when complete, red when
                             still pending. Always rendered so the rows
@@ -4087,6 +4111,10 @@ export default function Dashboard() {
                             {todo.actionLabel}
                           </button>
                         </div>
+                      )}
+                     </div>
+                      {todo.belowContent && (
+                        <div className="mt-2.5">{todo.belowContent}</div>
                       )}
                     </div>
                   ))}

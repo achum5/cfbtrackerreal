@@ -1265,6 +1265,10 @@ export default function GameEdit() {
         photoTags: (existingGame.photoTags && typeof existingGame.photoTags === 'object') ? existingGame.photoTags : {},
         scoreGraphic: existingGame.scoreGraphic || '',
       })
+      // Restore the saved auto-fill choice so a manually-entered record
+      // (auto-fill OFF) stays OFF on reopen and isn't recomputed/overwritten.
+      // Old games have no flag (undefined) → keep the default ON behavior.
+      setAutoFillRecords(existingGame.recordsAutoFilled !== false)
     } else if (isNewGame && team1Tid && team2Tid) {
       // New game - fetch ratings and calculate records
       const team1Ratings = getTeamRatings(team1Tid, gameYear)
@@ -1518,6 +1522,11 @@ export default function GameEdit() {
         team2Record: team2RecordToSave,
         team1ConfRecord: team1ConfRecordToSave,
         team2ConfRecord: team2ConfRecordToSave,
+        // Persist the auto-fill choice so a manually-entered opponent record
+        // (auto-fill OFF) isn't recomputed and overwritten the next time the
+        // game is opened and saved. Without this, auto-fill defaults back ON
+        // and clobbers the manual record with the games-only calculation.
+        recordsAutoFilled: autoFillRecords,
         homeTeamTid,
         isConferenceGame: formData.isConferenceGame || isConferenceGame,
         aiRecap: formData.aiRecap,
@@ -1724,6 +1733,11 @@ export default function GameEdit() {
         team2Record: team2RecordToSave,
         team1ConfRecord: team1ConfRecordToSave,
         team2ConfRecord: team2ConfRecordToSave,
+        // Persist the auto-fill choice so a manually-entered opponent record
+        // (auto-fill OFF) isn't recomputed and overwritten the next time the
+        // game is opened and saved. Without this, auto-fill defaults back ON
+        // and clobbers the manual record with the games-only calculation.
+        recordsAutoFilled: autoFillRecords,
         homeTeamTid,
         isConferenceGame: formData.isConferenceGame || isConferenceGame,
         aiRecap: formData.aiRecap,

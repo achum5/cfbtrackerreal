@@ -12613,7 +12613,7 @@ export async function createGameBoxScoreSheet(teamName, teamAbbr, opponentAbbr, 
     // latency off the create flow.
     await Promise.all([
       initializeBoxScoreSheet(sheet.spreadsheetId, accessToken, sheetIds, isUserTeam, rosterPlayers),
-      initializeUnifiedAITab(sheet.spreadsheetId, accessToken, unifiedSheetId),
+      initializeUnifiedAITab(sheet.spreadsheetId, accessToken, unifiedSheetId, isUserTeam, rosterPlayers),
       shareSheetPublicly(sheet.spreadsheetId, accessToken),
     ])
 
@@ -12909,9 +12909,48 @@ async function writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData
   }
 }
 
-// Initialize the unified AI tab with the compact banner+header template.
-async function initializeUnifiedAITab(spreadsheetId, accessToken, sheetId) {
+// Strict roster-name dropdown on column A of the (dynamic) unified tab.
+// The tab's rows shift with a variable-length paste, so the dropdown can't be
+// pinned to per-section data ranges — it covers the whole name column. The
+// banner ("═══ … ═══") and header ("Player Name") rows also live in column A,
+// so those exact strings are added to the allow-list to keep the strict rule
+// from flagging the structural rows (and from rejecting them on prefill).
+async function applyUnifiedRosterValidation(spreadsheetId, accessToken, sheetId, rosterPlayers) {
+  const layout = computeUnifiedTabLayout()
+  const structural = []
+  for (const section of layout.sections) {
+    structural.push(`═══ ${section.title.toUpperCase()} ═══`)
+    if (section.headers[0]) structural.push(section.headers[0])
+  }
+  const values = [...new Set([...rosterPlayers, ...structural])].map(v => ({ userEnteredValue: v }))
+  const request = {
+    setDataValidation: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: 500, startColumnIndex: 0, endColumnIndex: 1 },
+      rule: {
+        condition: { type: 'ONE_OF_LIST', values },
+        showCustomUi: true,
+        strict: true,
+      },
+    },
+  }
+  const resp = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [request] }),
+  })
+  if (!resp.ok) {
+    console.error('Failed to apply unified roster validation:', await resp.json().catch(() => ({})))
+  }
+}
+
+// Initialize the unified AI tab with the compact banner+header template, then
+// (for teams with a real tracked roster) install the strict roster-name
+// dropdown on column A.
+async function initializeUnifiedAITab(spreadsheetId, accessToken, sheetId, isUserTeam = false, rosterPlayers = []) {
   await writeUnifiedTab(spreadsheetId, accessToken, sheetId, null)
+  if (isUserTeam && rosterPlayers.length > 0) {
+    await applyUnifiedRosterValidation(spreadsheetId, accessToken, sheetId, rosterPlayers)
+  }
 }
 
 // Pre-fill the unified tab with existing data (existingData[key] is an array

@@ -4051,13 +4051,22 @@ export default function Game() {
 
       {/* Full-screen score-graphic lightbox — single image. Re-uses
           PhotoLightbox with a one-element array; the prev/next
-          handlers are no-ops at length 1. */}
+          handlers are no-ops at length 1. Tagging props match the Photos-tab
+          lightbox so players can be tagged straight from the main-page graphic
+          (tags are keyed by URL, so they stay in sync with the Photos tab). */}
       {scoreGraphicLightboxOpen && game.scoreGraphic && (
         <PhotoLightbox
           photos={[game.scoreGraphic]}
           index={0}
           onClose={() => setScoreGraphicLightboxOpen(false)}
           onIndexChange={() => {}}
+          photoTags={game.photoTags || null}
+          resolvePlayerName={(pid) => playerNameByPid.get(String(pid))}
+          pathPrefix={pathPrefix}
+          gameId={game.id}
+          isViewOnly={isViewOnly}
+          taggablePlayers={photoTaggablePlayers}
+          onSaveTags={savePhotoTags}
         />
       )}
     </div>
