@@ -41,6 +41,7 @@ import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
 import ConferenceStandingsModal from '../../components/ConferenceStandingsModal'
 import FinalPollsModal from '../../components/FinalPollsModal'
 import TeamStatsModal from '../../components/TeamStatsModal'
+import GamedayPicks from '../../components/GamedayPicks'
 import AwardsModal from '../../components/AwardsModal'
 import AllAmericansModal from '../../components/AllAmericansModal'
 import AllConferenceModal from '../../components/AllConferenceModal'
@@ -7233,6 +7234,42 @@ export default function Dashboard() {
                   </div>
                 )
 
+                // Upcoming current-week game — show the Gameday Picks analyst
+                // panel directly beneath the matchup row. Checked BEFORE the
+                // playedGame?.id early-return because an unplayed game can still
+                // have a shell game record (entry.game.id exists) while
+                // entry.isPlayed is false. Byes already returned above.
+                if (weekNum === Number(currentDynasty.currentWeek) && !entry.isPlayed) {
+                  const gpOppTid = entry.opponentTid ?? (entry.opponent ? getTidFromAbbr(entry.opponent, currentDynasty) : null)
+                  const gpUserLogo = getTeamLogo(userTeamName, currentDynasty?.teams || currentDynasty?.customTeams)
+                  const gpIsNeutral = entry.location === 'neutral'
+                  const gpIsHome = !gpIsNeutral && entry.location !== 'away'
+                  const row = playedGame?.id
+                    ? <Link to={`${pathPrefix}/game/${playedGame.id}`} className="block">{renderGameRow(true)}</Link>
+                    : renderGameRow(false)
+                  return (
+                    <div key={weekNum}>
+                      {row}
+                      {gpOppTid && (
+                        <GamedayPicks
+                          dynasty={currentDynasty}
+                          userTid={userTeamTid}
+                          opponentTid={gpOppTid}
+                          isHome={gpIsHome}
+                          isNeutral={gpIsNeutral}
+                          gameKey={`${currentDynasty.currentYear}-W${weekNum}-${userTeamTid}-${gpOppTid}-${playedGame?.gamedayPicksSeed || 0}`}
+                          userTeamName={userTeamName}
+                          opponentName={opponentName}
+                          userLogoUrl={gpUserLogo}
+                          oppLogoUrl={opponentLogo}
+                          year={currentDynasty.currentYear}
+                          week={weekNum}
+                        />
+                      )}
+                    </div>
+                  )
+                }
+
                 if (playedGame?.id) {
                   return (
                     <Link
@@ -7842,6 +7879,40 @@ export default function Dashboard() {
                           </div>
                         </div>
                       )
+
+                      // Upcoming current-week game — Gameday Picks panel beneath
+                      // the row (checked before the playedGame?.id return so an
+                      // unplayed shell game doesn't suppress it).
+                      if (Number(weekNum) === Number(currentDynasty.currentWeek) && !entry.isPlayed) {
+                        const gpOppTid = entry.opponentTid ?? (entry.opponent ? getTidFromAbbr(entry.opponent, currentDynasty) : null)
+                        const gpUserLogo = getTeamLogo(userTeamName, currentDynasty?.teams || currentDynasty?.customTeams)
+                        const gpIsNeutral = entry.location === 'neutral'
+                        const gpIsHome = !gpIsNeutral && entry.location !== 'away'
+                        const row = playedGame?.id
+                          ? <Link to={`${pathPrefix}/game/${playedGame.id}`} className="block">{renderMobileGameRow(true)}</Link>
+                          : renderMobileGameRow(false)
+                        return (
+                          <div key={weekNum}>
+                            {row}
+                            {gpOppTid && (
+                              <GamedayPicks
+                                dynasty={currentDynasty}
+                                userTid={userTeamTid}
+                                opponentTid={gpOppTid}
+                                isHome={gpIsHome}
+                                isNeutral={gpIsNeutral}
+                                gameKey={`${currentDynasty.currentYear}-W${weekNum}-${userTeamTid}-${gpOppTid}-${playedGame?.gamedayPicksSeed || 0}`}
+                                userTeamName={userTeamName}
+                                opponentName={opponentName}
+                                userLogoUrl={gpUserLogo}
+                                oppLogoUrl={opponentLogo}
+                                year={currentDynasty.currentYear}
+                                week={weekNum}
+                              />
+                            )}
+                          </div>
+                        )
+                      }
 
                       if (playedGame?.id) {
                         return (

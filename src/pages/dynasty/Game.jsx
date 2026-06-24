@@ -11,6 +11,7 @@ import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getT
 import { saveGamesToSubcollection } from '../../services/dynastyService'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
 import CardComposer from '../../components/CardComposer'
+import GamedayPicks from '../../components/GamedayPicks'
 import ProgressiveLightboxImage from '../../components/ProgressiveLightboxImage'
 import { getCardsForGame } from '../../utils/playerCards'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
@@ -2053,6 +2054,27 @@ export default function Game() {
         </div>
         </div>
       </div>
+
+      {/* Gameday Picks — analyst pick'em panel, only for an upcoming
+          (unplayed) matchup. leftData/rightData are the two visual sides. */}
+      {!gameIsPlayed && leftData.tid && rightData.tid && (
+        <div className="mt-4">
+          <GamedayPicks
+            dynasty={currentDynasty}
+            userTid={leftData.tid}
+            opponentTid={rightData.tid}
+            isHome={game.homeTeamTid != null && Number(game.homeTeamTid) === Number(leftData.tid)}
+            isNeutral={game.homeTeamTid == null}
+            gameKey={`${game.year}-W${game.week}-${leftData.tid}-${rightData.tid}-${game.gamedayPicksSeed || 0}`}
+            userTeamName={leftData.name}
+            opponentName={rightData.name}
+            userLogoUrl={leftData.logo}
+            oppLogoUrl={rightData.logo}
+            year={game.year}
+            week={game.week}
+          />
+        </div>
+      )}
 
       {/* The below-xl quarter-by-quarter band that used to live here was
           replaced by the compact per-quarter line score tucked under each

@@ -67,7 +67,7 @@ CRITICAL RULES — read before anything else
 4. TEAM ABBREVIATIONS ONLY — use the abbreviation mapping below. Never output full names, nicknames, mascots, or cities.
 5. The team column is a STRICT dropdown. Wrong spelling/casing/nickname will be rejected by the sheet.
 6. BLANK LINE if the seed is unknown. Never guess, never use "N/A", "TBD", dash, or zero.
-7. No header row, no seed numbers, no commentary or explanation INSIDE the data, no blank leading line before row 1. The paste-target label above the fence is required (see Method A/B rules above).
+7. No header row, no seed numbers, no commentary or explanation INSIDE the data, no blank leading line before row 1. The paste-target label above the fence is required (see TSV delivery rules above).
 8. No commas, no extra whitespace, no surrounding quotes.
 9. ONE TSV block, preceded by the required paste-target label line above the fence (e.g. "Paste this TSV into cell B2 of the \"CFP Seeds\" tab").
 
@@ -118,7 +118,7 @@ FINAL CHECK before you send the answer
 [ ] No seed numbers, no column A, no header row in the output
 [ ] Blank line for any seed I could not determine — I invented nothing
 [ ] Casing matches the mapping exactly (e.g. "BAMA" not "bama" or "Bama")
-[ ] No commas, no surrounding quotes, no trailing commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No commas, no surrounding quotes, no trailing commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

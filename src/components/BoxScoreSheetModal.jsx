@@ -832,7 +832,7 @@ CRITICAL RULES — read before anything else
 6. Use ONLY the literal dropdown values listed below for columns A, E, F, G. Strict dropdowns — wrong value is rejected.
 7. BLANK CELLS only for genuinely missing/illegible data. NEVER use "N/A". This sheet uses empty string, NOT "N/A", for plays without a PAT.
 8. EVERY scoring play in the screenshot must produce one row, and that row's column B (Scorer) MUST be filled with the name from the screenshot — for BOTH teams equally. Output is rejected if it skips opponent scorers.
-9. No header row, no commentary or explanation INSIDE the data. ONE TSV block — preceded by the paste-target label line as required by the Method A/B rules above.
+9. No header row, no commentary or explanation INSIDE the data. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
 
 ═══════════════════════════════════════════════════════════
 TAB: "Scoring Summary" — up to 30 rows × 9 columns
@@ -927,7 +927,7 @@ At the top of every CFB26 Team Stats screenshot, the away team's logo+abbr appea
 CRITICAL RULES — non-negotiable
 ═══════════════════════════════════════════════════════════
 1. EXACTLY 30 rows of output. Count them before you send.
-2. EACH row = "<away>\\t<home>" — exactly ONE tab character per line. No header row, no labels, no commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).
+2. EACH row = "<away>\\t<home>" — exactly ONE tab character per line. No header row, no labels, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
 3. Row order is FIXED — see the 30-row table below. Row 1 = First Downs, row 2 = Total Offense, …, row 30 = Poss Seconds. Never reorder, skip, or add.
 4. Use INTEGERS everywhere EXCEPT row 26 (Punt Avg), which is a one-decimal number like 42.7.
 5. NO COMMAS in numbers ("1234", never "1,234"). NO percent signs. NO units.
@@ -1078,7 +1078,7 @@ REQUIRED OUTPUT FORMAT
 === TEAM STATS — paste at cell B2 of "Team Stats" tab ===
 <row1 away>\\t<row1 home>
 <row2 away>\\t<row2 home>
-... (30 total rows, in the exact order above, no header inside the data, no commentary inside the data — the paste-target label above the fence is required, see Method A/B rules above)
+... (30 total rows, in the exact order above, no header inside the data, no commentary inside the data — the paste-target label above the fence is required, see TSV delivery rules above)
 
 ═══════════════════════════════════════════════════════════
 SELF-CHECK BEFORE YOU SEND — run every line
@@ -1689,6 +1689,9 @@ FINAL CHECK before you send
                 have. Player/Team stats sheets get a single CTA. */}
             <SheetModalAIHero
               tagline="Skip the typing. Let AI fill the box score."
+              note={sheetType === 'playerStats'
+                ? "Tip: turn off your AI model's thinking/reasoning mode for this. It's faster and just as accurate for filling the sheet."
+                : null}
               buttons={sheetType === 'scoring'
                 ? [
                     { label: 'All Plays AI Prompt', prompt: aiPrompt?.allPlays },

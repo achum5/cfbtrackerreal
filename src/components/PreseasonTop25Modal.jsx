@@ -116,10 +116,10 @@ CRITICAL RULES — read before anything else
 2. Row order is FIXED: rank 1 first, rank 25 last. EXACTLY 25 lines of output.
 3. Each line has EXACTLY 1 field: <Team abbreviation>
 4. Team values must be UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames.
-5. NO COMMAS. No commentary INSIDE the data. No rank numbers. No header row. No tabs. The paste-target label above the fence is required (see Method A/B rules above).
+5. NO COMMAS. No commentary INSIDE the data. No rank numbers. No header row. No tabs. The paste-target label above the fence is required (see TSV delivery rules above).
 6. Each team abbreviation must appear AT MOST ONCE across all 25 ranks — no duplicates in the poll.
 7. BLANK line for unknown ranks (just an empty line). Never guess.
-8. ONE block, preceded by the required paste-target label line above the fence (see Method A/B rules above).
+8. ONE block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB "${yearNum} Preseason Top 25" — 25 rows × 1 output column

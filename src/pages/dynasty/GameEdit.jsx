@@ -258,6 +258,7 @@ export default function GameEdit() {
   // Tracks whether a save is in-flight — disables the Save button to
   // prevent double-submits and gives visual feedback on slow networks.
   const [isSaving, setIsSaving] = useState(false)
+  const [picksRegenerating, setPicksRegenerating] = useState(false)
 
   // Box score sheet modal state
   const [showBoxScoreModal, setShowBoxScoreModal] = useState(false)
@@ -1646,6 +1647,25 @@ export default function GameEdit() {
     }
   }
 
+  // Regenerate the Gameday Picks for this game. Picks are derived
+  // deterministically from a seed folded into the gameKey, so bumping the
+  // stored seed re-rolls every analyst's pick wherever the panel renders
+  // (dashboard, game page, team page). Only meaningful for an upcoming game.
+  const handleRegenPicks = async () => {
+    if (!existingGame?.id || isViewOnly) return
+    setPicksRegenerating(true)
+    try {
+      const nextSeed = (Number(existingGame.gamedayPicksSeed) || 0) + 1
+      await updateGame(currentDynasty.id, { ...existingGame, gamedayPicksSeed: nextSeed })
+      toast?.success?.('Gameday picks regenerated.')
+    } catch (err) {
+      console.error('[GameEdit] regen gameday picks failed:', err)
+      toast?.error?.('Could not regenerate picks: ' + (err?.message || 'unknown error'))
+    } finally {
+      setPicksRegenerating(false)
+    }
+  }
+
   // Handle cancel
   const handleCancel = () => {
     if (location.state?.from) {
@@ -2934,6 +2954,21 @@ export default function GameEdit() {
           </Button>
         </div>
       </div>
+
+      {/* Regen Gameday Picks — only for an upcoming (unplayed) game, which is
+          when the analyst pick'em panel is shown. Re-rolls every analyst's pick. */}
+      {existingGame?.id && team1Tid && team2Tid && !isViewOnly &&
+        !(existingGame?.isPlayed || parseInt(formData.team1Score) > 0 || parseInt(formData.team2Score) > 0) && (
+        <div className="flex justify-center pb-4">
+          <button
+            onClick={handleRegenPicks}
+            disabled={picksRegenerating}
+            className="text-xs font-semibold px-3 py-1.5 rounded-md border border-surface-4 text-txt-secondary hover:bg-surface-3 hover:text-txt-primary transition-colors disabled:opacity-60"
+          >
+            {picksRegenerating ? 'Regenerating…' : 'Regen Gameday Picks'}
+          </button>
+        </div>
+      )}
 
       {/* Game ID — shown at very bottom for reference (e.g. Danger Zone tools) */}
       {(currentGameId || existingGame?.id) && (

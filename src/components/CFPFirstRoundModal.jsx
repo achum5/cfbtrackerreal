@@ -61,8 +61,8 @@ CRITICAL RULES — read before anything else
 7. BLANK CELL if unknown. Never guess, never use "N/A", "TBD", dash, or zero (0 is a real score).
    - If an entire game hasn't been played yet: leave all 4 cells blank (empty tab-separated fields).
    - If only the teams are known but not scores: fill Higher Seed + Lower Seed, leave score cells blank.
-8. No header row, no column labels, no pre-filled Game text, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).
-9. ONE TSV block — preceded by the paste-target label line as required by the Method A/B rules above.
+8. No header row, no column labels, no pre-filled Game text, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
+9. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
 
 ═══════════════════════════════════════════════════════════
 TAB: "CFP First Round" — 4 rows × 4 editable columns

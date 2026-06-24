@@ -70,7 +70,7 @@ CRITICAL RULES — read before anything else
 6. Each team must be placed in the column matching its real conference.
 7. NO COMMAS. No commentary. No header rows. No "N/A", no dashes.
 8. Row order within a column: list the teams ALPHABETICALLY BY ABBREVIATION (e.g. for SEC: ARK before AUB before BAMA before FLA before LSU). One team per row, top-to-bottom. The "either is acceptable" wording from older versions is gone — pick alphabetical and stick to it; the validator doesn't care, but a consistent rule prevents the AI from fence-sitting.
-9. ONE TSV block total, preceded by the required paste-target label line above the fence (see Method A/B rules above).
+9. ONE TSV block total, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB "${currentDynasty?.currentYear || new Date().getFullYear()}" — 20 rows × (number of conferences) columns
@@ -121,7 +121,7 @@ FINAL CHECK before you send
 [ ] Every team is placed in its correct conference column
 [ ] All team values are UPPERCASE abbreviations from the mapping — no full names, no nicknames
 [ ] Empty cells (two consecutive tabs) for conferences with fewer teams than the row index
-[ ] No header row, no commas, no commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No header row, no commas, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentDynasty?.currentYear, currentDynasty?.teams])

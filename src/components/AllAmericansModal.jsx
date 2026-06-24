@@ -65,7 +65,7 @@ CRITICAL RULES — read before anything else
 6. BLANK field for unknown (empty between tabs). Never guess. Never invent players.
 7. Use ONLY the literal dropdown values listed below for Position, Team, and Class — wrong spelling = dropdown rejects it.
 8. Team values must be UPPERCASE abbreviations from the mapping at the bottom of this prompt — NEVER full names, city, or nickname.
-9. ONE TSV block, 25 lines, 12 tab-separated fields each — preceded by the required paste-target label line above the fence (see Method A/B rules above).
+9. ONE TSV block, 25 lines, 12 tab-separated fields each — preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB "${currentYear}" — 25 data rows × 12 fields
@@ -132,7 +132,7 @@ FINAL CHECK before you send
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Freshman-team Class values are Fr or RS Fr (no Sophomores or above in Freshman slot)
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

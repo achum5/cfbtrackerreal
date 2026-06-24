@@ -149,7 +149,7 @@ FINAL CHECK before you send
 [ ] Every team is a valid member of its block's conference
 [ ] Teams within a block are in rank order (rank 1 first)
 [ ] Did not invent teams to fill to 20 — shorter blocks allowed
-[ ] No Conference column, no Rank column, no header row, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see Method A/B rules above).`,
+[ ] No Conference column, no Rank column, no header row, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

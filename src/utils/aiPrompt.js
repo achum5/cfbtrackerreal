@@ -232,45 +232,23 @@ export function buildAIPrompt({
   opponentRosterLabel = 'OPPONENT ROSTER',
   multiBlock = false,
 }) {
-  const safeTitle = title.replace(/[^a-zA-Z0-9]+/g, '_')
   const sections = [
     `Your single deliverable is a TSV (tab-separated values) data file for "${title}". Not CSV, not a markdown table, not JSON, not a chat-formatted explanation — TSV. Read this whole instruction block before you start.`,
     ``,
     `═══════════════════════════════════════════════════════════`,
     `OUTPUT DELIVERY FORMAT — READ THIS FIRST, OBEY EXACTLY`,
     `═══════════════════════════════════════════════════════════`,
-    multiBlock
-      ? `Generate ONE downloadable .tsv file PER TAB and attach all of them to your reply. ".tsv" — tab-separated values. This is the format that pastes cleanly into Google Sheets without any post-processing on the user's end.`
-      : `Generate a downloadable .tsv file (tab-separated values) and attach it to your reply. This is the format that pastes cleanly into Google Sheets without any post-processing on the user's end.`,
+    `Do NOT generate a downloadable file attachment. Do NOT use code execution, artifacts, or a file builder to create a file. Your ONLY delivery method is an inline fenced TSV code block in your chat response${multiBlock ? ' (one per tab)' : ''}, so the user can copy and paste it directly from the chat window. ".tsv" = tab-separated values, the format that pastes cleanly into Google Sheets without any post-processing on the user's end.`,
     ``,
-    `WHY TSV (NOT CSV, NOT MARKDOWN): the user is going to paste your output directly into Google Sheets. Tabs split fields into cells in one keystroke. CSV requires escape rules for commas inside numbers; markdown tables don't paste at all. The user has confirmed empirically that TSV files work every time. Anything else creates work for the user. Default to TSV unless you literally cannot.`,
+    `WHY TSV (NOT CSV, NOT MARKDOWN): the user is going to paste your output directly into Google Sheets. Tabs split fields into cells in one keystroke. CSV requires escape rules for commas inside numbers; markdown tables don't paste at all. The user has confirmed empirically that pasting TSV works every time. Anything else creates work for the user. Default to TSV unless you literally cannot.`,
     ``,
     multiBlock
       ? `This sheet has MULTIPLE tabs. The structure below describes one block per tab; each block must land in a DIFFERENT tab at a DIFFERENT cell. Block labels (e.g. "=== PASSING — paste at cell C2 of Passing tab ===") are paste-target markers the user reads by eye — they live OUTSIDE the data and are NOT copied into the sheet.`
       : `This sheet has a SINGLE tab. Your entire output is one block of tab-separated data rows that the user pastes at the cell specified in the structure below.`,
     ``,
-    `Deliver via ONE of the two methods below. Method A is strongly preferred — only fall back to Method B if your tool genuinely has no file-attachment capability:`,
-    ``,
     multiBlock
-      ? `METHOD A (PREFERRED — use this whenever you can attach files):`
-      : `METHOD A (PREFERRED — use this whenever you can attach files):`,
-    multiBlock
-      ? `  • Generate one .tsv file per tab. Name them e.g. "${safeTitle}_Passing.tsv", "${safeTitle}_Rushing.tsv", etc.`
-      : `  • Generate a .tsv file named "${safeTitle}.tsv".`,
-    multiBlock
-      ? `  • Each file's contents = ONLY the tab-separated data rows for that one tab. No header row, no commentary, no labels INSIDE the file.`
-      : `  • The file's contents = ONLY tab-separated data rows. No header row, no commentary, no labels inside the file.`,
-    multiBlock
-      ? `  • Your chat message must include, for each attached file, a one-line paste-target label so the user knows where the file goes. Format exactly: "<filename>.tsv → paste at cell <CELL> of the \"<Tab>\" tab". List one per line, one line per file, and NOTHING ELSE — no greeting, no "Here are the files:", no summary, no follow-up.`
-      : `  • Your chat message must include exactly ONE line: "Paste this TSV into cell <CELL> of the \"<Tab>\" tab" — read the structure below for the exact cell + tab. Then the file attachment. NOTHING ELSE — no greeting, no "Here is the file:", no summary, no follow-up.`,
-    `  • If your interface lets you generate files via code execution / artifacts / file builder, USE THAT. Don't stop at writing the data inline; finish by attaching it as a .tsv file.`,
-    ``,
-    multiBlock
-      ? `METHOD B (fallback ONLY when your tool literally cannot attach files): Output ONE labeled \`\`\`tsv fence PER TAB. The label line goes ABOVE its fence and tells the user where to paste; the fence contains ONLY data rows for that tab.`
-      : `METHOD B (fallback ONLY when your tool literally cannot attach files): Output a single fenced TSV code block, preceded by ONE line that tells the user where to paste it.`,
-    multiBlock
-      ? `  • Layout — exactly this shape, one repetition per tab:`
-      : `  • Layout — exactly this shape:`,
+      ? `Output ONE labeled \`\`\`tsv fence PER TAB. The label line goes ABOVE its fence and tells the user where to paste; the fence contains ONLY data rows for that tab. Layout — exactly this shape, one repetition per tab:`
+      : `Output a single fenced TSV code block, preceded by ONE line that tells the user where to paste it. Layout — exactly this shape:`,
     multiBlock
       ? `      Paste this TSV into cell <CELL> of the "<Tab>" tab`
       : `      Paste this TSV into cell <CELL> of the "<Tab>" tab    ← read the structure below for the exact cell + tab`,
@@ -294,10 +272,10 @@ export function buildAIPrompt({
       ? `  • If you must flag an ambiguity, do it ONCE at the very top before the first paste-target line, on a single line prefixed with "PRE-NOTE:".`
       : `  • If you must flag an ambiguity, do it ONCE on a single line prefixed with "PRE-NOTE:" placed BEFORE the paste-target line — never after the fence.`,
     ``,
-    `Hard rules that apply to BOTH methods:`,
+    `Hard rules:`,
     `  1. 100% accuracy or blank. If you are not certain about a cell, leave it blank. Never guess, never invent a plausible value.`,
     `  2. Preserve the exact column order, row order, and row count described below.`,
-    `  3. No column header row, no totals row, no "N/A", no em dashes, no trailing "source: screenshot" annotations. The ONLY allowed non-data lines are the "Paste this TSV into cell …" paste-target label(s) that sit OUTSIDE the fence(s) immediately above the opening backticks, as described in Method A/B above.`,
+    `  3. No column header row, no totals row, no "N/A", no em dashes, no trailing "source: screenshot" annotations. The ONLY allowed non-data lines are the "Paste this TSV into cell …" paste-target label(s) that sit OUTSIDE the fence(s) immediately above the opening backticks, as described above.`,
     `  4. Numbers with no thousands separators: "1234" not "1,234".`,
     `  5. Decimals use a period and match the decimal precision specified per-column (e.g. "5.8" not "5.80" not "5,8").`,
     `  6. Tab character (U+0009) between fields when producing TSV — not multiple spaces, not a pipe, not a semicolon. ASCII only inside data: no smart quotes (" "), no en/em dashes (– —), no non-breaking spaces (U+00A0), no zero-width characters (U+200B/U+FEFF).`,

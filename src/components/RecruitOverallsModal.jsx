@@ -86,7 +86,7 @@ CRITICAL RULES — read before anything else
 5. INTEGERS only. No decimals, no quotes, no units.
 6. BLANK for unknown values — never guess, never use 0, "-", or "N/A". For a line where Overall is known but Jersey # is not, output: 85\\t (tab then nothing).
 7. Overall range: 40–99. Jersey # range: 0–99.
-8. No header row, no commentary INSIDE the data. ONE TSV block, preceded by the required paste-target label line above the fence (see Method A/B rules above).
+8. No header row, no commentary INSIDE the data. ONE TSV block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB: "Recruit Overalls"

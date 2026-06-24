@@ -191,7 +191,7 @@ CRITICAL OUTPUT RULES
 9. NO COMMAS in numbers: "1234" not "1,234".
 10. No header row, no totals, no commentary INSIDE the data. ONE TSV
     block, preceded by the required paste-target label line above the
-    fence (see Method A/B rules above).
+    fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB: "GP/Snaps"
@@ -226,7 +226,7 @@ FINAL CHECK before you send
 [ ] Games Played is the literal value from the GP column (any view)
 [ ] No snap counts SUMMED across categories — would double-count
 [ ] No commas in any number; no decimals; no "snaps"/"games" suffix
-[ ] No header row, no totals, no commentary INSIDE the data (the paste-target label above the fence is required, see Method A/B rules above)`,
+[ ] No header row, no totals, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)`,
     includeTeamMap: false,
   }), [currentYear, userRoster])
 

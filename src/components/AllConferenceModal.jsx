@@ -175,7 +175,7 @@ FINAL CHECK before you send
 [ ] All Freshman-team Class values are Fr or RS Fr
 [ ] All Team values are uppercase abbreviations from the mapping — and each team is a member of THIS tab's conference
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see Method A/B rules above).`,
+[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

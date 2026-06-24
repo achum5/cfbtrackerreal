@@ -193,8 +193,8 @@ CRITICAL RULES — read before anything else
 8. BLANK CELLS if unknown. Never guess, never use "N/A", "TBD", dash. Zero is only valid if the team truly scored zero.
    - Bowl not yet played: leave all 6 cells blank (6 empty tab-separated fields).
    - Teams known, scores not: fill B–E only; leave F and G blank.
-9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).
-10. ONE TSV block — preceded by the paste-target label line as required by the Method A/B rules above.
+9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
+10. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
 
 ═══════════════════════════════════════════════════════════
 TAB: "Bowl Games" — ${29 - excludedBowlGames.length} rows × 6 editable columns
@@ -321,7 +321,7 @@ FINAL CHECK before you send the answer
 [ ] No team appears in BOTH a REGULAR bowl row and the bottom block — regular-bowl teams' AP ranks live on their game row only (e.g. #21 Kentucky on the Gasparilla Bowl row, NOT in the block)
 [ ] Bottom-block rows have blank Col A, team abbr in Col B, rank in Col C
 [ ] Regular-bowl game-row ranks + bottom-block ranks together cover 1–25 — no gaps, no duplicates, no collisions
-[ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw1RowTable])

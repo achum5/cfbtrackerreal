@@ -101,12 +101,12 @@ CRITICAL RULES — read before anything else
 4. Column 2 (Position) MUST match the roster's position string exactly (QB, HB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P).
 5. Column 3 (Past OVR) = New OVR − OVR delta. The OVR column in the screenshot shows the post-training overall alongside a green gain. Example: OVR reads "83 (+2)" → New OVR = 83, Past OVR = 83 − 2 = 81. When no delta is shown (player's overall did not change), delta = 0, so Past OVR = New OVR. Leave BLANK only when the player does not appear in any screenshot at all.
 6. Column 4 (New OVR) = the OVR number shown in the training results screenshot for this player. Integer 40–99. Leave BLANK only if the player does not appear on any screenshot.
-7. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 3 tab characters. The paste-target label above the fence is required (see Method A/B rules above).
+7. NO header row INSIDE the data. NO commentary INSIDE the data. NO blank lines between rows. Each row has exactly 3 tab characters. The paste-target label above the fence is required (see TSV delivery rules above).
 8. INTEGERS only in columns C and D. No decimals, no commas, no quotes, no units, no "+/-" signs, no color coding.
 9. NEVER GUESS. If a player does not appear in any of the screenshots provided, leave both Column 3 and Column 4 blank for that player.
 
 ═══════════════════════════════════════════════════════════
-REQUIRED OUTPUT FORMAT — fenced TSV block, preceded by the required paste-target label line above the fence (see Method A/B rules above); no other prose
+REQUIRED OUTPUT FORMAT — fenced TSV block, preceded by the required paste-target label line above the fence (see TSV delivery rules above); no other prose
 ═══════════════════════════════════════════════════════════
 \`\`\`tsv
 Alex Guess	QB	87	90
@@ -129,7 +129,7 @@ FINAL CHECK before you send
 [ ] Column 2 positions use canonical abbreviations
 [ ] Column 3 (Past OVR): integer 40–99, computed as New OVR − OVR delta (use 0 when no delta shown → Past OVR = New OVR); blank only when player absent from all screenshots
 [ ] Column 4 (New OVR): integer 40–99 for every player visible in any screenshot; blank only for players absent from all screenshots
-[ ] No header row, no prose INSIDE the data, no commas, no +/- signs (the paste-target label above the fence is required, see Method A/B rules above)
+[ ] No header row, no prose INSIDE the data, no commas, no +/- signs (the paste-target label above the fence is required, see TSV delivery rules above)
 [ ] Output wrapped in a single \`\`\`tsv ... \`\`\` fence`,
     includeTeamMap: false,
   }), [currentYear, userRoster])

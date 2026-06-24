@@ -90,7 +90,7 @@ CRITICAL RULES
    Concretely: field1 = CoachName, field2 = TeamAbbr, field3 = EMPTY, field4 = EMPTY.
    NEVER put the team in field 3 or 4 on a coach row — the team must land in column C (the merge anchor); fields 3 and 4 are merged-away cells D and E and MUST be empty.
    NEVER output the coach-row pattern for any other row. All 20 non-coach rows MUST output 4 fields: Player<TAB>Position<TAB>Team<TAB>Class.
-8. ONE TSV block total — exactly 22 lines, preceded by the required paste-target label line above the fence (see Method A/B rules above).
+8. ONE TSV block total — exactly 22 lines, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 TAB "${currentYear}" — 22 rows × 4 output columns
@@ -178,7 +178,7 @@ FINAL CHECK before you send
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Team values are uppercase abbreviations from the mapping — no full names
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No award name, header row, commas, commentary, or explanation INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No award name, header row, commas, commentary, or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

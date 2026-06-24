@@ -10,6 +10,7 @@ import { useState } from 'react'
  * Props:
  *   tagline    — bold single-line value prop.
  *   description — secondary explanatory copy.
+ *   note       — optional small tertiary tip line below the description.
  *   buttons    — array of button descriptors. Each entry supports:
  *                  { label, prompt }   — click copies `prompt` to the
  *                  clipboard and briefly flips the label to "Copied!"
@@ -20,6 +21,7 @@ import { useState } from 'react'
 export default function SheetModalAIHero({
   tagline = 'Skip the typing. Let AI fill the sheet.',
   description = `Copy the prompt → paste it into your AI assistant along with screenshots from CFB 26 → the AI fills the sheet for you. Paste its TSV reply at the cell it tells you, then save.`,
+  note = null,
   buttons = [],
 }) {
   const [copiedIdx, setCopiedIdx] = useState(null)
@@ -69,6 +71,11 @@ export default function SheetModalAIHero({
       <p className="text-sm text-txt-secondary mt-2 leading-relaxed">
         {description}
       </p>
+      {note && (
+        <p className="text-xs text-txt-tertiary mt-2 leading-relaxed">
+          {note}
+        </p>
+      )}
       <div className="flex flex-wrap gap-2 mt-4">
         {buttons.map((btn, idx) => {
           const isPrimary = idx === 0

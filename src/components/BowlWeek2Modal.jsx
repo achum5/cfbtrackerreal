@@ -285,8 +285,8 @@ CRITICAL RULES — read before anything else
 6. TEAM ABBREVIATIONS ONLY (columns B and D) — use the abbreviation mapping below. Columns B and D are strict dropdowns.
 7. RANKS (columns C and E): integer 1–25 if the team is ranked at the time of the bowl, BLANK if unranked. Rankings appear as a number prefix on the team name in the scores list (e.g. "4 Alabama" = Alabama is #4). No prefix = unranked = leave blank. Never write "NR" or "—".
 8. BLANK CELLS if unknown. Never guess, never use "N/A", "TBD", dash. Zero is only valid if the team truly scored zero.
-9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).
-10. ONE TSV block — preceded by the paste-target label line as required by the Method A/B rules above.
+9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
+10. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
 
 ═══════════════════════════════════════════════════════════
 TAB: "Bowl Games" — ${13 - excludedBowlGames.length} rows × 6 editable columns
@@ -411,7 +411,7 @@ FINAL CHECK before you send the answer
 [ ] No team appears in BOTH a REGULAR bowl row and the bottom block — regular-bowl teams' AP ranks live on their game row only
 [ ] Bottom-block rows have blank Col A, team abbr in Col B, rank in Col C
 [ ] Regular-bowl game-row ranks + bottom-block ranks together cover 1–25 — no gaps, no duplicates, no collisions
-[ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see Method A/B rules above).`,
+[ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable])
