@@ -232,11 +232,13 @@ export default function ImageGallery() {
             onClick={recompress.running ? () => { cancelRef.current = true } : recompressAll}
             disabled={status !== 'ready' || images.length === 0}
             className="px-4 py-2 rounded-lg text-sm font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary hover:bg-surface-2 disabled:opacity-50"
-            title="Re-encode stored images in place"
+            title="Re-encode stored images in place using current settings"
           >
             {recompress.running
               ? `Stop (${recompress.done}/${recompress.total})`
-              : 'Recompress all'}
+              : settings.minSizeKB > 0
+                ? `Recompress ${compressibleImages.length} images`
+                : 'Recompress all'}
           </button>
           <button
             onClick={load}
@@ -345,7 +347,7 @@ export default function ImageGallery() {
               const st = imgStatus[img.key]
               const isBelowThreshold = settings.minSizeKB > 0 && img.size < settings.minSizeKB * 1024
               return (
-                <div key={img.key} className="group relative rounded-md overflow-hidden border border-surface-4 bg-surface-2 hover:border-surface-5">
+                <div key={img.key} className="rounded-md overflow-hidden border border-surface-4 bg-surface-2 hover:border-surface-5">
                   <a
                     href={img.url}
                     target="_blank"
@@ -357,43 +359,36 @@ export default function ImageGallery() {
                         src={img.url}
                         alt=""
                         loading="lazy"
-                        className="w-full h-full object-cover group-hover:opacity-80"
+                        className="w-full h-full object-cover"
                       />
                     </div>
                   </a>
 
-                  {/* Bottom bar: timestamp + size + compress button */}
-                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-txt-tertiary">
-                    <span>{formatWhen(img.lastModified)}</span>
-                    <span className={isBelowThreshold ? 'text-txt-tertiary opacity-50' : ''}>{formatBytes(img.size)}</span>
+                  {/* Bottom bar: timestamp · size · compress action */}
+                  <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-txt-tertiary gap-1">
+                    <span className="truncate">{formatWhen(img.lastModified)}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={isBelowThreshold ? 'opacity-40' : ''}>{formatBytes(img.size)}</span>
+                      {st === 'running' ? (
+                        <span className="text-txt-tertiary">…</span>
+                      ) : st?.startsWith('done:') ? (
+                        <span className="text-green-500">-{formatBytes(Number(st.slice(5)))}</span>
+                      ) : st === 'skipped' ? (
+                        <span className="text-txt-tertiary">ok</span>
+                      ) : st === 'failed' ? (
+                        <span className="text-red-400">err</span>
+                      ) : (
+                        <button
+                          onClick={() => compressSingle(img)}
+                          disabled={recompress.running}
+                          className="text-txt-tertiary hover:text-txt-primary underline underline-offset-2 disabled:opacity-30"
+                          title={isBelowThreshold ? 'Below size threshold — compress anyway' : 'Compress this image'}
+                        >
+                          compress
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Per-image compress button (hover overlay) */}
-                  {st === 'running' ? (
-                    <div className="absolute inset-x-0 bottom-0 top-auto bg-surface-3 bg-opacity-90 text-[10px] text-txt-secondary text-center py-1">
-                      compressing…
-                    </div>
-                  ) : st?.startsWith('done:') ? (
-                    <div className="absolute inset-x-0 bottom-0 top-auto bg-green-900 bg-opacity-80 text-[10px] text-green-300 text-center py-1">
-                      saved {formatBytes(Number(st.slice(5)))}
-                    </div>
-                  ) : st === 'skipped' ? (
-                    <div className="absolute inset-x-0 bottom-0 top-auto bg-surface-3 bg-opacity-90 text-[10px] text-txt-tertiary text-center py-1">
-                      already small
-                    </div>
-                  ) : st === 'failed' ? (
-                    <div className="absolute inset-x-0 bottom-0 top-auto bg-red-900 bg-opacity-80 text-[10px] text-red-300 text-center py-1">
-                      failed
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => compressSingle(img)}
-                      disabled={recompress.running}
-                      className="absolute inset-x-0 bottom-0 top-auto opacity-0 group-hover:opacity-100 bg-surface-3 bg-opacity-90 text-[10px] text-txt-secondary hover:text-txt-primary text-center py-1 transition-opacity disabled:hidden"
-                    >
-                      {isBelowThreshold ? 'compress anyway' : 'compress'}
-                    </button>
-                  )}
                 </div>
               )
             })}
