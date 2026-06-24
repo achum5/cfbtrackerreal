@@ -37,6 +37,7 @@ import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { getCoachStints } from '../../data/coachStats'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import TeamOutlook from '../../components/TeamOutlook'
+import RivalriesTab from '../../components/RivalriesTab'
 
 // Map abbreviation to mascot name for logo lookup
 // Accepts optional teamsData for tid-based teambuilder support
@@ -3171,6 +3172,7 @@ export default function TeamYear() {
               { key: 'recruiting', label: 'Recruiting' },
               ...(departures.length > 0 ? [{ key: 'departures', label: 'Departures' }] : []),
               { key: 'history', label: 'History' },
+              { key: 'rivalries', label: 'Rivalries' },
             ].map(tab => {
               const isActive = activeTab === tab.key
               return (
@@ -6335,6 +6337,10 @@ export default function TeamYear() {
       })()}
 
       {/* History Tab */}
+      {activeTab === 'rivalries' && (
+        <RivalriesTab dynasty={currentDynasty} tid={tid} />
+      )}
+
       {activeTab === 'history' && (() => {
         // Calculate records for each year
         const yearRecords = availableYears.map(year => {
