@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
-import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName } from '../../data/teamRegistry'
+import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamColors } from '../../data/teamColors'
 import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getTeamRatingsForYear, getCustomConferencesForYear, getTeamRankForWeek, isPlayerOnRoster } from '../../context/DynastyContext'
 import { saveGamesToSubcollection } from '../../services/dynastyService'
@@ -778,6 +778,30 @@ export default function Game() {
     return getCardsForGame(currentDynasty, game?.id)
   }, [currentDynasty, game?.id])
 
+  // Every completed head-to-head meeting between this game's two teams,
+  // most recent first. Drives the Series tab. Declared up here (before the
+  // early returns) so hook order stays stable across renders.
+  const seriesGames = useMemo(() => {
+    const t1 = Number(game?.team1Tid)
+    const t2 = Number(game?.team2Tid)
+    if (!t1 || !t2 || !Array.isArray(currentDynasty?.games)) return []
+    return currentDynasty.games
+      .filter(g => {
+        const a = Number(g.team1Tid)
+        const b = Number(g.team2Tid)
+        const isMatchup = (a === t1 && b === t2) || (a === t2 && b === t1)
+        // Only actually-played meetings count. A scheduled/upcoming game
+        // (including the one being viewed) sits at 0-0 and must NOT register
+        // as a tie in the series record or appear as "history".
+        const played = g.isPlayed || Number(g.team1Score) > 0 || Number(g.team2Score) > 0
+        return isMatchup && g.team1Score != null && g.team2Score != null && played
+      })
+      .sort((x, y) =>
+        Number(y.year) - Number(x.year) ||
+        (Number(y.week) || 0) - (Number(x.week) || 0)
+      )
+  }, [currentDynasty?.games, game?.team1Tid, game?.team2Tid])
+
   // Memoized name → pid map for player-link lookups. MUST be declared
   // before the early returns below so hook order stays stable across
   // renders (React would otherwise throw error #310 — "Rendered more
@@ -974,6 +998,10 @@ export default function Game() {
   // for the game. (gameSocialPosts is computed above, before the early-return
   // guards, to keep hook order stable.)
   const hasSocialData = gameSocialPosts.length > 0
+
+  // Series tab appears only when there is at least one OTHER completed
+  // meeting between these teams — a lone current game isn't a "series".
+  const hasSeriesData = seriesGames.some(g => String(g.id) !== String(game.id))
 
   // Resolve the active tab now that we know which tabs are visible.
   // URL param wins if present (shared-link compatibility); otherwise
@@ -1585,6 +1613,153 @@ export default function Game() {
     ? `${pathPrefix}/conference-standings/${game.year}?conf=${encodeURIComponent(userConf)}`
     : null
 
+  // Full head-to-head history between this game's two teams. Rendered both in
+  // the Series tab (played games) and under Gameday Picks (upcoming games).
+  const renderSeriesHistory = () => {
+    const t1 = Number(game.team1Tid)
+    const t2 = Number(game.team2Tid)
+    const name1 = getMascotName(game.team1Tid, teams) || 'Team 1'
+    const name2 = getMascotName(game.team2Tid, teams) || 'Team 2'
+    const abbrFor = (tid) => teams?.[tid]?.abbr || teams?.[String(tid)]?.abbr || ''
+    const abbr1 = abbrFor(t1)
+    const abbr2 = abbrFor(t2)
+
+    // Per-team display bundle (name, abbr, logo, colors), keyed by tid so a
+    // row can render either side without recomputing.
+    const buildInfo = (tid) => {
+      const colors = getColorsFromTid(teams, tid)
+      return {
+        tid,
+        name: getMascotName(tid, teams) || `Team ${tid}`,
+        abbr: abbrFor(tid),
+        logo: getTeamLogoRobust(tid, teams),
+        bg: colors.primary,
+        text: getContrastTextColor(colors.primary),
+      }
+    }
+    const infoByTid = { [t1]: buildInfo(t1), [t2]: buildInfo(t2) }
+
+    // Away on the left, home on the right. Neutral-site games keep a stable
+    // team1-left / team2-right order.
+    const sidesFor = (g) => {
+      const a = Number(g.team1Tid)
+      const b = Number(g.team2Tid)
+      const home = g.homeTeamTid != null ? Number(g.homeTeamTid) : null
+      if (home == null) return [a, b]
+      return home === a ? [b, a] : [a, b]
+    }
+    const scoreOf = (g, tid) => Number(Number(g.team1Tid) === tid ? g.team1Score : g.team2Score)
+
+    // Tally by team identity (t1 / t2), independent of left/right placement.
+    let w1 = 0, w2 = 0, ties = 0, pf1 = 0, pf2 = 0
+    seriesGames.forEach(g => {
+      const s1 = scoreOf(g, t1)
+      const s2 = scoreOf(g, t2)
+      pf1 += s1
+      pf2 += s2
+      if (s1 > s2) w1++
+      else if (s2 > s1) w2++
+      else ties++
+    })
+
+    const gameLabel = (g) => {
+      if (g.isCFPChampionship) return 'CFP Championship'
+      if (g.isCFPSemifinal) return g.bowlName || 'CFP Semifinal'
+      if (g.isCFPQuarterfinal) return g.bowlName || 'CFP Quarterfinal'
+      if (g.isCFPFirstRound) return 'CFP First Round'
+      if (g.isConferenceChampionship) return `${g.conference || ''} Championship`.trim()
+      if (g.bowlName) return g.bowlName
+      return g.week != null ? `Week ${g.week}` : 'Regular Season'
+    }
+
+    const tieSuffix = ties ? `-${ties}` : ''
+
+    // One-line series summary, anchored on whoever leads. Wins decide the
+    // leader; ties fall back to total points; a dead-even series gets neutral
+    // wording. The point differential is stated from the leader's side.
+    const winsLeadTid = w1 > w2 ? t1 : w2 > w1 ? t2 : (pf1 > pf2 ? t1 : pf2 > pf1 ? t2 : null)
+    const leadInfo = winsLeadTid != null ? infoByTid[winsLeadTid] : null
+    const hiWins = Math.max(w1, w2)
+    const loWins = Math.min(w1, w2)
+    const leaderSignedDiff = winsLeadTid == null ? 0 : (winsLeadTid === t1 ? pf1 - pf2 : pf2 - pf1)
+    const ptDiffStr = `${leaderSignedDiff > 0 ? '+' : ''}${leaderSignedDiff}`
+    const seriesTied = w1 === w2
+
+    // Team logo on a white circle so it reads against the colored cell.
+    const logoCircle = (team) => team.logo ? (
+      <span className="inline-flex items-center justify-center rounded-full bg-white shrink-0 w-7 h-7 sm:w-8 sm:h-8">
+        <img src={team.logo} alt={team.name} className="w-5 h-5 sm:w-6 sm:h-6 object-contain" />
+      </span>
+    ) : null
+
+    return (
+      <div className="max-w-3xl mx-auto">
+        {/* Matchup history — away left, home right, table layout */}
+        <div className="rounded-lg border border-surface-4 overflow-hidden">
+          <table className="w-full border-collapse">
+            <tbody>
+              {seriesGames.map(g => {
+                const isCurrent = String(g.id) === String(game.id)
+                const [leftTid, rightTid] = sidesFor(g)
+                const L = infoByTid[leftTid]
+                const R = infoByTid[rightTid]
+                const lScore = scoreOf(g, leftTid)
+                const rScore = scoreOf(g, rightTid)
+                const lWin = lScore > rScore
+                const rWin = rScore > lScore
+                return (
+                  <tr
+                    key={g.id}
+                    onClick={() => { if (!isCurrent) navigate(`${pathPrefix}/game/${g.id}`) }}
+                    className={`border-b border-surface-4 last:border-b-0 ${isCurrent ? 'cursor-default' : 'cursor-pointer hover:brightness-110'}`}
+                  >
+                    {/* Year / round */}
+                    <td className="px-2.5 sm:px-3 py-2 align-middle w-14 sm:w-20 bg-surface-1">
+                      <div className="text-xs font-semibold text-txt-secondary tabular-nums">{g.year}</div>
+                      <div className="text-[11px] text-txt-muted truncate">{gameLabel(g)}</div>
+                    </td>
+                    {/* Away (left) */}
+                    <td className="px-2 py-2 align-middle" style={{ backgroundColor: L.bg, color: L.text, opacity: lWin ? 1 : 0.5 }}>
+                      <div className="flex items-center gap-2">
+                        {logoCircle(L)}
+                        <span className="text-xs sm:text-sm font-semibold truncate">{L.abbr || L.name}</span>
+                        <span className={`ml-auto tabular-nums text-base sm:text-lg ${lWin ? 'font-extrabold' : 'font-medium'}`}>{lScore}</span>
+                      </div>
+                    </td>
+                    {/* Home (right) */}
+                    <td className="px-2 py-2 align-middle" style={{ backgroundColor: R.bg, color: R.text, opacity: rWin ? 1 : 0.5 }}>
+                      <div className="flex items-center gap-2">
+                        <span className={`mr-auto tabular-nums text-base sm:text-lg ${rWin ? 'font-extrabold' : 'font-medium'}`}>{rScore}</span>
+                        <span className="text-xs sm:text-sm font-semibold truncate">{R.abbr || R.name}</span>
+                        {logoCircle(R)}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* One-line series summary, anchored on the leader. */}
+        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-txt-secondary text-center flex-wrap">
+          {leadInfo && logoCircle(leadInfo)}
+          <span>
+            {seriesTied ? (
+              leadInfo ? (
+                <><strong className="text-txt-primary">{leadInfo.name}</strong> holds a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential in an all-time series tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong>.</>
+              ) : (
+                <>The all-time series is tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with no point differential.</>
+              )
+            ) : (
+              <><strong className="text-txt-primary">{leadInfo.name}</strong> leads the all-time series <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential.</>
+            )}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4 overflow-x-hidden">
       {/* Hero Scoreboard — CFB-27 broadcast scorebug. The card carries the
@@ -2080,6 +2255,20 @@ export default function Game() {
         </div>
       )}
 
+      {/* Series History — for an upcoming (unplayed) matchup, surface the
+          all-time head-to-head right under Gameday Picks. There's no Series
+          tab until the game is played, so this is where it lives pre-game. */}
+      {!gameIsPlayed && hasSeriesData && (
+        <div className="mt-4 rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
+          <div className="px-4 py-3 border-b border-surface-4">
+            <h2 className="font-bold text-txt-primary m-0 text-sm">Series History</h2>
+          </div>
+          <div className="px-3 py-4 sm:px-5 sm:py-5">
+            {renderSeriesHistory()}
+          </div>
+        </div>
+      )}
+
       {/* The below-xl quarter-by-quarter band that used to live here was
           replaced by the compact per-quarter line score tucked under each
           team's score in the stacked scorebug above. The xl+ layout keeps
@@ -2105,9 +2294,10 @@ export default function Game() {
 
             return (
           <div className="flex items-stretch border-b border-surface-4">
-            {/* Tabs WRAP to a second row rather than scrolling/overflowing, so
-                the bar never runs off the right edge at any width or tab count. */}
-            <div className="flex flex-wrap flex-1 min-w-0">
+            {/* Tabs stay on ONE row at all times — they share the available
+                width (flex-1) and shrink their padding/text rather than wrapping
+                to a second row, no matter how many tabs are visible. */}
+            <div className="flex flex-nowrap flex-1 min-w-0">
               {[
                 { key: 'gamecast', label: 'Gamecast', shortLabel: 'Cast', show: hasGamecastContent },
                 { key: 'boxscore', label: 'Box Score', shortLabel: 'Box', show: hasBoxForLeaders },
@@ -2118,11 +2308,12 @@ export default function Game() {
                 { key: 'awards', label: 'Awards', shortLabel: 'Awards', show: !isCPUGame && hasAwardsData },
                 { key: 'cards', label: 'Cards', shortLabel: 'Cards', show: hasCardsData },
                 { key: 'photos', label: hasPhotosData ? 'Photos' : 'Graphic', shortLabel: hasPhotosData ? 'Photos' : 'Graphic', show: hasPhotosData || hasScoreGraphicData },
+                { key: 'series', label: 'Series', shortLabel: 'Series', show: hasSeriesData },
               ].filter(tab => tab.show).map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 sm:flex-none px-1 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${
+                  className={`flex-1 min-w-0 truncate px-1 sm:px-1.5 py-2.5 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${
                     activeTab === tab.key
                       ? 'text-txt-primary border-b-2 border-white bg-surface-2'
                       : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-2/50'
@@ -3164,6 +3355,13 @@ export default function Game() {
                 dynasty={currentDynasty}
                 year={game.year}
               />
+            </div>
+          )}
+
+          {/* Series Tab — full head-to-head history between the two teams. */}
+          {activeTab === 'series' && (
+            <div className="px-3 py-5 sm:px-6 sm:py-6">
+              {renderSeriesHistory()}
             </div>
           )}
 

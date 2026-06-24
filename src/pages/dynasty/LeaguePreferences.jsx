@@ -297,14 +297,12 @@ export default function LeaguePreferences() {
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="text-display-md text-txt-primary m-0">League Preferences</h1>
-        <p className="text-txt-secondary text-sm mt-1">Dynasty-wide customization.</p>
       </div>
 
       <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
         <div className="px-4 py-3 border-b border-surface-4 flex items-start justify-between gap-2 flex-wrap">
           <div>
             <h2 className="font-bold text-txt-primary m-0">Social Media Universe</h2>
-            <p className="text-xs text-txt-tertiary mt-0.5">{Object.keys(characters).length.toLocaleString()} accounts. Edit one, or select many to mass-edit.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {!isViewOnly && (
