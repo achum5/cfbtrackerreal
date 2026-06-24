@@ -107,6 +107,10 @@ export default function ImageGallery() {
   // Per-image compress state: key → 'running' | 'done:N' | 'skipped' | 'failed'
   const [imgStatus, setImgStatus] = useState({})
 
+  // ---- Multi-select (click / Ctrl+click / Shift+click) ----
+  const [selected, setSelected] = useState(() => new Set())
+  const anchorRef = useRef(null) // last single-clicked key, anchor for shift-range
+
   const recompressOneImg = useCallback(async (img, opts = {}) => {
     const quality = opts.quality ?? settings.quality
     const maxDim = opts.maxDim ?? settings.maxDim
@@ -209,6 +213,71 @@ export default function ImageGallery() {
       groups.push(g)
     }
     g.images.push(img)
+  }
+
+  // Flat key list in on-screen (top-to-bottom) order — used for shift-range.
+  const orderedKeys = groups.flatMap((g) => g.images.map((i) => i.key))
+  const imgByKey = new Map(images.map((i) => [i.key, i]))
+  const selectedImgs = [...selected].map((k) => imgByKey.get(k)).filter(Boolean)
+  const selectedBytes = selectedImgs.reduce((s, i) => s + (i.size || 0), 0)
+
+  const onTileClick = (img, e) => {
+    e.preventDefault()
+    const key = img.key
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (e.shiftKey && anchorRef.current) {
+        // Select everything between the anchor and this image (inclusive).
+        const a = orderedKeys.indexOf(anchorRef.current)
+        const b = orderedKeys.indexOf(key)
+        if (a !== -1 && b !== -1) {
+          const [lo, hi] = a < b ? [a, b] : [b, a]
+          for (let i = lo; i <= hi; i++) next.add(orderedKeys[i])
+        } else {
+          next.add(key)
+        }
+      } else if (e.ctrlKey || e.metaKey) {
+        next.has(key) ? next.delete(key) : next.add(key)
+        anchorRef.current = key
+      } else {
+        next.clear()
+        next.add(key)
+        anchorRef.current = key
+      }
+      return next
+    })
+  }
+
+  const compressSelected = async () => {
+    if (!selectedImgs.length || recompress.running) return
+    if (!window.confirm(`Recompress ${selectedImgs.length} selected images in place at quality=${settings.quality}, max ${settings.maxDim}px?`)) return
+    cancelRef.current = false
+    setRecompress({ running: true, done: 0, total: selectedImgs.length, savedBytes: 0, skipped: 0, failed: 0 })
+    let next = 0, done = 0, savedBytes = 0, skipped = 0, failed = 0
+    const CONCURRENCY = 2
+    const run = async () => {
+      while (true) {
+        if (cancelRef.current) return
+        const i = next++
+        if (i >= selectedImgs.length) return
+        const img = selectedImgs[i]
+        setImgStatus((s) => ({ ...s, [img.key]: 'running' }))
+        try {
+          const r = await recompressOneImg(img)
+          if (r.skipped) skipped++
+          savedBytes += r.saved || 0
+          setImgStatus((s) => ({ ...s, [img.key]: r.skipped ? 'skipped' : `done:${r.saved}` }))
+        } catch {
+          failed++
+          setImgStatus((s) => ({ ...s, [img.key]: 'failed' }))
+        }
+        done++
+        setRecompress({ running: true, done, total: selectedImgs.length, savedBytes, skipped, failed })
+      }
+    }
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => run()))
+    setRecompress((s) => ({ ...s, running: false }))
+    load()
   }
 
   return (
@@ -326,6 +395,34 @@ export default function ImageGallery() {
         {capped && <span className="text-amber-500">Showing the first 5,000 (more exist)</span>}
       </div>
 
+      {/* Selection toolbar */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-20 mb-3 rounded-lg border border-blue-500/60 bg-surface-2 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-sm text-txt-secondary">
+            <strong className="text-txt-primary">{selected.size}</strong> selected · {formatBytes(selectedBytes)}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={compressSelected}
+              disabled={recompress.running}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-surface-4 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 disabled:opacity-50"
+            >
+              {recompress.running ? 'Compressing…' : 'Compress selected'}
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-surface-4 text-txt-tertiary hover:text-txt-primary"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === 'ready' && images.length > 0 && selected.size === 0 && (
+        <p className="text-xs text-txt-tertiary mb-3">Tip: click an image to select it. Ctrl/Cmd-click to add more, or Shift-click another to select everything in between.</p>
+      )}
+
       {status === 'error' && (
         <div className="rounded-lg border border-surface-4 bg-surface-2 p-4 text-sm text-red-400">
           {error}
@@ -346,27 +443,33 @@ export default function ImageGallery() {
             {g.images.map((img) => {
               const st = imgStatus[img.key]
               const isBelowThreshold = settings.minSizeKB > 0 && img.size < settings.minSizeKB * 1024
+              const isSel = selected.has(img.key)
               return (
-                <div key={img.key} className="rounded-md overflow-hidden border border-surface-4 bg-surface-2 hover:border-surface-5">
-                  <a
-                    href={img.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
-                  >
-                    <div className="aspect-video bg-surface-3 overflow-hidden">
-                      <img
-                        src={img.url}
-                        alt=""
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </a>
+                <div
+                  key={img.key}
+                  onClick={(e) => onTileClick(img, e)}
+                  className={`relative rounded-md overflow-hidden border bg-surface-2 cursor-pointer select-none ${isSel ? 'border-blue-500 ring-2 ring-blue-500' : 'border-surface-4 hover:border-surface-5'}`}
+                >
+                  <div className="aspect-video bg-surface-3 overflow-hidden">
+                    <img
+                      src={img.url}
+                      alt=""
+                      loading="lazy"
+                      className="w-full h-full object-cover pointer-events-none"
+                    />
+                  </div>
+                  {isSel && <div className="absolute inset-0 bg-blue-500/20 pointer-events-none" />}
 
-                  {/* Bottom bar: timestamp · size · compress action */}
+                  {/* Bottom bar: open · size · compress action */}
                   <div className="flex items-center justify-between px-1.5 py-1 text-[10px] text-txt-tertiary gap-1">
-                    <span className="truncate">{formatWhen(img.lastModified)}</span>
+                    <a
+                      href={img.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="truncate hover:text-txt-primary hover:underline underline-offset-2"
+                      title="Open full image in a new tab"
+                    >{formatWhen(img.lastModified)}</a>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={isBelowThreshold ? 'opacity-40' : ''}>{formatBytes(img.size)}</span>
                       {st === 'running' ? (
@@ -379,7 +482,7 @@ export default function ImageGallery() {
                         <span className="text-red-400">err</span>
                       ) : (
                         <button
-                          onClick={() => compressSingle(img)}
+                          onClick={(e) => { e.stopPropagation(); compressSingle(img) }}
                           disabled={recompress.running}
                           className="text-txt-tertiary hover:text-txt-primary underline underline-offset-2 disabled:opacity-30"
                           title={isBelowThreshold ? 'Below size threshold — compress anyway' : 'Compress this image'}
