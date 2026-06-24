@@ -7276,7 +7276,11 @@ export default function Dashboard() {
                     ? <Link to={`${pathPrefix}/game/${playedGame.id}`} className="block">{renderGameRow(true)}</Link>
                     : renderGameRow(false)
                   return (
-                    <div key={weekNum}>
+                    <div
+                      key={weekNum}
+                      className="rounded-xl overflow-hidden my-2 relative z-10"
+                      style={{ boxShadow: '0 0 0 2px var(--text-primary)' }}
+                    >
                       {row}
                       {gpOppTid && (
                         <GamedayPicks
@@ -7920,7 +7924,11 @@ export default function Dashboard() {
                           ? <Link to={`${pathPrefix}/game/${playedGame.id}`} className="block">{renderMobileGameRow(true)}</Link>
                           : renderMobileGameRow(false)
                         return (
-                          <div key={weekNum}>
+                          <div
+                            key={weekNum}
+                            className="rounded-xl overflow-hidden my-2 relative z-10"
+                            style={{ boxShadow: '0 0 0 2px var(--text-primary)' }}
+                          >
                             {row}
                             {gpOppTid && (
                               <GamedayPicks
