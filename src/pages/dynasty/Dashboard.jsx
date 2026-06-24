@@ -7279,7 +7279,7 @@ export default function Dashboard() {
                     <div
                       key={weekNum}
                       className="rounded-xl overflow-hidden my-2 relative z-10"
-                      style={{ boxShadow: '0 0 0 2px var(--text-primary)' }}
+                      style={{ border: '2px solid var(--text-primary)' }}
                     >
                       {row}
                       {gpOppTid && (
@@ -7927,7 +7927,7 @@ export default function Dashboard() {
                           <div
                             key={weekNum}
                             className="rounded-xl overflow-hidden my-2 relative z-10"
-                            style={{ boxShadow: '0 0 0 2px var(--text-primary)' }}
+                            style={{ border: '2px solid var(--text-primary)' }}
                           >
                             {row}
                             {gpOppTid && (
