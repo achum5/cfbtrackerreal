@@ -7,7 +7,7 @@
  *   - Regular season game played             +1  per game
  *   - Big game (bowl/CCG/CFP)                +4  per game
  *   - Annual matchup streak                  +3  per consecutive-year pair
- *   - Star player (OVR ≥ 80) transferred away +5  per player (last 12 yr)
+ *   - Player transferred away            +1 / +3 (80+) / +5 (85+)  (all years)
  *   - Head coach departed to that school      +8  per departure (last 10 yr)
  *
  * Adapted to this app's data model:
@@ -285,20 +285,19 @@ export function computeRivalryScores(dynasty, myTid) {
     }
   })
 
-  // ── 4. Star players (OVR 80+) transferred away — last 12 yrs, +5 each ─────
-  // Read the canonical movement model. A star leaves us for a rival when:
+  // ── 4. Players transferred away — ALL years; +1, or +3 (80+) / +5 (85+) ──
+  // Read the canonical movement model. A player leaves us for a rival when:
   //   • a departure (transfer_out) with a destination tid happens in a year
   //     the player was on our roster, OR
   //   • an arrival (transfer_in) whose fromTid is us — the destination is the
   //     team they landed on that year.
-  const transferCutoff = curYear - RIVALRY_TRANSFER_LOOKBACK
   ;(dynasty.players || []).forEach(player => {
     if (!player) return
     const movements = getAllMovements(player)
     Object.entries(movements).forEach(([yearKey, mv]) => {
       if (!mv) return
       const year = Number(yearKey)
-      if (!Number.isFinite(year) || year < transferCutoff) return
+      if (!Number.isFinite(year)) return
 
       let destTid = null
       if (mv.type === 'departure' && mv.departure === 'transfer_out' && mv.toTid != null) {
@@ -314,16 +313,18 @@ export function computeRivalryScores(dynasty, myTid) {
       }
       if (!destTid || destTid === myTidNum) return
 
-      const ovr =
+      const ovr = Number(
         player.overallByYear?.[year] ??
         player.overallByYear?.[year - 1] ??
         player.overall ?? 0
-      if (Number(ovr) < 80) return
+      )
+      // Tiered: any transfer +1, 80+ +3, 85+ +5.
+      const pts = ovr >= 85 ? 5 : ovr >= 80 ? 3 : 1
 
-      addPoints(destTid, 5, {
+      addPoints(destTid, pts, {
         type: 'transfer_star',
         year,
-        description: `${player.name || 'Star player'}${player.position ? ` (${player.position})` : ''} transferred to them`,
+        description: `${player.name || 'Player'}${player.position ? ` (${player.position})` : ''} transferred to them`,
       })
     })
   })
@@ -348,6 +349,57 @@ export function computeRivalryScores(dynasty, myTid) {
   })
 
   return scores
+}
+
+/**
+ * Every player (all years) who transferred from myTid to rivalTid — i.e. the
+ * players behind the "transfer_star" rivalry points.
+ * Returns [{ pid, name, position, year, ovr, pictureUrl }], newest first.
+ */
+export function getStarTransfersTo(dynasty, myTid, rivalTid) {
+  const myTidNum    = Number(myTid)
+  const rivalTidNum = Number(rivalTid)
+  const curYear     = dynasty.currentYear || 2025
+  const out         = []
+
+  ;(dynasty.players || []).forEach(player => {
+    if (!player) return
+    const movements = getAllMovements(player)
+    Object.entries(movements).forEach(([yearKey, mv]) => {
+      if (!mv) return
+      const year = Number(yearKey)
+      if (!Number.isFinite(year)) return
+
+      let destTid = null
+      if (mv.type === 'departure' && mv.departure === 'transfer_out' && mv.toTid != null) {
+        const fromTid = Number(getPlayerTid(player, year, { currentYear: curYear }))
+        if (fromTid === myTidNum) destTid = Number(mv.toTid)
+      } else if (mv.type === 'arrival' && mv.arrival === 'transfer_in' && mv.fromTid != null) {
+        if (Number(mv.fromTid) === myTidNum) {
+          const landed = Number(getPlayerTid(player, year, { currentYear: curYear }))
+          if (landed && landed !== myTidNum) destTid = landed
+        }
+      }
+      if (destTid !== rivalTidNum) return
+
+      const ovr = Number(
+        player.overallByYear?.[year] ??
+        player.overallByYear?.[year - 1] ??
+        player.overall ?? 0
+      )
+
+      out.push({
+        pid: player.pid,
+        name: player.name || 'Unknown player',
+        position: player.position || '',
+        year,
+        ovr,
+        pictureUrl: player.pictureUrl || null,
+      })
+    })
+  })
+
+  return out.sort((a, b) => b.year - a.year)
 }
 
 /**
@@ -406,7 +458,7 @@ export function rivalryEventLabel(type) {
     case 'played_games':   return 'Games played'
     case 'annual_matchup': return 'Annual matchup streak'
     case 'big_game':       return 'Big game (bowl/CCG/playoff)'
-    case 'transfer_star':  return 'Star player transferred away'
+    case 'transfer_star':  return 'Player transferred away'
     case 'coach_departure':return 'Head coach left for them'
     default:               return type
   }

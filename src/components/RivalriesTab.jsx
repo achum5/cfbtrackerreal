@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { usePathPrefix } from '../hooks/usePathPrefix'
 import { getContrastTextColor } from '../utils/colorUtils'
@@ -9,6 +10,7 @@ import {
   computeSeriesRecord,
   groupRivalryEvents,
   rivalryEventLabel,
+  getStarTransfersTo,
 } from '../utils/rivalryEngine'
 
 // A game counts only once played — a scheduled/upcoming game sits at 0-0.
@@ -155,7 +157,12 @@ export default function RivalriesTab({ dynasty, tid }) {
 function RivalryDetail({ dynasty, myTid, rival }) {
   const navigate = useNavigate()
   const pathPrefix = usePathPrefix()
-  const myLogo = getTeamLogoByTid(myTid, dynasty.teams)
+  const [showTransfers, setShowTransfers] = useState(false)
+  const myName = getNameFromTid(dynasty.teams, myTid) || 'Your team'
+  const transfers = useMemo(
+    () => getStarTransfersTo(dynasty, myTid, rival.tid),
+    [dynasty, myTid, rival.tid]
+  )
   const matchups = useMemo(() => getMatchups(dynasty, myTid, rival.tid), [dynasty, myTid, rival.tid])
   const breakdown = useMemo(() => groupRivalryEvents(rival.events), [rival.events])
 
@@ -173,7 +180,7 @@ function RivalryDetail({ dynasty, myTid, rival }) {
   const diff = myPts - theirPts
   const { wins, losses } = rival.record
   const tied = wins === losses
-  const leaderLogo = wins > losses ? myLogo : losses > wins ? rival.logo : null
+  const leaderName = wins > losses ? myName : rival.name
   const hi = Math.max(wins, losses)
   const lo = Math.min(wins, losses)
 
@@ -181,23 +188,9 @@ function RivalryDetail({ dynasty, myTid, rival }) {
     <div className="px-3 sm:px-4 py-4 bg-surface-1/60 border-t border-surface-4">
       {/* Series summary */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-txt-primary">
-          {tied ? (
-            <>Series tied {wins}-{losses}</>
-          ) : (
-            <>
-              <span className="inline-flex items-center justify-center rounded-full bg-white shrink-0 w-6 h-6">
-                {leaderLogo && <img src={leaderLogo} alt="" className="w-4 h-4 object-contain" />}
-              </span>
-              leads {hi}-{lo}
-            </>
-          )}
+        <span className="text-sm font-semibold text-txt-primary">
+          {tied ? `Series tied ${wins}-${losses}` : `${leaderName} leads ${hi}-${lo}`}
         </span>
-        {matchups.length > 0 && (
-          <span className="text-xs text-txt-tertiary tabular-nums">
-            {myPts}-{theirPts} all-time points ({diff >= 0 ? '+' : ''}{diff})
-          </span>
-        )}
       </div>
 
       {/* Matchup history */}
@@ -226,17 +219,89 @@ function RivalryDetail({ dynasty, myTid, rival }) {
 
       {/* Score breakdown */}
       <div>
-        <div className="text-[10px] uppercase tracking-wide text-txt-muted mb-1.5">Rivalry score breakdown</div>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
-          {breakdown.map(b => (
-            <span key={b.type} className="text-xs text-txt-tertiary">
-              {rivalryEventLabel(b.type)}
-              {b.count > 1 ? ` ×${b.count}` : ''}
-              <span className="font-semibold text-txt-secondary tabular-nums"> +{b.points}</span>
-            </span>
+          {breakdown.map(b => {
+            const clickable = b.type === 'transfer_star' && transfers.length > 0
+            const label = (
+              <>
+                {rivalryEventLabel(b.type)}
+                {b.count > 1 ? ` ×${b.count}` : ''}
+                <span className="font-semibold text-txt-secondary tabular-nums"> +{b.points}</span>
+              </>
+            )
+            return clickable ? (
+              <button
+                key={b.type}
+                onClick={() => setShowTransfers(true)}
+                className="text-xs text-txt-secondary underline decoration-dotted underline-offset-2 hover:text-txt-primary"
+              >
+                {label}
+              </button>
+            ) : (
+              <span key={b.type} className="text-xs text-txt-tertiary">{label}</span>
+            )
+          })}
+        </div>
+      </div>
+
+      {showTransfers && (
+        <TransferModal
+          rivalName={rival.name}
+          transfers={transfers}
+          onClose={() => setShowTransfers(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Modal listing the star players who transferred to this rival.
+function TransferModal({ rivalName, transfers, onClose }) {
+  const navigate = useNavigate()
+  const pathPrefix = usePathPrefix()
+  const openPlayer = (pid) => {
+    if (pid == null) return
+    onClose()
+    navigate(`${pathPrefix}/player/${pid}`)
+  }
+  return createPortal(
+    <div
+      className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+      style={{ margin: 0 }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface-1 border border-surface-4 rounded-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col"
+      >
+        <div className="px-4 py-3 border-b border-surface-4 flex items-center justify-between gap-2">
+          <h2 className="font-bold text-txt-primary m-0 text-sm">Transferred to {rivalName}</h2>
+          <button onClick={onClose} className="text-txt-tertiary hover:text-txt-primary text-lg leading-none px-1">×</button>
+        </div>
+        <div className="overflow-y-auto divide-y divide-surface-4">
+          {transfers.map((p, idx) => (
+            <button
+              key={`${p.pid ?? p.name}-${p.year}-${idx}`}
+              onClick={() => openPlayer(p.pid)}
+              disabled={p.pid == null}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors enabled:hover:bg-surface-2/60 disabled:cursor-default"
+            >
+              <span className="inline-flex items-center justify-center rounded-full bg-surface-3 overflow-hidden shrink-0 w-10 h-10">
+                {p.pictureUrl
+                  ? <img src={p.pictureUrl} alt={p.name} className="w-full h-full object-cover" />
+                  : <span className="text-[10px] font-bold text-txt-muted">{p.position || '—'}</span>}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-txt-primary truncate">{p.name}</span>
+                <span className="block text-[11px] text-txt-tertiary">
+                  {p.position ? `${p.position} · ` : ''}{p.year}{p.ovr ? ` · ${p.ovr} OVR` : ''}
+                </span>
+              </span>
+            </button>
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
