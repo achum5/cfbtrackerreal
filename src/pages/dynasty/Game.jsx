@@ -2056,8 +2056,12 @@ export default function Game() {
       </div>
 
       {/* Gameday Picks — analyst pick'em panel, only for an upcoming
-          (unplayed) matchup. leftData/rightData are the two visual sides. */}
-      {!gameIsPlayed && leftData.tid && rightData.tid && (
+          (unplayed) matchup that is THIS week's game. leftData/rightData are
+          the two visual sides. Gating on week + year keeps it off every future
+          game on the schedule (e.g. a Week 14 game while it's currently Week 4). */}
+      {!gameIsPlayed && leftData.tid && rightData.tid
+        && Number(game.week) === Number(currentDynasty?.currentWeek)
+        && Number(game.year) === Number(currentDynasty?.currentYear) && (
         <div className="mt-4">
           <GamedayPicks
             dynasty={currentDynasty}
