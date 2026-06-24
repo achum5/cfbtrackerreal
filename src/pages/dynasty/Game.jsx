@@ -3,7 +3,7 @@ import { proxyImageUrl } from '../../utils/imageProxy'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../../data/teams'
+import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamColors } from '../../data/teamColors'
@@ -1742,19 +1742,16 @@ export default function Game() {
         </div>
 
         {/* One-line series summary, anchored on the leader. */}
-        <div className="flex items-center justify-center gap-2 mt-4 text-sm text-txt-secondary text-center flex-wrap">
-          {leadInfo && logoCircle(leadInfo)}
-          <span>
-            {seriesTied ? (
-              leadInfo ? (
-                <><strong className="text-txt-primary">{leadInfo.name}</strong> holds a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential in an all-time series tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong>.</>
-              ) : (
-                <>The all-time series is tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with no point differential.</>
-              )
+        <div className="mt-4 text-sm text-txt-secondary text-center">
+          {seriesTied ? (
+            leadInfo ? (
+              <><strong className="text-txt-primary">{stripMascotFromName(leadInfo.name)}</strong> holds a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential in an all-time series tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong>.</>
             ) : (
-              <><strong className="text-txt-primary">{leadInfo.name}</strong> leads the all-time series <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential.</>
-            )}
-          </span>
+              <>The all-time series is tied <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with no point differential.</>
+            )
+          ) : (
+            <><strong className="text-txt-primary">{stripMascotFromName(leadInfo.name)}</strong> leads the all-time series <strong className="text-txt-primary">{hiWins}-{loWins}{tieSuffix}</strong> with a <strong className="text-txt-primary">{ptDiffStr}</strong> point differential.</>
+          )}
         </div>
       </div>
     )
