@@ -83,16 +83,19 @@ function coerceToBlob(input) {
 const MAX_UPLOAD_DIMENSION = 2560
 const UPLOAD_QUALITY = 0.82
 
-// Exported so the admin recompress tool can re-encode already-stored images
-// with these same settings.
-export async function compressImageBlob(blob) {
+// Exported so the admin recompress tool can re-encode already-stored images.
+// opts.quality overrides UPLOAD_QUALITY; opts.maxDim overrides MAX_UPLOAD_DIMENSION.
+export async function compressImageBlob(blob, opts = {}) {
   try {
     if (typeof document === 'undefined' || typeof createImageBitmap !== 'function') return blob
     if (!blob || !blob.type || !blob.type.startsWith('image/')) return blob
     if (blob.type === 'image/gif') return blob // preserve animation
 
+    const quality = opts.quality ?? UPLOAD_QUALITY
+    const maxDim = opts.maxDim ?? MAX_UPLOAD_DIMENSION
+
     const bmp = await createImageBitmap(blob)
-    const scale = Math.min(1, MAX_UPLOAD_DIMENSION / Math.max(bmp.width, bmp.height))
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height))
     const w = Math.max(1, Math.round(bmp.width * scale))
     const h = Math.max(1, Math.round(bmp.height * scale))
 
@@ -104,7 +107,7 @@ export async function compressImageBlob(blob) {
     ctx.drawImage(bmp, 0, 0, w, h)
     bmp.close?.()
 
-    const out = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', UPLOAD_QUALITY))
+    const out = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality))
     // Keep whichever is smaller (re-encoding an already-tiny image can grow it).
     return (out && out.size > 0 && out.size < blob.size) ? out : blob
   } catch {
