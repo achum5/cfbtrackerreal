@@ -32,6 +32,7 @@ import { sortPlaysChronologically } from '../../utils/scoringPlayOrder'
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
+import ScoutScorePanel from '../../components/ScoutScorePanel'
 import { getEditionConfig } from '../../editions'
 import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
@@ -1080,6 +1081,8 @@ function PlayerInner() {
   // Default tab: overview if any games are entered, otherwise stats if any
   // stats exist, otherwise timeline. Explicit ?tab= in the URL overrides.
   const defaultTab = (() => {
+    // Recruiting targets lead with ScoutScore (the renamed Overview tab).
+    if (isUncommittedTarget) return 'overview'
     const hasGames = (playerGameLog?.length || 0) > 0
     if (hasGames) return 'overview'
     // "has stats" = at least one category has non-zero data, not just the
@@ -1880,14 +1883,22 @@ function PlayerInner() {
               {/* Team link + status badges */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {isUncommittedTarget ? (
-                  // An uncommitted target has no team — show a neutral identity,
-                  // never a team logo or a (dead) /team link.
-                  <span
-                    className="inline-flex items-center gap-2 font-display font-bold"
-                    style={{ color: teamBgText, fontSize: 'clamp(0.95rem, 1.5vw, 1.1rem)' }}
-                  >
-                    Recruiting Target
-                  </span>
+                  // An uncommitted target has no team — show a neutral identity
+                  // that links back to that class's Targets board on the
+                  // recruiting page (never a team logo or a dead /team link).
+                  (() => {
+                    const tTid = currentDynasty?.currentTid ?? getTidFromAbbr(getCurrentTeamAbbr(currentDynasty), currentDynasty?.teams)
+                    const tYear = player.targetYear || currentDynasty?.currentYear
+                    const href = tTid && tYear ? `${pathPrefix}/recruiting/${tTid}/${tYear}?tab=targets` : null
+                    const style = { color: teamBgText, fontSize: 'clamp(0.95rem, 1.5vw, 1.1rem)' }
+                    return href ? (
+                      <Link to={href} className="inline-flex items-center gap-2 font-display font-bold hover:opacity-80 transition-opacity" style={style}>
+                        Recruiting Target
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 font-display font-bold" style={style}>Recruiting Target</span>
+                    )
+                  })()
                 ) : (
                 <Link
                   to={`${pathPrefix}/team/${resolveTid(teamAbbr, currentDynasty?.teams || TEAMS)}/${currentYear}?tab=depthchart&player=${pid}&side=${sideOfPosition(player.position) || 'offense'}`}
@@ -2122,7 +2133,7 @@ function PlayerInner() {
         <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
           <div className="flex overflow-x-auto no-scrollbar">
             {[
-              { key: 'overview', label: 'Overview' },
+              { key: 'overview', label: isUncommittedTarget ? 'ScoutScore' : 'Overview' },
               { key: 'stats', label: 'Stats' },
               { key: 'gamelog', label: 'Game Log' },
               { key: 'timeline', label: 'Timeline' },
@@ -2165,6 +2176,25 @@ function PlayerInner() {
 
       {/* Tab content — keyed so the whole subtree fades up on each switch */}
       <div key={activeTab} className="reveal">
+
+      {/* ScoutScore — recruit benchmarking (MaxPlaysCFB). Shown on the Overview
+          tab for recruiting targets, or for any player with scouted ratings. */}
+      {activeTab === 'overview' && (isUncommittedTarget || (player.attributes && Object.keys(player.attributes).length > 0)) && (
+        <div className="media-card p-4 sm:p-5 mb-4">
+          <div className="flex items-baseline justify-between gap-2 mb-3">
+            <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '14px', letterSpacing: '0.02em' }}>ScoutScore</h3>
+            <a
+              href="https://maxplayscfb.com/tools/scoutscore/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-txt-tertiary hover:text-txt-primary underline underline-offset-2 shrink-0"
+            >
+              powered by MaxPlaysCFB
+            </a>
+          </div>
+          <ScoutScorePanel recruit={player} />
+        </div>
+      )}
 
       {/* Overview - 3-column summary with inline scoring highlights */}
       {activeTab === 'overview' && (() => {

@@ -140,8 +140,17 @@ export default function Recruiting() {
   const setViewMode = (v) => setParam('view', v, defaultView)
 
   // Commitments / Targets tab (persisted in the URL like the other filters).
-  const activeTab = searchParams.get('tab') === 'targets' ? 'targets' : 'commitments'
-  const setActiveTab = (t) => setParam('tab', t === 'targets' ? 'targets' : null, null)
+  // Default depends on the class being viewed: the CURRENT recruiting year
+  // opens on Targets (you're actively scouting); past/future years open on
+  // Commitments (you're reviewing a finished class). An explicit ?tab= always
+  // wins, and the param is omitted when it matches the year's default so URLs
+  // stay clean.
+  const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
+  const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
+  const defaultTab = isCurrentRecruitingYear ? 'targets' : 'commitments'
+  const tabParam = searchParams.get('tab')
+  const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : defaultTab
+  const setActiveTab = (t) => setParam('tab', t === defaultTab ? null : t, null)
 
   // In-app target resolution (Phase 4). openTargets is defined below, once
   // selectedYear exists.
