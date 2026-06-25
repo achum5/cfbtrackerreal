@@ -42,12 +42,14 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        // Mirror what the Vite dev proxy does with changeOrigin:true — without
-        // Origin/Referer the upstream treats the Vercel server-to-server hop as
-        // an unknown caller and returns 403.
+        'Accept': 'application/json, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        // Mirror what a real browser request looks like. Without these,
+        // MaxPlaysCFB's server treats the Vercel server-to-server hop as an
+        // unknown/bot caller and returns 403.
         'Origin': 'https://maxplayscfb.com',
         'Referer': 'https://maxplayscfb.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
       },
       body: JSON.stringify(body),
     });
