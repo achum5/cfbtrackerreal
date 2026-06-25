@@ -2611,9 +2611,9 @@ export default function Game() {
                     INSIDE the recap to read the rest. Let the recap flow
                     naturally below lg. */}
                 {game.aiRecap && (
-                <section className="order-1 lg:order-2 min-w-0">
+                <section className="order-1 lg:order-2 min-w-0 w-full max-w-prose lg:mx-auto">
                   <SectionHead>Game Recap</SectionHead>
-                  <div className="max-w-prose lg:overflow-y-auto lg:pr-2 lg:-mr-2 lg:max-h-[min(70vh,720px)]">
+                  <div className="lg:overflow-y-auto lg:pr-2 lg:-mr-2 lg:max-h-[min(70vh,720px)]">
                     <RecapCenter />
                   </div>
                 </section>
