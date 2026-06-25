@@ -116,7 +116,7 @@ export async function runScoutScore(payload) {
   }
   const data = await res.json().catch(() => null)
   if (!res.ok || !data || data.ok === false) {
-    const reason = (data && (data.message || data.error)) || `ScoutScore is unavailable right now (${res.status}).`
+    const reason = (data && data.message && !data.message.startsWith('HTTP ') ? data.message : null) || `ScoutScore is unavailable right now. Try again later.`
     return { ok: false, reason }
   }
   return { ok: true, data }
