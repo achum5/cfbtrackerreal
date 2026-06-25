@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { getScoutScore, ordinal } from '../utils/scoutScore'
+import { getScoutScore, ordinal, defaultLensKey } from '../utils/scoutScore'
 
 // A percentile's accent color: strong (green) high, muted mid, weak (red) low.
 function pctColor(pct) {
@@ -72,7 +72,7 @@ export default function ScoutScorePanel({ recruit }) {
       if (!alive) return
       if (!r.ok) { setState({ status: 'error', data: null, reason: r.reason }); return }
       setState({ status: 'done', data: r.data, reason: null })
-      setLens(r.data.defaultLens || r.data.availableLenses?.find((l) => l.eligible)?.key || null)
+      setLens(defaultLensKey(r.data))
     })
     return () => { alive = false }
   }, [recruit])

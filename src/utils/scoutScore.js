@@ -150,13 +150,23 @@ export function getScoutScore(recruit) {
   return p
 }
 
-// The headline percentile a recruit shows: overall percentile at the most
-// specific available lens. Returns null when unavailable.
+// The headline percentile a recruit shows: overall percentile against the full
+// POSITION POOL (e.g. "all WR recruits") — the broad, default benchmark. Falls
+// back to the most specific lens only if the position lens is missing.
 export function headlinePercentile(data) {
   if (!data) return null
+  const pool = data.overallSummaries?.position
+  if (pool && Number.isFinite(pool.percentile)) return pool.percentile
   const lens = data.defaultLens || data.availableLenses?.find((l) => l.eligible)?.key
   const o = lens && data.overallSummaries?.[lens]
   return o && Number.isFinite(o.percentile) ? o.percentile : null
+}
+
+// The lens to select by default in the panel: the position pool when available.
+export function defaultLensKey(data) {
+  if (!data) return null
+  if (data.availableLenses?.some((l) => l.key === 'position' && l.eligible)) return 'position'
+  return data.defaultLens || data.availableLenses?.find((l) => l.eligible)?.key || null
 }
 
 // Score many recruits with a small concurrency cap (be polite to the upstream).

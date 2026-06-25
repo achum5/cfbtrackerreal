@@ -115,6 +115,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
 
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
+  const [sortBy, setSortBy] = useState('scoutscore')
 
   // The tracked targets for this recruiting year.
   const targets = useMemo(() => {
@@ -142,25 +143,33 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     return () => { alive = false }
   }, [targets])
 
-  // Rank by ScoutScore overall percentile (committed-elsewhere sink to the
-  // bottom; unscored fall after scored; stars break ties).
+  // Rank by the chosen sort (committed-elsewhere always sink to the bottom).
   const ranked = useMemo(() => {
     const rows = [...targets]
     const pctOf = (pid) => {
       const res = scores.get(pid)
       return res?.ok ? headlinePercentile(res.data) : null
     }
+    const natOf = (p) => {
+      const n = Number(p.nationalRank)
+      return Number.isFinite(n) && n > 0 ? n : Infinity
+    }
     rows.sort((a, b) => {
       const aLost = a.status === 'committed_elsewhere' ? 1 : 0
       const bLost = b.status === 'committed_elsewhere' ? 1 : 0
       if (aLost !== bLost) return aLost - bLost
+      if (sortBy === 'national') {
+        const an = natOf(a.p)
+        const bn = natOf(b.p)
+        if (an !== bn) return an - bn
+      }
       const av = pctOf(a.p.pid) ?? -1
       const bv = pctOf(b.p.pid) ?? -1
       if (bv !== av) return bv - av
       return (Number(b.p.stars) || 0) - (Number(a.p.stars) || 0)
     })
     return rows
-  }, [targets, scores])
+  }, [targets, scores, sortBy])
 
   if (targets.length === 0) {
     return (
@@ -178,9 +187,23 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       <section className="media-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
           <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
-          {onResolveTargets && (
-            <Button variant="secondary" size="sm" onClick={onResolveTargets}>New commits? ({resolveCount})</Button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary">
+              <span className="uppercase tracking-wide hidden sm:inline">Sort</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                title="Sort targets"
+                className="text-[11px] bg-surface-2 border border-surface-4 rounded-md px-2 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
+              >
+                <option value="scoutscore">ScoutScore</option>
+                <option value="national">National Rank</option>
+              </select>
+            </label>
+            {onResolveTargets && (
+              <Button variant="secondary" size="sm" onClick={onResolveTargets}>New commits? ({resolveCount})</Button>
+            )}
+          </div>
         </div>
         <div>
           {ranked.map((r, i) => (

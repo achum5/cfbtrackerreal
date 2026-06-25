@@ -147,7 +147,9 @@ export default function Recruiting() {
   // stay clean.
   const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
   const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
-  const defaultTab = isCurrentRecruitingYear ? 'targets' : 'commitments'
+  const hasTargetsThisYear = isCurrentRecruitingYear
+    && (currentDynasty?.players || []).some((p) => p?.isTarget && Number(p.targetYear) === viewingYear)
+  const defaultTab = (isCurrentRecruitingYear && hasTargetsThisYear) ? 'targets' : 'commitments'
   const tabParam = searchParams.get('tab')
   const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : defaultTab
   const setActiveTab = (t) => setParam('tab', t === defaultTab ? null : t, null)
