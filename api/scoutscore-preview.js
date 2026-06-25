@@ -1,13 +1,32 @@
-import { setCors } from './_cors.js';
+// Proxy to MaxPlaysCFB's ScoutScore percentile API.
+//
+// Runs as a Vercel Edge Function (V8 isolate, not Node.js Lambda). Edge
+// functions have different IP reputation and TLS fingerprinting than the
+// Lambda pool, which MaxPlaysCFB's CDN blocks. The edge runtime is the same
+// engine Cloudflare Workers use, so it's treated differently by Cloudflare-
+// based bot protection.
+//
+// Used (with permission) so the browser can fetch recruit benchmarks without
+// a cross-origin CORS dance, and so the upstream URL stays server-side.
 
-// Proxy to MaxPlaysCFB's ScoutScore percentile API. Used (with permission) so
-// the browser can fetch recruit benchmarks without a cross-origin CORS dance,
-// and so the upstream URL / request shape stays server-side. No auth required:
-// the payload is just public recruit ratings, no user data.
+export const config = { runtime: 'edge' };
+
 const UPSTREAM = 'https://maxplayscfb.com/api/recruit-percentiles/preview';
 
-// Forward only the fields ScoutScore expects, coerced to safe types. Never pass
-// arbitrary client JSON straight through to the upstream service.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
+// Forward only the fields ScoutScore expects, coerced to safe types.
 function buildUpstreamBody(b) {
   const attributes = {};
   if (b && typeof b.attributes === 'object' && b.attributes) {
@@ -29,23 +48,21 @@ function buildUpstreamBody(b) {
   };
 }
 
-export default async function handler(req, res) {
-  setCors(req, res, 'POST, OPTIONS');
-  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
-  if (req.method !== 'POST') { res.status(405).json({ ok: false, error: 'method_not_allowed' }); return; }
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (req.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
 
   try {
-    let raw = req.body || {};
-    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+    let raw = {};
+    try { raw = await req.json(); } catch { /* leave empty */ }
     const body = buildUpstreamBody(raw);
+
     const upstream = await fetch(UPSTREAM, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, */*',
         'Accept-Language': 'en-US,en;q=0.9',
-        // Mirror a real Chrome browser request as closely as possible.
-        // MaxPlaysCFB blocks requests that don't look like browser traffic.
         'Origin': 'https://maxplayscfb.com',
         'Referer': 'https://maxplayscfb.com/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -58,20 +75,18 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(body),
     });
+
     const text = await upstream.text();
-    // Surface the upstream error body so client can show what MaxPlaysCFB said.
     if (!upstream.ok) {
-      res.status(upstream.status).json({
-        ok: false,
-        error: `upstream_${upstream.status}`,
-        message: text.replace(/<[^>]+>/g, '').trim().slice(0, 300) || `HTTP ${upstream.status}`,
-      });
-      return;
+      const msg = text.replace(/<[^>]+>/g, '').trim().slice(0, 300) || `HTTP ${upstream.status}`;
+      return json({ ok: false, error: `upstream_${upstream.status}`, message: msg }, upstream.status);
     }
-    res.status(upstream.status);
-    res.setHeader('Content-Type', 'application/json');
-    res.send(text);
+
+    return new Response(text, {
+      status: 200,
+      headers: { ...CORS, 'Content-Type': 'application/json' },
+    });
   } catch {
-    res.status(502).json({ ok: false, error: 'scoutscore_upstream_unavailable' });
+    return json({ ok: false, error: 'scoutscore_upstream_unavailable' }, 502);
   }
 }
