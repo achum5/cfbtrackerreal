@@ -40,7 +40,15 @@ export default async function handler(req, res) {
     const body = buildUpstreamBody(raw);
     const upstream = await fetch(UPSTREAM, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // Mirror what the Vite dev proxy does with changeOrigin:true — without
+        // Origin/Referer the upstream treats the Vercel server-to-server hop as
+        // an unknown caller and returns 403.
+        'Origin': 'https://maxplayscfb.com',
+        'Referer': 'https://maxplayscfb.com/',
+      },
       body: JSON.stringify(body),
     });
     const text = await upstream.text();
