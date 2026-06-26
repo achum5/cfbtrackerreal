@@ -129,7 +129,7 @@ export default function ScoutScorePanel({ recruit }) {
       )}
 
       {/* Headline — gauge + tier */}
-      <div className="flex items-center gap-4 rounded-xl border border-surface-4 p-4 mb-4" style={{ background: 'linear-gradient(180deg, var(--surface-2), var(--surface-1))' }}>
+      <div className="flex items-center justify-center gap-4 rounded-xl border border-surface-4 p-4 mb-4" style={{ background: 'linear-gradient(180deg, var(--surface-2), var(--surface-1))' }}>
         <Gauge pct={overallPct} />
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wider text-txt-muted">Overall percentile</div>
@@ -142,11 +142,11 @@ export default function ScoutScorePanel({ recruit }) {
         </div>
       </div>
 
-      {/* Group summaries */}
+      {/* Group summaries — centered so a 3-group profile doesn't hug the left */}
       {groups.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+        <div className="flex flex-wrap justify-center gap-2.5 mb-5">
           {groups.map((g) => (
-            <div key={g.groupKey} className="rounded-lg border border-surface-4 p-2.5">
+            <div key={g.groupKey} className="rounded-lg border border-surface-4 p-2.5 w-[47%] sm:w-40">
               <div className="flex items-baseline justify-between gap-1 mb-1.5">
                 <span className="text-[9px] uppercase tracking-wide text-txt-muted truncate">{g.label}</span>
                 <span className="text-sm font-bold tabular-nums leading-none" style={{ color: pctColor(g.percentile) }}>{ordinal(g.percentile)}</span>
