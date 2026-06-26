@@ -80,7 +80,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, sortBy }) {
             {committed && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Committed</span>}
             {lost && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Lost</span>}
           </div>
-          <div className="flex items-baseline gap-x-1.5 sm:gap-x-3 truncate mt-1 text-[9px] sm:text-[11px]" style={{ letterSpacing: '0.3px' }}>
+          <div className="flex flex-wrap items-baseline gap-x-1.5 sm:gap-x-3 gap-y-0.5 mt-1 text-[9px] sm:text-[11px]" style={{ letterSpacing: '0.3px' }}>
             <span className="uppercase text-txt-secondary font-semibold flex-shrink-0">{p.position || 'ATH'}</span>
             {p.archetype && <span className="uppercase text-txt-tertiary flex-shrink-0">{p.archetype}</span>}
             {proj && (
@@ -89,7 +89,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, sortBy }) {
               </span>
             )}
             {ranks.length > 0 && (
-              <span className="inline-flex items-baseline gap-x-2.5 tabular-nums min-w-0 truncate">
+              <span className="inline-flex items-baseline gap-x-2.5 tabular-nums">
                 {ranks.map((rk) => (
                   <span key={rk.l} className="inline-flex items-baseline gap-1">
                     <span className="font-bold text-txt-secondary">#{rk.v}</span>
@@ -226,17 +226,17 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
   return (
     <div className="space-y-4">
       <section className="media-card overflow-hidden">
-        <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
-          <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
-          <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="px-3 sm:px-5 py-3 flex items-center gap-2 border-b" style={{ borderColor: 'var(--surface-4)' }}>
+          <h3 className="font-display font-black uppercase leading-none text-txt-primary flex-shrink-0 whitespace-nowrap" style={{ fontSize: '14px', letterSpacing: '0.02em' }}>Big Board</h3>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
             {onPositionFilterChange && (
-              <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary">
-                <span className="uppercase tracking-wide hidden sm:inline">Pos</span>
+              <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary min-w-0 flex-1 max-w-[7.5rem]">
+                <span className="uppercase tracking-wide hidden sm:inline flex-shrink-0">Pos</span>
                 <select
                   value={positionFilter}
                   onChange={(e) => onPositionFilterChange(e.target.value)}
                   title="Filter by position"
-                  className="text-[11px] bg-surface-2 border border-surface-4 rounded-md px-2 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
+                  className="w-full min-w-0 text-[11px] bg-surface-2 border border-surface-4 rounded-md px-1.5 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
                 >
                   {POSITION_FILTER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -244,13 +244,13 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
                 </select>
               </label>
             )}
-            <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary">
-              <span className="uppercase tracking-wide hidden sm:inline">Sort</span>
+            <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary min-w-0 flex-1 max-w-[7.5rem]">
+              <span className="uppercase tracking-wide hidden sm:inline flex-shrink-0">Sort</span>
               <select
                 value={sortBy}
                 onChange={(e) => changeSortBy(e.target.value)}
                 title="Sort targets"
-                className="text-[11px] bg-surface-2 border border-surface-4 rounded-md px-2 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
+                className="w-full min-w-0 text-[11px] bg-surface-2 border border-surface-4 rounded-md px-1.5 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
               >
                 <option value="scoutscore">ScoutScore</option>
                 <option value="projected">Projected Overall</option>
@@ -258,7 +258,10 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
               </select>
             </label>
             {onResolveTargets && (
-              <Button variant="secondary" size="sm" onClick={onResolveTargets}>New commits? ({resolveCount})</Button>
+              <Button variant="secondary" size="sm" className="flex-shrink-0 whitespace-nowrap !px-2.5" onClick={onResolveTargets}>
+                <span className="sm:hidden">Commits ({resolveCount})</span>
+                <span className="hidden sm:inline">New commits? ({resolveCount})</span>
+              </Button>
             )}
           </div>
         </div>
