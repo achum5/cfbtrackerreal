@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useDynasty, getRecruitingCommitments, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
@@ -20,6 +20,9 @@ import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
 import ScoutBoard from './ScoutBoard'
+// Scout Staff is an opt-in (League Preferences) replacement for the MaxPlaysCFB
+// Scout Board. Lazy-loaded so its chunk only ships when a dynasty enables it.
+const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
 
@@ -105,6 +108,14 @@ export default function Recruiting() {
   const viewMode = searchParams.get('view') || defaultView
   const setViewMode = (v) => setParam('view', v, defaultView)
 
+  // The user's own team vs the team whose recruiting page is being viewed.
+  // Targets are a "my team" planning tool — they only belong to the user's own
+  // team, so they're scoped to it (never shown on another team's class).
+  const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty?.teamName
+  const currentTeamTid = resolveTid(currentTeamAbbr, TEAMS)
+  const selectedTid = tidParam ? parseInt(tidParam, 10) : currentTeamTid
+  const isOwnTeam = Number(selectedTid) === Number(currentTeamTid)
+
   // Commitments / Targets tab (persisted in the URL like the other filters).
   // Default depends on the class being viewed: the CURRENT recruiting year
   // opens on Targets (you're actively scouting); past/future years open on
@@ -113,9 +124,9 @@ export default function Recruiting() {
   // stay clean.
   const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
   const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
-  const hasTargetsThisYear = isCurrentRecruitingYear
+  const hasTargetsThisYear = isCurrentRecruitingYear && isOwnTeam
     && (currentDynasty?.players || []).some((p) => p?.isTarget && Number(p.targetYear) === viewingYear)
-  const defaultTab = (isCurrentRecruitingYear && hasTargetsThisYear) ? 'targets' : 'commitments'
+  const defaultTab = hasTargetsThisYear ? 'targets' : 'commitments'
   const tabParam = searchParams.get('tab')
   const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : defaultTab
   const setActiveTab = (t) => setParam('tab', t === defaultTab ? null : t, null)
@@ -146,11 +157,6 @@ export default function Recruiting() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [showRankModal, setShowRankModal] = useState(false)
-
-  const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty?.teamName
-  const currentTeamTid = resolveTid(currentTeamAbbr, TEAMS)
-
-  const selectedTid = tidParam ? parseInt(tidParam, 10) : currentTeamTid
 
   const baseTeam = TEAMS[selectedTid]
   const dynastyTeam = currentDynasty?.teams?.[selectedTid]
@@ -1343,6 +1349,10 @@ export default function Recruiting() {
           />
         </Card>
         )
+      ) : currentDynasty?.scoutStaffEnabled ? (
+        <Suspense fallback={<div className="py-12 text-center text-sm text-txt-tertiary">Loading Scout Staff…</div>}>
+          <ScoutStaff year={selectedYear} />
+        </Suspense>
       ) : (
         <ScoutBoard
           dynasty={currentDynasty}
@@ -1351,6 +1361,7 @@ export default function Recruiting() {
           pathPrefix={pathPrefix}
           positionFilter={positionFilter}
           onPositionFilterChange={setPositionFilter}
+          viewingOwnTeam={isOwnTeam}
           onResolveTargets={!isViewOnly && openTargets.length > 0 ? () => setShowResolveModal(true) : null}
           resolveCount={openTargets.length}
         />

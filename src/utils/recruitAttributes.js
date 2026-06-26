@@ -88,6 +88,16 @@ const POS_ALIAS = {
   CB: 'CB', FS: 'FS', SS: 'SS', S: 'FS', DB: 'CB', ATH: 'ATH',
 }
 
+// Game position → the position bucket the Scout Staff grading engine expects
+// (QB/HB/WR/TE/OT/OG/C/DE/DT/OLB/MIKE/CB/FS/SS/ATH). Unknown positions (e.g. K/P)
+// pass through unchanged. Same alias table the scouting form / attribute reader
+// use, so a target's raw position ("RT", "SAM") grades identically to a
+// Scout-Staff-entered one.
+export function positionBucket(position) {
+  const up = (position || '').toUpperCase()
+  return POS_ALIAS[up] || up
+}
+
 // The ordered list of 10 attribute names for a position+archetype, matching the
 // scouting form: exact archetype override → "Archetype (POS)" (OL raw strength)
 // → "ATH - Archetype" → position base. Returns null for positions with no

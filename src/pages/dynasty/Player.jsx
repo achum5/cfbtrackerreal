@@ -537,12 +537,17 @@ function PlayerInner() {
   // ScoutScore tab lifecycle: while a recruit (tracked target, committed or not,
   // not yet enrolled) ScoutScore leads — it IS the Overview tab. Once they enroll
   // onto a roster, ScoutScore moves to a separate LAST tab and Overview returns.
+  // Scout Staff mode (League Preferences toggle) replaces all MaxPlaysCFB
+  // ScoutScore surfaces. When on, suppress the ScoutScore overview/tab entirely
+  // so the player page behaves as if ScoutScore didn't exist. When off, this is
+  // a no-op and ScoutScore behaves exactly as before.
+  const scoutStaffEnabled = !!dynasty?.scoutStaffEnabled
   const hasScoutAttributes = !!(player?.attributes && Object.keys(player.attributes).length > 0)
   const enrolledOnRoster = Object.keys(player?.teamsByYear || {})
     .map(Number)
     .some((y) => Number.isFinite(y) && y <= Number(currentYear))
-  const isRecruitPhase = !!player?.isTarget && !enrolledOnRoster
-  const scoutScoreAsLastTab = !isRecruitPhase && enrolledOnRoster && hasScoutAttributes
+  const isRecruitPhase = !scoutStaffEnabled && !!player?.isTarget && !enrolledOnRoster
+  const scoutScoreAsLastTab = !scoutStaffEnabled && !isRecruitPhase && enrolledOnRoster && hasScoutAttributes
   const playerTeamName = playerTeam?.name
     || getMascotName(playerTeamAbbr, dynasty?.teams || dynasty?.customTeams)
     || (isUncommittedTarget ? '' : dynasty?.teamName)

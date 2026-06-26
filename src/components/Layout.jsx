@@ -159,6 +159,9 @@ export default function Layout({ children }) {
   useEffect(() => {
     const dyn = currentDynasty
     if (!dyn?.id || !(dyn.players?.length > 0)) return
+    // Scout Staff mode replaces the MaxPlaysCFB ScoutScore surfaces, so don't
+    // warm (or hit) the ScoutScore cache for those dynasties.
+    if (dyn.scoutStaffEnabled) return
     if (warmedDynastyRef.current === dyn.id) return
     warmedDynastyRef.current = dyn.id
 

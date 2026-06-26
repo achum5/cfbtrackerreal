@@ -133,7 +133,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, sortBy }) {
 
 const SORT_OPTIONS = ['scoutscore', 'projected', 'national']
 
-export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positionFilter = 'all', onPositionFilterChange = null, onResolveTargets = null, resolveCount = 0 }) {
+export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positionFilter = 'all', onPositionFilterChange = null, viewingOwnTeam = true, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
   // Sort choice persists per device.
   const [sortBy, setSortBy] = useState(() => {
@@ -147,15 +147,18 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
     try { localStorage.setItem('scoutBoardSortBy', v) } catch { /* ignore */ }
   }
 
-  // The tracked targets for this recruiting year.
+  // The tracked targets for this recruiting year. Targets belong to the user's
+  // own team, so they're only shown on that team's recruiting page — never on
+  // another team's class.
   const targets = useMemo(() => {
+    if (!viewingOwnTeam) return []
     const out = []
     for (const p of dynasty?.players || []) {
       if (!p.isTarget || Number(p.targetYear) !== yearN) continue
       out.push({ p, status: getTargetStatus(p, userTid) })
     }
     return out
-  }, [dynasty?.players, yearN, userTid])
+  }, [dynasty?.players, yearN, userTid, viewingOwnTeam])
 
   // Benchmark every target through ScoutScore (cached, concurrency-capped).
   const [scores, setScores] = useState(() => new Map())
@@ -211,8 +214,10 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
     return (
       <Card>
         <EmptyState
-          title="No Targets to Scout"
-          message="Track prospects via the recruiting sheet (set their Commitment to “Uncommitted” and fill in attributes), and they'll be ranked here by ScoutScore."
+          title={viewingOwnTeam ? 'No Targets to Scout' : 'Another team’s recruiting class'}
+          message={viewingOwnTeam
+            ? 'Track prospects via the recruiting sheet (set their Commitment to “Uncommitted” and fill in attributes), and they\'ll be ranked here by ScoutScore.'
+            : 'Targets are your own team\'s board. Switch back to your team\'s recruiting page to see them.'}
         />
       </Card>
     )

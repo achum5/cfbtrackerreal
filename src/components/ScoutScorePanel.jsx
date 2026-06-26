@@ -82,9 +82,10 @@ export default function ScoutScorePanel({ recruit }) {
   const activeLens = lens || lenses[0]?.key
   const lensMeta = lenses.find((l) => l.key === activeLens)
   const overall = data?.overallSummaries?.[activeLens]
-  const groups = (data?.groupSummaries?.[activeLens] || []).filter((g) => g.available)
 
-  // Attributes grouped by category, each sorted by percentile descending.
+  // Attributes grouped by category, each sorted by percentile descending. Group
+  // order follows the order categories first appear in the stat list — this is
+  // the canonical top-to-bottom order the summary cards mirror left-to-right.
   const groupedStats = useMemo(() => {
     const m = new Map()
     for (const s of data?.statResults || []) {
@@ -97,6 +98,14 @@ export default function ScoutScorePanel({ recruit }) {
     }
     return [...m.entries()]
   }, [data, activeLens])
+
+  // Summary cards ordered to match the per-attribute sections below.
+  const groups = useMemo(() => {
+    const available = (data?.groupSummaries?.[activeLens] || []).filter((g) => g.available)
+    const order = groupedStats.map(([label]) => label)
+    const idx = (label) => { const i = order.indexOf(label); return i < 0 ? 999 : i }
+    return [...available].sort((a, b) => idx(a.label) - idx(b.label))
+  }, [data, activeLens, groupedStats])
 
   const overallPct = overall?.percentile
 
