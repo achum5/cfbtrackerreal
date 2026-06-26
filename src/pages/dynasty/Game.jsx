@@ -1499,6 +1499,12 @@ export default function Game() {
   const leftData = getTeamData(leftTeam)
   const rightData = getTeamData(rightTeam)
 
+  // GamedayPicks always wants user's team as "user" regardless of which visual
+  // side (left/right) they appear on. leftTeam is 'user' for away games and
+  // 'opponent' for home games, so swap accordingly.
+  const picksUserData = leftTeam === 'user' ? leftData : rightData
+  const picksOppData  = leftTeam === 'user' ? rightData : leftData
+
   // Check if game has been played (has scores)
   const gameIsPlayed = game.isPlayed || (game.team1Score > 0 || game.team2Score > 0)
 
@@ -2237,15 +2243,15 @@ export default function Game() {
         <div className="mt-4">
           <GamedayPicks
             dynasty={currentDynasty}
-            userTid={leftData.tid}
-            opponentTid={rightData.tid}
-            isHome={game.homeTeamTid != null && Number(game.homeTeamTid) === Number(leftData.tid)}
+            userTid={picksUserData.tid}
+            opponentTid={picksOppData.tid}
+            isHome={game.homeTeamTid != null && Number(game.homeTeamTid) === Number(picksUserData.tid)}
             isNeutral={game.homeTeamTid == null}
-            gameKey={`${game.year}-W${game.week}-${leftData.tid}-${rightData.tid}-${game.gamedayPicksSeed || 0}`}
-            userTeamName={leftData.name}
-            opponentName={rightData.name}
-            userLogoUrl={leftData.logo}
-            oppLogoUrl={rightData.logo}
+            gameKey={`${game.year}-W${game.week}-${picksUserData.tid}-${picksOppData.tid}-${game.gamedayPicksSeed || 0}`}
+            userTeamName={picksUserData.name}
+            opponentName={picksOppData.name}
+            userLogoUrl={picksUserData.logo}
+            oppLogoUrl={picksOppData.logo}
             year={game.year}
             week={game.week}
           />
