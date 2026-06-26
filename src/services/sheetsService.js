@@ -7,7 +7,7 @@ import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, Q
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { OAuthError } from '../utils/authErrors'
 import { parseRecruitingRows, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL } from '../utils/recruitSheetParse'
-import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor } from '../utils/recruitAttributes'
 
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
@@ -11234,11 +11234,12 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
             { userEnteredValue: { stringValue: 'Gem/Bust' }, userEnteredFormat: headerStyle },
             { userEnteredValue: { stringValue: 'Dev Trait' }, userEnteredFormat: headerStyle },
             { userEnteredValue: { stringValue: 'Prev Team' }, userEnteredFormat: headerStyle },
-            // ── Targets extension: Commitment + one column per attribute (shown
-            // as a short CFB abbreviation, full name on hover) + hidden pid ──
+            // ── Targets extension: Commitment + a single "Attributes" cell
+            // (the AI fills it with "<code> <rating>" pairs) + hidden pid ──
             ...[
               { label: 'Commitment' },
-              ...ATTRIBUTE_COLUMNS.map(name => ({ label: ATTRIBUTE_ABBR[name] || name, note: name })),
+              { label: 'Attributes', note: "Scouted attributes — list each as '<code> <rating>', e.g. AWR 76, SPD 67, TAK 80. The app reads them by code/name." },
+              ...ATTRIBUTE_COLUMNS.slice(1).map(() => ({ label: '' })),
               { label: 'pid' },
               { label: 'NIL', note: 'Recruiting NIL offer (CFB 27)' },
             ].map(h => ({
@@ -11254,7 +11255,7 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
 
     // Set column widths (A–O commit fields, then Commitment, the named attrs, pid, NIL)
     const columnWidths = [150, 70, 70, 140, 80, 70, 70, 70, 60, 60, 120, 50, 70, 70, 80,
-      100, ...ATTRIBUTE_COLUMNS.map(() => 52), 50, 70]
+      100, 340, ...ATTRIBUTE_COLUMNS.slice(1).map(() => 8), 50, 70]
     columnWidths.forEach((width, idx) => {
       requests.push({
         updateDimensionProperties: {
@@ -11475,6 +11476,17 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
       const numOrBlank = (v) => (v === null || v === undefined || v === '')
         ? { userEnteredValue: { stringValue: '' } }
         : { userEnteredValue: { numberValue: Number(v) } }
+      // Existing recruit's attributes → one labeled cell ("AWR 76, SPD 67, …")
+      // in the order the game lists them (matches what the AI would type).
+      const attrsToLabeledCell = (recruit) => {
+        const attrs = recruit.attributes
+        if (!attrs || typeof attrs !== 'object') return ''
+        const order = attributeNamesFor(recruit.position, recruit.archetype) || Object.keys(attrs)
+        return order
+          .filter(n => attrs[n] != null && attrs[n] !== '')
+          .map(n => `${ATTRIBUTE_ABBR[n] || n} ${attrs[n]}`)
+          .join(', ')
+      }
       const dataRows = existingCommitments.map(recruit => ({
         values: [
           { userEnteredValue: { stringValue: str(recruit.name) } },
@@ -11493,7 +11505,10 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
           { userEnteredValue: { stringValue: str(recruit.devTrait || '') } },
           { userEnteredValue: { stringValue: previousTeamAsAbbr(recruit.previousTeam) } },
           { userEnteredValue: { stringValue: str(recruit.commitment) } },
-          ...ATTRIBUTE_COLUMNS.map(name => numOrBlank(recruit.attributes ? recruit.attributes[name] : undefined)),
+          // Single "Attributes" cell — labeled "<code> <rating>" pairs in the
+          // recruit's on-screen order, then blanks for the legacy column slots.
+          { userEnteredValue: { stringValue: attrsToLabeledCell(recruit) } },
+          ...ATTRIBUTE_COLUMNS.slice(1).map(() => ({ userEnteredValue: { stringValue: '' } })),
           numOrBlank(recruit.pid),
           numOrBlank(recruit.nilByYear?.[year] ?? recruit.nilByYear?.[String(year)])
         ]

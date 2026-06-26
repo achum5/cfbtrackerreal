@@ -20,7 +20,7 @@ import {
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor } from '../utils/recruitAttributes'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -109,45 +109,25 @@ export default function RecruitingCommitmentsModal({
   // ever differed by the attribute columns and the "Uncommitted" sentinel, so
   // the superset prompt does both. (A BLANK Commitment still means "committed
   // to your team" for back-compat — see classifyCommitment.)
-  const ATTR_N = ATTRIBUTE_COLUMNS.length
   const startRow = prefillRecruits.length + 2
 
-  // The attribute portion of a scouted row is a fixed, position-INDEPENDENT
-  // grid: cell #1 is always Awareness, cell #2 always Speed, etc. The reader
-  // maps each cell to its attribute by POSITION, so a value only lands right
-  // when it sits in its own numbered cell. AIs reliably get this wrong by
-  // packing the ~10 attributes a position shows into the first ~10 cells
-  // (e.g. an OL's blocking grades end up under Throw/Accuracy). The numbered
-  // master list + a worked OL example below exist purely to stop that.
-  const attrNumberedList = ATTRIBUTE_COLUMNS
-    .map((n, i) => `${i + 1}. ${n} (${ATTRIBUTE_ABBR[n] || ''})`)
-    .join('\n')
-  // Worked example for an LG (offensive lineman) — the exact case users hit.
-  const olExampleVals = {
-    Awareness: 74, 'Run Block': 80, 'Run Block Power': 83, 'Run Block Finesse': 79,
-    'Pass Block': 82, 'Pass Block Power': 81, 'Pass Block Finesse': 77, 'Impact Blocking': 80,
-    Agility: 84, Acceleration: 78,
-  }
-  const olCellList = (attributeNamesFor('LG') || [])
-    .map((n) => ({ n, idx: ATTRIBUTE_COLUMNS.indexOf(n) }))
-    .filter(({ idx }) => idx >= 0)
-    .sort((a, b) => a.idx - b.idx)
-    .map(({ n, idx }) => `#${idx + 1} ${ATTRIBUTE_ABBR[n] || n}=${olExampleVals[n] ?? ''}`)
-    .join(', ')
+  // Recognized attribute names + their short codes. The AI may use either when
+  // filling the single Attributes cell; the app reads them back by name/code.
+  const attrNameRef = ATTRIBUTE_COLUMNS.map(n => `${n} (${ATTRIBUTE_ABBR[n] || n})`).join(', ')
   const recruitingPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots, pasted BELOW the rows already entered; never re-output existing rows.
 
 You may get any of these screenshots. Handle each:
-  • A RECRUITING BOARD or weekly COMMIT LIST: output each recruit's columns A–P (recruit info + Commitment). Leave ALL attribute columns blank.
-  • A recruit's PLAYER PAGE "Attributes" tab: output that ONE recruit's full row, columns A–P PLUS the ${ATTR_N} attribute columns filled from the tab.
-Attributes appear ONLY on the player-page Attributes tab, never on the board. If you only have the board, every attribute stays blank (not every recruit is scouted, and that is expected).
+  • A RECRUITING BOARD or weekly COMMIT LIST: output each recruit's columns A–P (recruit info + Commitment). Leave the Attributes cell (Q) blank.
+  • A recruit's PLAYER PAGE "Attributes" tab: output that ONE recruit's row, columns A–P PLUS the single Attributes cell (Q) filled from the tab.
+Attributes appear ONLY on the player-page Attributes tab, never on the board. If you only have the board, the Attributes cell stays blank (not every recruit is scouted, and that is expected).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES
 ═══════════════════════════════════════════════════════════
 1. Output ONLY data rows for NEW recruits. NEVER output the header row or re-output existing rows.
-2. Tab-separated. Columns in EXACT order A→P (then the attribute columns when filling them).
+2. Tab-separated. Columns in EXACT order A→P (then the single Attributes cell Q when scouted).
 3. One row per recruit; keep screenshot order.
 4. NO COMMAS in numbers ("1234", not "1,234"). Integers have no decimal point. No quotes around numbers.
 5. BLANK for unknown — never guess, never 0/"-"/"N/A". Blank ≠ zero.
@@ -181,24 +161,17 @@ State (L) — 2-letter US codes:
   AK, AL, AR, AZ, CA, CO, CT, DC, DE, FL, GA, HI, IA, ID, IL, IN, KS, KY, LA, MA, MD, ME, MI, MN, MO, MS, MT, NC, ND, NE, NH, NJ, NM, NV, NY, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VA, VT, WA, WI, WV, WY
 
 ═══════════════════════════════════════════════════════════
-ATTRIBUTE COLUMNS (Q onward) — fill ONLY from a player-page "Attributes" tab. OPTIONAL.
+ATTRIBUTES — column Q, a SINGLE cell. Fill ONLY from a player-page "Attributes" tab. OPTIONAL.
 ═══════════════════════════════════════════════════════════
-The attribute portion is EXACTLY ${ATTR_N} cells in this FIXED numbered order. Cell #1 is ALWAYS Awareness, cell #2 is ALWAYS Speed, and so on — each cell belongs to ONE specific attribute. It is NOT a position-relative slot:
+Attributes go in ONE cell (column Q), NOT in separate columns. For each attribute the tab shows (~10), write its NAME (or its short code) then its 0–99 rating, separated by spaces, with the pairs separated by commas.
 
-${attrNumberedList}
+  EXAMPLE (an ATH whose tab shows Awareness 76, Speed 67, Acceleration 90, Strength 78, Play Recognition 74, Tackle 80, Hit Power 74, Pursuit 80, Man Coverage 76, Zone Coverage 74) →
+  the Q cell is:  Awareness 76, Speed 67, Acceleration 90, Strength 78, Play Recognition 74, Tackle 80, Hit Power 74, Pursuit 80, Man Coverage 76, Zone Coverage 74
 
-HOW TO FILL — read carefully, this is the #1 mistake:
-  - DO NOT eyeball the column positions or count tabs by hand — that is how rows end up shifted one or two cells off. Build the row WITH CODE so placement is exact.
-  - Use your code tool. Create an array of exactly ${ATTR_N} empty strings. For each attribute you read off the tab, look up its index in the numbered list above (1-based cell number) and set array[cellNumber - 1] = its 0–99 rating. Then join the array with tab characters. Do the SAME for every scouted player. Paste the code's output verbatim — never hand-transcribe it.
-  - A player's Attributes tab shows ONLY the ~10 attributes relevant to their position; every other cell stays an empty string.
-  - DO NOT pack the ~10 values into the first ~10 cells. The matching cell is usually far from the front — most positions leave 30+ cells blank.
-  - Match strictly by attribute NAME → cell number. Never by the order the values appear on the tab.
-  - The result is all ${ATTR_N} cells, tab-separated, blanks included. Never drop or collapse trailing blanks.
-
-WORKED EXAMPLE — an LG (offensive lineman). Its tab shows 10 values; they go ONLY in these cells:
-  ${olCellList}
-  → EVERY other attribute cell stays BLANK. An OL has no Speed/Throw/Accuracy/Route ratings, so those cells are empty.
-  WRONG (the exact bug to avoid): writing those ten values into cells #1–#10 in a row — that lands the blocking grades under Speed/Throw Power/Short-Medium-Deep Accuracy.
+Rules for the Q cell:
+  - Just read each attribute off the tab and copy "<name> <rating>". Order does not matter; the app places each value by its name. You do NOT need to leave blanks for attributes the position lacks — only list what the tab shows.
+  - Use the attribute name EXACTLY as it appears, or its short code. Recognized names (code): ${attrNameRef}
+  - One Q cell per scouted player. Leave it blank for un-scouted recruits.
 
 ═══════════════════════════════════════════════════════════
 OUTPUT FORMAT (TSV, paste at A${startRow})
@@ -206,22 +179,21 @@ OUTPUT FORMAT (TSV, paste at A${startRow})
 === TARGETS — paste at cell A${startRow} of "Commitments" tab ===
 Board row (16 fields, A→P):
 <Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>
-Scouted row (16 + ${ATTR_N} fields — the 16 A→P fields, then all ${ATTR_N} attribute cells in fixed numbered order, MOST of them blank):
-<...A→P...>\\t<cell #1 ${ATTRIBUTE_COLUMNS[0]}>\\t<cell #2 ${ATTRIBUTE_COLUMNS[1]}>\\t…\\t<cell #${ATTR_N} ${ATTRIBUTE_COLUMNS[ATTR_N - 1]}>
+Scouted row (17 fields — the 16 A→P fields, then the single Attributes cell Q):
+<...A→P...>\\t<Attributes, e.g. "Awareness 76, Speed 67, Tackle 80, ...">
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK
 ═══════════════════════════════════════════════════════════
-[ ] Board rows have exactly 16 tab-separated fields (15 tabs); fully-scouted rows have 16 + ${ATTR_N} fields
+[ ] Board rows have exactly 16 tab-separated fields (15 tabs); scouted rows have 17 (the Q Attributes cell added)
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
 [ ] Column P is "Uncommitted" or a team abbreviation
-[ ] Attributes filled ONLY from a player-page Attributes tab; blank when not scouted; pid column never output
-[ ] Each scouted value is in its OWN numbered cell (e.g. Run Block → its RBK cell), NOT packed into the first cells; cells for attributes the position lacks are blank`,
+[ ] The Q cell is one cell of "<name> <rating>" pairs from the Attributes tab; blank when not scouted; pid/NIL never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-    notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',
-  }), [currentYear, recruitingLabel, currentDynasty?.teams, ATTR_N, startRow, prefillRecruits])
+    notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). The single Attributes cell (Q) is filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.',
+  }), [currentYear, recruitingLabel, currentDynasty?.teams, startRow, prefillRecruits])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -459,7 +431,7 @@ FINAL CHECK
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <SheetModalHeader eyebrow="Recruiting" title={`Commitments: ${recruitingLabel}`} onClose={handleClose} />
+        <SheetModalHeader eyebrow="Recruiting" title={recruitingLabel} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {currentPhase !== 'offseason' && (

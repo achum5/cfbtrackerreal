@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { getTeamConference } from '../data/conferenceTeams'
 import { isFCSPlaceholderAbbr } from '../data/teamRegistry'
 import { getCustomConferencesForYear } from '../context/DynastyContext'
+import { getTeamColors } from '../data/teamColors'
+import { getContrastTextColor } from '../utils/colorUtils'
+import { getSchoolName } from '../data/teams'
 
 // ─── Rounding ─────────────────────────────────────────────────────────────────
 
@@ -716,7 +719,7 @@ function MatchupRows({ m }) {
 
 // ─── Sub-panel: Game Lines ────────────────────────────────────────────────────
 
-function GameLinesPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) {
+function GameLinesPanel({ dynasty, game, pathPrefix, gameFilter }) {
   const year = game?.year
   const week = game?.week
 
@@ -728,16 +731,12 @@ function GameLinesPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
         if (Number(g.year) !== Number(year)) return false
         if (g.week == null || Number(g.week) !== Number(week)) return false
         if (isFCSTeam(dynasty, g.team1Tid) || isFCSTeam(dynasty, g.team2Tid)) return false
-        // Page-level conference filter: keep games involving that conference.
-        if (confFilter) {
-          const c1 = teamConf(dynasty, g.team1Tid, customConfs)
-          const c2 = teamConf(dynasty, g.team2Tid, customConfs)
-          if (c1 !== confFilter && c2 !== confFilter) return false
-        }
+        // Page-level filter (all / top25 / rivalries / conference) — same as Scores.
+        if (gameFilter && !gameFilter(g)) return false
         return true
       })
       .map(g => buildMatchup(dynasty, g, year, week, normCtx))
-  }, [dynasty, year, week, confFilter, customConfs])
+  }, [dynasty, year, week, gameFilter])
 
   if (week == null) {
     return <p className="text-txt-tertiary text-sm px-4 py-6 text-center">Game lines are available for regular season games only.</p>
@@ -773,20 +772,44 @@ function GameLinesPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 
 // One futures row — logo + Team Name + record → odds, matching the Game Lines
 // card style. Linkable to the team's page.
-function FutureRow({ tid, dynasty, year, pathPrefix, rank, record, oddsNode }) {
-  const name = getTeamName(dynasty, tid)
-  const logo = getTeamLogo(dynasty, tid)
+// One futures row in the Top-25 leaderboard treatment: full team-color
+// background, logo in a white circle, school name in the contrast color, then
+// record + odds on the right. Linkable to the team page.
+function FutureRow({ row, dynasty, year, pathPrefix, rank, record, oddsFor, top }) {
+  const tid     = row.tid
+  const teams   = dynasty?.teams
+  const mascot  = getTeamName(dynasty, tid)
+  const school  = getSchoolName(tid, teams) || mascot
+  const logo    = getTeamLogo(dynasty, tid)
+  const colors  = (mascot ? getTeamColors(mascot, teams) : null) || { primary: '#3a3d47' }
+  const primary = colors.primary || '#3a3d47'
+  const txt     = getContrastTextColor(primary, colors.secondary)
+
   const inner = (
-    <div className="rounded-lg border border-surface-4 overflow-hidden bg-surface-1 hover:bg-surface-2/50 transition-colors shadow-sm">
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
-        {rank != null && <span className="text-txt-muted text-xs w-5 text-right tabular-nums flex-shrink-0">{rank}</span>}
+    <div
+      className="group relative flex items-center gap-3 px-3 sm:px-4 py-2.5 overflow-hidden transition-all hover:brightness-110"
+      style={{
+        borderTop: top ? 'none' : '1px solid rgba(0,0,0,0.3)',
+        backgroundColor: primary,
+        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)',
+      }}
+    >
+      {rank != null && (
+        <span className="w-5 text-right font-display font-black tabular-nums flex-shrink-0 leading-none"
+          style={{ color: txt, opacity: 0.8, fontSize: 15, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>{rank}</span>
+      )}
+      <div className="rounded-full bg-white flex items-center justify-center p-1 flex-shrink-0 shadow-sm" style={{ width: 34, height: 34 }}>
         {logo
-          ? <img src={logo} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
-          : <span className="w-6 h-6 flex-shrink-0" />}
-        <span className="font-semibold text-txt-primary text-[13px] truncate">{name}</span>
-        {record && <span className="text-txt-tertiary text-[11px] tabular-nums flex-shrink-0">{record}</span>}
-        <span className="ml-auto flex-shrink-0 pl-2">{oddsNode}</span>
+          ? <img src={logo} alt="" className="w-full h-full object-contain" />
+          : <span className="font-display font-black text-xs" style={{ color: primary }}>{(getTeamAbbr(dynasty, tid) || '?').charAt(0)}</span>}
       </div>
+      <span className="flex-1 min-w-0 truncate font-display font-bold uppercase tracking-tight leading-none"
+        style={{ color: txt, fontSize: '0.95rem', letterSpacing: '0.01em', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>{school}</span>
+      {record && (
+        <span className="tabular-nums flex-shrink-0 font-display font-semibold"
+          style={{ color: txt, opacity: 0.85, fontSize: 12, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>{record}</span>
+      )}
+      <span className="flex-shrink-0 pl-1">{oddsFor(row, txt)}</span>
     </div>
   )
   return pathPrefix
@@ -794,38 +817,33 @@ function FutureRow({ tid, dynasty, year, pathPrefix, rank, record, oddsNode }) {
     : inner
 }
 
-function FuturesList({ title, rows, dynasty, year, pathPrefix, ranked = true, recordFor, oddsFor }) {
+function FuturesList({ rows, dynasty, year, pathPrefix, ranked = true, recordFor, oddsFor }) {
   if (!rows.length) {
     return <p className="text-txt-tertiary text-sm px-4 py-6 text-center">No team data available.</p>
   }
   return (
-    <div>
-      {title && <div className="text-[11px] font-bold uppercase tracking-widest text-txt-muted mb-2 px-1">{title}</div>}
-      <div className="space-y-2">
-        {rows.map((r, i) => (
-          <FutureRow
-            key={r.tid}
-            tid={r.tid}
-            dynasty={dynasty}
-            year={year}
-            pathPrefix={pathPrefix}
-            rank={ranked ? i + 1 : null}
-            record={recordFor ? recordFor(r) : null}
-            oddsNode={oddsFor(r)}
-          />
-        ))}
-      </div>
+    <div className="rounded-xl overflow-hidden border border-surface-4 shadow-sm">
+      {rows.map((r, i) => (
+        <FutureRow
+          key={r.tid}
+          row={r}
+          dynasty={dynasty}
+          year={year}
+          pathPrefix={pathPrefix}
+          rank={ranked ? i + 1 : null}
+          record={recordFor ? recordFor(r) : null}
+          oddsFor={oddsFor}
+          top={i === 0}
+        />
+      ))}
     </div>
   )
 }
 
-// Futures price (e.g. +1100): chalk in primary, longshot muted, eliminated greyed.
-function championOdds(odds) {
-  if (odds >= 100000) return <span className="text-txt-muted text-[11px] font-bold">ELIM</span>
-  const style = odds <= 0
-    ? { color: 'var(--text-primary)', fontWeight: 800 }
-    : odds >= 50000 ? { color: 'var(--text-muted)' } : { color: 'var(--text-secondary)', fontWeight: 700 }
-  return <span className="font-display tabular-nums text-sm" style={style}>{fmt(odds)}</span>
+// Futures price (e.g. +1100) drawn in the row's contrast color, bold.
+function championOdds(odds, txt) {
+  if (odds >= 100000) return <span className="font-display text-[11px] font-bold" style={{ color: txt, opacity: 0.6 }}>ELIM</span>
+  return <span className="font-display tabular-nums text-sm font-black" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>{fmt(odds)}</span>
 }
 
 // Conference sub-filter pills (shown only when the page-level filter is All FBS).
@@ -849,23 +867,22 @@ function ConfPills({ confs, active, onPick }) {
 
 // ─── Sub-panel: National Championship ────────────────────────────────────────
 
-function NatlChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) {
+function NatlChampPanel({ dynasty, game, pathPrefix, teamFilter }) {
   const year = game?.year
   const week = game?.week ?? 17
 
   const rows = useMemo(() => {
     let r = buildNatlChampBoard(dynasty, year, week)
-    if (confFilter) r = r.filter(x => teamConf(dynasty, x.tid, customConfs) === confFilter)
+    if (teamFilter) r = r.filter(x => teamFilter(x.tid))
     return r
-  }, [dynasty, year, week, confFilter, customConfs])
+  }, [dynasty, year, week, teamFilter])
 
   return (
     <div className="px-2 sm:px-3 py-3">
       <FuturesList
-        title={`National Championship ${year}${confFilter ? ` · ${confFilter}` : ''}`}
         rows={rows} dynasty={dynasty} year={year} pathPrefix={pathPrefix}
         recordFor={r => recordStr(r.stats, r.conf)}
-        oddsFor={r => championOdds(r.odds)}
+        oddsFor={(r, txt) => championOdds(r.odds, txt)}
       />
     </div>
   )
@@ -874,11 +891,11 @@ function NatlChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 // ─── Sub-panel: Conference Championship ──────────────────────────────────────
 
 // Independents don't play for a conference title, so they have no champ board.
-function isChampConference(c) {
+export function isChampConference(c) {
   return !!c && !/independ/i.test(String(c))
 }
 
-function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) {
+function ConfChampPanel({ dynasty, game, pathPrefix, customConfs, controlledConf }) {
   const year  = game?.year
   const week  = game?.week ?? 17
   const teams = dynasty?.teams || {}
@@ -895,8 +912,11 @@ function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
   }, [dynasty, teams, customConfs])
 
   const [activeConf, setActiveConf] = useState('')
-  // The page-level filter wins when set; otherwise use the in-panel pick.
-  const conf = confFilter || (conferences.includes(activeConf) ? activeConf : (conferences[0] || ''))
+  // The conference comes from the page header (controlledConf); fall back to the
+  // in-panel pills only if the parent doesn't drive it.
+  const conf = controlledConf
+    || (conferences.includes(activeConf) ? activeConf : (conferences[0] || ''))
+  const showPills = !controlledConf
 
   const confTeams = useMemo(() => {
     if (!conf) return []
@@ -924,12 +944,11 @@ function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 
   return (
     <div className="px-2 sm:px-3 py-3">
-      {!confFilter && <ConfPills confs={conferences} active={conf} onPick={setActiveConf} />}
+      {showPills && <ConfPills confs={conferences} active={conf} onPick={setActiveConf} />}
       <FuturesList
-        title={`${conf} Championship ${year}`}
         rows={rows} dynasty={dynasty} year={year} pathPrefix={pathPrefix}
         recordFor={r => recordStr(r.stats, r.conf)}
-        oddsFor={r => championOdds(r.odds)}
+        oddsFor={(r, txt) => championOdds(r.odds, txt)}
       />
     </div>
   )
@@ -937,11 +956,13 @@ function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 
 // ─── Sub-panel: Win Totals ────────────────────────────────────────────────────
 
-function WinTotalsPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) {
+function WinTotalsPanel({ dynasty, game, pathPrefix, customConfs, teamFilter, controlledConf }) {
   const year  = game?.year
   const teams = dynasty?.teams || {}
   const [internalConf, setInternalConf] = useState('ALL')
-  const activeConf = confFilter || internalConf
+  // Conference comes from the page header (controlledConf, with an ALL option);
+  // fall back to in-panel pills only if the parent doesn't drive it.
+  const activeConf = controlledConf || internalConf
 
   const allConfs = useMemo(() => {
     const confs = new Set()
@@ -956,27 +977,28 @@ function WinTotalsPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
     Object.keys(teams).map(Number)
       .filter(tid => teams[tid]?.abbr && !isFCSPlaceholderAbbr(teams[tid].abbr))
       .filter(tid => activeConf === 'ALL' || teamConf(dynasty, tid, customConfs) === activeConf)
+      .filter(tid => !teamFilter || teamFilter(tid))
       .map(tid => ({ tid, ...calcWinTotal(dynasty, tid, year), conf: calcConfStats(dynasty, tid, year) }))
       .sort((a, b) => b.total - a.total || a.tid - b.tid),
-    [dynasty, year, teams, activeConf, customConfs]
+    [dynasty, year, teams, activeConf, customConfs, teamFilter]
   )
 
   return (
     <div className="px-2 sm:px-3 py-3">
-      {!confFilter && allConfs.length > 1 && (
+      {!controlledConf && allConfs.length > 1 && (
         <ConfPills confs={allConfs} active={activeConf} onPick={setInternalConf} />
       )}
       <FuturesList
         ranked={false}
         rows={rows} dynasty={dynasty} year={year} pathPrefix={pathPrefix}
         recordFor={r => recordStr({ wins: r.wins, losses: r.losses }, r.conf)}
-        oddsFor={r => {
+        oddsFor={(r, txt) => {
           const overFav = r.overML < r.underML
           return (
-            <span className="flex items-center gap-2.5 text-xs tabular-nums whitespace-nowrap">
-              <span className="text-txt-muted">O/U {r.total}</span>
-              <span style={overFav ? { color: 'var(--text-primary)', fontWeight: 700 } : { color: 'var(--text-secondary)' }}>O {fmt(r.overML)}</span>
-              <span style={!overFav ? { color: 'var(--text-primary)', fontWeight: 700 } : { color: 'var(--text-secondary)' }}>U {fmt(r.underML)}</span>
+            <span className="flex items-center gap-2 text-xs tabular-nums whitespace-nowrap font-display font-semibold" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
+              <span style={{ opacity: 0.7 }}>O/U {r.total}</span>
+              <span style={{ fontWeight: overFav ? 900 : 600, opacity: overFav ? 1 : 0.75 }}>O {fmt(r.overML)}</span>
+              <span style={{ fontWeight: !overFav ? 900 : 600, opacity: !overFav ? 1 : 0.75 }}>U {fmt(r.underML)}</span>
             </span>
           )
         }}
@@ -1026,7 +1048,7 @@ export const SPORTSBOOK_TABS = [
   { value: 'wintotals',    label: 'Win Totals' },
 ]
 
-export default function SportsbookPanel({ dynasty, game, pathPrefix, hideHeader = false, subTab, onSubTabChange, confFilter = null }) {
+export default function SportsbookPanel({ dynasty, game, pathPrefix, hideHeader = false, subTab, onSubTabChange, gameFilter = null, teamFilter = null, confChampConf = null, winTotalConf = null }) {
   const [internalTab, setInternalTab] = useState('lines')
   const [copied, setCopied] = useState(false)
 
@@ -1113,10 +1135,10 @@ export default function SportsbookPanel({ dynasty, game, pathPrefix, hideHeader 
       )}
 
       {/* Content */}
-      {sbTab === 'lines'        && <GameLinesPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} confFilter={confFilter} customConfs={customConfs} />}
-      {sbTab === 'championship' && <NatlChampPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} confFilter={confFilter} customConfs={customConfs} />}
-      {sbTab === 'cfp'          && <ConfChampPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} confFilter={confFilter} customConfs={customConfs} />}
-      {sbTab === 'wintotals'    && <WinTotalsPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} confFilter={confFilter} customConfs={customConfs} />}
+      {sbTab === 'lines'        && <GameLinesPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} gameFilter={gameFilter} />}
+      {sbTab === 'championship' && <NatlChampPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} teamFilter={teamFilter} />}
+      {sbTab === 'cfp'          && <ConfChampPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} customConfs={customConfs} controlledConf={confChampConf} />}
+      {sbTab === 'wintotals'    && <WinTotalsPanel   dynasty={dynasty} game={game} pathPrefix={pathPrefix} customConfs={customConfs} teamFilter={teamFilter} controlledConf={winTotalConf} />}
 
       {/* Footer */}
       <div className="px-4 py-2 border-t border-surface-4 text-[10px] text-txt-muted text-center">

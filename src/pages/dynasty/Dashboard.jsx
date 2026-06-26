@@ -5163,7 +5163,7 @@ export default function Dashboard() {
               bw1Todos.push({
                 key: 'recruiting-bw1',
                 done: bw1HasCommitmentsData,
-                title: bw1HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
+                title: bw1HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
                 subtitle: bw1HasCommitmentsData
                   ? bw1CommitmentsCount > 0
                     ? `${bw1CommitmentsCount} commitment${bw1CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -5516,7 +5516,7 @@ export default function Dashboard() {
               bw2Todos.push({
                 key: 'recruiting-bw2',
                 done: bw2HasCommitmentsData,
-                title: bw2HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
+                title: bw2HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
                 subtitle: bw2HasCommitmentsData
                   ? bw2CommitmentsCount > 0
                     ? `${bw2CommitmentsCount} commitment${bw2CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6280,7 +6280,7 @@ export default function Dashboard() {
             w34Todos.push({
               key: 'recruiting-bw34',
               done: w34HasCommitmentsData,
-              title: w34HasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
+              title: w34HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
               subtitle: w34HasCommitmentsData
                 ? w34CommitmentsCount > 0
                   ? `${w34CommitmentsCount} commitment${w34CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6571,7 +6571,7 @@ export default function Dashboard() {
                 o26Todos.push({
                   key: 'recruiting-week',
                   done: hasCommitmentsData,
-                  title: hasCommitmentsData ? 'Recruiting Commitments' : 'New targets/commitments?',
+                  title: hasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
                   subtitle: hasCommitmentsData
                     ? commitmentsCount > 0
                       ? `${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
