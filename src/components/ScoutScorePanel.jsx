@@ -153,12 +153,12 @@ export default function ScoutScorePanel({ recruit }) {
 
       {/* Group summaries — centered so a 3-group profile doesn't hug the left */}
       {groups.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2.5 mb-5">
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5 mb-5">
           {groups.map((g) => (
-            <div key={g.groupKey} className="rounded-lg border border-surface-4 p-2.5 w-[47%] sm:w-40">
+            <div key={g.groupKey} className="rounded-lg border border-surface-4 p-2 sm:p-2.5 grow shrink basis-[30%] min-w-0 sm:grow-0 sm:basis-40">
               <div className="flex items-baseline justify-between gap-1 mb-1.5">
                 <span className="text-[9px] uppercase tracking-wide text-txt-muted truncate">{g.label}</span>
-                <span className="text-sm font-bold tabular-nums leading-none" style={{ color: pctColor(g.percentile) }}>{ordinal(g.percentile)}</span>
+                <span className="text-xs sm:text-sm font-bold tabular-nums leading-none flex-shrink-0" style={{ color: pctColor(g.percentile) }}>{ordinal(g.percentile)}</span>
               </div>
               <Bar pct={g.percentile} />
             </div>
