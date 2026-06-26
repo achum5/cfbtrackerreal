@@ -4,6 +4,7 @@ import { Card, EmptyState, Button } from '../../components/ui'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { getTargetStatus } from '../../utils/recruitingTargets'
 import { getScoutScoresFor, headlinePercentile, ordinal, predictRecruitOverall } from '../../utils/scoutScore'
+import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
 
 // Scout Board (the Targets tab): tracked recruiting targets benchmarked by
@@ -132,7 +133,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, sortBy }) {
 
 const SORT_OPTIONS = ['scoutscore', 'projected', 'national']
 
-export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
+export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positionFilter = 'all', onPositionFilterChange = null, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
   // Sort choice persists per device.
   const [sortBy, setSortBy] = useState(() => {
@@ -172,9 +173,10 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
     return () => { alive = false }
   }, [targets])
 
-  // Rank by the chosen sort (committed-elsewhere always sink to the bottom).
+  // Rank by the chosen sort (committed-elsewhere always sink to the bottom),
+  // filtered by the active position dropdown.
   const ranked = useMemo(() => {
-    const rows = [...targets]
+    const rows = targets.filter((t) => matchesPositionFilter(positionFilter, t.p.position))
     const pctOf = (pid) => {
       const res = scores.get(pid)
       return res?.ok ? headlinePercentile(res.data) : null
@@ -203,7 +205,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       return (Number(b.p.stars) || 0) - (Number(a.p.stars) || 0)
     })
     return rows
-  }, [targets, scores, sortBy])
+  }, [targets, scores, sortBy, positionFilter])
 
   if (targets.length === 0) {
     return (
@@ -222,6 +224,21 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
         <div className="px-4 sm:px-5 py-3 flex items-center justify-between gap-3 border-b" style={{ borderColor: 'var(--surface-4)' }}>
           <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>Big Board</h3>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {onPositionFilterChange && (
+              <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary">
+                <span className="uppercase tracking-wide hidden sm:inline">Pos</span>
+                <select
+                  value={positionFilter}
+                  onChange={(e) => onPositionFilterChange(e.target.value)}
+                  title="Filter by position"
+                  className="text-[11px] bg-surface-2 border border-surface-4 rounded-md px-2 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
+                >
+                  {POSITION_FILTER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="flex items-center gap-1.5 text-[11px] text-txt-tertiary">
               <span className="uppercase tracking-wide hidden sm:inline">Sort</span>
               <select
@@ -241,7 +258,9 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
           </div>
         </div>
         <div>
-          {ranked.map((r, i) => (
+          {ranked.length === 0 ? (
+            <div className="px-4 sm:px-5 py-8 text-center text-sm text-txt-tertiary">No targets at this position.</div>
+          ) : ranked.map((r, i) => (
             <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} scoutResult={scores.get(r.p.pid)} scoring={scoring} sortBy={sortBy} />
           ))}
         </div>

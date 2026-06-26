@@ -15,6 +15,7 @@ import Modal from '../../components/ui/Modal'
 import { calculateRecruitingClassScore, formatRecruitingClassScore, flattenClassCommitments } from '../../utils/recruitingScore'
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { finePositionGroup } from '../../data/positionGroups'
+import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import { partitionRecruitingRows, reconcileRecruitingRows, isOpenTarget, resolveTargetCommitment, buildCommitmentRecord } from '../../utils/recruitingTargets'
 import { carryRecruitingNilForward } from '../../data/playerNilModel'
@@ -56,41 +57,6 @@ const RECRUIT_POSITION_ORDER = [
   'CB', 'FS', 'SS', 'S', 'DB',
   'K', 'P', 'LS', 'ATH',
 ]
-
-// Position filter — side groupings (offense/defense/special) plus the finer
-// position groups. matchPos(filterValue, recruitPosition) decides inclusion.
-const POSITION_FILTER_OPTIONS = [
-  { value: 'all', label: 'All Positions' },
-  { value: 'offense', label: 'Offense' },
-  { value: 'defense', label: 'Defense' },
-  { value: 'QB', label: 'QB' },
-  { value: 'RB', label: 'RB' },
-  { value: 'WR', label: 'WR' },
-  { value: 'TE', label: 'TE' },
-  { value: 'OL', label: 'OL' },
-  { value: 'EDGE', label: 'EDGE' },
-  { value: 'DT', label: 'DT' },
-  { value: 'LB', label: 'LB' },
-  { value: 'DB', label: 'DB' },
-  { value: 'K/P', label: 'K/P' },
-]
-// Map a recruit position to the coarse group used by the position dropdown.
-const OL_GROUPS = new Set(['OT', 'OG', 'C'])
-const LB_GROUPS = new Set(['OLB', 'MIKE'])
-const DB_GROUPS = new Set(['CB', 'Safety'])
-function matchesPositionFilter(filter, position) {
-  if (filter === 'all') return true
-  // ATH (athlete) has no fixed side — surface them under BOTH Offense and Defense.
-  const isAth = (position || '').toUpperCase() === 'ATH'
-  const side = sideOfPosition(position)
-  if (filter === 'offense' || filter === 'defense') return side === filter || isAth
-  const g = finePositionGroup(position)
-  if (filter === 'OL') return OL_GROUPS.has(g)
-  if (filter === 'LB') return LB_GROUPS.has(g)
-  if (filter === 'DB') return DB_GROUPS.has(g)
-  if (filter === 'K/P') return g === 'K' || g === 'P'
-  return g === filter
-}
 
 const StarRating = ({ stars, size = 'md' }) => {
   const starCount = Number(stars) || 0
@@ -1383,6 +1349,8 @@ export default function Recruiting() {
           year={selectedYear}
           userTid={selectedTid}
           pathPrefix={pathPrefix}
+          positionFilter={positionFilter}
+          onPositionFilterChange={setPositionFilter}
           onResolveTargets={!isViewOnly && openTargets.length > 0 ? () => setShowResolveModal(true) : null}
           resolveCount={openTargets.length}
         />
