@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const navItems = [
     { name: 'Dashboard', path: pathPrefix },
     ...(showBlueprint ? [{ name: 'Dynasty Blueprint', path: `${pathPrefix}/team/${teamTid}/${currentYear}?tab=blueprint` }] : []),
-    { name: 'Weekly Recap', path: `${pathPrefix}/weekly-scores` },
+    { name: 'Around the Country', path: `${pathPrefix}/weekly-scores` },
     { name: 'Top 25', path: `${pathPrefix}/rankings` },
     { name: 'CFP Bracket', path: `${pathPrefix}/cfp-bracket` },
     { name: 'Conf. Standings', path: `${pathPrefix}/conference-standings` },

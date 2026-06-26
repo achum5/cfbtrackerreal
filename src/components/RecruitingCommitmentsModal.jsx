@@ -20,7 +20,7 @@ import {
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { ATTRIBUTE_COLUMNS } from '../utils/recruitAttributes'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor } from '../utils/recruitAttributes'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -111,6 +111,29 @@ export default function RecruitingCommitmentsModal({
   // to your team" for back-compat — see classifyCommitment.)
   const ATTR_N = ATTRIBUTE_COLUMNS.length
   const startRow = prefillRecruits.length + 2
+
+  // The attribute portion of a scouted row is a fixed, position-INDEPENDENT
+  // grid: cell #1 is always Awareness, cell #2 always Speed, etc. The reader
+  // maps each cell to its attribute by POSITION, so a value only lands right
+  // when it sits in its own numbered cell. AIs reliably get this wrong by
+  // packing the ~10 attributes a position shows into the first ~10 cells
+  // (e.g. an OL's blocking grades end up under Throw/Accuracy). The numbered
+  // master list + a worked OL example below exist purely to stop that.
+  const attrNumberedList = ATTRIBUTE_COLUMNS
+    .map((n, i) => `${i + 1}. ${n} (${ATTRIBUTE_ABBR[n] || ''})`)
+    .join('\n')
+  // Worked example for an LG (offensive lineman) — the exact case users hit.
+  const olExampleVals = {
+    Awareness: 74, 'Run Block': 80, 'Run Block Power': 83, 'Run Block Finesse': 79,
+    'Pass Block': 82, 'Pass Block Power': 81, 'Pass Block Finesse': 77, 'Impact Blocking': 80,
+    Agility: 84, Acceleration: 78,
+  }
+  const olCellList = (attributeNamesFor('LG') || [])
+    .map((n) => ({ n, idx: ATTRIBUTE_COLUMNS.indexOf(n) }))
+    .filter(({ idx }) => idx >= 0)
+    .sort((a, b) => a.idx - b.idx)
+    .map(({ n, idx }) => `#${idx + 1} ${ATTRIBUTE_ABBR[n] || n}=${olExampleVals[n] ?? ''}`)
+    .join(', ')
   const recruitingPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Recruiting: ${recruitingLabel || ''}`.trim(),
     structure: `This sheet has ONE tab: "Commitments". Row 1 is a PROTECTED header. Output ONLY the NEW rows visible in THIS request's screenshots, pasted BELOW the rows already entered; never re-output existing rows.
@@ -160,12 +183,22 @@ State (L) — 2-letter US codes:
 ═══════════════════════════════════════════════════════════
 ATTRIBUTE COLUMNS (Q onward) — fill ONLY from a player-page "Attributes" tab. OPTIONAL.
 ═══════════════════════════════════════════════════════════
-In THIS EXACT order, one column each (${ATTR_N} total):
-${ATTRIBUTE_COLUMNS.join(', ')}
+The attribute portion is EXACTLY ${ATTR_N} cells in this FIXED numbered order. Cell #1 is ALWAYS Awareness, cell #2 is ALWAYS Speed, and so on — each cell belongs to ONE specific attribute. It is NOT a position-relative slot:
 
-  - For each attribute shown on the tab, put its 0–99 rating in the matching named column (exact name match).
-  - The game shows only the position's relevant attributes — leave EVERY other attribute column blank.
-  - When you fill attributes, output ALL ${ATTR_N} attribute fields in the order above (blank where not applicable) — do not drop trailing blanks.
+${attrNumberedList}
+
+HOW TO FILL — read carefully, this is the #1 mistake:
+  - DO NOT eyeball the column positions or count tabs by hand — that is how rows end up shifted one or two cells off. Build the row WITH CODE so placement is exact.
+  - Use your code tool. Create an array of exactly ${ATTR_N} empty strings. For each attribute you read off the tab, look up its index in the numbered list above (1-based cell number) and set array[cellNumber - 1] = its 0–99 rating. Then join the array with tab characters. Do the SAME for every scouted player. Paste the code's output verbatim — never hand-transcribe it.
+  - A player's Attributes tab shows ONLY the ~10 attributes relevant to their position; every other cell stays an empty string.
+  - DO NOT pack the ~10 values into the first ~10 cells. The matching cell is usually far from the front — most positions leave 30+ cells blank.
+  - Match strictly by attribute NAME → cell number. Never by the order the values appear on the tab.
+  - The result is all ${ATTR_N} cells, tab-separated, blanks included. Never drop or collapse trailing blanks.
+
+WORKED EXAMPLE — an LG (offensive lineman). Its tab shows 10 values; they go ONLY in these cells:
+  ${olCellList}
+  → EVERY other attribute cell stays BLANK. An OL has no Speed/Throw/Accuracy/Route ratings, so those cells are empty.
+  WRONG (the exact bug to avoid): writing those ten values into cells #1–#10 in a row — that lands the blocking grades under Speed/Throw Power/Short-Medium-Deep Accuracy.
 
 ═══════════════════════════════════════════════════════════
 OUTPUT FORMAT (TSV, paste at A${startRow})
@@ -173,8 +206,8 @@ OUTPUT FORMAT (TSV, paste at A${startRow})
 === TARGETS — paste at cell A${startRow} of "Commitments" tab ===
 Board row (16 fields, A→P):
 <Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>
-Scouted row (16 + ${ATTR_N} fields, A→P then the attribute columns in order):
-<...A→P...>\\t<${ATTRIBUTE_COLUMNS[0]}>\\t<${ATTRIBUTE_COLUMNS[1]}>\\t…\\t<${ATTRIBUTE_COLUMNS[ATTR_N - 1]}>
+Scouted row (16 + ${ATTR_N} fields — the 16 A→P fields, then all ${ATTR_N} attribute cells in fixed numbered order, MOST of them blank):
+<...A→P...>\\t<cell #1 ${ATTRIBUTE_COLUMNS[0]}>\\t<cell #2 ${ATTRIBUTE_COLUMNS[1]}>\\t…\\t<cell #${ATTR_N} ${ATTRIBUTE_COLUMNS[ATTR_N - 1]}>
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK
@@ -183,7 +216,8 @@ FINAL CHECK
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
 [ ] Column P is "Uncommitted" or a team abbreviation
-[ ] Attributes filled ONLY from a player-page Attributes tab; blank when not scouted; pid column never output`,
+[ ] Attributes filled ONLY from a player-page Attributes tab; blank when not scouted; pid column never output
+[ ] Each scouted value is in its OWN numbered cell (e.g. Run Block → its RBK cell), NOT packed into the first cells; cells for attributes the position lacks are blank`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
     notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). Attribute columns are filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave them blank if the recruit has not been scouted.',

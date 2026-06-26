@@ -21,6 +21,7 @@ import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/soci
 import buildRecapLinks from '../../utils/buildRecapLinks'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { useTeamColors } from '../../hooks/useTeamColors'
+import SportsbookPanel, { SPORTSBOOK_TABS } from '../../components/SportsbookPanel'
 
 const REGULAR_SEASON_WEEKS = Array.from({ length: 16 }, (_, i) => i)  // 0-15
 
@@ -433,7 +434,7 @@ export default function WeeklyScores() {
   // user's choice survives navigating into a game and back.
   const rawTab = searchParams.get('tab')
   const tabParam = displayWeek === -1 ? 'recap'
-    : (rawTab === 'recap' || rawTab === 'social') ? rawTab
+    : (rawTab === 'recap' || rawTab === 'social' || rawTab === 'sportsbook') ? rawTab
     : 'scores'
   const setTab = (next) => {
     setSearchParams(prev => {
@@ -443,6 +444,10 @@ export default function WeeklyScores() {
       return params
     }, { replace: true })
   }
+
+  // Sportsbook market sub-tab (Game Lines / futures) — lives here so it can be
+  // rendered as a second tab row in the page header, under the main tabs.
+  const [sbSubTab, setSbSubTab] = useState('lines')
 
   // Lazy-load social data (characters + week feed) the first time the Social
   // tab is opened for a dynasty — it's opt-in, so kept off the hot load path.
@@ -878,6 +883,7 @@ export default function WeeklyScores() {
                 ...(displayWeek !== -1 ? [{ key: 'scores', label: 'Scores' }] : []),
                 { key: 'recap', label: displayWeek === -1 ? 'Preseason Recap' : 'Recap' },
                 ...(displayWeek !== -1 ? [{ key: 'social', label: 'Social' }] : []),
+                ...(displayWeek !== -1 ? [{ key: 'sportsbook', label: 'Sportsbook' }] : []),
               ].map(tab => {
                 const isActive = tabParam === tab.key
                 return (
@@ -906,6 +912,30 @@ export default function WeeklyScores() {
               })}
             </div>
           </div>
+          {/* Second tab row — Sportsbook market sub-tabs, an extension of the
+              header directly under the main tabs (only while Sportsbook is on). */}
+          {tabParam === 'sportsbook' && (
+            <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.10)' }}>
+              <div className="flex overflow-x-auto no-scrollbar px-4 sm:px-5">
+                {SPORTSBOOK_TABS.map(t => {
+                  const isActive = sbSubTab === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      onClick={() => setSbSubTab(t.value)}
+                      className="relative flex-shrink-0 px-3 sm:px-4 py-2.5 font-bold uppercase whitespace-nowrap transition-opacity hover:opacity-100"
+                      style={{ fontFamily: 'var(--font-display)', fontSize: '0.72rem', letterSpacing: '0.06em', color: 'var(--text-primary)', opacity: isActive ? 1 : 0.45 }}
+                    >
+                      {t.label}
+                      {isActive && (
+                        <span aria-hidden="true" className="absolute left-2 right-2 bottom-0 h-[2px] rounded-t-sm" style={{ backgroundColor: 'var(--text-primary)' }} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
         )
       })()}
@@ -1003,6 +1033,18 @@ export default function WeeklyScores() {
           </div>
         )
       })()}
+
+      {tabParam === 'sportsbook' && (
+        <SportsbookPanel
+          dynasty={currentDynasty}
+          game={{ year: displayYear, week: displayWeek }}
+          pathPrefix={pathPrefix}
+          hideHeader
+          subTab={sbSubTab}
+          onSubTabChange={setSbSubTab}
+          confFilter={['all', 'top25', 'rivalries'].includes(filter) ? null : filter}
+        />
+      )}
       </div>
 
       {editing && (

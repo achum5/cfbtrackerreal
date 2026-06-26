@@ -12,6 +12,7 @@ import { saveGamesToSubcollection } from '../../services/dynastyService'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
 import CardComposer from '../../components/CardComposer'
 import GamedayPicks from '../../components/GamedayPicks'
+import { GameOdds } from '../../components/SportsbookPanel'
 import ProgressiveLightboxImage from '../../components/ProgressiveLightboxImage'
 import { getCardsForGame } from '../../utils/playerCards'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
@@ -2272,6 +2273,15 @@ export default function Game() {
         </div>
       )}
 
+      {/* Betting line for an upcoming game — just this matchup's line. Once the
+          game is played, the line moves into the "Odds" tab below (with what-hit
+          highlighting). League-wide futures live on the Around the Country page. */}
+      {!gameIsPlayed && (
+        <div className="mt-4">
+          <GameOdds dynasty={currentDynasty} game={game} />
+        </div>
+      )}
+
       {/* The below-xl quarter-by-quarter band that used to live here was
           replaced by the compact per-quarter line score tucked under each
           team's score in the stacked scorebug above. The xl+ layout keeps
@@ -2312,6 +2322,7 @@ export default function Game() {
                 { key: 'cards', label: 'Cards', shortLabel: 'Cards', show: hasCardsData },
                 { key: 'photos', label: hasPhotosData ? 'Photos' : 'Graphic', shortLabel: hasPhotosData ? 'Photos' : 'Graphic', show: hasPhotosData || hasScoreGraphicData },
                 { key: 'series', label: 'Series', shortLabel: 'Series', show: hasSeriesData },
+                { key: 'odds', label: 'Odds', shortLabel: 'Odds', show: game.week != null },
               ].filter(tab => tab.show).map(tab => (
                 <button
                   key={tab.key}
@@ -2356,6 +2367,13 @@ export default function Game() {
           </div>
             )
           })()}
+
+          {/* Odds Tab — this game's pre-game line, with what-hit highlighting */}
+          {activeTab === 'odds' && (
+            <div className="p-3 sm:p-4">
+              <GameOdds dynasty={currentDynasty} game={game} />
+            </div>
+          )}
 
           {/* Gamecast Tab — leaders recap ratings+awards, ESPN-style */}
           {activeTab === 'gamecast' && (() => {

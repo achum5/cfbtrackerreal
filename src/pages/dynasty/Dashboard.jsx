@@ -3665,7 +3665,7 @@ export default function Dashboard() {
                 done: recapDone,
                 title: 'Generate Preseason CFB Recap',
                 subtitle: recapDone
-                  ? 'Saved. View it on the Weekly Recap page'
+                  ? 'Saved. View it on the Around the Country page'
                   : 'AI-written season preview based on past dynasty data',
                 viewTo: recapDone ? `${pathPrefix}/weekly-scores/${yearNum}/-1?tab=recap` : null,
                 onAction: () => setRecapModalContext({ year: yearNum, week: -1 }),
@@ -7086,7 +7086,7 @@ export default function Dashboard() {
                 <Link
                   to={`${pathPrefix}/weekly-scores/${Number(currentDynasty.currentYear)}/${Number(currentDynasty.currentWeek) - 1}?tab=recap`}
                   className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-txt-tertiary hover:text-txt-secondary hover:bg-surface-3 transition-colors"
-                  title="Open recap on Weekly Recap page"
+                  title="Open recap on Around the Country page"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
