@@ -15,6 +15,7 @@ import PlayerCards from '../../components/PlayerCards'
 import { getPlayerCards } from '../../utils/playerCards'
 import { uploadImage } from '../../utils/imageUpload'
 import { healPlayer, PLAYER_HEAL_VERSION } from '../../utils/playerHeal'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor } from '../../utils/recruitAttributes'
 
 // Year input with a local draft state. Controlled <input type="number">
 // + an onChange that gates on `value > 1900 && < 2100` would reject
@@ -116,6 +117,28 @@ const ARCHETYPES = {
   // ATH archetypes map to position groups in rosterProjection → resolveAthPosition
   ATH: ['Dual Threat', 'Scrambler', 'Power Rusher', 'Speed Rusher', 'East/West Playmaker', 'North/South Runner', 'Elusive Runner', 'Slot Receiver', 'Deep Threat', 'Vertical Threat', 'Possession', 'Lurker', 'Thumper', 'Coverage Specialist', 'Hybrid'],
 }
+
+// Ratings tab — every in-game attribute, grouped for readability. The union of
+// these groups must cover ATTRIBUTE_COLUMNS; any column not listed here falls
+// into a generated "Other" group (see RATINGS_GROUPS below) so a newly added
+// attribute can never silently disappear from the editor.
+const RATINGS_GROUP_DEFS = [
+  { label: 'Physical',      attrs: ['Awareness', 'Speed', 'Acceleration', 'Strength', 'Agility', 'Change of Direction'] },
+  { label: 'Passing',       attrs: ['Throw Power', 'Short Accuracy', 'Medium Accuracy', 'Deep Accuracy', 'Throw On Run', 'Under Pressure', 'Break Sack'] },
+  { label: 'Ball Carrier',  attrs: ['Carrying', 'Break Tackle', 'Juke Move', 'Spin Move', 'BC Vision'] },
+  { label: 'Receiving',     attrs: ['Catching', 'Catch In Traffic', 'Spectacular Catch', 'Short Route', 'Medium Route', 'Deep Route', 'Release'] },
+  { label: 'Blocking',      attrs: ['Run Block', 'Run Block Power', 'Run Block Finesse', 'Pass Block', 'Pass Block Power', 'Pass Block Finesse', 'Impact Blocking'] },
+  { label: 'Front Seven',   attrs: ['Block Shedding', 'Tackle', 'Hit Power', 'Power Moves', 'Finesse Moves', 'Pursuit', 'Play Recognition'] },
+  { label: 'Coverage',      attrs: ['Man Coverage', 'Zone Coverage', 'Press'] },
+  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Punt Power', 'Punt Accuracy'] },
+]
+const RATINGS_GROUPS = (() => {
+  const grouped = new Set(RATINGS_GROUP_DEFS.flatMap(g => g.attrs))
+  const leftover = ATTRIBUTE_COLUMNS.filter(a => !grouped.has(a))
+  return leftover.length
+    ? [...RATINGS_GROUP_DEFS, { label: 'Other', attrs: leftover }]
+    : RATINGS_GROUP_DEFS
+})()
 
 // Award options
 // AWARD_OPTIONS — kept in sync with what the app actually tracks:
@@ -603,6 +626,11 @@ export default function PlayerEdit() {
       // heal does, so storage stays consistent end to end.
       accolades: player.accolades || [],
 
+      // Player ratings — the flat { attrName: number } map of in-game
+      // attributes (Speed, Awareness, …). Edited on the Ratings tab. Copied so
+      // edits don't mutate the source record before save.
+      attributes: { ...(player.attributes || {}) },
+
       // Stats for current year (converted from nested to flat)
       stats: nestedStatsToFlat(yearStats),
 
@@ -755,6 +783,16 @@ export default function PlayerEdit() {
     }))
   }
 
+  // Update a single rating. Keeps the raw string in form state (so a user can
+  // clear a field to "" mid-edit); the save path coerces to a clamped int and
+  // drops blanks.
+  const updateAttribute = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      attributes: { ...(prev.attributes || {}), [name]: value },
+    }))
+  }
+
   // Add accolade
   const addAccolade = () => {
     setFormData(prev => ({
@@ -808,6 +846,22 @@ export default function PlayerEdit() {
     })()
 
     const cardsSource = cardsOverride !== undefined ? cardsOverride : formData.cards
+
+    // Ratings — coerce each entered value to a clamped 0–99 int and drop blanks,
+    // so the stored map only ever holds real numbers (what scoutGrade / the
+    // database / archetype weights all read). Empty string / NaN → omitted.
+    const cleanedAttributes = (() => {
+      const src = formData.attributes || {}
+      const out = {}
+      for (const [k, v] of Object.entries(src)) {
+        if (v === '' || v === null || v === undefined) continue
+        const n = Math.round(Number(v))
+        if (!Number.isFinite(n)) continue
+        out[k] = Math.max(0, Math.min(99, n))
+      }
+      return out
+    })()
+    const hadAttributes = player.attributes && Object.keys(player.attributes).length > 0
 
     const updatedPlayer = {
       ...player,
@@ -872,6 +926,12 @@ export default function PlayerEdit() {
       movementByYear: formData.movementByYear || {},
       draftRound: formData.draftRound || null,
       accolades: (formData.accolades || []).filter(a => a.year && a.award),
+      // Player ratings. Persist only when there's something to store (or the
+      // player already had ratings) so we never stamp an empty map onto a
+      // record that never had one.
+      ...((Object.keys(cleanedAttributes).length || hadAttributes)
+        ? { attributes: cleanedAttributes }
+        : {}),
       notes: formData.notes,
       isHonorOnly: false,
     }
@@ -1015,6 +1075,7 @@ export default function PlayerEdit() {
   // Tab configuration
   const tabs = [
     { id: 'profile', label: 'Profile' },
+    { id: 'ratings', label: 'Ratings' },
     { id: 'career', label: 'Career' },
     { id: 'stats', label: 'Stats' },
     { id: 'awards', label: 'Awards' },
@@ -1569,6 +1630,73 @@ export default function PlayerEdit() {
             </div>
           </div>
         )}
+
+        {/* Ratings Tab — every in-game attribute, editable. The ones that
+            actually matter for this player's position/archetype are accented. */}
+        {activeTab === 'ratings' && (() => {
+          const relevantAttrs = new Set(attributeNamesFor(formData.position, formData.archetype) || [])
+          const attrs = formData.attributes || {}
+          const filledCount = ATTRIBUTE_COLUMNS.filter(a => attrs[a] !== '' && attrs[a] != null).length
+          return (
+            <div className="space-y-4">
+              {/* Intro / legend */}
+              <div className="card">
+                <div className="px-5 py-3 border-b border-surface-4 bg-surface-3 flex items-center justify-between" style={{ borderLeft: `3px solid ${teamColors.primary}` }}>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-txt-secondary">
+                    Player Ratings
+                  </h2>
+                  <span className="text-xs text-txt-tertiary tabular-nums">{filledCount} / {ATTRIBUTE_COLUMNS.length} set</span>
+                </div>
+                <div className="px-5 py-3 flex items-center gap-2 text-xs text-txt-tertiary">
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: teamColors.primary }} />
+                  Accented ratings are the ones that matter for {formData.position || 'this player'}{formData.archetype ? ` (${formData.archetype})` : ''}. Leave a field blank to clear it.
+                </div>
+              </div>
+
+              {RATINGS_GROUPS.map(group => (
+                <div key={group.label} className="card">
+                  <div className="px-5 py-2.5 border-b border-surface-4 bg-surface-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-txt-tertiary">{group.label}</h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {group.attrs.map(name => {
+                        const relevant = relevantAttrs.has(name)
+                        const val = attrs[name]
+                        return (
+                          <div
+                            key={name}
+                            className="rounded-lg border bg-surface-2 px-2.5 py-2"
+                            style={relevant
+                              ? { borderColor: `${teamColors.primary}99`, boxShadow: `inset 2px 0 0 ${teamColors.primary}` }
+                              : { borderColor: 'var(--surface-4)' }}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className={`text-[11px] leading-tight truncate ${relevant ? 'text-txt-secondary font-semibold' : 'text-txt-tertiary'}`} title={name}>
+                                {name}
+                              </span>
+                              <span className="text-[9px] font-bold text-txt-muted tabular-nums flex-shrink-0">{ATTRIBUTE_ABBR[name] || ''}</span>
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              max="99"
+                              inputMode="numeric"
+                              value={val === 0 ? 0 : (val || '')}
+                              onChange={(e) => updateAttribute(name, e.target.value)}
+                              placeholder="—"
+                              className="w-full px-2 py-1.5 text-sm rounded-md border border-surface-4 bg-surface-1 focus:border-surface-5 focus:outline-none text-center text-txt-primary tabular-nums font-semibold"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Career Tab */}
         {activeTab === 'career' && (

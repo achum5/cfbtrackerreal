@@ -633,6 +633,10 @@ function buildMatchup(dynasty, g, year, week, normCtx) {
     homeTid, awayTid, isNeutral, isPlayed, homeScore, awayScore, result,
     homeName: getTeamName(dynasty, homeTid),
     awayName: getTeamName(dynasty, awayTid),
+    homeSchool: getSchoolName(homeTid, dynasty?.teams) || getTeamAbbr(dynasty, homeTid),
+    awaySchool: getSchoolName(awayTid, dynasty?.teams) || getTeamAbbr(dynasty, awayTid),
+    homeAbbr: getTeamAbbr(dynasty, homeTid),
+    awayAbbr: getTeamAbbr(dynasty, awayTid),
     homeLogo: getTeamLogo(dynasty, homeTid),
     awayLogo: getTeamLogo(dynasty, awayTid),
     homeSpreadDisplay, awaySpreadDisplay,
@@ -643,17 +647,19 @@ function buildMatchup(dynasty, g, year, week, normCtx) {
 
 // One odds box. Green-tinted + bold when this is the side that hit; the favorite
 // otherwise gets primary text, the dog muted.
-function OddsCell({ value, vig, emphasize, hit }) {
+function OddsCell({ value, vig, hit }) {
   return (
     <div
       className="flex flex-col items-center justify-center py-2 border-l border-surface-4"
       style={hit ? { background: 'color-mix(in srgb, var(--accent-success) 20%, transparent)' } : undefined}
     >
+      {/* All odds render at the same weight/brightness — only a winning bet
+          (hit) turns green. The favorite is NOT emphasized over the dog. */}
       <div
         className="tabular-nums text-xs"
         style={hit
           ? { color: 'var(--accent-success)', fontWeight: 800 }
-          : emphasize ? { color: 'var(--text-primary)', fontWeight: 700 } : { color: 'var(--text-secondary)' }}
+          : { color: 'var(--text-primary)', fontWeight: 600 }}
       >
         {value}
       </div>
@@ -664,7 +670,7 @@ function OddsCell({ value, vig, emphasize, hit }) {
 
 function LinesHeader() {
   return (
-    <div className="grid grid-cols-[1fr_repeat(3,72px)] border-b border-surface-4 text-txt-muted">
+    <div className="grid grid-cols-[1fr_repeat(3,64px)] border-b border-surface-4 text-txt-muted">
       <div />
       <div className="text-center text-[10px] font-semibold uppercase tracking-wide py-1.5 border-l border-surface-4">Spread</div>
       <div className="text-center text-[10px] font-semibold uppercase tracking-wide py-1.5 border-l border-surface-4">ML</div>
@@ -675,7 +681,7 @@ function LinesHeader() {
 
 function TeamRow({ logo, name, score, isPlayed, isWinner, fav, spread, ml, ou, total, vigOver, vigUnder, spreadHit, mlHit, totalHit, top }) {
   return (
-    <div className={`grid grid-cols-[1fr_repeat(3,72px)] items-stretch ${top ? '' : 'border-t border-surface-3'}`}>
+    <div className={`grid grid-cols-[1fr_repeat(3,64px)] items-stretch ${top ? '' : 'border-t border-surface-3'}`}>
       <div className="flex items-center gap-2 px-3 py-2.5 min-w-0">
         {logo
           ? <img src={logo} alt="" className="w-6 h-6 object-contain flex-shrink-0" />
@@ -688,27 +694,29 @@ function TeamRow({ logo, name, score, isPlayed, isWinner, fav, spread, ml, ou, t
           >{score}</span>
         )}
       </div>
-      <OddsCell value={spread} vig="-110" emphasize={fav} hit={spreadHit} />
-      <OddsCell value={fmt(ml)} emphasize={fav} hit={mlHit} />
+      <OddsCell value={spread} vig="-110" hit={spreadHit} />
+      <OddsCell value={fmt(ml)} hit={mlHit} />
       <OddsCell value={`${ou} ${total}`} vig={ou === 'O' ? vigOver : vigUnder} hit={totalHit} />
     </div>
   )
 }
 
 // The two team rows for one matchup. Each market (spread / ML / total) lights up
-// independently for the side that hit it.
-function MatchupRows({ m }) {
+// independently for the side that hit it. `compact` uses the shorter SCHOOL name
+// (e.g. "Western Kentucky" instead of "Western Kentucky Hilltoppers") for the
+// multi-column grid.
+function MatchupRows({ m, compact }) {
   const r = m.result
   return (
     <div>
       <TeamRow
-        top logo={m.awayLogo} name={m.awayName} score={m.awayScore} isPlayed={m.isPlayed}
+        top logo={m.awayLogo} name={compact ? m.awaySchool : m.awayName} score={m.awayScore} isPlayed={m.isPlayed}
         isWinner={r?.ml === 'away'} fav={m.awayFav} spread={m.awaySpreadDisplay} ml={m.awayML}
         ou="O" total={m.totalData.total} vigOver={fmt(m.totalData.overVig)} vigUnder={fmt(m.totalData.underVig)}
         spreadHit={r?.spread === 'away'} mlHit={r?.ml === 'away'} totalHit={r?.total === 'over'}
       />
       <TeamRow
-        logo={m.homeLogo} name={m.homeName} score={m.homeScore} isPlayed={m.isPlayed}
+        logo={m.homeLogo} name={compact ? m.homeSchool : m.homeName} score={m.homeScore} isPlayed={m.isPlayed}
         isWinner={r?.ml === 'home'} fav={m.homeFav} spread={m.homeSpreadDisplay} ml={m.homeML}
         ou="U" total={m.totalData.total} vigOver={fmt(m.totalData.overVig)} vigUnder={fmt(m.totalData.underVig)}
         spreadHit={r?.spread === 'home'} mlHit={r?.ml === 'home'} totalHit={r?.total === 'under'}
@@ -747,21 +755,19 @@ function GameLinesPanel({ dynasty, game, pathPrefix, gameFilter }) {
 
   return (
     <div className="px-2 sm:px-3 pb-3 pt-2">
-      <LinesHeader />
-      <div className="space-y-2 mt-2">
+      {/* Responsive multi-column grid — each card is self-contained (its own
+          Spread/ML/Total header) so it reads correctly in any column. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
         {matchups.map(m => {
           const card = (
-            <div className="rounded-lg border border-surface-4 overflow-hidden bg-surface-1 hover:bg-surface-2/50 transition-colors shadow-sm">
-              <MatchupRows m={m} />
+            <div className="rounded-lg border border-surface-4 overflow-hidden bg-surface-1 hover:bg-surface-2/50 transition-colors shadow-sm h-full">
+              <LinesHeader />
+              <MatchupRows m={m} compact />
             </div>
           )
-          return (
-            <div key={m.id}>
-              {pathPrefix && m.id
-                ? <Link to={`${pathPrefix}/game/${m.id}`} className="block">{card}</Link>
-                : card}
-            </div>
-          )
+          return pathPrefix && m.id
+            ? <Link key={m.id} to={`${pathPrefix}/game/${m.id}`} className="block">{card}</Link>
+            : <div key={m.id}>{card}</div>
         })}
       </div>
     </div>
@@ -843,7 +849,14 @@ function FuturesList({ rows, dynasty, year, pathPrefix, ranked = true, recordFor
 // Futures price (e.g. +1100) drawn in the row's contrast color, bold.
 function championOdds(odds, txt) {
   if (odds >= 100000) return <span className="font-display text-[11px] font-bold" style={{ color: txt, opacity: 0.6 }}>ELIM</span>
-  return <span className="font-display tabular-nums text-sm font-black" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>{fmt(odds)}</span>
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-md px-3 py-1.5 font-display tabular-nums text-sm font-black"
+      style={{ color: txt, minWidth: 66, background: 'rgba(0,0,0,0.26)', border: '1px solid rgba(255,255,255,0.16)', textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
+    >
+      {fmt(odds)}
+    </span>
+  )
 }
 
 // Conference sub-filter pills (shown only when the page-level filter is All FBS).
@@ -994,11 +1007,21 @@ function WinTotalsPanel({ dynasty, game, pathPrefix, customConfs, teamFilter, co
         recordFor={r => recordStr({ wins: r.wins, losses: r.losses }, r.conf)}
         oddsFor={(r, txt) => {
           const overFav = r.overML < r.underML
+          // Two stacked O / U bet buttons (favored side emphasized), like the
+          // Game Lines total cell — readable as pressable odds boxes.
+          const Box = ({ label, ml, fav }) => (
+            <span
+              className="flex items-baseline justify-between gap-2 rounded-md px-2.5 py-1 tabular-nums whitespace-nowrap"
+              style={{ color: txt, width: 108, background: `rgba(0,0,0,${fav ? 0.34 : 0.2})`, border: `1px solid rgba(255,255,255,${fav ? 0.26 : 0.12})`, textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}
+            >
+              <span className="font-display font-bold text-xs">{label} {r.total}</span>
+              <span className="font-display font-black text-xs" style={{ opacity: fav ? 1 : 0.85 }}>{fmt(ml)}</span>
+            </span>
+          )
           return (
-            <span className="flex items-center gap-2 text-xs tabular-nums whitespace-nowrap font-display font-semibold" style={{ color: txt, textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}>
-              <span style={{ opacity: 0.7 }}>O/U {r.total}</span>
-              <span style={{ fontWeight: overFav ? 900 : 600, opacity: overFav ? 1 : 0.75 }}>O {fmt(r.overML)}</span>
-              <span style={{ fontWeight: !overFav ? 900 : 600, opacity: !overFav ? 1 : 0.75 }}>U {fmt(r.underML)}</span>
+            <span className="flex flex-col gap-1 items-end">
+              <Box label="O" ml={r.overML} fav={overFav} />
+              <Box label="U" ml={r.underML} fav={!overFav} />
             </span>
           )
         }}
@@ -1084,7 +1107,7 @@ export default function SportsbookPanel({ dynasty, game, pathPrefix, hideHeader 
 
   return (
     <div
-      className={hideHeader ? 'max-w-lg mx-auto overflow-hidden' : 'max-w-lg mx-auto mt-4 rounded-xl border border-surface-4 overflow-hidden'}
+      className={`${sbTab === 'lines' ? 'w-full' : 'max-w-lg'} mx-auto ${hideHeader ? 'overflow-hidden' : 'mt-4 rounded-xl border border-surface-4 overflow-hidden'}`}
       style={hideHeader ? undefined : { background: 'var(--surface-1)' }}
     >
       {/* Header — hidden when embedded (e.g. the Around the Country page, where
