@@ -59,6 +59,49 @@ function findArchValue(scoutPos, archetype) {
   return null
 }
 
+// ── Recruit Overall Predictor (MaxPlaysCFB) ─────────────────────────────────
+// Projects a recruit's day-1 (freshman) overall from position + star only.
+// Replicated verbatim from MaxPlaysCFB's tool: prediction = 57 + positionMod +
+// starMod; low/high = prediction -/+ positionStdError -/+ 1.5. Pure math, no API.
+const OVR_BASE = 57
+const OVR_STAR_MODIFIERS = { 5: 16.89, 4: 14.15, 3: 6.26, 2: 0.0, 1: -4.0 }
+const OVR_POSITION_MODIFIERS = {
+  QB: { modifier: 3.72, stdError: 0.62 }, HB: { modifier: 4.05, stdError: 0.58 }, FB: { modifier: 2.14, stdError: 1.03 },
+  WR: { modifier: 2.24, stdError: 0.57 }, TE: { modifier: 0.44, stdError: 0.66 },
+  OT: { modifier: 2.74, stdError: 0.6 }, OG: { modifier: 3.11, stdError: 0.65 }, C: { modifier: 0.0, stdError: 0.7 },
+  DE: { modifier: 2.8, stdError: 0.59 }, DT: { modifier: 2.83, stdError: 0.62 },
+  OLB: { modifier: 3.1, stdError: 0.58 }, MIKE: { modifier: 1.85, stdError: 0.65 },
+  CB: { modifier: 2.49, stdError: 0.59 }, FS: { modifier: 2.73, stdError: 0.68 }, SS: { modifier: 3.11, stdError: 0.96 },
+  K: { modifier: 13.9, stdError: 0.8 }, P: { modifier: 13.9, stdError: 0.8 },
+}
+// Our positions → the predictor's position keys (note DE/OLB here, not EDGE/SAM_WILL).
+const OVR_POSITION_MAP = {
+  QB: 'QB', HB: 'HB', RB: 'HB', FB: 'FB', WR: 'WR', TE: 'TE',
+  LT: 'OT', RT: 'OT', OT: 'OT', OL: 'OT', LG: 'OG', RG: 'OG', OG: 'OG', C: 'C',
+  DE: 'DE', LE: 'DE', RE: 'DE', LEDG: 'DE', REDG: 'DE', EDGE: 'DE', DL: 'DE',
+  DT: 'DT', NT: 'DT',
+  SAM: 'OLB', WILL: 'OLB', OLB: 'OLB', LOLB: 'OLB', ROLB: 'OLB', LB: 'OLB',
+  MIKE: 'MIKE', MLB: 'MIKE', ILB: 'MIKE',
+  CB: 'CB', DB: 'CB', FS: 'FS', S: 'FS', SS: 'SS', K: 'K', P: 'P',
+}
+
+// { overall, low, high } projected day-1 overall, or null when not predictable
+// (unknown position, e.g. ATH, or missing star).
+export function predictRecruitOverall(recruit) {
+  const posKey = OVR_POSITION_MAP[(recruit?.position || '').toUpperCase()]
+  const star = Number(recruit?.stars)
+  const pm = posKey && OVR_POSITION_MODIFIERS[posKey]
+  const sm = OVR_STAR_MODIFIERS[star]
+  if (!pm || typeof sm !== 'number') return null
+  const prediction = OVR_BASE + pm.modifier + sm
+  const r1 = (v) => Math.round(v * 10) / 10
+  return {
+    overall: r1(prediction),
+    low: r1(prediction - pm.stdError - 1.5),
+    high: r1(prediction + pm.stdError + 1.5),
+  }
+}
+
 // Build the ScoutScore request payload from a recruit, or explain why we can't.
 export function buildScoutScorePayload(recruit) {
   const posRaw = (recruit?.position || '').toUpperCase()
@@ -167,6 +210,16 @@ export function defaultLensKey(data) {
   if (!data) return null
   if (data.availableLenses?.some((l) => l.key === 'position' && l.eligible)) return 'position'
   return data.defaultLens || data.availableLenses?.find((l) => l.eligible)?.key || null
+}
+
+// Background-warm the cache for a dynasty's current-year recruiting targets, so
+// the Scout Board renders instantly when the user opens Recruiting. Fire-and-
+// forget; results land in the shared cache. Gentle concurrency for background.
+export function warmScoutScoresForDynasty(dynasty) {
+  const yr = Number(dynasty?.currentYear)
+  if (!Number.isFinite(yr)) return
+  const targets = (dynasty?.players || []).filter((p) => p?.isTarget && Number(p.targetYear) === yr)
+  if (targets.length) getScoutScoresFor(targets, { concurrency: 4 }).catch(() => {})
 }
 
 // Score many recruits with a small concurrency cap (be polite to the upstream).

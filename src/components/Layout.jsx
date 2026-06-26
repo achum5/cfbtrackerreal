@@ -6,6 +6,7 @@ import { useCurrentTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogoByTid } from '../data/teams'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { TEAMS, getCurrentTeamAbbr, getCurrentTeamTid, getCurrentTeamName } from '../data/teamRegistry'
+import { warmScoutScoresForDynasty } from '../utils/scoutScore'
 import ClassAdvancementModal from './ClassAdvancementModal'
 import DynastyMigrationModal from './DynastyMigrationModal'
 import { needsV2Migration, isCleanButUnstamped } from '../data/migrateDynastyV2'
@@ -148,6 +149,27 @@ export default function Layout({ children }) {
       }
     }
   }, [])
+
+  // Warm the ScoutScore cache for this dynasty's current-year recruiting targets
+  // so the Scout Board is already populated when the user opens Recruiting
+  // (instead of a few-second fetch on first click). Scheduled during browser
+  // IDLE time so it never competes with the initial load — the first few seconds
+  // stay smooth. Runs once per dynasty; the shared cache dedupes the rest.
+  const warmedDynastyRef = useRef(null)
+  useEffect(() => {
+    const dyn = currentDynasty
+    if (!dyn?.id || !(dyn.players?.length > 0)) return
+    if (warmedDynastyRef.current === dyn.id) return
+    warmedDynastyRef.current = dyn.id
+
+    const run = () => warmScoutScoresForDynasty(dyn)
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(run, { timeout: 5000 })
+      return () => window.cancelIdleCallback?.(id)
+    }
+    const t = setTimeout(run, 3000)
+    return () => clearTimeout(t)
+  }, [currentDynasty?.id, currentDynasty?.players?.length])
 
   // Detect dynasties that need the v2 roster-data migration and prompt.
   // New / already-clean dynasties are silently stamped with _schemaVersion: 2

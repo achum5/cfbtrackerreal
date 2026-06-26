@@ -98,17 +98,18 @@ export default function ScoutScorePanel({ recruit }) {
     return [...m.entries()]
   }, [data, activeLens])
 
-  if (state.status === 'loading') {
-    return <p className="text-sm text-txt-secondary py-8 text-center animate-pulse">Benchmarking against the ScoutScore database…</p>
-  }
-  if (state.status === 'error') {
-    return <p className="text-sm text-txt-secondary py-5 text-center">{state.reason}</p>
-  }
-
   const overallPct = overall?.percentile
 
   return (
     <div>
+      {state.status === 'loading' && (
+        <p className="text-sm text-txt-secondary py-6 text-center animate-pulse">Benchmarking against the ScoutScore database…</p>
+      )}
+      {state.status === 'error' && (
+        <p className="text-sm text-txt-secondary py-4 text-center">{state.reason}</p>
+      )}
+
+      {state.status === 'done' && (<>
       {/* Lens selector — segmented */}
       {lenses.length > 1 && (
         <div className="inline-flex flex-wrap gap-1 p-1 rounded-lg mb-4" style={{ backgroundColor: 'var(--surface-2)' }}>
@@ -177,12 +178,13 @@ export default function ScoutScorePanel({ recruit }) {
           </div>
         ))}
       </div>
+      </>)}
 
       {/* Attribution */}
       <div className="mt-4 pt-3 border-t border-surface-4 text-[10px] text-txt-muted text-center">
-        Benchmarks by{' '}
-        <a href="https://maxplayscfb.com/tools/scoutscore/" target="_blank" rel="noopener noreferrer" className="text-txt-tertiary hover:text-txt-primary underline">
-          MaxPlaysCFB ScoutScore
+        Benchmarks &amp; projections by{' '}
+        <a href="https://maxplayscfb.com/tools/" target="_blank" rel="noopener noreferrer" className="text-txt-tertiary hover:text-txt-primary underline">
+          MaxPlaysCFB
         </a>
       </div>
     </div>

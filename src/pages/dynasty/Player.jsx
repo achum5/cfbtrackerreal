@@ -33,6 +33,7 @@ import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
+import { predictRecruitOverall } from '../../utils/scoutScore'
 import { getEditionConfig } from '../../editions'
 import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
@@ -532,6 +533,16 @@ function PlayerInner() {
   // name/logo/colors (that mislabel — and the resulting dead /team link — was
   // the M2 bug). Render it neutrally as a target instead.
   const isUncommittedTarget = isOpenTarget(player)
+
+  // ScoutScore tab lifecycle: while a recruit (tracked target, committed or not,
+  // not yet enrolled) ScoutScore leads — it IS the Overview tab. Once they enroll
+  // onto a roster, ScoutScore moves to a separate LAST tab and Overview returns.
+  const hasScoutAttributes = !!(player?.attributes && Object.keys(player.attributes).length > 0)
+  const enrolledOnRoster = Object.keys(player?.teamsByYear || {})
+    .map(Number)
+    .some((y) => Number.isFinite(y) && y <= Number(currentYear))
+  const isRecruitPhase = !!player?.isTarget && !enrolledOnRoster
+  const scoutScoreAsLastTab = !isRecruitPhase && enrolledOnRoster && hasScoutAttributes
   const playerTeamName = playerTeam?.name
     || getMascotName(playerTeamAbbr, dynasty?.teams || dynasty?.customTeams)
     || (isUncommittedTarget ? '' : dynasty?.teamName)
@@ -1082,7 +1093,7 @@ function PlayerInner() {
   // stats exist, otherwise timeline. Explicit ?tab= in the URL overrides.
   const defaultTab = (() => {
     // Recruiting targets lead with ScoutScore (the renamed Overview tab).
-    if (isUncommittedTarget) return 'overview'
+    if (isRecruitPhase) return 'overview'
     const hasGames = (playerGameLog?.length || 0) > 0
     if (hasGames) return 'overview'
     // "has stats" = at least one category has non-zero data, not just the
@@ -2133,7 +2144,7 @@ function PlayerInner() {
         <div className="relative border-t" style={{ borderColor: 'rgba(255,255,255,0.16)' }}>
           <div className="flex overflow-x-auto no-scrollbar">
             {[
-              { key: 'overview', label: isUncommittedTarget ? 'ScoutScore' : 'Overview' },
+              { key: 'overview', label: isRecruitPhase ? 'ScoutScore' : 'Overview' },
               { key: 'stats', label: 'Stats' },
               { key: 'gamelog', label: 'Game Log' },
               { key: 'timeline', label: 'Timeline' },
@@ -2143,6 +2154,8 @@ function PlayerInner() {
                 : []),
               ...(getPlayerCards(player).length > 0 ? [{ key: 'card', label: 'Cards' }] : []),
               ...(taggedPhotos.length > 0 ? [{ key: 'photos', label: 'Photos' }] : []),
+              // Enrolled players who were scouted keep ScoutScore as the LAST tab.
+              ...(scoutScoreAsLastTab ? [{ key: 'scoutscore', label: 'ScoutScore' }] : []),
             ].map(tab => {
               const isActive = activeTab === tab.key
               return (
@@ -2177,12 +2190,23 @@ function PlayerInner() {
       {/* Tab content — keyed so the whole subtree fades up on each switch */}
       <div key={activeTab} className="reveal">
 
-      {/* ScoutScore — recruit benchmarking (MaxPlaysCFB). Shown on the Overview
-          tab for recruiting targets, or for any player with scouted ratings. */}
-      {activeTab === 'overview' && (isUncommittedTarget || (player.attributes && Object.keys(player.attributes).length > 0)) && (
+      {/* ScoutScore — recruit benchmarking (MaxPlaysCFB). Leads on the Overview
+          tab while the player is a recruit (committed or not); once enrolled it
+          lives on its own ScoutScore tab. */}
+      {((activeTab === 'overview' && isRecruitPhase) || (activeTab === 'scoutscore' && scoutScoreAsLastTab)) && (
         <div className="media-card p-4 sm:p-5 mb-4">
           <div className="flex items-baseline justify-between gap-2 mb-3">
-            <h3 className="font-display font-black uppercase leading-none text-txt-primary" style={{ fontSize: '14px', letterSpacing: '0.02em' }}>ScoutScore</h3>
+            <div className="flex items-baseline gap-2.5 min-w-0">
+              <h3 className="font-display font-black uppercase leading-none text-txt-primary shrink-0" style={{ fontSize: '14px', letterSpacing: '0.02em' }}>ScoutScore</h3>
+              {(() => {
+                const proj = predictRecruitOverall(player)
+                return proj ? (
+                  <span className="text-[11px] text-txt-tertiary tabular-nums truncate">
+                    Proj <span className="font-bold text-txt-secondary">{proj.overall}</span> ({proj.low}–{proj.high})
+                  </span>
+                ) : null
+              })()}
+            </div>
             <a
               href="https://maxplayscfb.com/tools/scoutscore/"
               target="_blank"

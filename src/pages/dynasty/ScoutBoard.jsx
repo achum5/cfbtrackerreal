@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card, EmptyState, Button } from '../../components/ui'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { getScoutScoresFor, headlinePercentile, ordinal } from '../../utils/scoutScore'
+import { getScoutScoresFor, headlinePercentile, ordinal, predictRecruitOverall } from '../../utils/scoutScore'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
 
 // Scout Board (the Targets tab): tracked recruiting targets benchmarked by
@@ -30,7 +30,7 @@ function pctColor(pct) {
   return 'var(--accent-danger, #f87171)'
 }
 
-function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
+function Row({ r, rank, pathPrefix, scoutResult, scoring, sortBy }) {
   const { p, status } = r
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -45,6 +45,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
 
   const pct = scoutResult?.ok ? headlinePercentile(scoutResult.data) : null
   const badge = scoutResult ? (pct != null ? ordinal(pct) : '—') : (scoring ? '··' : '—')
+  const proj = predictRecruitOverall(p)
 
   return (
     <div style={{ borderTop: rank > 1 ? '1px solid var(--surface-4)' : 'none', opacity: lost ? 0.55 : 1 }}>
@@ -70,7 +71,7 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
               tabIndex={0}
               onClick={(e) => { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) }}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); navigate(`${pathPrefix}/player/${p.pid}`) } }}
-              className="text-[15px] font-bold text-txt-primary truncate hover:underline cursor-pointer"
+              className="text-[13px] sm:text-[15px] font-bold text-txt-primary truncate hover:underline cursor-pointer"
             >
               {p.name}
             </span>
@@ -78,9 +79,14 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
             {committed && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Committed</span>}
             {lost && <span className="text-[9px] font-bold uppercase text-txt-tertiary tracking-wide flex-shrink-0">· Lost</span>}
           </div>
-          <div className="flex items-baseline gap-x-3 truncate mt-1 text-[11px]" style={{ letterSpacing: '0.3px' }}>
+          <div className="flex items-baseline gap-x-1.5 sm:gap-x-3 truncate mt-1 text-[9px] sm:text-[11px]" style={{ letterSpacing: '0.3px' }}>
             <span className="uppercase text-txt-secondary font-semibold flex-shrink-0">{p.position || 'ATH'}</span>
             {p.archetype && <span className="uppercase text-txt-tertiary flex-shrink-0">{p.archetype}</span>}
+            {proj && (
+              <span className="flex-shrink-0 tabular-nums text-txt-tertiary normal-case">
+                Proj <span className="font-bold text-txt-secondary">{proj.overall}</span> ({proj.low}–{proj.high})
+              </span>
+            )}
             {ranks.length > 0 && (
               <span className="inline-flex items-baseline gap-x-2.5 tabular-nums min-w-0 truncate">
                 {ranks.map((rk) => (
@@ -94,11 +100,22 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
           </div>
         </div>
 
-        {/* ScoutScore overall percentile */}
+        {/* Big metric — follows the active sort: ScoutScore percentile,
+            projected overall, or national rank. */}
         <div className="text-right flex-shrink-0 w-12">
-          <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 800, color: pctColor(pct) }} title="ScoutScore overall percentile">
-            {badge}
-          </div>
+          {sortBy === 'projected' ? (
+            <div className="font-display leading-none tabular-nums text-txt-primary" style={{ fontSize: '1.35rem', fontWeight: 800 }} title="Projected day-1 overall">
+              {proj ? proj.overall : '—'}
+            </div>
+          ) : sortBy === 'national' ? (
+            <div className="font-display leading-none tabular-nums text-txt-primary" style={{ fontSize: '1.15rem', fontWeight: 800 }} title="National recruiting rank">
+              {p.nationalRank ? `#${p.nationalRank}` : '—'}
+            </div>
+          ) : (
+            <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 800, color: pctColor(pct) }} title="ScoutScore overall percentile">
+              {badge}
+            </div>
+          )}
         </div>
 
         <Chevron open={open} />
@@ -113,9 +130,21 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring }) {
   )
 }
 
+const SORT_OPTIONS = ['scoutscore', 'projected', 'national']
+
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResolveTargets = null, resolveCount = 0 }) {
   const yearN = Number(year)
-  const [sortBy, setSortBy] = useState('scoutscore')
+  // Sort choice persists per device.
+  const [sortBy, setSortBy] = useState(() => {
+    try {
+      const saved = localStorage.getItem('scoutBoardSortBy')
+      return SORT_OPTIONS.includes(saved) ? saved : 'scoutscore'
+    } catch { return 'scoutscore' }
+  })
+  const changeSortBy = (v) => {
+    setSortBy(v)
+    try { localStorage.setItem('scoutBoardSortBy', v) } catch { /* ignore */ }
+  }
 
   // The tracked targets for this recruiting year.
   const targets = useMemo(() => {
@@ -154,6 +183,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
       const n = Number(p.nationalRank)
       return Number.isFinite(n) && n > 0 ? n : Infinity
     }
+    const projOf = (p) => predictRecruitOverall(p)?.overall ?? null
     rows.sort((a, b) => {
       const aLost = a.status === 'committed_elsewhere' ? 1 : 0
       const bLost = b.status === 'committed_elsewhere' ? 1 : 0
@@ -162,6 +192,10 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
         const an = natOf(a.p)
         const bn = natOf(b.p)
         if (an !== bn) return an - bn
+      } else if (sortBy === 'projected') {
+        const ap = projOf(a.p) ?? -1
+        const bp = projOf(b.p) ?? -1
+        if (bp !== ap) return bp - ap
       }
       const av = pctOf(a.p.pid) ?? -1
       const bv = pctOf(b.p.pid) ?? -1
@@ -192,11 +226,12 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
               <span className="uppercase tracking-wide hidden sm:inline">Sort</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => changeSortBy(e.target.value)}
                 title="Sort targets"
                 className="text-[11px] bg-surface-2 border border-surface-4 rounded-md px-2 py-1 text-txt-secondary hover:text-txt-primary focus:outline-none focus:border-surface-5"
               >
                 <option value="scoutscore">ScoutScore</option>
+                <option value="projected">Projected Overall</option>
                 <option value="national">National Rank</option>
               </select>
             </label>
@@ -207,7 +242,7 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, onResol
         </div>
         <div>
           {ranked.map((r, i) => (
-            <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} scoutResult={scores.get(r.p.pid)} scoring={scoring} />
+            <Row key={r.p.pid} r={r} rank={i + 1} pathPrefix={pathPrefix} scoutResult={scores.get(r.p.pid)} scoring={scoring} sortBy={sortBy} />
           ))}
         </div>
       </section>
