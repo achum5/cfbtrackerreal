@@ -873,6 +873,11 @@ function NatlChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 
 // ─── Sub-panel: Conference Championship ──────────────────────────────────────
 
+// Independents don't play for a conference title, so they have no champ board.
+function isChampConference(c) {
+  return !!c && !/independ/i.test(String(c))
+}
+
 function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) {
   const year  = game?.year
   const week  = game?.week ?? 17
@@ -884,7 +889,7 @@ function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
       const abbr = teams[tid]?.abbr
       if (!abbr || isFCSPlaceholderAbbr(abbr)) return
       const c = teamConf(dynasty, tid, customConfs)
-      if (c) confSet.add(c)
+      if (c && isChampConference(c)) confSet.add(c)
     })
     return Array.from(confSet).sort()
   }, [dynasty, teams, customConfs])
@@ -911,6 +916,10 @@ function ConfChampPanel({ dynasty, game, pathPrefix, confFilter, customConfs }) 
 
   if (conferences.length === 0) {
     return <p className="text-txt-tertiary text-sm px-4 py-6 text-center">No conference data available.</p>
+  }
+  // Page filter set to Independent (or similar): there's no championship to price.
+  if (!isChampConference(conf)) {
+    return <p className="text-txt-tertiary text-sm px-4 py-6 text-center">Independents don&apos;t play for a conference championship.</p>
   }
 
   return (
