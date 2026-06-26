@@ -337,20 +337,20 @@ function calcTotal(dynasty, tid1, tid2, year, week) {
 }
 
 // ─── Probability → American odds ─────────────────────────────────────────────
-// Uses sportsbook-clean rounding. Enforces +110 minimum for underdogs.
+// Sportsbook-clean rounding. Underdogs floored at +110 and capped at maxDog.
 function probToAmerican(p, opts = {}) {
-  const { leaderFloor = -300 } = opts
-  if (p < 0.005) return 50000
-  if (p < 0.02)  return 10000
-
-  let ml
-  if (p > 0.5) {
-    ml = -(p / (1 - p)) * 100
-    ml = Math.max(roundOddsToBook(ml), leaderFloor) // clamp leader
-    return ml
+  const { leaderFloor = -300, maxDog = 50000 } = opts
+  // Clamp p: never ≥ 1 (the vig multiplier can push a heavy favorite's implied
+  // prob above 1, which flips the sign of the favorite formula and mispriced it
+  // as a +2800 longshot), and never 0. This is the bug behind the broken conf
+  // championship board.
+  const cp = Math.min(Math.max(p, 1e-6), 0.985)
+  if (cp > 0.5) {
+    const ml = -(cp / (1 - cp)) * 100
+    return Math.max(roundOddsToBook(ml), leaderFloor) // clamp leader
   }
-  ml = ((1 - p) / p) * 100
-  return Math.max(roundOddsToBook(ml), 110)
+  const ml = ((1 - cp) / cp) * 100
+  return Math.min(Math.max(roundOddsToBook(ml), 110), maxDog)
 }
 
 function fmt(ml) {
@@ -361,10 +361,12 @@ function fmt(ml) {
 const VIG = 1.045
 
 function softmaxOdds(rows, scoreKey, opts = {}) {
-  const { topN = Infinity, outsiderOdds = 50000, leaderFloor = -300 } = opts
+  const { topN = Infinity, outsiderOdds = 50000, leaderFloor = -300, temp = 10 } = opts
   if (rows.length === 0) return []
 
-  const expScores = rows.map(r => Math.exp(r[scoreKey] / 10))
+  // Higher temp = softer spread (used for small fields like one conference,
+  // where teams are closer in strength and shouldn't collapse to one favorite).
+  const expScores = rows.map(r => Math.exp(r[scoreKey] / temp))
   const totalExp  = expScores.reduce((a, b) => a + b, 0)
 
   const withProb = rows.map((r, i) => ({
@@ -430,12 +432,18 @@ function buildConfChampBoard(dynasty, year, week, confTeamAbbrs) {
     const overall = calcTeamStats(dynasty, tid, year, week ?? 99)
     const conf    = calcConfStats(dynasty, tid, year, week ?? 99)
     const ps      = calcPowerScore(dynasty, tid, year, week ?? 99)
-    // Conf score: 50% conf win%, 30% overall power, 20% conf point diff
-    const confScore = (conf.winPct * 50) + (ps * 0.3) + (conf.avgDiff * 2)
-    return { tid, team: teams[tid], stats: overall, conf, ps, cs: confScore }
+    // Power-dominant. Conference record nudges it, but its weight ramps up with
+    // conference games played — so one early conf win can't give a team a +25
+    // head start and run away with the whole board (the old winPct*50 term did
+    // exactly that, leaving every other team floored at +50000).
+    const confTrust = Math.min(1, conf.gamesPlayed / 4)
+    const confEdge  = ((conf.winPct - 0.5) * 60 + conf.avgDiff * 1.5) * confTrust
+    return { tid, team: teams[tid], stats: overall, conf, ps, cs: ps + confEdge }
   })
 
-  return softmaxOdds(rows, 'cs', { topN: Infinity, outsiderOdds: 100000, leaderFloor: -300 })
+  // Softer temperature: a single conference is ~16 teams of similar strength,
+  // so the field should spread out rather than collapse onto one favorite.
+  return softmaxOdds(rows, 'cs', { topN: Infinity, leaderFloor: -300, temp: 20 })
 }
 
 // ─── Win totals with pace-based drift ────────────────────────────────────────
@@ -443,10 +451,13 @@ const SEASON_GAMES = 12
 
 function calcWinTotal(dynasty, tid, year) {
   const stats = calcTeamStats(dynasty, tid, year)
-  // Season win line from power score (no team rating): power 20 ≈ a 6.5-win
-  // team, ~12 power per win. Clamped to a sane 2–12 range.
+  // Season win line from power score via an expected per-game win rate (power
+  // 20 ≈ a .500 / 6-win team). The old `(ps-20)/12` mapping was too steep and
+  // pegged every strong team at the 12 cap; this lands even elite teams around
+  // 10–11 with a realistic spread underneath.
   const ps        = calcPowerScore(dynasty, tid, year)
-  let baseTotal   = 6.5 + (ps - 20) / 12
+  const expWinPct = Math.max(0.05, Math.min(0.95, 0.5 + (ps - 20) / 210))
+  let baseTotal   = expWinPct * SEASON_GAMES
   baseTotal       = Math.max(2, Math.min(12, baseTotal))
   const total     = Math.round(baseTotal * 2) / 2
 
