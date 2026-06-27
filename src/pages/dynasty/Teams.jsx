@@ -154,14 +154,6 @@ export default function Teams() {
                           {school}
                         </span>
                       </Link>
-                      {team.isCustom && (
-                        <span
-                          className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase"
-                          style={{ letterSpacing: '1px', backgroundColor: 'rgba(0,0,0,0.35)', color: txt }}
-                        >
-                          Custom
-                        </span>
-                      )}
                       {!isViewOnly && (
                         <button
                           type="button"
