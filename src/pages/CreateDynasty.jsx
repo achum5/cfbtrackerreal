@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchableSelect from '../components/SearchableSelect'
 import DropdownSelect from '../components/DropdownSelect'
 import TeambuilderTeamFields from '../components/TeambuilderTeamFields'
-import { teams } from '../data/teams'
-import { getSelectableTeamsList, getTeamName } from '../data/teamAbbreviations'
+import { initializeDynastyTeams, getFBSTeamTids } from '../data/teamRegistry'
+import { getTeamName } from '../data/teamAbbreviations'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button, Input } from '../components/ui'
@@ -62,11 +62,37 @@ export default function CreateDynasty() {
 
   const [creating, setCreating] = useState(false)
 
-  const allFbsAbbreviations = getSelectableTeamsList()
-  const fbsTeamOptions = allFbsAbbreviations.map(abbr => ({
-    value: abbr,
-    label: `${getTeamName(abbr)} (${abbr})`,
-  }))
+  // FBS team-name options for the picker, gated to the chosen edition so
+  // edition-only programs (e.g. CFB 27's North Dakota State / Sacramento State,
+  // which reclassified to FBS) appear only when that edition is selected.
+  // Derived from the registry (not the static name list) so it stays in sync
+  // with edition gating automatically. Sorted by name to match prior ordering.
+  const teamNameOptions = useMemo(() => {
+    const editionTeams = initializeDynastyTeams(formData.gameEdition)
+    return getFBSTeamTids(editionTeams).map(tid => editionTeams[tid].name)
+  }, [formData.gameEdition])
+
+  // If the picked team isn't available in the newly-selected edition (e.g. the
+  // user chose an edition-only team, then switched editions), clear it so the
+  // form can't submit a team that doesn't exist in that edition.
+  useEffect(() => {
+    if (formData.teamName && !teamNameOptions.includes(formData.teamName)) {
+      setFormData(prev => ({ ...prev, teamName: '' }))
+    }
+  }, [teamNameOptions, formData.teamName])
+
+  // FBS teams a TeamBuilder team can replace — gated to the chosen edition from
+  // the registry (the single source of truth), so e.g. North Dakota State /
+  // Sacramento State are only replaceable in CFB 27. Mirrors teamNameOptions.
+  const editionFbsTeams = useMemo(() => {
+    const editionTeams = initializeDynastyTeams(formData.gameEdition)
+    return getFBSTeamTids(editionTeams).map(tid => editionTeams[tid])
+  }, [formData.gameEdition])
+  const allFbsAbbreviations = useMemo(() => editionFbsTeams.map(t => t.abbr), [editionFbsTeams])
+  const fbsTeamOptions = useMemo(() => editionFbsTeams.map(t => ({
+    value: t.abbr,
+    label: `${t.name} (${t.abbr})`,
+  })), [editionFbsTeams])
 
   // ── helpers ────────────────────────────────────────────────────────
 
@@ -374,7 +400,7 @@ export default function CreateDynasty() {
             <div>
               <SearchableSelect
                 label="Team Name"
-                options={teams}
+                options={teamNameOptions}
                 value={formData.teamName}
                 onChange={(value) => setFormData({ ...formData, teamName: value })}
                 placeholder="Search for your team..."

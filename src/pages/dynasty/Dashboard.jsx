@@ -10,8 +10,8 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { StatRings } from '../../components/CfbUI'
 import { getPlayerStatsForTid, getTeamStatsForTid, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
-import { TEAMS, resolveTid, getTeamByAbbr, getTidFromAbbr, getTidFromTeamName, setTeamYearField, getCurrentTeamTid, getCurrentTeamAbbr, getOriginalTeamAbbr, getGameTeamInfo, getGameOpponentInfo, getAbbrFromTeamName, getNameByAbbr, setPendingUserTeam, clearPendingUserTeam, getPendingUserTeamTid, getUserTeamTid } from '../../data/teamRegistry'
-import { getTeamLogo, teams } from '../../data/teams'
+import { TEAMS, getFBSTeamTids, resolveTid, getTeamByAbbr, getTidFromAbbr, getTidFromTeamName, setTeamYearField, getCurrentTeamTid, getCurrentTeamAbbr, getOriginalTeamAbbr, getGameTeamInfo, getGameOpponentInfo, getAbbrFromTeamName, getNameByAbbr, setPendingUserTeam, clearPendingUserTeam, getPendingUserTeamTid, getUserTeamTid } from '../../data/teamRegistry'
+import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -199,6 +199,18 @@ export default function Dashboard() {
   // Use team-centric helper functions for all team-specific data
   // getScheduleWithGameData merges game records into schedule entries
   const teamSchedule = useMemo(() => getScheduleWithGameData(currentDynasty), [currentDynasty])
+
+  // FBS team names for in-dynasty pickers (conference-championship opponent,
+  // "who is your opponent", "which team are you coaching now"). Derived from
+  // THIS dynasty's own teams — the single per-dynasty source of truth — so the
+  // list matches the dynasty's edition (CFB 27 includes North Dakota State /
+  // Sacramento State, CFB 26 does not) and reflects any TeamBuilder renames.
+  // Never the global static list.
+  const dynastyTeamNames = useMemo(() => {
+    const src = currentDynasty?.teams || TEAMS
+    return getFBSTeamTids(src).map(tid => src[tid]?.name).filter(Boolean)
+  }, [currentDynasty?.teams])
+
   const teamRoster = getCurrentRoster(currentDynasty)
   const teamPreseasonSetup = getCurrentPreseasonSetup(currentDynasty)
   const teamRatings = getCurrentTeamRatings(currentDynasty)
@@ -4209,7 +4221,7 @@ export default function Dashboard() {
                 customActions: !ccOpponent && !ccGame && !isViewOnly ? (
                   <div className="flex-shrink-0 w-44 sm:w-48">
                     <SearchableSelect
-                      options={teams}
+                      options={dynastyTeamNames}
                       value=""
                       onChange={(teamName) => {
                         // Resolve the picked team straight to its tid — the only
@@ -5024,7 +5036,7 @@ export default function Dashboard() {
                         </div>
                         <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Who is your opponent?</p>
                         <SearchableSelect
-                          options={teams}
+                          options={dynastyTeamNames}
                           value=""
                           onChange={async (value) => {
                             // Resolve the picked team to its tid immediately — tid is
@@ -5197,7 +5209,7 @@ export default function Dashboard() {
                       <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
                       <div className="max-w-xs">
                         <SearchableSelect
-                          options={teams}
+                          options={dynastyTeamNames}
                           value={newJobTeam}
                           onChange={async (value) => {
                             setNewJobTeam(value)
@@ -5550,7 +5562,7 @@ export default function Dashboard() {
                       <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
                       <div className="max-w-xs">
                         <SearchableSelect
-                          options={teams}
+                          options={dynastyTeamNames}
                           value={newJobTeam}
                           onChange={async (value) => {
                             setNewJobTeam(value)
@@ -6314,7 +6326,7 @@ export default function Dashboard() {
                     <p className="mb-2 text-xs sm:text-sm text-txt-secondary">Which team?</p>
                     <div className="max-w-xs">
                       <SearchableSelect
-                        options={teams}
+                        options={dynastyTeamNames}
                         value={newJobTeam}
                         onChange={async (value) => {
                           setNewJobTeam(value)
