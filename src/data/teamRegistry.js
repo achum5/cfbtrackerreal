@@ -1213,7 +1213,7 @@ export const TEAMS = {
     name: "North Dakota State Bison",
     primaryColor: "#006633",
     secondaryColor: "#FFC72C",
-    logo: "https://i.imgur.com/P6PRAnM.png",
+    logo: "https://a.espncdn.com/i/teamlogos/ncaa/500/2449.png",
     addedEdition: "cfb27"
   },
   143: {
@@ -1222,7 +1222,7 @@ export const TEAMS = {
     name: "Sacramento State Hornets",
     primaryColor: "#00563F",
     secondaryColor: "#C4B581",
-    logo: "https://i.imgur.com/fyTmBgs.png",
+    logo: "https://a.espncdn.com/i/teamlogos/ncaa/500/16.png",
     addedEdition: "cfb27"
   }
 }
