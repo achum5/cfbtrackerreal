@@ -9,7 +9,7 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button, Input } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
-import { EDITIONS, DEFAULT_EDITION } from '../editions'
+import { EDITIONS, DEFAULT_EDITION, getEditionConfig } from '../editions'
 
 const newBlankTeambuilder = () => ({
   name: '',
@@ -32,7 +32,10 @@ export default function CreateDynasty() {
     teamName: '',
     coachName: '',
     coachPosition: 'HC',
-    startYear: '2025',
+    // Starting Year defaults to the selected edition's release year (CFB 26 →
+    // 2025, CFB 27 → 2026). Switching editions updates it as long as it's still
+    // an edition default (a manually-typed custom year is preserved).
+    startYear: String(getEditionConfig(DEFAULT_EDITION).releaseYear),
     gameEdition: DEFAULT_EDITION,
   })
 
@@ -358,7 +361,18 @@ export default function CreateDynasty() {
                 <button
                   key={ed.key}
                   type="button"
-                  onClick={() => setFormData({ ...formData, gameEdition: ed.key })}
+                  onClick={() => setFormData(prev => {
+                    // Move the Starting Year to the new edition's release year,
+                    // but only if the current value is still an edition default
+                    // (don't clobber a year the user deliberately typed).
+                    const editionDefaultYears = EDITIONS.map(e => String(e.releaseYear))
+                    const yearIsDefault = editionDefaultYears.includes(String(prev.startYear))
+                    return {
+                      ...prev,
+                      gameEdition: ed.key,
+                      startYear: yearIsDefault ? String(ed.releaseYear) : prev.startYear,
+                    }
+                  })}
                   aria-pressed={active}
                   className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${
                     active ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'
