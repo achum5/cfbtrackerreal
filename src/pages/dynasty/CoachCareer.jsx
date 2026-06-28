@@ -18,10 +18,15 @@ import {
   getMemberLabel,
   getMemberTeamsForYear,
   getCoachNameForUid,
+  getMemberPhoto,
+  setMemberPhotoValue,
+  canManageMembers,
   getRole,
   ROLE_COMMISH,
   ROLE_COCOMMISH,
 } from '../../data/leagueModel'
+import ImageUpload from '../../components/ImageUpload'
+import { proxyImageUrl } from '../../utils/imageProxy'
 import {
   PageHero,
   EmptyState,
@@ -61,13 +66,16 @@ const MODAL_TITLES = {
 }
 
 export default function CoachCareer() {
-  const { currentDynasty } = useDynasty()
+  const { currentDynasty, updateDynasty } = useDynasty()
   const { user } = useAuth()
   const pathPrefix = usePathPrefix()
   const navigate = useNavigate()
   const [showGamesModal, setShowGamesModal] = useState(false)
   const [gamesModalType, setGamesModalType] = useState(null)
   const [selectedTeamForModal, setSelectedTeamForModal] = useState(null)
+  const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [photoDraft, setPhotoDraft] = useState('')
+  const [savingPhoto, setSavingPhoto] = useState(false)
 
   // The career being viewed. Defaults to the logged-in user; the
   // inline picker below lets any signed-in viewer flip to another
@@ -598,6 +606,34 @@ export default function CoachCareer() {
     ? ((careerTotals.wins / (careerTotals.wins + careerTotals.losses)) * 100).toFixed(1)
     : '0.0'
 
+  // Coach photo for the career being viewed. Stored per-uid in
+  // memberPhotos, same shape as memberLabels. You can edit your own
+  // photo; commish/co-commish can edit anyone's.
+  const coachPhotoUrl = getMemberPhoto(currentDynasty, effectiveSelectedUid)
+  const canEditPhoto = !!user?.uid && (
+    user.uid === effectiveSelectedUid || canManageMembers(currentDynasty, user.uid)
+  )
+
+  const openPhotoModal = () => {
+    setPhotoDraft(coachPhotoUrl || '')
+    setShowPhotoModal(true)
+  }
+
+  const savePhoto = async () => {
+    if (savingPhoto) return
+    setSavingPhoto(true)
+    try {
+      const next = setMemberPhotoValue(currentDynasty, effectiveSelectedUid, photoDraft)
+      await updateDynasty(currentDynasty.id, { memberPhotos: next })
+      setShowPhotoModal(false)
+    } catch (err) {
+      console.error('Failed to save coach photo', err)
+      alert('Could not save the coach photo. Please try again.')
+    } finally {
+      setSavingPhoto(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* Career hero — editorial split. Identity (eyebrow + name + range)
@@ -635,6 +671,39 @@ export default function CoachCareer() {
               row of vertical space vs the prior stacked layout, and the
               stats no longer feel orphaned from the headline. */}
           <div className="flex items-end gap-x-6 sm:gap-x-10 gap-y-3 flex-wrap">
+            {/* Coach photo — clickable to edit when you own this career
+                (or you're commish). Falls back to an Add-photo prompt
+                for editors and renders nothing for read-only viewers. */}
+            {(coachPhotoUrl || canEditPhoto) && (
+              <button
+                type="button"
+                onClick={canEditPhoto ? openPhotoModal : undefined}
+                disabled={!canEditPhoto}
+                aria-label={canEditPhoto ? 'Edit coach photo' : undefined}
+                className={`group relative shrink-0 self-end overflow-hidden rounded-xl border border-surface-4 bg-surface-2 ${canEditPhoto ? 'cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-text-primary' : 'cursor-default'}`}
+                style={{ width: 'clamp(56px, 9vw, 84px)', height: 'clamp(56px, 9vw, 84px)' }}
+              >
+                {coachPhotoUrl ? (
+                  <>
+                    <img
+                      src={proxyImageUrl(coachPhotoUrl, 300)}
+                      alt={selectedDisplayName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none' }}
+                    />
+                    {canEditPhoto && (
+                      <span className="absolute inset-x-0 bottom-0 text-center py-0.5 text-[9px] uppercase tracking-wide bg-black/55 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                        Edit
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center px-1 text-center text-txt-tertiary text-[9px] uppercase leading-tight" style={{ letterSpacing: '1px' }}>
+                    Add Photo
+                  </span>
+                )}
+              </button>
+            )}
             <div className="min-w-0">
               <h1
                 className="m-0 text-txt-primary leading-[0.9] uppercase break-words"
@@ -1222,6 +1291,49 @@ export default function CoachCareer() {
             ))}
           </div>
         )}
+      </Modal>
+
+      {/* Coach photo editor — same ImageUpload flow used everywhere else. */}
+      <Modal
+        isOpen={showPhotoModal}
+        onClose={() => setShowPhotoModal(false)}
+        title={`${selectedDisplayName} — Coach Photo`}
+        size="sm"
+        footer={
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => { setPhotoDraft(''); }}
+              className="text-xs text-txt-tertiary hover:text-txt-secondary px-2 py-1.5"
+              disabled={!photoDraft}
+            >
+              Remove photo
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPhotoModal(false)}
+                className="text-sm px-3 py-1.5 rounded-md border border-surface-4 text-txt-secondary hover:bg-surface-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={savePhoto}
+                disabled={savingPhoto}
+                className="text-sm px-3 py-1.5 rounded-md bg-surface-5 text-txt-primary font-semibold disabled:opacity-60"
+              >
+                {savingPhoto ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        }
+      >
+        <ImageUpload
+          value={photoDraft}
+          onChange={(url) => setPhotoDraft(url || '')}
+          placeholder="Upload or paste a coach photo"
+        />
       </Modal>
     </div>
   )
