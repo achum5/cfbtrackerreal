@@ -584,6 +584,9 @@ export default function TeamYear() {
   // Roster sorting state — rosterSort/rosterSortDir/positionFilter are now
   // URL-persisted above so back-button navigation preserves them.
   const [showRosterModal, setShowRosterModal] = useState(false)
+  // DOM node for the extended header sub-bar that hosts the Depth Chart controls
+  // (side tabs / season / edit buttons) — TeamOutlook portals its controls here.
+  const [depthCtrlSlot, setDepthCtrlSlot] = useState(null)
   const [rosterCollapsed, setRosterCollapsed] = useState(false)
   const [scheduleCollapsed, setScheduleCollapsed] = useState(false)
   const [showRecordTooltip, setShowRecordTooltip] = useState(false)
@@ -3202,6 +3205,17 @@ export default function TeamYear() {
             })}
           </div>
         </div>
+
+        {/* Extended header section — Depth Chart controls (side tabs / season /
+            edit buttons) dock here so they read as part of the team header.
+            TeamOutlook portals its control bar into this slot. */}
+        {activeTab === 'depthchart' && (
+          <div
+            ref={setDepthCtrlSlot}
+            className="relative px-3 sm:px-4 lg:px-5 py-2.5 border-t"
+            style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(0,0,0,0.24)' }}
+          />
+        )}
       </div>
 
       {/* Team-color wash — only on Home, where the team-colored sections sit on
@@ -4407,6 +4421,7 @@ export default function TeamYear() {
       {/* DEPTH CHART TAB */}
       {activeTab === 'depthchart' && (
         <TeamOutlook tid={tid} guardRef={outlookGuardRef}
+          controlsSlot={depthCtrlSlot}
           pageYear={selectedYear}
           focusPid={searchParams.get('player')}
           side={searchParams.get('side') || 'offense'}

@@ -15,7 +15,7 @@ import PlayerCards from '../../components/PlayerCards'
 import { getPlayerCards } from '../../utils/playerCards'
 import { uploadImage } from '../../utils/imageUpload'
 import { healPlayer, PLAYER_HEAL_VERSION } from '../../utils/playerHeal'
-import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, ratingsGroups } from '../../utils/recruitAttributes'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, ratingsGroups, displayLabel } from '../../utils/recruitAttributes'
 
 // Year input with a local draft state. Controlled <input type="number">
 // + an onChange that gates on `value > 1900 && < 2100` would reject
@@ -1112,6 +1112,21 @@ export default function PlayerEdit() {
     { id: 'card', label: 'Card' },
   ]
 
+  // Seasons available to the per-season Attributes editor + the resolved
+  // selection (explicit choice → current → latest). Lifted here so the inline
+  // season dropdown in the tab bar and the editor body stay in sync.
+  const attrEditYears = (() => {
+    const set = new Set()
+    Object.keys(formData.teamsByYear || {}).forEach(y => set.add(Number(y)))
+    Object.keys(formData.overallByYear || {}).forEach(y => set.add(Number(y)))
+    Object.keys(formData.attributesByYear || {}).forEach(y => set.add(Number(y)))
+    if (currentYear) set.add(Number(currentYear))
+    return Array.from(set).filter(y => !isNaN(y)).sort((a, b) => a - b)
+  })()
+  const resolvedAttrYear = (attrEditYear != null && attrEditYears.includes(attrEditYear))
+    ? attrEditYear
+    : (currentYear && attrEditYears.includes(Number(currentYear)) ? Number(currentYear) : (attrEditYears[attrEditYears.length - 1] ?? Number(currentYear)))
+
   return (
     <div className="min-h-dvh pb-24 -mx-4 sm:-mx-6 lg:-mx-8 -my-4 sm:-my-6">
       {/* Header */}
@@ -1295,15 +1310,29 @@ export default function PlayerEdit() {
           <div className="flex mt-4 -mb-px overflow-x-auto no-scrollbar border-b border-surface-4">
             {tabs.map(tab => {
               const isActive = activeTab === tab.id
+              // The per-season Attributes editor (rostered players) gets a season
+              // dropdown inline with the tab itself once it's active/selected.
+              const showAttrYear = tab.id === 'ratings' && isActive && !isTargetPlayer(player) && attrEditYears.length > 0
               return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative px-4 py-2.5 label-sm whitespace-nowrap transition-colors ${isActive ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'}`}
-                >
-                  {tab.label}
-                  {isActive && <span className="absolute left-0 right-0 bottom-0 h-[2px]" style={{ backgroundColor: teamColors.primary }} />}
-                </button>
+                <div key={tab.id} className="relative flex items-center">
+                  <button
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative px-4 py-2.5 label-sm whitespace-nowrap transition-colors ${isActive ? 'text-txt-primary' : 'text-txt-tertiary hover:text-txt-secondary'}`}
+                  >
+                    {tab.label}
+                    {isActive && <span className="absolute left-0 right-0 bottom-0 h-[2px]" style={{ backgroundColor: teamColors.primary }} />}
+                  </button>
+                  {showAttrYear && (
+                    <select
+                      value={resolvedAttrYear}
+                      onChange={(e) => setAttrEditYear(Number(e.target.value))}
+                      className="mr-3 px-2 py-1 text-xs rounded-md border border-surface-4 bg-surface-1 text-txt-primary focus:border-surface-5 focus:outline-none"
+                      title="Season being edited"
+                    >
+                      {attrEditYears.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -1734,67 +1763,27 @@ export default function PlayerEdit() {
             for any roster season; values are stored in attributesByYear[year]. */}
         {activeTab === 'ratings' && !isTargetPlayer(player) && (() => {
           const relevantAttrs = new Set(attributeNamesFor(formData.position, formData.archetype) || [])
-          // Seasons the player has a roster/overall/attribute entry for.
-          const yearsSet = new Set()
-          Object.keys(formData.teamsByYear || {}).forEach(y => yearsSet.add(Number(y)))
-          Object.keys(formData.overallByYear || {}).forEach(y => yearsSet.add(Number(y)))
-          Object.keys(formData.attributesByYear || {}).forEach(y => yearsSet.add(Number(y)))
-          const years = Array.from(yearsSet).filter(y => !isNaN(y)).sort((a, b) => a - b)
-          if (currentYear && !years.includes(Number(currentYear))) years.push(Number(currentYear))
-          years.sort((a, b) => a - b)
-          // Resolve the selected season: explicit choice → current → latest.
-          const year = (attrEditYear != null && years.includes(attrEditYear))
-            ? attrEditYear
-            : (currentYear && years.includes(Number(currentYear)) ? Number(currentYear) : (years[years.length - 1] ?? Number(currentYear)))
+          const year = resolvedAttrYear
           const attrs = (formData.attributesByYear || {})[year] || {}
-          const filledCount = ATTRIBUTE_COLUMNS.filter(a => attrs[a] !== '' && attrs[a] != null).length
           return (
-            <div className="space-y-4">
-              {/* Intro / legend + season selector */}
-              <div className="card">
-                <div className="px-5 py-3 border-b border-surface-4 bg-surface-3 flex items-center justify-between gap-3" style={{ borderLeft: `3px solid ${teamColors.primary}` }}>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-txt-secondary">Attributes</h2>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-txt-tertiary tabular-nums">{filledCount} / {ATTRIBUTE_COLUMNS.length} set</span>
-                    <select
-                      value={year}
-                      onChange={(e) => setAttrEditYear(Number(e.target.value))}
-                      className="px-2 py-1 text-sm rounded-md border border-surface-4 bg-surface-1 text-txt-primary focus:border-surface-5 focus:outline-none"
-                    >
-                      {years.map(y => <option key={y} value={y}>{y} Season</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="px-5 py-3 flex items-center gap-2 text-xs text-txt-tertiary">
-                  <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: teamColors.primary }} />
-                  Editing the {year} season. Accented ratings matter for {formData.position || 'this player'}{formData.archetype ? ` (${formData.archetype})` : ''}. Leave a field blank to clear it.
-                </div>
-              </div>
-
-              {RATINGS_GROUPS.map(group => (
-                <div key={group.label} className="card">
-                  <div className="px-5 py-2.5 border-b border-surface-4 bg-surface-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-txt-tertiary">{group.label}</h3>
-                  </div>
-                  <div className="p-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+            <div className="card p-4 sm:p-5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5 items-start">
+                {RATINGS_GROUPS.map(group => (
+                  <div key={group.label}>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-txt-tertiary mb-2 pb-1 border-b border-surface-4">{group.label}</h4>
+                    <div className="space-y-1">
                       {group.attrs.map(name => {
                         const relevant = relevantAttrs.has(name)
                         const val = attrs[name]
                         return (
-                          <div
-                            key={name}
-                            className="rounded-lg border bg-surface-2 px-2.5 py-2"
-                            style={relevant
-                              ? { borderColor: `${teamColors.primary}99`, boxShadow: `inset 2px 0 0 ${teamColors.primary}` }
-                              : { borderColor: 'var(--surface-4)' }}
-                          >
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className={`text-[11px] leading-tight truncate ${relevant ? 'text-txt-secondary font-semibold' : 'text-txt-tertiary'}`} title={name}>
-                                {name}
-                              </span>
-                              <span className="text-[9px] font-bold text-txt-muted tabular-nums flex-shrink-0">{ATTRIBUTE_ABBR[name] || ''}</span>
-                            </div>
+                          <div key={name} className="flex items-center justify-between gap-2">
+                            <span
+                              className={`text-[12px] truncate ${relevant ? 'font-semibold' : 'text-txt-secondary'}`}
+                              style={relevant ? { color: teamColors.primary } : undefined}
+                              title={name}
+                            >
+                              {displayLabel(name)}
+                            </span>
                             <input
                               type="number"
                               min="0"
@@ -1803,15 +1792,15 @@ export default function PlayerEdit() {
                               value={val === 0 ? 0 : (val || '')}
                               onChange={(e) => updateAttributeByYear(year, name, e.target.value)}
                               placeholder="—"
-                              className="w-full px-2 py-1.5 text-sm rounded-md border border-surface-4 bg-surface-1 focus:border-surface-5 focus:outline-none text-center text-txt-primary tabular-nums font-semibold"
+                              className="w-12 flex-shrink-0 px-1 py-0.5 text-[12px] rounded border border-surface-4 bg-surface-1 focus:border-surface-5 focus:outline-none text-center text-txt-primary tabular-nums font-semibold"
                             />
                           </div>
                         )
                       })}
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )
         })()}

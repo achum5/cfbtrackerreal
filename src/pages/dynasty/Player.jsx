@@ -1122,6 +1122,9 @@ function PlayerInner() {
       })
     })
     if (hasAnyStats) return 'stats'
+    // A player with attributes but no games/stats (e.g. a freshly imported
+    // roster) leads with Attributes rather than an empty Timeline.
+    if (hasAttributes) return 'attributes'
     return 'timeline'
   })()
   const activeTab = explicitTab || defaultTab
@@ -2161,10 +2164,10 @@ function PlayerInner() {
             {[
               { key: 'overview', label: isRecruitPhase ? 'ScoutScore' : 'Overview' },
               { key: 'stats', label: 'Stats' },
+              ...(hasAttributes ? [{ key: 'attributes', label: 'Attributes' }] : []),
               { key: 'gamelog', label: 'Game Log' },
               { key: 'timeline', label: 'Timeline' },
               { key: 'awards', label: 'Awards' },
-              ...(hasAttributes ? [{ key: 'attributes', label: 'Attributes' }] : []),
               ...((Array.isArray(player.highlights) ? player.highlights : []).filter(Boolean).length > 0
                 ? [{ key: 'highlights', label: 'Highlights' }]
                 : []),
