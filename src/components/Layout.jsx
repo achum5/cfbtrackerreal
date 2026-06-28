@@ -685,7 +685,12 @@ export default function Layout({ children }) {
                 className="flex-shrink-0 relative inline-block"
                 aria-label="CFB Dynasty Tracker"
               >
-                <img src={logo} alt="CFB Dynasty Tracker" className="h-9 sm:h-11 object-contain" />
+                <img
+                  src="https://i.imgur.com/e1iYDSZ.png"
+                  alt="CFB Dynasty Tracker"
+                  className="h-9 sm:h-11 object-contain"
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = logo }}
+                />
               </Link>
 
               {useTeamTheme && (() => {

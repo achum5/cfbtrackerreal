@@ -193,9 +193,10 @@ export default function Login() {
 
         {/* Logo — centered across the top */}
         <img
-          src={logo}
+          src="https://i.imgur.com/e1iYDSZ.png"
           alt="CFB Dynasty Tracker"
           className="w-64 lg:w-80 h-auto object-contain"
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = logo }}
         />
 
         {/* Features + app preview carousel */}
