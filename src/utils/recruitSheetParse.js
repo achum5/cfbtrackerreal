@@ -68,7 +68,7 @@ const ATTR_BY_LABEL = (() => {
 // separators (comma / semicolon / newline / space) don't matter. A legacy cell
 // holding a bare number (old per-named-column layout) has no label and yields
 // no attributes.
-function parseAttributes(cell) {
+export function parseAttributes(cell) {
   if (cell == null) return null
   const text = String(cell).trim()
   if (!text) return null

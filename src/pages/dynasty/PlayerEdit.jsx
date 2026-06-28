@@ -15,7 +15,7 @@ import PlayerCards from '../../components/PlayerCards'
 import { getPlayerCards } from '../../utils/playerCards'
 import { uploadImage } from '../../utils/imageUpload'
 import { healPlayer, PLAYER_HEAL_VERSION } from '../../utils/playerHeal'
-import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor } from '../../utils/recruitAttributes'
+import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, ratingsGroups } from '../../utils/recruitAttributes'
 
 // Year input with a local draft state. Controlled <input type="number">
 // + an onChange that gates on `value > 1900 && < 2100` would reject
@@ -118,27 +118,11 @@ const ARCHETYPES = {
   ATH: ['Dual Threat', 'Scrambler', 'Power Rusher', 'Speed Rusher', 'East/West Playmaker', 'North/South Runner', 'Elusive Runner', 'Slot Receiver', 'Deep Threat', 'Vertical Threat', 'Possession', 'Lurker', 'Thumper', 'Coverage Specialist', 'Hybrid'],
 }
 
-// Ratings tab — every in-game attribute, grouped for readability. The union of
-// these groups must cover ATTRIBUTE_COLUMNS; any column not listed here falls
-// into a generated "Other" group (see RATINGS_GROUPS below) so a newly added
-// attribute can never silently disappear from the editor.
-const RATINGS_GROUP_DEFS = [
-  { label: 'Physical',      attrs: ['Awareness', 'Speed', 'Acceleration', 'Strength', 'Agility', 'Change of Direction'] },
-  { label: 'Passing',       attrs: ['Throw Power', 'Short Accuracy', 'Medium Accuracy', 'Deep Accuracy', 'Throw On Run', 'Under Pressure', 'Break Sack'] },
-  { label: 'Ball Carrier',  attrs: ['Carrying', 'Break Tackle', 'Juke Move', 'Spin Move', 'BC Vision'] },
-  { label: 'Receiving',     attrs: ['Catching', 'Catch In Traffic', 'Spectacular Catch', 'Short Route', 'Medium Route', 'Deep Route', 'Release'] },
-  { label: 'Blocking',      attrs: ['Run Block', 'Run Block Power', 'Run Block Finesse', 'Pass Block', 'Pass Block Power', 'Pass Block Finesse', 'Impact Blocking'] },
-  { label: 'Front Seven',   attrs: ['Block Shedding', 'Tackle', 'Hit Power', 'Power Moves', 'Finesse Moves', 'Pursuit', 'Play Recognition'] },
-  { label: 'Coverage',      attrs: ['Man Coverage', 'Zone Coverage', 'Press'] },
-  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Punt Power', 'Punt Accuracy'] },
-]
-const RATINGS_GROUPS = (() => {
-  const grouped = new Set(RATINGS_GROUP_DEFS.flatMap(g => g.attrs))
-  const leftover = ATTRIBUTE_COLUMNS.filter(a => !grouped.has(a))
-  return leftover.length
-    ? [...RATINGS_GROUP_DEFS, { label: 'Other', attrs: leftover }]
-    : RATINGS_GROUP_DEFS
-})()
+// Ratings tab — every in-game attribute, grouped for readability. Sourced from
+// the centralized grouping in recruitAttributes.js (ratingsGroups()), which
+// guarantees full coverage of ATTRIBUTE_COLUMNS (any ungrouped column lands in a
+// generated "Other" group) and stays in sync with the Player page Attributes tab.
+const RATINGS_GROUPS = ratingsGroups()
 
 // Award options
 // AWARD_OPTIONS — kept in sync with what the app actually tracks:
@@ -439,6 +423,9 @@ export default function PlayerEdit() {
   const [searchParams] = useSearchParams()
   const initialTab = searchParams.get('tab') || 'profile'
   const [activeTab, setActiveTab] = useState(initialTab)
+  // Selected season for the per-season Attributes editor (rostered players).
+  // null = default to current season (resolved in the tab body).
+  const [attrEditYear, setAttrEditYear] = useState(null)
   const [formData, setFormData] = useState({})
 
   // Team options for the recruiting-commitment picker (your team listed first).
@@ -605,6 +592,12 @@ export default function PlayerEdit() {
       })(),
       devTraitByYear: Object.entries(player.devTraitByYear || {}).reduce((acc, [k, v]) => {
         acc[parseInt(k)] = v
+        return acc
+      }, {}),
+      // Per-season attribute maps (CFB 27). Keys normalized to numbers; inner
+      // attribute maps copied so edits don't mutate the player record.
+      attributesByYear: Object.entries(player.attributesByYear || {}).reduce((acc, [k, v]) => {
+        if (v && typeof v === 'object') acc[parseInt(k)] = { ...v }
         return acc
       }, {}),
       nilByYear: Object.entries(player.nilByYear || {}).reduce((acc, [k, v]) => {
@@ -793,6 +786,18 @@ export default function PlayerEdit() {
     }))
   }
 
+  // Per-season rating edit (rostered players). Same raw-string-in-state contract
+  // as updateAttribute; the save path coerces to clamped ints and drops blanks.
+  const updateAttributeByYear = (year, name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      attributesByYear: {
+        ...(prev.attributesByYear || {}),
+        [year]: { ...((prev.attributesByYear || {})[year] || {}), [name]: value },
+      },
+    }))
+  }
+
   // Add accolade
   const addAccolade = () => {
     setFormData(prev => ({
@@ -863,6 +868,26 @@ export default function PlayerEdit() {
     })()
     const hadAttributes = player.attributes && Object.keys(player.attributes).length > 0
 
+    // Per-season ratings (CFB 27) — same clamp/drop-blank rules, applied per
+    // season. Seasons that end up empty are dropped entirely.
+    const cleanedAttributesByYear = (() => {
+      const src = formData.attributesByYear || {}
+      const out = {}
+      for (const [yr, map] of Object.entries(src)) {
+        if (!map || typeof map !== 'object') continue
+        const inner = {}
+        for (const [k, v] of Object.entries(map)) {
+          if (v === '' || v === null || v === undefined) continue
+          const n = Math.round(Number(v))
+          if (!Number.isFinite(n)) continue
+          inner[k] = Math.max(0, Math.min(99, n))
+        }
+        if (Object.keys(inner).length) out[parseInt(yr)] = inner
+      }
+      return out
+    })()
+    const hadAttributesByYear = player.attributesByYear && Object.keys(player.attributesByYear).length > 0
+
     const updatedPlayer = {
       ...player,
       firstName: formData.firstName,
@@ -931,6 +956,11 @@ export default function PlayerEdit() {
       // record that never had one.
       ...((Object.keys(cleanedAttributes).length || hadAttributes)
         ? { attributes: cleanedAttributes }
+        : {}),
+      // Per-season ratings (CFB 27 rostered players). Persist only when there's
+      // data (or the player already had a map) so we never stamp an empty map.
+      ...((Object.keys(cleanedAttributesByYear).length || hadAttributesByYear)
+        ? { attributesByYear: cleanedAttributesByYear }
         : {}),
       notes: formData.notes,
       isHonorOnly: false,
@@ -1075,7 +1105,7 @@ export default function PlayerEdit() {
   // Tab configuration
   const tabs = [
     { id: 'profile', label: 'Profile' },
-    { id: 'ratings', label: 'Ratings' },
+    { id: 'ratings', label: 'Attributes' },
     { id: 'career', label: 'Career' },
     { id: 'stats', label: 'Stats' },
     { id: 'awards', label: 'Awards' },
@@ -1633,7 +1663,9 @@ export default function PlayerEdit() {
 
         {/* Ratings Tab — every in-game attribute, editable. The ones that
             actually matter for this player's position/archetype are accented. */}
-        {activeTab === 'ratings' && (() => {
+        {/* Recruits / targets keep the single flat attribute set (it feeds the
+            scout-grade engine). Rostered players use the per-season editor below. */}
+        {activeTab === 'ratings' && isTargetPlayer(player) && (() => {
           const relevantAttrs = new Set(attributeNamesFor(formData.position, formData.archetype) || [])
           const attrs = formData.attributes || {}
           const filledCount = ATTRIBUTE_COLUMNS.filter(a => attrs[a] !== '' && attrs[a] != null).length
@@ -1684,6 +1716,92 @@ export default function PlayerEdit() {
                               inputMode="numeric"
                               value={val === 0 ? 0 : (val || '')}
                               onChange={(e) => updateAttribute(name, e.target.value)}
+                              placeholder="—"
+                              className="w-full px-2 py-1.5 text-sm rounded-md border border-surface-4 bg-surface-1 focus:border-surface-5 focus:outline-none text-center text-txt-primary tabular-nums font-semibold"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
+
+        {/* Per-season Attributes editor (rostered players). Edit any attribute
+            for any roster season; values are stored in attributesByYear[year]. */}
+        {activeTab === 'ratings' && !isTargetPlayer(player) && (() => {
+          const relevantAttrs = new Set(attributeNamesFor(formData.position, formData.archetype) || [])
+          // Seasons the player has a roster/overall/attribute entry for.
+          const yearsSet = new Set()
+          Object.keys(formData.teamsByYear || {}).forEach(y => yearsSet.add(Number(y)))
+          Object.keys(formData.overallByYear || {}).forEach(y => yearsSet.add(Number(y)))
+          Object.keys(formData.attributesByYear || {}).forEach(y => yearsSet.add(Number(y)))
+          const years = Array.from(yearsSet).filter(y => !isNaN(y)).sort((a, b) => a - b)
+          if (currentYear && !years.includes(Number(currentYear))) years.push(Number(currentYear))
+          years.sort((a, b) => a - b)
+          // Resolve the selected season: explicit choice → current → latest.
+          const year = (attrEditYear != null && years.includes(attrEditYear))
+            ? attrEditYear
+            : (currentYear && years.includes(Number(currentYear)) ? Number(currentYear) : (years[years.length - 1] ?? Number(currentYear)))
+          const attrs = (formData.attributesByYear || {})[year] || {}
+          const filledCount = ATTRIBUTE_COLUMNS.filter(a => attrs[a] !== '' && attrs[a] != null).length
+          return (
+            <div className="space-y-4">
+              {/* Intro / legend + season selector */}
+              <div className="card">
+                <div className="px-5 py-3 border-b border-surface-4 bg-surface-3 flex items-center justify-between gap-3" style={{ borderLeft: `3px solid ${teamColors.primary}` }}>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-txt-secondary">Attributes</h2>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-txt-tertiary tabular-nums">{filledCount} / {ATTRIBUTE_COLUMNS.length} set</span>
+                    <select
+                      value={year}
+                      onChange={(e) => setAttrEditYear(Number(e.target.value))}
+                      className="px-2 py-1 text-sm rounded-md border border-surface-4 bg-surface-1 text-txt-primary focus:border-surface-5 focus:outline-none"
+                    >
+                      {years.map(y => <option key={y} value={y}>{y} Season</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="px-5 py-3 flex items-center gap-2 text-xs text-txt-tertiary">
+                  <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: teamColors.primary }} />
+                  Editing the {year} season. Accented ratings matter for {formData.position || 'this player'}{formData.archetype ? ` (${formData.archetype})` : ''}. Leave a field blank to clear it.
+                </div>
+              </div>
+
+              {RATINGS_GROUPS.map(group => (
+                <div key={group.label} className="card">
+                  <div className="px-5 py-2.5 border-b border-surface-4 bg-surface-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-txt-tertiary">{group.label}</h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {group.attrs.map(name => {
+                        const relevant = relevantAttrs.has(name)
+                        const val = attrs[name]
+                        return (
+                          <div
+                            key={name}
+                            className="rounded-lg border bg-surface-2 px-2.5 py-2"
+                            style={relevant
+                              ? { borderColor: `${teamColors.primary}99`, boxShadow: `inset 2px 0 0 ${teamColors.primary}` }
+                              : { borderColor: 'var(--surface-4)' }}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className={`text-[11px] leading-tight truncate ${relevant ? 'text-txt-secondary font-semibold' : 'text-txt-tertiary'}`} title={name}>
+                                {name}
+                              </span>
+                              <span className="text-[9px] font-bold text-txt-muted tabular-nums flex-shrink-0">{ATTRIBUTE_ABBR[name] || ''}</span>
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              max="99"
+                              inputMode="numeric"
+                              value={val === 0 ? 0 : (val || '')}
+                              onChange={(e) => updateAttributeByYear(year, name, e.target.value)}
                               placeholder="—"
                               className="w-full px-2 py-1.5 text-sm rounded-md border border-surface-4 bg-surface-1 focus:border-surface-5 focus:outline-none text-center text-txt-primary tabular-nums font-semibold"
                             />

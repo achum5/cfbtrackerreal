@@ -7260,7 +7260,9 @@ export function DynastyProvider({ children }) {
     let seededPlayers = []
     if (currentTid && !teams[currentTid]?.isCustom) {
       try {
-        seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1)
+        // cfb27 dynasties seed the attribute-rich CFB 27 launch rosters.
+        const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
+        seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1, editionKey)
       } catch (err) {
         console.warn('[createDynasty] default roster seed failed:', err)
         seededPlayers = []
@@ -13934,6 +13936,11 @@ export function DynastyProvider({ children }) {
           // a value, so CFB 26 players never gain an empty nilByYear map.
           ...(player.nil != null && player.nil !== '' && !isNaN(parseInt(player.nil))
             ? { nilByYear: { ...(existingPlayer.nilByYear || {}), [year]: parseInt(player.nil) } }
+            : {}),
+          // IMMUTABLE per-season attribute history (CFB 27) — only when the sheet's
+          // Attributes cell parsed to something, so other seasons/players are untouched.
+          ...(player.attributes && Object.keys(player.attributes).length
+            ? { attributesByYear: { ...(existingPlayer.attributesByYear || {}), [year]: player.attributes } }
             : {})
           // ALL other fields (recruitYear, yearStarted, isRecruit, isPortal, stars, etc.)
           // are automatically preserved from ...existingPlayer and NOT overwritten
@@ -13963,6 +13970,11 @@ export function DynastyProvider({ children }) {
         // IMMUTABLE NIL history (CFB 27+) — only when the sheet provides a value.
         ...(player.nil != null && player.nil !== '' && !isNaN(parseInt(player.nil))
           ? { nilByYear: { [year]: parseInt(player.nil) } }
+          : {}),
+        // IMMUTABLE per-season attribute history (CFB 27) — only when the sheet's
+        // Attributes cell parsed to a non-empty map.
+        ...(player.attributes && Object.keys(player.attributes).length
+          ? { attributesByYear: { [year]: player.attributes } }
           : {}),
         // Canonical v2 movement record — was a legacy movements[] entry.
         movementByYear: {
@@ -14829,7 +14841,8 @@ export function DynastyProvider({ children }) {
         sheetInfo.spreadsheetId,
         dynasty.schedule,
         dynasty.players,
-        userTeamAbbr
+        userTeamAbbr,
+        dynasty.currentYear
       )
 
 

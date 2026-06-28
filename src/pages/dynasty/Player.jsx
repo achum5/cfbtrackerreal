@@ -21,6 +21,7 @@ import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams,
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
 import { sideOfPosition } from '../../utils/outlookBoard'
+import { displayGroups, displayLabel } from '../../utils/recruitAttributes'
 import { getTeamColors } from '../../data/teamColors'
 import { getAwardImage } from '../../data/awardImages'
 import OverallProgressionModal from '../../components/OverallProgressionModal'
@@ -484,6 +485,15 @@ function PlayerInner() {
   // as source of truth. Value can be a tid (number, modern) or an abbr
   // (string, legacy) depending on when the entry was written.
   const currentYear = dynasty?.currentYear
+  // Attributes (CFB 27 launch ratings, stored per-season in attributesByYear).
+  // Show the current season if it has data, else the most recent season; fall
+  // back to the flat recruit `attributes` map for scouted recruits.
+  const attrSeasons = player?.attributesByYear && typeof player.attributesByYear === 'object' ? player.attributesByYear : {}
+  const attrYearKeys = Object.keys(attrSeasons).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b)
+  const attrDisplayYear = (currentYear != null && attrSeasons[currentYear]) ? Number(currentYear)
+    : (attrYearKeys.length ? attrYearKeys[attrYearKeys.length - 1] : null)
+  const displayAttributes = (attrDisplayYear != null ? attrSeasons[attrDisplayYear] : null) || player?.attributes || null
+  const hasAttributes = !!(displayAttributes && Object.keys(displayAttributes).length)
   // NIL (CFB 27+) — current-season earnings for the hero + per-year for timelines.
   const nilEnabled = !!getEditionConfig(dynasty)?.features?.nil
   const currentNil = nilEnabled ? getPlayerNil(player, currentYear) : null
@@ -2154,6 +2164,7 @@ function PlayerInner() {
               { key: 'gamelog', label: 'Game Log' },
               { key: 'timeline', label: 'Timeline' },
               { key: 'awards', label: 'Awards' },
+              ...(hasAttributes ? [{ key: 'attributes', label: 'Attributes' }] : []),
               ...((Array.isArray(player.highlights) ? player.highlights : []).filter(Boolean).length > 0
                 ? [{ key: 'highlights', label: 'Highlights' }]
                 : []),
@@ -2194,6 +2205,53 @@ function PlayerInner() {
 
       {/* Tab content — keyed so the whole subtree fades up on each switch */}
       <div key={activeTab} className="reveal">
+
+      {/* Attributes — full per-season rating set (CFB 27 launch ratings), laid out
+          like the in-game player card: sectioned, each rating a name + value with
+          a proportional, color-graded fill bar. Reads attributesByYear[displayYear],
+          falling back to the flat recruit map. */}
+      {activeTab === 'attributes' && hasAttributes && (() => {
+        // Three-tier ramp matching the in-game card: green (strong), amber (mid),
+        // red (weak). Bar fill width is proportional to the rating.
+        const barColor = (v) => v >= 75 ? '#5bc56b' : v >= 50 ? '#e0a52e' : '#d65f54'
+        const groups = displayGroups()
+          .map(g => ({ ...g, entries: g.attrs.filter(a => displayAttributes[a] != null && displayAttributes[a] !== '') }))
+          .filter(g => g.entries.length)
+        return (
+          <div className="media-card p-3 sm:p-5 mb-4">
+            <div className="flex items-baseline justify-between gap-2 mb-3">
+              <h3 className="font-display font-black uppercase tracking-wide text-txt-primary" style={{ fontSize: '1.05rem' }}>Attributes</h3>
+              {attrDisplayYear != null && (
+                <span className="text-xs font-semibold text-txt-tertiary uppercase tracking-wide">{attrDisplayYear} Season</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 sm:gap-x-7 gap-y-4 items-start">
+              {groups.map(g => (
+                <div key={g.label}>
+                  <h4 className="font-display font-black text-txt-primary mb-2" style={{ fontSize: '0.95rem' }}>{g.label}</h4>
+                  <div className="space-y-1.5">
+                    {g.entries.map(name => {
+                      const val = Number(displayAttributes[name])
+                      const color = barColor(val)
+                      return (
+                        <div key={name}>
+                          <div className="flex items-baseline justify-between gap-1.5 leading-tight">
+                            <span className="text-[12px] text-txt-secondary truncate" title={displayLabel(name)}>{displayLabel(name)}</span>
+                            <span className="font-display font-bold tabular-nums text-txt-primary text-[12px]">{val}</span>
+                          </div>
+                          <div className="mt-0.5 h-[2px] w-full rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                            <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, val))}%`, backgroundColor: color }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ScoutScore — recruit benchmarking (MaxPlaysCFB). Leads on the Overview
           tab while the player is a recruit (committed or not); once enrolled it
@@ -2286,7 +2344,7 @@ function PlayerInner() {
         })
 
         const sectionHeader = (label, right) => (
-          <CardSectionHeader label={label} accent={teamInfo.backgroundColor} right={right} />
+          <CardSectionHeader label={label} right={right} />
         )
 
         const statRow = (label, value) => (
