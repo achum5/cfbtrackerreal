@@ -46,6 +46,7 @@ import {
   getSeasonsSubcollection,
   splitSeasonalUpdateByYear,
   writeSeasonalUpdate,
+  diffSeasonalDeletions,
   migrateSeasonalFieldsToSubcollection
 } from '../services/seasonSubcollection'
 
@@ -7490,7 +7491,7 @@ export function DynastyProvider({ children }) {
   }
 
   const updateDynasty = async (dynastyId, updates, options = {}) => {
-    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false, changedPlayerPids = null, replaceTeams = false } = options
+    const { skipLastModified = false, forceOverwrite = false, skipGamesSubcollection = false, skipPlayersSubcollection = false, changedPlayerPids = null, replaceTeams = false, replaceSeasonal = [] } = options
 
     // Read-only chokepoint: most mutations route through updateDynasty,
     // so guarding here catches every modal whose parent forgot to gate
@@ -7738,6 +7739,23 @@ export function DynastyProvider({ children }) {
       }
       if (Object.keys(seasonalCollect).length > 0) {
         const byYear = splitSeasonalUpdateByYear(seasonalCollect)
+        // For fields the caller is REPLACING (not just adding to), inject
+        // deleteField() sentinels for entries removed vs the current value —
+        // a merge-write can't otherwise clear a key that's simply absent now.
+        for (const field of replaceSeasonal) {
+          if (!(field in seasonalCollect)) continue
+          const delPatch = diffSeasonalDeletions(field, dynasty?.[field], seasonalCollect[field])
+          for (const [yr, fields] of Object.entries(delPatch)) {
+            if (!byYear[yr]) byYear[yr] = {}
+            for (const [sf, teamMap] of Object.entries(fields)) {
+              if (teamMap && typeof teamMap === 'object' && !Array.isArray(teamMap) && byYear[yr][sf] && typeof byYear[yr][sf] === 'object') {
+                byYear[yr][sf] = { ...byYear[yr][sf], ...teamMap }
+              } else {
+                byYear[yr][sf] = teamMap
+              }
+            }
+          }
+        }
         if (Object.keys(byYear).length > 0) {
           subcollectionPromises.push(writeSeasonalUpdate(dynastyId, byYear))
         }
@@ -7815,6 +7833,12 @@ export function DynastyProvider({ children }) {
       const mergeUpdates = (base) => {
         const merged = deepMerge(base, expandedUpdates)
         if (replaceTeams && expandedUpdates.teams) merged.teams = expandedUpdates.teams
+        // Same rationale as replaceTeams: deepMerge can't drop a removed key, so
+        // a cleared seasonal entry (e.g. a recruiting-class rank) would linger in
+        // the UI until reload. Replace the whole field with the new value.
+        for (const field of replaceSeasonal) {
+          if (field in expandedUpdates) merged[field] = expandedUpdates[field]
+        }
         return merged
       }
 

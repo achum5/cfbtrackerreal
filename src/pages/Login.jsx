@@ -36,21 +36,25 @@ const FEATURES = [
   'Cloud saves that sync across all your devices',
 ]
 
-function FeaturesAndSignin({ onSignIn, onTryDemo, demoLoading }) {
+function Features() {
+  return (
+    <Card padding="md">
+      <h2 className="label-xs text-txt-tertiary mb-3">Features</h2>
+      <ul className="space-y-2 text-sm text-txt-secondary">
+        {FEATURES.map((feature) => (
+          <li key={feature} className="flex gap-3">
+            <span className="text-txt-tertiary tabular w-4 flex-shrink-0">–</span>
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+function SignIn({ onSignIn, onTryDemo, demoLoading }) {
   return (
     <>
-      <Card padding="md" className="mb-6">
-        <h2 className="label-xs text-txt-tertiary mb-3">Features</h2>
-        <ul className="space-y-2 text-sm text-txt-secondary">
-          {FEATURES.map((feature) => (
-            <li key={feature} className="flex gap-3">
-              <span className="text-txt-tertiary tabular w-4 flex-shrink-0">–</span>
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
       <Card padding="md">
         <button
           onClick={onSignIn}
@@ -185,33 +189,23 @@ export default function Login() {
     <div className="min-h-dvh bg-surface-1 flex flex-col overflow-hidden relative">
       <BouncingLogos />
 
-      <div className="flex-1 flex items-center justify-center px-4 py-8 relative z-10">
-        <div className="w-full max-w-5xl flex flex-col items-center lg:flex-row lg:items-center lg:justify-center gap-6 lg:gap-12">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6 lg:gap-8 relative z-10">
 
-          <div className="w-full max-w-sm flex-shrink-0 lg:order-1 order-1 mx-auto lg:mx-0">
-            <div className="flex justify-center mb-4 lg:mb-6">
-              <img
-                src={logo}
-                alt="CFB Dynasty Tracker"
-                className="w-20 h-20 lg:w-28 lg:h-28 object-contain"
-              />
-            </div>
+        {/* Logo — centered across the top */}
+        <img
+          src={logo}
+          alt="CFB Dynasty Tracker"
+          className="w-64 lg:w-80 h-auto object-contain"
+        />
 
-            <div className="text-center mb-6 lg:mb-8">
-              <h1 className="display-md lg:display-lg text-txt-primary">
-                Dynasty Tracker
-              </h1>
-              <p className="label-xs text-txt-tertiary mt-2">
-                Track your EA CFB Dynasty
-              </p>
-            </div>
+        {/* Features + app preview carousel */}
+        <div className="w-full max-w-5xl flex flex-col lg:flex-row lg:items-start lg:justify-center gap-6 lg:gap-12">
 
-            <div className="hidden lg:block">
-              <FeaturesAndSignin onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
-            </div>
+          <div className="w-full max-w-sm flex-shrink-0 mx-auto lg:mx-0 order-2 lg:order-1">
+            <Features />
           </div>
 
-          <div className="w-full max-w-sm lg:max-w-xl flex-1 order-2 lg:order-2 mx-auto lg:mx-0">
+          <div className="w-full max-w-sm lg:max-w-xl flex-1 mx-auto lg:mx-0 order-1 lg:order-2">
             <div className="relative">
               <Card padding="none" variant="bordered" className="overflow-hidden">
                 <div className="relative overflow-hidden bg-surface-1" style={{ aspectRatio: '16/9' }}>
@@ -248,10 +242,11 @@ export default function Login() {
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="w-full max-w-sm flex-shrink-0 order-3 lg:hidden mx-auto">
-            <FeaturesAndSignin onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
-          </div>
+        {/* Sign in — centered below */}
+        <div className="w-full max-w-sm mx-auto">
+          <SignIn onSignIn={handleGoogleSignIn} onTryDemo={handleTryDemo} demoLoading={demoLoading} />
         </div>
       </div>
     </div>

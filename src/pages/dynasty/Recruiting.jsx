@@ -357,7 +357,14 @@ export default function Recruiting() {
       }
     }
 
-    await updateDynasty(currentDynasty.id, updates)
+    // replaceSeasonal/replaceTeams: a clear REMOVES the year from the maps, and
+    // a plain merge (Firestore season doc + local deepMerge) can't drop a key
+    // that's simply absent — so the cleared rank would re-surface. These options
+    // make both layers replace the field, honoring the removal.
+    await updateDynasty(currentDynasty.id, updates, {
+      replaceSeasonal: ['recruitingClassRankByTeamYear'],
+      replaceTeams: true,
+    })
   }
 
   const handleRecruitingSave = async (recruits) => {

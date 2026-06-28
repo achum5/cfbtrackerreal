@@ -647,7 +647,7 @@ export default function Layout({ children }) {
       >
         {/* Header is always neutral — no team-color accent stripe. */}
         <div className="w-full px-2 sm:px-4">
-          <div className="flex items-center justify-between py-3">
+          <div className="flex items-center justify-between py-2">
             {/* Left: Burger menu + Home button (dynasty pages only) */}
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {useTeamTheme && (
@@ -683,26 +683,9 @@ export default function Layout({ children }) {
               <Link
                 to="/"
                 className="flex-shrink-0 relative inline-block"
-                aria-label="Dynasty Tracker (beta)"
+                aria-label="CFB Dynasty Tracker"
               >
-                <img src={logo} alt="Dynasty Tracker" className="h-8 sm:h-10 object-contain" />
-                {/* BETA tag — sits on top of the logo's upper-right corner
-                    like a sticker. Slight rotation gives it "tag" energy. */}
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-1 -right-2 sm:-top-1.5 sm:-right-3 px-1.5 py-[1px] sm:px-2 sm:py-[2px] rounded-[3px] text-[8px] sm:text-[9px] font-black uppercase tracking-[0.15em] text-white shadow-md pointer-events-none select-none"
-                  style={{
-                    fontFamily: "'Inter', system-ui, sans-serif",
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 55%, #ef4444 100%)',
-                    textShadow: '0 1px 1px rgba(0,0,0,0.35)',
-                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    transform: 'rotate(8deg)',
-                    animation: 'beta-pulse-wiggle 3.2s ease-in-out infinite',
-                  }}
-                >
-                  Beta
-                </span>
+                <img src={logo} alt="CFB Dynasty Tracker" className="h-9 sm:h-11 object-contain" />
               </Link>
 
               {useTeamTheme && (() => {
