@@ -646,7 +646,7 @@ export default function Layout({ children }) {
       >
         {/* Header is always neutral — no team-color accent stripe. */}
         <div className="w-full px-2 sm:px-4">
-          <div className="flex items-center justify-between py-2">
+          <div className="flex items-center justify-between py-2 relative">
             {/* Left: Burger menu + Home button (dynasty pages only) */}
             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               {useTeamTheme && (
@@ -677,8 +677,15 @@ export default function Layout({ children }) {
               )}
             </div>
 
-            {/* Center: Logo + Team info - centered */}
-            <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 min-w-0">
+            {/* Center: Logo + Team info - centered.
+                On dynasty pages both sides carry content, so flex-1/justify-center
+                lands the logo in the middle. On the dynasty-LIST page the left
+                slot is empty (no burger/home), which would pull a flex-centered
+                logo left of true center — so there we absolutely center it to the
+                header instead. */}
+            <div className={useTeamTheme
+              ? "flex-1 flex items-center justify-center gap-2 sm:gap-3 min-w-0"
+              : "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center"}>
               <Link
                 to="/"
                 className="flex-shrink-0 relative inline-block"
