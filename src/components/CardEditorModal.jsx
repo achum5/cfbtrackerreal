@@ -78,13 +78,23 @@ export default function CardEditorModal({
       : ` Do NOT introduce any second team's colors as accents — only ${school}'s palette drives the design.`
     return `\n\nTEAM COLOR — ABSOLUTE: This is a ${school} card. ${school}'s team color (${c}${sec}) is THE accent for every colored design element — borders, frame, name plate, banners, panels, stat-table headers, card-number box, foil/refractor/chrome tint, and any background or color fill.${oppClause} Whenever it's unclear which color an element should be, use ${school}'s team color.`
   }, [variables])
+  // Appended to BOTH prompts: pin the conference to where the team sits IN THIS
+  // DYNASTY (the user may have realigned it), so the AI doesn't default to the
+  // team's real-world conference logo/wordmark (e.g. drawing C-USA for a North
+  // Texas card after the user moved them to the SEC).
+  const conferenceRule = useMemo(() => {
+    const conf = variables.conference
+    if (!conf) return ''
+    const school = variables.school || 'the featured team'
+    return `\n\nCONFERENCE — ABSOLUTE: In this dynasty, ${school} competes in the ${conf} conference. If the card design shows any conference logo, wordmark, or label, it MUST be ${conf} — never ${school}'s real-world conference. If you cannot render the ${conf} logo accurately, omit the conference logo entirely rather than drawing a different conference's mark.`
+  }, [variables])
   const filledFrontPrompt = useMemo(
-    () => style?.frontPrompt ? interpolatePrompt(style.frontPrompt, variables) + teamColorRule : '',
-    [style?.frontPrompt, variables, teamColorRule]
+    () => style?.frontPrompt ? interpolatePrompt(style.frontPrompt, variables) + teamColorRule + conferenceRule : '',
+    [style?.frontPrompt, variables, teamColorRule, conferenceRule]
   )
   const filledBackPrompt = useMemo(
-    () => style?.backPrompt ? interpolatePrompt(style.backPrompt, variables) + teamColorRule : '',
-    [style?.backPrompt, variables, teamColorRule]
+    () => style?.backPrompt ? interpolatePrompt(style.backPrompt, variables) + teamColorRule + conferenceRule : '',
+    [style?.backPrompt, variables, teamColorRule, conferenceRule]
   )
 
   const playerGames = useMemo(() => listPlayerGames(player, dynasty), [player, dynasty])
