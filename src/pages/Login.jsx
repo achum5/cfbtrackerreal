@@ -2,7 +2,6 @@ import { useAuth } from '../context/AuthContext'
 import { useDynasty } from '../context/DynastyContext'
 import { useNavigate, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import logo from '../assets/logo.png'
 import BouncingLogos from '../components/BouncingLogos'
 import { Card, ContactCTA } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
@@ -193,10 +192,10 @@ export default function Login() {
 
         {/* Logo — centered across the top */}
         <img
-          src="https://i.imgur.com/e1iYDSZ.png"
+          src="/header-logo.png"
           alt="CFB Dynasty Tracker"
           className="w-64 lg:w-80 h-auto object-contain"
-          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = logo }}
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://i.imgur.com/e1iYDSZ.png' }}
         />
 
         {/* Features + app preview carousel */}
