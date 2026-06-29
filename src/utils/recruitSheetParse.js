@@ -85,10 +85,33 @@ export function parseAttributes(cell) {
   return Object.keys(out).length ? out : null
 }
 
+// The only valid Dev Trait values. Used to detect a misaligned paste (below).
+const DEV_TRAITS = new Set(['normal', 'impact', 'star', 'elite'])
+
 export function parseRecruitingRow(row) {
   if (!row || !trim(row[0])) return null
   const recruitClass = trim(row[1]) || 'HS'
   const pidRaw = row[PID_COL]
+
+  // ── Targets columns, with recovery for a common AI paste mistake ──────────
+  // HS recruits usually have an EMPTY Dev Trait (N) and Prev Team (O). When an
+  // AI pastes a row it sometimes DROPS those two empty cells, sliding Commitment
+  // and Attributes two columns left — so "Uncommitted" lands in Dev Trait and the
+  // attributes string lands in Prev Team. Detect it by content: a real Dev Trait
+  // is only Normal/Impact/Star/Elite, so a non-trait value there while the
+  // Commitment cell is empty means the targets columns slid left. Recover them.
+  let devTrait = trim(row[13]) // blank stays blank — dev traits are hidden until signing day
+  let previousTeam = trim(row[14])
+  let commitment = trim(row[COMMITMENT_COL])
+  let attributes = parseAttributes(row[ATTR_CELL_COL])
+  if (!commitment && devTrait && !DEV_TRAITS.has(devTrait.toLowerCase())) {
+    commitment = devTrait
+    const recovered = parseAttributes(row[14])
+    if (recovered) attributes = recovered
+    devTrait = ''
+    previousTeam = ''
+  }
+
   return {
     // ── existing A–O fields (parsed exactly as the legacy reader) ──
     name: trim(row[0]),
@@ -104,12 +127,12 @@ export function parseRecruitingRow(row) {
     hometown: trim(row[10]),
     state: trim(row[11]),
     gemBust: trim(row[12]),
-    devTrait: trim(row[13]), // blank stays blank — dev traits are hidden until signing day
-    previousTeam: trim(row[14]),
+    devTrait,
+    previousTeam,
     isPortal: !NON_PORTAL_CLASSES.includes(recruitClass),
     // ── Targets extension (harmless on a legacy sheet) ──
-    commitment: trim(row[COMMITMENT_COL]),
-    attributes: parseAttributes(row[ATTR_CELL_COL]),
+    commitment,
+    attributes,
     pid: trim(pidRaw) !== '' ? Number(trim(pidRaw)) : undefined,
     nil: intOrNull(row[NIL_COL]), // recruiting NIL offer (CFB 27+); null on a legacy sheet
   }

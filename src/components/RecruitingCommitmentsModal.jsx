@@ -135,6 +135,12 @@ CRITICAL RULES
 3. One row per recruit; keep screenshot order.
 4. NO COMMAS in numbers ("1234", not "1,234"). Integers have no decimal point. No quotes around numbers.
 5. BLANK for unknown — never guess, never 0/"-"/"N/A". Blank ≠ zero.
+5a. EVERY row MUST have ALL 16 columns A→P (16 tab-separated fields = 15 tabs),
+    even when a field is blank. NEVER drop or skip an empty cell. In particular,
+    HS recruits usually have an EMPTY Dev Trait (N) and Prev Team (O) — keep those
+    cells as empty fields (consecutive tabs), so Commitment (P) stays in column P.
+    Dropping the empty Dev Trait / Prev Team cells slides Commitment + Attributes
+    into the wrong columns and corrupts the import.
 6. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST be EXACTLY one of the listed values.
 7. Column E (Stars) uses ☆ symbols, NOT digits.
 8. Do NOT output the hidden "pid" column, nor the trailing "NIL" column after it — the app fills pid, and NIL is the recruiting-offer column the user enters by hand.

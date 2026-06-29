@@ -37,6 +37,31 @@ describe('parseRecruitingRow — legacy A–O parity', () => {
   })
 })
 
+describe('parseRecruitingRow — recovers AI paste that drops empty Dev Trait / Prev Team', () => {
+  it('realigns Commitment + Attributes that slid two columns left', () => {
+    // AI dropped the empty Dev Trait (N) and Prev Team (O) cells, so "Uncommitted"
+    // landed in Dev Trait and the attributes string landed in Prev Team.
+    const shifted = [
+      'Slid Recruit', 'HS', 'WR', 'Speedster', '☆☆☆☆', '5', '', '',
+      "6'0\"", '190', 'Naples', 'FL', '',
+      'Uncommitted',        // 13 (Dev Trait slot) — actually the Commitment
+      'AWR 76, SPD 67',     // 14 (Prev Team slot) — actually the Attributes
+    ]
+    const r = parseRecruitingRow(shifted)
+    expect(r.commitment).toBe('Uncommitted')
+    expect(r.attributes).toEqual({ Awareness: 76, Speed: 67 })
+    expect(r.devTrait).toBe('')
+    expect(r.previousTeam).toBe('')
+  })
+
+  it('does NOT touch a correctly-aligned row (valid Dev Trait + real Prev Team)', () => {
+    const r = parseRecruitingRow(['Joe Transfer', 'Jr', 'WR', '', '☆☆☆☆', '', '', '', '', '', '', '', '', 'Normal', 'OHIO'])
+    expect(r.devTrait).toBe('Normal')
+    expect(r.previousTeam).toBe('OHIO')
+    expect(r.commitment).toBe('')
+  })
+})
+
 describe('parseRecruitingRow — Targets extension (P–AA)', () => {
   it('reads the Commitment column (P)', () => {
     const row = [...legacyRow]
