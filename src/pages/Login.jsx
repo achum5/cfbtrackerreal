@@ -72,10 +72,6 @@ function SignIn({ onSignIn, onTryDemo, demoLoading }) {
           </svg>
           <span>Sign in with Google</span>
         </button>
-
-        <p className="label-xs text-txt-tertiary text-center mt-4">
-          Syncs across all your devices
-        </p>
       </Card>
 
       {/* Try-it-out: load a sample dynasty into local storage, no sign-in. */}
