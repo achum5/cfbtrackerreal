@@ -3936,24 +3936,6 @@ export default function Dashboard() {
                     : null,
                   onAction: handleEnterGame,
                   actionLabel: gameDone ? 'Edit' : 'Enter',
-                  // Mini Gameday Picks (5 analyst boxes) under an upcoming game.
-                  belowContent: (!gameDone && oppTid) ? (
-                    <GamedayPicks
-                      mini
-                      dynasty={currentDynasty}
-                      userTid={userTeamTid}
-                      opponentTid={oppTid}
-                      isHome={!userIsAway && !isNeutral}
-                      isNeutral={isNeutral}
-                      gameKey={`${currentDynasty.currentYear}-W${currentDynasty.currentWeek}-${userTeamTid}-${oppTid}-${gameRecord?.gamedayPicksSeed || 0}`}
-                      userTeamName={userTeamName}
-                      opponentName={opponentName}
-                      userLogoUrl={userLogoUrl}
-                      oppLogoUrl={oppLogoUrl}
-                      year={currentDynasty.currentYear}
-                      week={currentDynasty.currentWeek}
-                    />
-                  ) : null,
                 })
               }
               // Bye weeks for the user's team are no longer surfaced as a

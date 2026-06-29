@@ -851,8 +851,12 @@ export default function GamedayPicks({
                 backgroundColor: teamColor,
                 filter: isActive ? 'brightness(1.12)' : 'none',
               }}
-              onMouseEnter={() => setActiveId(analyst.id)}
-              onMouseLeave={() => setActiveId(null)}
+              // Hover (mouse/pen only) drives the active analyst on desktop.
+              // Touch is deliberately excluded — a synthesized hover on first
+              // tap is what forced the old "tap twice" behavior on mobile; there
+              // a single onClick selects.
+              onPointerEnter={(e) => { if (e.pointerType !== 'touch') setActiveId(analyst.id) }}
+              onPointerLeave={(e) => { if (e.pointerType !== 'touch') setActiveId(null) }}
               onClick={() => setActiveId(isActive ? null : analyst.id)}
             >
               {/* Analyst name */}
