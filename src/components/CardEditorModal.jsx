@@ -86,7 +86,7 @@ export default function CardEditorModal({
     const conf = variables.conference
     if (!conf) return ''
     const school = variables.school || 'the featured team'
-    return `\n\nCONFERENCE — ABSOLUTE: In this dynasty, ${school} competes in the ${conf} conference. If the card design shows any conference logo, wordmark, or label, it MUST be ${conf} — never ${school}'s real-world conference. If you cannot render the ${conf} logo accurately, omit the conference logo entirely rather than drawing a different conference's mark.`
+    return `\n\nCONFERENCE — ABSOLUTE, NON-NEGOTIABLE: In THIS dynasty, ${school} plays in the ${conf} conference. ${conf} is the ONLY conference that may appear anywhere on the card. Treat the conference named here as the single source of truth and IGNORE any real-world, historical, or training-data knowledge about which conference ${school} "really" belongs to — that knowledge is wrong for this card. Make NO real-life conference-alignment assumptions. Every conference logo, wordmark, badge, abbreviation, or text label anywhere on the card (including footer or sponsor-style logos) MUST be ${conf} and nothing else — never ${school}'s real-world conference, and never any conference other than ${conf}. If you cannot render the ${conf} logo accurately, omit the conference logo and any conference label entirely rather than substituting a different conference's mark.`
   }, [variables])
   const filledFrontPrompt = useMemo(
     () => style?.frontPrompt ? interpolatePrompt(style.frontPrompt, variables) + teamColorRule + conferenceRule : '',

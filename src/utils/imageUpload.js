@@ -72,16 +72,18 @@ function coerceToBlob(input) {
 // original to serve any size, and the grid fires a dozen of those at once.
 //
 // Sizing choices (tuned for storage cost over many years of uploads):
-//   • MAX_UPLOAD_DIMENSION 2560 — past any display size these photos/cards are
-//     shown at (the largest view, the enlarged card, renders ~1600px), so a
-//     2560 cap is visually lossless here while cutting 4K screenshots down hard.
-//   • UPLOAD_QUALITY 0.82 — webp at 0.82 is visually near-identical to the
-//     source for screenshots/photos but roughly half the bytes of 0.92.
+//   • MAX_UPLOAD_DIMENSION 1600 — matches the largest on-screen view (the
+//     enlarged card renders ~1600px), so this cap is visually lossless at the
+//     sizes these images are actually displayed while cutting 4K screenshots
+//     down hard. Screenshots are the bulk of uploads and the main storage cost.
+//   • UPLOAD_QUALITY 0.72 — webp at 0.72 is visually near-identical to the
+//     source for screenshots/photos (faint softening only on heavy zoom) at
+//     roughly a third the bytes of the source, prioritizing storage cost.
 //
 // Defensive: any failure (or an animated GIF, which a canvas would flatten)
 // returns the original untouched, and we keep whichever blob is smaller.
-const MAX_UPLOAD_DIMENSION = 2560
-const UPLOAD_QUALITY = 0.82
+const MAX_UPLOAD_DIMENSION = 1600
+const UPLOAD_QUALITY = 0.72
 
 // Exported so the admin recompress tool can re-encode already-stored images.
 // opts.quality overrides UPLOAD_QUALITY; opts.maxDim overrides MAX_UPLOAD_DIMENSION.

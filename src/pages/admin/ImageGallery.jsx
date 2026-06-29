@@ -27,8 +27,8 @@ function formatWhen(iso) {
 // Settings defaults
 const DEFAULT_SETTINGS = {
   minSizeKB: 0,    // 0 = no minimum (compress all)
-  quality: 0.82,   // WebP quality (0.70–0.95)
-  maxDim: 2560,    // max image dimension in px
+  quality: 0.72,   // WebP quality (0.70–0.95) — matches the upload-time default
+  maxDim: 1600,    // max image dimension in px — matches the upload-time default
 }
 
 const MIN_SIZE_PRESETS = [
@@ -41,16 +41,17 @@ const MIN_SIZE_PRESETS = [
 
 const QUALITY_PRESETS = [
   { label: 'Low (0.70)', value: 0.70 },
+  { label: 'Default (0.72)', value: 0.72 },
   { label: 'Medium (0.80)', value: 0.80 },
-  { label: 'Default (0.82)', value: 0.82 },
   { label: 'High (0.90)', value: 0.90 },
   { label: 'Max (0.95)', value: 0.95 },
 ]
 
 const MAX_DIM_PRESETS = [
   { label: '1280 px', value: 1280 },
+  { label: '1600 px (default)', value: 1600 },
   { label: '1920 px', value: 1920 },
-  { label: '2560 px (default)', value: 2560 },
+  { label: '2560 px', value: 2560 },
 ]
 
 export default function ImageGallery() {
@@ -107,9 +108,26 @@ export default function ImageGallery() {
   // Per-image compress state: key → 'running' | 'done:N' | 'skipped' | 'failed'
   const [imgStatus, setImgStatus] = useState({})
 
-  // ---- Multi-select (click / Ctrl+click / Shift+click) ----
+  // ---- Multi-select (Ctrl+click / Shift+click) ----
   const [selected, setSelected] = useState(() => new Set())
-  const anchorRef = useRef(null) // last single-clicked key, anchor for shift-range
+  const anchorRef = useRef(null) // last clicked key, anchor for shift-range
+
+  // ---- Full-screen viewer (plain click on a tile) ----
+  const [lightbox, setLightbox] = useState(null) // the img being viewed, or null
+  useEffect(() => {
+    if (!lightbox) return
+    const onKey = (e) => { if (e.key === 'Escape') setLightbox(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox])
+
+  // ---- Per-user collapse (click a uploader header to minimize its grid) ----
+  const [collapsed, setCollapsed] = useState(() => new Set())
+  const toggleCollapsed = (uid) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    next.has(uid) ? next.delete(uid) : next.add(uid)
+    return next
+  })
 
   const recompressOneImg = useCallback(async (img, opts = {}) => {
     const quality = opts.quality ?? settings.quality
@@ -224,6 +242,14 @@ export default function ImageGallery() {
   const onTileClick = (img, e) => {
     e.preventDefault()
     const key = img.key
+
+    // Plain click opens the image full screen. Ctrl/Cmd-click and Shift-click
+    // drive the multi-select workflow used by "Compress selected".
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      setLightbox(img)
+      return
+    }
+
     setSelected((prev) => {
       const next = new Set(prev)
       if (e.shiftKey && anchorRef.current) {
@@ -236,12 +262,9 @@ export default function ImageGallery() {
         } else {
           next.add(key)
         }
-      } else if (e.ctrlKey || e.metaKey) {
-        next.has(key) ? next.delete(key) : next.add(key)
-        anchorRef.current = key
       } else {
-        next.clear()
-        next.add(key)
+        // Ctrl/Cmd-click toggles a single tile (also the shift-with-no-anchor case).
+        next.has(key) ? next.delete(key) : next.add(key)
         anchorRef.current = key
       }
       return next
@@ -420,7 +443,7 @@ export default function ImageGallery() {
       )}
 
       {status === 'ready' && images.length > 0 && selected.size === 0 && (
-        <p className="text-xs text-txt-tertiary mb-3">Tip: click an image to select it. Ctrl/Cmd-click to add more, or Shift-click another to select everything in between.</p>
+        <p className="text-xs text-txt-tertiary mb-3">Tip: click an image to view it full screen. Ctrl/Cmd-click to select, or Shift-click another to select everything in between.</p>
       )}
 
       {status === 'error' && (
@@ -433,12 +456,24 @@ export default function ImageGallery() {
         <div className="text-center text-txt-tertiary py-16 text-sm">No images uploaded yet.</div>
       )}
 
-      {groups.map((g) => (
+      {groups.map((g) => {
+        const isCollapsed = collapsed.has(g.uid)
+        return (
         <div key={g.uid} className="mb-8">
-          <div className="flex items-center gap-2 mb-2 sticky top-0 z-10 py-1" style={{ background: 'var(--surface-1)' }}>
+          <button
+            type="button"
+            onClick={() => toggleCollapsed(g.uid)}
+            className="group w-full flex items-center gap-2 mb-2 sticky top-0 z-10 py-1 text-left hover:opacity-90"
+            style={{ background: 'var(--surface-1)' }}
+            title={isCollapsed ? 'Expand this uploader' : 'Collapse this uploader'}
+          >
             <h2 className="text-sm font-semibold text-txt-primary font-mono break-all">{g.uid}</h2>
             <span className="text-xs text-txt-tertiary">({g.images.length})</span>
-          </div>
+            <span className="ml-auto text-xs text-txt-tertiary group-hover:text-txt-primary shrink-0">
+              {isCollapsed ? 'Show' : 'Hide'}
+            </span>
+          </button>
+          {!isCollapsed && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             {g.images.map((img) => {
               const st = imgStatus[img.key]
@@ -496,8 +531,52 @@ export default function ImageGallery() {
               )
             })}
           </div>
+          )}
         </div>
-      ))}
+        )
+      })}
+
+      {/* Full-screen image viewer */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-90 flex items-center justify-center z-[9999] p-4"
+          style={{ margin: 0 }}
+          onClick={() => setLightbox(null)}
+        >
+          <img
+            src={lightbox.url}
+            alt=""
+            className="max-w-full max-h-full object-contain"
+            style={{ boxShadow: '0 8px 60px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* Close (also: click anywhere outside the image, or press Esc) */}
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 px-3 py-1.5 rounded-lg text-sm font-semibold bg-surface-2/80 border border-surface-4 text-txt-secondary hover:text-txt-primary hover:bg-surface-2"
+          >
+            Close
+          </button>
+
+          {/* Caption: timestamp, size, open original */}
+          <div
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-3 py-1.5 rounded-lg bg-surface-2/80 border border-surface-4 text-xs text-txt-secondary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>{formatWhen(lightbox.lastModified)}</span>
+            <span className="text-txt-tertiary">{formatBytes(lightbox.size)}</span>
+            <a
+              href={lightbox.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-txt-primary underline underline-offset-2"
+            >
+              open original
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
