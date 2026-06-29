@@ -643,29 +643,25 @@ export default function CoachCareer() {
           the page leads with one cohesive lockup instead of two. */}
       <section className="media-card overflow-hidden reveal">
         <div className="px-3 py-3 sm:px-6 sm:py-5">
-          <div className="label-xs text-txt-tertiary mb-2 flex items-center gap-2 flex-wrap" style={{ letterSpacing: '2.5px', fontSize: '10px' }}>
-            <span>CAREER</span>
-            {userOptions.length > 1 && (
-              <>
-                
-                <span className="text-txt-tertiary normal-case" style={{ letterSpacing: '0' }}>Viewing</span>
-                <select
-                  value={effectiveSelectedUid || ''}
-                  onChange={e => setSelectedUid(e.target.value)}
-                  aria-label="Switch career view"
-                  className="text-xs font-semibold px-2 py-1 rounded-md bg-surface-2 border border-surface-4 text-txt-primary cursor-pointer focus:outline-none focus:border-surface-5 normal-case"
-                  style={{ letterSpacing: '0' }}
-                >
-                  {userOptions.map(opt => (
-                    <option key={opt.uid} value={opt.uid}>
-                      {opt.label}{opt.isYou ? ' (you)' : ''}
-                      {opt.role === ROLE_COMMISH ? ' Commish' : opt.role === ROLE_COCOMMISH ? ' Co-Commish' : ''}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-          </div>
+          {userOptions.length > 1 && (
+            <div className="label-xs text-txt-tertiary mb-2 flex items-center gap-2 flex-wrap" style={{ letterSpacing: '2.5px', fontSize: '10px' }}>
+              <span className="text-txt-tertiary normal-case" style={{ letterSpacing: '0' }}>Viewing</span>
+              <select
+                value={effectiveSelectedUid || ''}
+                onChange={e => setSelectedUid(e.target.value)}
+                aria-label="Switch career view"
+                className="text-xs font-semibold px-2 py-1 rounded-md bg-surface-2 border border-surface-4 text-txt-primary cursor-pointer focus:outline-none focus:border-surface-5 normal-case"
+                style={{ letterSpacing: '0' }}
+              >
+                {userOptions.map(opt => (
+                  <option key={opt.uid} value={opt.uid}>
+                    {opt.label}{opt.isYou ? ' (you)' : ''}
+                    {opt.role === ROLE_COMMISH ? ' Commish' : opt.role === ROLE_COCOMMISH ? ' Co-Commish' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {/* Identity + stat strip — single row on desktop (stats push
               right of the name), wraps below on mobile. Saves a full
               row of vertical space vs the prior stacked layout, and the
