@@ -134,6 +134,11 @@ FINAL CHECK before you send
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  // Single-attempt guard: a FAILED creation must not silently re-fire (the
+  // runaway loop that spam-created sheets). One attempt per modal-open; an
+  // explicit retry bumps auth.retryCount and re-arms exactly one more.
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -212,8 +217,16 @@ FINAL CHECK before you send
 
   // Create sheet when modal opens (only if no existing sheet for this season)
   useEffect(() => {
+    // An explicit retry re-arms one fresh attempt by bumping auth.retryCount.
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers && !creationAttemptedRef.current) {
+        // Mark attempted BEFORE any await so a rejection can't loop back in
+        creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -257,7 +270,7 @@ FINAL CHECK before you send
           })
         } catch (error) {
           console.error('Failed to create transfer destinations sheet:', error)
-          auth.handleError(error)
+          if (!auth.handleError(error)) toast.error('Could not create the sheet. Refresh your session and try again.')
         } finally {
           setCreatingSheet(false)
           creatingSheetRef.current = false
@@ -266,7 +279,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, noTransfers, currentYear])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, noTransfers, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -274,6 +287,7 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       setNoTransfers(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

@@ -52,7 +52,11 @@ export default function RecruitingCommitmentsModal({
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [createAttempts, setCreateAttempts] = useState(0)
   const [authErrorOccurred, setAuthErrorOccurred] = useState(false)
-  const MAX_CREATE_ATTEMPTS = 2
+  // Single attempt per open. A FAILED creation must NOT auto-retry — the old
+  // value of 2 let a non-auth failure re-fire (creatingSheet is in the effect
+  // deps) and spawn a second orphan Google Sheet. An explicit retry (re-auth
+  // bumps auth.retryCount, which resets the flags) re-arms one more.
+  const MAX_CREATE_ATTEMPTS = 1
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -267,8 +271,13 @@ FINAL CHECK
         } catch (error) {
           console.error('Failed to create recruiting sheet:', error)
           setCreateAttempts(prev => prev + 1)
+          // Auth errors open the re-auth modal. Anything else gets surfaced as
+          // a toast so the user isn't stuck — and the effect does NOT loop back
+          // to create another sheet.
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
+          } else {
+            toast.error('Could not create the recruiting sheet. Refresh your session and try again.')
           }
         } finally {
           setCreatingSheet(false)

@@ -38,7 +38,11 @@ export default function PortalTransferClassModal({ isOpen, onClose, onSave, curr
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const [createAttempts, setCreateAttempts] = useState(0)
   const [authErrorOccurred, setAuthErrorOccurred] = useState(false)
-  const MAX_CREATE_ATTEMPTS = 2
+  // Single attempt per open. A FAILED creation must NOT auto-retry — the old
+  // value of 2 let a non-auth failure re-fire (creatingSheet is in the effect
+  // deps) and spawn a second orphan Google Sheet. An explicit retry (re-auth
+  // bumps auth.retryCount, which resets the flags below) re-arms one more.
+  const MAX_CREATE_ATTEMPTS = 1
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
 
@@ -215,8 +219,13 @@ FINAL CHECK before you send
         } catch (error) {
           console.error('Failed to create portal transfer class sheet:', error)
           setCreateAttempts(prev => prev + 1)
+          // Auth errors open the re-auth modal. Anything else gets surfaced as
+          // a toast so the user isn't stuck — and the effect does NOT loop back
+          // to create another sheet.
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
+          } else {
+            toast.error('Could not create the portal transfer class sheet. Refresh your session and try again.')
           }
         } finally {
           setCreatingSheet(false)
@@ -227,6 +236,17 @@ FINAL CHECK before you send
 
     createSheet()
   }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, portalTransfers, currentYear, sheetKey, authErrorOccurred, createAttempts])
+
+  // When the user re-authenticates (retryCount bumps via the AuthErrorModal's
+  // Refresh), clear the blocking flags so the create effect retries with the
+  // fresh token — otherwise authErrorOccurred stays true and the modal is stuck
+  // until the user manually closes and reopens it.
+  useEffect(() => {
+    if (auth.retryCount > 0) {
+      setAuthErrorOccurred(false)
+      setCreateAttempts(0)
+    }
+  }, [auth.retryCount])
 
   // Reset state when modal closes
   useEffect(() => {

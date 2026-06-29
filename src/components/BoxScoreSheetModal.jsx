@@ -85,6 +85,8 @@ export default function BoxScoreSheetModal({
   const [ignoreExistingSheetId, setIgnoreExistingSheetId] = useState(false)
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   // Resolve team abbreviations from game data
   // Try direct abbreviation fields first, then resolve from tids
@@ -1232,10 +1234,15 @@ FINAL CHECK before you send
 
   // Load existing sheet or create new one
   useEffect(() => {
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const initSheet = async () => {
       // Use ref for immediate check to prevent race conditions (state updates are async)
       // Also gate on auth.showAuthError so we don't loop on OAuth failures
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !auth.showAuthError) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !auth.showAuthError && !creationAttemptedRef.current) {
         // Optimistic existing-sheet path: in the common case the sheet
         // already exists, so render the iframe IMMEDIATELY rather than
         // making the user wait on a Drive API existence probe before
@@ -1266,6 +1273,7 @@ FINAL CHECK before you send
         }
 
         // Create new sheet - set ref immediately to prevent concurrent calls
+        creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
@@ -1354,7 +1362,7 @@ FINAL CHECK before you send
     }
 
     initSheet()
-  }, [isOpen, user, sheetId, creatingSheet, existingSheetId, auth.retryCount, showDeletedNote, ignoreExistingSheetId])
+  }, [isOpen, user, sheetId, existingSheetId, auth.retryCount, showDeletedNote, ignoreExistingSheetId])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -1362,6 +1370,7 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       setIgnoreExistingSheetId(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

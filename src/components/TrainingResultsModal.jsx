@@ -136,6 +136,11 @@ FINAL CHECK before you send
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  // Single-attempt guard: a failed creation must not auto-retry (that loop
+  // spam-created sheets). One attempt per modal-open; an explicit retry bumps
+  // auth.retryCount, which re-arms exactly one more attempt.
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -171,8 +176,15 @@ FINAL CHECK before you send
 
   // Create training results sheet when modal opens
   useEffect(() => {
+    // An explicit retry (Refresh after re-auth, or Regenerate) re-arms one attempt.
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+        // Mark attempted before the first await so a failure can't loop back in.
+        creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -202,7 +214,7 @@ FINAL CHECK before you send
           })
         } catch (error) {
           console.error('Failed to create training results sheet:', error)
-          auth.handleError(error)
+          if (!auth.handleError(error)) toast.error('Could not create the sheet. Refresh your session and try again.')
         } finally {
           setCreatingSheet(false)
           creatingSheetRef.current = false
@@ -211,13 +223,14 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

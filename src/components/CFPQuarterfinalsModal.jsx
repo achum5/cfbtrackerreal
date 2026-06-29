@@ -114,6 +114,8 @@ FINAL CHECK before you send the answer
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -149,9 +151,15 @@ FINAL CHECK before you send the answer
 
   // Create CFP Quarterfinals sheet when modal opens
   useEffect(() => {
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
+        creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
@@ -184,7 +192,7 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -192,6 +200,7 @@ FINAL CHECK before you send the answer
       setShowDeletedNote(false)
       setSheetId(null)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

@@ -118,6 +118,8 @@ FINAL CHECK before you send
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -153,8 +155,14 @@ FINAL CHECK before you send
 
   // Create encourage transfers sheet when modal opens
   useEffect(() => {
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+        creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -193,13 +201,14 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

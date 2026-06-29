@@ -182,6 +182,8 @@ FINAL CHECK before you send
 
   // Ref to prevent concurrent sheet creation
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -211,8 +213,14 @@ FINAL CHECK before you send
   }, [isOpen, sheetId, useEmbedded])
 
   useEffect(() => {
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+        creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
@@ -259,12 +267,13 @@ FINAL CHECK before you send
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

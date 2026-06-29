@@ -51,7 +51,11 @@ export default function StatsEntryModal({
 
   const [authErrorOccurred, setAuthErrorOccurred] = useState(false) // Prevents retry loops on auth errors
   const [createAttempts, setCreateAttempts] = useState(0) // Tracks creation attempts
-  const MAX_CREATE_ATTEMPTS = 2 // Maximum retries for sheet creation
+  // Single attempt per open. A FAILED creation must NOT auto-retry — the old
+  // value of 2 let a non-auth failure re-fire (creatingSheet is in the effect
+  // deps) and spawn a second orphan Google Sheet. An explicit retry (the
+  // AuthErrorModal Refresh, which resets createAttempts) re-arms one more.
+  const MAX_CREATE_ATTEMPTS = 1
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -338,9 +342,13 @@ FINAL CHECK before you send
           console.error('Failed to create stats sheet:', error)
           setCreateAttempts(prev => prev + 1)
 
-          // Check for OAuth/auth errors - stop retrying and show error modal
+          // Auth errors open the re-auth modal. Anything else gets surfaced as
+          // a toast so the user isn't left staring at a blank modal — and the
+          // effect does NOT loop back to create another sheet.
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
+          } else {
+            toast.error('Could not create the stats sheet. Refresh your session and try again.')
           }
         } finally {
           setCreatingSheet(false)

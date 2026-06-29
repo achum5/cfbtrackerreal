@@ -66,6 +66,11 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   const auth = useAuthErrorHandler()
   const [pendingSave, setPendingSave] = useState(null) // { diff, summary, alsoDelete }
   const creatingSheetRef = useRef(false)
+  // Single-attempt guard: a FAILED creation must not silently re-fire (the
+  // runaway loop that spam-created sheets). One attempt per modal-open; an
+  // explicit retry bumps auth.retryCount and re-arms exactly one more.
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
   // Track which sheet IDs have already been refreshed against the
   // current dynasty so we don't re-stomp the user's in-flight edits
   // on re-renders. One refresh per modal-open per sheet is enough —
@@ -119,11 +124,19 @@ export default function Top25SheetModal({ isOpen, onClose }) {
 
   // Create the sheet on first open / after a delete.
   useEffect(() => {
-    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current) return
+    // An explicit retry re-arms one fresh attempt by bumping auth.retryCount.
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
+    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || creationAttemptedRef.current) return
     if (!currentDynasty?.id || isViewOnly) return
     if (showDeletedNote) return
 
     const create = async () => {
+      // Mark attempted BEFORE any await so a rejection can't loop back in
+      creationAttemptedRef.current = true
       creatingSheetRef.current = true
       setCreatingSheet(true)
       try {
@@ -142,13 +155,15 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       }
     }
     create()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
 
   // Reset state on close so re-opening starts clean.
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       setPendingSave(null)
+      creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

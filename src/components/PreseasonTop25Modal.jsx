@@ -43,6 +43,8 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
   )
   const [highlightSave, setHighlightSave] = useState(false)
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -56,6 +58,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
     if (!isOpen) {
       setSheetId(null)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
       return
     }
     const stored = currentDynasty?.preseasonRankingsSheetIdByYear?.[yearNum]
@@ -63,8 +66,13 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
   }, [isOpen])
 
   useEffect(() => {
-    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || isViewOnly) return
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || isViewOnly || creationAttemptedRef.current) return
     const create = async () => {
+      creationAttemptedRef.current = true
       creatingSheetRef.current = true
       setCreatingSheet(true)
       try {
@@ -86,7 +94,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
       }
     }
     create()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, isViewOnly, auth.retryCount])
+  }, [isOpen, user, sheetId, currentDynasty?.id, isViewOnly, auth.retryCount])
 
   useEffect(() => {
     if (!isOpen || !sheetId || useEmbedded) return

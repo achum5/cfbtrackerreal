@@ -63,6 +63,11 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const creatingSheetRef = useRef(false)
+  // Single-attempt guard: a failed creation must not auto-retry (that loop
+  // spam-created sheets). One attempt per modal-open; an explicit retry bumps
+  // auth.retryCount, which re-arms exactly one more attempt.
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   // Which week's rankByWeek slot to write the screenshot's poll into.
   // Defaults to the dynasty's currentWeek (= what the user sees in CFB26
@@ -740,8 +745,15 @@ Don't just glance at this list. Physically execute each check on your draft.
   }, [isOpen, currentDynasty, year, week, userTid])
 
   useEffect(() => {
+    // An explicit retry (Refresh after re-auth, or Regenerate) re-arms one attempt.
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+        // Mark attempted before the first await so a failure can't loop back in.
+        creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
@@ -767,12 +779,13 @@ Don't just glance at this list. Physically execute each check on your draft.
     }
     createSheet()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, year, week])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, year, week])
 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
       setSheetId(null)
       setSheetTitle(null)
     }

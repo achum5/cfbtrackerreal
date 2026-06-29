@@ -107,6 +107,8 @@ FINAL CHECK before you send the answer
   }), [currentYear, currentDynasty?.teams])
 
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
 
@@ -142,8 +144,14 @@ FINAL CHECK before you send the answer
   }, [isOpen, sheetId, useEmbedded])
 
   useEffect(() => {
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+        creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
         try {
@@ -169,13 +177,14 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       setSheetId(null)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 

@@ -78,6 +78,8 @@ export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClo
   })
   const auth = useAuthErrorHandler()
   const creatingSheetRef = useRef(false)
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   useEffect(() => {
     setIsMobile(isMobileDevice())
@@ -268,11 +270,17 @@ FINAL CHECK before you send
   // Create the sheet on first open (or after a delete) when none is
   // currently stored.
   useEffect(() => {
-    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current) return
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
+    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || creationAttemptedRef.current) return
     if (!currentDynasty?.id || isViewOnly) return
     if (showDeletedNote) return
 
     const create = async () => {
+      creationAttemptedRef.current = true
       creatingSheetRef.current = true
       setCreatingSheet(true)
       try {
@@ -292,12 +300,14 @@ FINAL CHECK before you send
       }
     }
     create()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
 
   // Reset state on close so re-opening starts clean.
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
+      creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 
