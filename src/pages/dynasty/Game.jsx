@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
+import { getShownGraphic } from '../../utils/scoreGraphics'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
@@ -819,12 +820,13 @@ export default function Game() {
   // The Photos tab shows the uploaded photos plus the AI score graphic,
   // all taggable. Graphic leads (it's the marquee image). Deduped.
   const photoTabImages = useMemo(() => {
+    const shown = getShownGraphic(game)
     const list = [
-      ...(game?.scoreGraphic ? [game.scoreGraphic] : []),
+      ...(shown ? [shown] : []),
       ...(Array.isArray(game?.photos) ? game.photos : []),
     ]
     return list.filter((u, i, arr) => u && arr.indexOf(u) === i)
-  }, [game?.scoreGraphic, game?.photos])
+  }, [game?.scoreGraphic, game?.scoreGraphics, game?.scoreGraphicShown, game?.photos])
 
   // pid → name, for rendering photo-tag chips in the Photos lightbox.
   const playerNameByPid = useMemo(() => {
@@ -993,7 +995,10 @@ export default function Game() {
   const hasAwardsData = !!(game.conferencePOW || game.confDefensePOW || game.nationalPOW || game.natlDefensePOW)
   const hasCardsData = cardsForGame.length > 0
   const hasPhotosData = Array.isArray(game.photos) && game.photos.length > 0
-  const hasScoreGraphicData = !!game.scoreGraphic
+  // The single score graphic shown in the overview — the slot the user picked
+  // ("Shown in overview"), or the first uploaded / legacy single graphic.
+  const shownGraphic = getShownGraphic(game)
+  const hasScoreGraphicData = !!shownGraphic
 
   // Social posts attached to THIS game. The tab only appears once posts exist
   // for the game. (gameSocialPosts is computed above, before the early-return
@@ -2566,10 +2571,10 @@ export default function Game() {
                 aria-label="Open final score graphic"
               >
                 <img
-                  src={proxyImageUrl(game.scoreGraphic, 1200)}
+                  src={proxyImageUrl(shownGraphic, 1200)}
                   alt={`${displayTeam} vs ${opponent} final score graphic`}
                   className="w-full h-auto block"
-                  onError={(e) => { if (e.target.src !== game.scoreGraphic) { e.target.src = game.scoreGraphic } else { e.target.parentElement.style.display = 'none' } }}
+                  onError={(e) => { if (e.target.src !== shownGraphic) { e.target.src = shownGraphic } else { e.target.parentElement.style.display = 'none' } }}
                 />
               </button>
             )
@@ -2584,7 +2589,7 @@ export default function Game() {
                     gamecast on phones/tablets below lg. Order -1 ensures
                     it sits above the Recap (order-1). Hidden on desktop
                     where the same thumbnail lives in the right column. */}
-                {game.scoreGraphic && gameIsPlayed && (
+                {shownGraphic && gameIsPlayed && (
                   <div className="order-[-1] lg:hidden min-w-0">
                     <ScoreGraphicThumb />
                   </div>
@@ -2648,7 +2653,7 @@ export default function Game() {
                   {/* Desktop-only score graphic thumbnail at the top of
                       the right column. Mobile renders the same thumb
                       above the grid via the order-[-1] block. */}
-                  {game.scoreGraphic && gameIsPlayed && (
+                  {shownGraphic && gameIsPlayed && (
                     <div className="hidden lg:block">
                       <SectionHead>Score Graphic</SectionHead>
                       <ScoreGraphicThumb />
@@ -3373,6 +3378,8 @@ export default function Game() {
                 posts={gameSocialPosts}
                 charactersById={getEffectiveCharacters(currentDynasty)}
                 platform={{ ...DEFAULT_SOCIAL_PLATFORM, ...(currentDynasty.socialPlatform || {}) }}
+                gamesById={{ [game.id]: game }}
+                teams={currentDynasty.teams}
                 dynasty={currentDynasty}
                 year={game.year}
               />
@@ -4277,9 +4284,9 @@ export default function Game() {
           handlers are no-ops at length 1. Tagging props match the Photos-tab
           lightbox so players can be tagged straight from the main-page graphic
           (tags are keyed by URL, so they stay in sync with the Photos tab). */}
-      {scoreGraphicLightboxOpen && game.scoreGraphic && (
+      {scoreGraphicLightboxOpen && shownGraphic && (
         <PhotoLightbox
-          photos={[game.scoreGraphic]}
+          photos={[shownGraphic]}
           index={0}
           onClose={() => setScoreGraphicLightboxOpen(false)}
           onIndexChange={() => {}}

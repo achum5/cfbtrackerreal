@@ -9,6 +9,7 @@ import PlayerErrorBoundary from '../../components/PlayerErrorBoundary'
 import MediaList from '../../components/MediaList'
 import ProgressiveLightboxImage from '../../components/ProgressiveLightboxImage'
 import { getPlayerCards } from '../../utils/playerCards'
+import { GRAPHIC_SIDES } from '../../utils/scoreGraphics'
 import { formatScoreHighLow } from '../../utils/scoreFormat'
 import { formatWeek, gameWeekLabel } from '../../utils/weekLabel'
 import { sortGamesNewestFirst, gameSeasonRank } from '../../utils/gameOrder'
@@ -1051,6 +1052,7 @@ function PlayerInner() {
       const urls = [
         ...(Array.isArray(g.photos) ? g.photos : []),
         ...(g.scoreGraphic ? [g.scoreGraphic] : []),
+        ...GRAPHIC_SIDES.map(s => g.scoreGraphics?.[s]).filter(Boolean),
       ]
       // Resolve the opponent relative to the player's team that season so the
       // lightbox can label each photo "YYYY Wk n vs/@ OPP".

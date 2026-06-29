@@ -256,6 +256,17 @@ export function isRealAccount(c) {
   )
 }
 
+/**
+ * Whether an account is the OFFICIAL account of a team (the verified athletics
+ * handle, e.g. @OleMissFB), as opposed to a beat/fan/parody account. Identified
+ * by the canonical `Official Account` category on a team-affiliated character.
+ * The team's official post about a game is the one that carries the uploaded
+ * final-score graphic in the feed.
+ */
+export function isOfficialTeamAccount(c) {
+  return !!(c && c.kind === 'team' && c.teamTid != null && c.category === 'Official Account')
+}
+
 /** Build a handle(lowercased) -> id index over an existing characters map. */
 export function buildHandleIndex(charactersById) {
   const idx = {}

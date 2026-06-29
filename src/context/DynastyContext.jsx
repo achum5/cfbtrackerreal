@@ -8266,32 +8266,40 @@ export function DynastyProvider({ children }) {
       setSharedDynasties(prev => prev.filter(d => String(d.id) !== String(dynastyId)))
       setDynasties(prev => prev.filter(d => String(d.id) !== String(dynastyId)))
       if (String(currentDynasty?.id) === String(dynastyId)) setCurrentDynasty(null)
-      leaveDynastyInFirestore(dynastyId, user.uid).catch(error => {
+      // Await the genuine leave so the dialog spinner holds until it's done.
+      try {
+        await leaveDynastyInFirestore(dynastyId, user.uid)
+      } catch (error) {
         console.error('Error leaving shared dynasty:', error)
         try { toast.error('Failed to leave dynasty — it may reappear. Try again.') } catch {}
-      })
+        throw error
+      }
       return
     }
 
-    // Cloud storage: optimistic UI + background Firestore wipe.
+    // Cloud storage: optimistic list removal, but AWAIT the genuine wipe.
     //
-    // Was: await deleteDynastyWithSubcollections, then remove from
-    // state. On a multi-year dynasty (5000+ players, 1000+ games)
-    // that single await blocked the UI for 5-10 seconds. Now the
-    // dynasty disappears from the user's list IMMEDIATELY and the
-    // Firestore tear-down runs in the background. If it fails, the
-    // listener brings the dynasty back on the next snapshot — and
-    // the catch block surfaces a toast so the user knows.
+    // The dynasty disappears from the user's list IMMEDIATELY (the card is
+    // gone the moment they confirm), so the page stays responsive. But we
+    // then AWAIT the Firestore tear-down so this promise only resolves once
+    // the dynasty is GENUINELY deleted — that lets the delete dialog keep its
+    // loading spinner up until the work actually finishes, instead of closing
+    // the instant the background task is kicked off. If the teardown fails,
+    // the listener brings the dynasty back on the next snapshot, we surface a
+    // toast, and we re-throw so the caller can react.
     const updated = dynasties.filter(d => String(d.id) !== String(dynastyId))
     setDynasties(updated)
     if (String(currentDynasty?.id) === String(dynastyId)) {
       setCurrentDynasty(null)
     }
 
-    deleteDynastyWithSubcollections(dynastyId).catch(error => {
+    try {
+      await deleteDynastyWithSubcollections(dynastyId)
+    } catch (error) {
       console.error('Error deleting dynasty from Firestore:', error)
       try { toast.error('Failed to delete dynasty — it may reappear. Try again.') } catch {}
-    })
+      throw error
+    }
   }
 
   const selectDynasty = async (dynastyId) => {
@@ -9730,6 +9738,8 @@ export function DynastyProvider({ children }) {
           ...(existing.photoTags ? { photoTags: existing.photoTags } : {}),
           ...(Array.isArray(existing.photos) && existing.photos.length ? { photos: existing.photos } : {}),
           ...(existing.scoreGraphic ? { scoreGraphic: existing.scoreGraphic } : {}),
+          ...(existing.scoreGraphics ? { scoreGraphics: existing.scoreGraphics } : {}),
+          ...(existing.scoreGraphicShown ? { scoreGraphicShown: existing.scoreGraphicShown } : {}),
           ...(existing.boxScore ? { boxScore: existing.boxScore } : {}),
           ...(existing.aiRecap ? { aiRecap: existing.aiRecap } : {}),
           ...(existing.gameNote ? { gameNote: existing.gameNote } : {}),
