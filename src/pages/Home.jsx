@@ -732,10 +732,32 @@ export default function Home() {
                           <span>{dynasty.currentYear}</span>
                           {weekShort && (
                             <>
-                              
+
                               <span className="truncate">{weekShort}</span>
                             </>
                           )}
+                        </div>
+
+                        {/* Mobile-only: time + edition/storage badges. On desktop
+                            these live in the right-side column; on small screens
+                            that column squeezed the name, so they wrap here instead. */}
+                        <div className="flex sm:hidden items-center gap-1.5 flex-wrap mt-1.5">
+                          {relativeTime && (
+                            <span className="text-[10px] tabular-nums" style={{ color: cardText, opacity: 0.7 }}>
+                              {relativeTime}
+                            </span>
+                          )}
+                          {editionBadge && (
+                            <Badge variant="success" size="sm" title="Game edition">{editionBadge}</Badge>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleStorageClick(e, dynasty)}
+                            title={storageBadgeTitle}
+                            className="pointer-events-auto"
+                          >
+                            <Badge variant={storageBadgeVariant} size="sm">{storageBadgeText}</Badge>
+                          </button>
                         </div>
                       </div>
 
