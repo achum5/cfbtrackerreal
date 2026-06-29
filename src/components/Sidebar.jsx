@@ -281,8 +281,12 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
       <aside
         className={`fixed left-0 z-40 transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } w-56 overflow-y-auto top-[64px] h-[calc(100dvh-64px)]`}
+        } w-56 overflow-y-auto`}
         style={{
+          // Sit flush under the real (measured) header height, not a hardcoded
+          // 64px — the header is taller on mobile (logo + padding + safe area).
+          top: 'var(--app-header-height, 64px)',
+          height: 'calc(100dvh - var(--app-header-height, 64px))',
           backgroundColor: 'var(--surface-1)',
           borderRight: '1px solid var(--surface-4)',
         }}

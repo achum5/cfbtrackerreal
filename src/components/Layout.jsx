@@ -58,7 +58,13 @@ export default function Layout({ children }) {
   useEffect(() => {
     const el = headerRef.current
     if (!el) return
-    const measure = () => setHeaderHeight(el.offsetHeight)
+    const measure = () => {
+      const h = el.offsetHeight
+      setHeaderHeight(h)
+      // Publish the real header height so fixed-position chrome (e.g. the
+      // dynasty sidebar) can sit flush under it instead of guessing a value.
+      document.documentElement.style.setProperty('--app-header-height', `${h}px`)
+    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
