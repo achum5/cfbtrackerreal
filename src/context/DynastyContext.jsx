@@ -4415,6 +4415,116 @@ export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
 }
 
 /**
+ * LEGACY bulk conference alignment for a year, read from the old bulk stores
+ * (customConferencesByYear snapshot + carry-back, customConferences, and the
+ * conferenceByTeamYear per-abbr overrides). Returns { conf: [abbr,...] } or null.
+ *
+ * This is NOT the source of truth. It exists only to (a) backfill the canonical
+ * per-team field on load (backfillConferencesPerTeam) and (b) act as a safety
+ * fallback in getCustomConferencesForYear for any dynasty whose per-team field
+ * hasn't been populated yet. Once a dynasty is backfilled, this is never read.
+ */
+function bulkConferenceMap(dynasty, year) {
+  const yearNum = Number(year)
+  if (!dynasty || !Number.isFinite(yearNum)) return null
+  const startYear = Number(dynasty.startYear) || 2024
+
+  let baseMap = null
+  const exact = dynasty.customConferencesByYear?.[yearNum] || dynasty.customConferencesByYear?.[String(yearNum)]
+  if (exact && typeof exact === 'object' && Object.keys(exact).length > 0) {
+    baseMap = exact
+  } else if (dynasty.customConferencesByYear && typeof dynasty.customConferencesByYear === 'object') {
+    const minYear = Math.max(startYear, yearNum - 10)
+    for (let y = yearNum - 1; y >= minYear; y--) {
+      const c = dynasty.customConferencesByYear[y] || dynasty.customConferencesByYear[String(y)]
+      if (c && typeof c === 'object' && Object.keys(c).length > 0) { baseMap = c; break }
+    }
+  }
+  if (!baseMap && dynasty.customConferences && typeof dynasty.customConferences === 'object' && Object.keys(dynasty.customConferences).length > 0) {
+    baseMap = dynasty.customConferences
+  }
+
+  const legacyPerTeam = dynasty.conferenceByTeamYear || {}
+  const hasLegacy = Object.keys(legacyPerTeam).length > 0
+  if (!baseMap && !hasLegacy) return null
+
+  const src = baseMap || DEFAULT_CONFERENCE_TEAMS
+  const result = {}
+  for (const [conf, list] of Object.entries(src)) result[conf] = Array.isArray(list) ? [...list] : []
+  for (const [abbr, byYearMap] of Object.entries(legacyPerTeam)) {
+    if (!byYearMap || typeof byYearMap !== 'object') continue
+    const conf = byYearMap[yearNum] ?? byYearMap[String(yearNum)]
+    if (!conf) continue
+    const up = String(abbr).toUpperCase()
+    for (const l of Object.values(result)) { const i = l.findIndex(t => (t || '').toUpperCase() === up); if (i !== -1) l.splice(i, 1) }
+    if (!Array.isArray(result[conf])) result[conf] = []
+    if (!result[conf].some(t => (t || '').toUpperCase() === up)) result[conf].push(abbr)
+  }
+  return result
+}
+
+/**
+ * One-time (idempotent) migration: fold the LEGACY bulk conference stores into
+ * the canonical per-team field teams[tid].byYear[year].conference, so that field
+ * is the single source of truth and getCustomConferencesForYear never needs to
+ * read the bulk stores. Only DEVIATIONS from the real-world default are written
+ * (a team appears here precisely because it was realigned), keeping data lean.
+ * Runs in applyMigrations on every load until the persisted copy carries the
+ * _conferencesBackfilledV1 flag.
+ */
+function backfillConferencesPerTeam(dynasty) {
+  if (!dynasty || dynasty._conferencesBackfilledV1) return dynasty
+  const teams = dynasty.teams
+  if (!teams || typeof teams !== 'object') return { ...dynasty, _conferencesBackfilledV1: true }
+
+  // Years that might carry a realignment: bulk-snapshot years, legacy per-team
+  // years, and the dynasty's played span.
+  const years = new Set()
+  for (const y of Object.keys(dynasty.customConferencesByYear || {})) { const n = Number(y); if (Number.isFinite(n)) years.add(n) }
+  for (const byYearMap of Object.values(dynasty.conferenceByTeamYear || {})) {
+    if (byYearMap && typeof byYearMap === 'object') for (const y of Object.keys(byYearMap)) { const n = Number(y); if (Number.isFinite(n)) years.add(n) }
+  }
+  const start = Number(dynasty.startYear), cur = Number(dynasty.currentYear)
+  if (Number.isFinite(start) && Number.isFinite(cur) && cur >= start) for (let y = start; y <= cur; y++) years.add(y)
+  if (years.size === 0) return { ...dynasty, _conferencesBackfilledV1: true }
+
+  // Per-year abbr(UPPER) → conf from the legacy bulk stores.
+  const yearMaps = new Map()
+  for (const y of years) {
+    const m = bulkConferenceMap(dynasty, y)
+    if (!m) continue
+    const idx = new Map()
+    for (const [conf, list] of Object.entries(m)) for (const a of (list || [])) if (a) idx.set(String(a).toUpperCase(), conf)
+    if (idx.size > 0) yearMaps.set(y, idx)
+  }
+  if (yearMaps.size === 0) return { ...dynasty, _conferencesBackfilledV1: true }
+
+  let touchedAny = false
+  const nextTeams = {}
+  for (const [tid, team] of Object.entries(teams)) {
+    const abbr = (team?.abbr || '').toUpperCase()
+    const defaultConf = team?.abbr ? getTeamConference(team.abbr) : null // static real-world default
+    let teamTouched = false
+    let byYear = team?.byYear
+    if (abbr) {
+      for (const y of years) {
+        const idx = yearMaps.get(y)
+        if (!idx) continue
+        const bulkConf = idx.get(abbr)
+        if (!bulkConf || bulkConf === defaultConf) continue // only store deviations
+        const existing = byYear?.[y]?.conference ?? byYear?.[String(y)]?.conference
+        if (existing) continue
+        if (!teamTouched) { byYear = { ...(team.byYear || {}) }; teamTouched = true }
+        byYear[y] = { ...(byYear[y] || {}), conference: bulkConf }
+      }
+    }
+    nextTeams[tid] = teamTouched ? { ...team, byYear } : team
+    if (teamTouched) touchedAny = true
+  }
+  return { ...dynasty, teams: touchedAny ? nextTeams : teams, _conferencesBackfilledV1: true }
+}
+
+/**
  * Get custom conferences for a specific year.
  *
  * Returns a map of { conferenceName: [abbr, ...] } representing the
@@ -4458,50 +4568,16 @@ export function getCustomConferencesForYear(dynasty, year) {
 
   const startYear = Number(dynasty.startYear) || 2024
 
-  // ── STEP 1: Base map from legacy bulk stores ─────────────────────────────────
-  let baseMap = null
-  const byYear = dynasty.customConferencesByYear?.[yearNum] || dynasty.customConferencesByYear?.[String(yearNum)]
-  if (byYear && typeof byYear === 'object' && Object.keys(byYear).length > 0) {
-    baseMap = byYear
-  } else if (dynasty.customConferencesByYear && typeof dynasty.customConferencesByYear === 'object') {
-    const minYear = Math.max(startYear, yearNum - 10)
-    for (let y = yearNum - 1; y >= minYear; y--) {
-      const prevYearConf = dynasty.customConferencesByYear[y] || dynasty.customConferencesByYear[String(y)]
-      if (prevYearConf && typeof prevYearConf === 'object' && Object.keys(prevYearConf).length > 0) {
-        baseMap = prevYearConf
-        break
-      }
-    }
-  }
-  if (!baseMap && dynasty.customConferences && typeof dynasty.customConferences === 'object' && Object.keys(dynasty.customConferences).length > 0) {
-    baseMap = dynasty.customConferences
-  }
-
-  // ── STEP 2: Collect per-team overrides ───────────────────────────────────────
-  // Both legacy (conferenceByTeamYear) and canonical (teams[tid].byYear[year].conference)
-  // overrides are collected. Canonical wins by being applied last.
-  const overrides = new Map() // abbr UPPERCASE → conferenceName
-
-  // Legacy path (lower priority — applied first so canonical can overwrite)
-  const legacyOverrides = dynasty.conferenceByTeamYear || {}
-  for (const [abbr, byYearMap] of Object.entries(legacyOverrides)) {
-    if (!abbr || !byYearMap || typeof byYearMap !== 'object') continue
-    const conf = byYearMap[yearNum] ?? byYearMap[String(yearNum)]
-    if (conf) overrides.set(abbr.toUpperCase(), conf)
-  }
-
-  // Canonical path (higher priority — applied last so it wins).
-  // teams[tid].byYear[year].conference is THE single source of truth. Resolve
-  // each team's conference for this year as:
-  //   1. the year's own value, else
-  //   2. CARRY BACK to the most recent prior season the team's conference was
-  //      set — a conference persists until the user moves the team, so a team
-  //      realigned in 2026 stays put in 2027, 2028… with no bulk snapshot needed,
-  //      else
-  //   3. the team's top-level/creation conference (legacy fallback).
-  // Carry-back only looks at PRIOR seasons, so a future realignment never leaks
-  // backward into earlier years.
+  // ── Per-team resolution — THE single source of truth ─────────────────────────
+  // teams[tid].byYear[year].conference, carrying BACK to the most recent prior
+  // season the team's conference was set (a conference persists until the team is
+  // moved, so a 2026 realignment holds in 2027, 2028…). Carry-back only looks at
+  // prior seasons, so a future move never leaks backward. Legacy bulk stores are
+  // folded into this field on load (backfillConferencesPerTeam), so they are not
+  // read here. Only realigned teams carry a value; everyone else stays in the
+  // real-world default alignment (the base map below).
   const minOverrideYear = Math.max(startYear, yearNum - 25)
+  const overrides = new Map() // abbr UPPERCASE → conferenceName
   for (const [, team] of Object.entries(dynasty.teams || {})) {
     const abbr = team?.abbr
     if (!abbr) continue
@@ -4512,15 +4588,19 @@ export function getCustomConferencesForYear(dynasty, year) {
         if (c) { conf = c; break }
       }
     }
-    if (!conf) conf = team?.conference
     if (conf) overrides.set(abbr.toUpperCase(), conf)
   }
 
-  // No bulk map AND no per-team overrides → preserve legacy "use defaults" contract.
-  if (!baseMap && overrides.size === 0) return null
+  // Safety fallback: a dynasty whose per-team field was never populated (a load
+  // path that bypassed migration). Resolve straight from the legacy bulk stores
+  // so its alignment still shows correctly. Once backfilled, overrides is
+  // non-empty and this never runs.
+  if (overrides.size === 0) {
+    return bulkConferenceMap(dynasty, yearNum)
+  }
 
-  // ── STEP 3: Apply overrides to a clone of the base map ───────────────────────
-  const sourceMap = baseMap || DEFAULT_CONFERENCE_TEAMS
+  // ── Apply per-team overrides on top of the real-world default alignment ──────
+  const sourceMap = DEFAULT_CONFERENCE_TEAMS
   const result = {}
   for (const [conf, confTeams] of Object.entries(sourceMap)) {
     result[conf] = Array.isArray(confTeams) ? [...confTeams] : []
@@ -6024,6 +6104,12 @@ export function DynastyProvider({ children }) {
         const { customTeams: _drop, ...withoutCustomTeams } = migrated
         migrated = { ...withoutCustomTeams, teams }
       }
+
+      // ─── Fold legacy bulk conference stores into the per-team field ──────
+      // teams[tid].byYear[year].conference is the single source of truth for
+      // conference alignment; this backfills it from the old bulk stores so the
+      // resolver never needs to read them. Idempotent (flagged once persisted).
+      migrated = backfillConferencesPerTeam(migrated)
 
       // Apply game migration if needed
       if (!migrated._gamesMigrated) {

@@ -232,49 +232,51 @@ function getConferenceAlignmentForYear(dynasty, year) {
 
   const startYear = Number(dynasty.startYear) || 2024
 
-  // Step 1: Base map from legacy bulk stores.
-  let baseMap = null
-  const byYear = dynasty.customConferencesByYear?.[yearNum]
-    || dynasty.customConferencesByYear?.[String(yearNum)]
-  if (byYear && typeof byYear === 'object' && Object.keys(byYear).length > 0) {
-    baseMap = byYear
-  } else if (dynasty.customConferencesByYear && typeof dynasty.customConferencesByYear === 'object') {
-    const minYear = Math.max(startYear, yearNum - 10)
-    for (let y = yearNum - 1; y >= minYear; y--) {
-      const prev = dynasty.customConferencesByYear[y] || dynasty.customConferencesByYear[String(y)]
-      if (prev && typeof prev === 'object' && Object.keys(prev).length > 0) {
-        baseMap = prev
-        break
+  // Per-team resolution — the single source of truth (mirrors
+  // getCustomConferencesForYear): teams[tid].byYear[year].conference with
+  // carry-back to the most recent prior season set. Bulk stores are backfilled
+  // into this field on load, so only realigned teams carry a value.
+  const minOverrideYear = Math.max(startYear, yearNum - 25)
+  const overrides = new Map() // abbr UPPERCASE → conferenceName
+  for (const team of Object.values(dynasty.teams || {})) {
+    const abbr = team?.abbr
+    if (!abbr) continue
+    let conf = team?.byYear?.[yearNum]?.conference ?? team?.byYear?.[String(yearNum)]?.conference
+    if (!conf && team?.byYear) {
+      for (let y = yearNum - 1; y >= minOverrideYear; y--) {
+        const c = team.byYear[y]?.conference ?? team.byYear[String(y)]?.conference
+        if (c) { conf = c; break }
       }
     }
-  }
-  if (!baseMap && dynasty.customConferences && typeof dynasty.customConferences === 'object'
-      && Object.keys(dynasty.customConferences).length > 0) {
-    baseMap = dynasty.customConferences
-  }
-
-  const sourceMap = baseMap || DEFAULT_CONFERENCES
-
-  // Step 2: Collect per-team overrides. Canonical (byYear.conference) wins by being applied last.
-  const overrides = new Map() // abbr UPPERCASE → conferenceName
-
-  // Legacy conferenceByTeamYear (lower priority — applied first)
-  const legacy = dynasty.conferenceByTeamYear || {}
-  for (const [abbr, byYearMap] of Object.entries(legacy)) {
-    if (!abbr || !byYearMap || typeof byYearMap !== 'object') continue
-    const conf = byYearMap[yearNum] ?? byYearMap[String(yearNum)]
     if (conf) overrides.set(abbr.toUpperCase(), conf)
   }
 
-  // Canonical teams[tid].byYear[year].conference (higher priority — applied last)
-  for (const team of Object.values(dynasty.teams || {})) {
-    const yd = team?.byYear?.[yearNum] || team?.byYear?.[String(yearNum)]
-    const conf = yd?.conference
-    const abbr = team?.abbr
-    if (conf && abbr) overrides.set(abbr.toUpperCase(), conf)
+  // Fallback for a dynasty whose per-team field wasn't populated (no realignment,
+  // or an un-migrated load): resolve from the legacy bulk stores.
+  let baseMap = null
+  if (overrides.size === 0) {
+    const byYear = dynasty.customConferencesByYear?.[yearNum]
+      || dynasty.customConferencesByYear?.[String(yearNum)]
+    if (byYear && typeof byYear === 'object' && Object.keys(byYear).length > 0) {
+      baseMap = byYear
+    } else if (dynasty.customConferencesByYear && typeof dynasty.customConferencesByYear === 'object') {
+      const minYear = Math.max(startYear, yearNum - 10)
+      for (let y = yearNum - 1; y >= minYear; y--) {
+        const prev = dynasty.customConferencesByYear[y] || dynasty.customConferencesByYear[String(y)]
+        if (prev && typeof prev === 'object' && Object.keys(prev).length > 0) { baseMap = prev; break }
+      }
+    }
+    if (!baseMap && dynasty.customConferences && typeof dynasty.customConferences === 'object'
+        && Object.keys(dynasty.customConferences).length > 0) {
+      baseMap = dynasty.customConferences
+    }
   }
 
-  // Step 3: Clone base map, apply overrides.
+  // Per-team overrides apply on top of the real-world default alignment; the
+  // bulk fallback (when no per-team data) uses its own snapshot as the base.
+  const sourceMap = baseMap || DEFAULT_CONFERENCES
+
+  // Clone base map, apply overrides.
   const result = {}
   for (const [conf, confTeams] of Object.entries(sourceMap)) {
     result[conf] = Array.isArray(confTeams) ? [...confTeams] : []
