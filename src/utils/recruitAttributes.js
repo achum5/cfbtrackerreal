@@ -94,7 +94,7 @@ export const ATTRIBUTE_COLUMNS = [
   'Man Coverage', 'Zone Coverage', 'Press',
   // Special teams (added beyond the Scout Staff config — not graded yet, but
   // recordable for K/P recruits and rostered players)
-  'Kick Power', 'Kick Accuracy', 'Punt Power', 'Punt Accuracy', 'Kick Return',
+  'Kick Power', 'Kick Accuracy', 'Kick Return',
 ]
 
 // Game positions → the position bucket used by BASE_POSITION_CONFIG.
@@ -180,7 +180,7 @@ export const ATTRIBUTE_ABBR = {
   'Block Shedding': 'BSH', 'Tackle': 'TAK', 'Hit Power': 'POW', 'Power Moves': 'PMV',
   'Finesse Moves': 'FMV', 'Pursuit': 'PUR', 'Play Recognition': 'PRC',
   'Man Coverage': 'MCV', 'Zone Coverage': 'ZCV', 'Press': 'PRS',
-  'Kick Power': 'KPW', 'Kick Accuracy': 'KAC', 'Punt Power': 'PPW', 'Punt Accuracy': 'PAC',
+  'Kick Power': 'KPW', 'Kick Accuracy': 'KAC',
   // Full CFB 27 backend set (rostered players)
   'Jumping': 'JMP', 'Stamina': 'STA', 'Toughness': 'TGH', 'Injury': 'INJ',
   'Play Action': 'PLA', 'Stiff Arm': 'SFA', 'Trucking': 'TRK', 'Lead Block': 'LBK',
@@ -200,7 +200,7 @@ export const RATINGS_GROUP_DEFS = [
   { label: 'Blocking',      attrs: ['Run Block', 'Run Block Power', 'Run Block Finesse', 'Pass Block', 'Pass Block Power', 'Pass Block Finesse', 'Impact Blocking', 'Lead Block'] },
   { label: 'Front Seven',   attrs: ['Block Shedding', 'Tackle', 'Hit Power', 'Power Moves', 'Finesse Moves', 'Pursuit', 'Play Recognition'] },
   { label: 'Coverage',      attrs: ['Man Coverage', 'Zone Coverage', 'Press'] },
-  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Punt Power', 'Punt Accuracy', 'Kick Return'] },
+  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Kick Return'] },
 ]
 
 // RATINGS_GROUP_DEFS plus a generated "Other" bucket for any ATTRIBUTE_COLUMNS
@@ -245,7 +245,7 @@ export const ATTRIBUTE_DISPLAY_GROUP_DEFS = [
   { label: 'Passing',     attrs: ['Throw Power', 'Under Pressure', 'Short Accuracy', 'Medium Accuracy', 'Deep Accuracy', 'Throw On Run', 'Play Action'] },
   { label: 'Defense',     attrs: ['Tackle', 'Power Moves', 'Finesse Moves', 'Block Shedding', 'Pursuit', 'Play Recognition', 'Hit Power', 'Man Coverage', 'Zone Coverage', 'Press'] },
   { label: 'Receiving',   attrs: ['Catching', 'Spectacular Catch', 'Catch In Traffic', 'Short Route', 'Medium Route', 'Deep Route', 'Release'] },
-  { label: 'Kicking',     attrs: ['Kick Power', 'Kick Accuracy', 'Kick Return', 'Punt Power', 'Punt Accuracy'] },
+  { label: 'Kicking',     attrs: ['Kick Power', 'Kick Accuracy', 'Kick Return'] },
 ]
 
 export function displayGroups() {
