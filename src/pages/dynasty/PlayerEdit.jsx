@@ -1778,8 +1778,7 @@ export default function PlayerEdit() {
                         return (
                           <div key={name} className="flex items-center justify-between gap-2">
                             <span
-                              className={`text-[12px] truncate ${relevant ? 'font-semibold' : 'text-txt-secondary'}`}
-                              style={relevant ? { color: teamColors.primary } : undefined}
+                              className={`text-[12px] truncate ${relevant ? 'font-semibold text-txt-primary' : 'text-txt-secondary'}`}
                               title={name}
                             >
                               {displayLabel(name)}

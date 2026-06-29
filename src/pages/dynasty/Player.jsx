@@ -1848,8 +1848,12 @@ function PlayerInner() {
         <div className="relative overflow-hidden p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 cfb-watermark">
           {/* LEFT: photo + identity */}
           <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            <div className="flex flex-col items-center gap-2 flex-shrink-0">
-              {player.pictureUrl && (
+            {/* LEFT photo column — only when the player actually has a photo.
+                Without it, the name starts at the edge and the Edit button moves
+                inline to the right of the name (below) instead of pushing
+                everything over from the left. */}
+            {player.pictureUrl && (
+              <div className="flex flex-col items-center gap-2 flex-shrink-0">
                 <img
                   src={proxyImageUrl(player.pictureUrl, 300)}
                   alt={player.name}
@@ -1864,22 +1868,22 @@ function PlayerInner() {
                     else e.currentTarget.style.display = 'none'
                   }}
                 />
-              )}
-              {/* Mobile Edit — tucked into the empty space under the photo. */}
-              {!isViewOnly && (
-                <button
-                  onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
-                  className="sm:hidden w-20 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide hover:bg-black/20 transition-colors"
-                  style={{ color: teamBgText, border: `1px solid ${teamBgText}45` }}
-                  title="Edit Player"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </button>
-              )}
-            </div>
+                {/* Mobile Edit — tucked into the empty space under the photo. */}
+                {!isViewOnly && (
+                  <button
+                    onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
+                    className="sm:hidden w-20 flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide hover:bg-black/20 transition-colors"
+                    style={{ color: teamBgText, border: `1px solid ${teamBgText}45` }}
+                    title="Edit Player"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </button>
+                )}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               {/* Name + captain (extra right padding on mobile clears the
                   pinned OVR ring; desktop clears the edit button) */}
@@ -1893,11 +1897,13 @@ function PlayerInner() {
                 {player.isCaptain && (
                   <img src={CAPTAIN_PATCH_URL} alt="Team Captain" title="Team Captain" className="w-7 h-7 sm:w-8 sm:h-8 object-contain flex-shrink-0 self-center" />
                 )}
-                {/* Edit — inline right after the name on tablet/desktop. */}
+                {/* Edit — inline right after the name on tablet/desktop, and also
+                    on mobile when there's no photo (so it sits to the RIGHT of the
+                    name instead of pushing it over from the left). */}
                 {!isViewOnly && (
                   <button
                     onClick={() => navigate(`${pathPrefix}/player/${pid}/edit`)}
-                    className="hidden sm:inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center"
+                    className={`${player.pictureUrl ? 'hidden sm:inline-flex' : 'inline-flex'} items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center`}
                     style={{ color: teamBgText, border: `1px solid ${teamBgText}40` }}
                     title="Edit Player"
                     aria-label="Edit Player"
