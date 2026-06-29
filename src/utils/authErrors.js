@@ -67,4 +67,12 @@ export function isAuthError(error) {
       || (msg.includes('token') && (msg.includes('expired') || msg.includes('invalid')))
       || msg.includes('401')
       || msg.includes('user not authenticated')
+      // Google 403 "insufficient scopes" — the token is valid but was minted
+      // WITHOUT the Sheets/Drive scope (e.g. the user granted access before the
+      // scope was added). Re-authenticating re-mints a token WITH the scope, so
+      // route it through the reauth flow instead of a dead-end "Failed to create
+      // sheet" error that forces a manual sign-out/in.
+      || msg.includes('insufficient authentication scopes')
+      || msg.includes('insufficient permission')
+      || msg.includes('access_token_scope_insufficient')
 }
