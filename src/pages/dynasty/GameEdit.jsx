@@ -791,8 +791,8 @@ export default function GameEdit() {
 
   // Auto-detect conference game
   const customConferences = getCurrentCustomConferences(currentDynasty)
-  const team1Conference = getTeamConference(team1Abbr, customConferences)
-  const team2Conference = getTeamConference(team2Abbr, customConferences)
+  const team1Conference = getTeamConference(team1Abbr, customConferences, currentDynasty?.teams)
+  const team2Conference = getTeamConference(team2Abbr, customConferences, currentDynasty?.teams)
   const isConferenceGame = team1Conference && team2Conference &&
     team1Conference === team2Conference && team1Conference !== 'Independent'
 

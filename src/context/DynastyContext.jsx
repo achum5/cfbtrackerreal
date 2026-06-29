@@ -4490,18 +4490,30 @@ export function getCustomConferencesForYear(dynasty, year) {
     if (conf) overrides.set(abbr.toUpperCase(), conf)
   }
 
-  // Canonical path (higher priority — applied last so it wins)
+  // Canonical path (higher priority — applied last so it wins).
+  // teams[tid].byYear[year].conference is THE single source of truth. Resolve
+  // each team's conference for this year as:
+  //   1. the year's own value, else
+  //   2. CARRY BACK to the most recent prior season the team's conference was
+  //      set — a conference persists until the user moves the team, so a team
+  //      realigned in 2026 stays put in 2027, 2028… with no bulk snapshot needed,
+  //      else
+  //   3. the team's top-level/creation conference (legacy fallback).
+  // Carry-back only looks at PRIOR seasons, so a future realignment never leaks
+  // backward into earlier years.
+  const minOverrideYear = Math.max(startYear, yearNum - 25)
   for (const [, team] of Object.entries(dynasty.teams || {})) {
-    const yearData = team?.byYear?.[yearNum] || team?.byYear?.[String(yearNum)]
-    // Prefer year-specific conference; fall back to the top-level team.conference
-    // field for teams that were set up as part of the conference at dynasty
-    // creation but never explicitly "moved" via the year-by-year conference editor
-    // (so byYear[year].conference is absent). Without this fallback such teams
-    // disappear from the membership block even though the app shows them in the
-    // correct conference on every other screen.
-    const conf = yearData?.conference || team?.conference
     const abbr = team?.abbr
-    if (conf && abbr) overrides.set(abbr.toUpperCase(), conf)
+    if (!abbr) continue
+    let conf = team?.byYear?.[yearNum]?.conference ?? team?.byYear?.[String(yearNum)]?.conference
+    if (!conf && team?.byYear) {
+      for (let y = yearNum - 1; y >= minOverrideYear; y--) {
+        const c = team.byYear[y]?.conference ?? team.byYear[String(y)]?.conference
+        if (c) { conf = c; break }
+      }
+    }
+    if (!conf) conf = team?.conference
+    if (conf) overrides.set(abbr.toUpperCase(), conf)
   }
 
   // No bulk map AND no per-team overrides → preserve legacy "use defaults" contract.
@@ -4559,7 +4571,7 @@ export function getCurrentCustomConferences(dynasty) {
 export function getTeamConferenceForDynasty(dynasty, teamAbbr, year = null) {
   const targetYear = year || dynasty?.currentYear
   const customConferences = dynasty ? getCustomConferencesForYear(dynasty, targetYear) : null
-  return getTeamConference(teamAbbr, customConferences)
+  return getTeamConference(teamAbbr, customConferences, dynasty?.teams)
 }
 
 // ============================================================================

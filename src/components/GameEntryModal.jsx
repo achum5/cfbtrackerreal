@@ -1314,8 +1314,8 @@ export default function GameEntryModal({
 
     // Use custom conferences for auto-detection
     const customConferences = getCurrentCustomConferences(currentDynasty)
-    const teamConference = getTeamConference(teamAbbrForSave, customConferences)
-    const opponentConference = getTeamConference(opponentAbbr, customConferences)
+    const teamConference = getTeamConference(teamAbbrForSave, customConferences, teamsSource)
+    const opponentConference = getTeamConference(opponentAbbr, customConferences, teamsSource)
 
     // Conference game if both teams are in the same conference (and not independents)
     // Conference Championship games are always conference games
@@ -1664,7 +1664,7 @@ export default function GameEntryModal({
           <div className="min-w-0 flex-1">
             <h2 className="text-base sm:text-2xl font-bold truncate" style={{ color: 'var(--text-primary)' }}>
               {isConferenceChampionship || effectiveGame?.isConferenceChampionship
-                ? `${effectiveGame?.conference || getTeamConference(effectiveTeamAbbr) || 'Conference'} Championship`
+                ? `${effectiveGame?.conference || getTeamConference(effectiveTeamAbbr, getCurrentCustomConferences(currentDynasty), teamsSource) || 'Conference'} Championship`
                 : effectiveGame?.isCFPChampionship
                   ? 'National Championship'
                   : effectiveGame?.isCFPSemifinal

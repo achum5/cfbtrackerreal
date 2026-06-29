@@ -1354,14 +1354,17 @@ export default function Game() {
   }
 
   // Get logos
+  // The dynasty's realignment-aware conference map for this game's year — the
+  // single source of truth. Used for BOTH the CCG label and regular-matchup logo
+  // so a realigned team never shows its old conference.
+  const customConfs = currentDynasty ? getCustomConferencesForYear(currentDynasty, game.year) : null
   // game.conference is the authoritative value for CCGs (set at save time).
   // currentDynasty?.conference is a stale root-level field — do NOT use it.
-  const confName = game.conference || (displayTeamAbbr ? getTeamConference(displayTeamAbbr) : null)
+  const confName = game.conference || (displayTeamAbbr ? getTeamConference(displayTeamAbbr, customConfs, currentDynasty?.teams) : null)
   const bowlLogo = game.bowlName ? getBowlLogo(game.bowlName) : null
   const confLogo = game.isConferenceChampionship && confName ? getConferenceLogo(confName) : null
   // For regular conference matchups (both teams in the same conference), surface
   // the conference logo in the header so it reads like an ESPN scoreboard.
-  const customConfs = currentDynasty ? getCustomConferencesForYear(currentDynasty, game.year) : null
   const userConf = displayTeamAbbr ? getTeamConference(displayTeamAbbr, customConfs, currentDynasty?.teams) : null
   const oppConf = opponentAbbr ? getTeamConference(opponentAbbr, customConfs, currentDynasty?.teams) : null
   const isConferenceMatchup = !!(userConf && oppConf && userConf === oppConf) && !game.isConferenceChampionship && !game.bowlName
