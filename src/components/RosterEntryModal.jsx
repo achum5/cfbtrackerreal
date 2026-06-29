@@ -148,6 +148,14 @@ FINAL CHECK before you send
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
+  // Guards the runaway loop: a FAILED creation must not silently re-fire. The
+  // old effect reset its guards on every completion and re-ran, so each failure
+  // spawned a brand-new Google Sheet (the dozens of orphaned roster sheets).
+  // We attempt creation at most once per modal-open; an explicit retry — the
+  // AuthErrorModal's Refresh or the Regenerate button — bumps auth.retryCount,
+  // which re-arms exactly one more attempt.
+  const creationAttemptedRef = useRef(false)
+  const lastRetryCountRef = useRef(auth.retryCount)
 
   // Highlight save button when user returns to the window
   useEffect(() => {
@@ -174,54 +182,62 @@ FINAL CHECK before you send
     }
   }, [isOpen, sheetId, useEmbedded])
 
-  // Create roster sheet when modal opens - always create fresh with current data
+  // Create the roster sheet ONCE when the modal opens. Single-attempt by
+  // design: on failure we surface the error and stop — never auto-retry, which
+  // is what spam-created sheets.
   useEffect(() => {
+    // An explicit retry (Refresh after re-auth, or Regenerate) re-arms one
+    // fresh attempt by bumping auth.retryCount.
+    if (auth.retryCount !== lastRetryCountRef.current) {
+      lastRetryCountRef.current = auth.retryCount
+      creationAttemptedRef.current = false
+    }
+
     const createSheet = async () => {
-      // Not signed in → show the auth modal immediately rather than
-      // silently stalling on "Setting up sheet…" indefinitely.
-      if (isOpen && !user && !sheetId && !creatingSheet && !showDeletedNote) {
-        auth.setShowAuthError(true)
-        return
-      }
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
-        // Set ref immediately to prevent concurrent calls (state updates are async)
-        creatingSheetRef.current = true
-        setCreatingSheet(true)
-        try {
-          // Always create a fresh sheet
-          const sheetInfo = await createRosterSheet(
-            currentDynasty?.teamName || 'Dynasty',
-            currentYear
-          )
-          setSheetId(sheetInfo.spreadsheetId)
+      if (!isOpen || sheetId || showDeletedNote) return
+      // Not signed in → prompt to authenticate rather than stalling the spinner.
+      if (!user) { auth.setShowAuthError(true); return }
+      // Already creating, or we've already used this open's one attempt.
+      if (creatingSheetRef.current || creationAttemptedRef.current) return
 
-          // Get current roster for this team and pre-fill the sheet.
-          // Teambuilder-safe: use tid + dynasty so renamed teams resolve.
-          const teamAbbr = getCurrentTeamAbbr(currentDynasty)
-          const teamTid = getCurrentTeamTid(currentDynasty)
-          const currentRoster = (currentDynasty?.players || []).filter(p =>
-            isPlayerOnRoster(p, teamTid ?? teamAbbr, currentYear, currentDynasty)
-          )
+      // Mark attempted BEFORE the first await so a rejection can't loop back in
+      // and create another sheet.
+      creationAttemptedRef.current = true
+      creatingSheetRef.current = true
+      setCreatingSheet(true)
+      try {
+        const sheetInfo = await createRosterSheet(
+          currentDynasty?.teamName || 'Dynasty',
+          currentYear
+        )
+        setSheetId(sheetInfo.spreadsheetId)
 
-          if (currentRoster.length > 0) {
-            await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster, currentYear)
-          }
-
-          // Save sheet ID to dynasty
-          await updateDynasty(currentDynasty.id, {
-            rosterSheetId: sheetInfo.spreadsheetId
-          })
-        } catch (error) {
-          console.error('Failed to create roster sheet:', error)
-        } finally {
-          setCreatingSheet(false)
-          creatingSheetRef.current = false
+        // Get current roster for this team and pre-fill the sheet.
+        // Teambuilder-safe: use tid + dynasty so renamed teams resolve.
+        const teamAbbr = getCurrentTeamAbbr(currentDynasty)
+        const teamTid = getCurrentTeamTid(currentDynasty)
+        const currentRoster = (currentDynasty?.players || []).filter(p =>
+          isPlayerOnRoster(p, teamTid ?? teamAbbr, currentYear, currentDynasty)
+        )
+        if (currentRoster.length > 0) {
+          await prefillRosterSheet(sheetInfo.spreadsheetId, currentRoster, currentYear)
         }
+        await updateDynasty(currentDynasty.id, { rosterSheetId: sheetInfo.spreadsheetId })
+      } catch (error) {
+        console.error('Failed to create roster sheet:', error)
+        // Auth error → AuthErrorModal lets the user re-auth and retry. Anything
+        // else → a toast. Either way the effect does NOT loop.
+        if (!auth.handleError(error)) {
+          toast.error('Could not create the roster sheet. Refresh your session and try again.')
+        }
+      } finally {
+        setCreatingSheet(false)
+        creatingSheetRef.current = false
       }
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -229,6 +245,7 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       setSheetId(null)
       creatingSheetRef.current = false
+      creationAttemptedRef.current = false
     }
   }, [isOpen])
 
