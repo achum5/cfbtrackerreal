@@ -21,6 +21,8 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -40,6 +42,8 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -164,7 +168,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noDraftDeclarees && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noDraftDeclarees && !creationAttemptedRef.current) {
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
@@ -210,7 +215,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, noDraftDeclarees, currentYear])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, noDraftDeclarees, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -219,8 +224,18 @@ FINAL CHECK before you send
       setNoDraftDeclarees(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits Player<TAB>DraftRound rows, exactly the two
+  // columns the parser reads as row[0]/row[1] — no pre-filled columns, so the
+  // pasted rows map straight through with no normalization.
+  const handleLocalImport = async (text) => {
+    const draftResults = await readDraftResultsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
+    await onSave(draftResults)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -374,6 +389,14 @@ FINAL CHECK before you send
               </button>
             </div>
           </div>
+        ) : useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Draft Results"
+          />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">

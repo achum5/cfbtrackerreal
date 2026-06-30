@@ -8544,7 +8544,7 @@ export async function readTeamStatsFromSheet(spreadsheetId, dynastyTeams = null)
 // Awards columns and list
 const AWARDS_COLUMNS = ['Award', 'Player', 'Position', 'Team', 'Class']
 
-const AWARDS_LIST = [
+export const AWARDS_LIST = [
   'Heisman',
   'Maxwell',
   'Walter Camp',
@@ -8954,29 +8954,35 @@ export async function createAwardsSheet(currentYear, awardsByYear = {}, dynastyT
  * @param {string} spreadsheetId - The Google Sheet ID
  * @param {number} year - The year tab to read from
  */
-export async function readAwardsFromSheet(spreadsheetId, year, dynastyTeams = null) {
+export async function readAwardsFromSheet(spreadsheetId, year, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const lastCol = String.fromCharCode(65 + AWARDS_COLUMNS.length - 1)
+      const lastCol = String.fromCharCode(65 + AWARDS_COLUMNS.length - 1)
 
-    // Read all data rows from the specified year tab
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A2:${lastCol}${AWARDS_LIST.length + 1}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+      // Read all data rows from the specified year tab
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A2:${lastCol}${AWARDS_LIST.length + 1}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read awards: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read awards: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Coach awards have merged cells - team is in column C (row[2]) instead of D (row[3])
     const COACH_AWARDS = ['Bear Bryant Coach of the Year', 'Broyles']
@@ -10076,29 +10082,35 @@ export async function createAllAmericansOnlySheet(currentYear, allAmericansByYea
  * @param spreadsheetId - The Google Sheets ID
  * @param year - The year tab to read from
  */
-export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynastyTeams = null) {
+export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
-
     const numPositions = ALL_AMERICAN_POSITIONS.length
 
-    // Read all data from the specified year tab (28 rows)
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A1:L28`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
+
+      // Read all data from the specified year tab (28 rows)
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/'${year}'!A1:L28`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Extract All-Americans data starting at row 4 (index 3)
     const allAmericans = []
@@ -10911,26 +10923,32 @@ async function initializePlayersLeavingSheet(spreadsheetId, accessToken, sheetId
 }
 
 // Read players leaving data from Google Sheet
-export async function readPlayersLeavingFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readPlayersLeavingFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Players Leaving!A2:B100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Players Leaving!A2:B100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read players leaving data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read players leaving data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse rows into player leaving objects
     const playersLeaving = rows
@@ -11175,26 +11193,32 @@ export async function createDraftResultsSheet(dynastyName, year, playersLeavingT
 }
 
 // Read draft results from Google Sheet
-export async function readDraftResultsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readDraftResultsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Draft Results!A2:B100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Draft Results!A2:B100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read draft results: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read draft results: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse rows — column A = player name, column B = draft round.
     // Both columns are now AI/user-supplied; position and overall are looked
@@ -16393,24 +16417,29 @@ export async function createPreseasonRankingsSheet(dynastyName, year, dynasty) {
  *     unknownAbbrs: [{ rank, raw }],    // abbrs not in dynasty.teams
  *   }
  */
-export async function readPreseasonRankingsFromSheet(spreadsheetId, dynasty, year) {
+export async function readPreseasonRankingsFromSheet(spreadsheetId, dynasty, year, opts = {}) {
   if (!dynasty) throw new Error('readPreseasonRankingsFromSheet: dynasty is required')
 
-  const accessToken = await getAccessToken()
-  const NUM_COLS = 2
-  const NUM_ROWS = 1 + PRESEASON_NUM_RANKS
-  const range = `'${year} Preseason Top 25'!A1:B${NUM_ROWS}`
+  // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+  let rows
+  if (opts.rows) {
+    rows = opts.rows
+  } else {
+    const accessToken = await getAccessToken()
+    const NUM_ROWS = 1 + PRESEASON_NUM_RANKS
+    const range = `'${year} Preseason Top 25'!A1:B${NUM_ROWS}`
 
-  const res = await fetch(
-    `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  )
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`readPreseasonRankingsFromSheet: values get failed — ${err.error?.message || res.status}`)
+    const res = await fetch(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    )
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(`readPreseasonRankingsFromSheet: values get failed — ${err.error?.message || res.status}`)
+    }
+    const data = await res.json()
+    rows = data.values || []
   }
-  const data = await res.json()
-  const rows = data.values || []
 
   // Build abbr → tid lookup.
   const abbrToTid = new Map()

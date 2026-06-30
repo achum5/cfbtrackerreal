@@ -19,6 +19,8 @@ import {
   getSingleSheetEmbedUrl,
 } from '../services/sheetsService'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -35,6 +37,8 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
 
   const [sheetId, setSheetId] = useState(null)
   const [creatingSheet, setCreatingSheet] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -59,6 +63,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
       setSheetId(null)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
       return
     }
     const stored = currentDynasty?.preseasonRankingsSheetIdByYear?.[yearNum]
@@ -70,7 +75,8 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
       lastRetryCountRef.current = auth.retryCount
       creationAttemptedRef.current = false
     }
-    if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || isViewOnly || creationAttemptedRef.current) return
+    // Don't create a Google Sheet while the local paste path is active.
+    if (!isOpen || useLocal || !user || sheetId || creatingSheet || creatingSheetRef.current || isViewOnly || creationAttemptedRef.current) return
     const create = async () => {
       creationAttemptedRef.current = true
       creatingSheetRef.current = true
@@ -94,7 +100,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
       }
     }
     create()
-  }, [isOpen, user, sheetId, currentDynasty?.id, isViewOnly, auth.retryCount])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, isViewOnly, auth.retryCount])
 
   useEffect(() => {
     if (!isOpen || !sheetId || useEmbedded) return
@@ -197,6 +203,47 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
       preseasonRankingsByYear: nextPolls,
       teams: teamsCopy,
     })
+  }
+
+  // Local paste import: the AI emits ONE column-B abbreviation per line (column
+  // A rank is pre-filled on the sheet, so it's never output). The parser reads
+  // rows[r][1] for r = 1..25 (rank = row position), so prepend a header row at
+  // index 0 and place each abbr at column index 1 — the [rank, abbr] shape the
+  // Sheets API A1:B26 read returns. Reuses handleSheetSync's guardrails.
+  const handleLocalImport = async (text) => {
+    if (!currentDynasty) return
+    const rows = [[], ...splitTsv(text).map((cells) => ['', cells[0] ?? ''])]
+    const result = await readPreseasonRankingsFromSheet(null, currentDynasty, yearNum, { rows })
+
+    const oldCount = (currentDynasty.preseasonRankingsByYear?.[yearNum] || []).length
+    if (result.entries.length === 0 && oldCount >= 5) {
+      toast.error(`Paste appears empty. Refusing to clear ${oldCount} ranked teams — re-enter at least one and try again.`, { duration: 8000 })
+      return
+    }
+    const removed = oldCount - result.entries.length
+    if (oldCount > 0 && removed / Math.max(1, oldCount) > 0.3) {
+      const ok = await confirm({
+        title: 'Save preseason rankings?',
+        message: `This will reduce the preseason poll from ${oldCount} to ${result.entries.length} ranked team${result.entries.length === 1 ? '' : 's'}. Continue?`,
+        confirmLabel: 'Save',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
+    if (result.unknownAbbrs?.length > 0) {
+      toast.error(
+        `Skipped ${result.unknownAbbrs.length} unknown abbreviation${result.unknownAbbrs.length === 1 ? '' : 's'}: ${result.unknownAbbrs.slice(0, 3).map(u => u.raw).join(', ')}${result.unknownAbbrs.length > 3 ? '…' : ''}`,
+        { duration: 8000 },
+      )
+    }
+    const entries = result.entries.map(e => ({ rank: e.rank, team: e.abbr, tid: e.tid }))
+    if (entries.length === 0) {
+      toast.error('No ranked teams found in the paste.')
+      return
+    }
+    await persistEntries(entries)
+    toast.success(`Saved Preseason Top ${entries.length}.`)
+    onClose?.()
   }
 
   const handleSheetSync = async (alsoDelete) => {
@@ -322,7 +369,15 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
         <SheetModalHeader eyebrow="Preseason" title={`${yearNum} Top 25`} onClose={onClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-          {creatingSheet ? (
+          {useLocal ? (
+            <LocalDataEntry
+              aiPrompt={aiPrompt}
+              onImport={handleLocalImport}
+              onUseGoogle={() => setUseLocal(false)}
+              onCancel={onClose}
+              importLabel="Import Top 25"
+            />
+          ) : creatingSheet ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent' }} />
