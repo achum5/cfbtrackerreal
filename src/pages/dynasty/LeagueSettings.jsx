@@ -22,6 +22,12 @@ import { useToast } from '../../components/ui/Toast'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { PageHero, Card, Button, Badge, EmptyState, TeamLogo } from '../../components/ui'
 import { getTeamLogoByTid } from '../../data/teams'
+import { getContrastTextColor } from '../../utils/colorUtils'
+
+// Same broadcast sheen the team-page header uses: a diagonal highlight plus a
+// soft vertical darken, layered over the team's primary color.
+const TEAM_SHEEN =
+  'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.42) 100%)'
 import { getCoachStints } from '../../data/coachStats'
 import {
   createInviteDoc,
@@ -78,6 +84,7 @@ import {
   getCurrentTeamTidForCoach,
   applyControlledCoachTeam,
   deriveMemberTeamsIndex,
+  removeCoachSeason,
   deleteCoach,
   generateCid,
 } from '../../data/coachModel'
@@ -478,6 +485,42 @@ export default function LeagueSettings() {
     }
   }
 
+  // Set (or clear) a specific coach's team for the current season — the
+  // per-coach team picker on each card. tidStr '' clears the team.
+  const handleSetCoachTeam = async (cid, tidStr) => {
+    const coach = getCoach(currentDynasty, cid)
+    if (!coach) return
+    if (!canManage && coach.controlledBy !== user.uid) return
+    const year = currentDynasty.currentYear
+    const tid = tidStr === '' ? null : Number(tidStr)
+    if (tidStr !== '' && !Number.isFinite(tid)) return
+    // Members can't take a team another coach already controls.
+    if (tid != null && !canManage) {
+      const taken = Object.values(getCoaches(currentDynasty)).some(c =>
+        c && c.controlledBy != null && c.cid !== cid &&
+        Number(getCurrentTeamTidForCoach(c, year)) === tid
+      )
+      if (taken) {
+        toast.error('That team is controlled by another coach. Ask the commissioner to reassign it.')
+        return
+      }
+    }
+    setBusyUid(cid)
+    try {
+      if (tid == null) {
+        await writeCoaches({ ...getCoaches(currentDynasty), [cid]: removeCoachSeason(coach, year) })
+      } else {
+        const { coaches } = applyControlledCoachTeam(currentDynasty, cid, year, tid)
+        await writeCoaches(coaches)
+      }
+    } catch (err) {
+      console.error('[Members] set coach team failed:', err)
+      toast.error('Failed to update team.')
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
   const handleRemoveCoach = async (cid) => {
     const coach = getCoach(currentDynasty, cid)
     if (!coach) return
@@ -591,9 +634,11 @@ export default function LeagueSettings() {
 
   // ── render ────────────────────────────────────────────────────────
 
-  // One inline coach line within a member's row: current team + editable
-  // name + per-coach Timeline + remove. Editable by managers or the coach's
-  // own controller.
+  // A coach card styled like the team-page header: the whole row is the
+  // coach's team color with the broadcast sheen, contrast-aware text sits
+  // directly on the color, and the logo is in a white circle. Teamless
+  // coaches fall back to a neutral surface. Inline team picker + Timeline +
+  // delete.
   const renderCoachLine = (coach) => {
     const cid = coach.cid
     const canEdit = canManage || coach.controlledBy === user.uid
@@ -601,12 +646,34 @@ export default function LeagueSettings() {
     const tid = getCurrentTeamTidForCoach(coach, currentDynasty.currentYear)
     const team = tid != null ? teamsSource[tid] : null
     const logo = tid != null ? getTeamLogoByTid(tid, teamsSource) : null
+    const teamColor = (tid != null && teamsSource[tid]?.primaryColor) || null
+    const onColor = !!teamColor
+    const textColor = onColor
+      ? getContrastTextColor(teamColor, teamsSource[tid]?.secondaryColor)
+      : null
+    const lightText = (textColor || '').toLowerCase() === '#ffffff'
+    // Subtle, contrast-correct overlay for the controls (pill/buttons) so they
+    // read on any team color: light film on dark teams, dark film on light ones.
+    const chip = onColor ? (lightText ? 'bg-white/15' : 'bg-black/10') : 'bg-surface-1'
+    const chipHover = onColor ? (lightText ? 'hover:bg-white/25' : 'hover:bg-black/20') : 'hover:bg-surface-3'
     const draftValue = nameDrafts[cid] !== undefined ? nameDrafts[cid] : (coach.name || '')
     return (
-      <div key={cid} className="flex items-center gap-2 flex-wrap py-0.5">
-        {logo
-          ? <img src={logo} alt="" className="w-5 h-5 object-contain flex-shrink-0" />
-          : <span className="w-5 h-5 rounded-full bg-surface-3 flex-shrink-0 inline-block" aria-hidden="true" />}
+      <div
+        key={cid}
+        className={`coach-card flex items-center gap-3 rounded-xl pl-2 pr-2 py-2 overflow-hidden border ${onColor ? 'border-black/15' : 'bg-surface-2 border-surface-4'}`}
+        style={onColor ? { backgroundColor: teamColor, backgroundImage: TEAM_SHEEN, color: textColor } : undefined}
+      >
+        {/* Team logo in a white circle. */}
+        <span
+          className="flex items-center justify-center rounded-full bg-white flex-shrink-0 shadow-sm ring-1 ring-black/10"
+          style={{ width: 36, height: 36 }}
+        >
+          {logo
+            ? <img src={logo} alt="" className="w-7 h-7 object-contain" />
+            : <span className="w-3 h-3 rounded-full bg-surface-4 inline-block" aria-hidden="true" />}
+        </span>
+
+        {/* Coach name sits directly on the color. */}
         {canEdit ? (
           <input
             type="text"
@@ -619,23 +686,66 @@ export default function LeagueSettings() {
               if (e.key === 'Escape') { setNameDrafts(prev => ({ ...prev, [cid]: undefined })); e.target.blur() }
             }}
             disabled={busy}
-            className="font-semibold text-txt-primary bg-transparent border-b border-transparent hover:border-surface-4 focus:border-surface-5 focus:outline-none px-1 -mx-1 text-sm leading-tight min-w-[120px]"
+            // Inline transparent beats the global `input { background: surface-2 }`
+            // rule (6 :not() clauses outrank Tailwind's bg-transparent), so the
+            // name reads as plain text on the team color, not a dark field.
+            style={{ backgroundColor: 'transparent', ...(onColor ? { color: textColor } : {}) }}
+            className={`flex-1 min-w-0 font-display font-bold focus:outline-none text-base leading-tight ${onColor ? (lightText ? 'placeholder-white/55' : 'placeholder-black/45') : 'text-txt-primary placeholder-txt-muted'}`}
           />
         ) : (
-          <span className="font-semibold text-txt-primary text-sm">{coach.name || 'Coach'}</span>
+          <span className={`flex-1 min-w-0 truncate font-display font-bold text-base ${onColor ? '' : 'text-txt-primary'}`} style={onColor ? { color: textColor } : undefined}>
+            {coach.name || 'Coach'}
+          </span>
         )}
-        <span className="text-[11px] text-txt-tertiary">{team?.name || 'no team'}</span>
+
+        {/* Team picker — click to assign or change; the native select overlays. */}
+        {canEdit ? (
+          <label
+            className={`relative inline-flex items-center gap-1.5 flex-shrink-0 pl-2 pr-1.5 py-1 rounded-lg transition-colors cursor-pointer ${chip} ${chipHover} ${onColor ? '' : 'border border-surface-4'}`}
+            style={onColor ? { color: textColor } : undefined}
+          >
+            <span className={`text-xs font-semibold truncate max-w-[150px] ${onColor ? '' : (team ? 'text-txt-secondary' : 'text-txt-muted')}`}>
+              {team?.name || 'Assign team'}
+            </span>
+            <svg className="w-3.5 h-3.5 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <select
+              value={tid ?? ''}
+              onChange={e => handleSetCoachTeam(cid, e.target.value)}
+              disabled={busy}
+              aria-label="Set coach's team"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            >
+              <option value="">No team</option>
+              {teamOptions.map(t => (
+                <option key={t.tid} value={t.tid}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <span className={`text-xs flex-shrink-0 ${onColor ? 'opacity-90' : 'text-txt-tertiary'}`} style={onColor ? { color: textColor } : undefined}>{team?.name || 'No team'}</span>
+        )}
+
         {canEdit && (
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={() => setTimelineCid(cid)} disabled={busy}>Timeline</Button>
+          <div className="flex items-center gap-0.5 flex-shrink-0" style={onColor ? { color: textColor } : undefined}>
+            <button
+              type="button"
+              onClick={() => setTimelineCid(cid)}
+              disabled={busy}
+              className={`px-2 py-1 rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${onColor ? chipHover : 'text-txt-tertiary hover:text-txt-primary hover:bg-surface-3'}`}
+            >
+              Timeline
+            </button>
             <button
               type="button"
               onClick={() => handleRemoveCoach(cid)}
               disabled={busy}
               aria-label="Remove coach"
-              className="px-1 text-txt-muted hover:text-red-400 transition-colors disabled:opacity-50"
+              title="Remove coach"
+              className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${onColor ? chipHover : 'text-txt-muted hover:text-red-400 hover:bg-surface-3'}`}
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -657,123 +767,56 @@ export default function LeagueSettings() {
     const canTransfer = canManageCo && isCloudDynasty && role !== ROLE_COMMISH
     const canEditCoaches = canManage || isYou
 
-    // The member's display name comes from their coach (single source).
-    const displayName = getCoachNameForUid(currentDynasty, uid) || (isYou ? 'You' : 'Member')
-    const primaryTid = myCoaches
-      .map(c => getCurrentTeamTidForCoach(c, currentDynasty.currentYear))
-      .find(t => t != null) ?? null
-    const memberColor = (primaryTid != null && teamsSource[primaryTid]?.primaryColor) || '#3a3d47'
-
     const hasAnyAction = canManage && role !== ROLE_COMMISH && (canPromote || canDemote || canTransfer || canActOnThis)
 
     return (
-      <div
-        key={uid}
-        className="member-row group relative flex items-start gap-3 py-3 sm:py-3.5 pl-3 pr-2 rounded-lg overflow-hidden bg-surface-2"
-        style={{
-          backgroundImage: `linear-gradient(90deg, ${memberColor}1f 0%, ${memberColor}0a 16%, transparent 42%)`,
-        }}
-      >
-        {/* Logo rail — primary team or empty slot. */}
-        <div className="flex-shrink-0 pt-0.5">
-          {primaryTid != null ? (
-            <TeamLogo tid={primaryTid} teams={teamsSource} size="md" />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-surface-3" aria-hidden="true" />
+      <div key={uid} className="member-group">
+        {/* Member header — just the user's ID (copyable), plus access actions. */}
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <button
+            type="button"
+            onClick={() => navigator.clipboard?.writeText(uid).then(() => toast.success('User ID copied'), () => {})}
+            className="font-mono text-[11px] text-txt-muted hover:text-txt-tertiary transition-colors truncate max-w-full"
+            title="Copy user ID"
+          >
+            {uid}
+          </button>
+
+          {hasAnyAction && (
+            <div className="flex items-center gap-1 ml-auto">
+              {canPromote && (
+                <Button variant="outline" size="sm" onClick={() => handlePromote(uid)} disabled={isBusy}>Promote</Button>
+              )}
+              {canDemote && (
+                <Button variant="outline" size="sm" onClick={() => handleDemote(uid)} disabled={isBusy}>Demote</Button>
+              )}
+              {canTransfer && (
+                <Button variant="outline" size="sm" onClick={() => handleMakeCommish(uid)} disabled={isBusy}>Make Commish</Button>
+              )}
+              {canActOnThis && (
+                <Button variant="outline" size="sm" onClick={() => handleRemove(uid)} disabled={isBusy}>Remove</Button>
+              )}
+            </div>
           )}
         </div>
 
-        <div className="min-w-0 flex-1">
-          {/* Member identity — name (from their coach), role chip, you marker. */}
-          <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <span className="font-display font-bold text-txt-primary text-base leading-tight">
-              {displayName}
-            </span>
-            <Badge variant={ROLE_BADGE_VARIANT[role]}>{ROLE_LABEL[role]}</Badge>
-            {isYou && (
-              <span
-                className="label-xs text-txt-tertiary"
-                style={{ letterSpacing: '1.5px', fontSize: '9px' }}
-              >
-                YOU
-              </span>
-            )}
-          </div>
-
-          {/* Coaches this member controls — each a separate tracked career. */}
-          <div className="space-y-1">
-            {myCoaches.length === 0 && !canEditCoaches && (
-              <span className="text-[11px] text-txt-muted italic">No coach assigned</span>
-            )}
-            {myCoaches.map(coach => renderCoachLine(coach))}
-            {canEditCoaches && (
-              <div className="flex items-center gap-2 flex-wrap pt-1">
-                <select
-                  value=""
-                  onChange={e => { if (e.target.value) handleAssignTeam(uid, e.target.value); e.target.value = '' }}
-                  disabled={isBusy}
-                  className="text-[11px] px-2 py-1 rounded-md bg-surface-1 border border-surface-4 text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors cursor-pointer focus:outline-none focus:border-surface-5"
-                >
-                  <option value="">+ Assign a team…</option>
-                  {teamOptions.map(t => (
-                    <option key={t.tid} value={t.tid}>{t.name}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => handleAddCoach(uid)}
-                  disabled={isBusy}
-                  className="text-[11px] px-2 py-1 rounded-md bg-surface-1 border border-surface-4 text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  + Add coach
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* UID — quiet, copy-on-click affordance. */}
-          <div className="mt-2 flex items-center gap-1.5">
+        {/* Coaches — each a separate tracked career on its own team. */}
+        <div className="space-y-2">
+          {myCoaches.length === 0 && !canEditCoaches && (
+            <span className="text-xs text-txt-muted italic">No coach assigned</span>
+          )}
+          {myCoaches.map(coach => renderCoachLine(coach))}
+          {canEditCoaches && (
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(uid).then(
-                  () => toast.success('UID copied'),
-                  () => {},
-                )
-              }}
-              className="font-mono text-[10px] text-txt-muted hover:text-txt-tertiary transition-colors truncate max-w-[280px]"
-              title="Copy UID"
+              onClick={() => handleAddCoach(uid)}
+              disabled={isBusy}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-surface-4 text-xs font-semibold text-txt-tertiary hover:text-txt-primary hover:border-surface-5 hover:bg-surface-2 transition-colors disabled:opacity-50"
             >
-              {uid}
+              + Add coach
             </button>
-          </div>
+          )}
         </div>
-
-        {/* Access actions — role management (per user). */}
-        {hasAnyAction && (
-          <div className="flex flex-col gap-1 flex-shrink-0">
-            {canPromote && (
-              <Button variant="outline" size="sm" onClick={() => handlePromote(uid)} disabled={isBusy}>
-                Promote
-              </Button>
-            )}
-            {canDemote && (
-              <Button variant="outline" size="sm" onClick={() => handleDemote(uid)} disabled={isBusy}>
-                Demote
-              </Button>
-            )}
-            {canTransfer && (
-              <Button variant="outline" size="sm" onClick={() => handleMakeCommish(uid)} disabled={isBusy}>
-                Make Commish
-              </Button>
-            )}
-            {canActOnThis && (
-              <Button variant="outline" size="sm" onClick={() => handleRemove(uid)} disabled={isBusy}>
-                Remove
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     )
   }
@@ -788,92 +831,27 @@ export default function LeagueSettings() {
 
   return (
     <div className="space-y-4 page-enter">
-      <PageHero
-        eyebrow="Dynasty"
-        title="Members"
-      />
-
-      {/* Broadcast stat strip — 3-up on desktop, stacks on mobile.
-          Mirrors the rest of the redesigned dynasty pages so members
-          gets the same visual rhythm as Coach Career / Coaches. */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <div
-          className="px-3 py-2.5 rounded-lg bg-surface-2 flex flex-col gap-0.5"
-          style={{ border: '1px solid var(--surface-4)' }}
-        >
-          <span
-            className="label-xs text-txt-tertiary"
-            style={{ letterSpacing: '1.5px', fontSize: '9px', fontWeight: 700 }}
-          >
-            COACHES
-          </span>
-          <span
-            className="font-display font-black tabular text-txt-primary leading-none"
-            style={{ fontSize: 'clamp(20px, 3vw, 28px)' }}
-          >
-            {totalMembers}
-          </span>
-        </div>
-        <div
-          className="px-3 py-2.5 rounded-lg bg-surface-2 flex flex-col gap-0.5"
-          style={{ border: '1px solid var(--surface-4)' }}
-        >
-          <span
-            className="label-xs text-txt-tertiary"
-            style={{ letterSpacing: '1.5px', fontSize: '9px', fontWeight: 700 }}
-          >
-            PENDING INVITES
-          </span>
-          <span
-            className="font-display font-black tabular text-txt-primary leading-none"
-            style={{
-              fontSize: 'clamp(20px, 3vw, 28px)',
-              color: visibleInvitesCount > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
-            }}
-          >
-            {visibleInvitesCount}
-          </span>
-        </div>
-        <div
-          className="px-3 py-2.5 rounded-lg bg-surface-2 flex flex-col gap-0.5"
-          style={{ border: '1px solid var(--surface-4)' }}
-        >
-          <span
-            className="label-xs text-txt-tertiary"
-            style={{ letterSpacing: '1.5px', fontSize: '9px', fontWeight: 700 }}
-          >
-            SEASONS TRACKED
-          </span>
-          <span
-            className="font-display font-black tabular text-txt-primary leading-none"
-            style={{ fontSize: 'clamp(20px, 3vw, 28px)' }}
-          >
-            {totalSeasons}
-          </span>
-        </div>
-      </div>
-
       <Card>
-        <header className="flex items-baseline justify-between mb-2">
+        <header className="flex items-baseline justify-between mb-1">
           <h3
             className="label-sm text-txt-primary"
             style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
           >
-            ROSTER
+            COACHES
           </h3>
           <span
             className="label-xs text-txt-tertiary tabular"
             style={{ letterSpacing: '1.5px', fontSize: '9px' }}
           >
-            {totalMembers} {totalMembers === 1 ? 'COACH' : 'COACHES'}
+            {controlledCoachCount} {controlledCoachCount === 1 ? 'COACH' : 'COACHES'}
           </span>
         </header>
-        <p className="text-xs text-txt-tertiary mb-3">
+        <p className="text-xs text-txt-tertiary mb-4">
           {canManage
-            ? 'Each coach is a separately-tracked career — its own name, team, and record. Running more than one team? Use "+ Add coach" under a member to track each as its own coach.'
+            ? 'Each coach is a separately tracked career with its own name, team, and record. Add a coach for every team you run.'
             : 'Edit your coach name and team below. Other assignments are managed by the commish.'}
         </p>
-        <div className="space-y-2">
+        <div className="space-y-6">
           {renderRow(currentDynasty.userId)}
           {sortedOthers.map(uid => renderRow(uid))}
         </div>
@@ -886,7 +864,7 @@ export default function LeagueSettings() {
               className="label-sm text-txt-primary"
               style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
             >
-              INVITE A COACH
+              INVITE A USER
             </h3>
             {visibleInvitesCount > 0 && (
               <span
@@ -1004,18 +982,13 @@ export default function LeagueSettings() {
       )}
 
       {canManage && !isCloudDynasty && (
-        <Card>
-          <h3
-            className="label-sm text-txt-primary mb-1"
-            style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
-          >
-            SHARING
-          </h3>
-          <p className="text-xs text-txt-tertiary">
-            Local dynasties are stored only on this device. To share with another account, upgrade
-            to Premium and convert this dynasty to cloud.
-          </p>
-        </Card>
+        <p className="text-xs text-txt-muted px-1">
+          This dynasty is stored only on this device. To invite another user,{' '}
+          <Link to="/account" className="text-txt-secondary underline hover:text-txt-primary transition-colors">
+            upgrade to Premium
+          </Link>{' '}
+          and convert it to cloud.
+        </p>
       )}
 
       {myRole !== ROLE_COMMISH && (
