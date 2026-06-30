@@ -2894,29 +2894,35 @@ async function initializeConferenceChampionshipSheet(spreadsheetId, accessToken,
 }
 
 // Read Conference Championship data from sheet
-export async function readConferenceChampionshipsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readConferenceChampionshipsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    console.log('[readCCSheet] Reading from spreadsheet:', spreadsheetId)
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      console.log('[readCCSheet] Reading from spreadsheet:', spreadsheetId)
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Conference Championships!A2:G11`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Conference Championships!A2:G11`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read CC data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read CC data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      console.log('[readCCSheet] Raw data from API:', data)
+      rows = data.values || []
+      console.log('[readCCSheet] Rows:', rows)
     }
-
-    const data = await response.json()
-    console.log('[readCCSheet] Raw data from API:', data)
-    const rows = data.values || []
-    console.log('[readCCSheet] Rows:', rows)
 
     // Parse into structured data with tid fields for teambuilder support
     const championships = rows.map(row => {
@@ -12298,27 +12304,33 @@ async function initializeEncourageTransfersSheet(spreadsheetId, accessToken, she
 }
 
 // Read encourage transfers data from sheet
-export async function readEncourageTransfersFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readEncourageTransfersFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const range = 'Encourage Transfers!A2:D'
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const range = 'Encourage Transfers!A2:D'
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read encourage transfers: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read encourage transfers: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Return only players marked for transfer (checkbox is TRUE)
     const transferPlayers = rows
@@ -14571,26 +14583,32 @@ export async function createTransferDestinationsSheet(dynastyName, year, transfe
  * @param {string} spreadsheetId - The Google Sheet ID
  * @returns {Array} Array of { playerName, newTeam }
  */
-export async function readTransferDestinationsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readTransferDestinationsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Transfer Destinations!A2:B`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Transfer Destinations!A2:B`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read transfer destinations: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read transfer destinations: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     const destinations = rows
       .filter(row => row[0] && row[1]) // Must have both player name and new team
@@ -15228,30 +15246,36 @@ async function initializePortalTransferClassSheet(spreadsheetId, accessToken, sh
  * @param {string} spreadsheetId - The Google Sheet ID
  * @returns {Array} Array of { playerName, position, currentClass, newClass, pid }
  */
-export async function readPortalTransferClassFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readPortalTransferClassFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    // Read columns A through E (col E = Jersey #). Older sheets that
-    // were created before the Jersey # column was added are 4 cols wide;
-    // the extra range just returns shorter rows and row[4] is undefined.
-    const range = encodeURIComponent("'Portal Transfers'!A2:E100")
-    const response = await fetchWithTimeout(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      // Read columns A through E (col E = Jersey #). Older sheets that
+      // were created before the Jersey # column was added are 4 cols wide;
+      // the extra range just returns shorter rows and row[4] is undefined.
+      const range = encodeURIComponent("'Portal Transfers'!A2:E100")
+      const response = await fetchWithTimeout(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read portal transfer class: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read portal transfer class: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     const results = rows
       .filter(row => row[0] && row[3]) // Must have player name and new class
@@ -15594,27 +15618,33 @@ async function initializeFringeCaseClassSheet(spreadsheetId, accessToken, sheetI
  * @param {string} spreadsheetId - The Google Sheet ID
  * @returns {Array} Array of { playerName, position, currentClass, gamesPlayed, newClass }
  */
-export async function readFringeCaseClassFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readFringeCaseClassFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const range = encodeURIComponent("'Fringe Cases'!A2:E100")
-    const response = await fetchWithTimeout(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      const range = encodeURIComponent("'Fringe Cases'!A2:E100")
+      const response = await fetchWithTimeout(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read fringe case class: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read fringe case class: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     const results = rows
       .filter(row => row[0] && row[4]) // Must have player name and new class

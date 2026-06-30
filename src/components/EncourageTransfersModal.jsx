@@ -22,6 +22,8 @@ import {
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -41,6 +43,8 @@ export default function EncourageTransfersModal({ isOpen, onClose, onSave, curre
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -116,6 +120,48 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
+  // against. The AI emits ONE line ONLY for players the coach wants to push
+  // out, as PlayerName<TAB>TRUE. Everyone else is omitted (their absence means
+  // "keep"), so there is no fixed row order and no blank-line padding.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Encourage Transfers`,
+    roster: userRoster,
+    structure: `Output ONE line ONLY for each player you want to ENCOURAGE to transfer out. Each line is SELF-DESCRIBING — it carries the player's own name — so there is NO pre-filled column to line up against and NO fixed row order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 2 tab-separated fields: PlayerName<TAB>TRUE.
+2. ONLY list players you are confident the coach should push out. OMIT everyone you want to keep — a kept player simply has NO line. Do NOT output FALSE rows, do NOT pad, do NOT list the whole roster.
+3. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
+4. The second field is ALWAYS the literal uppercase string TRUE (no quotes, no period). A line only exists because that player is being encouraged to transfer.
+5. PlayerName: the full player name exactly as it should appear (use the roster block below to expand abbreviated names like "A. Guess").
+6. If you are unsure about a player, OMIT them (the safe default is "keep").
+
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (2 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<Player Name><TAB>TRUE
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== ENCOURAGE TRANSFERS ===
+<Player Name>\\tTRUE
+<Player Name>\\tTRUE
+…one line per player to encourage out; omit everyone else entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 2 tab-separated fields (one tab)
+[ ] The second field is the literal TRUE on every line
+[ ] Only players being encouraged to transfer appear — kept players are omitted, no FALSE rows
+[ ] No blank lines, no header row, no commentary INSIDE the data`,
+    includeTeamMap: false,
+  }), [currentYear, userRoster])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -161,7 +207,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
@@ -201,7 +248,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -209,8 +256,20 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits PlayerName<TAB>TRUE rows. The parser reads
+  // name=row[0] and the encourage flag=row[3] (=== 'TRUE'), so reshape each
+  // pasted [name, flag] pair into the parser's 4-column layout. Downstream save
+  // matches by name, so listing only encouraged players is correct.
+  const handleLocalImport = async (text) => {
+    const rows = splitTsv(text).map(c => [c[0], '', '', (c[1] ?? '').toUpperCase()])
+    const transferPlayers = await readEncourageTransfersFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
+    await onSave(transferPlayers)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -335,7 +394,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Offseason" title="Encourage Transfers" onClose={handleClose} />
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
 
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Encourage Transfers"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

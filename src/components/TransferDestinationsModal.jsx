@@ -20,6 +20,8 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -48,6 +50,8 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -128,6 +132,51 @@ FINAL CHECK before you send
 [ ] No tabs, no commas, no other columns
 [ ] Blank lines used for unknown destinations — nothing invented, no "UNK"/"N/A"/"TBD"
 [ ] No header row, no commentary INSIDE the data, no totals (the paste-target label above the fence is required, see TSV delivery rules above)`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [currentYear, userRoster, currentDynasty?.teams])
+
+  // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
+  // against. The AI emits one line per transferring player whose destination
+  // it can see, as PlayerName<TAB>NewTeam — so a paste carries its own
+  // identity and the parser/save match by name (omitted players are unchanged).
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Transfer Destinations`,
+    roster: userRoster,
+    structure: `Output ONE line per outgoing transfer whose NEW TEAM you can see in the screenshots. Each line is SELF-DESCRIBING — it carries the player's own name, so there is NO pre-filled column to line up against and NO fixed row order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 2 tab-separated fields: PlayerName<TAB>NewTeam.
+2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any player whose destination you cannot see — do NOT pad with blank lines, do NOT guess, do NOT write "UNK"/"N/A"/"TBD". A player with no known destination simply has no line.
+4. Output ONE line PER PLAYER who has a known new team. The order does not matter.
+5. PlayerName: the full player name exactly as it should appear (use the roster block below to expand abbreviated names like "A. Guess").
+6. NewTeam: a team ABBREVIATION from the mapping at the bottom (e.g. BAMA, OSU, UGA, M-OH). NEVER full names, nicknames, mascots, cities, or conferences. Case must match the mapping.
+7. If the screenshot shows a player withdrew / is no longer transferring, OMIT them entirely.
+
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (2 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<Player Name><TAB><New Team Abbr>
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== TRANSFER DESTINATIONS ===
+<Player Name>\\t<New Team Abbr>
+<Player Name>\\t<New Team Abbr>
+…one line per transfer with a known destination; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 2 tab-separated fields (one tab)
+[ ] Every New Team value is an exact abbreviation from the mapping (case-sensitive)
+[ ] No full team names, nicknames, mascots, cities, conferences
+[ ] No blank lines, no header row, no commentary INSIDE the data
+[ ] Only players whose destination is visible — nothing invented, no "UNK"/"N/A"/"TBD"`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, userRoster, currentDynasty?.teams])
@@ -224,7 +273,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !noTransfers && !creationAttemptedRef.current) {
         // Mark attempted BEFORE any await so a rejection can't loop back in
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -279,7 +329,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, noTransfers, currentYear])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, noTransfers, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -288,12 +338,14 @@ FINAL CHECK before you send
       setNoTransfers(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
-  // Restore sheetId from dynasty when modal re-opens (e.g. after app reload)
+  // Restore sheetId from dynasty when modal re-opens (e.g. after app reload).
+  // Skipped while the local paste path is active so it can't pull in a Google sheet.
   useEffect(() => {
-    if (isOpen && !sheetId && !creatingSheet && !creatingSheetRef.current) {
+    if (isOpen && !useLocal && !sheetId && !creatingSheet && !creatingSheetRef.current) {
       if (
         currentDynasty?.transferDestinationsSheetId &&
         currentDynasty?.transferDestinationsSheetYear === currentYear
@@ -313,7 +365,17 @@ FINAL CHECK before you send
         })()
       }
     }
-  }, [isOpen])
+  }, [isOpen, useLocal])
+
+  // Local paste import: the AI emits PlayerName<TAB>NewTeam rows — exactly the
+  // two columns the parser reads as row[0]/row[1], so the split rows map
+  // straight through. Downstream save matches by player name, so omitting
+  // players with unknown destinations leaves them unchanged.
+  const handleLocalImport = async (text) => {
+    const destinations = await readTransferDestinationsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
+    await onSave(destinations)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -473,6 +535,14 @@ FINAL CHECK before you send
               </button>
             </div>
           </div>
+        ) : useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Transfer Destinations"
+          />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">

@@ -22,6 +22,8 @@ import { getGameTeamInfo, TEAMS } from '../data/teamRegistry'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -46,6 +48,8 @@ export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, c
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -207,6 +211,108 @@ FINAL CHECK before you send
     currentDynasty?.conferenceByTeamYear,
   ])
 
+  // LOCAL-PASTE prompt: self-describing rows. Each line leads with the
+  // conference name (it carries its own identity), so there is NO pre-filled
+  // column to line up against and NO fixed row order. The user omits any
+  // conference whose CCG result is unknown — the save keys by conference, so
+  // an omitted conference is simply left unchanged.
+  const localAiPrompt = useMemo(() => {
+    const MASTER_CONFERENCES = [
+      'American', 'ACC', 'Big 12', 'Big Ten', 'Conference USA',
+      'MAC', 'Mountain West', 'Pac-12', 'SEC', 'Sun Belt',
+    ]
+    const sheetConferences = MASTER_CONFERENCES
+
+    // Per-conference team membership FOR THIS DYNASTY (same source-of-truth the
+    // Google prompt uses — users realign teams, so real-world conferences are
+    // wrong).
+    const customConfs = getCustomConferencesForYear(currentDynasty, currentYear)
+    const sourceMap = customConfs || DEFAULT_CONFERENCE_TEAMS
+    const abbrToName = {}
+    for (const t of Object.values(currentDynasty?.teams || {})) {
+      if (t?.abbr && t?.name) abbrToName[String(t.abbr).toUpperCase()] = t.name
+    }
+    const membershipMap = Object.fromEntries(
+      sheetConferences.map(conf => [conf, Array.isArray(sourceMap[conf]) ? [...sourceMap[conf]] : []])
+    )
+    const userAbbr = (currentDynasty?.teamAbbr || '').toUpperCase()
+    const userConf = currentDynasty?.conference
+    if (userAbbr && userConf && Array.isArray(membershipMap[userConf])) {
+      if (!membershipMap[userConf].some(t => (t || '').toUpperCase() === userAbbr)) {
+        membershipMap[userConf].push(userAbbr)
+      }
+    }
+    const membershipBlock = sheetConferences.map(conf => {
+      const abbrs = membershipMap[conf] || []
+      abbrs.sort((a, b) => String(a).localeCompare(String(b)))
+      if (abbrs.length === 0) return `${conf}: (no teams assigned in this dynasty)`
+      const entries = abbrs.map(a => {
+        const upper = String(a).toUpperCase()
+        const name = abbrToName[upper]
+        return name ? `${upper} (${name})` : upper
+      })
+      return `${conf}: ${entries.join(', ')}`
+    }).join('\n')
+
+    const orderListInline = sheetConferences.join(', ')
+
+    return buildAIPrompt({
+      title: `${currentYear} Conference Championships`,
+      structure: `Output ONE line per conference that played a championship game whose result you can see. Each line is SELF-DESCRIBING — it LEADS with the conference name — so there is NO pre-filled column to line up against and NO fixed row order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 7 tab-separated fields: Conference<TAB>Team1<TAB>Team2<TAB>Score1<TAB>Score2<TAB>Rank1<TAB>Rank2.
+2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any conference whose CCG result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A conference with no line is left unchanged.
+4. The order does not matter, but the FIRST field of every line MUST be one of these EXACT conference names: ${orderListInline}.
+5. Both teams must be members of that line's conference ACCORDING TO THE MEMBERSHIP BLOCK BELOW — not real-world conferences. Users realign teams.
+6. Team1 and Team2 are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames. They must be two different teams.
+7. Score1 and Score2 are integers (no commas, no decimals).
+8. Rank1 and Rank2 are integers 1–25 if ranked, blank if unranked (never 0, never a word). If both blank, still emit the two trailing tabs so the line keeps 7 fields.
+
+═══════════════════════════════════════════════════════════
+CONFERENCE MEMBERSHIP — DYNASTY-SPECIFIC, NOT REAL LIFE
+═══════════════════════════════════════════════════════════
+THIS IS THE MOST COMMON MISTAKE. READ TWICE.
+
+The dynasty user can move any team between conferences. The list below is the ONLY source of truth for which teams belong to each conference for this dynasty/year. Both teams on a line MUST appear in that line's conference list below.
+
+${membershipBlock}
+
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (7 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<Conference><TAB><Team1 Abbr><TAB><Team2 Abbr><TAB><Score1><TAB><Score2><TAB><Rank1><TAB><Rank2>
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CONFERENCE CHAMPIONSHIPS ===
+<Conference>\\t<Team1>\\t<Team2>\\t<Score1>\\t<Score2>\\t<Rank1>\\t<Rank2>
+…one line per conference that played a CCG; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 7 tab-separated fields (six tabs)
+[ ] The first field of every line is an exact conference name from: ${orderListInline}
+[ ] Both teams on each line appear in that conference's membership list above
+[ ] Team1 and Team2 are different uppercase abbreviations from the mapping
+[ ] Scores are integers with no commas or decimals; ranks are 1–25 or blank
+[ ] No blank lines, no header row, no commentary INSIDE the data — only conferences with a known result`,
+      includeTeamMap: true,
+      dynastyTeams: currentDynasty?.teams,
+    })
+  }, [
+    currentYear,
+    currentDynasty?.teams,
+    currentDynasty?.customConferences,
+    currentDynasty?.customConferencesByYear,
+    currentDynasty?.conferenceByTeamYear,
+  ])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
 
@@ -247,7 +353,8 @@ FINAL CHECK before you send
     const createSheet = async () => {
       // Wait for manual retry after a failed attempt — re-firing on every
       // render presented as an endless spinner.
-      if (isOpen && user && !sheetId && !creatingSheetRef.current && !showDeletedNote && !createError) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheetRef.current && !showDeletedNote && !createError) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -333,7 +440,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, createError, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, createError, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -342,8 +449,19 @@ FINAL CHECK before you send
       setSheetId(null)
       setCreateError(null)
       creatingSheetRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits Conference<TAB>Team1<TAB>Team2<TAB>Score1<TAB>Score2<TAB>Rank1<TAB>Rank2
+  // rows — exactly the [conference, ...results] layout the parser reads as
+  // row[0..6], so the split rows map straight through. Downstream save keys by
+  // conference, so omitting unknown conferences leaves them unchanged.
+  const handleLocalImport = async (text) => {
+    const championships = await readConferenceChampionshipsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
+    await onSave(championships)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -472,7 +590,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Postseason" title={`${currentYear} Conference Championship Week`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Conference Championships"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
