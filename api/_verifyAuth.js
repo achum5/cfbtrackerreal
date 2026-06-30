@@ -57,6 +57,7 @@ export const BETA_GRANT_EMAILS = new Set([
   'cwilsonsimons@gmail.com',
   'abohannon1991@gmail.com',
   'coreyethan114@gmail.com',
+  'jaredforestcmp@gmail.com',
 ]);
 
 /**
