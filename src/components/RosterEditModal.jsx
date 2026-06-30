@@ -21,6 +21,8 @@ import {
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -43,6 +45,8 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -226,7 +230,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted BEFORE any await so a rejection can't loop back in
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -283,7 +288,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -291,8 +296,19 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits the full 14-column roster, one player per
+  // line — exactly the columns the parser reads as row[0..13]. Each line is
+  // self-identified by player name, so no pre-filled columns and no
+  // normalization. Routes through the same onSave the sheet sync uses.
+  const handleLocalImport = async (text) => {
+    const roster = await readRosterFromRosterSheet(null, { rows: splitTsv(text) })
+    await onSave(roster)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -415,7 +431,15 @@ FINAL CHECK before you send
         <SheetModalHeader title={`${currentYear}${teamAbbr ? ` ${teamAbbr}` : ''} Roster Edit`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Roster"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

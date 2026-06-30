@@ -22,6 +22,8 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -59,6 +61,8 @@ export default function RecruitingCommitmentsModal({
   const MAX_CREATE_ATTEMPTS = 1
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -243,6 +247,8 @@ FINAL CHECK
   // Create recruiting sheet when modal opens
   useEffect(() => {
     const createSheet = async () => {
+      // Don't touch Google auth/creation while the local paste path is active.
+      if (useLocal) return
       if (authErrorOccurred || createAttempts >= MAX_CREATE_ATTEMPTS) return
       if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && commitmentKey) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -293,7 +299,7 @@ FINAL CHECK
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, prefillRecruits, authErrorOccurred, createAttempts])
+  }, [isOpen, useLocal, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, currentYear, commitmentKey, prefillRecruits, authErrorOccurred, createAttempts])
 
   // When the user re-authenticates (retryCount bumps via the AuthErrorModal's
   // Refresh), clear the blocking flags so the sheet-creation effect above
@@ -314,6 +320,7 @@ FINAL CHECK
       setAuthErrorOccurred(false)
       setSheetId(null)
       creatingSheetRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
@@ -323,6 +330,18 @@ FINAL CHECK
       setSheetId(null)
     }
   }, [commitmentKey])
+
+  // Local paste import: the AI emits one self-contained row per NEW recruit
+  // (columns A→P, plus optional Q), each keyed by player name — exactly what
+  // the parser reads. onSave reconciles by name/pid against existing players
+  // (a merge, not a replace), so pasting only the new rows is correct and
+  // matches the prompt ("output ONLY the NEW rows"). No pre-filled columns and
+  // no positional alignment, so no normalization.
+  const handleLocalImport = async (text) => {
+    const recruits = await readRecruitingFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
+    await onSave(recruits)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -460,7 +479,15 @@ FINAL CHECK
           </div>
         )}
 
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={recruitingPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Recruits"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

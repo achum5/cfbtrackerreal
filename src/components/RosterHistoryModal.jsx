@@ -22,6 +22,8 @@ import { getTidFromAbbr } from '../data/teamRegistry'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -42,6 +44,8 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -162,7 +166,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted BEFORE any await so a rejection can't loop back in
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -209,7 +214,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -217,8 +222,47 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits one row per player, columns
+  // [Name, PID, ...year teams] — exactly what the parser reads. Each line is
+  // self-identified (matched downstream by PID), so no pre-filled columns and
+  // no normalization. Mirrors handleSyncFromSheet's PID-match → applyChangedPlayers.
+  const handleLocalImport = async (text) => {
+    const historyData = await readRosterHistoryFromSheet(null, years, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
+    const useFullTidSystem = currentDynasty?._tidFullyMigrated === true
+
+    const convertTeamsByYear = (teamsByYear) => {
+      if (!useFullTidSystem) return teamsByYear
+      return Object.fromEntries(
+        Object.entries(teamsByYear).map(([yearKey, teamValue]) => {
+          if (typeof teamValue === 'number') return [yearKey, teamValue]
+          const tid = getTidFromAbbr(teamValue, currentDynasty)
+          return [yearKey, tid || teamValue]
+        })
+      )
+    }
+
+    const updatedPlayers = (currentDynasty?.players || []).map(player => {
+      if (player.isHonorOnly) return player
+      const match = historyData.find(h => h.pid === player.pid)
+      if (match && Object.keys(match.teamsByYear).length > 0) {
+        return {
+          ...player,
+          teamsByYear: {
+            ...(player.teamsByYear || {}),
+            ...convertTeamsByYear(match.teamsByYear)
+          }
+        }
+      }
+      return player
+    })
+
+    await applyChangedPlayers(currentDynasty.id, updatedPlayers)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -405,7 +449,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Roster" title="Roster History Editor" onClose={handleClose} />
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
 
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Roster History"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

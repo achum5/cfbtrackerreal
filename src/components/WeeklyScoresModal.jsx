@@ -23,6 +23,8 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import { getCustomConferencesForYear } from '../context/DynastyContext'
 import { conferenceTeams as DEFAULT_CONFERENCE_TEAMS } from '../data/conferenceTeams'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -58,6 +60,8 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => localStorage.getItem('sheetEmbedPreference') === 'true')
   const [highlightSave, setHighlightSave] = useState(false)
@@ -751,7 +755,8 @@ Don't just glance at this list. Physically execute each check on your draft.
       creationAttemptedRef.current = false
     }
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted before the first await so a failure can't loop back in.
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
@@ -779,7 +784,7 @@ Don't just glance at this list. Physically execute each check on your draft.
     }
     createSheet()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, year, week])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, year, week])
 
   useEffect(() => {
     if (!isOpen) {
@@ -788,8 +793,83 @@ Don't just glance at this list. Physically execute each check on your draft.
       creationAttemptedRef.current = false
       setSheetId(null)
       setSheetTitle(null)
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Shared save core: runs the dropped-rows confirm + the count-drop guard,
+  // then writes via saveWeeklyScores. Returns true if the games were saved,
+  // false if the user cancelled a guard. Both the Google-sheet sync and the
+  // local-paste import funnel parsed games through here so the guards stay
+  // identical. (Throws are surfaced by the caller.)
+  const commitWeeklyGames = async (games) => {
+    // Surface dropped rows BEFORE saving — the parser collects rows
+    // it couldn't classify (unknown abbrs, malformed scores, etc.)
+    // so they don't silently vanish. User confirms before continuing.
+    const dropped = Array.isArray(games?.droppedRows) ? games.droppedRows : []
+    if (dropped.length > 0) {
+      const lines = dropped.slice(0, 8).map(d => {
+        if (d.kind === 'game' && d.reason === 'unknown-abbr') {
+          const which = d.missing === 'both' ? 'both teams' : d.missing === 'home' ? `home "${d.home}"` : `away "${d.away}"`
+          return `• Game ${d.home} vs ${d.away}: ${which} not in team registry`
+        }
+        if (d.kind === 'game' && d.reason === 'malformed-score') {
+          const parts = []
+          if (d.rawHome) parts.push(`home "${d.rawHome}"`)
+          if (d.rawAway) parts.push(`away "${d.rawAway}"`)
+          return `• Game ${d.home} vs ${d.away}: malformed score (${parts.join(', ') || 'unparseable'})`
+        }
+        if (d.kind === 'bye' && d.reason === 'unknown-abbr') {
+          return `• Bye row #${d.rank}: "${d.team}" not in team registry`
+        }
+        return `• ${d.kind} dropped (${d.reason})`
+      })
+      const more = dropped.length > 8 ? `\n…and ${dropped.length - 8} more` : ''
+      const proceed = await confirm({
+        title: `${dropped.length} row${dropped.length === 1 ? '' : 's'} will be dropped`,
+        message: `These rows couldn't be parsed and won't be saved:\n\n${lines.join('\n')}${more}\n\nFix the data and try again, or continue without these rows.`,
+        confirmLabel: 'Save anyway',
+        variant: 'danger',
+      })
+      if (!proceed) return false
+    }
+
+    // "Significant drop in count" guard. If this save would replace
+    // a previously-saved week's games with substantially fewer rows
+    // (≥10 fewer or ≤80% of prior), confirm before silently shrinking
+    // the data. Only enforced when prior save had a meaningful count.
+    const priorCount = Number(currentDynasty?.weeklyScoresEntered?.[year]?.[week]?.gameCount) || 0
+    const newCount = games.filter(g => typeof g.homeScore === 'number' && typeof g.awayScore === 'number').length
+    if (priorCount >= 20 && newCount < priorCount * 0.8 && (priorCount - newCount) >= 10) {
+      const ok = await confirm({
+        title: 'Game count dropped sharply',
+        message: `Previous save had ${priorCount} games for Week ${week}. This save has ${newCount}. Continuing will replace the existing data with fewer rows.`,
+        confirmLabel: 'Continue',
+        variant: 'danger',
+      })
+      if (!ok) return false
+    }
+
+    await saveWeeklyScores(currentDynasty.id, games, year, week, rankWeek)
+    toast.success(`Saved ${newCount} game${newCount === 1 ? '' : 's'} for Week ${week}.`)
+    return true
+  }
+
+  // Local paste import: the AI emits the SAME 7-column game rows + bye-rank
+  // rows the sheet produces, classified by content (col D filled = game,
+  // col D empty = bye). The parser is position-independent, so the pasted
+  // rows feed straight in — no pre-filled columns, no normalization. Routes
+  // through commitWeeklyGames so the dropped-row + count-drop guards apply.
+  const handleLocalImport = async (text) => {
+    const games = await readWeeklyScoresFromSheet(
+      null,
+      null,
+      currentDynasty?.teams || currentDynasty?.customTeams,
+      { rows: splitTsv(text) },
+    )
+    const saved = await commitWeeklyGames(games)
+    if (saved) onClose()
+  }
 
   const handleSave = async (alsoDelete) => {
     if (!sheetId || !sheetTitle) return
@@ -801,63 +881,12 @@ Don't just glance at this list. Physically execute each check on your draft.
         currentDynasty?.teams || currentDynasty?.customTeams,
       )
 
-      // Surface dropped rows BEFORE saving — the parser collects rows
-      // it couldn't classify (unknown abbrs, malformed scores, etc.)
-      // so they don't silently vanish. User confirms before continuing.
-      const dropped = Array.isArray(games?.droppedRows) ? games.droppedRows : []
-      if (dropped.length > 0) {
-        const lines = dropped.slice(0, 8).map(d => {
-          if (d.kind === 'game' && d.reason === 'unknown-abbr') {
-            const which = d.missing === 'both' ? 'both teams' : d.missing === 'home' ? `home "${d.home}"` : `away "${d.away}"`
-            return `• Game ${d.home} vs ${d.away}: ${which} not in team registry`
-          }
-          if (d.kind === 'game' && d.reason === 'malformed-score') {
-            const parts = []
-            if (d.rawHome) parts.push(`home "${d.rawHome}"`)
-            if (d.rawAway) parts.push(`away "${d.rawAway}"`)
-            return `• Game ${d.home} vs ${d.away}: malformed score (${parts.join(', ') || 'unparseable'})`
-          }
-          if (d.kind === 'bye' && d.reason === 'unknown-abbr') {
-            return `• Bye row #${d.rank}: "${d.team}" not in team registry`
-          }
-          return `• ${d.kind} dropped (${d.reason})`
-        })
-        const more = dropped.length > 8 ? `\n…and ${dropped.length - 8} more` : ''
-        const proceed = await confirm({
-          title: `${dropped.length} row${dropped.length === 1 ? '' : 's'} will be dropped`,
-          message: `These rows couldn't be parsed and won't be saved:\n\n${lines.join('\n')}${more}\n\nFix the sheet and try again, or continue without these rows.`,
-          confirmLabel: 'Save anyway',
-          variant: 'danger',
-        })
-        if (!proceed) {
-          setDeletingSheet(false)
-          setSyncing(false)
-          return
-        }
+      const saved = await commitWeeklyGames(games)
+      if (!saved) {
+        setDeletingSheet(false)
+        setSyncing(false)
+        return
       }
-
-      // "Significant drop in count" guard. If this save would replace
-      // a previously-saved week's games with substantially fewer rows
-      // (≥10 fewer or ≤80% of prior), confirm before silently shrinking
-      // the data. Only enforced when prior save had a meaningful count.
-      const priorCount = Number(currentDynasty?.weeklyScoresEntered?.[year]?.[week]?.gameCount) || 0
-      const newCount = games.filter(g => typeof g.homeScore === 'number' && typeof g.awayScore === 'number').length
-      if (priorCount >= 20 && newCount < priorCount * 0.8 && (priorCount - newCount) >= 10) {
-        const ok = await confirm({
-          title: 'Game count dropped sharply',
-          message: `Previous save had ${priorCount} games for Week ${week}. This save has ${newCount}. Continuing will replace the existing data with fewer rows.`,
-          confirmLabel: 'Continue',
-          variant: 'danger',
-        })
-        if (!ok) {
-          setDeletingSheet(false)
-          setSyncing(false)
-          return
-        }
-      }
-
-      await saveWeeklyScores(currentDynasty.id, games, year, week, rankWeek)
-      toast.success(`Saved ${newCount} game${newCount === 1 ? '' : 's'} for Week ${week}.`)
 
       if (alsoDelete) {
         try { await deleteGoogleSheet(sheetId) } catch (e) { console.error('Failed to delete sheet:', e) }
@@ -1006,7 +1035,26 @@ Don't just glance at this list. Physically execute each check on your draft.
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {isLoading ? (
+          {useLocal && !showDeletedNote ? (
+            <div className="flex-1 flex flex-col overflow-hidden px-5 sm:px-7 py-4">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <label htmlFor="weekly-rank-week" className="label-xs text-txt-tertiary">
+                  Rankings week
+                </label>
+                {rankWeekSelect}
+                <p className="basis-full text-xs text-txt-tertiary leading-relaxed">
+                  The Top 25 the AI extracts lands in this week's slot. Defaults to your dynasty's current week.
+                </p>
+              </div>
+              <LocalDataEntry
+                aiPrompt={aiPrompt}
+                onImport={handleLocalImport}
+                onUseGoogle={() => setUseLocal(false)}
+                onCancel={onClose}
+                importLabel="Import Scores"
+              />
+            </div>
+          ) : isLoading ? (
             <div className="flex-1 flex items-center justify-center p-6">
               <div className="text-center">
                 <div

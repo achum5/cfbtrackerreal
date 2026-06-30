@@ -1890,26 +1890,31 @@ export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams 
 }
 
 // Read roster data from a Roster-only sheet
-export async function readRosterFromRosterSheet(spreadsheetId) {
+export async function readRosterFromRosterSheet(spreadsheetId, opts = {}) {
   try {
-    // Get OAuth access token (works for both free and paid tiers)
-    const accessToken = await getAccessToken()
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      // Get OAuth access token (works for both free and paid tiers)
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:O100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Roster!A2:O100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to read roster')
       }
-    )
 
-    if (!response.ok) {
-      throw new Error('Failed to read roster')
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Helper to normalize height to 6'1" format
     const normalizeHeight = (heightStr) => {
@@ -4440,26 +4445,31 @@ async function initializeWeeklyScoresSheet(spreadsheetId, accessToken, sheetId, 
   }
 }
 
-export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynastyTeams = null) {
+export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
-    // Read through the full sheet (games region + bye section header
-    // + 25 bye rows) in one call — the parser splits them by which
-    // row range they came from.
-    const range = `${sheetTitle}!A2:G${WEEKLY_SCORES_TOTAL_ROWS + 1}`
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
+      // Read through the full sheet (games region + bye section header
+      // + 25 bye rows) in one call — the parser splits them by which
+      // row range they came from.
+      const range = `${sheetTitle}!A2:G${WEEKLY_SCORES_TOTAL_ROWS + 1}`
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
-      { headers: { 'Authorization': `Bearer ${accessToken}` } }
-    )
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read weekly scores: ${error.error?.message || 'Unknown error'}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read weekly scores: ${error.error?.message || 'Unknown error'}`)
+      }
+
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     const parseRank = (raw) => {
       if (raw === undefined || raw === '' || raw === null) return null
@@ -11726,31 +11736,36 @@ function starsSymbolToNumber(starsStr) {
 }
 
 // Read recruiting commitments from Google Sheet
-export async function readRecruitingFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readRecruitingFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    // Range is wide (A–AA) so the optional Targets columns (P = Commitment,
-    // Q–Z = attributes, AA = hidden pid) round-trip, and tall enough for a full
-    // season of targets — far more than the legacy ~99-row commitments cap. A
-    // legacy commitments sheet (only A–O filled) parses identically; the extra
-    // columns simply come back blank. See utils/recruitSheetParse.js.
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/${RECRUITING_READ_RANGE}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+      // Range is wide (A–AA) so the optional Targets columns (P = Commitment,
+      // Q–Z = attributes, AA = hidden pid) round-trip, and tall enough for a full
+      // season of targets — far more than the legacy ~99-row commitments cap. A
+      // legacy commitments sheet (only A–O filled) parses identically; the extra
+      // columns simply come back blank. See utils/recruitSheetParse.js.
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/${RECRUITING_READ_RANGE}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read recruiting data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read recruiting data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     return parseRecruitingRows(rows)
   } catch (error) {
@@ -14810,22 +14825,27 @@ export async function prefillRosterHistorySheet(spreadsheetId, players, years = 
  * Read roster history from sheet
  * Returns array of { playerName, pid, teamsByYear: { year: team } }
  */
-export async function readRosterHistoryFromSheet(spreadsheetId, years = [2025, 2026], dynastyTeams = null) {
+export async function readRosterHistoryFromSheet(spreadsheetId, years = [2025, 2026], dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
-    const endCol = String.fromCharCode(65 + 1 + years.length)
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
+      const endCol = String.fromCharCode(65 + 1 + years.length)
 
-    const response = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster History!A2:${endCol}500`, {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    })
+      const response = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}/values/Roster History!A2:${endCol}500`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read roster history: ${error.error?.message || 'Unknown error'}`)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read roster history: ${error.error?.message || 'Unknown error'}`)
+      }
+
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     return rows
       .filter(row => row[0] && row[1]) // Must have name and PID

@@ -21,6 +21,8 @@ import { useConfirm } from './ui/ConfirmDialog'
 import SheetModalHeader from './ui/SheetModalHeader'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
@@ -33,6 +35,8 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -194,6 +198,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
+      // Don't touch Google auth/creation while the local paste path is active.
+      if (useLocal) return
       if (!isOpen || sheetId || showDeletedNote) return
       // Not signed in → prompt to authenticate rather than stalling the spinner.
       if (!user) { auth.setShowAuthError(true); return }
@@ -237,7 +243,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -246,6 +252,7 @@ FINAL CHECK before you send
       setSheetId(null)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
@@ -257,6 +264,20 @@ FINAL CHECK before you send
       toast.error('Failed to save roster.')
       console.error(error)
     }
+  }
+
+  // Local paste import: the AI emits the full 14-column roster, one player per
+  // line — exactly the columns the parser reads as row[0..13]. Each line is
+  // self-identified by player name, so no pre-filled columns and no
+  // normalization. Mirrors handleSyncFromSheet's empty-sheet guard + save.
+  const handleLocalImport = async (text) => {
+    const players = await readRosterFromRosterSheet(null, { rows: splitTsv(text) })
+    if (!players || players.length === 0) {
+      toast.warning('No players found in the pasted data. Each player needs at least a first name and overall rating.')
+      return
+    }
+    await onSave(players)
+    onClose()
   }
 
   const handleSyncFromSheet = async () => {
@@ -402,7 +423,15 @@ FINAL CHECK before you send
           </p>
         </div>
 
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Roster"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
