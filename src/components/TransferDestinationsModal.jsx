@@ -270,7 +270,7 @@ FINAL CHECK before you send
           })
         } catch (error) {
           console.error('Failed to create transfer destinations sheet:', error)
-          if (!auth.handleError(error)) toast.error('Could not create the sheet. Refresh your session and try again.')
+          if (!auth.handleError(error)) toast.error(auth.describeError(error, 'create the sheet'))
         } finally {
           setCreatingSheet(false)
           creatingSheetRef.current = false

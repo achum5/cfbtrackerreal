@@ -5,7 +5,7 @@ import { getAbbrFromTeamName, getTidFromAbbr, TEAMS as DEFAULT_TEAMS } from '../
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
-import { OAuthError } from '../utils/authErrors'
+import { OAuthError, RateLimitError } from '../utils/authErrors'
 import { parseRecruitingRows, parseAttributes, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL } from '../utils/recruitSheetParse'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, serializeAttributes } from '../utils/recruitAttributes'
 
@@ -39,44 +39,80 @@ const DEFAULT_FETCH_TIMEOUT_MS = 30000
 // isAuthError()'s keyword patterns — the reauth modal never fires.
 // 401 from Google APIs ALWAYS means the OAuth token is expired or revoked,
 // so there is no ambiguity about whether to throw here.
+// Transient rate limits (HTTP 429, and 403 rateLimitExceeded) clear within
+// seconds, so a short bounded backoff lets a burst-throttled call succeed on
+// its own instead of dead-ending the user. This is the core of the "works for
+// my team, fails for the next one" report: creating each sheet is several
+// write calls and Google caps writes at ~60/user/minute, so the 2nd-3rd sheet
+// in quick succession trips the burst limit. Drive-storage-full (403
+// storageQuotaExceeded) is NOT retried — waiting won't free space.
+// 2 retries catches the short burst spikes (the per-minute write cap clearing
+// over the next few seconds). A SUSTAINED limit won't clear within any
+// reasonable in-request wait, so we fail fast after this and let the toast tell
+// the user to wait a minute — rather than stacking long delays across the
+// several calls each sheet creation makes.
+const RATE_LIMIT_MAX_RETRIES = 2
+const RATE_LIMIT_BACKOFF_MS = [1000, 3000]
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 async function fetchWithTimeout(url, init = {}, { timeoutMs = DEFAULT_FETCH_TIMEOUT_MS, label } = {}) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(url, { ...init, signal: controller.signal })
-    if (response.status === 401) {
-      throw new OAuthError('Google API returned 401 — OAuth token expired or revoked. Please re-authenticate.')
-    }
-    // Google frequently returns 403 (not 401) for an expired token or one
-    // minted without the Sheets/Drive scope. Previously these fell through
-    // as a generic Error, so the modal showed a dead-end "Could not create
-    // the sheet" toast instead of the re-auth recovery flow. Peek at the
-    // body (clone so the caller can still read it) and route token / scope
-    // / permission failures through the reauth path.
-    if (response.status === 403) {
-      let looksLikeAuth = false
-      try {
-        const body = await response.clone().json()
-        const m = String(body?.error?.message || body?.error_description || '').toLowerCase()
-        looksLikeAuth = /insufficient|scope|permission|token|auth|credential|unauthor/.test(m)
-      } catch {
-        // Unreadable/non-JSON 403 — the dominant cause here is a stale
-        // token, so route it to reauth rather than a dead-end toast.
-        looksLikeAuth = true
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      if (response.status === 401) {
+        throw new OAuthError('Google API returned 401 — OAuth token expired or revoked. Please re-authenticate.')
       }
-      if (looksLikeAuth) {
-        throw new OAuthError('Google API returned 403 — token expired or missing the required scope. Please re-authenticate.')
+      // Google returns 403 for several unrelated reasons. Peek at the body
+      // (clone so the caller can still read it) and classify:
+      //   - token / scope / permission   → reauth flow (OAuthError)
+      //   - rate / quota                 → retriable RateLimitError
+      //   - Drive storage full           → non-retriable RateLimitError
+      // Previously every 403 that wasn't auth dead-ended as a generic
+      // "Could not create the sheet" toast with bogus "refresh session" advice.
+      if (response.status === 403) {
+        let reason = ''
+        try {
+          const body = await response.clone().json()
+          reason = String(
+            body?.error?.errors?.[0]?.reason ||
+            body?.error?.status ||
+            body?.error?.message ||
+            body?.error_description ||
+            ''
+          ).toLowerCase()
+        } catch {
+          // Unreadable/non-JSON 403 — the dominant cause here is a stale
+          // token, so route it to reauth rather than a dead-end toast.
+          reason = 'unreadable-treat-as-auth'
+        }
+        if (/storage.?quota/.test(reason)) {
+          throw new RateLimitError('Google Drive storage is full.', { retriable: false })
+        }
+        if (/ratelimit|rate limit|userratelimit|quotaexceeded|quota exceeded|resource_exhausted/.test(reason)) {
+          if (attempt < RATE_LIMIT_MAX_RETRIES) { clearTimeout(timer); await sleep(RATE_LIMIT_BACKOFF_MS[attempt]); continue }
+          throw new RateLimitError('Google API rate limit (403) — too many requests in a short window.')
+        }
+        if (/insufficient|scope|permission|token|auth|credential|unauthor/.test(reason)) {
+          throw new OAuthError('Google API returned 403 — token expired or missing the required scope. Please re-authenticate.')
+        }
       }
+      // Plain 429 — always a rate limit. Back off and retry, then give up.
+      if (response.status === 429) {
+        if (attempt < RATE_LIMIT_MAX_RETRIES) { clearTimeout(timer); await sleep(RATE_LIMIT_BACKOFF_MS[attempt]); continue }
+        throw new RateLimitError('Google API rate limit (429) — too many requests in a short window.')
+      }
+      return response
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        const tag = label ? ` (${label})` : ''
+        throw new Error(`Google API request timed out after ${Math.round(timeoutMs / 1000)}s${tag}. Try again.`)
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
     }
-    return response
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      const tag = label ? ` (${label})` : ''
-      throw new Error(`Google API request timed out after ${Math.round(timeoutMs / 1000)}s${tag}. Try again.`)
-    }
-    throw err
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -176,7 +212,7 @@ export async function createDynastySheet(dynastyName, coachName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 14,
+                columnCount: 15,
                 frozenRowCount: 1
               }
             }
@@ -1139,7 +1175,7 @@ export async function createRosterSheet(dynastyName, year) {
               title: 'Roster',
               gridProperties: {
                 rowCount: 86,
-                columnCount: 14,
+                columnCount: 15,
                 frozenRowCount: 1
               }
             }

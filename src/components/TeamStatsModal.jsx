@@ -199,7 +199,7 @@ FINAL CHECK before you send the answer
           await updateDynasty(currentDynasty.id, { teamStatsSheetId: sheetInfo.sheetId })
         } catch (error) {
           console.error('Failed to create team stats sheet:', error)
-          if (!auth.handleError(error)) toast.error('Could not create the sheet. Refresh your session and try again.')
+          if (!auth.handleError(error)) toast.error(auth.describeError(error, 'create the stats sheet'))
         } finally {
           setCreatingSheet(false)
           creatingSheetRef.current = false
