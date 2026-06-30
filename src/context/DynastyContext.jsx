@@ -95,7 +95,8 @@ import {
 import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
-import { buildDefaultRosterPlayers } from '../data/defaultRosterLoader'
+import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
+import { CFB27_TEAM_RATINGS } from '../data/cfb27TeamRatings'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
@@ -7321,6 +7322,9 @@ export function DynastyProvider({ children }) {
 
   const createDynasty = async (dynastyData) => {
     const startYear = parseInt(dynastyData.startYear)
+    // Edition for this dynasty, resolved once. Gates which teams exist and
+    // whether the whole-country roster + launch team-ratings seed runs (cfb27).
+    const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
 
     // If custom teams exist, initialize conference data with replacement applied
     let initialConferences = null
@@ -7332,7 +7336,7 @@ export function DynastyProvider({ children }) {
     // This is the single source of truth for all team data in this dynasty.
     // Pass the edition so edition-gated teams (e.g. CFB 27's NDSU/Sac State)
     // only appear in dynasties on that edition or later.
-    const teams = initializeDynastyTeams(normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION))
+    const teams = initializeDynastyTeams(editionKey)
 
     // If there's a teambuilder team, replace the corresponding slot
     if (dynastyData.customTeams) {
@@ -7369,22 +7373,73 @@ export function DynastyProvider({ children }) {
       }
     }
 
-    // Auto-populate the user's team roster from the bundled default rosters
-    // (src/data/defaultRosters/{tid}.json). Teambuilder/custom teams are
-    // skipped — their slot's default file is the REPLACED team's roster, not
-    // the user's custom one. Failure is non-fatal: a dynasty still creates
-    // with an empty roster the user can fill via the Add Roster flow.
+    // Auto-populate rosters from the bundled default rosters
+    // (src/data/{defaultRosters|cfb27Rosters}/{tid}.json).
+    //
+    // CFB 27: seed EVERY team in the country (full attribute-rich launch
+    // rosters), not just the user's — so the whole dynasty is rostered from
+    // day one. Custom/teambuilder slots are skipped (their bundled file is the
+    // REPLACED team's roster) and only teams in this dynasty's registry seed.
+    //
+    // Other editions keep the original behavior: seed only the user's team.
+    // Teambuilder/custom user teams are skipped either way.
+    //
+    // Failure is non-fatal: a dynasty still creates with an empty roster the
+    // user can fill via the Add Roster flow.
     let seededPlayers = []
-    if (currentTid && !teams[currentTid]?.isCustom) {
-      try {
-        // cfb27 dynasties seed the attribute-rich CFB 27 launch rosters.
-        const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
+    try {
+      if (editionKey === 'cfb27') {
+        seededPlayers = await buildAllDefaultRosterPlayers(teams, startYear, 1, editionKey)
+      } else if (currentTid && !teams[currentTid]?.isCustom) {
         seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1, editionKey)
-      } catch (err) {
-        console.warn('[createDynasty] default roster seed failed:', err)
-        seededPlayers = []
+      }
+    } catch (err) {
+      console.warn('[createDynasty] default roster seed failed:', err)
+      seededPlayers = []
+    }
+
+    // CFB 27: seed every team's launch OVR/Offense/Defense rating into the
+    // START YEAR only. Ratings are year-keyed (teams[tid].byYear[year].
+    // teamRatings), so seeding just startYear makes them display on day one and
+    // naturally clear when the season advances (the next year has no entry) —
+    // no special wipe logic needed. We write BOTH the tid-based byYear store
+    // (Dashboard / game entry read this) and the legacy teamRatingsByTeamYear
+    // store (the TeamYear page reads this), mirroring saveTeamRatings exactly.
+    // Custom/teambuilder slots and tids absent from this dynasty are skipped.
+    let seededTeamRatingsByTeamYear = null
+    let userSeededRatings = null
+    if (editionKey === 'cfb27') {
+      seededTeamRatingsByTeamYear = {}
+      for (const [tidStr, r] of Object.entries(CFB27_TEAM_RATINGS)) {
+        const tid = Number(tidStr)
+        const team = teams[tid]
+        if (!team || team.isCustom) continue
+        const ratings = { overall: r.ovr, offense: r.off, defense: r.def }
+        const existingByYear = team.byYear || {}
+        const existingYearData = existingByYear[startYear] || {}
+        teams[tid] = {
+          ...team,
+          byYear: {
+            ...existingByYear,
+            [startYear]: {
+              ...existingYearData,
+              teamRatings: ratings,
+              preseasonSetup: { ...(existingYearData.preseasonSetup || {}), teamRatingsEntered: true },
+            },
+          },
+        }
+        // Legacy dual-keyed (abbr + tid) store, drift-safe like saveTeamRatings.
+        if (team.abbr) seededTeamRatingsByTeamYear[team.abbr] = { [startYear]: ratings }
+        seededTeamRatingsByTeamYear[tid] = { [startYear]: ratings }
+        if (currentTid && tid === Number(currentTid)) userSeededRatings = ratings
       }
     }
+
+    // Did the USER's own team get a seeded roster? With the cfb27 whole-country
+    // seed, seededPlayers can be non-empty even when the user picked a custom
+    // team that got nothing — so the "roster entered" checklist flags must key
+    // off the user's team specifically, not the total seeded count.
+    const userTeamSeeded = currentTid != null && seededPlayers.some((p) => Number(p.team) === Number(currentTid))
 
     // Create first career entry
     const coachCareer = addCareerEntry([], startYear, currentTid, coachPosition)
@@ -7480,12 +7535,18 @@ export function DynastyProvider({ children }) {
       } : {}),
       preseasonSetup: {
         scheduleEntered: false,
-        rosterEntered: seededPlayers.length > 0, // auto-seeded roster counts as entered
-        teamRatingsEntered: false,
+        rosterEntered: userTeamSeeded, // auto-seeded roster counts as entered
+        teamRatingsEntered: !!userSeededRatings, // seeded launch ratings count as entered
         coachingStaffEntered: false,
         conferencesEntered: false  // Shows as incomplete, but defaults are valid if user skips
       },
-      teamRatings: {
+      // Legacy per-team/year ratings store (read by the TeamYear page). Seeded
+      // for every team on cfb27 so historical/other-team views show launch OVRs.
+      ...(seededTeamRatingsByTeamYear ? { teamRatingsByTeamYear: seededTeamRatingsByTeamYear } : {}),
+      // Live current-season cache: prime the user's own launch ratings so the
+      // Dashboard shows them immediately. Cleared on season advance like any
+      // other year's live cache.
+      teamRatings: userSeededRatings || {
         overall: null,
         offense: null,
         defense: null
@@ -7536,7 +7597,7 @@ export function DynastyProvider({ children }) {
     // When we auto-seeded the roster, also flip the tid-based byYear
     // rosterEntered flag (the source the team page's preseason checklist
     // reads) so the "enter your roster" step shows complete from day one.
-    if (seededPlayers.length > 0 && currentTid) {
+    if (userTeamSeeded && currentTid) {
       const t = newDynastyData.teams?.[currentTid] || {}
       const by = t.byYear || {}
       const yd = by[startYear] || {}
