@@ -489,7 +489,7 @@ FINAL CHECK before you send
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
           } else {
-            toast.error('Could not create the detailed stats sheet. Refresh your session and try again.')
+            toast.error(auth.describeError(error, 'create the detailed stats sheet'))
           }
         } finally {
           setCreatingSheet(false)

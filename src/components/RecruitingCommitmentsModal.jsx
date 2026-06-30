@@ -283,7 +283,7 @@ FINAL CHECK
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
           } else {
-            toast.error('Could not create the recruiting sheet. Refresh your session and try again.')
+            toast.error(auth.describeError(error, 'create the recruiting sheet'))
           }
         } finally {
           setCreatingSheet(false)

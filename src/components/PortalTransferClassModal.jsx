@@ -225,7 +225,7 @@ FINAL CHECK before you send
           if (auth.handleError(error)) {
             setAuthErrorOccurred(true)
           } else {
-            toast.error('Could not create the portal transfer class sheet. Refresh your session and try again.')
+            toast.error(auth.describeError(error, 'create the portal transfer class sheet'))
           }
         } finally {
           setCreatingSheet(false)

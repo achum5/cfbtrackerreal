@@ -228,7 +228,7 @@ FINAL CHECK before you send
         // Auth error → AuthErrorModal lets the user re-auth and retry. Anything
         // else → a toast. Either way the effect does NOT loop.
         if (!auth.handleError(error)) {
-          toast.error('Could not create the roster sheet. Refresh your session and try again.')
+          toast.error(auth.describeError(error, 'create the roster sheet'))
         }
       } finally {
         setCreatingSheet(false)
