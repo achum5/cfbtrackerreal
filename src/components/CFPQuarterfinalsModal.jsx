@@ -20,6 +20,32 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
+
+// The QF bracket's fixed bye-seed display order. The reader keys slot
+// determination off this order (rowToByeSeed in
+// readCFPQuarterfinalsFromSheet), so the local-import path must place each
+// game at THIS index for that array to assign the right seed1/cfpSlot.
+const CFP_QF_ROW_TO_BYE_SEED = [4, 1, 3, 2]
+// Default CFP bowl names per bye seed — mirrors DEFAULT_BOWL_CONFIG used by
+// the seeds/semifinal modals. Only used when the dynasty hasn't configured
+// custom bowl names for the year.
+const DEFAULT_QF_BOWL_CONFIG = {
+  seed1: 'Sugar Bowl',
+  seed2: 'Cotton Bowl',
+  seed3: 'Rose Bowl',
+  seed4: 'Orange Bowl',
+}
+// Which First Round matchup feeds each bye seed's quarterfinal (the bye seed
+// plays the winner of these two seeds). Mirrors the createCFPQuarterfinalsSheet
+// matchup table.
+const CFP_QF_OPPONENT_GAME = {
+  1: '8 vs 9',
+  2: '7 vs 10',
+  3: '6 vs 11',
+  4: '5 vs 12',
+}
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -40,6 +66,8 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -112,6 +140,62 @@ FINAL CHECK before you send the answer
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])
 
+  // LOCAL-PASTE prompt: SELF-DESCRIBING rows. Each line LEADS with the bye
+  // seed (1-4), which is the identity the bracket needs — so there is NO
+  // pre-filled Bowl Game column to align against and NO fixed row order. The
+  // import path re-places each game into the bracket slot by its explicit bye
+  // seed (not by row position), and looks the configured bowl name up locally.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} CFP Quarterfinals Results`,
+    structure: `Output ONE line per CFP Quarterfinal game whose result you can see. Each line is SELF-DESCRIBING — it LEADS with the BYE SEED (1, 2, 3, or 4) — so there is NO pre-filled column to line up against and NO fixed row order.
+
+The CFP Quarterfinals pair each top-4 BYE SEED against the winner of a First Round game:
+  • Bye seed 1 hosts the winner of the ${CFP_QF_OPPONENT_GAME[1]} First Round game
+  • Bye seed 2 hosts the winner of the ${CFP_QF_OPPONENT_GAME[2]} First Round game
+  • Bye seed 3 hosts the winner of the ${CFP_QF_OPPONENT_GAME[3]} First Round game
+  • Bye seed 4 hosts the winner of the ${CFP_QF_OPPONENT_GAME[4]} First Round game
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 6 tab-separated fields: ByeSeed<TAB>ByeTeam<TAB>OpponentTeam<TAB>ByeScore<TAB>OpponentScore<TAB>Winner.
+2. NO header row. NO blank lines. NO Bowl Game name. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any quarterfinal whose result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A game with no line is left unchanged.
+4. ByeSeed is the FIRST field and MUST be one of: 1, 2, 3, 4 (the top-4 seed that earned the bye). It is the ONLY identifier for the game — never output the bowl name.
+5. ByeTeam = the bye seed's team abbreviation. OpponentTeam = the First Round winner's team abbreviation. Do NOT swap them — the bye seed's team is always the SECOND field.
+6. ByeScore = the bye seed team's integer score. OpponentScore = the opponent's integer score. No commas, no decimals, no "pts".
+7. Winner = the abbreviation (matching ByeTeam or OpponentTeam) with the HIGHER score. If scores are tied or unknown, leave Winner blank.
+8. All team values (ByeTeam, OpponentTeam, Winner) are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names, nicknames, cities, or mascots.
+9. If teams are known but scores aren't, you may emit ByeSeed, ByeTeam, OpponentTeam and leave the three trailing fields blank (still keep all 6 fields / 5 tabs).
+
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (6 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<ByeSeed 1-4><TAB><ByeTeam Abbr><TAB><OpponentTeam Abbr><TAB><ByeScore><TAB><OpponentScore><TAB><Winner Abbr>
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CFP QUARTERFINALS ===
+<ByeSeed>\\t<ByeTeam>\\t<OpponentTeam>\\t<ByeScore>\\t<OpponentScore>\\t<Winner>
+…one line per quarterfinal you can see; omit unknowns entirely
+
+(Each \\t above represents a LITERAL TAB character — use actual tab characters, not the text "\\t".)
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 6 tab-separated fields (five tabs)
+[ ] The FIRST field of every line is a bye seed 1, 2, 3, or 4 — no duplicates
+[ ] ByeTeam is the bye seed's team; OpponentTeam is the First Round winner (not swapped)
+[ ] All team values are uppercase abbreviations from the mapping — no full names
+[ ] Scores are integers with no commas or decimals
+[ ] Winner matches the higher-scoring team's abbreviation (or blank if tied/unknown)
+[ ] No blank lines, no header row, no bowl name, no commentary — only games with a known result`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [currentYear, currentDynasty?.teams])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -157,7 +241,8 @@ FINAL CHECK before you send the answer
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
@@ -192,7 +277,7 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -201,8 +286,50 @@ FINAL CHECK before you send the answer
       setSheetId(null)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import. The AI emits SELF-DESCRIBING rows that LEAD with the
+  // bye seed: ByeSeed<TAB>ByeTeam<TAB>OpponentTeam<TAB>ByeScore<TAB>OpponentScore<TAB>Winner.
+  // The parser (readCFPQuarterfinalsFromSheet) determines each game's bracket
+  // slot by ROW INDEX via rowToByeSeed=[4,1,3,2], and the downstream save
+  // (saveCFPGames) matches the existing shell by BOWL NAME (col A) + bye-seed
+  // team. So we build a fixed 4-slot array, place each pasted game at the index
+  // its bye seed occupies in rowToByeSeed, and fill col A with the configured
+  // bowl name for that bye seed — reconstructing exactly the layout the parser
+  // and save expect from identity (the bye seed) rather than paste position.
+  const handleLocalImport = async (text) => {
+    const splitRows = splitTsv(text)
+    const bowlConfig = currentDynasty?.cfpBowlConfigByYear?.[currentYear]
+      || currentDynasty?.cfpBowlConfigByYear?.[String(currentYear)]
+      || DEFAULT_QF_BOWL_CONFIG
+
+    // Fixed 4-row layout in the parser's expected order (rowToByeSeed). Unused
+    // slots stay blank so the parser's positional seed mapping holds; blank
+    // rows are dropped later by its `.filter(team1Tid && team2Tid)`.
+    const placed = CFP_QF_ROW_TO_BYE_SEED.map(() => ['', '', '', '', '', ''])
+
+    for (const row of splitRows) {
+      const byeSeed = parseInt(row[0], 10)
+      const slotIndex = CFP_QF_ROW_TO_BYE_SEED.indexOf(byeSeed)
+      if (slotIndex === -1) continue // not a 1-4 bye seed; skip malformed line
+      const byeTeam = row[1] || ''
+      const oppTeam = row[2] || ''
+      const byeScore = row[3] || ''
+      const oppScore = row[4] || ''
+      const winner = row[5] || ''
+      // Look up the dynasty-configured bowl name for this bye seed so the
+      // downstream save's bowlName match (TERTIARY path) lands on the right shell.
+      const bowlName = bowlConfig?.[`seed${byeSeed}`] || DEFAULT_QF_BOWL_CONFIG[`seed${byeSeed}`] || ''
+      // Parser column layout: [Bowl, Team1(bye), Team2(opp), T1Score, T2Score, Winner]
+      placed[slotIndex] = [bowlName, byeTeam, oppTeam, byeScore, oppScore, winner]
+    }
+
+    const games = await readCFPQuarterfinalsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: placed })
+    await onSave(games)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -323,7 +450,15 @@ FINAL CHECK before you send the answer
         <SheetModalHeader eyebrow="College Football Playoff" title={`${currentYear} CFP Quarterfinals`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import CFP Quarterfinals"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

@@ -3933,29 +3933,38 @@ async function initializeBowlWeek1Sheet(spreadsheetId, accessToken, sheetId, bow
 }
 
 // Read Bowl Games data from sheet
-export async function readBowlGamesFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readBowlGamesFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    // The caller reshapes its self-describing rows into this parser's column
+    // layout (game rows: bowl name in col A; poll rows: blank col A, abbr in
+    // col B, rank in col C) — the parse logic below is unchanged.
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const rowCount = BOWL_GAMES_WEEK_1.length
-    console.log('[readBowlGamesFromSheet] Reading', rowCount, 'rows from sheet:', spreadsheetId)
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:G${rowCount + 28}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const rowCount = BOWL_GAMES_WEEK_1.length
+      console.log('[readBowlGamesFromSheet] Reading', rowCount, 'rows from sheet:', spreadsheetId)
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:G${rowCount + 28}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read bowl data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read bowl data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
+      console.log('[readBowlGamesFromSheet] Got', rows.length, 'rows from API')
     }
-
-    const data = await response.json()
-    const rows = data.values || []
-    console.log('[readBowlGamesFromSheet] Got', rows.length, 'rows from API')
 
     // Parse into structured data with tid fields for teambuilder support.
     // Rows with a non-empty Col A (bowl name) are game rows.
@@ -5053,27 +5062,36 @@ async function initializeBowlWeek2Sheet(spreadsheetId, accessToken, sheetId, bow
 }
 
 // Read Bowl Week 2 Games data from sheet
-export async function readBowlWeek2GamesFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readBowlWeek2GamesFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    // The caller reshapes its self-describing rows into this parser's column
+    // layout (game rows: bowl name in col A; poll rows: blank col A, abbr in
+    // col B, rank in col C) — the parse logic below is unchanged.
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const rowCount = BOWL_GAMES_WEEK_2.length
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:G${rowCount + 28}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const rowCount = BOWL_GAMES_WEEK_2.length
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Bowl Games!A2:G${rowCount + 28}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read bowl week 2 data: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read bowl week 2 data: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse into structured data with tid fields for teambuilder support.
     // Rows with empty Col A are post-bowl poll entries (abbr in col B, rank in col C).
@@ -6036,26 +6054,35 @@ async function initializeCFPQuarterfinalsSheet(spreadsheetId, accessToken, sheet
 }
 
 // Read CFP Quarterfinals results from sheet
-export async function readCFPQuarterfinalsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readCFPQuarterfinalsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-placed TSV rows in place (no Google fetch).
+    // The caller (handleLocalImport) is responsible for placing each game's
+    // row at the index this parser's rowToByeSeed expects, AND for filling
+    // col A with the configured bowl name — the parse logic below is unchanged.
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Quarterfinals!A2:F5`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Quarterfinals!A2:F5`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read CFP Quarterfinals: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read CFP Quarterfinals: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // BULLETPROOF: Sheet rows are in fixed order by bye seed: 4, 1, 3, 2
     // This maps row index to bye seed for slot determination
