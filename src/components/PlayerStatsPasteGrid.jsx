@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Button from './ui/Button'
-import SheetModalAIHero from './ui/SheetModalAIHero'
 import { useToast } from './ui/Toast'
 import { splitTsv } from '../utils/tsvParse'
 import {
@@ -43,8 +42,25 @@ export default function PlayerStatsPasteGrid({
   const [grid, setGrid] = useState(emptyGrid)
   const [rawText, setRawText] = useState('')
   const [showRaw, setShowRaw] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [importing, setImporting] = useState(false)
   const prefilledRef = useRef(false)
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(aiPrompt || '')
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = aiPrompt || ''
+      ta.style.position = 'fixed'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.select()
+      try { document.execCommand('copy') } catch { /* noop */ }
+      document.body.removeChild(ta)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   // Normalize any boxScore into a grid with every section present.
   const toGrid = (boxScore) =>
@@ -148,27 +164,56 @@ export default function PlayerStatsPasteGrid({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden gap-3">
+      {/* 1. Copy AI Prompt */}
       {aiPrompt && (
-        <SheetModalAIHero
-          tagline="Paste the AI's player-stats reply here. No Google Sheet needed."
-          buttons={[{ label: 'Copy AI Prompt', prompt: aiPrompt }]}
-        />
-      )}
-      <div className="flex items-center gap-2">
-        <Button variant="primary" size="sm" onClick={pasteFromClipboard}>Paste</Button>
         <button
           type="button"
-          onClick={() => setShowRaw((v) => !v)}
-          title={showRaw ? 'Hide text box' : 'Show text box'}
-          aria-label={showRaw ? 'Hide text box' : 'Show text box'}
-          aria-pressed={showRaw}
-          className={`inline-flex items-center justify-center h-8 w-8 rounded-md border transition-colors ${showRaw ? 'border-surface-5 bg-surface-3 text-txt-primary' : 'border-surface-5 text-txt-secondary hover:bg-surface-3'}`}
+          onClick={copyPrompt}
+          className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
+          style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M7 17 17 7" />
-            <path d="M8 7h9v9" />
-          </svg>
+          {copied ? 'Copied!' : 'Copy AI Prompt'}
         </button>
+      )}
+
+      {/* 2. Collapsible how-to */}
+      <div className="rounded-lg border border-surface-4 bg-surface-2/50">
+        <button
+          type="button"
+          onClick={() => setShowHelp((v) => !v)}
+          aria-expanded={showHelp}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-txt-secondary hover:text-txt-primary"
+        >
+          <svg className={`w-4 h-4 flex-shrink-0 transition-transform ${showHelp ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+          How to get your data
+        </button>
+        {showHelp && (
+          <p className="px-3 pb-3 pt-0 text-xs text-txt-tertiary leading-relaxed">
+            Take screenshots of the stats you want to enter. It doesn't have to be exact, just clear and fully showing. Upload those along with the copied prompt to your AI platform of choice. It will return a TSV output — copy it, then paste below (the grid fills in automatically; edit any cell before importing).
+          </p>
+        )}
+      </div>
+
+      {/* 3. Paste AI output + reveal-textarea arrow (both white) */}
+      <div className="flex items-center gap-2">
+        <div className="inline-flex rounded-md overflow-hidden border border-surface-5">
+          <Button variant="primary" size="sm" onClick={pasteFromClipboard} className="rounded-none">Paste</Button>
+          <button
+            type="button"
+            onClick={() => setShowRaw((v) => !v)}
+            title={showRaw ? 'Hide text box' : 'Show text box'}
+            aria-label={showRaw ? 'Hide text box' : 'Show text box'}
+            aria-pressed={showRaw}
+            className="px-2 flex items-center justify-center transition-colors hover:opacity-90"
+            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderLeft: '1px solid var(--surface-1)' }}
+          >
+            <svg className={`w-4 h-4 transition-transform ${showRaw ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        </div>
         <div className="ml-auto flex items-center gap-1.5 text-xs tabular text-txt-tertiary">
           {teamLogo
             ? <img src={teamLogo} alt={teamAbbr} title={teamAbbr} className="h-5 w-5 object-contain" />
