@@ -723,7 +723,7 @@ export async function savePlayerToSubcollection(dynastyId, player) {
  * @param {boolean} options.forceOverwrite - If true, skips safety checks (for explicit user actions like migration)
  */
 export async function savePlayersToSubcollection(dynastyId, players, options = {}) {
-  const { deleteOrphans = false, forceOverwrite = false } = options
+  const { deleteOrphans = false, forceOverwrite = false, onProgress = null } = options
 
   try {
     // Handle empty array case - do nothing, don't delete existing players
@@ -812,6 +812,10 @@ export async function savePlayersToSubcollection(dynastyId, players, options = {
 
       await batch.commit()
       console.log(`[savePlayersToSubcollection] Batch ${batchNum}/${totalBatches} committed locally (${batchPlayers.length} players)`)
+      // Report progress so the create UI can show a moving bar during a big seed.
+      if (onProgress) {
+        try { onProgress({ saved: Math.min(i + batchPlayers.length, playersToSave.length), total: playersToSave.length }) } catch (_) {}
+      }
 
       // Add delay between batches to prevent "Write stream exhausted" error
       // Scale delay based on number of batches for large datasets

@@ -7322,11 +7322,21 @@ export function DynastyProvider({ children }) {
     return true
   }
 
-  const createDynasty = async (dynastyData) => {
+  const createDynasty = async (dynastyData, { onProgress } = {}) => {
     const startYear = parseInt(dynastyData.startYear)
     // Edition for this dynasty, resolved once. Gates which teams exist and
     // whether the whole-country roster + launch team-ratings seed runs (cfb27).
     const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
+
+    // Progress reporter for the create UI. Yields to the event loop after each
+    // update so React actually paints the new message/bar before the next
+    // (often synchronous and blocking) phase runs.
+    const report = async (message, pct) => {
+      if (!onProgress) return
+      try { onProgress({ message, pct }) } catch (_) {}
+      await new Promise((r) => setTimeout(r))
+    }
+    await report('Setting up teams…', 4)
 
     // Conference data is built AFTER the teams map (abbreviations) is finalized
     // below, so it can reflect cfb27's launch abbreviations and any teambuilder
@@ -7410,30 +7420,33 @@ export function DynastyProvider({ children }) {
       }
     }
 
-    // Auto-populate rosters from the bundled default rosters
-    // (src/data/{defaultRosters|cfb27Rosters}/{tid}.json).
+    // Auto-populate rosters from the bundled default rosters (src/data/
+    // {cfb27Rosters|defaultRosters}/{tid}.json).
     //
-    // CFB 27: seed EVERY team in the country (full attribute-rich launch
-    // rosters), not just the user's — so the whole dynasty is rostered from
-    // day one. Custom/teambuilder slots are skipped (their bundled file is the
-    // REPLACED team's roster) and only teams in this dynasty's registry seed.
+    // - cfb27 + "Load all team rosters" opt-in (dynastyData.seedAllRosters):
+    //   seed EVERY team in the country (full attribute-rich launch rosters).
+    //   This is the slow path (~9k players) the create checkbox warns about.
+    //   Custom/teambuilder slots and tids absent from the registry are skipped.
+    // - Default (checkbox off, or any non-cfb27 edition): seed ONLY the user's
+    //   team. Teambuilder/custom user teams have no bundled roster, so they're
+    //   skipped (the user fills the roster via the Add Roster flow).
     //
-    // Other editions keep the original behavior: seed only the user's team.
-    // Teambuilder/custom user teams are skipped either way.
-    //
-    // Failure is non-fatal: a dynasty still creates with an empty roster the
-    // user can fill via the Add Roster flow.
+    // Failure is non-fatal: a dynasty still creates with an empty roster.
+    const seedAllRosters = editionKey === 'cfb27' && !!dynastyData.seedAllRosters
     let seededPlayers = []
     try {
-      if (editionKey === 'cfb27') {
+      if (seedAllRosters) {
+        await report('Loading all team rosters…', 10)
         seededPlayers = await buildAllDefaultRosterPlayers(teams, startYear, 1, editionKey)
       } else if (currentTid && !teams[currentTid]?.isCustom) {
+        await report('Loading team roster…', 10)
         seededPlayers = await buildDefaultRosterPlayers(currentTid, startYear, 1, editionKey)
       }
     } catch (err) {
       console.warn('[createDynasty] default roster seed failed:', err)
       seededPlayers = []
     }
+    if (seededPlayers.length > 0) await report(`Preparing ${seededPlayers.length.toLocaleString()} players…`, 35)
 
     // CFB 27: seed every team's launch OVR/Offense/Defense rating into the
     // START YEAR only. Ratings are year-keyed (teams[tid].byYear[year].
@@ -7496,6 +7509,7 @@ export function DynastyProvider({ children }) {
     const {
       customTeams: _droppedCustomTeams,
       coachName: _droppedCoachName,
+      seedAllRosters: _droppedSeedAllRosters,
       ...dynastyDataNoCustomTeams
     } = dynastyData
 
@@ -7675,7 +7689,9 @@ export function DynastyProvider({ children }) {
       // IMPORTANT: Only save local dynasties to IndexedDB (filter out cloud ones)
       const existingLocalDynasties = dynasties.filter(d => d.storageType !== 'cloud')
       const updatedLocalDynasties = [...existingLocalDynasties, newDynasty]
+      if (seededPlayers.length > 0) await report(`Saving ${seededPlayers.length.toLocaleString()} players…`, 55)
       await indexedDBStorage.saveDynasties(updatedLocalDynasties)
+      await report('Finalizing…', 98)
 
       // Update state with all dynasties (local + cloud)
       const updatedDynasties = [...dynasties, newDynasty]
@@ -7700,11 +7716,21 @@ export function DynastyProvider({ children }) {
       // empty, so this is a pure insert.
       if (seededPlayers.length > 0) {
         try {
-          await savePlayersToSubcollection(newDynasty.id, seededPlayers, { forceOverwrite: true })
+          await report(`Saving ${seededPlayers.length.toLocaleString()} players…`, 40)
+          // The collection is brand-new and empty, so this is a pure insert.
+          // Per-batch progress maps into the 40-95% band of the create bar.
+          await savePlayersToSubcollection(newDynasty.id, seededPlayers, {
+            forceOverwrite: true,
+            onProgress: ({ saved, total }) => {
+              const pct = 40 + Math.round((saved / Math.max(total, 1)) * 55)
+              try { onProgress?.({ message: `Saving players… ${saved.toLocaleString()} / ${total.toLocaleString()}`, pct }) } catch (_) {}
+            },
+          })
         } catch (err) {
           console.warn('[createDynasty] failed to seed players subcollection:', err)
         }
       }
+      await report('Finalizing…', 98)
       // Mark local state as migrated too; carry the seeded roster so the UI
       // shows it immediately without waiting for a subcollection re-read.
       const dynastyWithFlag = { ...newDynasty, _subcollectionsMigrated: true, players: seededPlayers }
