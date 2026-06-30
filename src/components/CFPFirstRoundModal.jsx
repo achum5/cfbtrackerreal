@@ -14,6 +14,8 @@ import SheetToolbar from './SheetToolbar'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 import {
   createCFPFirstRoundSheet,
   readCFPFirstRoundFromSheet,
@@ -39,6 +41,8 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -150,7 +154,8 @@ FINAL CHECK before you send the answer
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -177,7 +182,7 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
@@ -185,8 +190,29 @@ FINAL CHECK before you send the answer
       setSheetId(null)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits 4 columns per game (HigherSeed, LowerSeed,
+  // HigherScore, LowerScore) in the FIXED order 5v12, 6v11, 7v10, 8v9 — column A
+  // (the Game label) is pre-filled on the sheet and never output. The parser
+  // reads the Game label at row[0] (downstream onSave extracts seed numbers from
+  // it), so we prepend the matching fixed label by row position. Labels are
+  // dynasty-independent constants that mirror initializeCFPFirstRoundSheet.
+  const FIRST_ROUND_GAME_LABELS = [
+    'Game 1 (5 vs 12)',
+    'Game 2 (6 vs 11)',
+    'Game 3 (7 vs 10)',
+    'Game 4 (8 vs 9)',
+  ]
+  const handleLocalImport = async (text) => {
+    const lines = splitTsv(text)
+    const rows = lines.map((cells, i) => [FIRST_ROUND_GAME_LABELS[i] || '', ...cells])
+    const games = await readCFPFirstRoundFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
+    await onSave(games)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -302,7 +328,15 @@ FINAL CHECK before you send the answer
         <SheetModalHeader eyebrow="College Football Playoff" title={`${currentYear} CFP First Round`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import CFP First Round"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

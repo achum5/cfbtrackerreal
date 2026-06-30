@@ -20,6 +20,8 @@ import {
 import { DEFAULT_BOWL_CONFIG, CFP_NY6_BOWLS, SEED_DESCRIPTIONS } from '../data/cfpConstants'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -43,6 +45,8 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const [bowlConfig, setBowlConfig] = useState(() => {
     // Initialize from existing dynasty config or defaults
     return currentDynasty?.cfpBowlConfigByYear?.[currentYear] || { ...DEFAULT_BOWL_CONFIG }
@@ -169,7 +173,8 @@ FINAL CHECK before you send the answer
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
@@ -198,7 +203,7 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, currentYear, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, currentYear, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes - clear sheetId so fresh sheet is created next time
   useEffect(() => {
@@ -207,6 +212,7 @@ FINAL CHECK before you send the answer
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
@@ -216,6 +222,18 @@ FINAL CHECK before you send the answer
       setBowlConfig(currentDynasty?.cfpBowlConfigByYear?.[currentYear] || { ...DEFAULT_BOWL_CONFIG })
     }
   }, [isOpen, currentYear, currentDynasty?.cfpBowlConfigByYear])
+
+  // Local paste import: feed the parser the SAME [seed, abbr] rows the sheet
+  // produces. The AI reply lists teams in seed order (the seed column is
+  // normally pre-filled on the sheet), so a 1-cell line gets its seed from
+  // position. Mirrors FinalPolls' rank-prepend normalization.
+  const handleLocalImport = async (text) => {
+    const lines = splitTsv(text)
+    const rows = lines.map((cells, i) => (cells.length >= 2 ? cells : [String(i + 1), (cells[0] ?? '')]))
+    const seeds = await readCFPSeedsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
+    await onSave(seeds, bowlConfig)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -319,6 +337,60 @@ FINAL CHECK before you send the answer
   const embedUrl = sheetId ? getSheetEmbedUrl(sheetId, 'CFP Seeds') : null
   const isLoading = creatingSheet
 
+  // Bowl Game Assignments — shared by the local-paste and Google-Sheet
+  // branches. bowlConfig is part of every save (onSave(seeds, bowlConfig)),
+  // so the user must be able to set it regardless of the entry path.
+  const bowlConfigSection = (
+    <div className="p-3 rounded-lg border flex-shrink-0 bg-surface-2 border-surface-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-xs font-bold uppercase text-txt-primary" style={{ letterSpacing: '1.5px' }}>
+          Bowl Game Assignments
+        </h4>
+        <span className="text-[10px] uppercase tracking-wider text-txt-tertiary">
+          NY6 rotates yearly
+        </span>
+      </div>
+
+      {/* Quarterfinals */}
+      <p className="text-[10px] font-bold uppercase mb-1.5 text-txt-tertiary" style={{ letterSpacing: '1px' }}>Quarterfinals</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
+        {QF_KEYS.map(key => (
+          <div key={key}>
+            <label className="text-[10px] block mb-0.5 text-txt-tertiary">
+              {SEED_DESCRIPTIONS[key]}
+            </label>
+            <select
+              value={bowlConfig[key] || DEFAULT_BOWL_CONFIG[key]}
+              onChange={(e) => setBowlConfig(prev => ({ ...prev, [key]: e.target.value }))}
+              className="w-full px-1.5 py-1 rounded text-xs border bg-surface-3 border-surface-4 text-txt-primary"
+            >
+              {CFP_NY6_BOWLS.map(bowl => (
+                <option key={bowl} value={bowl}>{bowl}</option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      {/* Semifinal bowl assignments are prompted at Bowl Week 3 — the
+          EA CFB game does not show semifinal bowl hosts during Week 1. */}
+      <p className="text-[10px] mt-1 italic" style={{ color: 'var(--text-secondary)' }}>
+        Semifinal bowl hosts entered at Bowl Week 3.
+      </p>
+
+      {/* Validation warning if same bowl assigned to multiple slots */}
+      {(() => {
+        const bowls = Object.values(bowlConfig).filter(Boolean)
+        const hasDuplicates = bowls.length !== new Set(bowls).size
+        return hasDuplicates ? (
+          <p className="text-[11px] mt-1.5 text-red-400 font-medium">
+            Each bowl should only be assigned to one game
+          </p>
+        ) : null
+      })()}
+    </div>
+  )
+
   return createPortal(
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] p-3 sm:p-4"
@@ -336,7 +408,18 @@ FINAL CHECK before you send the answer
         <SheetModalHeader eyebrow="College Football Playoff" title={`${currentYear} CFP Seeds`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-3 sm:p-5 min-h-0">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0 gap-3">
+            {bowlConfigSection}
+            <LocalDataEntry
+              aiPrompt={aiPrompt}
+              onImport={handleLocalImport}
+              onUseGoogle={() => setUseLocal(false)}
+              onCancel={handleClose}
+              importLabel="Import CFP Seeds"
+            />
+          </div>
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
@@ -360,54 +443,7 @@ FINAL CHECK before you send the answer
                 rest of the sheet-modal family instead of letting the
                 user's team primary/secondary leak into this admin
                 control. */}
-            <div className="p-3 rounded-lg border flex-shrink-0 bg-surface-2 border-surface-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-bold uppercase text-txt-primary" style={{ letterSpacing: '1.5px' }}>
-                  Bowl Game Assignments
-                </h4>
-                <span className="text-[10px] uppercase tracking-wider text-txt-tertiary">
-                  NY6 rotates yearly
-                </span>
-              </div>
-
-              {/* Quarterfinals */}
-              <p className="text-[10px] font-bold uppercase mb-1.5 text-txt-tertiary" style={{ letterSpacing: '1px' }}>Quarterfinals</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
-                {QF_KEYS.map(key => (
-                  <div key={key}>
-                    <label className="text-[10px] block mb-0.5 text-txt-tertiary">
-                      {SEED_DESCRIPTIONS[key]}
-                    </label>
-                    <select
-                      value={bowlConfig[key] || DEFAULT_BOWL_CONFIG[key]}
-                      onChange={(e) => setBowlConfig(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="w-full px-1.5 py-1 rounded text-xs border bg-surface-3 border-surface-4 text-txt-primary"
-                    >
-                      {CFP_NY6_BOWLS.map(bowl => (
-                        <option key={bowl} value={bowl}>{bowl}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              {/* Semifinal bowl assignments are prompted at Bowl Week 3 — the
-                  EA CFB game does not show semifinal bowl hosts during Week 1. */}
-              <p className="text-[10px] mt-1 italic" style={{ color: 'var(--text-secondary)' }}>
-                Semifinal bowl hosts entered at Bowl Week 3.
-              </p>
-
-              {/* Validation warning if same bowl assigned to multiple slots */}
-              {(() => {
-                const bowls = Object.values(bowlConfig).filter(Boolean)
-                const hasDuplicates = bowls.length !== new Set(bowls).size
-                return hasDuplicates ? (
-                  <p className="text-[11px] mt-1.5 text-red-400 font-medium">
-                    Each bowl should only be assigned to one game
-                  </p>
-                ) : null
-              })()}
-            </div>
+            {bowlConfigSection}
 
             <SheetModalAIHero
               tagline="Skip the typing. Let AI fill the CFP seeds."

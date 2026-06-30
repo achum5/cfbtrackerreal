@@ -1826,26 +1826,32 @@ async function initializeRosterSheetOnly(spreadsheetId, accessToken, rosterSheet
 }
 
 // Read schedule data from a Schedule-only sheet
-export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams = null) {
+export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    // Get OAuth access token (works for both free and paid tiers)
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      // Get OAuth access token (works for both free and paid tiers)
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Schedule!A2:D100`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Schedule!A2:D100`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to read schedule')
       }
-    )
 
-    if (!response.ok) {
-      throw new Error('Failed to read schedule')
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     return rows
       .filter(row => row[2]) // Has CPU Team (opponent)
@@ -5428,26 +5434,32 @@ async function initializeCFPSeedsSheet(spreadsheetId, accessToken, sheetId, dyna
 }
 
 // Read CFP Seeds from sheet
-export async function readCFPSeedsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readCFPSeedsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Seeds!A2:B13`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP Seeds!A2:B13`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read CFP seeds: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read CFP seeds: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse into structured data - ALWAYS include tid for teambuilder support
     const seeds = rows.map(row => {
@@ -5719,26 +5731,32 @@ async function initializeCFPFirstRoundSheet(spreadsheetId, accessToken, sheetId,
 }
 
 // Read CFP First Round results from sheet
-export async function readCFPFirstRoundFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readCFPFirstRoundFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP First Round!A2:E5`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/CFP First Round!A2:E5`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read CFP First Round: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read CFP First Round: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse into structured data - ALWAYS include tid for teambuilder support
     const games = rows.map(row => {

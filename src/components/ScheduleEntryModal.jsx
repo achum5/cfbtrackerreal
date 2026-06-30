@@ -22,6 +22,8 @@ import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import ScheduleSaveConfirmModal from './ScheduleSaveConfirmModal'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYear, teamColors, teamTid, teamName }) {
   const { currentDynasty, updateDynasty } = useDynasty()
@@ -48,6 +50,8 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   const [createError, setCreateError] = useState(null)
   const [sheetId, setSheetId] = useState(null)
   const [showDeletedNote, setShowDeletedNote] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -184,6 +188,8 @@ FINAL CHECK before you send the answer
       // "Refresh Session" button in AuthErrorModal handles both
       // first-time Google sign-in and expired-token re-auth, so the
       // same recovery flow works for both cases.
+      // Don't touch Google auth/creation while the local paste path is active.
+      if (useLocal) return
       if (isOpen && !user && !sheetId && !creatingSheetRef.current && !showDeletedNote && !createError) {
         auth.setShowAuthError(true)
         return
@@ -273,7 +279,7 @@ FINAL CHECK before you send the answer
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, createError, currentDynasty?.id, auth.retryCount, showDeletedNote, teamTid, currentYear, displayTeamName, targetTeamAbbr])
+  }, [isOpen, useLocal, user, sheetId, createError, currentDynasty?.id, auth.retryCount, showDeletedNote, teamTid, currentYear, displayTeamName, targetTeamAbbr])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -281,6 +287,7 @@ FINAL CHECK before you send the answer
       setShowDeletedNote(false)
       setCreateError(null)
       creatingSheetRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
@@ -376,6 +383,19 @@ FINAL CHECK before you send the answer
     const { finallyFn } = pendingSave || {}
     setPendingSave(null)
     if (finallyFn) finallyFn()
+  }
+
+  // Local paste import: the AI emits 2 columns per week (CPU Team, Site) in the
+  // FIXED order Week 0 → Week 15. Columns A (Week) and B (User Team) are
+  // pre-filled on the sheet and never output. The parser reads week at row[0]
+  // and the user team at row[1], so we prepend [weekNum, userTeamAbbr] by row
+  // position. BYE weeks are emitted as the non-blank literal "BYE", so they hold
+  // their slot; the parser's own opponent filter drops genuinely blank weeks.
+  const handleLocalImport = async (text) => {
+    const lines = splitTsv(text)
+    const rows = lines.map((cells, i) => [String(i), targetTeamAbbr, (cells[0] ?? ''), (cells[1] ?? '')])
+    const schedule = await readScheduleFromScheduleSheet(null, currentDynasty?.teams || currentDynasty?.customTeams, { rows })
+    await submitSchedule({ schedule })
   }
 
   const handleSyncFromSheet = async () => {
@@ -511,7 +531,15 @@ FINAL CHECK before you send the answer
         <SheetModalHeader title={teamTid ? `${displayTeamName} ${currentYear}` : 'Schedule Entry'} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Schedule"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
