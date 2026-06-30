@@ -67,7 +67,11 @@ export const BETA_GRANT_EMAILS = new Set([
 export async function verifyAdmin(req, res) {
   const decoded = await verifyAuth(req, res);
   if (!decoded) return null;
-  if (!decoded.email || !ADMIN_EMAILS.has(decoded.email.toLowerCase())) {
+  // Require a VERIFIED email before matching the allowlist. Harmless for
+  // Google sign-in (always verified) but prevents a forged unverified
+  // email claim from passing the gate if another provider is ever enabled
+  // (audit M7).
+  if (!decoded.email || decoded.email_verified !== true || !ADMIN_EMAILS.has(decoded.email.toLowerCase())) {
     res.status(403).json({ error: 'Admin access required' });
     return null;
   }
@@ -82,6 +86,10 @@ export async function verifyAdmin(req, res) {
 export async function verifyBetaGrant(req, res) {
   const decoded = await verifyAuth(req, res);
   if (!decoded) return null;
+  if (decoded.email_verified !== true) {
+    res.status(403).json({ error: 'A verified email is required.' });
+    return null;
+  }
   const email = decoded.email?.toLowerCase();
   if (!email || (!BETA_GRANT_EMAILS.has(email) && !ADMIN_EMAILS.has(email))) {
     res.status(403).json({ error: 'Beta access required. Email the dev to be added to the allowlist.' });

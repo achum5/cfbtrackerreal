@@ -72,6 +72,11 @@ function sanitizeForFirestore(obj) {
     }
     return result
   }
+  // Firestore rejects NaN / Infinity / -Infinity and fails the ENTIRE
+  // batch write if any field carries one (e.g. a 0-attempt stat that
+  // divided to NaN). Coerce non-finite numbers to null so one bad stat
+  // can't block saving a whole roster (audit H7).
+  if (typeof obj === 'number' && !Number.isFinite(obj)) return null
   return obj
 }
 
@@ -231,6 +236,64 @@ export async function leaveDynasty(dynastyId, uid) {
     [`memberTeams.${uid}`]: deleteField(),
     updatedAt: serverTimestamp(),
   })
+}
+
+// ─── Atomic member management ─────────────────────────────────────
+// These mutate ONLY the membership fields and use arrayUnion/arrayRemove
+// + per-uid dot-notation so two managers acting at once can't clobber
+// each other's change (the whole-array overwrites via updateDynasty were
+// last-write-wins — audit H5). They write the dynasty doc directly, so
+// the real-time listener carries the change back into local state.
+
+/** Add a uid to editors[] (idempotent — arrayUnion no-ops if present). */
+export async function addEditorAtomic(dynastyId, uid) {
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), {
+    editors: arrayUnion(uid),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Remove a member entirely: editors, co-commish, and their per-uid metadata. */
+export async function removeMemberAtomic(dynastyId, uid) {
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), {
+    editors: arrayRemove(uid),
+    coCommishes: arrayRemove(uid),
+    [`memberTeams.${uid}`]: deleteField(),
+    [`memberLabels.${uid}`]: deleteField(),
+    [`memberPhotos.${uid}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/** Promote (isCo=true) or demote (isCo=false) a uid in coCommishes[]. */
+export async function setCoCommishAtomic(dynastyId, uid, isCo) {
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), {
+    coCommishes: isCo ? arrayUnion(uid) : arrayRemove(uid),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+/**
+ * Set a single member's live team list (and optionally their per-year
+ * history slot) with per-uid dot-notation so a concurrent assignment to a
+ * DIFFERENT member can't wipe this one. `tids` is the full replacement
+ * list for this uid; pass [] to clear. When `historyForUid` is provided it
+ * replaces only this uid's memberTeamHistory entry. To also strip the tid
+ * from a previous holder (one-coach-per-team), pass their uid+list in
+ * `alsoClear` as { [uid]: tids }.
+ */
+export async function setMemberTeamsAtomic(dynastyId, uid, tids, historyForUid, alsoClear) {
+  const updates = {
+    [`memberTeams.${uid}`]: tids,
+    updatedAt: serverTimestamp(),
+  }
+  if (historyForUid !== undefined) updates[`memberTeamHistory.${uid}`] = historyForUid
+  if (alsoClear) {
+    for (const [otherUid, otherTids] of Object.entries(alsoClear)) {
+      updates[`memberTeams.${otherUid}`] = otherTids
+    }
+  }
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), updates)
 }
 
 // ─── Invite tokens ───────────────────────────────────────────────

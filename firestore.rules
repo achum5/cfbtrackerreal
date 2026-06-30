@@ -11,11 +11,13 @@ rules_version = '2';
 //   2. Cloud dynasties are owned by `userId`. The owner can always READ
 //      them (including after subscription lapse — needed for the
 //      auto-export-to-local migration). Premium owners can WRITE.
-//   3. Shared dynasties: any uid in `editors[]` has full read+write.
-//      Editors must themselves be premium to write — the dynasty itself
-//      is paid for by the owner. Roles / per-team ownership / commish
-//      gates are deliberately out of scope here; everyone in editors[]
-//      is fully trusted.
+//   3. Shared dynasties: any uid in `editors[]` has read + gameplay-write
+//      access without needing their own premium (the owner pays for the
+//      doc). Roles ARE enforced on the parent doc: regular members cannot
+//      change `editors`/`coCommishes`/`userId` (no self-promotion);
+//      co-commishes can manage members but not other co-commishes;
+//      ownership transfer is owner-only and the new owner must be premium.
+//      Destructive subcollection deletes are limited to owner + co-commish.
 //   4. Public dynasties (`isPublic == true` with a `shareCode`) are
 //      readable by anyone, including unauthenticated visitors. Only the
 //      owner can flip the public flag, and only premium owners can
@@ -35,28 +37,42 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Read the requesting user's subscription doc to determine premium
-    // status. Includes past_due so a transient card decline doesn't
-    // immediately revoke write access while Stripe is still retrying.
+    // Read an arbitrary user's subscription doc (missing -> {} -> not premium).
+    function userSubData(uid) {
+      let userPath = /databases/$(database)/documents/users/$(uid);
+      return exists(userPath) ? get(userPath).data : {};
+    }
+
+    // Premium predicate over a user-doc data blob.
     //
     // Mirrors the client-side check in services/subscriptionService.js:
     //   - tier must be 'premium'
-    //   - status must be active / trialing / past_due
-    //   - if currentPeriodEnd is set, it must be in the future
+    //   - active / trialing: premium until currentPeriodEnd (if set)
+    //   - past_due (transient card decline): premium ONLY while a bounded
+    //     grace deadline (currentPeriodEnd) is still in the future. Unlike
+    //     active/trialing, an ABSENT currentPeriodEnd does NOT pass for
+    //     past_due — otherwise a failed-payment account would keep write
+    //     access forever (audit finding H2). The webhook stamps a grace
+    //     deadline into currentPeriodEnd on invoice.payment_failed.
+    function isPremiumData(d) {
+      let activeOrTrial = d.tier == 'premium'
+        && (d.subscriptionStatus == 'active' || d.subscriptionStatus == 'trialing')
+        && (!('currentPeriodEnd' in d) || d.currentPeriodEnd == null || d.currentPeriodEnd > request.time);
+      let pastDueGrace = d.tier == 'premium'
+        && d.subscriptionStatus == 'past_due'
+        && ('currentPeriodEnd' in d) && d.currentPeriodEnd != null && d.currentPeriodEnd > request.time;
+      return activeOrTrial || pastDueGrace;
+    }
+
     function isPremium() {
-      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
-      let exists = exists(userPath);
-      let userData = exists ? get(userPath).data : {};
-      let hasPaidStatus = userData.subscriptionStatus == 'active'
-                          || userData.subscriptionStatus == 'trialing'
-                          || userData.subscriptionStatus == 'past_due';
-      let withinPeriod = !('currentPeriodEnd' in userData)
-                         || userData.currentPeriodEnd == null
-                         || userData.currentPeriodEnd > request.time;
-      return isSignedIn()
-        && userData.tier == 'premium'
-        && hasPaidStatus
-        && withinPeriod;
+      return isSignedIn() && isPremiumData(userSubData(request.auth.uid));
+    }
+
+    // Is the given uid (not necessarily the requester) premium? Used to
+    // enforce that commish ownership can only be transferred to a member
+    // who is themselves premium (they become the one paying for storage).
+    function isPremiumUid(uid) {
+      return isPremiumData(userSubData(uid));
     }
 
     // ─── users/{uid} ─────────────────────────────────────────────────
@@ -119,18 +135,65 @@ service cloud.firestore {
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.storageType == 'cloud';
 
-      // Owner write — must be premium (paying for the cloud doc).
+      // Owner write — must be premium (paying for the cloud doc). Ownership
+      // unchanged (transfer has its own branch below).
       allow update: if isPremium()
                     && isOwner(resource.data.userId)
                     && request.resource.data.userId == resource.data.userId;
 
-      // Invited editor write — premium NOT required. The owner's
-      // premium covers the storage bill; editors are first-class
-      // collaborators regardless of their own subscription tier.
+      // Commish (ownership) transfer — only the current premium owner may
+      // hand the dynasty to an EXISTING editor, and only to one who is
+      // themselves premium (they take over the storage bill; transferring
+      // to a free member would brick all writes — audit finding C4). Only
+      // the membership/ownership fields may move in a transfer.
+      allow update: if isPremium()
+                    && isOwner(resource.data.userId)
+                    && request.resource.data.userId != resource.data.userId
+                    && request.resource.data.userId in resource.data.get('editors', [])
+                    && isPremiumUid(request.resource.data.userId)
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['userId', 'editors', 'coCommishes', 'memberTeams', 'updatedAt']);
+
+      // Co-commish write — premium NOT required (owner foots the storage
+      // bill). Co-commishes shepherd the league: they may edit gameplay
+      // data and manage members (editors / memberTeams), but may NOT
+      // promote/demote co-commishes (commish-only) or change ownership.
+      allow update: if isSignedIn()
+                    && !isOwner(resource.data.userId)
+                    && request.auth.uid in resource.data.get('coCommishes', [])
+                    && request.resource.data.userId == resource.data.userId
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['coCommishes', 'userId']);
+
+      // Regular member write — premium NOT required. Members write gameplay
+      // data (scores, rankings, ready-state) and may claim their own team
+      // via memberTeams (self-onboarding). They may NOT touch editors,
+      // coCommishes, or userId — that's what stopped any member from
+      // self-promoting to co-commish or seizing the league (audit C1).
+      // (Leaving — removing only themselves — has its own branch below.)
       allow update: if isSignedIn()
                     && !isOwner(resource.data.userId)
                     && request.auth.uid in resource.data.get('editors', [])
-                    && request.resource.data.userId == resource.data.userId;
+                    && !(request.auth.uid in resource.data.get('coCommishes', []))
+                    && request.resource.data.userId == resource.data.userId
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['editors', 'coCommishes', 'userId']);
+
+      // Member self-leave — any member may drop ONLY their own uid from the
+      // membership arrays (editors/coCommishes) and their memberTeams slot.
+      // Verified by: the diff touches only membership fields, this uid is
+      // gone from the new editors/coCommishes, and editors shrank by exactly
+      // one (so they can't remove anyone else under cover of leaving).
+      allow update: if isSignedIn()
+                    && !isOwner(resource.data.userId)
+                    && request.auth.uid in resource.data.get('editors', [])
+                    && request.resource.data.userId == resource.data.userId
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['editors', 'coCommishes', 'memberTeams', 'updatedAt'])
+                    && !(request.auth.uid in request.resource.data.get('editors', []))
+                    && !(request.auth.uid in request.resource.data.get('coCommishes', []))
+                    && request.resource.data.get('editors', []).size()
+                         == resource.data.get('editors', []).size() - 1;
 
       // Invite redemption — a non-editor adds themselves to editors[]
       // by presenting a token. The token is verified via the invites
@@ -180,9 +243,15 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        allow write: if isSignedIn()
+        // Invited editors may create/update but NOT delete — prevents a
+        // regular member from wiping shared roster/season data (audit H1).
+        allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+        // Co-commishes (league stewards) may also delete.
+        allow delete: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('coCommishes', []);
       }
 
       match /games/{gameId} {
@@ -271,9 +340,15 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        allow write: if isSignedIn()
+        // Invited editors may create/update but NOT delete — prevents a
+        // regular member from wiping shared roster/season data (audit H1).
+        allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+        // Co-commishes (league stewards) may also delete.
+        allow delete: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('coCommishes', []);
       }
 
       // ─── Week recaps (subcollection) ────────────────────────────
@@ -299,9 +374,15 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        allow write: if isSignedIn()
+        // Invited editors may create/update but NOT delete — prevents a
+        // regular member from wiping shared roster/season data (audit H1).
+        allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+        // Co-commishes (league stewards) may also delete.
+        allow delete: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('coCommishes', []);
       }
 
       // ─── Social Media feature subcollections ────────────────────
@@ -323,9 +404,15 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        allow write: if isSignedIn()
+        // Invited editors may create/update but NOT delete — prevents a
+        // regular member from wiping shared roster/season data (audit H1).
+        allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+        // Co-commishes (league stewards) may also delete.
+        allow delete: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('coCommishes', []);
       }
 
       match /socialCharacters/{docId} {
@@ -342,9 +429,15 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        allow write: if isSignedIn()
+        // Invited editors may create/update but NOT delete — prevents a
+        // regular member from wiping shared roster/season data (audit H1).
+        allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
+        // Co-commishes (league stewards) may also delete.
+        allow delete: if isSignedIn()
+                     && parentDynasty().userId != request.auth.uid
+                     && request.auth.uid in parentDynasty().get('coCommishes', []);
       }
 
       // ─── Invite tokens (subcollection) ──────────────────────────

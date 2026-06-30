@@ -27,6 +27,11 @@ import {
   createInviteDoc,
   deleteInviteDoc,
   subscribeToInvites,
+  addEditorAtomic,
+  removeMemberAtomic,
+  setCoCommishAtomic,
+  setMemberTeamsAtomic,
+  leaveDynasty as leaveDynastyAtomic,
 } from '../../services/dynastyService'
 import {
   getEditors,
@@ -171,7 +176,7 @@ export default function LeagueSettings() {
     }
     setBusyUid('__add__')
     try {
-      await updateDynasty(currentDynasty.id, { editors: addEditor(currentDynasty, uid) })
+      await addEditorAtomic(currentDynasty.id, uid)
       toast.success('Member added.')
       setPendingUid('')
     } catch (err) {
@@ -194,11 +199,7 @@ export default function LeagueSettings() {
     if (!ok) return
     setBusyUid(uid)
     try {
-      await updateDynasty(currentDynasty.id, {
-        editors: removeEditor(currentDynasty, uid),
-        coCommishes: removeCoCommish(currentDynasty, uid),
-        ...dropMemberMetadata(currentDynasty, uid),
-      })
+      await removeMemberAtomic(currentDynasty.id, uid)
       toast.info('Member removed.')
     } catch (err) {
       console.error('[Members] remove failed:', err)
@@ -326,11 +327,7 @@ export default function LeagueSettings() {
     if (!ok) return
     setBusyUid(user.uid)
     try {
-      await updateDynasty(currentDynasty.id, {
-        editors: removeEditor(currentDynasty, user.uid),
-        coCommishes: removeCoCommish(currentDynasty, user.uid),
-        ...dropMemberMetadata(currentDynasty, user.uid),
-      })
+      await leaveDynastyAtomic(currentDynasty.id, user.uid)
       toast.info('You left the dynasty.')
       // Drop them back to the dynasty list — they can't view this one anymore.
       window.location.href = '/'
@@ -385,10 +382,27 @@ export default function LeagueSettings() {
       currentDynasty.currentYear,
       teamsForUid,
     )
-    await updateDynasty(currentDynasty.id, {
-      memberTeams: nextMemberTeams,
-      memberTeamHistory: nextHistory,
-    })
+    // Write EACH uid whose team list actually changed via per-uid
+    // dot-notation, rather than overwriting the whole memberTeams map.
+    // A concurrent assignment to a different member can no longer clobber
+    // this one (audit H5), and a one-coach-per-team reassignment (the tid
+    // stripped from a prior holder) rides along atomically.
+    const prev = currentDynasty.memberTeams || {}
+    const changedOthers = {}
+    const allUids = new Set([...Object.keys(prev), ...Object.keys(nextMemberTeams)])
+    for (const u of allUids) {
+      if (u === uid) continue
+      if (JSON.stringify(prev[u] || []) !== JSON.stringify(nextMemberTeams[u] || [])) {
+        changedOthers[u] = nextMemberTeams[u] || []
+      }
+    }
+    await setMemberTeamsAtomic(
+      currentDynasty.id,
+      uid,
+      teamsForUid,
+      nextHistory[uid],
+      Object.keys(changedOthers).length ? changedOthers : undefined,
+    )
   }
 
   const handleAddTeam = async (uid, tidStr) => {
@@ -400,9 +414,18 @@ export default function LeagueSettings() {
     setBusyUid(uid)
     try {
       // For capped roles (members), `Add` always REPLACES.
-      const next = cap === Infinity
+      let next = cap === Infinity
         ? addMemberTeam(currentDynasty, uid, tid)
         : setMemberTeam(currentDynasty, uid, tid)
+      // One coach per team: strip this tid from any OTHER member who held
+      // it, so assigning a taken team REASSIGNS it instead of creating a
+      // double-claim where two members can both write that team (audit M3).
+      next = { ...next }
+      for (const otherUid of Object.keys(next)) {
+        if (otherUid === uid) continue
+        const arr = (next[otherUid] || []).map(Number)
+        if (arr.includes(tid)) next[otherUid] = arr.filter(t => t !== tid)
+      }
       await writeMemberTeamsAndStamp(uid, next)
     } catch (err) {
       console.error('[Members] assign team failed:', err)
@@ -430,9 +453,7 @@ export default function LeagueSettings() {
     if (!canManageCo) return
     setBusyUid(uid)
     try {
-      await updateDynasty(currentDynasty.id, {
-        coCommishes: addCoCommish(currentDynasty, uid),
-      })
+      await setCoCommishAtomic(currentDynasty.id, uid, true)
       toast.success('Promoted to co-commish.')
     } catch (err) {
       console.error('[Members] promote failed:', err)
@@ -453,9 +474,7 @@ export default function LeagueSettings() {
     if (!ok) return
     setBusyUid(uid)
     try {
-      await updateDynasty(currentDynasty.id, {
-        coCommishes: removeCoCommish(currentDynasty, uid),
-      })
+      await setCoCommishAtomic(currentDynasty.id, uid, false)
       toast.info('Demoted to member.')
     } catch (err) {
       console.error('[Members] demote failed:', err)
@@ -482,7 +501,14 @@ export default function LeagueSettings() {
       toast.success(`${label} is now the commish.`)
     } catch (err) {
       console.error('[Members] transfer commish failed:', err)
-      toast.error(err.message || 'Failed to transfer commish role.')
+      // The rules only allow transferring ownership to a PREMIUM member
+      // (otherwise the dynasty's writes would brick — audit C4). A
+      // permission-denied here almost always means the target isn't
+      // premium; surface that instead of a raw Firestore error.
+      const denied = /insufficient permissions|permission-denied/i.test(err?.message || '')
+      toast.error(denied
+        ? `${label} must have their own premium subscription before they can become commish.`
+        : (err.message || 'Failed to transfer commish role.'))
     } finally {
       setBusyUid(null)
     }

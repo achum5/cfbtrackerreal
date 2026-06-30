@@ -8328,21 +8328,15 @@ export function DynastyProvider({ children }) {
     const isLocalStorage = !user || dynasty?.storageType === 'local'
 
     if (isLocalStorage) {
-      // Local storage: delete from IndexedDB
-      const updated = dynasties.filter(d => {
-        const match = String(d.id) !== String(dynastyId)
-        return match
-      })
+      // Local storage: remove ONLY this dynasty from IndexedDB. Never call
+      // clearAll() here — deriving "no local dynasties left" from the
+      // in-memory list and wiping the whole store could destroy other
+      // on-disk dynasties that simply weren't hydrated into state yet
+      // (audit C5). indexedDBStorage.deleteDynasty reads the store,
+      // filters out this id, and writes the rest back — safe by itself.
+      await indexedDBStorage.deleteDynasty(dynastyId)
 
-      // Immediately save to IndexedDB (only local dynasties)
-      const localDynasties = updated.filter(d => d.storageType !== 'cloud')
-      if (localDynasties.length > 0) {
-        await indexedDBStorage.saveDynasties(localDynasties)
-      } else {
-        await indexedDBStorage.clearAll()
-      }
-
-      setDynasties(updated)
+      setDynasties(prev => prev.filter(d => String(d.id) !== String(dynastyId)))
 
       if (String(currentDynasty?.id) === String(dynastyId)) {
         setCurrentDynasty(null)
@@ -16347,9 +16341,14 @@ export function DynastyProvider({ children }) {
           delete cleaned.movements
         }
 
-        // Remove null/undefined/empty string fields
+        // Drop only null/undefined fields. NOT empty strings, and never a
+        // structural/identity field: players are saved via a full-replace
+        // set() per doc, so dropping a legitimately-empty value (e.g. a
+        // cleared jerseyNumber: '') would permanently lose it (audit C5).
+        const PROTECTED_PLAYER_KEYS = new Set(['pid', 'name', 'position', 'team'])
         Object.keys(cleaned).forEach(key => {
-          if (cleaned[key] === null || cleaned[key] === undefined || cleaned[key] === '') {
+          if (PROTECTED_PLAYER_KEYS.has(key)) return
+          if (cleaned[key] === null || cleaned[key] === undefined) {
             delete cleaned[key]
           }
         })
@@ -16419,31 +16418,15 @@ export function DynastyProvider({ children }) {
       }
     }
 
-    // 3. Remove empty ByYear objects
-    const byYearFields = [
-      'schedulesByTeamYear', 'recruitingCommitmentsByTeamYear', 'teamRatingsByTeamYear',
-      'coachingStaffByTeamYear', 'playersLeavingByYear', 'draftResultsByYear',
-      'cfpResultsByYear', 'bowlResultsByYear', 'rankingsHistoryByYear'
-    ]
-
-    byYearFields.forEach(field => {
-      if (dynasty[field]) {
-        const cleaned = {}
-        Object.entries(dynasty[field]).forEach(([key, value]) => {
-          // Keep if not empty
-          if (value && typeof value === 'object') {
-            if (Array.isArray(value) && value.length > 0) {
-              cleaned[key] = value
-            } else if (!Array.isArray(value) && Object.keys(value).length > 0) {
-              cleaned[key] = value
-            }
-          }
-        })
-        if (Object.keys(cleaned).length !== Object.keys(dynasty[field]).length) {
-          updates[field] = cleaned
-        }
-      }
-    })
+    // 3. (Removed) Empty ByYear-object pruning.
+    //
+    // These fields are now sharded into the per-year `seasons` subcollection
+    // and routed through a MERGE write, which cannot delete keys — so the
+    // old cleanup here removed nothing yet still reported phantom savings
+    // (audit C5). Doing it correctly would require `replaceSeasonal`, but a
+    // bulk replace built from possibly-partial in-memory data risks DELETING
+    // seasons that simply weren't loaded. Empty {} entries cost negligible
+    // space, so the safe choice is to not touch seasonal fields here.
 
     // Apply updates if any
     if (Object.keys(updates).length > 0) {
@@ -16753,6 +16736,22 @@ export function DynastyProvider({ children }) {
           return merged
         })
         refreshSharedSubcollections(openId)
+      } else if (openId
+                 && !openFresh
+                 && skipListenerUpdatesCountRef.current === 0
+                 && !phaseTransitionInProgressRef.current) {
+        // The open dynasty is a SHARED one that just disappeared from our
+        // snapshot — the owner deleted it or revoked our access. Drop it so
+        // we don't keep editing a dead doc whose writes silently fail
+        // (audit M6). Guard inside the setter: never null a dynasty we OWN
+        // (owned dynasties never appear in the shared snapshot, so absence
+        // there is expected and handled by the owner-list effect).
+        setCurrentDynasty(prev => {
+          if (!prev || String(prev.id) !== String(openId)) return prev
+          if (prev.userId === user?.uid) return prev
+          try { toast.info('This dynasty is no longer available — it may have been deleted by the commish.') } catch {}
+          return null
+        })
       }
     })
     return unsub
@@ -16895,7 +16894,14 @@ export function DynastyProvider({ children }) {
     if (!d || d.storageType !== 'cloud') {
       return { isShared: false, stamp: '', total: 0, readyCount: 0, allReady: false, iAmReady: false, canForceAdvance: true, isOwner: true, readyUids: [] }
     }
-    const editors = Array.isArray(d.editors) ? d.editors : []
+    // The owner is a participant even if they aren't in editors[] — after a
+    // commish transfer the new owner is removed from editors (audit M4), so
+    // union userId in to avoid undercounting participants / letting the week
+    // auto-advance without the owner being ready.
+    const editorList = Array.isArray(d.editors) ? d.editors : []
+    const editors = d.userId && !editorList.includes(d.userId)
+      ? [...editorList, d.userId]
+      : editorList
     const stamp = advanceStampOf(d)
     const ready = d.advanceReady || {}
     const readyUids = editors.filter(uid => ready[uid] === stamp)

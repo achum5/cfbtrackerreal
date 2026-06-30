@@ -346,29 +346,46 @@ export const storageService = {
       const cloudDynastyId = cloudDynasty.id;
       log(`Created main document ${cloudDynastyId}, now saving subcollections...`);
 
-      // Save players to subcollection
+      // Save players + games to subcollections. Track whether BOTH fully
+      // succeeded — we must not delete the local (only complete) copy if a
+      // save threw, or the dynasty is left gutted in the cloud with no
+      // recoverable source (audit C5).
+      let subcollectionsOk = true;
+
       if (players && players.length > 0) {
         try {
           await savePlayersToSubcollection(cloudDynastyId, players);
           log(`Saved ${players.length} players to subcollection`);
         } catch (playerErr) {
           console.error('[Storage] Failed to save players subcollection:', playerErr);
-          // Don't fail the whole migration - players can be re-synced later
+          subcollectionsOk = false;
         }
       }
 
-      // Save games to subcollection
       if (games && games.length > 0) {
         try {
           await saveGamesToSubcollection(cloudDynastyId, games);
           log(`Saved ${games.length} games to subcollection`);
         } catch (gameErr) {
           console.error('[Storage] Failed to save games subcollection:', gameErr);
-          // Don't fail the whole migration - games can be re-synced later
+          subcollectionsOk = false;
         }
       }
 
-      // Delete from local only after successful cloud creation
+      if (!subcollectionsOk) {
+        // Keep the local copy intact so the user hasn't lost anything; the
+        // cloud doc exists but is incomplete and will be reconciled on a
+        // later retry. Surface the failure instead of reporting success.
+        console.error(`[Storage] Subcollection save failed for ${dynastyId}; keeping local copy.`);
+        return {
+          success: false,
+          error: 'Some game data failed to upload. Your local copy was kept — please try again.',
+          cloudDynastyId,
+        };
+      }
+
+      // Delete from local only after BOTH the cloud doc and its
+      // subcollections are fully persisted.
       await indexedDBStorage.deleteDynasty(dynastyId);
 
       log(`Migrated dynasty ${dynastyId} to cloud as ${cloudDynastyId}`);

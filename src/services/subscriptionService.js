@@ -69,10 +69,20 @@ export function isPremiumSubscription(subscriptionData) {
     return true;
   }
 
-  // past_due → grace period from when it transitioned to past_due
+  // past_due → bounded grace. Prefer the server-stamped deadline in
+  // currentPeriodEnd (the webhook writes one on invoice.payment_failed),
+  // which is exactly what firestore.rules enforces. Fall back to a 7-day
+  // window anchored on updatedAt for docs written before that deadline
+  // existed. Never grant UNBOUNDED premium when there's no anchor — that
+  // was the drift that let a failed-payment account keep access forever
+  // (audit H2).
   if (subscriptionStatus === 'past_due') {
+    if (currentPeriodEnd) {
+      const endDate = currentPeriodEnd.toDate ? currentPeriodEnd.toDate() : new Date(currentPeriodEnd);
+      return endDate > new Date();
+    }
     const ref = updatedAt?.toDate ? updatedAt.toDate() : (updatedAt ? new Date(updatedAt) : null);
-    if (!ref) return true; // no anchor → grant grace until next event
+    if (!ref) return false; // no anchor → do not grant unbounded premium
     return (Date.now() - ref.getTime()) < PAST_DUE_GRACE_MS;
   }
 
