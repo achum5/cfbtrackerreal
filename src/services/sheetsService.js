@@ -8154,27 +8154,33 @@ async function prefillFinalPollsData(spreadsheetId, accessToken, sheetId, existi
  * shape — `coaches` is left as an empty array purely so legacy
  * persistence code that destructures it doesn't choke.
  */
-export async function readFinalPollsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readFinalPollsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    // Read all data from the Polls tab (rank + Top 25 abbr)
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Polls!A2:B26`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+      // Read all data from the Polls tab (rank + Top 25 abbr)
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Polls!A2:B26`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read polls: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read polls: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse rows into the single Top 25 list. Storing tid alongside
     // abbr keeps downstream lookups stable across teambuilder renames.

@@ -14,6 +14,8 @@ import SheetToolbar from './SheetToolbar'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 import {
   createFinalPollsSheet,
   readFinalPollsFromSheet,
@@ -39,6 +41,8 @@ export default function FinalPollsModal({ isOpen, onClose, onSave, currentYear, 
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
 
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
@@ -187,7 +191,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -207,7 +212,7 @@ FINAL CHECK before you send
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
@@ -215,8 +220,20 @@ FINAL CHECK before you send
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
       setSheetId(null)
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: feed the parser the SAME [rank, abbr] rows the sheet
+  // produces. The AI reply lists teams in rank order (rank column is normally
+  // pre-filled on the sheet), so a 1-cell line gets its rank from position.
+  const handleLocalImport = async (text) => {
+    const lines = splitTsv(text)
+    const rows = lines.map((cells, i) => (cells.length >= 2 ? cells : [String(i + 1), (cells[0] ?? '')]))
+    const polls = await readFinalPollsFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
+    await onSave(polls)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -321,7 +338,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Postseason" title={`${currentYear} Final Top 25`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Final Polls"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent' }} />
