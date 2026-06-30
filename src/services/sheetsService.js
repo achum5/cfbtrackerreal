@@ -13073,8 +13073,98 @@ async function prefillUnifiedAITab(spreadsheetId, accessToken, sheetId, existing
   await writeUnifiedTab(spreadsheetId, accessToken, sheetId, existingData)
 }
 
-// Read the unified tab back into the same { passing: [...], rushing: [...], ... } shape
-// the 9-tab reader produces. Sections with no rows return [].
+// Pure parse of unified-tab rows -> { passing: [...], rushing: [...], ... } —
+// the same shape the 9-tab reader produces, sections with no rows return [].
+// Exported so the local TSV paste path produces identical data with no fetch:
+// pass it splitTsv(pastedText). Banner-anchored: locate each section by its
+// "═══ TITLE ═══" banner in column A and read the data rows that follow until
+// the next banner, rather than trusting fixed row numbers. This tolerates a
+// paste with the wrong line count or no blank padding (the #1 failure mode).
+export function parseUnifiedBoxScoreRows(rows) {
+  const layout = computeUnifiedTabLayout()
+  const norm = (s) => String(s || '').replace(/═/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+  const titleToSection = {}
+  for (const section of layout.sections) titleToSection[norm(section.title)] = section
+
+  const boxScore = {}
+  for (const section of layout.sections) boxScore[section.key] = []
+
+  let current = null
+  const seen = new Set() // sections already read — ignore any later duplicate banner
+  for (let r = 0; r < (rows || []).length; r++) {
+    const row = rows[r] || []
+    const a = (row[0] || '').trim()
+    if (!a) continue
+
+    // Banner line: decorated with ═, or a bare section title on its own row.
+    const decorated = a.includes('═')
+    const asTitle = titleToSection[norm(a)]
+    const restEmpty = row.slice(1).every(c => !String(c || '').trim())
+    if (decorated || (asTitle && restEmpty)) {
+      // First occurrence of a known section wins; a duplicate banner (stale
+      // leftover from a re-paste) or an unrecognized decorated line stops
+      // attribution so its rows can't be misread into a section.
+      if (asTitle && !seen.has(asTitle.key)) { seen.add(asTitle.key); current = asTitle }
+      else current = null
+      continue
+    }
+    if (!current) continue
+    // Skip the section's column-header row (column A === "Player Name").
+    if (a.toLowerCase() === String(current.headers[0]).toLowerCase()) continue
+
+    const headerToKey = buildHeaderKeyMap(current.key, current.headers)
+    const entry = { playerName: a }
+    current.headers.forEach((header, idx) => {
+      if (idx === 0) return
+      const value = row[idx] || ''
+      entry[headerToKey[idx]] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
+    })
+    boxScore[current.key].push(entry)
+  }
+  return boxScore
+}
+
+// Inverse of parseUnifiedBoxScoreRows: a boxScore -> unified TSV (a "═══ TITLE
+// ═══" banner, the header row, then one line per entry) for each section that
+// has rows. Seeds / round-trips the raw textarea in the local paste grid.
+export function serializeUnifiedBoxScoreToTsv(boxScore) {
+  const layout = computeUnifiedTabLayout()
+  const lines = []
+  for (const section of layout.sections) {
+    const entries = (boxScore && boxScore[section.key]) || []
+    if (entries.length === 0) continue
+    const keyMap = buildHeaderKeyMap(section.key, section.headers)
+    lines.push(`═══ ${section.title.toUpperCase()} ═══`)
+    lines.push(section.headers.join('\t'))
+    for (const entry of entries) {
+      const cells = section.headers.map((header, idx) => {
+        const v = idx === 0 ? (entry.playerName ?? '') : (entry[keyMap[idx]] ?? '')
+        return v == null ? '' : String(v)
+      })
+      lines.push(cells.join('\t'))
+    }
+  }
+  return lines.join('\n')
+}
+
+// Section metadata for the editable paste grid: display headers plus the entry
+// key each column binds to (fieldKeys[0] === 'playerName'). Lets the UI render
+// and edit the boxScore without re-deriving the header->key mapping.
+export function getUnifiedBoxScoreSections() {
+  const layout = computeUnifiedTabLayout()
+  return layout.sections.map((s) => {
+    const keyMap = buildHeaderKeyMap(s.key, s.headers)
+    return {
+      key: s.key,
+      title: s.title,
+      headers: s.headers,
+      fieldKeys: s.headers.map((_, idx) => keyMap[idx]),
+    }
+  })
+}
+
+// Read the unified tab back into the same { passing: [...], rushing: [...], ... }
+// shape the 9-tab reader produces. Sections with no rows return [].
 export async function readGameBoxScoreFromUnifiedTab(spreadsheetId) {
   try {
     const accessToken = await getAccessToken()
@@ -13091,54 +13181,7 @@ export async function readGameBoxScoreFromUnifiedTab(spreadsheetId) {
       return null
     }
     const data = await response.json()
-    const rows = data.values || []
-
-    // Banner-anchored read: locate each section by its "═══ TITLE ═══"
-    // banner in column A and read the data rows that follow until the next
-    // banner — rather than trusting fixed row numbers. This tolerates an AI
-    // paste that has the wrong line count or no blank padding (the #1 failure
-    // mode), and stays backward-compatible with old fixed-layout sheets,
-    // whose banners still sit where this scan finds them.
-    const norm = (s) => String(s || '').replace(/═/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
-    const titleToSection = {}
-    for (const section of layout.sections) titleToSection[norm(section.title)] = section
-
-    const boxScore = {}
-    for (const section of layout.sections) boxScore[section.key] = []
-
-    let current = null
-    const seen = new Set() // sections already read — ignore any later duplicate banner
-    for (let r = 0; r < rows.length; r++) {
-      const row = rows[r] || []
-      const a = (row[0] || '').trim()
-      if (!a) continue
-
-      // Banner line: decorated with ═, or a bare section title on its own row.
-      const decorated = a.includes('═')
-      const asTitle = titleToSection[norm(a)]
-      const restEmpty = row.slice(1).every(c => !String(c || '').trim())
-      if (decorated || (asTitle && restEmpty)) {
-        // First occurrence of a known section wins; a duplicate banner (stale
-        // leftover from a re-paste) or an unrecognized decorated line stops
-        // attribution so its rows can't be misread into a section.
-        if (asTitle && !seen.has(asTitle.key)) { seen.add(asTitle.key); current = asTitle }
-        else current = null
-        continue
-      }
-      if (!current) continue
-      // Skip the section's column-header row (column A === "Player Name").
-      if (a.toLowerCase() === String(current.headers[0]).toLowerCase()) continue
-
-      const headerToKey = buildHeaderKeyMap(current.key, current.headers)
-      const entry = { playerName: a }
-      current.headers.forEach((header, idx) => {
-        if (idx === 0) return
-        const value = row[idx] || ''
-        entry[headerToKey[idx]] = value === '' ? null : (isNaN(Number(value)) ? value : Number(value))
-      })
-      boxScore[current.key].push(entry)
-    }
-    return boxScore
+    return parseUnifiedBoxScoreRows(data.values || [])
   } catch (error) {
     console.error('Error reading unified AI tab:', error)
     return null
@@ -13738,7 +13781,7 @@ export async function readScoringSummaryFromSheet(spreadsheetId, dynastyTeams = 
 }
 
 // Team stats row labels for game team stats sheet (entry order)
-const TEAM_STATS_ROWS = [
+export const TEAM_STATS_ROWS = [
   'First Downs',
   'Total Offense',
   'Total Plays',
@@ -14121,6 +14164,42 @@ export async function readGameTeamStatsFromSheet(spreadsheetId, dynastyTeams = n
     console.error('Error reading team stats:', error)
     throw error
   }
+}
+
+// Parse PASTED Team Stats TSV into the same teamStatsByTid map that
+// readGameTeamStatsFromSheet returns — the no-Google ingest path.
+//
+// The AI prompt for team stats emits exactly 30 lines of "<away>\t<home>"
+// (column A's stat label is pre-filled/protected, so it is never output, and
+// there is no header row). `rows` is that TSV after splitTsv(): an array of
+// [awayValue, homeValue] cells. Stat labels therefore come from the fixed
+// TEAM_STATS_ROWS order (by index), and the team abbreviations come from the
+// GAME (the paste carries neither). Value coercion mirrors the sheet reader
+// 1:1 so paste and Google round-trips produce identical stored data.
+export function parseGameTeamStatsTsv(rows, { awayAbbr, homeAbbr, dynastyTeams = null } = {}) {
+  const toCamelKey = (label) => label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+(.)/g, (_, c) => c.toUpperCase())
+    .replace(/^./, (c) => c.toLowerCase())
+
+  const awayEntry = { teamAbbr: awayAbbr || '' }
+  const homeEntry = { teamAbbr: homeAbbr || '' }
+
+  for (let i = 0; i < TEAM_STATS_ROWS.length; i++) {
+    const row = rows[i] || []
+    const camelKey = toCamelKey(TEAM_STATS_ROWS[i])
+    const awayValue = (row[0] ?? '').toString().trim()
+    const homeValue = (row[1] ?? '').toString().trim()
+    awayEntry[camelKey] = awayValue === '' ? null : (isNaN(Number(awayValue)) ? awayValue : Number(awayValue))
+    homeEntry[camelKey] = homeValue === '' ? null : (isNaN(Number(homeValue)) ? homeValue : Number(homeValue))
+  }
+
+  const teamStatsByTid = {}
+  const awayTid = awayAbbr ? getTidFromAbbr(awayAbbr, dynastyTeams) : null
+  const homeTid = homeAbbr ? getTidFromAbbr(homeAbbr, dynastyTeams) : null
+  if (awayTid != null) teamStatsByTid[Number(awayTid)] = awayEntry
+  if (homeTid != null) teamStatsByTid[Number(homeTid)] = homeEntry
+  return teamStatsByTid
 }
 
 // Pre-fill team stats sheet with existing data (single tab with columns B=away, C=home)

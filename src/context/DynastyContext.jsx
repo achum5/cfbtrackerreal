@@ -91,12 +91,14 @@ import {
   addCareerEntry,
   isFCSPlaceholderAbbr,
   isFCSPlaceholderTid,
+  ABBR_TO_TID,
 } from '../data/teamRegistry'
 import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
 import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rosterModel'
 import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
 import { CFB27_TEAM_RATINGS } from '../data/cfb27TeamRatings'
+import { CFB27_TEAM_ABBRS } from '../data/cfb27TeamAbbrs'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
@@ -7326,17 +7328,29 @@ export function DynastyProvider({ children }) {
     // whether the whole-country roster + launch team-ratings seed runs (cfb27).
     const editionKey = normalizeEditionKey(dynastyData.gameEdition || DEFAULT_EDITION)
 
-    // If custom teams exist, initialize conference data with replacement applied
+    // Conference data is built AFTER the teams map (abbreviations) is finalized
+    // below, so it can reflect cfb27's launch abbreviations and any teambuilder
+    // overrides in one place.
     let initialConferences = null
-    if (dynastyData.customTeams && Object.keys(dynastyData.customTeams).length > 0) {
-      initialConferences = getConferencesWithCustomTeams(dynastyData.customTeams)
-    }
 
     // Initialize the teams map from the master TEAMS list
     // This is the single source of truth for all team data in this dynasty.
     // Pass the edition so edition-gated teams (e.g. CFB 27's NDSU/Sac State)
     // only appear in dynasties on that edition or later.
     const teams = initializeDynastyTeams(editionKey)
+
+    // CFB 27: apply the launch abbreviation set, overriding each team's abbr on
+    // the dynasty's own teams map. This is the SAME per-dynasty override path
+    // teambuilder teams use, so getTidFromAbbr(..., dynasty) and every
+    // dynasty-aware read resolve the new abbrevs. Runs BEFORE teambuilder so a
+    // custom team can still replace a slot's abbr on top. NDSU/Sac State aren't
+    // in the set and keep their registry abbreviations.
+    if (editionKey === 'cfb27') {
+      for (const [tidStr, abbr] of Object.entries(CFB27_TEAM_ABBRS)) {
+        const t = teams[Number(tidStr)]
+        if (t) t.abbr = abbr
+      }
+    }
 
     // If there's a teambuilder team, replace the corresponding slot
     if (dynastyData.customTeams) {
@@ -7353,6 +7367,29 @@ export function DynastyProvider({ children }) {
           })
         }
       }
+    }
+
+    // Build conference data now that the teams map (abbrevs) is final.
+    // - cfb27: the static conference membership is keyed by the OLD registry
+    //   abbrevs, so remap each entry to that slot's CURRENT abbr via its tid.
+    //   This captures both the cfb27 launch abbrevs and any teambuilder override
+    //   in one pass, and feeds the byYear.conference + customConferences writer
+    //   below so getTeamConference resolves renamed teams.
+    // - other editions: unchanged teambuilder-only behavior.
+    if (editionKey === 'cfb27') {
+      initialConferences = {}
+      for (const [conf, oldAbbrs] of Object.entries(DEFAULT_CONFERENCE_TEAMS)) {
+        initialConferences[conf] = oldAbbrs.map((oldAbbr) => {
+          // Resolve the OLD abbr via the STATIC registry map (not the dynasty
+          // teams) — a few new abbrevs collide with other teams' old abbrevs
+          // (e.g. Louisville's new "UL" was Lafayette's old "UL"), so a
+          // dynasty-aware scan would misroute. Then take that tid's CURRENT abbr.
+          const tid = ABBR_TO_TID[String(oldAbbr).toUpperCase()]
+          return (tid != null && teams[tid]?.abbr) ? teams[tid].abbr : oldAbbr
+        })
+      }
+    } else if (dynastyData.customTeams && Object.keys(dynastyData.customTeams).length > 0) {
+      initialConferences = getConferencesWithCustomTeams(dynastyData.customTeams)
     }
 
     // Get the currentTid for the user's team
