@@ -280,9 +280,11 @@ export async function setCoCommishAtomic(dynastyId, uid, isCo) {
  * list for this uid; pass [] to clear. When `historyForUid` is provided it
  * replaces only this uid's memberTeamHistory entry. To also strip the tid
  * from a previous holder (one-coach-per-team), pass their uid+list in
- * `alsoClear` as { [uid]: tids }.
+ * `alsoClear` as { [uid]: tids }; pass their re-stamped per-year history in
+ * `alsoHistory` as { [uid]: historyForUid } so the stripped team stops
+ * attributing the current year's games to them as well.
  */
-export async function setMemberTeamsAtomic(dynastyId, uid, tids, historyForUid, alsoClear) {
+export async function setMemberTeamsAtomic(dynastyId, uid, tids, historyForUid, alsoClear, alsoHistory) {
   const updates = {
     [`memberTeams.${uid}`]: tids,
     updatedAt: serverTimestamp(),
@@ -293,7 +295,46 @@ export async function setMemberTeamsAtomic(dynastyId, uid, tids, historyForUid, 
       updates[`memberTeams.${otherUid}`] = otherTids
     }
   }
+  if (alsoHistory) {
+    for (const [otherUid, otherHistory] of Object.entries(alsoHistory)) {
+      if (otherHistory !== undefined) updates[`memberTeamHistory.${otherUid}`] = otherHistory
+    }
+  }
   await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), updates)
+}
+
+/**
+ * Register a local-coach seat (a separately tracked coaching career a
+ * single user controls). Writes the registry entry plus an initial
+ * display label via per-id dot-notation so it can't clobber another
+ * manager's concurrent membership write.
+ */
+export async function addLocalCoachAtomic(dynastyId, localId, ownerUid, createdAt, label) {
+  const updates = {
+    [`localCoaches.${localId}`]: { owner: ownerUid || null, createdAt: createdAt ?? null },
+    updatedAt: serverTimestamp(),
+  }
+  if (label) updates[`memberLabels.${localId}`] = label
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), updates)
+}
+
+/**
+ * Delete a local-coach seat and ALL of its per-id metadata (label, teams,
+ * photo, staff, and team history). Unlike removeMemberAtomic — which keeps
+ * a departed real member's history so their past career still renders —
+ * a local coach is a user-created seat, so a full delete is the intent.
+ * Per-id deleteField() so it never disturbs other coaches' entries.
+ */
+export async function removeLocalCoachAtomic(dynastyId, localId) {
+  await updateDoc(doc(db, DYNASTIES_COLLECTION, dynastyId), {
+    [`localCoaches.${localId}`]: deleteField(),
+    [`memberTeams.${localId}`]: deleteField(),
+    [`memberLabels.${localId}`]: deleteField(),
+    [`memberPhotos.${localId}`]: deleteField(),
+    [`memberCoachingStaff.${localId}`]: deleteField(),
+    [`memberTeamHistory.${localId}`]: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
 }
 
 // ─── Invite tokens ───────────────────────────────────────────────

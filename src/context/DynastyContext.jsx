@@ -99,6 +99,7 @@ import { buildDefaultRosterPlayers } from '../data/defaultRosterLoader'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
+import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches } from '../data/coachModel'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
@@ -4373,41 +4374,39 @@ export function getLockedCoachingStaff(dynasty, year, teamAbbr = null) {
     staff = lookupByTeamYear(dynasty.coachingStaffByTeamYear, dynasty, tid ?? teamAbbr, year)
   }
 
-  // ONLY fall back to legacy coaching staff if this is the user's CURRENT team
-  // This prevents showing the user's coordinators on other teams' pages
-  const userCurrentTid = getCurrentTeamTid(dynasty)
-  if (!staff && tid === userCurrentTid) {
-    staff = dynasty.coachingStaff || { hcName: null, ocName: null, dcName: null }
-  }
-
-  // If still no staff (other team with no data), return empty
+  // NO global dynasty.coachingStaff fallback. That single blob holds only
+  // ONE team's coordinators, so it leaks across teams the moment a user runs
+  // more than one (e.g. Kentucky's coordinators showing on Arkansas).
+  // Coordinators live PER TEAM in teams[tid].byYear[year].coachingStaff (the
+  // single source of truth); a team with none entered simply shows none.
   if (!staff) {
     staff = { hcName: null, ocName: null, dcName: null }
   }
 
-  // Check if the user was coaching this team in this year and add their name.
-  // coachTeamByYear.team is documented as "ALWAYS use tid" (see
-  // getCoachTeamForYear) — compare by tid first, fall back to abbr only for
-  // pre-migration legacy records that may still hold an abbr string.
-  const coachTeamForYear = getCoachTeamForYear(dynasty, year)
-  const coachTid = coachTeamForYear?.team
-  const matchesTeam = coachTeamForYear && (
-    (tid != null && coachTid != null && Number(coachTid) === Number(tid)) ||
-    coachTid === teamAbbr
+  // Head-coach name comes from the COACH ENTITY controlling this team that
+  // year (per-team, per-coach) — not a dynasty-wide owner stamp. This keeps
+  // each team's head coach separate when one user runs several teams.
+  const hcCoach = Object.values(getCoaches(dynasty)).find(c =>
+    c && c.controlledBy != null &&
+    Number(c.byYear?.[year]?.teamTid ?? c.byYear?.[String(year)]?.teamTid) === Number(tid)
   )
-  // Owner-centric: coachTeamByYear is the legacy owner-only stamp, so
-  // the name we inject is the owner's. getCoachNameForUid pulls
-  // memberLabels[ownerUid] first and falls back to dynasty.coachName
-  // for pre-migration dynasties — single source of truth.
-  const ownerName = matchesTeam ? getCoachNameForUid(dynasty, dynasty.userId, '') : ''
-  if (matchesTeam && ownerName) {
-    staff = { ...staff }
-    if (coachTeamForYear.position === 'HC') {
-      staff.hcName = ownerName
-    } else if (coachTeamForYear.position === 'OC') {
-      staff.ocName = ownerName
-    } else if (coachTeamForYear.position === 'DC') {
-      staff.dcName = ownerName
+  if (hcCoach && hcCoach.name) {
+    staff = { ...staff, hcName: hcCoach.name }
+  } else {
+    // Legacy fallback for pre-migration saves with no coach entity yet:
+    // the owner-only coachTeamByYear stamp.
+    const coachTeamForYear = getCoachTeamForYear(dynasty, year)
+    const coachTid = coachTeamForYear?.team
+    const matchesTeam = coachTeamForYear && (
+      (tid != null && coachTid != null && Number(coachTid) === Number(tid)) ||
+      coachTid === teamAbbr
+    )
+    const ownerName = matchesTeam ? getCoachNameForUid(dynasty, dynasty.userId, '') : ''
+    if (matchesTeam && ownerName) {
+      staff = { ...staff }
+      if (coachTeamForYear.position === 'HC') staff.hcName = ownerName
+      else if (coachTeamForYear.position === 'OC') staff.ocName = ownerName
+      else if (coachTeamForYear.position === 'DC') staff.dcName = ownerName
     }
   }
 
@@ -6559,6 +6558,25 @@ export function DynastyProvider({ children }) {
         migrated = migrateDynastyToEditors(migrated)
       }
 
+      // Ownership backfill — older LOCAL saves (and any free-tier dynasty
+      // created before the owner was stamped) may have editors but no
+      // userId, so their creator renders as a plain member instead of the
+      // commish. The creator is editors[0]; stamp them as the owner. Cloud
+      // dynasties always carry userId (the create rule requires it), so this
+      // only ever fixes local saves.
+      if (!migrated.userId && Array.isArray(migrated.editors) && migrated.editors.length > 0) {
+        migrated = { ...migrated, userId: migrated.editors[0] }
+      }
+
+      // COACH-ENTITY MIGRATION: bring each user's head coach into the
+      // cid-keyed coaches map (controlledBy = their uid), derived from the
+      // legacy uid-keyed maps. Additive + fail-safe + idempotent (see
+      // coachModel.migrateDynastyToCoaches). Computed in-memory on every
+      // load until the user next mutates a coach; intentionally NOT added to
+      // the on-open auto-persist block, so merely viewing a years-deep save
+      // never writes to it. Legacy maps are preserved untouched for fallback.
+      migrated = migrateDynastyToCoaches(migrated)
+
       // Drop 0-0 shell duplicates: if two games match on
       // year + week + gameType + team-pair (either order) and one is a
       // blank shell (no scores, not played) while the other has data,
@@ -7389,6 +7407,20 @@ export function DynastyProvider({ children }) {
       ...dynastyDataNoCustomTeams
     } = dynastyData
 
+    // Seed the owner's head coach as a first-class coach entity
+    // (controlledBy = their uid). This is the new source of truth for the
+    // coaching career; the uid-keyed memberTeams/memberTeamHistory seeds
+    // below stay as the derived security index + legacy fallback.
+    const ownerCoach = (user?.uid && currentTid)
+      ? makeCoach({
+          name: dynastyData.coachName?.trim() || '',
+          year: startYear,
+          teamTid: Number(currentTid),
+          role: coachPosition || 'HC',
+          controlledBy: user.uid,
+        })
+      : null
+
     const newDynastyData = {
       ...dynastyDataNoCustomTeams,
       // Which game edition this dynasty tracks (CFB 26 vs 27). The form
@@ -7439,6 +7471,12 @@ export function DynastyProvider({ children }) {
         ...(dynastyData.coachName?.trim() ? {
           memberLabels: { [user.uid]: dynastyData.coachName.trim() },
         } : {}),
+      } : {}),
+      // First-class coach entity for the owner + skip the load-migration
+      // (this save is born already in the new model).
+      ...(ownerCoach ? {
+        coaches: { [ownerCoach.cid]: ownerCoach },
+        _coachesControlMigrated: true,
       } : {}),
       preseasonSetup: {
         scheduleEntered: false,
@@ -7526,6 +7564,10 @@ export function DynastyProvider({ children }) {
       const newDynasty = {
         id: Date.now().toString(),
         ...newDynastyData,
+        // The creator is the OWNER (commish), free tier included. Cloud
+        // dynasties get this from createDynastyInFirestore; local ones must
+        // set it here or the creator would render as a plain member.
+        userId: user?.uid ?? newDynastyData.userId ?? null,
         players: seededPlayers, // local dynasties read players inline from the IndexedDB doc
         createdAt: new Date().toISOString(),
         lastModified: Date.now()
@@ -7931,6 +7973,15 @@ export function DynastyProvider({ children }) {
       const mergeUpdates = (base) => {
         const merged = deepMerge(base, expandedUpdates)
         if (replaceTeams && expandedUpdates.teams) merged.teams = expandedUpdates.teams
+        // `coaches` (and its derived `memberTeams` index) are maps where a
+        // DELETION must propagate — removing a coach, or clearing a season's
+        // byYear entry (Timeline "Clear"/X). deepMerge can only add/update
+        // keys, never drop them, so a cleared season would linger in the UI
+        // until reload. All coach writes send the full intended map, so a
+        // wholesale replace is both correct and what updateDoc already does
+        // on the server.
+        if ('coaches' in expandedUpdates) merged.coaches = expandedUpdates.coaches
+        if ('memberTeams' in expandedUpdates) merged.memberTeams = expandedUpdates.memberTeams
         // Same rationale as replaceTeams: deepMerge can't drop a removed key, so
         // a cleared seasonal entry (e.g. a recruiting-class rank) would linger in
         // the UI until reload. Replace the whole field with the new value.
@@ -11069,6 +11120,12 @@ export function DynastyProvider({ children }) {
           dynasty.memberTeams != null
             ? JSON.parse(JSON.stringify(dynasty.memberTeams))
             : null
+        // Full coaches-map snapshot — the job swap edits a controlled coach's
+        // byYear; capturing the whole map makes revert a clean restore.
+        const _coachesSnapshot =
+          dynasty.coaches != null
+            ? JSON.parse(JSON.stringify(dynasty.coaches))
+            : null
         // Snapshot the OLD team's pre-existing byYear[currentYear] slice
         // so revert can decide whether to drop the entry entirely (it
         // didn't exist) or restore the prior content.
@@ -11097,6 +11154,7 @@ export function DynastyProvider({ children }) {
           teamsSlice: _teamsSliceForSnapshot,
           memberTeams: _memberTeamsSnapshot,
           memberTeamHistory: _memberTeamHistorySnapshot,
+          coaches: _coachesSnapshot,
           legacyTaggedPlayerPids: _legacyTaggedPlayerPids,
           legacyTaggedGameIds: _legacyTaggedGameIds,
           oldTeamByYearForCurrentYear: _oldTeamByYearSnapshot,
@@ -11374,21 +11432,57 @@ export function DynastyProvider({ children }) {
               const newUserTid = Number(newUserTidEntry[0])
               const seasonThatJustEnded = Number(dynasty.currentYear)
               if (Number.isFinite(seasonThatJustEnded)) {
+                // Legacy mirror (kept for fallback / read-compat).
                 additionalUpdates.memberTeamHistory = snapshotAllMembersForYear(
                   dynasty,
                   seasonThatJustEnded,
                 )
+
+                // Coach entity (source of truth): advance the owner's ACTIVE
+                // coach onto the new team for the UPCOMING season. The ended
+                // season's byYear stays on the old team so its games keep
+                // attributing there; the new team is keyed to nextSeason so we
+                // never overwrite the season that just finished.
+                const oldTid = Number(dynasty.currentTid)
+                const activeCoach =
+                  getActiveCoachForTeam(dynasty, ownerUid, oldTid, seasonThatJustEnded) ||
+                  getCoachesControlledBy(dynasty, ownerUid)[0] || null
+                if (activeCoach) {
+                  const nextSeason = seasonThatJustEnded + 1
+                  const updatedCoach = setCoachSeason(activeCoach, nextSeason, {
+                    teamTid: newUserTid,
+                    role: newJobData.position || 'HC',
+                    hiredVia: 'carousel',
+                  })
+                  const nextCoaches = { ...getCoaches(dynasty), [activeCoach.cid]: updatedCoach }
+                  additionalUpdates.coaches = nextCoaches
+                  // Re-derive the security index from the updated coaches, merged
+                  // over the existing index so no member is dropped.
+                  additionalUpdates.memberTeams = {
+                    ...(dynasty.memberTeams || {}),
+                    ...deriveMemberTeamsIndex({
+                      ...dynasty,
+                      currentYear: seasonThatJustEnded,
+                      coaches: nextCoaches,
+                    }),
+                  }
+                }
               }
-              const existingMemberTeams = dynasty.memberTeams || {}
-              const ownerCurrent = Array.isArray(existingMemberTeams[ownerUid])
-                ? existingMemberTeams[ownerUid].map(Number)
-                : []
-              const swapped = ownerCurrent.length > 0
-                ? [newUserTid, ...ownerCurrent.slice(1).filter(t => t !== newUserTid)]
-                : [newUserTid]
-              additionalUpdates.memberTeams = {
-                ...existingMemberTeams,
-                [ownerUid]: swapped,
+
+              // Fallback memberTeams swap when there was no coach to advance
+              // (un-migrated edge) — keeps the live team correct regardless.
+              if (additionalUpdates.memberTeams === undefined) {
+                const existingMemberTeams = dynasty.memberTeams || {}
+                const ownerCurrent = Array.isArray(existingMemberTeams[ownerUid])
+                  ? existingMemberTeams[ownerUid].map(Number)
+                  : []
+                const swapped = ownerCurrent.length > 0
+                  ? [newUserTid, ...ownerCurrent.slice(1).filter(t => t !== newUserTid)]
+                  : [newUserTid]
+                additionalUpdates.memberTeams = {
+                  ...existingMemberTeams,
+                  [ownerUid]: swapped,
+                }
               }
             }
           }
@@ -12411,6 +12505,20 @@ export function DynastyProvider({ children }) {
       updates.memberTeamHistory = snapshotAllMembersForYear(dynasty, previousSeasonYear)
     }
 
+    // Coach entities (source of truth): carry every controlled coach into the
+    // new season (non-overwriting — a coach who took a new job keeps it), then
+    // refresh the derived security index for the new current year. Merge over
+    // the existing index so a member without a coach entity (migration edge)
+    // never loses their game-write access.
+    if (Number.isFinite(currentSeasonYear) && dynasty.coaches && Object.keys(dynasty.coaches).length) {
+      const carried = carryForwardControlledCoaches(dynasty.coaches, currentSeasonYear)
+      updates.coaches = carried
+      updates.memberTeams = {
+        ...(dynasty.memberTeams || {}),
+        ...deriveMemberTeamsIndex({ ...dynasty, currentYear: currentSeasonYear, coaches: carried }),
+      }
+    }
+
     try {
       // Fast path for cloud dynasties: only a fraction of players actually
       // change during advance-to-new-season (recruits being converted,
@@ -13259,6 +13367,11 @@ export function DynastyProvider({ children }) {
           }
           if (previousJobData.memberTeamHistory !== undefined) {
             additionalUpdates.memberTeamHistory = previousJobData.memberTeamHistory
+          }
+          // Restore the coaches map (advance added the new-team byYear to the
+          // active coach). A full-map restore reverses it cleanly.
+          if (previousJobData.coaches !== undefined && previousJobData.coaches !== null) {
+            additionalUpdates.coaches = previousJobData.coaches
           }
 
           // Untag legacy player.team / game.userTeam fields that advance
@@ -16803,11 +16916,12 @@ export function DynastyProvider({ children }) {
     setActiveTeamByKey(prev => ({ ...prev, [_activeTeamKey]: tNum }))
   }
 
-  // The list of tids this user controls in the current dynasty, in the
-  // order they were assigned. Empty array if no assignments — callers
-  // fall back to the dynasty-doc-level currentTid.
+  // The list of tids this user controls in the current dynasty — the
+  // current-season team of every coach they control (so each separately
+  // tracked coach's team stays switchable/writable from the TeamSwitcher).
+  // Empty array if none — callers fall back to the dynasty-doc currentTid.
   const userTeams = (currentDynasty && user?.uid)
-    ? getMemberTeams(currentDynasty, user.uid)
+    ? getCurrentTeamsForControlledCoaches(currentDynasty, user.uid)
     : []
 
   // The user's currently-focused tid: the saved active selection if it

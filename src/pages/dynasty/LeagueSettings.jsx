@@ -31,6 +31,8 @@ import {
   removeMemberAtomic,
   setCoCommishAtomic,
   setMemberTeamsAtomic,
+  addLocalCoachAtomic,
+  removeLocalCoachAtomic,
   leaveDynasty as leaveDynastyAtomic,
 } from '../../services/dynastyService'
 import {
@@ -59,10 +61,26 @@ import {
   buildInviteUrl,
   getCoachingStaffForUid,
   setCoachingStaffForUid,
+  getLocalCoachIds,
+  getLocalCoachOwner,
+  isLocalCoachId,
+  createLocalCoachId,
+  addLocalCoachToMap,
+  removeLocalCoachFromMap,
   ROLE_COMMISH,
   ROLE_COCOMMISH,
   ROLE_MEMBER,
 } from '../../data/leagueModel'
+import {
+  getCoaches,
+  getCoach,
+  getCoachesControlledBy,
+  getCurrentTeamTidForCoach,
+  applyControlledCoachTeam,
+  deriveMemberTeamsIndex,
+  deleteCoach,
+  generateCid,
+} from '../../data/coachModel'
 import MemberTimelineEditor from '../../components/MemberTimelineEditor'
 
 function shortenUid(uid) {
@@ -92,7 +110,7 @@ export default function LeagueSettings() {
   const [pendingUid, setPendingUid] = useState('')
   const [busyUid, setBusyUid] = useState(null)
   const [nameDrafts, setNameDrafts] = useState({})
-  const [timelineUid, setTimelineUid] = useState(null)
+  const [timelineCid, setTimelineCid] = useState(null)
   const [staffDraft, setStaffDraft] = useState(null) // { hcName, ocName, dcName } | null
   const [invites, setInvites] = useState([])
   // Default expiration for newly-generated invites. Stored client-side
@@ -152,7 +170,11 @@ export default function LeagueSettings() {
     if (rb === ROLE_COCOMMISH) return 1
     return 0
   })
-  const totalMembers = 1 + otherEditors.length
+  // The roster counts CONTROLLED coaches (each member's separately-tracked
+  // careers), so a solo owner running two coaches reads as two.
+  const controlledCoachCount = Object.values(getCoaches(currentDynasty))
+    .filter(c => c && c.controlledBy != null).length
+  const totalMembers = Math.max(1 + otherEditors.length, controlledCoachCount)
 
   const teamOptions = Object.entries(teamsSource)
     .filter(([, t]) => t && t.name)
@@ -370,63 +392,69 @@ export default function LeagueSettings() {
     }
   }
 
-  // Both the live memberTeams map and the per-year history snapshot
-  // are written together — one call per change. The history stamp uses
-  // the dynasty's current year, so the Coach Career page can later
-  // rebuild who controlled what without revisiting Firestore.
-  const writeMemberTeamsAndStamp = async (uid, nextMemberTeams) => {
-    const teamsForUid = nextMemberTeams[uid] || []
-    const nextHistory = stampHistoryForYear(
-      currentDynasty.memberTeamHistory,
-      uid,
-      currentDynasty.currentYear,
-      teamsForUid,
-    )
-    // Write EACH uid whose team list actually changed via per-uid
-    // dot-notation, rather than overwriting the whole memberTeams map.
-    // A concurrent assignment to a different member can no longer clobber
-    // this one (audit H5), and a one-coach-per-team reassignment (the tid
-    // stripped from a prior holder) rides along atomically.
-    const prev = currentDynasty.memberTeams || {}
-    const changedOthers = {}
-    const allUids = new Set([...Object.keys(prev), ...Object.keys(nextMemberTeams)])
-    for (const u of allUids) {
-      if (u === uid) continue
-      if (JSON.stringify(prev[u] || []) !== JSON.stringify(nextMemberTeams[u] || [])) {
-        changedOthers[u] = nextMemberTeams[u] || []
-      }
+  // ── Coach writes ─────────────────────────────────────────────────
+  // coaches[cid] is the source of truth. We persist the full coaches map
+  // plus the re-derived security index (merged over the existing one so no
+  // member ever loses game-write access), dual-mode via updateDynasty. The
+  // legacy uid-keyed maps are left untouched as a frozen pre-migration
+  // snapshot. `_coachesControlMigrated` rides along so the load-migration
+  // stays a no-op once the user has touched a coach.
+  const writeCoaches = async (nextCoaches) => {
+    const memberTeams = {
+      ...(currentDynasty.memberTeams || {}),
+      ...deriveMemberTeamsIndex({ ...currentDynasty, coaches: nextCoaches }),
     }
-    await setMemberTeamsAtomic(
-      currentDynasty.id,
-      uid,
-      teamsForUid,
-      nextHistory[uid],
-      Object.keys(changedOthers).length ? changedOthers : undefined,
-    )
+    await updateDynasty(currentDynasty.id, {
+      coaches: nextCoaches,
+      memberTeams,
+      _coachesControlMigrated: true,
+    })
   }
 
-  const handleAddTeam = async (uid, tidStr) => {
-    if (!canManage) return
+  const newCoach = (uid) => ({
+    cid: generateCid(),
+    name: 'New Coach',
+    controlledBy: uid,
+    status: 'active',
+    departedYear: null,
+    byYear: {},
+  })
+
+  // Assign a team to a member: fill one of their teamless coaches if any,
+  // else create a NEW coach for that team (separate tracked career per team).
+  // Anyone may manage their OWN coaches; commish/co-commish manage anyone's.
+  const handleAssignTeam = async (uid, tidStr) => {
+    if (!canManage && uid !== user.uid) return
     const tid = Number(tidStr)
     if (!Number.isFinite(tid)) return
-    const role = getRole(currentDynasty, uid)
-    const cap = maxTeamsForRole(role)
+    // A member can't take a team another coach already controls — only the
+    // commish can reassign across coaches.
+    if (!canManage) {
+      const taken = Object.values(getCoaches(currentDynasty)).some(c =>
+        c && c.controlledBy != null && c.controlledBy !== user.uid &&
+        Number(getCurrentTeamTidForCoach(c, currentDynasty.currentYear)) === tid
+      )
+      if (taken) {
+        toast.error('That team is controlled by another coach. Ask the commissioner to reassign it.')
+        return
+      }
+    }
     setBusyUid(uid)
     try {
-      // For capped roles (members), `Add` always REPLACES.
-      let next = cap === Infinity
-        ? addMemberTeam(currentDynasty, uid, tid)
-        : setMemberTeam(currentDynasty, uid, tid)
-      // One coach per team: strip this tid from any OTHER member who held
-      // it, so assigning a taken team REASSIGNS it instead of creating a
-      // double-claim where two members can both write that team (audit M3).
-      next = { ...next }
-      for (const otherUid of Object.keys(next)) {
-        if (otherUid === uid) continue
-        const arr = (next[otherUid] || []).map(Number)
-        if (arr.includes(tid)) next[otherUid] = arr.filter(t => t !== tid)
+      const year = currentDynasty.currentYear
+      const mine = getCoachesControlledBy(currentDynasty, uid)
+      const teamless = mine.find(c => getCurrentTeamTidForCoach(c, year) == null)
+      let base = getCoaches(currentDynasty)
+      let cid
+      if (teamless) {
+        cid = teamless.cid
+      } else {
+        const c = newCoach(uid)
+        base = { ...base, [c.cid]: c }
+        cid = c.cid
       }
-      await writeMemberTeamsAndStamp(uid, next)
+      const { coaches } = applyControlledCoachTeam({ ...currentDynasty, coaches: base }, cid, year, tid)
+      await writeCoaches(coaches)
     } catch (err) {
       console.error('[Members] assign team failed:', err)
       toast.error('Failed to assign team.')
@@ -435,15 +463,62 @@ export default function LeagueSettings() {
     }
   }
 
-  const handleRemoveTeam = async (uid, tid) => {
-    if (!canManage) return
+  const handleAddCoach = async (uid) => {
+    if (!canManage && uid !== user.uid) return
     setBusyUid(uid)
     try {
-      const next = removeMemberTeam(currentDynasty, uid, tid)
-      await writeMemberTeamsAndStamp(uid, next)
+      const c = newCoach(uid)
+      await writeCoaches({ ...getCoaches(currentDynasty), [c.cid]: c })
+      toast.success('Coach added. Assign it a team.')
     } catch (err) {
-      console.error('[Members] remove team failed:', err)
-      toast.error('Failed to remove team.')
+      console.error('[Members] add coach failed:', err)
+      toast.error('Failed to add coach.')
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
+  const handleRemoveCoach = async (cid) => {
+    const coach = getCoach(currentDynasty, cid)
+    if (!coach) return
+    if (!canManage && coach.controlledBy !== user.uid) return
+    const label = coach.name || 'this coach'
+    const ok = await confirm({
+      title: 'Remove coach?',
+      message: `Delete ${label} and the record tracked under them? This can't be undone.`,
+      confirmLabel: 'Remove',
+      variant: 'danger',
+    })
+    if (!ok) return
+    setBusyUid(cid)
+    try {
+      await writeCoaches(deleteCoach(getCoaches(currentDynasty), cid))
+      setTimelineCid(prev => (prev === cid ? null : prev))
+      toast.info('Coach removed.')
+    } catch (err) {
+      console.error('[Members] remove coach failed:', err)
+      toast.error('Failed to remove coach.')
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
+  const handleRenameCoach = async (cid) => {
+    const draft = nameDrafts[cid]
+    const coach = getCoach(currentDynasty, cid)
+    if (!coach) return
+    const current = coach.name || ''
+    if (draft === undefined || draft.trim() === current) {
+      setNameDrafts(prev => ({ ...prev, [cid]: undefined }))
+      return
+    }
+    setBusyUid(cid)
+    try {
+      await writeCoaches({ ...getCoaches(currentDynasty), [cid]: { ...coach, name: draft.trim() } })
+      setNameDrafts(prev => ({ ...prev, [cid]: undefined }))
+    } catch (err) {
+      console.error('[Members] rename coach failed:', err)
+      toast.error('Failed to save name.')
     } finally {
       setBusyUid(null)
     }
@@ -516,48 +591,80 @@ export default function LeagueSettings() {
 
   // ── render ────────────────────────────────────────────────────────
 
+  // One inline coach line within a member's row: current team + editable
+  // name + per-coach Timeline + remove. Editable by managers or the coach's
+  // own controller.
+  const renderCoachLine = (coach) => {
+    const cid = coach.cid
+    const canEdit = canManage || coach.controlledBy === user.uid
+    const busy = busyUid === cid
+    const tid = getCurrentTeamTidForCoach(coach, currentDynasty.currentYear)
+    const team = tid != null ? teamsSource[tid] : null
+    const logo = tid != null ? getTeamLogoByTid(tid, teamsSource) : null
+    const draftValue = nameDrafts[cid] !== undefined ? nameDrafts[cid] : (coach.name || '')
+    return (
+      <div key={cid} className="flex items-center gap-2 flex-wrap py-0.5">
+        {logo
+          ? <img src={logo} alt="" className="w-5 h-5 object-contain flex-shrink-0" />
+          : <span className="w-5 h-5 rounded-full bg-surface-3 flex-shrink-0 inline-block" aria-hidden="true" />}
+        {canEdit ? (
+          <input
+            type="text"
+            value={draftValue}
+            placeholder="Coach name"
+            onChange={e => setNameDrafts(prev => ({ ...prev, [cid]: e.target.value }))}
+            onBlur={() => handleRenameCoach(cid)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); e.target.blur() }
+              if (e.key === 'Escape') { setNameDrafts(prev => ({ ...prev, [cid]: undefined })); e.target.blur() }
+            }}
+            disabled={busy}
+            className="font-semibold text-txt-primary bg-transparent border-b border-transparent hover:border-surface-4 focus:border-surface-5 focus:outline-none px-1 -mx-1 text-sm leading-tight min-w-[120px]"
+          />
+        ) : (
+          <span className="font-semibold text-txt-primary text-sm">{coach.name || 'Coach'}</span>
+        )}
+        <span className="text-[11px] text-txt-tertiary">{team?.name || 'no team'}</span>
+        {canEdit && (
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => setTimelineCid(cid)} disabled={busy}>Timeline</Button>
+            <button
+              type="button"
+              onClick={() => handleRemoveCoach(cid)}
+              disabled={busy}
+              aria-label="Remove coach"
+              className="px-1 text-txt-muted hover:text-red-400 transition-colors disabled:opacity-50"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderRow = (uid) => {
     const role = getRole(currentDynasty, uid)
     if (!role) return null
     const isYou = uid === user.uid
-    const label = getMemberLabel(currentDynasty, uid)
-    const draftValue = nameDrafts[uid] !== undefined ? nameDrafts[uid] : label
-    const teams = getMemberTeams(currentDynasty, uid)
-    const assignedSet = new Set(teams.map(Number))
-    const availableTeamOptions = teamOptions.filter(t => !assignedSet.has(t.tid))
-    const cap = maxTeamsForRole(role)
-    const canAddMore = canManage && availableTeamOptions.length > 0 && (cap === Infinity || teams.length < cap)
+    const myCoaches = getCoachesControlledBy(currentDynasty, uid)
     const isBusy = busyUid === uid
     const canActOnThis = canActOnUser(currentDynasty, user.uid, uid)
     const canPromote = canManageCo && isCloudDynasty && role === ROLE_MEMBER
     const canDemote = canManageCo && isCloudDynasty && role === ROLE_COCOMMISH
     const canTransfer = canManageCo && isCloudDynasty && role !== ROLE_COMMISH
+    const canEditCoaches = canManage || isYou
 
-    const placeholder = role === ROLE_COMMISH ? 'Commish'
-                       : role === ROLE_COCOMMISH ? 'Co-Commish'
-                       : 'Member'
-
-    // Stint summary: most-recent stint's date range as a sub-line.
-    // Same source the Coaches leaderboard uses, so the two surfaces
-    // tell the same story.
-    const stints = getCoachStints(currentDynasty, uid)
-    const lastStint = stints.length > 0 ? stints[stints.length - 1] : null
-    const stintLine = lastStint ? (
-      lastStint.endYear >= currentDynasty.currentYear
-        ? `${lastStint.startYear}–NOW ${lastStint.years} ${lastStint.years === 1 ? 'season' : 'seasons'}`
-        : `${lastStint.startYear}–${lastStint.endYear}`
-    ) : null
-
-    // Primary team for the rail-side logo. Uses the most-recent stint
-    // when set, falls back to the live memberTeams entry.
-    const primaryTid = lastStint?.tid ?? teams[0] ?? null
-    // Team-color accent for the member card — their primary team's color,
-    // matching the broadcast team-strip language used across the app.
+    // The member's display name comes from their coach (single source).
+    const displayName = getCoachNameForUid(currentDynasty, uid) || (isYou ? 'You' : 'Member')
+    const primaryTid = myCoaches
+      .map(c => getCurrentTeamTidForCoach(c, currentDynasty.currentYear))
+      .find(t => t != null) ?? null
     const memberColor = (primaryTid != null && teamsSource[primaryTid]?.primaryColor) || '#3a3d47'
 
-    const hasAnyAction = (canManage || isYou) || (
-      canManage && role !== ROLE_COMMISH && (canPromote || canDemote || canTransfer || canActOnThis)
-    )
+    const hasAnyAction = canManage && role !== ROLE_COMMISH && (canPromote || canDemote || canTransfer || canActOnThis)
 
     return (
       <div
@@ -567,7 +674,7 @@ export default function LeagueSettings() {
           backgroundImage: `linear-gradient(90deg, ${memberColor}1f 0%, ${memberColor}0a 16%, transparent 42%)`,
         }}
       >
-        {/* Logo rail — primary team (most recent stint) or empty slot. */}
+        {/* Logo rail — primary team or empty slot. */}
         <div className="flex-shrink-0 pt-0.5">
           {primaryTid != null ? (
             <TeamLogo tid={primaryTid} teams={teamsSource} size="md" />
@@ -577,30 +684,11 @@ export default function LeagueSettings() {
         </div>
 
         <div className="min-w-0 flex-1">
-          {/* Name row — inline-editable, role chip + (you) marker. */}
-          <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            {(canManage || isYou) ? (
-              <input
-                type="text"
-                value={draftValue}
-                placeholder={isYou ? 'You' : placeholder}
-                onChange={e => setNameDrafts(prev => ({ ...prev, [uid]: e.target.value }))}
-                onBlur={() => handleRename(uid)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); e.target.blur() }
-                  if (e.key === 'Escape') {
-                    setNameDrafts(prev => ({ ...prev, [uid]: undefined }))
-                    e.target.blur()
-                  }
-                }}
-                disabled={isBusy}
-                className="font-display font-bold text-txt-primary bg-transparent border-b border-transparent hover:border-surface-4 focus:border-surface-5 focus:outline-none px-1 -mx-1 py-0 text-base leading-tight min-w-[140px]"
-              />
-            ) : (
-              <span className="font-display font-bold text-txt-primary text-base leading-tight">
-                {label || (isYou ? 'You' : placeholder)}
-              </span>
-            )}
+          {/* Member identity — name (from their coach), role chip, you marker. */}
+          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+            <span className="font-display font-bold text-txt-primary text-base leading-tight">
+              {displayName}
+            </span>
             <Badge variant={ROLE_BADGE_VARIANT[role]}>{ROLE_LABEL[role]}</Badge>
             {isYou && (
               <span
@@ -612,63 +700,34 @@ export default function LeagueSettings() {
             )}
           </div>
 
-          {/* Stint sub-line — same source as Coaches leaderboard. */}
-          {stintLine && (
-            <div
-              className="label-xs text-txt-tertiary tabular mb-2"
-              style={{ letterSpacing: '1.2px', fontSize: '10px' }}
-            >
-              {stintLine}
-            </div>
-          )}
-
-          {/* Team chips. */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {teams.length === 0 && !canManage && (
-              <span className="text-[11px] text-txt-muted italic">No team assigned</span>
+          {/* Coaches this member controls — each a separate tracked career. */}
+          <div className="space-y-1">
+            {myCoaches.length === 0 && !canEditCoaches && (
+              <span className="text-[11px] text-txt-muted italic">No coach assigned</span>
             )}
-            {teams.map(tid => {
-              const team = teamsSource[tid]
-              const teamName = team?.name || `Team ${tid}`
-              const logo = getTeamLogoByTid(tid, teamsSource)
-              return (
-                <span
-                  key={tid}
-                  className="inline-flex items-center gap-1.5 pl-1.5 pr-1 py-0.5 rounded-md bg-surface-2 border border-surface-4 text-xs"
+            {myCoaches.map(coach => renderCoachLine(coach))}
+            {canEditCoaches && (
+              <div className="flex items-center gap-2 flex-wrap pt-1">
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) handleAssignTeam(uid, e.target.value); e.target.value = '' }}
+                  disabled={isBusy}
+                  className="text-[11px] px-2 py-1 rounded-md bg-surface-1 border border-surface-4 text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors cursor-pointer focus:outline-none focus:border-surface-5"
                 >
-                  {logo && <img src={logo} alt="" className="w-4 h-4 object-contain" />}
-                  <span className="font-semibold text-txt-primary">{teamName}</span>
-                  {canManage && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTeam(uid, tid)}
-                      disabled={isBusy}
-                      aria-label={`Remove ${teamName}`}
-                      className="ml-0.5 px-1 text-txt-muted hover:text-red-400 transition-colors disabled:opacity-50"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </span>
-              )
-            })}
-            {canAddMore && (
-              <select
-                value=""
-                onChange={e => {
-                  if (e.target.value) handleAddTeam(uid, e.target.value)
-                  e.target.value = ''
-                }}
-                disabled={isBusy}
-                className="text-[11px] px-2 py-1 rounded-md bg-surface-1 border border-surface-4 text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors cursor-pointer focus:outline-none focus:border-surface-5"
-              >
-                <option value="">{teams.length === 0 ? 'Assign team…' : '+ Add'}</option>
-                {availableTeamOptions.map(t => (
-                  <option key={t.tid} value={t.tid}>{t.name}</option>
-                ))}
-              </select>
+                  <option value="">+ Assign a team…</option>
+                  {teamOptions.map(t => (
+                    <option key={t.tid} value={t.tid}>{t.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleAddCoach(uid)}
+                  disabled={isBusy}
+                  className="text-[11px] px-2 py-1 rounded-md bg-surface-1 border border-surface-4 text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  + Add coach
+                </button>
+              </div>
             )}
           </div>
 
@@ -690,31 +749,25 @@ export default function LeagueSettings() {
           </div>
         </div>
 
-        {/* Right-side action cluster. Compact buttons; only Edit Timeline
-            shows for self-rows. */}
+        {/* Access actions — role management (per user). */}
         {hasAnyAction && (
           <div className="flex flex-col gap-1 flex-shrink-0">
-            {(isYou || canActOnThis) && (
-              <Button variant="outline" size="sm" onClick={() => setTimelineUid(uid)} disabled={isBusy}>
-                Timeline
-              </Button>
-            )}
-            {canManage && role !== ROLE_COMMISH && canPromote && (
+            {canPromote && (
               <Button variant="outline" size="sm" onClick={() => handlePromote(uid)} disabled={isBusy}>
                 Promote
               </Button>
             )}
-            {canManage && role !== ROLE_COMMISH && canDemote && (
+            {canDemote && (
               <Button variant="outline" size="sm" onClick={() => handleDemote(uid)} disabled={isBusy}>
                 Demote
               </Button>
             )}
-            {canManage && role !== ROLE_COMMISH && canTransfer && (
+            {canTransfer && (
               <Button variant="outline" size="sm" onClick={() => handleMakeCommish(uid)} disabled={isBusy}>
                 Make Commish
               </Button>
             )}
-            {canManage && role !== ROLE_COMMISH && canActOnThis && (
+            {canActOnThis && (
               <Button variant="outline" size="sm" onClick={() => handleRemove(uid)} disabled={isBusy}>
                 Remove
               </Button>
@@ -817,8 +870,8 @@ export default function LeagueSettings() {
         </header>
         <p className="text-xs text-txt-tertiary mb-3">
           {canManage
-            ? 'Click a name to rename. Each member coaches one team; commish and co-commishes can hold multiple to shepherd teams without an assigned coach.'
-            : 'Click your own name to rename it. Team assignments are managed by the commish.'}
+            ? 'Each coach is a separately-tracked career — its own name, team, and record. Running more than one team? Use "+ Add coach" under a member to track each as its own coach.'
+            : 'Edit your coach name and team below. Other assignments are managed by the commish.'}
         </p>
         <div className="space-y-2">
           {renderRow(currentDynasty.userId)}
@@ -1038,11 +1091,11 @@ export default function LeagueSettings() {
         </Card>
       )}
 
-      {timelineUid && (
+      {timelineCid && (
         <MemberTimelineEditor
-          isOpen={timelineUid != null}
-          onClose={() => setTimelineUid(null)}
-          uid={timelineUid}
+          isOpen={timelineCid != null}
+          onClose={() => setTimelineCid(null)}
+          cid={timelineCid}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ import { useDynasty, getCurrentCustomConferences } from '../context/DynastyConte
 import { getTeamConference } from '../data/conferenceTeams'
 import { TEAMS, getTidFromTeamName } from '../data/teamRegistry'
 import { isEditor } from '../data/leagueModel'
+import { getCoaches } from '../data/coachModel'
 import ShareDynastyModal from './ShareDynastyModal'
 import { useToast } from './ui'
 import { preloadByNavName } from '../routes/lazyPages'
@@ -149,11 +150,12 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   // Action buttons inside the page are gated separately by role.
   const userCanSeeMembers = !isViewOnly && user && isEditor(currentDynasty, user.uid)
 
-  // Coaches leaderboard appears only when the dynasty has more than one
-  // member. For solo dynasties it's redundant with the Coach Career page.
-  const totalEditors = (currentDynasty?.editors?.length || 0)
-    + (currentDynasty?.userId && !(currentDynasty.editors || []).includes(currentDynasty.userId) ? 1 : 0)
-  const showCoachesLink = totalEditors > 1
+  // Coaches leaderboard appears only when the dynasty tracks more than one
+  // controlled coach. For solo single-coach dynasties it's redundant with
+  // the Coach Career page.
+  const controlledCoachCount = Object.values(getCoaches(currentDynasty))
+    .filter(c => c && c.controlledBy != null).length
+  const showCoachesLink = controlledCoachCount > 1
 
   // Edition-gated nav: the Dynasty Blueprint hub only exists for editions
   // that enable the Dynasty Points economy (CFB 27+). CFB 26 dynasties
