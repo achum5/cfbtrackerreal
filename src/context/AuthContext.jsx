@@ -15,6 +15,7 @@ import {
   adminRevokePremium as svcAdminRevoke,
   deleteAccount as svcDeleteAccount
 } from '../services/subscriptionService'
+import { registerTokenRefresher } from '../services/sheetsService'
 
 // The single Google account permitted to use the in-app dev/admin panel.
 // Server enforces this same allowlist on /api/admin/* endpoints — this
@@ -459,6 +460,25 @@ export function AuthProvider({ children }) {
     onVisible()
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [user])
+
+  // Let the (non-React) sheetsService heal an expired OAuth token on its
+  // own. When any sheet operation finds the token expired, it calls this
+  // SILENT refresher first; only if that can't produce a token does the
+  // user ever see the reauth modal. This is what makes the Google Sheets
+  // flows "just work" across the hour-long token lifetime instead of
+  // dead-ending on "Refresh your session and try again".
+  useEffect(() => {
+    registerTokenRefresher(async () => {
+      try {
+        const ok = await refreshSession(true) // silent — no popup when the Google session is live
+        return ok ? localStorage.getItem('google_access_token') : null
+      } catch {
+        return null
+      }
+    })
+    return () => registerTokenRefresher(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const value = {
     user,

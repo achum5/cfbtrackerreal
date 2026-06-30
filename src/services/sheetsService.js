@@ -12,6 +12,15 @@ import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, serializeAttribut
 const SHEETS_API_BASE = 'https://sheets.googleapis.com/v4/spreadsheets'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3/files'
 
+// A SILENT token-refresh callback registered by AuthContext. This service
+// lives outside React, so it can't call the auth context directly — the
+// app registers a refresher on mount. It lets getAccessToken() recover an
+// expired token with no error UI (the common "my token quietly expired
+// after an hour" case heals itself). Returns a fresh token string, or null
+// if a silent refresh isn't possible (then we fall back to the reauth modal).
+let _tokenRefresher = null
+export function registerTokenRefresher(fn) { _tokenRefresher = fn }
+
 // Default timeout for any single Google API call. Without a timeout,
 // a stalled connection can hang the modal for minutes and present as
 // "the sheet never loads". 30s is generous for healthy API calls and
@@ -38,6 +47,27 @@ async function fetchWithTimeout(url, init = {}, { timeoutMs = DEFAULT_FETCH_TIME
     if (response.status === 401) {
       throw new OAuthError('Google API returned 401 — OAuth token expired or revoked. Please re-authenticate.')
     }
+    // Google frequently returns 403 (not 401) for an expired token or one
+    // minted without the Sheets/Drive scope. Previously these fell through
+    // as a generic Error, so the modal showed a dead-end "Could not create
+    // the sheet" toast instead of the re-auth recovery flow. Peek at the
+    // body (clone so the caller can still read it) and route token / scope
+    // / permission failures through the reauth path.
+    if (response.status === 403) {
+      let looksLikeAuth = false
+      try {
+        const body = await response.clone().json()
+        const m = String(body?.error?.message || body?.error_description || '').toLowerCase()
+        looksLikeAuth = /insufficient|scope|permission|token|auth|credential|unauthor/.test(m)
+      } catch {
+        // Unreadable/non-JSON 403 — the dominant cause here is a stale
+        // token, so route it to reauth rather than a dead-end toast.
+        looksLikeAuth = true
+      }
+      if (looksLikeAuth) {
+        throw new OAuthError('Google API returned 403 — token expired or missing the required scope. Please re-authenticate.')
+      }
+    }
     return response
   } catch (err) {
     if (err?.name === 'AbortError') {
@@ -61,6 +91,20 @@ async function getAccessToken() {
     const expiryTime = parseInt(tokenExpiry)
     if (Date.now() < expiryTime) {
       return storedToken
+    }
+  }
+
+  // Token missing or expired — try a SILENT refresh before failing. When
+  // the Google session is still alive this returns a fresh token with no
+  // popup and no error UI, so the operation just proceeds. We only fall
+  // through to throwing (→ the reauth modal) if a silent refresh can't get
+  // one (e.g. the underlying Google session itself ended).
+  if (_tokenRefresher) {
+    try {
+      const fresh = await _tokenRefresher()
+      if (fresh) return fresh
+    } catch {
+      // fall through to throw below
     }
   }
 
