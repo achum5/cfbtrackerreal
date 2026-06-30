@@ -161,6 +161,14 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCopyData, createDynasty])
 
+  // A shared dynasty the current user does NOT own. For these, the trash
+  // action LEAVES the league rather than deleting it — only the commish
+  // (owner) can delete a dynasty (enforced by Firestore rules and the
+  // deleteDynasty guard in DynastyContext). Label it honestly so a member
+  // doesn't think they're wiping the whole league.
+  const isSharedMember = (dynasty) =>
+    !!user && !!dynasty?.userId && String(dynasty.userId) !== String(user.uid)
+
   const handleDeleteClick = (e, dynasty) => {
     e.preventDefault()
     e.stopPropagation()
@@ -169,7 +177,10 @@ export default function Home() {
 
   const handleConfirmDelete = async () => {
     if (dynastyToDelete) {
-      if (dynastyToDelete.favorite) {
+      // Favorited-dynasty escalation (type the name to confirm) only applies
+      // to a real delete by the owner. Leaving is reversible via re-invite,
+      // so skip the gate for non-owner members.
+      if (dynastyToDelete.favorite && !isSharedMember(dynastyToDelete)) {
         setShowFinalConfirm(true)
       } else {
         setDeletingDynastyId(dynastyToDelete.id)
@@ -835,7 +846,7 @@ export default function Home() {
                             onClick={(e) => handleDeleteClick(e, dynasty)}
                             disabled={deletingDynastyId === dynasty.id}
                             className="p-1.5 sm:p-2 rounded-md hover:bg-white/20 hover:text-[color:var(--accent-error)] transition-colors disabled:opacity-50"
-                            title="Delete dynasty"
+                            title={isSharedMember(dynasty) ? 'Leave dynasty' : 'Delete dynasty'}
                           >
                             {deletingDynastyId === dynasty.id ? (
                               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -886,13 +897,23 @@ export default function Home() {
         isOpen={!!dynastyToDelete && !showFinalConfirm}
         onClose={() => setDynastyToDelete(null)}
         onConfirm={handleConfirmDelete}
-        title={dynastyToDelete?.favorite ? 'Delete Favorited Dynasty?' : 'Delete Dynasty?'}
-        message={
-          dynastyToDelete?.favorite
-            ? `WARNING: "${dynastyToDelete?.teamName}" is marked as a favorite. Are you absolutely sure you want to delete this dynasty? This action cannot be undone.`
-            : `Are you sure you want to delete the ${dynastyToDelete?.teamName} dynasty? This action cannot be undone.`
+        title={
+          isSharedMember(dynastyToDelete) ? 'Leave Dynasty?'
+          : dynastyToDelete?.favorite ? 'Delete Favorited Dynasty?'
+          : 'Delete Dynasty?'
         }
-        confirmText={dynastyToDelete?.favorite ? 'Continue' : 'Delete'}
+        message={
+          isSharedMember(dynastyToDelete)
+            ? `Leave the ${dynastyToDelete?.teamName} dynasty? You'll lose access until the commish re-invites you. The dynasty itself isn't deleted — only the commish can do that.`
+            : dynastyToDelete?.favorite
+              ? `WARNING: "${dynastyToDelete?.teamName}" is marked as a favorite. Are you absolutely sure you want to delete this dynasty? This action cannot be undone.`
+              : `Are you sure you want to delete the ${dynastyToDelete?.teamName} dynasty? This action cannot be undone.`
+        }
+        confirmText={
+          isSharedMember(dynastyToDelete) ? 'Leave'
+          : dynastyToDelete?.favorite ? 'Continue'
+          : 'Delete'
+        }
         cancelText="Cancel"
         confirmButtonColor="#ef4444"
         loading={deletingDynastyId === dynastyToDelete?.id}
