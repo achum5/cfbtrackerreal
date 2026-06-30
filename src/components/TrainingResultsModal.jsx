@@ -19,6 +19,9 @@ import {
 } from '../services/sheetsService'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { buildAttributesStructure } from '../utils/attributeEntry'
+import { getEditionConfig } from '../editions'
+import AttributePasteGrid from './AttributePasteGrid'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -26,8 +29,13 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
-export default function TrainingResultsModal({ isOpen, onClose, onSave, currentYear, teamColors, players }) {
+export default function TrainingResultsModal({ isOpen, onClose, onSave, onImportAttributes, currentYear, teamColors, players }) {
   const { currentDynasty, updateDynasty } = useDynasty()
+  // CFB 27: offer a "Full attributes" entry mode (local paste of the whole
+  // rating set) alongside the Overalls-only Google sheet. Gated on the edition
+  // attributes feature; defaults to the existing Overalls flow.
+  const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
+  const [mode, setMode] = useState('overalls') // 'overalls' | 'attributes'
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -134,6 +142,15 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // Full-attributes prompt — the AI emits each player's complete rating set in
+  // one cell, plus Position + OVR. Used by the local paste grid.
+  const attributesPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Training Results — Full Attributes`,
+    roster: userRoster,
+    structure: buildAttributesStructure('training'),
+    includeTeamMap: false,
+  }), [currentYear, userRoster])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   // Single-attempt guard: a failed creation must not auto-retry (that loop
@@ -182,7 +199,7 @@ FINAL CHECK before you send
       creationAttemptedRef.current = false
     }
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      if (isOpen && user && mode === 'overalls' && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted before the first await so a failure can't loop back in.
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -223,7 +240,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, user, mode, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -357,7 +374,34 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Offseason" title="Training Results" onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {attributesEnabled && (
+          <div className="mb-3 inline-flex self-start rounded-md border border-surface-5 overflow-hidden text-sm">
+            <button
+              type="button"
+              onClick={() => setMode('overalls')}
+              className={`px-3 py-1.5 font-semibold transition-colors ${mode === 'overalls' ? 'bg-surface-3 text-txt-primary' : 'text-txt-secondary hover:bg-surface-2'}`}
+            >
+              Overalls
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('attributes')}
+              className={`px-3 py-1.5 font-semibold transition-colors border-l border-surface-5 ${mode === 'attributes' ? 'bg-surface-3 text-txt-primary' : 'text-txt-secondary hover:bg-surface-2'}`}
+            >
+              Full Attributes
+            </button>
+          </div>
+        )}
+        {mode === 'attributes' ? (
+          <AttributePasteGrid
+            players={players}
+            year={currentYear}
+            aiPrompt={attributesPrompt}
+            onImport={async (entries) => { await onImportAttributes?.(entries) }}
+            onClose={handleClose}
+            hint="Paste the AI reply: one line per player — name, position, OVR, then the ratings cell (AWR 88, SPD 90, …)."
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

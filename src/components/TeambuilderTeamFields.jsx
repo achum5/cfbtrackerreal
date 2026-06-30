@@ -134,11 +134,6 @@ export default function TeambuilderTeamFields({
         {errors.replacesTeam && (
           <p className="text-sm mt-1" style={{ color: 'var(--accent-error)' }}>{errors.replacesTeam}</p>
         )}
-        {!errors.replacesTeam && (
-          <p className="text-xs mt-1 text-txt-tertiary">
-            This team's slot in conferences and schedules will be taken over by your TeamBuilder team.
-          </p>
-        )}
       </div>
 
       {showPreview && team.name && (

@@ -2065,6 +2065,34 @@ export default function Dashboard() {
     await updateDynasty(currentDynasty.id, updates)
   }
 
+  // Full-attribute Training Results save (CFB 27): entries are
+  // [{ playerName, position, overall, attributes }]. Updates each matched
+  // player's overall + overallByYear[year] AND merges attributesByYear[year].
+  const handleTrainingResultsAttributesSave = async (entries) => {
+    const year = currentDynasty.currentYear
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    ;(entries || []).forEach((entry) => {
+      const playerIndex = updatedPlayers.findIndex(p =>
+        normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
+      )
+      if (playerIndex === -1) return
+      const player = updatedPlayers[playerIndex]
+      const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
+      if (entry.overall == null && !hasAttrs) return
+      const next = { ...player }
+      if (entry.overall != null) {
+        next.overall = entry.overall
+        next.overallByYear = { ...(player.overallByYear || {}), [year]: entry.overall }
+      }
+      if (hasAttrs) {
+        const existingAttrs = player.attributesByYear?.[year] || player.attributesByYear?.[String(year)] || {}
+        next.attributesByYear = { ...(player.attributesByYear || {}), [year]: { ...existingAttrs, ...entry.attributes } }
+      }
+      updatedPlayers[playerIndex] = next
+    })
+    await updateDynasty(currentDynasty.id, { players: updatedPlayers })
+  }
+
   // Handle recruiting class overalls save
   const handleRecruitOverallsSave = async (results) => {
     // On Training Camp (week 7), the year has flipped, but recruits have recruitYear from before the flip
@@ -2112,6 +2140,38 @@ export default function Dashboard() {
       }
     })
 
+  }
+
+  // Full-attribute Recruit Overalls save (CFB 27): entries are
+  // [{ playerName, position, overall, attributes }]. Matches signed recruits by
+  // name + recruitYear and updates overall + overallByYear[freshmanYear] AND
+  // merges attributesByYear[freshmanYear].
+  const handleRecruitOverallsAttributesSave = async (entries) => {
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+    const freshmanYear = isAfterYearFlip ? currentDynasty.currentYear : year + 1
+    const updatedPlayers = [...(currentDynasty.players || [])]
+    ;(entries || []).forEach((entry) => {
+      const playerIndex = updatedPlayers.findIndex(p =>
+        p.isRecruit && p.recruitYear === year &&
+        normalizePlayerName(p.name) === normalizePlayerName(entry.playerName)
+      )
+      if (playerIndex === -1) return
+      const player = updatedPlayers[playerIndex]
+      const hasAttrs = entry.attributes && Object.keys(entry.attributes).length > 0
+      if (entry.overall == null && !hasAttrs) return
+      const next = { ...player }
+      if (entry.overall != null) {
+        next.overall = entry.overall
+        next.overallByYear = { ...(player.overallByYear || {}), [freshmanYear]: entry.overall }
+      }
+      if (hasAttrs) {
+        const existingAttrs = player.attributesByYear?.[freshmanYear] || player.attributesByYear?.[String(freshmanYear)] || {}
+        next.attributesByYear = { ...(player.attributesByYear || {}), [freshmanYear]: { ...existingAttrs, ...entry.attributes } }
+      }
+      updatedPlayers[playerIndex] = next
+    })
+    await updateDynasty(currentDynasty.id, { players: updatedPlayers })
   }
 
   // Handle portal transfer class assignment save
@@ -9236,6 +9296,7 @@ export default function Dashboard() {
         isOpen={showTrainingResultsModal}
         onClose={() => setShowTrainingResultsModal(false)}
         onSave={handleTrainingResultsSave}
+        onImportAttributes={handleTrainingResultsAttributesSave}
         currentYear={currentDynasty?.currentYear}
         teamColors={teamColors}
         players={(() => {
@@ -9285,6 +9346,7 @@ export default function Dashboard() {
         isOpen={showRecruitOverallsModal}
         onClose={() => setShowRecruitOverallsModal(false)}
         onSave={handleRecruitOverallsSave}
+        onImportAttributes={handleRecruitOverallsAttributesSave}
         currentYear={offseasonDataYear}
         teamColors={teamColors}
         recruits={(() => {

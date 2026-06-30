@@ -91,7 +91,6 @@ import {
   addCareerEntry,
   isFCSPlaceholderAbbr,
   isFCSPlaceholderTid,
-  ABBR_TO_TID,
 } from '../data/teamRegistry'
 import { importUniverse, mergePosts, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS, DEFAULT_SOCIAL_PLATFORM, SOCIAL_UNIVERSE_VERSION } from '../data/socialModel'
 import { findMatchingPlayer, getPlayerLastHonorDescription, normalizePlayerName } from '../utils/playerMatching'
@@ -99,6 +98,8 @@ import { syncDerivedFieldsFromV2, legacyMovementToCanonical } from '../data/rost
 import { buildDefaultRosterPlayers, buildAllDefaultRosterPlayers } from '../data/defaultRosterLoader'
 import { CFB27_TEAM_RATINGS } from '../data/cfb27TeamRatings'
 import { CFB27_TEAM_ABBRS } from '../data/cfb27TeamAbbrs'
+import { CFB27_CONFERENCES } from '../data/cfb27Conferences'
+import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
@@ -7380,23 +7381,19 @@ export function DynastyProvider({ children }) {
     }
 
     // Build conference data now that the teams map (abbrevs) is final.
-    // - cfb27: the static conference membership is keyed by the OLD registry
-    //   abbrevs, so remap each entry to that slot's CURRENT abbr via its tid.
-    //   This captures both the cfb27 launch abbrevs and any teambuilder override
-    //   in one pass, and feeds the byYear.conference + customConferences writer
-    //   below so getTeamConference resolves renamed teams.
+    // - cfb27: use the CFB 27 realignment (CFB27_CONFERENCES, tid-keyed) — the
+    //   rebuilt 8-team Pac-12 etc., which differs from the base 2024-25 map.
+    //   Each team is placed under its conference by its CURRENT abbr (cfb27
+    //   launch abbr, or a teambuilder override that replaced the slot), feeding
+    //   the byYear.conference + customConferences writer below so
+    //   getTeamConference resolves correctly.
     // - other editions: unchanged teambuilder-only behavior.
     if (editionKey === 'cfb27') {
       initialConferences = {}
-      for (const [conf, oldAbbrs] of Object.entries(DEFAULT_CONFERENCE_TEAMS)) {
-        initialConferences[conf] = oldAbbrs.map((oldAbbr) => {
-          // Resolve the OLD abbr via the STATIC registry map (not the dynasty
-          // teams) — a few new abbrevs collide with other teams' old abbrevs
-          // (e.g. Louisville's new "UL" was Lafayette's old "UL"), so a
-          // dynasty-aware scan would misroute. Then take that tid's CURRENT abbr.
-          const tid = ABBR_TO_TID[String(oldAbbr).toUpperCase()]
-          return (tid != null && teams[tid]?.abbr) ? teams[tid].abbr : oldAbbr
-        })
+      for (const [tidStr, confName] of Object.entries(CFB27_CONFERENCES)) {
+        const team = teams[Number(tidStr)]
+        if (!team?.abbr) continue
+        ;(initialConferences[confName] ||= []).push(team.abbr)
       }
     } else if (dynastyData.customTeams && Object.keys(dynastyData.customTeams).length > 0) {
       initialConferences = getConferencesWithCustomTeams(dynastyData.customTeams)
@@ -7602,6 +7599,12 @@ export function DynastyProvider({ children }) {
         offense: null,
         defense: null
       },
+      // CFB 27: pre-fill the user team's Dynasty Points budget (the first
+      // preseason to-do) with that team's launch NIL budget. dynastyPoints is
+      // dynasty-wide, keyed by String(year) (see dynastyPointsModel).
+      ...(editionKey === 'cfb27' && currentTid != null && CFB27_NIL_BUDGETS[currentTid] != null
+        ? { dynastyPoints: { byYear: { [String(startYear)]: { budget: CFB27_NIL_BUDGETS[currentTid] } } } }
+        : {}),
       coachingStaff: {
         hcName: null,
         ocName: null,
