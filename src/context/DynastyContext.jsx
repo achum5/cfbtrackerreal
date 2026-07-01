@@ -14196,6 +14196,27 @@ export function DynastyProvider({ children }) {
       }
     })
 
+    // Track which players actually changed so the cloud save can write ONLY
+    // those docs instead of rewriting the entire roster (a 1-player edit was
+    // rewriting all ~1300 players). New players always count. For existing
+    // players we compare every field the roster editor can touch — top-level
+    // editable fields plus this year's entry in each immutable byYear map — so
+    // no real edit is ever missed (a missed change would be lost on reload).
+    const changedPids = new Set()
+    const yearVal = (obj, mapKey) => obj?.[mapKey]?.[year] ?? obj?.[mapKey]?.[String(year)]
+    const rosterPlayerChanged = (built, e) => {
+      if (!e) return true
+      const fields = ['firstName', 'lastName', 'name', 'position', 'year', 'devTrait', 'archetype', 'overall', 'height', 'weight', 'hometown', 'state', 'pictureUrl']
+      for (const k of fields) if ((built[k] ?? null) !== (e[k] ?? null)) return true
+      if (String(built.jerseyNumber ?? '') !== String(e.jerseyNumber ?? '')) return true
+      if (String(built.team ?? '') !== String(e.team ?? '')) return true
+      for (const m of ['teamsByYear', 'classByYear', 'overallByYear', 'devTraitByYear', 'nilByYear']) {
+        if ((yearVal(built, m) ?? null) !== (yearVal(e, m) ?? null)) return true
+      }
+      if (JSON.stringify(yearVal(built, 'attributesByYear') ?? null) !== JSON.stringify(yearVal(e, 'attributesByYear') ?? null)) return true
+      return false
+    }
+
     // Add team field and yearStarted to each player
     // For existing players (matched by name), preserve their original data
     // For new players, set yearStarted to the current editing year
@@ -14267,7 +14288,7 @@ export function DynastyProvider({ children }) {
             }
           : existingPlayer.devTraitByYear || {}
 
-        return {
+        const built = {
           // Start with ALL existing player data (preserves everything by default)
           ...existingPlayer,
           // Update ONLY the fields that are editable via Google Sheet
@@ -14311,6 +14332,8 @@ export function DynastyProvider({ children }) {
           // ALL other fields (recruitYear, yearStarted, isRecruit, isPortal, stars, etc.)
           // are automatically preserved from ...existingPlayer and NOT overwritten
         }
+        if (rosterPlayerChanged(built, existingPlayer)) changedPids.add(pid)
+        return built
       }
 
       // For NEW players (no name match), use sheet data with required fields.
@@ -14318,6 +14341,7 @@ export function DynastyProvider({ children }) {
       // (mirrors what legacyMovementToCanonical produces for the legacy
       // 'added' type — keeping the semantic identical while skipping the
       // legacy movements[] write the heal would just strip on next load).
+      changedPids.add(pid)
       return {
         ...player,
         pid,
@@ -14440,7 +14464,16 @@ export function DynastyProvider({ children }) {
           'preseasonSetup.rosterEntered': true
         }
 
-    await updateDynasty(dynastyId, rosterUpdates)
+    // Surgical cloud save: only the players that actually changed get written
+    // to the subcollection (no full-roster rewrite, no orphan-cleanup read).
+    // If nothing changed, skip the player write entirely. Local (IndexedDB)
+    // dynasties still write the whole doc in one shot, which is already fast.
+    const changedPidList = [...changedPids]
+    const rosterSaveOpts = changedPidList.length
+      ? { changedPlayerPids: changedPidList }
+      : { skipPlayersSubcollection: true }
+    console.log(`[saveRoster] ${changedPidList.length} player(s) changed -> ${changedPidList.length ? 'writing only those' : 'no player writes'}`)
+    await updateDynasty(dynastyId, rosterUpdates, rosterSaveOpts)
   }
 
   const saveTeamRatings = async (dynastyId, ratings) => {
