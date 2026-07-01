@@ -4,6 +4,7 @@ import { useToast } from './Toast'
 import { splitTsv } from '../../utils/tsvParse'
 import { uploadImage } from '../../utils/imageUpload'
 import ComboboxCell from './ComboboxCell'
+import PasteEntrySteps from './PasteEntrySteps'
 
 /**
  * LocalDataEntry — the universal "no Google Sheet needed" data-entry panel.
@@ -89,8 +90,6 @@ export default function LocalDataEntry({
     return g.map((row, i) => [String(i), ...row.map((c) => c ?? '')].join('\t')).join('\n')
   }
   const { toast } = useToast()
-  const [copied, setCopied] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
   const [showText, setShowText] = useState(false)
   const [text, setText] = useState(() => initialText || '')
   const [grid, setGrid] = useState(() => parseIncoming(initialText || '')) // rows[][]
@@ -219,23 +218,6 @@ export default function LocalDataEntry({
     return Array.isArray(opts) ? opts : null
   }
 
-  const copyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(aiPrompt || '')
-    } catch {
-      // Clipboard API blocked (iframe / http / permissions) — fall back.
-      const ta = document.createElement('textarea')
-      ta.value = aiPrompt || ''
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      try { document.execCommand('copy') } catch { /* noop */ }
-      document.body.removeChild(ta)
-    }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const pasteFromClipboard = async () => {
     if (!navigator.clipboard?.readText) {
@@ -284,83 +266,28 @@ export default function LocalDataEntry({
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-0.5">
-        {/* 1. Copy AI Prompt */}
-        <div className="flex-shrink-0">
-          <button
-            type="button"
-            onClick={copyPrompt}
-            disabled={!aiPrompt}
-            className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99] disabled:opacity-60"
-            style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-          >
-            {copied ? 'Copied!' : 'Copy AI Prompt'}
-          </button>
-        </div>
+        {/* Unified step header: 📸 + Copy Prompt → Open AI → Paste, each with an info toggle. */}
+        <PasteEntrySteps
+          aiPrompt={aiPrompt}
+          onPaste={pasteFromClipboard}
+          showText={showText}
+          onToggleText={() => setShowText((v) => !v)}
+          disabled={disabled}
+          hints={{ screenshot: instructions }}
+        />
 
-        {/* 2. Collapsible how-to */}
-        <div className="flex-shrink-0 rounded-lg border border-surface-4 bg-surface-2/50">
-          <button
-            type="button"
-            onClick={() => setShowHelp((v) => !v)}
-            aria-expanded={showHelp}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-txt-secondary hover:text-txt-primary"
-          >
-            <svg
-              className={`w-4 h-4 flex-shrink-0 transition-transform ${showHelp ? 'rotate-180' : ''}`}
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-            How to get your data
-          </button>
-          {showHelp && (
-            <p className="px-3 pb-3 pt-0 text-xs text-txt-tertiary leading-relaxed">
-              {instructions}
-            </p>
-          )}
-        </div>
-
-        {/* 3. Paste AI output + reveal-textarea arrow (both white) */}
-        <div className="flex-shrink-0">
-          <p className="label-xs text-txt-tertiary mb-1.5" style={{ letterSpacing: '1px' }}>Paste AI output here</p>
-          <div className="inline-flex rounded-md overflow-hidden border border-surface-5">
-            <button
-              type="button"
-              onClick={pasteFromClipboard}
-              disabled={disabled}
-              className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90"
-              style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
-            >
-              Paste
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowText((v) => !v)}
-              title={showText ? 'Hide text box' : 'Show text box'}
-              aria-label={showText ? 'Hide text box' : 'Show text box'}
-              aria-pressed={showText}
-              className="px-2 flex items-center justify-center transition-colors hover:opacity-90"
-              style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderLeft: '1px solid var(--surface-1)' }}
-            >
-              <svg className={`w-4 h-4 transition-transform ${showText ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </div>
-
-          {showText && (
-            <textarea
-              value={text}
-              onChange={(e) => applyText(e.target.value)}
-              placeholder="Paste the AI's TSV reply here."
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              rows={6}
-              className="mt-2 w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
-            />
-          )}
-        </div>
+        {showText && (
+          <textarea
+            value={text}
+            onChange={(e) => applyText(e.target.value)}
+            placeholder="Paste the AI's TSV reply here."
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            rows={6}
+            className="flex-shrink-0 w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+          />
+        )}
 
         {/* 4. Editable grid — the primary view. Full gridlines (surface-5), no
             inter-cell gaps. Paste fills it; edits flow back to the text. */}
