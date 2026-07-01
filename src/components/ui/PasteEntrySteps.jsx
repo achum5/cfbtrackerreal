@@ -10,7 +10,7 @@ import { AI_TOOLS, getPreferredAiKey, setPreferredAiKey, getAiTool } from '../..
 
 const STEP_HINTS = {
   screenshot: 'Take screenshots of the data you want to enter (they don\'t have to be perfect, just clear and fully showing). Then tap Copy Prompt to copy the instructions.',
-  ai: 'Open your AI, paste the copied prompt, and upload your screenshot(s). It replies with a block of data. Use the arrow to switch assistants; your choice is saved on this device.',
+  ai: 'Open your AI, paste the copied prompt, and upload your screenshot(s). It replies with a block of data.',
   paste: 'Copy the AI\'s reply, then tap Paste. The grid fills in automatically. Tap the arrow to open a text box if the normal paste doesn\'t work.',
 }
 

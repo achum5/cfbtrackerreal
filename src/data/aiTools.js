@@ -5,7 +5,6 @@ export const AI_TOOLS = [
   { key: 'claude', name: 'Claude', url: 'https://claude.ai/new' },
   { key: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com' },
   { key: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app' },
-  { key: 'grok', name: 'Grok', url: 'https://grok.com' },
   { key: 'copilot', name: 'Copilot', url: 'https://copilot.microsoft.com' },
   { key: 'perplexity', name: 'Perplexity', url: 'https://www.perplexity.ai' },
 ]
