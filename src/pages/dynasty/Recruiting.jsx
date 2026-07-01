@@ -26,6 +26,7 @@ const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
 import CommitGraphicModal from '../../components/CommitGraphicModal'
+import CommitGraphicViewer from '../../components/CommitGraphicViewer'
 
 const stateFullNames = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -158,7 +159,8 @@ export default function Recruiting() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [showRankModal, setShowRankModal] = useState(false)
-  const [graphicRecruit, setGraphicRecruit] = useState(null) // { recruit, pid } for the commit-graphic modal
+  const [graphicRecruit, setGraphicRecruit] = useState(null) // { recruit, pid, headshot } for the edit modal
+  const [graphicViewer, setGraphicViewer] = useState(null) // { recruit, pid, headshot } for the full-screen view
 
   const baseTeam = TEAMS[selectedTid]
   const dynastyTeam = currentDynasty?.teams?.[selectedTid]
@@ -1364,7 +1366,12 @@ export default function Recruiting() {
                 playStyle={playStyle}
                 model={scoutModel}
                 graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
-                onOpenGraphic={linkPid ? () => setGraphicRecruit({ recruit, pid: linkPid, headshot: player?.pictureUrl || recruit.pictureUrl || '' }) : null}
+                onOpenGraphic={linkPid ? () => {
+                  const target = { recruit, pid: linkPid, headshot: player?.pictureUrl || recruit.pictureUrl || '' }
+                  // Existing graphic -> full-screen view; none yet -> straight to the editor.
+                  if (currentDynasty.commitGraphics?.[linkPid]) setGraphicViewer(target)
+                  else setGraphicRecruit(target)
+                } : null}
               />
             )
 
@@ -1435,6 +1442,13 @@ export default function Recruiting() {
         currentRank={nationalRank}
         seasonLabel={!isAllSeasons ? `${selectedYear} ${teamFullName}` : ''}
         teamColors={teamColorsRaw}
+      />
+
+      <CommitGraphicViewer
+        isOpen={!!graphicViewer}
+        onClose={() => setGraphicViewer(null)}
+        url={graphicViewer?.pid ? (currentDynasty.commitGraphics?.[graphicViewer.pid] || '') : ''}
+        onEdit={!isViewOnly ? () => { setGraphicRecruit(graphicViewer); setGraphicViewer(null) } : null}
       />
 
       <CommitGraphicModal
