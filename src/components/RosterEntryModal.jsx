@@ -21,7 +21,6 @@ import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
 import SheetModalHeader from './ui/SheetModalHeader'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { getEditionConfig } from '../editions'
 import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
 import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/rosterOptions'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -58,10 +57,11 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  // CFB 27+ tracks a full per-player attribute set. When the edition supports
-  // it, the roster paste gains a 15th column (O) so the AI fills every player's
-  // ratings in one pass; older editions keep the lean 14-column layout.
-  const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
+  // The roster paste always includes the Attributes column (O) so the AI can
+  // fill every player's ratings in one pass. Attribute storage is edition-
+  // agnostic (the reader always parses col O and saveRoster persists it), and
+  // the column is optional — left blank when you have no ratings to enter.
+  const attributesEnabled = true
   // Pre-fill the local grid with the current roster (when one exists) so the
   // grid opens on the team for easy mass-editing instead of a blank table.
   const rosterPlayers = useMemo(() => {
