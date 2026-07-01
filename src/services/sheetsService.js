@@ -6667,8 +6667,22 @@ function validateConferenceData(conferences, yearLabel = '', dynastyTeams = null
   }
 }
 
-export async function readConferencesFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readConferencesFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
+    // Local-paste path: parse pre-split TSV rows in place (no Google fetch).
+    // opts.rows is the SAME rows[][] the Sheets API returns — row 0 is the
+    // conference-name header, rows 1..N are the per-column team slots. We run
+    // it through the IDENTICAL parse + validate path used for the legacy
+    // single "Conferences" tab, so an incomplete or duplicate paste throws in
+    // validateConferenceData BEFORE anything is returned to the destructive
+    // save. Returns the flat { conf: [teams] } shape, which onSave applies to
+    // the current year (matching the legacy single-tab contract).
+    if (opts.rows) {
+      const conferences = parseConferenceSheetData(opts.rows)
+      validateConferenceData(conferences, '', dynastyTeams)
+      return conferences
+    }
+
     const accessToken = await getAccessToken()
 
     // First, get spreadsheet metadata to find all sheet tabs

@@ -42,8 +42,11 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
-  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
-  const [useLocal, setUseLocal] = useState(true)
+  // Conference Standings opens on the Google Sheet by default — the grid reads
+  // better for standings. This is the intentional exception; every other modal
+  // defaults to local paste. (The local-paste code path is kept but not the
+  // default here.)
+  const [useLocal, setUseLocal] = useState(false)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage

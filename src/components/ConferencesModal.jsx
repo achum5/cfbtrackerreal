@@ -21,6 +21,8 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -40,6 +42,8 @@ export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -126,6 +130,115 @@ FINAL CHECK before you send
     dynastyTeams: currentDynasty?.teams,
   }), [currentDynasty?.currentYear, currentDynasty?.teams])
 
+  // LOCAL-PASTE prompt: COMPLETE-DATA CONTRACT. Unlike the Google grid (a
+  // fixed 11-column matrix the AI must align cell-by-cell), the local paste is
+  // self-describing — each line LEADS with its conference name, one team per
+  // line, so there is no column alignment for the AI to get wrong. The save is
+  // a WHOLESALE REPLACE of the current year's alignment, so the paste MUST
+  // list EVERY FBS team exactly once. `handleLocalImport` reshapes these
+  // Conference<TAB>Team lines back into the header+column grid the EXISTING
+  // parser (parseConferenceSheetData) consumes, then validateConferenceData
+  // THROWS if any FBS team is missing or duplicated — an incomplete paste
+  // errors out and never reaches the destructive save.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `Custom Conferences`,
+    structure: `Assign EVERY FBS team to a conference. Output ONE line per team: the conference name, a TAB, then the team abbreviation. Each line is SELF-DESCRIBING (it leads with the conference), so there is NO fixed row order and NO column alignment to worry about.
+
+═══════════════════════════════════════════════════════════
+COMPLETE DATA IS REQUIRED — READ THIS FIRST
+═══════════════════════════════════════════════════════════
+This replaces the ENTIRE conference alignment for the current season, so the paste must be COMPLETE:
+• EVERY FBS team must appear EXACTLY ONCE. Not a subset, not a screenshot of one conference — the WHOLE alignment.
+• A team that is MISSING or listed TWICE will be REJECTED with an error and NOTHING will be saved. There is no partial import.
+• If you are unsure which conference a team is in, use its real-world / default conference (listed below) — never drop a team.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES
+═══════════════════════════════════════════════════════════
+1. Each line is EXACTLY 2 tab-separated fields: Conference<TAB>TeamAbbr.
+2. Conference (field 1) is the conference NAME spelled exactly as one of: ACC, American, Big 12, Big Ten, Conference USA, Independent, MAC, Mountain West, Pac-12, SEC, Sun Belt (or a custom/renamed conference exactly as it appears in your screenshots).
+3. TeamAbbr (field 2) is the team's UPPERCASE abbreviation from the mapping at the bottom — NEVER a full name or nickname.
+4. One team per line. Every FBS team appears on exactly one line. No duplicates.
+5. NO header row. NO blank lines. NO commas, no commentary, no totals.
+6. Order does not matter — you may group by conference or list in any order, because each line names its own conference.
+
+═══════════════════════════════════════════════════════════
+DEFAULT CONFERENCE MEMBERSHIPS
+═══════════════════════════════════════════════════════════
+Use these unless a screenshot shows a different (custom / realigned) alignment. If a screenshot shows realignment, follow the screenshot — but still include EVERY team exactly once.
+- ACC: BC, CAL, CLEM, DUKE, FSU, GT, LOU, MIA, NCST, UNC, PITT, SMU, SYR, STAN, UVA, VT, WAKE
+- American: ARMY, CHAR, ECU, FAU, MEM, NAVY, UNT, RICE, TULN, TLSA, UAB, USF, UTSA
+- Big 12: ARIZ, ASU, BU, BYU, UC, COLO, UH, ISU, KU, KSU, OKST, TCU, TTU, UCF, UTAH, WVU
+- Big Ten: ILL, IU, IOWA, UMD, MICH, MSU, MINN, NEB, NU, OSU, ORE, PSU, PUR, RUTG, UCLA, USC, WASH, WIS
+- Conference USA: FIU, KENN, LIB, LT, MTSU, NMSU, SHSU, UTEP, WKU
+- Independent: ND, CONN, MASS
+- MAC: AKR, BALL, BGSU, BUFF, CMU, EMU, KENT, M-OH, NIU, OHIO, TOL, WMU
+- Mountain West: AFA, BOIS, CSU, FRES, HAW, NEV, SDSU, SJSU, UNLV, USU, WYO
+- Pac-12: ORST, WSU
+- SEC: BAMA, ARK, AUB, FLA, UGA, UK, LSU, MISS, MSST, MIZ, OU, SCAR, UT, TEX, TAMU, VAN
+- Sun Belt: APP, ARST, CCU, GASO, GSU, JMU, JKST, ULM, UL, MRSH, ODU, USA, TXST, TROY
+
+Every FBS team in the mapping at the bottom of this prompt must appear on exactly one output line.
+
+═══════════════════════════════════════════════════════════
+PER-LINE OUTPUT (2 tab-separated fields)
+═══════════════════════════════════════════════════════════
+<Conference><TAB><Team Abbr>
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CONFERENCES ===
+SEC\\tBAMA
+SEC\\tUGA
+ACC\\tCLEM
+…one line per team, EVERY FBS team exactly once…
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 2 tab-separated fields (one tab)
+[ ] Field 1 is a conference name, field 2 is an UPPERCASE team abbreviation from the mapping
+[ ] EVERY FBS team in the mapping appears — none missing
+[ ] No team appears twice
+[ ] No header row, no blank lines, no commentary, no commas`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [currentDynasty?.teams])
+
+  // Local paste import: the AI emits Conference<TAB>TeamAbbr, one team per
+  // line. We reshape those pairs back into the header + per-column grid the
+  // EXISTING parser (parseConferenceSheetData) reads — row 0 = conference
+  // headers, then each column holds that conference's teams top-to-bottom.
+  // readConferencesFromSheet(null, teams, { rows }) runs the SAME
+  // parse + validate path as the Google flow, so a missing/duplicate team
+  // throws in validateConferenceData and LocalDataEntry surfaces the toast —
+  // the wholesale saveConferenceAlignment never runs on partial data.
+  const handleLocalImport = async (text) => {
+    const pairs = splitTsv(text)
+    // Group teams by conference name (field 0), preserving first-seen order.
+    const byConference = new Map()
+    for (const row of pairs) {
+      const conf = (row[0] || '').trim()
+      const team = (row[1] || '').trim()
+      if (!conf || !team) continue
+      if (!byConference.has(conf)) byConference.set(conf, [])
+      byConference.get(conf).push(team)
+    }
+    const confNames = [...byConference.keys()]
+    // Build the header + column grid: row 0 = conference names, each
+    // subsequent row holds one team per column (blank where a column is
+    // shorter). This is the EXACT rows[][] shape the Sheets API returns.
+    const gridRows = [confNames]
+    const maxLen = Math.max(0, ...confNames.map(c => byConference.get(c).length))
+    for (let r = 0; r < maxLen; r++) {
+      gridRows.push(confNames.map(c => byConference.get(c)[r] ?? ''))
+    }
+    const conferences = await readConferencesFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: gridRows })
+    await onSave(conferences)
+    onClose()
+  }
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -199,7 +312,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Get saved conferences data
         const conferencesByYear = getConferencesForSheet()
 
@@ -264,7 +378,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -272,6 +386,7 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
 
@@ -397,7 +512,16 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Realignment" title="Custom Conferences" onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Conferences"
+            instructions={`This replaces the COMPLETE conference alignment for the current season. It is the WHOLE grid, not a partial screenshot of one conference. Screenshot every conference's full team list (or all of them at once), upload the shots with the copied prompt to your AI, and it returns a TSV listing every team and its conference. Paste that below. If any FBS team is missing or duplicated, the import is rejected and nothing is saved.`}
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
