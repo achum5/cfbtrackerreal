@@ -21,6 +21,7 @@ import {
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -34,6 +35,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
   const { user } = useAuth()
   const auth = useAuthErrorHandler()
   const yearNum = Number(year)
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
 
   const [sheetId, setSheetId] = useState(null)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -408,6 +410,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
               onCancel={onClose}
               importLabel="Import Top 25"
               columns={['Team']}
+              comboboxColumns={{ 'Team': teamAbbrs }}
               initialText={initialText}
             />
           ) : creatingSheet ? (

@@ -11,6 +11,7 @@ import {
 } from '../services/sheetsService'
 import { useDynasty, getCurrentSchedule, getScheduleForTeam, computeScheduleDiff } from '../context/DynastyContext'
 import { getAbbrFromTid, getTidFromAbbr } from '../data/teamRegistry'
+import { getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
@@ -25,9 +26,18 @@ import ScheduleSaveConfirmModal from './ScheduleSaveConfirmModal'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 
+// The schedule is a fixed 16-week grid (Week 0 through Week 15), mirroring the
+// Google Sheet's protected week column.
+const WEEK_LABELS = Array.from({ length: 16 }, (_, i) => `Week ${i}`)
+
 export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYear, teamColors, teamTid, teamName }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
+  // Opponent typeahead: every schedulable team (incl. FCS) plus the "BYE" literal.
+  const opponentOptions = useMemo(
+    () => [...getSchedulableTeamsList(currentDynasty?.teams), 'BYE'],
+    [currentDynasty?.teams],
+  )
 
   // Resolve team name for display - use provided teamName or fall back to dynasty team
   const displayTeamName = teamName || currentDynasty?.teamName || 'Dynasty'
@@ -118,35 +128,35 @@ Column D (Site) allowed values (strict dropdown — exactly these three, case-se
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== SCHEDULE — paste at cell C2 of "Schedule" tab ===
-<week 0 CPU Team>\\t<week 0 Site>
-<week 1 CPU Team>\\t<week 1 Site>
-<week 2 CPU Team>\\t<week 2 Site>
-<week 3 CPU Team>\\t<week 3 Site>
-<week 4 CPU Team>\\t<week 4 Site>
-<week 5 CPU Team>\\t<week 5 Site>
-<week 6 CPU Team>\\t<week 6 Site>
-<week 7 CPU Team>\\t<week 7 Site>
-<week 8 CPU Team>\\t<week 8 Site>
-<week 9 CPU Team>\\t<week 9 Site>
-<week 10 CPU Team>\\t<week 10 Site>
-<week 11 CPU Team>\\t<week 11 Site>
-<week 12 CPU Team>\\t<week 12 Site>
-<week 13 CPU Team>\\t<week 13 Site>
-<week 14 CPU Team>\\t<week 14 Site>
-<week 15 CPU Team>\\t<week 15 Site>
+=== SCHEDULE — one row per week: <Week>\\t<CPU Team>\\t<Site> ===
+0\\t<week 0 CPU Team>\\t<week 0 Site>
+1\\t<week 1 CPU Team>\\t<week 1 Site>
+2\\t<week 2 CPU Team>\\t<week 2 Site>
+3\\t<week 3 CPU Team>\\t<week 3 Site>
+4\\t<week 4 CPU Team>\\t<week 4 Site>
+5\\t<week 5 CPU Team>\\t<week 5 Site>
+6\\t<week 6 CPU Team>\\t<week 6 Site>
+7\\t<week 7 CPU Team>\\t<week 7 Site>
+8\\t<week 8 CPU Team>\\t<week 8 Site>
+9\\t<week 9 CPU Team>\\t<week 9 Site>
+10\\t<week 10 CPU Team>\\t<week 10 Site>
+11\\t<week 11 CPU Team>\\t<week 11 Site>
+12\\t<week 12 CPU Team>\\t<week 12 Site>
+13\\t<week 13 CPU Team>\\t<week 13 Site>
+14\\t<week 14 CPU Team>\\t<week 14 Site>
+15\\t<week 15 CPU Team>\\t<week 15 Site>
 
 (Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send the answer
 ═══════════════════════════════════════════════════════════
-[ ] Exactly 16 data rows (Weeks 0 through 15)
-[ ] Exactly 2 tab-separated values per row (1 tab character per line)
-[ ] Column C: team abbreviation from the mapping, or the literal "BYE", or blank
-[ ] Column D: EXACTLY "Home", "Road", or "Neutral" — not "Away", not any other value; blank on bye weeks
-[ ] No score columns, no week numbers, no user team column, no header row INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
-[ ] Blank cells only where the week's matchup is genuinely unknown — invented nothing`,
+[ ] Exactly 16 data rows (Weeks 0 through 15), each LEADING with its week number 0-15 in order
+[ ] Exactly 3 tab-separated values per row (2 tab characters): Week number, then CPU Team, then Site
+[ ] Field 2 (CPU Team): team abbreviation from the mapping, or the literal "BYE", or blank
+[ ] Field 3 (Site): EXACTLY "Home", "Road", or "Neutral" — not "Away", not any other value; blank on bye weeks
+[ ] No score columns, no user team column, no header row INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
+[ ] Blank CPU Team / Site only where the week's matchup is genuinely unknown — invented nothing`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, displayTeamName, targetTeamAbbr, currentDynasty?.teams])
@@ -176,14 +186,16 @@ FINAL CHECK before you send the answer
       if (l === 'neutral') return 'Neutral'
       return ''
     }
+    // Week-index-led rows (<week>\t<opponent>\t<site>) so LocalDataEntry's
+    // fixed 16-row grid places each week correctly and no blank week collapses.
     const rows = []
     for (let wk = 0; wk <= 15; wk++) {
       const e = byWeek.get(wk)
-      if (!e) { rows.push('\t'); continue }
+      if (!e) { rows.push(`${wk}\t\t`); continue }
       const isBye = e.isBye || (!e.opponent && !e.opponentTid)
-      if (isBye) { rows.push('BYE\t'); continue }
+      if (isBye) { rows.push(`${wk}\tBYE\t`); continue }
       const opp = (e.opponent || '').toString().toUpperCase()
-      rows.push(`${opp}\t${siteLabel(e.location)}`)
+      rows.push(`${wk}\t${opp}\t${siteLabel(e.location)}`)
     }
     return rows.join('\n')
   }, [currentDynasty, teamTid, currentYear])
@@ -426,11 +438,11 @@ FINAL CHECK before you send the answer
   // FIXED order Week 0 → Week 15. Columns A (Week) and B (User Team) are
   // pre-filled on the sheet and never output. The parser reads week at row[0]
   // and the user team at row[1], so we prepend [weekNum, userTeamAbbr] by row
-  // position. BYE weeks are emitted as the non-blank literal "BYE", so they hold
-  // their slot; the parser's own opponent filter drops genuinely blank weeks.
+  // position. Rows are week-index-led (<week>\t<opponent>\t<site>) from the
+  // fixed 16-row grid, so the WEEK comes from the row itself — never from the
+  // surviving line index (a blank week no longer shifts every later week).
   const handleLocalImport = async (text) => {
-    const lines = splitTsv(text)
-    const rows = lines.map((cells, i) => [String(i), targetTeamAbbr, (cells[0] ?? ''), (cells[1] ?? '')])
+    const rows = splitTsv(text).map((cells) => [String(cells[0] ?? ''), targetTeamAbbr, (cells[1] ?? ''), (cells[2] ?? '')])
     const schedule = await readScheduleFromScheduleSheet(null, currentDynasty?.teams || currentDynasty?.customTeams, { rows })
     await submitSchedule({ schedule })
   }
@@ -577,6 +589,10 @@ FINAL CHECK before you send the answer
             importLabel="Import Schedule"
             initialText={initialScheduleText}
             columns={['Opponent', 'Site']}
+            comboboxColumns={{ Opponent: opponentOptions }}
+            columnOptions={{ Site: ['Home', 'Road', 'Neutral'] }}
+            rowLabels={WEEK_LABELS}
+            rowLabelHeader="Week"
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

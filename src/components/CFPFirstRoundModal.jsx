@@ -16,6 +16,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 import {
   createCFPFirstRoundSheet,
   readCFPFirstRoundFromSheet,
@@ -41,6 +42,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
 
@@ -332,6 +334,7 @@ FINAL CHECK before you send the answer
           <LocalDataEntry
             aiPrompt={aiPrompt}
             columns={['Higher Seed', 'Lower Seed', 'Higher Score', 'Lower Score']}
+            comboboxColumns={{ 'Higher Seed': teamAbbrs, 'Lower Seed': teamAbbrs }}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

@@ -24,6 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -36,6 +37,7 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -417,6 +419,7 @@ FINAL CHECK before you send
           <LocalDataEntry
             aiPrompt={aiPrompt}
             columns={['Position', 'First Player', 'First Team', 'First Class', 'Position', 'Second Player', 'Second Team', 'Second Class', 'Position', 'Freshman Player', 'Freshman Team', 'Freshman Class']}
+            comboboxColumns={{ 'First Team': teamAbbrs, 'Second Team': teamAbbrs, 'Freshman Team': teamAbbrs }}
             initialText={initialAllAmericansText}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}

@@ -24,6 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -33,6 +34,7 @@ const isMobileDevice = () => {
 export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
   const { currentDynasty } = useDynasty()
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const { user, signOut } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -662,6 +664,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Conference Championships"
             columns={['Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Team 1 Rank', 'Team 2 Rank']}
+            comboboxColumns={{ 'Team 1': teamAbbrs, 'Team 2': teamAbbrs }}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

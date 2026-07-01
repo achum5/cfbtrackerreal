@@ -12,6 +12,7 @@ import ShareDynastyModal from '../components/ShareDynastyModal'
 import StorageSwitchModal from '../components/StorageSwitchModal'
 import BouncingLogos from '../components/BouncingLogos'
 import { Button, Badge, Modal, Input, LoadingState, ContactCTA } from '../components/ui'
+import InstallAppCTA from '../components/ui/InstallAppCTA'
 import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
 import { getEditionConfig, getEditionKey, LEGACY_EDITION } from '../editions'
@@ -572,8 +573,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-10 max-w-3xl">
+            <div className="mt-10 max-w-3xl space-y-3">
               <ContactCTA />
+              {/* Mobile only: install-to-home-screen, grouped with the contact row. */}
+              <InstallAppCTA className="lg:hidden" />
             </div>
           </div>
         ) : (
@@ -886,8 +889,10 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-10">
+            <div className="mt-10 space-y-3">
               <ContactCTA />
+              {/* Mobile only: install-to-home-screen, grouped with the contact row. */}
+              <InstallAppCTA className="lg:hidden" />
             </div>
           </div>
         )}

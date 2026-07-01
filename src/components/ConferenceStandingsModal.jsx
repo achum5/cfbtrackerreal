@@ -22,6 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -30,6 +31,7 @@ const isMobileDevice = () => {
 
 export default function ConferenceStandingsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty } = useDynasty()
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
   const { user, signOut } = useAuth()
   const { toast } = useToast()
@@ -457,6 +459,7 @@ FINAL CHECK before you send
               onCancel={handleClose}
               importLabel="Import Conference Standings"
               columns={['Conference', 'Rank', 'Team', 'Wins', 'Losses', 'Points For', 'Points Against']}
+              comboboxColumns={{ Team: teamAbbrs }}
               initialText={initialText}
             />
           </div>

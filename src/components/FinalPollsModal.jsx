@@ -16,6 +16,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 import {
   createFinalPollsSheet,
   readFinalPollsFromSheet,
@@ -40,6 +41,7 @@ export default function FinalPollsModal({ isOpen, onClose, onSave, currentYear, 
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
 
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
@@ -370,6 +372,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Final Polls"
             columns={['Team']}
+            comboboxColumns={{ 'Team': teamAbbrs }}
             initialText={initialText}
           />
         ) : isLoading ? (

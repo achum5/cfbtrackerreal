@@ -22,6 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 // The QF bracket's fixed bye-seed display order. The reader keys slot
 // determination off this order (rowToByeSeed in
@@ -66,6 +67,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
 
@@ -458,6 +460,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import CFP Quarterfinals"
             columns={['Bye Seed', 'Bye Team', 'Opponent', 'Bye Score', 'Opponent Score', 'Winner']}
+            comboboxColumns={{ 'Bye Team': teamAbbrs, 'Opponent': teamAbbrs, 'Winner': teamAbbrs }}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

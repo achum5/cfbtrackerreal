@@ -23,6 +23,7 @@ import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { getAbbrFromTid } from '../data/teamRegistry'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -46,6 +47,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
   const [bowlConfig, setBowlConfig] = useState(() => {
@@ -447,6 +449,7 @@ FINAL CHECK before you send the answer
             <LocalDataEntry
               aiPrompt={aiPrompt}
               columns={['Team']}
+              comboboxColumns={{ 'Team': teamAbbrs }}
               initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}

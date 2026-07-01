@@ -3,6 +3,7 @@ import Button from './Button'
 import { useToast } from './Toast'
 import { splitTsv } from '../../utils/tsvParse'
 import { uploadImage } from '../../utils/imageUpload'
+import ComboboxCell from './ComboboxCell'
 
 /**
  * LocalDataEntry — the universal "no Google Sheet needed" data-entry panel.
@@ -52,10 +53,6 @@ import { uploadImage } from '../../utils/imageUpload'
 
 const DEFAULT_INSTRUCTIONS = `Take screenshots of the data you want to enter here. It doesn't have to be exact, just clear and fully showing. Upload those along with the copied prompt to your AI platform of choice. It will return a TSV output — copy that, then paste it below.`
 
-// Grid (array of rows, each an array of cells) -> TSV text. Trailing empty
-// cells are fine: splitTsv trims them and parsers read positionally.
-const gridToText = (grid) => grid.map((r) => r.join('\t')).join('\n')
-
 export default function LocalDataEntry({
   aiPrompt,
   onImport,
@@ -68,14 +65,35 @@ export default function LocalDataEntry({
   initialText = '',
   imageColumn = null,
   columnOptions = null,
+  comboboxColumns = null,
+  rowLabels = null,
+  rowLabelHeader = '',
   children = null,
 }) {
+  // Fixed-row mode (e.g. the schedule's weeks 0–15): the grid is exactly
+  // rowLabels.length rows, each with a read-only leading label. The label's
+  // index leads the TSV so a blank row never collapses (splitTsv drops blank
+  // lines, which would otherwise shift every later row).
+  const isLabeled = Array.isArray(rowLabels) && rowLabels.length > 0
+  const parseIncoming = (t) => {
+    if (!isLabeled) return splitTsv(t)
+    const rows = Array.from({ length: rowLabels.length }, () => [])
+    for (const cells of splitTsv(t)) {
+      const idx = Number(cells[0])
+      if (Number.isInteger(idx) && idx >= 0 && idx < rowLabels.length) rows[idx] = cells.slice(1)
+    }
+    return rows
+  }
+  const serialize = (g) => {
+    if (!isLabeled) return g.map((r) => r.join('\t')).join('\n')
+    return g.map((row, i) => [String(i), ...row.map((c) => c ?? '')].join('\t')).join('\n')
+  }
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showText, setShowText] = useState(false)
   const [text, setText] = useState(() => initialText || '')
-  const [grid, setGrid] = useState(() => splitTsv(initialText || '')) // rows[][]
+  const [grid, setGrid] = useState(() => parseIncoming(initialText || '')) // rows[][]
   const [importing, setImporting] = useState(false)
   const [uploadingCells, setUploadingCells] = useState(() => new Set())
   // The last initialText we seeded from. Lets us re-seed when the source data
@@ -92,7 +110,7 @@ export default function LocalDataEntry({
     if (incoming !== seededRef.current && text === seededRef.current) {
       seededRef.current = incoming
       setText(incoming)
-      setGrid(splitTsv(incoming))
+      setGrid(parseIncoming(incoming))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialText])
@@ -109,11 +127,11 @@ export default function LocalDataEntry({
   // follows, so Import (which uses text) always matches what's on screen.
   const applyText = (t) => {
     setText(t)
-    setGrid(splitTsv(t))
+    setGrid(parseIncoming(t))
   }
   const applyGrid = (g) => {
     setGrid(g)
-    setText(gridToText(g))
+    setText(serialize(g))
   }
 
   const editCell = (ri, ci, value) => {
@@ -174,22 +192,31 @@ export default function LocalDataEntry({
     if (typeof el.select === 'function') { try { el.select() } catch { /* selects have no select() */ } }
     return true
   }
+  const moveDown = (ri, ci) => {
+    if (focusCell(ri + 1, ci)) return
+    // At the last row: dynamic grids grow a row; fixed (labeled) grids stop.
+    if (!isLabeled) { addRow(); setTimeout(() => focusCell(ri + 1, ci), 0) }
+  }
   const handleCellKeyDown = (e, ri, ci) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
-    if (!focusCell(ri + 1, ci)) {
-      addRow()
-      setTimeout(() => focusCell(ri + 1, ci), 0)
-    }
+    moveDown(ri, ci)
   }
 
-  // Allowed dropdown values for a column, or null for a free-text cell.
+  // Allowed <select> dropdown values for a column, or null for a free-text cell.
   const optionsFor = (ci, row) => {
     if (!columnOptions || !columns?.length) return null
     const spec = columnOptions[columns[ci]]
     if (!spec) return null
     const arr = typeof spec === 'function' ? spec(row, columns) : spec
     return Array.isArray(arr) ? arr : null
+  }
+
+  // Typeahead-combobox options for a column (e.g. team abbreviations), or null.
+  const comboOptionsFor = (ci) => {
+    if (!comboboxColumns || !columns?.length) return null
+    const opts = comboboxColumns[columns[ci]]
+    return Array.isArray(opts) ? opts : null
   }
 
   const copyPrompt = async () => {
@@ -249,7 +276,10 @@ export default function LocalDataEntry({
 
   const disabled = busy || importing
   // Always render a grid (never a bare textarea). Empty → one starter row.
-  const displayRows = grid.length > 0 ? grid : [Array(colCount).fill('')]
+  // Labeled (fixed-row) grids always render exactly rowLabels.length rows.
+  const displayRows = isLabeled
+    ? Array.from({ length: rowLabels.length }, (_, i) => grid[i] || [])
+    : (grid.length > 0 ? grid : [Array(colCount).fill('')])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -339,26 +369,41 @@ export default function LocalDataEntry({
             {columns?.length ? (
               <thead className="bg-surface-2">
                 <tr className="text-txt-tertiary">
+                  {isLabeled && <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">{rowLabelHeader}</th>}
                   {columns.map((c, i) => (
                     <th key={i} className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">{c}</th>
                   ))}
-                  <th className="w-6 border border-surface-5" aria-label="Remove" />
+                  {!isLabeled && <th className="w-6 border border-surface-5" aria-label="Remove" />}
                 </tr>
               </thead>
             ) : null}
             <tbody>
               {displayRows.map((row, ri) => (
                 <tr key={ri}>
+                  {isLabeled && (
+                    <td className="border border-surface-5 px-2 py-0.5 whitespace-nowrap text-txt-tertiary bg-surface-2">{rowLabels[ri]}</td>
+                  )}
                   {Array.from({ length: colCount }).map((_, ci) => {
                     const isImageCol = ci === imageColIndex
                     const uploading = isImageCol && uploadingCells.has(cellKey(ri, ci))
                     const opts = optionsFor(ci, row)
+                    const comboOpts = comboOptionsFor(ci)
                     const val = row[ci] ?? ''
                     const label = columns?.[ci] ? `${columns[ci]} row ${ri + 1}` : `Row ${ri + 1} column ${ci + 1}`
                     return (
                       <td key={ci} className="border border-surface-5">
                         {uploading ? (
                           <div className="px-2 py-0.5 text-txt-tertiary italic">Uploading…</div>
+                        ) : comboOpts ? (
+                          <ComboboxCell
+                            value={val}
+                            options={comboOpts}
+                            onChange={(v) => editCell(ri, ci, v)}
+                            onEnterDown={() => moveDown(ri, ci)}
+                            inputRef={(el) => registerCell(ri, ci, el)}
+                            ariaLabel={label}
+                            placeholder="type to search…"
+                          />
                         ) : opts ? (
                           <select
                             ref={(el) => registerCell(ri, ci, el)}
@@ -391,29 +436,33 @@ export default function LocalDataEntry({
                       </td>
                     )
                   })}
-                  <td className="w-6 text-center border border-surface-5">
+                  {!isLabeled && (
+                    <td className="w-6 text-center border border-surface-5">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(ri)}
+                        aria-label="Remove row"
+                        className="text-txt-tertiary hover:text-txt-primary"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {!isLabeled && (
+                <tr>
+                  <td colSpan={colCount + 1} className="px-2 py-1 border border-surface-5">
                     <button
                       type="button"
-                      onClick={() => removeRow(ri)}
-                      aria-label="Remove row"
-                      className="text-txt-tertiary hover:text-txt-primary"
+                      onClick={addRow}
+                      className="text-xs font-semibold text-txt-secondary hover:text-txt-primary"
                     >
-                      ×
+                      + Add row
                     </button>
                   </td>
                 </tr>
-              ))}
-              <tr>
-                <td colSpan={colCount + 1} className="px-2 py-1 border border-surface-5">
-                  <button
-                    type="button"
-                    onClick={addRow}
-                    className="text-xs font-semibold text-txt-secondary hover:text-txt-primary"
-                  >
-                    + Add row
-                  </button>
-                </td>
-              </tr>
+              )}
             </tbody>
           </table>
         </div>

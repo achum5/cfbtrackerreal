@@ -22,6 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -34,6 +35,7 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -568,6 +570,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Transfer Destinations"
             columns={['Player', 'New Team']}
+            comboboxColumns={{ 'New Team': teamAbbrs }}
             initialText={initialText}
           />
         ) : isLoading ? (

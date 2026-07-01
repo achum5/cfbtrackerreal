@@ -13,6 +13,7 @@ import { saveGamesToSubcollection } from '../services/dynastyService'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -70,6 +71,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   const [isMobile, setIsMobile] = useState(isMobileDevice)
   const auth = useAuthErrorHandler()
   const [pendingSave, setPendingSave] = useState(null) // { diff, summary, alsoDelete }
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback
   // for bulk multi-week catch-up.
   const [useLocal, setUseLocal] = useState(true)
@@ -504,6 +506,7 @@ REQUIRED OUTPUT FORMAT
                 importLabel="Preview changes"
                 initialText={initialTop25Text}
                 columns={['Rank', 'Team']}
+                comboboxColumns={{ 'Team': teamAbbrs }}
               />
             </div>
           ) : creatingSheet ? (

@@ -23,6 +23,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -32,6 +33,7 @@ const isMobileDevice = () => {
 
 export default function ConferencesModal({ isOpen, onClose, onSave, teamColors }) {
   const { currentDynasty, updateDynasty } = useDynasty()
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const { user, signOut } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -550,6 +552,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Conferences"
             columns={['Conference', 'Team']}
+            comboboxColumns={{ Team: teamAbbrs }}
             initialText={initialText}
             instructions={`This replaces the COMPLETE conference alignment for the current season. It is the WHOLE grid, not a partial screenshot of one conference. Screenshot every conference's full team list (or all of them at once), upload the shots with the copied prompt to your AI, and it returns a TSV listing every team and its conference. Paste that below. If any FBS team is missing or duplicated, the import is rejected and nothing is saved.`}
           />

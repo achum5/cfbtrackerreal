@@ -24,6 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -67,6 +68,9 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
   for (let y = startYear; y <= currentYear; y++) {
     years.push(y)
   }
+
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamCols = useMemo(() => Object.fromEntries(years.map(y => [`${y} Team`, teamAbbrs])), [years.join(','), teamAbbrs])
 
   // Pre-fill the local grid with the existing roster history so the editor opens
   // on the current data (easy mass-edit) instead of a blank table. Mirrors
@@ -475,6 +479,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Roster History"
             columns={['Player Name', 'PID', ...years.map(y => `${y} Team`)]}
+            comboboxColumns={teamCols}
             initialText={initialText}
           />
         ) : isLoading ? (

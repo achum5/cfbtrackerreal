@@ -20,6 +20,7 @@ import JoinDynasty from './pages/JoinDynasty'
 import Privacy from './pages/Privacy'
 import Terms from './pages/Terms'
 import Contact from './pages/Contact'
+import InstallApp from './pages/InstallApp'
 
 // Lazy pages with `.preload()` capability — see routes/lazyPages.js
 import {
@@ -59,6 +60,7 @@ function AppRoutes() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/install" element={<InstallApp />} />
 
           {/* Public view routes - no auth required, reuses same components */}
           <Route path="/view/:shareCode" element={<ViewDynasty />}>

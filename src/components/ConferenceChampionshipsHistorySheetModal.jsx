@@ -23,6 +23,7 @@ import {
 import { buildAIPrompt } from '../utils/aiPrompt'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getSelectableTeamsList } from '../data/teamAbbreviations'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -63,6 +64,7 @@ const HISTORY_CONFERENCES = [
  */
 export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClose }) {
   const { currentDynasty, updateDynasty, saveConferenceChampionshipsHistoryFromSheet, isViewOnly } = useDynasty()
+  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -664,6 +666,7 @@ FINAL CHECK before you send
             <LocalDataEntry
               aiPrompt={localAiPrompt}
               columns={['Year', 'Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score']}
+              comboboxColumns={{ 'Team 1': teamAbbrs, 'Team 2': teamAbbrs }}
               initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}

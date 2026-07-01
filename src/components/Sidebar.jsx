@@ -448,6 +448,23 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
               </>
             )}
 
+            {/* Install Mobile App — only on the mobile layout (below lg), where
+                adding to the home screen actually applies. */}
+            <Link
+              to="/install"
+              onClick={handleNavClick}
+              className="lg:hidden w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold transition-colors text-txt-primary hover:opacity-90"
+              style={{
+                backgroundColor: 'var(--surface-3)',
+                border: '1px solid var(--surface-5)',
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a1 1 0 001-1V4a1 1 0 00-1-1H8a1 1 0 00-1 1v16a1 1 0 001 1z" />
+              </svg>
+              Install Mobile App
+            </Link>
+
             {/* Contact — loud & proud so bug reports and feature requests get through */}
             <Link
               to="/contact"
