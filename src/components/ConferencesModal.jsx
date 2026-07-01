@@ -255,7 +255,11 @@ function TileFace({ abbr, teams, dragging }) {
         cursor: dragging ? 'grabbing' : 'grab',
       }}
     >
-      {logo && <img src={logo} alt="" className="w-4 h-4 object-contain flex-shrink-0" />}
+      {logo && (
+        <span className="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-[2px]">
+          <img src={logo} alt="" className="w-full h-full object-contain" />
+        </span>
+      )}
       <span className="text-xs font-bold truncate">{abbr}</span>
     </div>
   )
