@@ -1364,7 +1364,7 @@ export default function Recruiting() {
                 playStyle={playStyle}
                 model={scoutModel}
                 graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
-                onOpenGraphic={linkPid ? () => setGraphicRecruit({ recruit, pid: linkPid }) : null}
+                onOpenGraphic={linkPid ? () => setGraphicRecruit({ recruit, pid: linkPid, headshot: player?.pictureUrl || recruit.pictureUrl || '' }) : null}
               />
             )
 
@@ -1441,6 +1441,7 @@ export default function Recruiting() {
         isOpen={!!graphicRecruit}
         onClose={() => setGraphicRecruit(null)}
         recruit={graphicRecruit?.recruit}
+        headshot={graphicRecruit?.headshot}
         schoolName={commitSchoolName}
         graphicUrl={graphicRecruit?.pid ? (currentDynasty.commitGraphics?.[graphicRecruit.pid] || '') : ''}
         onSave={(url) => saveCommitGraphic(graphicRecruit?.pid, url)}

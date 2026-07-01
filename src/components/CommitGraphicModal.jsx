@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import ImageUpload from './ImageUpload'
 import { getContrastTextColor } from '../utils/colorUtils'
+import { proxyImageUrl } from '../utils/imageProxy'
 
 // Per-recruit commitment graphic (Hayes-Fawcett-style). Shows the uploaded
 // graphic if there is one, lets the user upload/replace it, and offers a
@@ -33,6 +34,7 @@ export default function CommitGraphicModal({
   isOpen,
   onClose,
   recruit,
+  headshot,
   schoolName,
   graphicUrl,
   onSave,
@@ -77,10 +79,27 @@ export default function CommitGraphicModal({
       >
         {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between border-b border-surface-4">
-          <div className="min-w-0">
-            <div className="display-md text-txt-primary truncate">{recruit.name || 'Recruit'}</div>
-            <div className="label-xs text-txt-tertiary tracking-widest" style={{ letterSpacing: '1.5px' }}>
-              Commit Graphic
+          <div className="flex items-center gap-3 min-w-0">
+            {headshot ? (
+              <img
+                src={proxyImageUrl(headshot, 120)}
+                alt={recruit.name || 'Recruit'}
+                className="w-11 h-11 rounded-md object-cover flex-shrink-0"
+                style={{ border: `2px solid ${accent}` }}
+              />
+            ) : (
+              <div
+                className="w-11 h-11 rounded-md flex-shrink-0 flex items-center justify-center font-display font-black text-sm"
+                style={{ backgroundColor: accent, color: accentText }}
+              >
+                {(recruit.position || 'ATH').slice(0, 3)}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="display-md text-txt-primary truncate">{recruit.name || 'Recruit'}</div>
+              <div className="label-xs text-txt-tertiary tracking-widest" style={{ letterSpacing: '1.5px' }}>
+                Commit Graphic
+              </div>
             </div>
           </div>
           <button
@@ -99,9 +118,6 @@ export default function CommitGraphicModal({
           {/* Generate row — copy the prompt, then open ChatGPT to make the image. */}
           {canEdit && (
             <div className="rounded-lg border border-surface-4 bg-surface-2/50 p-3">
-              <p className="text-xs text-txt-secondary leading-relaxed mb-3">
-                No graphic yet? Copy the prompt, open ChatGPT to generate one, then upload it below.
-              </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -134,9 +150,6 @@ export default function CommitGraphicModal({
                 onChange={(url) => onSave(url || '')}
                 teamColors={{ primary: accent, secondary: accentText }}
               />
-              <p className="label-xs text-txt-muted mt-2">
-                Upload the image or paste a URL. It shows up on this recruit's commit card.
-              </p>
             </div>
           ) : graphicUrl ? (
             <img src={graphicUrl} alt={`${recruit.name} commit graphic`} className="w-full rounded-lg" />
