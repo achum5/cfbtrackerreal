@@ -83,6 +83,24 @@ window.addEventListener('error', (e) => {
   if (isStaleChunkError(e)) reloadIfStale(extractUrlFromError(e?.error || e))
 })
 
+// Ask the browser to make our storage PERSISTENT so it isn't evicted as
+// "best-effort" data. Without this, IndexedDB (where free/local dynasties live)
+// can be silently cleared by the browser under storage pressure or by Safari/iOS
+// tracking-prevention eviction — which is how a "local" save can vanish between
+// sessions. Best-effort and non-blocking; failure is fine (some browsers ignore
+// it, and it can't undo an already-persisted grant).
+async function requestPersistentStorage() {
+  try {
+    if (!navigator.storage?.persist) return
+    if (await navigator.storage.persisted()) return
+    const granted = await navigator.storage.persist()
+    console.log(`[storage] persistent storage ${granted ? 'granted' : 'not granted'}`)
+  } catch (e) {
+    console.warn('[storage] persist request failed:', e)
+  }
+}
+requestPersistentStorage()
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

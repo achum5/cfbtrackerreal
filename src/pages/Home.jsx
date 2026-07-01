@@ -11,8 +11,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import ShareDynastyModal from '../components/ShareDynastyModal'
 import StorageSwitchModal from '../components/StorageSwitchModal'
 import BouncingLogos from '../components/BouncingLogos'
-import { Button, Badge, Modal, Input, LoadingState, ContactCTA } from '../components/ui'
-import InstallAppCTA from '../components/ui/InstallAppCTA'
+import { Button, Badge, Modal, Input, LoadingState } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
 import { getEditionConfig, getEditionKey, LEGACY_EDITION } from '../editions'
@@ -505,9 +504,10 @@ export default function Home() {
               className="hidden"
             />
 
-            {/* Sample dynasty — ghost CTA */}
+            {/* Sample / Contact / Install — one dashed section, a single dashed
+                divider between each of the three rows. Install is mobile-only. */}
             <div className="max-w-3xl space-y-3">
-              <div className="ghost-card">
+              <div className="rounded-lg border border-dashed border-surface-5 divide-y divide-dashed divide-surface-5">
                 <div className="px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4">
                   <h3 className="font-display text-sm sm:text-base font-semibold text-txt-secondary leading-tight min-w-0">
                     Try a sample dynasty (my own personal one)
@@ -521,6 +521,18 @@ export default function Home() {
                     {importing ? 'Loading…' : 'Load sample'}
                   </button>
                 </div>
+                <Link to="/contact" className="px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                  <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
+                    Got feedback, bugs, or ideas?
+                  </span>
+                  <span className="btn-refined flex-shrink-0">Contact</span>
+                </Link>
+                <Link to="/install" className="lg:hidden px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                  <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
+                    Want the app on your home screen?
+                  </span>
+                  <span className="btn-refined flex-shrink-0">Install</span>
+                </Link>
               </div>
 
               {/* Account / premium card */}
@@ -573,11 +585,6 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-10 max-w-3xl space-y-3">
-              <ContactCTA />
-              {/* Mobile only: install-to-home-screen, grouped with the contact row. */}
-              <InstallAppCTA className="lg:hidden" />
-            </div>
           </div>
         ) : (
           <div className="page-enter">
@@ -870,10 +877,9 @@ export default function Home() {
               })}
             </div>
 
-            {/* Sample dynasty — ghost-card style so it reads as a CTA /
-                offer, not as another tracked dynasty. Lighter visual
-                weight than the actual dynasty cards above. */}
-            <div className="mt-6 ghost-card">
+            {/* Sample / Contact / Install — one dashed section, a single dashed
+                divider between each of the three rows. Install is mobile-only. */}
+            <div className="mt-6 rounded-lg border border-dashed border-surface-5 divide-y divide-dashed divide-surface-5">
               <div className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4">
                 <h3 className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
                   Try a sample dynasty (my own personal one)
@@ -887,12 +893,18 @@ export default function Home() {
                   {importing ? 'Loading…' : 'Load sample'}
                 </button>
               </div>
-            </div>
-
-            <div className="mt-10 space-y-3">
-              <ContactCTA />
-              {/* Mobile only: install-to-home-screen, grouped with the contact row. */}
-              <InstallAppCTA className="lg:hidden" />
+              <Link to="/contact" className="px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
+                  Got feedback, bugs, or ideas?
+                </span>
+                <span className="btn-refined flex-shrink-0">Contact</span>
+              </Link>
+              <Link to="/install" className="lg:hidden px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
+                <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
+                  Want the app on your home screen?
+                </span>
+                <span className="btn-refined flex-shrink-0">Install</span>
+              </Link>
             </div>
           </div>
         )}
