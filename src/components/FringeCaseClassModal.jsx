@@ -138,6 +138,19 @@ FINAL CHECK before you send
     notes: `The "Games" column (protected) reflects regular-season games played in ${currentYear}. In the fringe-case context, the game decides whether a redshirt was applied (typically ≤ 4 games used a redshirt; 5–9 games is the fringe case where either progression or redshirt may apply). Use the screenshot's Games and context to pick the correct allowed value for each row.`
   }), [currentYear, userRoster, currentDynasty?.teams])
 
+  // Pre-fill the local grid with any class selections already saved for this
+  // year so re-opening the modal shows prior picks instead of a blank grid.
+  // Source: fringeCaseClassByYear[currentYear] (the exact array
+  // handleFringeCaseClassSave persisted). Column order mirrors the local parser
+  // (Player, New Class): serialize playerName + selectedClass.
+  const initialText = useMemo(() => {
+    const saved = currentDynasty?.fringeCaseClassByYear?.[currentYear] || []
+    return saved
+      .filter(s => s.playerName && s.selectedClass)
+      .map(s => `${s.playerName}\t${s.selectedClass}`)
+      .join('\n')
+  }, [currentDynasty?.fringeCaseClassByYear, currentYear])
+
   // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
   // against. The AI emits ONE line per fringe-case player who gets a new class,
   // as PlayerName<TAB>NewClass — so a paste carries its own identity and the
@@ -424,6 +437,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Fringe Case Classes"
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

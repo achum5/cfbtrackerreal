@@ -365,6 +365,57 @@ FINAL CHECK before you send
     promptYears,
   ])
 
+  // Pre-fill the local grid with every stored CC game across all years so the
+  // user opens ready to edit. Mirrors buildCCHistoryPrefill in sheetsService
+  // (CC games from games[], tid → abbr preferred over legacy abbrs), then
+  // serializes to the parser's 6-column layout:
+  //   Year \t Conference \t Team1 \t Team2 \t Score1 \t Score2
+  // The local prompt/save contract drops scoreless lines, so we emit ONLY rows
+  // with BOTH scores. Round-tripping this unchanged reproduces the same
+  // { years, byYear } via parseConferenceChampionshipsHistoryLocal.
+  const initialText = useMemo(() => {
+    if (!currentDynasty) return ''
+    const teamsByTid = currentDynasty.teams || {}
+    const lines = []
+    for (const g of (currentDynasty.games || [])) {
+      const isCCG = g?.isConferenceChampionship || g?.gameType === 'conference_championship'
+      if (!isCCG) continue
+      const year = Number(g.year)
+      if (!Number.isFinite(year)) continue
+      const conf = g.conference
+      if (!conf) continue
+
+      let team1Abbr = g.team1
+      let team2Abbr = g.team2
+      if (g.team1Tid != null) {
+        const t = teamsByTid[g.team1Tid] || teamsByTid[String(g.team1Tid)]
+        if (t?.abbr) team1Abbr = t.abbr
+      }
+      if (g.team2Tid != null) {
+        const t = teamsByTid[g.team2Tid] || teamsByTid[String(g.team2Tid)]
+        if (t?.abbr) team2Abbr = t.abbr
+      }
+      if (!team1Abbr && g.userTeam) team1Abbr = g.userTeam
+      if (!team2Abbr && g.opponent) team2Abbr = g.opponent
+
+      const s1 = g.team1Score ?? g.teamScore
+      const s2 = g.team2Score ?? g.opponentScore
+      // Only emit fully-scored games (the save drops scoreless lines).
+      if (s1 == null || s2 == null || Number.isNaN(Number(s1)) || Number.isNaN(Number(s2))) continue
+      if (!team1Abbr || !team2Abbr) continue
+
+      lines.push([
+        String(year),
+        conf,
+        String(team1Abbr).toUpperCase(),
+        String(team2Abbr).toUpperCase(),
+        String(Number(s1)),
+        String(Number(s2)),
+      ].join('\t'))
+    }
+    return lines.join('\n')
+  }, [currentDynasty?.games, currentDynasty?.teams])
+
   // Create the sheet on first open (or after a delete) when none is
   // currently stored.
   useEffect(() => {
@@ -613,6 +664,7 @@ FINAL CHECK before you send
             <LocalDataEntry
               aiPrompt={localAiPrompt}
               columns={['Year', 'Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score']}
+              initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}
               onCancel={onClose}

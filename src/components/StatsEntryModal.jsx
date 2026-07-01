@@ -91,6 +91,32 @@ export default function StatsEntryModal({
       }))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, overrideTeamAbbr, currentYear, currentDynasty])
 
+  // Pre-fill the local grid with the roster's EXISTING GP/Snaps so the modal
+  // opens ready to edit. parseGpSnapsLocal reads each row as
+  // <Player>\t<Games Played>\t<Snaps Played> (row[0], row[1], row[2]); a blank
+  // GP/Snaps cell parses to null ("leave the saved value alone"), matching the
+  // Google reader. Column order: [Player, Games Played, Snaps Played].
+  const initialGpSnapsText = useMemo(() => {
+    const teamTid = overrideTeamAbbr
+      ? getTidFromAbbr(overrideTeamAbbr, currentDynasty)
+      : getCurrentTeamTid(currentDynasty)
+    const teamAbbrForRoster = overrideTeamAbbr ||
+      currentDynasty?.teams?.[currentDynasty?.currentTid]?.abbr ||
+      currentDynasty?.teamName
+    const yearKey = String(currentYear)
+    const numKey = Number(currentYear)
+    const all = currentDynasty?.players || []
+    const cell = (v) => (v === undefined || v === null ? '' : v)
+    return all
+      .filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
+      .filter(p => p.name)
+      .map(p => {
+        const s = p.statsByYear?.[yearKey] ?? p.statsByYear?.[numKey] ?? p.statsByYear?.[currentYear]
+        return `${p.name}\t${cell(s?.gamesPlayed)}\t${cell(s?.snapsPlayed)}`
+      })
+      .join('\n')
+  }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, overrideTeamAbbr, currentYear, currentDynasty])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} GP/Snaps Entry`,
     roster: userRoster,
@@ -515,6 +541,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import GP / Snaps"
             columns={['Player', 'Games Played', 'Snaps Played']}
+            initialText={initialGpSnapsText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

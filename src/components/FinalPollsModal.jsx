@@ -235,6 +235,30 @@ FINAL CHECK before you send
     onClose()
   }
 
+  // Pre-fill the local grid with this year's saved Top 25. This is a
+  // SINGLE-COLUMN, POSITION-BASED format: handleLocalImport derives each team's
+  // rank from its line position (line i -> rank i+1) because splitTsv drops
+  // blank lines. So the pre-fill can only round-trip when the saved poll is a
+  // CONTIGUOUS 1..N (no internal gaps) — otherwise a blank rank would collapse
+  // and shift every team below it. When the saved media list is dense from
+  // rank 1, emit one abbr per line in rank order; when it is ragged (has a gap),
+  // leave the grid blank rather than emit a mis-ranked pre-fill.
+  const initialText = useMemo(() => {
+    const media = currentDynasty?.finalPollsByYear?.[currentYear]?.media
+      || currentDynasty?.finalPollsByYear?.[String(currentYear)]?.media
+      || []
+    if (!Array.isArray(media) || media.length === 0) return ''
+    const sorted = [...media]
+      .filter(m => m && m.team && typeof m.rank === 'number' && m.rank >= 1)
+      .sort((a, b) => a.rank - b.rank)
+    if (sorted.length === 0) return ''
+    // Require a contiguous 1..N sequence for a safe positional round-trip.
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i].rank !== i + 1) return ''
+    }
+    return sorted.map(m => String(m.team).toUpperCase()).join('\n')
+  }, [currentDynasty?.finalPollsByYear, currentYear])
+
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
     setSyncing(true)
@@ -346,6 +370,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Final Polls"
             columns={['Team']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

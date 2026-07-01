@@ -14,17 +14,17 @@ export const CFB27_NIL_BUDGETS = {
   7: 1035, // Arkansas State Red Wolves
   8: 5575, // Arizona State Sun Devils
   9: 6980, // Auburn Tigers
-  10: 595, // Ball State Cardinals
+  10: 585, // Ball State Cardinals
   11: 12500, // Alabama Crimson Tide
   12: 3300, // Boston College Eagles
   13: 840, // Bowling Green Falcons
   14: 4650, // Boise State Broncos
   15: 3385, // Baylor Bears
-  16: 565, // Buffalo Bulls
+  16: 585, // Buffalo Bulls
   17: 6375, // Brigham Young Cougars
   18: 5025, // California Golden Bears
   19: 915, // Coastal Carolina Chanticleers
-  20: 1150, // Charlotte 49ers
+  20: 1350, // Charlotte 49ers
   21: 9105, // Clemson Tigers
   22: 685, // Central Michigan Chippewas
   23: 5875, // Colorado Buffaloes
@@ -50,7 +50,7 @@ export const CFB27_NIL_BUDGETS = {
   43: 815, // Jacksonville State Gamecocks
   44: 1005, // James Madison Dukes
   45: 565, // Kennesaw State Owls
-  46: 410, // Kent State Golden Flashes
+  46: 440, // Kent State Golden Flashes
   47: 4325, // Kansas State Wildcats
   48: 2800, // Kansas Jayhawks
   49: 1150, // Liberty Flames
@@ -58,7 +58,7 @@ export const CFB27_NIL_BUDGETS = {
   51: 10100, // LSU Tigers
   52: 1010, // Louisiana Tech Bulldogs
   53: 1125, // Miami Redhawks
-  54: 410, // Massachusetts Minutemen
+  54: 440, // Massachusetts Minutemen
   55: 2200, // Memphis Tigers
   56: 10225, // Miami Hurricanes
   57: 11630, // Michigan Wolverines
@@ -128,7 +128,7 @@ export const CFB27_NIL_BUDGETS = {
   121: 1850, // Utah State Aggies
   122: 9180, // Tennessee Volunteers
   123: 5975, // Utah Utes
-  124: 975, // UTEP Miners
+  124: 875, // UTEP Miners
   125: 1860, // UTSA Roadrunners
   126: 3350, // Virginia Cavaliers
   127: 4640, // Vanderbilt Commodores

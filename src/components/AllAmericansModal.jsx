@@ -52,6 +52,63 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
+  // The 25 fixed All-Americans position rows, in sheet order (row 4 → row 28).
+  // Mirrors ALL_AMERICAN_POSITIONS in sheetsService.js.
+  const AA_POSITIONS = [
+    'QB', 'HB', 'HB', 'WR', 'WR', 'WR', 'TE',
+    'LT', 'LG', 'C', 'RG', 'RT',
+    'LEDG', 'REDG', 'DT', 'DT',
+    'SAM', 'MIKE', 'WILL',
+    'CB', 'CB', 'FS', 'SS',
+    'K', 'P',
+  ]
+
+  // Pre-fill the local grid with this year's EXISTING All-Americans so the modal
+  // opens ready to edit. handleLocalImport prepends 3 empty header rows and the
+  // parser reads rows[3 + i] for the 25 position rows, taking each 12-field line
+  // as: Position, FirstPlayer, FirstTeam, FirstClass, Position, SecondPlayer,
+  // SecondTeam, SecondClass, Position, FreshPlayer, FreshTeam, FreshClass. We
+  // build exactly 25 lines (one per position slot), filling the position value
+  // in fields 0/4/8 of EVERY row — this mirrors createAllAmericansOnlySheet's
+  // pre-fill AND guarantees no line is fully blank (so splitTsv, which drops
+  // blank lines, can't collapse the fixed 25-row layout and misalign import).
+  // Multi-slot positions (HB×2, WR×3, DT×2, CB×2) consume existing entries in
+  // order via a per-position used-index, exactly like the Google pre-fill.
+  const initialAllAmericansText = useMemo(() => {
+    const yearData = currentDynasty?.allAmericansByYear?.[currentYear] || {}
+    const aaFirst = {}
+    const aaSecond = {}
+    const aaFreshman = {}
+    if (yearData.allAmericans) {
+      yearData.allAmericans.forEach(entry => {
+        const pos = entry.position
+        if (entry.designation === 'first') (aaFirst[pos] = aaFirst[pos] || []).push(entry)
+        else if (entry.designation === 'second') (aaSecond[pos] = aaSecond[pos] || []).push(entry)
+        else if (entry.designation === 'freshman') (aaFreshman[pos] = aaFreshman[pos] || []).push(entry)
+      })
+    }
+    const usedFirst = {}
+    const usedSecond = {}
+    const usedFreshman = {}
+    return AA_POSITIONS.map(pos => {
+      const firstEntries = aaFirst[pos] || []
+      const secondEntries = aaSecond[pos] || []
+      const freshmanEntries = aaFreshman[pos] || []
+      if (usedFirst[pos] === undefined) usedFirst[pos] = 0
+      if (usedSecond[pos] === undefined) usedSecond[pos] = 0
+      if (usedFreshman[pos] === undefined) usedFreshman[pos] = 0
+      const first = firstEntries[usedFirst[pos]] ? firstEntries[usedFirst[pos]++] : null
+      const second = secondEntries[usedSecond[pos]] ? secondEntries[usedSecond[pos]++] : null
+      const freshman = freshmanEntries[usedFreshman[pos]] ? freshmanEntries[usedFreshman[pos]++] : null
+      return [
+        pos, first?.player || '', first?.school || '', first?.class || '',
+        pos, second?.player || '', second?.school || '', second?.class || '',
+        pos, freshman?.player || '', freshman?.school || '', freshman?.class || '',
+      ].join('\t')
+    }).join('\n')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDynasty?.allAmericansByYear, currentYear])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} All-Americans`,
     structure: `This sheet has ONE tab per season year. Use the "${currentYear}" tab (current year).
@@ -360,6 +417,7 @@ FINAL CHECK before you send
           <LocalDataEntry
             aiPrompt={aiPrompt}
             columns={['Position', 'First Player', 'First Team', 'First Class', 'Position', 'Second Player', 'Second Team', 'Second Class', 'Position', 'Freshman Player', 'Freshman Team', 'Freshman Class']}
+            initialText={initialAllAmericansText}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

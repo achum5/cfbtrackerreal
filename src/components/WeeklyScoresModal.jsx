@@ -748,6 +748,25 @@ Don't just glance at this list. Physically execute each check on your draft.
     return out
   }, [isOpen, currentDynasty, year, week, userTid])
 
+  // Pre-fill the local grid with the week's existing CPU games so the modal
+  // opens ready to edit instead of blank. The parser (readWeeklyScoresFromSheet)
+  // is content-classified and reads a game row as
+  // [HomeTeam, HomeRank, HomeScore, AwayTeam, AwayRank, AwayScore, Neutral].
+  // existingForPrefill already resolves home/away orientation, scores, ranks,
+  // and the neutral flag, so we serialize those seven columns per game (blank
+  // cell where a value is missing). Only game rows are seeded — bye-rank rows
+  // are the AI's job on import and aren't part of the pre-fill.
+  const initialWeeklyText = useMemo(() => {
+    return existingForPrefill.map((g) => {
+      const homeRank = g.homeRank != null ? String(g.homeRank) : ''
+      const awayRank = g.awayRank != null ? String(g.awayRank) : ''
+      const homeScore = g.homeScore != null ? String(g.homeScore) : ''
+      const awayScore = g.awayScore != null ? String(g.awayScore) : ''
+      const neutral = g.neutral ? 'Y' : ''
+      return [g.homeTeam || '', homeRank, homeScore, g.awayTeam || '', awayRank, awayScore, neutral].join('\t')
+    }).join('\n')
+  }, [existingForPrefill])
+
   useEffect(() => {
     // An explicit retry (Refresh after re-auth, or Regenerate) re-arms one attempt.
     if (auth.retryCount !== lastRetryCountRef.current) {
@@ -1052,6 +1071,7 @@ Don't just glance at this list. Physically execute each check on your draft.
                 onUseGoogle={() => setUseLocal(false)}
                 onCancel={onClose}
                 importLabel="Import Scores"
+                initialText={initialWeeklyText}
               />
             </div>
           ) : isLoading ? (

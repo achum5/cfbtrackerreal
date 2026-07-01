@@ -79,6 +79,31 @@ export default function TransferDestinationsModal({ isOpen, onClose, onSave, cur
       .map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentYear])
 
+  // Pre-fill the local grid with THIS team's already-saved transfer
+  // destinations for the year so the modal opens ready to edit. The parser
+  // reads row[0]=Player, row[1]=New Team and requires BOTH non-blank, so we
+  // emit only entries with a name and a destination — round-trip safe.
+  // Mirror handleTransferDestinationsSave's year: it flips to the prior season
+  // once we're at/after Signing Day (offseason week >= 5).
+  const initialText = useMemo(() => {
+    const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 5
+    const dataYear = isAfterYearFlip ? Number(currentYear) - 1 : Number(currentYear)
+    const tid = currentDynasty?.currentTid
+    const teamAbbr = currentDynasty?.teams?.[tid]?.abbr || currentDynasty?.teamName
+    const fromTid = tid != null
+      ? currentDynasty?.teams?.[tid]?.byYear?.[dataYear]?.transferDestinations
+      : null
+    const legacy = currentDynasty?.transferDestinationsByTeamYear
+    const fromLegacy =
+      (tid != null ? legacy?.[tid]?.[dataYear] : null) ??
+      (teamAbbr ? legacy?.[teamAbbr]?.[dataYear] : null)
+    const dests = fromTid ?? fromLegacy ?? []
+    return dests
+      .filter(d => d?.playerName && d?.newTeam)
+      .map(d => `${d.playerName}\t${d.newTeam}`)
+      .join('\n')
+  }, [currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentDynasty?.transferDestinationsByTeamYear, currentDynasty?.currentPhase, currentDynasty?.currentWeek, currentYear])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Transfer Destinations`,
     roster: userRoster,
@@ -543,6 +568,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Transfer Destinations"
             columns={['Player', 'New Team']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

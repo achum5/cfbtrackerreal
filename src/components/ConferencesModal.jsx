@@ -239,6 +239,36 @@ FINAL CHECK before you send
     onClose()
   }
 
+  // Pre-fill the local grid with the CURRENT YEAR's effective alignment.
+  // handleLocalImport reads self-describing Conference<TAB>Team pairs (column
+  // order: Conference, Team), reshapes them back into the header+column grid
+  // parseConferenceSheetData consumes. getCustomConferencesForYear returns the
+  // effective { conf: [teamAbbrs] } for the year (inheriting from a prior year
+  // when the current one is unset), so emitting one line per team round-trips:
+  // every FBS team appears exactly once (validateConferenceData passes) and the
+  // parsed alignment matches. If there is no effective alignment, leave the
+  // grid blank so the user starts from the default prompt.
+  const initialText = useMemo(() => {
+    try {
+      const year = currentDynasty?.currentYear
+      if (!year) return ''
+      const effective = getCustomConferencesForYear(currentDynasty, year)
+      if (!effective || typeof effective !== 'object') return ''
+      const lines = []
+      for (const [conference, teams] of Object.entries(effective)) {
+        if (!conference || !Array.isArray(teams)) continue
+        for (const team of teams) {
+          if (!team) continue
+          lines.push([conference, String(team).toUpperCase()].join('\t'))
+        }
+      }
+      return lines.join('\n')
+    } catch (err) {
+      console.error('[ConferencesModal] Error building initialText:', err)
+      return ''
+    }
+  }, [currentDynasty?.currentYear, currentDynasty?.customConferencesByYear, currentDynasty?.customConferences])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -520,6 +550,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Conferences"
             columns={['Conference', 'Team']}
+            initialText={initialText}
             instructions={`This replaces the COMPLETE conference alignment for the current season. It is the WHOLE grid, not a partial screenshot of one conference. Screenshot every conference's full team list (or all of them at once), upload the shots with the copied prompt to your AI, and it returns a TSV listing every team and its conference. Paste that below. If any FBS team is missing or duplicated, the import is rejected and nothing is saved.`}
           />
         ) : isLoading ? (

@@ -51,6 +51,45 @@ export default function TeamStatsModal({ isOpen, onClose, onSave, currentYear, t
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
+  // Pre-fill the local grid with the team's EXISTING aggregated stats so the
+  // modal opens ready to edit. parseTeamStatsLocal reads each row as
+  // Section<TAB>StatLabel<TAB>Value and looks the label up in the fixed
+  // OFFENSE/DEFENSE key maps — so we emit one self-describing row per stat, in
+  // the same section+label order the AI prompt uses. Column order: [Section,
+  // Stat, Value]. Blank (null/undefined) values are omitted (parser treats an
+  // absent row the same as a blank value: leaves the key null).
+  const initialTeamStatsText = useMemo(() => {
+    const OFFENSE = [
+      ['Points', 'pointsFor'],
+      ['Offense Yards', 'totalOffense'],
+      ['Yards Per Play', 'yardsPerPlay'],
+      ['Passing Yards', 'passYards'],
+      ['Passing Touchdowns', 'passTds'],
+      ['Rushing Yards', 'rushYards'],
+      ['Rushing Touchdowns', 'rushTds'],
+      ['First Downs', 'firstDowns'],
+    ]
+    const DEFENSE = [
+      ['Points Allowed', 'pointsAgainst'],
+      ['Total Yards Allowed', 'defTotalYards'],
+      ['Passing Yards Allowed', 'defPassYards'],
+      ['Rushing Yards Allowed', 'defRushYards'],
+      ['Sacks', 'defSacks'],
+      ['Forced Fumbles', 'forcedFumbles'],
+      ['Interceptions', 'defInterceptions'],
+    ]
+    const src = aggregatedStats || {}
+    const lines = []
+    const emit = (section, label, key) => {
+      const v = src[key]
+      if (v === undefined || v === null || v === '') return
+      lines.push(`${section}\t${label}\t${v}`)
+    }
+    OFFENSE.forEach(([label, key]) => emit('OFFENSE', label, key))
+    DEFENSE.forEach(([label, key]) => emit('DEFENSE', label, key))
+    return lines.join('\n')
+  }, [aggregatedStats])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} ${teamName} Team Statistics`,
     multiBlock: true,
@@ -405,6 +444,7 @@ FINAL CHECK before you send
               onCancel={handleClose}
               importLabel="Import Team Stats"
               columns={['Section', 'Stat', 'Value']}
+              initialText={initialTeamStatsText}
             />
           </div>
         ) : isLoading ? (

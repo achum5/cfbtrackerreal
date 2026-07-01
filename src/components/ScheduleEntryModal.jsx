@@ -151,6 +151,43 @@ FINAL CHECK before you send the answer
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, displayTeamName, targetTeamAbbr, currentDynasty?.teams])
 
+  // Pre-fill the local grid with the team's existing schedule so Edit
+  // Schedule opens ready to edit instead of blank. The local parser
+  // (readScheduleFromScheduleSheet) reads opponent at row[2] and site at
+  // row[3]; handleLocalImport prepends [week, userTeamAbbr] by row index,
+  // so the seeded grid columns are [Opponent, Site], ONE row per week
+  // 0-15 in fixed order. location home/away/neutral maps back to the
+  // dropdown labels Home/Road/Neutral; a bye seeds "BYE" with a blank
+  // site — the same shapes the parser round-trips.
+  const initialScheduleText = useMemo(() => {
+    const existing = teamTid
+      ? getScheduleForTeam(currentDynasty, teamTid, currentYear) || []
+      : getCurrentSchedule(currentDynasty) || []
+    const byWeek = new Map()
+    for (const e of existing) {
+      const wk = Number(e?.week)
+      if (!Number.isFinite(wk) || wk < 0 || wk > 15) continue
+      byWeek.set(wk, e)
+    }
+    const siteLabel = (loc) => {
+      const l = String(loc || '').toLowerCase()
+      if (l === 'home') return 'Home'
+      if (l === 'away' || l === 'road') return 'Road'
+      if (l === 'neutral') return 'Neutral'
+      return ''
+    }
+    const rows = []
+    for (let wk = 0; wk <= 15; wk++) {
+      const e = byWeek.get(wk)
+      if (!e) { rows.push('\t'); continue }
+      const isBye = e.isBye || (!e.opponent && !e.opponentTid)
+      if (isBye) { rows.push('BYE\t'); continue }
+      const opp = (e.opponent || '').toString().toUpperCase()
+      rows.push(`${opp}\t${siteLabel(e.location)}`)
+    }
+    return rows.join('\n')
+  }, [currentDynasty, teamTid, currentYear])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
 
@@ -538,6 +575,7 @@ FINAL CHECK before you send the answer
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Schedule"
+            initialText={initialScheduleText}
             columns={['Opponent', 'Site']}
           />
         ) : isLoading ? (

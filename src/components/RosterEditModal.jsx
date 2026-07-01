@@ -15,14 +15,27 @@ import SheetModalFooter from './ui/SheetModalFooter'
 import {
   createRosterSheet,
   readRosterFromRosterSheet,
+  serializeRosterToTsv,
   deleteGoogleSheet,
   getSingleSheetEmbedUrl,
   prefillRosterSheet
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { getEditionConfig } from '../editions'
+import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
+import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/rosterOptions'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+
+// Dropdown values for the roster grid's constrained columns. Archetype depends
+// on the row's Position, so it's a function of the row.
+const ROSTER_COLUMN_OPTIONS = {
+  Position: POSITIONS,
+  Class: CLASSES,
+  'Dev Trait': DEV_TRAITS,
+  Archetype: (row, cols) => archetypesForPosition(row[cols.indexOf('Position')]),
+}
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -54,7 +67,7 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
   })
   const [highlightSave, setHighlightSave] = useState(false)
 
-  const userRoster = useMemo(() => {
+  const rosterPlayers = useMemo(() => {
     // Filter by TID (teambuilder-safe) and pass currentDynasty so the
     // legacy abbr fallback inside isPlayerOnRoster resolves teambuilder-
     // renamed teams. Previously this passed an abbr string with no
@@ -72,19 +85,56 @@ export default function RosterEditModal({ isOpen, onClose, onSave, currentYear, 
     const all = currentDynasty?.players || []
     return all
       .filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
-      .map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, teamAbbr, currentYear, currentDynasty])
+
+  // Minimal shape for the AI prompt's roster block.
+  const userRoster = useMemo(
+    () => rosterPlayers.map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position })),
+    [rosterPlayers],
+  )
+
+  // CFB 27+ tracks a full per-player attribute set. When the edition supports
+  // it, the roster paste gains a 15th column (O) so the AI fills every player's
+  // ratings in one pass; older editions keep the lean 14-column layout.
+  const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
+  // Pre-fill the local grid with the current roster so Edit Roster opens on the
+  // existing team (easy mass-edit) instead of a blank table.
+  const initialRosterText = useMemo(
+    () => serializeRosterToTsv(rosterPlayers, { year: currentYear, includeAttributes: attributesEnabled }),
+    [rosterPlayers, currentYear, attributesEnabled],
+  )
+  const attrColRange = attributesEnabled ? 'A–O' : 'A–N'
+  const attrColCount = attributesEnabled ? 15 : 14
+  const attrTabChars = attributesEnabled ? 14 : 13
+  const attrColListSuffix = attributesEnabled ? ', Attributes' : ''
+  const attrTableRow = attributesEnabled
+    ? `\n O  | Attributes                | All ratings (one cell)         | "CODE value" pairs, comma-separated (CFB 27) — see the ATTRIBUTES section below; blank if no ratings visible`
+    : ''
+  const attrSection = attributesEnabled
+    ? `\n───────────────────────────────────────────────────────────
+COLUMN O — Attributes (CFB 27) — the player's ENTIRE rating set as ONE cell:
+comma-separated "CODE value" pairs using the codes below, IN THIS ORDER. Include
+every rating you can see for the player; leave the WHOLE cell blank if you have no
+ratings for them. The cell uses COMMAS between pairs (never tabs) so it stays one
+cell. Ratings are integers 0–99, no "+/-" gain deltas — if a screenshot shows
+"84 (+1)", record 84. Example cell: "AWR 84, SPD 91, ACC 92, STR 70, AGI 90, COD 88".
+
+Attribute codes (CODE=Name):
+${ATTRIBUTE_PROMPT_LEGEND}
+`
+    : ''
+  const attrOutputCol = attributesEnabled ? '\t<Attributes>' : ''
 
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} ${teamAbbr ? `${teamAbbr} ` : ''}Roster Edit`,
     roster: userRoster,
-    structure: `This sheet has ONE tab: "Roster". It has 14 columns (A–N) and up to 85 data rows (rows 2–86). Row 1 is the protected header row. The sheet may already be pre-filled with current roster rows — your output will REPLACE all data rows, so include every player on the roster (edits + unchanged players).
+    structure: `This sheet has ONE tab: "Roster". It has ${attrColCount} columns (${attrColRange}) and up to 85 data rows (rows 2–86). Row 1 is the protected header row. The sheet may already be pre-filled with current roster rows — your output will REPLACE all data rows, so include every player on the roster (edits + unchanged players).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
 1. Output ONLY the data rows (rows 2+). NEVER output the header row.
-2. Output EXACTLY 14 tab-separated columns per line in this order: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL, NIL.
+2. Output EXACTLY ${attrColCount} tab-separated columns per line in this order: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL, NIL${attrColListSuffix}.
 3. One player per line. Maximum 85 lines total (rows 2 through 86).
 4. NO COMMAS anywhere — not in numbers, not in names. Weight "215" never "2,015".
 5. INTEGERS have no decimal point. Jersey # "7" not "7.0", Overall "88" not "88.0", Weight "210" not "210.0".
@@ -97,7 +147,7 @@ CRITICAL RULES — read before anything else
 TAB: "Roster" — paste at cell A2 of the "Roster" tab
 ═══════════════════════════════════════════════════════════
 
-Column layout (A→N), one player per line, tab-separated:
+Column layout (${attrColRange}), one player per line, tab-separated:
 
 Col | Header (row 1, protected) | Your value                     | Format / allowed values
 ----+---------------------------+--------------------------------+---------------------------------------------------
@@ -114,7 +164,7 @@ Col | Header (row 1, protected) | Your value                     | Format / allo
  K  | Hometown                  | City name                      | text
  L  | State                     | US state 2-letter code         | DROPDOWN (see list below) — exact literal
  M  | Image URL                 | Photo URL                      | blank unless a real URL is visible; never invent
- N  | NIL                       | Player's NIL amount (CFB 27)   | integer, no commas — blank if not shown (e.g. CFB 26)
+ N  | NIL                       | Player's NIL amount (CFB 27)   | integer, no commas — blank if not shown (e.g. CFB 26)${attrTableRow}
 
 ───────────────────────────────────────────────────────────
 COLUMN C — Position — MUST be one of these 21 values EXACTLY:
@@ -154,19 +204,19 @@ COLUMN I — Height — MUST be one of these 20 values EXACTLY (straight apostro
 COLUMN L — State — MUST be one of these 51 2-letter codes EXACTLY (uppercase):
 AL | AK | AZ | AR | CA | CO | CT | DE | FL | GA | HI | ID | IL | IN | IA | KS | KY | LA | ME | MD | MA | MI | MN | MS | MO | MT | NE | NV | NH | NJ | NM | NY | NC | ND | OH | OK | OR | PA | RI | SC | SD | TN | TX | UT | VT | VA | WA | WV | WI | WY | DC
 (No country codes. No full state names. Blank if unknown — never guess.)
-
+${attrSection}
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === ROSTER — paste at cell A2 of "Roster" tab ===
-<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>
-<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>
+<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
+<FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
 …one line per player, up to 85 total
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
-[ ] Every line has exactly 14 tab-separated columns (13 tab characters)
+[ ] Every line has exactly ${attrColCount} tab-separated columns (${attrTabChars} tab characters)
 [ ] No header row, no totals row, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
 [ ] No commas in any number (Jersey, Overall, Weight)
 [ ] No decimals on integers (Jersey / Overall / Weight)
@@ -179,7 +229,7 @@ FINAL CHECK before you send
 [ ] Blank cells used for every unknown — nothing was invented
 [ ] At most 85 data lines`,
     includeTeamMap: false,
-  }), [currentYear, teamAbbr, userRoster])
+  }), [currentYear, teamAbbr, userRoster, attributesEnabled, attrColRange, attrColCount, attrTabChars, attrColListSuffix, attrTableRow, attrSection, attrOutputCol])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -438,7 +488,12 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Roster"
-            columns={['First Name', 'Last Name', 'Position', 'Class', 'Dev Trait', 'Jersey #', 'Archetype', 'Overall', 'Height', 'Weight', 'Hometown', 'State', 'Image URL', 'NIL']}
+            initialText={initialRosterText}
+            imageColumn="Image"
+            columnOptions={ROSTER_COLUMN_OPTIONS}
+            columns={attributesEnabled
+              ? ['First Name', 'Last Name', 'Position', 'Class', 'Dev Trait', 'Jersey #', 'Archetype', 'Overall', 'Height', 'Weight', 'Hometown', 'State', 'Image', 'NIL', 'Attributes']
+              : ['First Name', 'Last Name', 'Position', 'Class', 'Dev Trait', 'Jersey #', 'Archetype', 'Overall', 'Height', 'Weight', 'Hometown', 'State', 'Image', 'NIL']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

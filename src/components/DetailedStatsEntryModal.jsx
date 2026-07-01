@@ -78,6 +78,47 @@ const convertToBoxScoreFormat = (categoryStats, categoryName) => {
   return converted
 }
 
+// Pre-fill support for the local grid. These mirror the (non-exported)
+// tables in sheetsService.js used by createDetailedStatsSheet's pre-fill:
+//  - DETAILED_STATS_TAB_COLUMNS: each category's display columns IN ORDER
+//    (the exact positional order parseDetailedStatsLocal reads after
+//    Category + PlayerName).
+//  - LOCAL_TAB_TO_BOXSCORE_CATEGORY / LOCAL_COLUMN_TO_BOXSCORE_FIELD: map a
+//    display column to the box-score field key used inside `aggregatedStats`
+//    (the same aggregatedStats shape convertToBoxScoreFormat produces above).
+// Together they let us round-trip existing player.statsByYear detailed stats
+// back into the SAME Category<TAB>Player<TAB>values rows the AI emits, in the
+// SAME per-category column order the parser consumes.
+const DETAILED_STATS_TAB_COLUMNS = {
+  'Passing': ['Completions', 'Attempts', 'Yards', 'Touchdowns', 'Interceptions', 'Net Yards/Attempt', 'Adjusted Net Yards/Attempt', 'Passing Long', 'Sacks Taken'],
+  'Rushing': ['Carries', 'Yards', 'Touchdowns', '20+ Yard Runs', 'Broken Tackles', 'Yards After Contact', 'Rushing Long', 'Fumbles'],
+  'Receiving': ['Receptions', 'Yards', 'Touchdowns', 'Receiving Long', 'Yards After Catch', 'Drops'],
+  'Blocking': ['Pancakes', 'Sacks Allowed'],
+  'Defensive': ['Solo Tackles', 'Assisted Tackles', 'Tackles for Loss', 'Sacks', 'Interceptions', 'INT Return Yards', 'INT Long', 'Defensive TDs', 'Deflections', 'Catches Allowed', 'Forced Fumbles', 'Fumble Recoveries', 'Fumble Return Yards', 'Blocks', 'Safeties'],
+  'Kicking': ['FG Made', 'FG Attempted', 'FG Long', 'XP Made', 'XP Attempted', 'FG Made (0-29)', 'FG Att (0-29)', 'FG Made (30-39)', 'FG Att (30-39)', 'FG Made (40-49)', 'FG Att (40-49)', 'FG Made (50+)', 'FG Att (50+)', 'Kickoffs', 'Touchbacks', 'FG Blocked', 'XP Blocked'],
+  'Punting': ['Punts', 'Punting Yards', 'Net Punting Yards', 'Punts Inside 20', 'Touchbacks', 'Punt Long', 'Punts Blocked'],
+  'Kick Return': ['Kickoff Returns', 'KR Yardage', 'KR Touchdowns', 'KR Long'],
+  'Punt Return': ['Punt Returns', 'PR Yardage', 'PR Long', 'PR Touchdowns'],
+}
+
+const LOCAL_TAB_TO_BOXSCORE_CATEGORY = {
+  'Passing': 'passing', 'Rushing': 'rushing', 'Receiving': 'receiving',
+  'Blocking': 'blocking', 'Defensive': 'defense', 'Kicking': 'kicking',
+  'Punting': 'punting', 'Kick Return': 'kickReturn', 'Punt Return': 'puntReturn',
+}
+
+const LOCAL_COLUMN_TO_BOXSCORE_FIELD = {
+  passing: { 'Completions': 'comp', 'Attempts': 'attempts', 'Yards': 'yards', 'Touchdowns': 'tD', 'Interceptions': 'iNT', 'Passing Long': 'long', 'Sacks Taken': 'sacks', 'Net Yards/Attempt': 'netYardsPerAttempt', 'Adjusted Net Yards/Attempt': 'adjNetYardsPerAttempt' },
+  rushing: { 'Carries': 'carries', 'Yards': 'yards', 'Touchdowns': 'tD', 'Rushing Long': 'long', 'Fumbles': 'fumbles', '20+ Yard Runs': '20+', 'Broken Tackles': 'brokenTackles', 'Yards After Contact': 'yAC' },
+  receiving: { 'Receptions': 'receptions', 'Yards': 'yards', 'Touchdowns': 'tD', 'Receiving Long': 'long', 'Yards After Catch': 'rAC', 'Drops': 'drops' },
+  blocking: { 'Sacks Allowed': 'sacksAllowed', 'Pancakes': 'pancakes' },
+  defense: { 'Solo Tackles': 'solo', 'Assisted Tackles': 'assists', 'Tackles for Loss': 'tFL', 'Sacks': 'sack', 'Interceptions': 'iNT', 'INT Return Yards': 'iNTYards', 'INT Long': 'iNTLong', 'Defensive TDs': 'tD', 'Deflections': 'deflections', 'Catches Allowed': 'catchesAllowed', 'Forced Fumbles': 'fF', 'Fumble Recoveries': 'fR', 'Fumble Return Yards': 'fumbleYards', 'Blocks': 'blocks', 'Safeties': 'safeties' },
+  kicking: { 'FG Made': 'fGM', 'FG Attempted': 'fGA', 'FG Long': 'fGLong', 'XP Made': 'xPM', 'XP Attempted': 'xPA', 'Kickoffs': 'kickoffs', 'Touchbacks': 'touchbacks', 'FG Blocked': 'fGBlock', 'XP Blocked': 'xPB', 'FG Made (0-29)': 'fGM29', 'FG Att (0-29)': 'fGA29', 'FG Made (30-39)': 'fGM39', 'FG Att (30-39)': 'fGA39', 'FG Made (40-49)': 'fGM49', 'FG Att (40-49)': 'fGA49', 'FG Made (50+)': 'fGM50+', 'FG Att (50+)': 'fGA50+' },
+  punting: { 'Punts': 'punts', 'Punting Yards': 'yards', 'Net Punting Yards': 'netYards', 'Punts Inside 20': 'in20', 'Touchbacks': 'tB', 'Punt Long': 'long', 'Punts Blocked': 'block' },
+  kickReturn: { 'Kickoff Returns': 'kR', 'KR Yardage': 'yards', 'KR Touchdowns': 'tD', 'KR Long': 'long' },
+  puntReturn: { 'Punt Returns': 'pR', 'PR Yardage': 'yards', 'PR Touchdowns': 'tD', 'PR Long': 'long' },
+}
+
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -133,6 +174,75 @@ export default function DetailedStatsEntryModal({
     return all
       .filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
       .map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
+  }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, overrideTeamAbbr, currentYear, currentDynasty])
+
+  // Pre-fill the local grid with the roster's EXISTING detailed season stats so
+  // the modal opens ready to edit. The local format is self-describing per row —
+  // Category<TAB>PlayerName<TAB><stat values in that category's fixed column
+  // order> — exactly what parseDetailedStatsLocal reads (row[0]=category,
+  // row[1]=name, row[i+2]=stat i). Because each row self-identifies (no fixed
+  // positional layout), omitting a player/category with no data is safe and
+  // blank-line dropping in splitTsv can't misalign anything. We rebuild the same
+  // box-score-format aggregatedStats the Google create path builds (via
+  // convertToBoxScoreFormat), then walk each category's display columns in order
+  // and map them back to box-score field keys with LOCAL_COLUMN_TO_BOXSCORE_FIELD
+  // — the inverse of createDetailedStatsSheet's pre-fill, so it round-trips.
+  const initialDetailedStatsText = useMemo(() => {
+    const teamTid = overrideTeamAbbr
+      ? getTidFromAbbr(overrideTeamAbbr, currentDynasty)
+      : getCurrentTeamTid(currentDynasty)
+    const teamAbbrForRoster = overrideTeamAbbr ||
+      currentDynasty?.teams?.[currentDynasty?.currentTid]?.abbr ||
+      currentDynasty?.teamName
+    const yearKey = String(currentYear)
+    const numKey = Number(currentYear)
+    const categories = ['passing', 'rushing', 'receiving', 'blocking', 'defense', 'kicking', 'punting', 'kickReturn', 'puntReturn']
+    const all = currentDynasty?.players || []
+    const roster = all.filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbrForRoster, currentYear, currentDynasty))
+
+    // Rebuild aggregatedStats[name][boxScoreCategory] = { boxScoreKey: value }
+    const aggregatedStats = {}
+    roster.forEach(player => {
+      if (!player.name) return
+      const s = player.statsByYear?.[yearKey] ?? player.statsByYear?.[numKey] ?? player.statsByYear?.[currentYear]
+      if (!s) return
+      const playerStats = {}
+      categories.forEach(cat => {
+        const categoryStats = s[cat]
+        if (categoryStats && typeof categoryStats === 'object' && Object.keys(categoryStats).length > 0) {
+          const hasNonZero = Object.values(categoryStats).some(v => v && v !== 0)
+          if (hasNonZero) playerStats[cat] = convertToBoxScoreFormat(categoryStats, cat)
+        }
+      })
+      if (Object.keys(playerStats).length > 0) aggregatedStats[player.name] = playerStats
+    })
+
+    // Emit one self-describing row per player per category that has data, in the
+    // fixed roster order and canonical tab order. Skip a category row entirely
+    // if none of its columns resolve to a non-empty value (matches "omit unknowns").
+    const lines = []
+    const cellVal = (v) => (v === undefined || v === null ? '' : v)
+    roster.forEach(player => {
+      const agg = aggregatedStats[player.name]
+      if (!agg) return
+      Object.keys(DETAILED_STATS_TAB_COLUMNS).forEach(tabName => {
+        const boxCat = LOCAL_TAB_TO_BOXSCORE_CATEGORY[tabName]
+        const catStats = agg[boxCat]
+        if (!catStats) return
+        const cols = DETAILED_STATS_TAB_COLUMNS[tabName]
+        const fieldMap = LOCAL_COLUMN_TO_BOXSCORE_FIELD[boxCat] || {}
+        const values = cols.map(col => {
+          const field = fieldMap[col]
+          return field ? cellVal(catStats[field]) : ''
+        })
+        // Only include the row if at least one stat value is present.
+        if (values.some(v => v !== '')) {
+          lines.push([tabName, player.name, ...values].join('\t'))
+        }
+      })
+    })
+    return lines.join('\n')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, overrideTeamAbbr, currentYear, currentDynasty])
 
   const aiPrompt = useMemo(() => buildAIPrompt({
@@ -731,6 +841,7 @@ FINAL CHECK before you send
               onUseGoogle={() => setUseLocal(false)}
               onCancel={handleClose}
               importLabel="Import Detailed Stats"
+              initialText={initialDetailedStatsText}
             />
           </div>
         ) : isLoading ? (

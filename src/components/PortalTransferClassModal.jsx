@@ -210,6 +210,35 @@ FINAL CHECK before you send
 [ ] No blank lines, no header row, no commentary INSIDE the data`,
   }), [currentYear])
 
+  // Pre-fill the local grid with each portal transfer's existing class + jersey
+  // so the modal opens ready to edit. The local import reshapes each pasted
+  // row as [name, '', '', class, jersey], and the parser requires a name and a
+  // class — so we emit "PlayerName<TAB>Class<TAB>Jersey" per transfer.
+  // Prefer any already-saved selection for this year; otherwise fall back to
+  // the transfer's incoming class + roster jersey (the same values the Google
+  // sheet pre-fills). Round-trip safe: re-importing unchanged reproduces the
+  // saved selections.
+  const initialText = useMemo(() => {
+    const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 5
+    const dataYear = isAfterYearFlip ? Number(currentYear) - 1 : Number(currentYear)
+    const saved = currentDynasty?.portalTransferClassByYear?.[dataYear] || []
+    const savedByName = new Map()
+    for (const s of saved) {
+      if (s?.playerName) savedByName.set(s.playerName.toLowerCase().trim(), s)
+    }
+    return (portalTransfers || [])
+      .map(t => {
+        const match = savedByName.get((t.name || '').toLowerCase().trim())
+        const cls = match?.selectedClass || t.incomingClass || ''
+        const jerseyRaw = match?.jerseyNumber ?? t.jerseyNumber
+        const jersey = (jerseyRaw != null && jerseyRaw !== '') ? String(jerseyRaw) : ''
+        if (!t.name || !cls) return null
+        return `${t.name}\t${cls}\t${jersey}`
+      })
+      .filter(Boolean)
+      .join('\n')
+  }, [portalTransfers, currentDynasty?.portalTransferClassByYear, currentDynasty?.currentPhase, currentDynasty?.currentWeek, currentYear])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
 
@@ -466,6 +495,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Portal Transfer Classes"
             columns={['Player', 'Class', 'Jersey #']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

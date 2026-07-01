@@ -171,6 +171,37 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
     dynastyTeams: currentDynasty?.teams,
   }), [yearNum, currentDynasty?.teams])
 
+  // Pre-fill the local grid with this year's saved preseason Top 25. This is a
+  // SINGLE-COLUMN, POSITION-BASED format: handleLocalImport reads rows[r][1] for
+  // r = 1..25 with the rank derived from line position (splitTsv drops blank
+  // lines). So the pre-fill can only round-trip when the saved poll is a
+  // CONTIGUOUS 1..N (no internal gaps). Abbr is derived from tid (mirroring
+  // createPreseasonRankingsSheet's seed: dynasty.teams[tid].abbr preferred,
+  // else e.team). When ranks are dense from 1, emit one abbr per line in rank
+  // order; when ragged, leave the grid blank rather than mis-rank the pre-fill.
+  const initialText = useMemo(() => {
+    const poll = currentDynasty?.preseasonRankingsByYear?.[yearNum]
+      || currentDynasty?.preseasonRankingsByYear?.[String(yearNum)]
+      || []
+    if (!Array.isArray(poll) || poll.length === 0) return ''
+    const teams = currentDynasty?.teams || {}
+    const sorted = poll
+      .filter(e => e && typeof e.rank === 'number' && e.rank >= 1)
+      .map(e => {
+        const abbr = e.tid != null
+          ? (teams?.[e.tid]?.abbr || teams?.[String(e.tid)]?.abbr || e.team)
+          : e.team
+        return { rank: e.rank, abbr }
+      })
+      .filter(e => e.abbr)
+      .sort((a, b) => a.rank - b.rank)
+    if (sorted.length === 0) return ''
+    for (let i = 0; i < sorted.length; i++) {
+      if (sorted[i].rank !== i + 1) return ''
+    }
+    return sorted.map(e => String(e.abbr).toUpperCase()).join('\n')
+  }, [currentDynasty?.preseasonRankingsByYear, currentDynasty?.teams, yearNum])
+
   const persistEntries = async (entries) => {
     if (!currentDynasty) return
     const cur = currentDynasty.preseasonRankingsByYear || {}
@@ -377,6 +408,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
               onCancel={onClose}
               importLabel="Import Top 25"
               columns={['Team']}
+              initialText={initialText}
             />
           ) : creatingSheet ? (
             <div className="flex-1 flex items-center justify-center">

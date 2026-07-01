@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getTeamConference } from '../data/conferenceTeams'
 import { isFCSPlaceholderAbbr } from '../data/teamRegistry'
-import { getCustomConferencesForYear } from '../context/DynastyContext'
+import { getCustomConferencesForYear, getTeamRatingsForYear } from '../context/DynastyContext'
 import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { getSchoolName } from '../data/teams'
@@ -278,6 +278,47 @@ function calcNormalizedSpread(homePS, awayPS, normCtx, isNeutral = false) {
   return Math.round(clamped * 2) / 2
 }
 
+// Team overall rating for a season, or null if not entered. Used to seed the
+// line before any games are played (in the preseason every team's on-field
+// power is the flat neutral baseline, so without this the spread is just the
+// home-field 3 for everyone).
+function teamOvr(dynasty, tid, year) {
+  const o = Number(getTeamRatingsForYear(dynasty, Number(tid), year)?.overall)
+  return Number.isFinite(o) && o > 0 ? o : null
+}
+
+// ~points of spread per point of overall difference. A 25-OVR gap (e.g. a 95
+// vs a 70) → ~22.5, which lands near a 25-point line once home field is added.
+const OVR_SPREAD_PER = 0.9
+
+// The line for one matchup. When BOTH teams have an overall entered, the spread
+// blends an overall-difference component with on-field results — the overall
+// carries it in the preseason and fades out as real games accumulate (by ~6
+// games it's purely on-field). Teams without both overalls keep the pure
+// on-field line (unchanged behavior). Positive → home favored.
+function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = false) {
+  const onField = (normScore(calcPowerScore(dynasty, homeTid, year, week), normCtx)
+                 - normScore(calcPowerScore(dynasty, awayTid, year, week), normCtx)) / 4
+  const homeField = isNeutral ? 0 : 3
+
+  const hOvr = teamOvr(dynasty, homeTid, year)
+  const aOvr = teamOvr(dynasty, awayTid, year)
+
+  let core = onField
+  if (hOvr != null && aOvr != null) {
+    const ovrComponent = (hOvr - aOvr) * OVR_SPREAD_PER
+    const played = Math.min(
+      calcScoringProfile(dynasty, homeTid, year, week).sampleGames,
+      calcScoringProfile(dynasty, awayTid, year, week).sampleGames,
+    )
+    const w = Math.min(1, played / 6) // 0 preseason (pure overall) → 1 by ~6 games (pure on-field)
+    core = ovrComponent * (1 - w) + onField * w
+  }
+
+  const clamped = Math.max(-28, Math.min(28, core + homeField))
+  return Math.round(clamped * 2) / 2
+}
+
 // ─── Spread → Moneyline (reference table with linear interpolation) ───────────
 // Each entry: [spread, favML, dogML]
 const SPREAD_ML_TABLE = [
@@ -539,18 +580,30 @@ function buildDebugText(dynasty, game) {
   const home = block(homeTid, 'HOME')
   const away = block(awayTid, 'AWAY')
 
-  // Spread (replicates calcNormalizedSpread: +3 home edge, none at neutral sites)
+  // Spread (mirrors calcSpread: overall-diff blended with on-field results,
+  // +3 home edge, none at neutral sites).
   const hfa         = isNeutral ? 0 : 3
-  const rawNormDiff = home.norm - away.norm
-  const raw         = rawNormDiff / 4 + hfa
-  const finalSpread = Math.round(Math.max(-28, Math.min(28, raw)) * 2) / 2
+  const hOvr        = teamOvr(dynasty, homeTid, year)
+  const aOvr        = teamOvr(dynasty, awayTid, year)
+  const onFieldEdge = (home.norm - away.norm) / 4
+  const finalSpread = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral)
   const absSp       = Math.abs(finalSpread)
   const homeFav     = finalSpread > 0
   const { favML, dogML } = spreadToML(absSp)
 
   p('SPREAD')
-  p(`  raw = (homeNorm - awayNorm)/4 + homeField(${hfa})${isNeutral ? '  [neutral site: no home edge]' : ''}`)
-  p(`      = (${home.norm.toFixed(2)} - ${away.norm.toFixed(2)})/4 + ${hfa} = ${raw.toFixed(2)}`)
+  if (hOvr != null && aOvr != null) {
+    const played = Math.min(home.prof.sampleGames, away.prof.sampleGames)
+    const w      = Math.min(1, played / 6)
+    const ovrEdge = (hOvr - aOvr) * OVR_SPREAD_PER
+    p(`  both teams rated -> overall drives it early, on-field takes over as games play`)
+    p(`  overall edge = (${hOvr} - ${aOvr}) * ${OVR_SPREAD_PER} = ${ovrEdge.toFixed(2)}`)
+    p(`  on-field edge = (${home.norm.toFixed(2)} - ${away.norm.toFixed(2)})/4 = ${onFieldEdge.toFixed(2)}`)
+    p(`  blend (games played min ${played.toFixed(1)} -> weight ${w.toFixed(2)} on-field) + homeField(${hfa})`)
+  } else {
+    p(`  raw = (homeNorm - awayNorm)/4 + homeField(${hfa})${isNeutral ? '  [neutral site: no home edge]' : ''}`)
+    p(`      = (${home.norm.toFixed(2)} - ${away.norm.toFixed(2)})/4 + ${hfa}`)
+  }
   p(`  clamp[-28,28], round 0.5 -> ${finalSpread}`)
   p(`  ${finalSpread === 0 ? 'pick\'em' : `${(homeFav ? home.abbr : away.abbr)} favored by ${absSp}`}`)
   p('')
@@ -596,11 +649,7 @@ function buildMatchup(dynasty, g, year, week, normCtx) {
   const homeTid   = g.homeTeamTid != null ? Number(g.homeTeamTid) : tid1
   const awayTid   = homeTid === tid1 ? tid2 : tid1
 
-  const spreadVal = calcNormalizedSpread(
-    calcPowerScore(dynasty, homeTid, year, week),
-    calcPowerScore(dynasty, awayTid, year, week),
-    normCtx, isNeutral,
-  )
+  const spreadVal = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral)
   const absSp = Math.abs(spreadVal)
   const { favML, dogML } = spreadToML(absSp)
   const homeFav = spreadVal > 0

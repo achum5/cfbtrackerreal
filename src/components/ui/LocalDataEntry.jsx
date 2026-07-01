@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Button from './Button'
 import { useToast } from './Toast'
 import { splitTsv } from '../../utils/tsvParse'
+import { uploadImage } from '../../utils/imageUpload'
 
 /**
  * LocalDataEntry — the universal "no Google Sheet needed" data-entry panel.
@@ -34,8 +35,19 @@ import { splitTsv } from '../../utils/tsvParse'
  *   columns       — optional array of header labels. When given, the grid shows
  *                   a header row and a fixed column count; when omitted, the
  *                   column count is inferred from the pasted data.
+ *   initialText   — optional TSV to pre-fill the grid with (e.g. the current
+ *                   roster), so the modal opens on existing data for mass edits.
+ *   imageColumn   — optional header label of a column that accepts a pasted
+ *                   image: pasting an image into that cell auto-uploads it and
+ *                   drops the resulting URL in the cell (a pasted URL still works).
+ *   columnOptions — optional map of header label → allowed values. A value can
+ *                   be a string[] (static dropdown) or (row, columns) => string[]
+ *                   (dynamic, e.g. archetypes filtered by the row's position).
+ *                   Cells in those columns render as a <select> dropdown.
  *   children      — optional extra content rendered above the action row
  *                   (e.g. a rankings-week selector).
+ *
+ * Grid keyboard nav is Excel-like: Tab moves right (native), Enter moves down.
  */
 
 const DEFAULT_INSTRUCTIONS = `Take screenshots of the data you want to enter here. It doesn't have to be exact, just clear and fully showing. Upload those along with the copied prompt to your AI platform of choice. It will return a TSV output — copy that, then paste it below.`
@@ -53,15 +65,37 @@ export default function LocalDataEntry({
   busy = false,
   instructions = DEFAULT_INSTRUCTIONS,
   columns = null,
+  initialText = '',
+  imageColumn = null,
+  columnOptions = null,
   children = null,
 }) {
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showText, setShowText] = useState(false)
-  const [text, setText] = useState('')
-  const [grid, setGrid] = useState([]) // rows[][]
+  const [text, setText] = useState(() => initialText || '')
+  const [grid, setGrid] = useState(() => splitTsv(initialText || '')) // rows[][]
   const [importing, setImporting] = useState(false)
+  const [uploadingCells, setUploadingCells] = useState(() => new Set())
+  // The last initialText we seeded from. Lets us re-seed when the source data
+  // arrives/changes (async roster load, year switch) WITHOUT clobbering edits.
+  const seededRef = useRef(initialText || '')
+
+  const imageColIndex = (imageColumn && columns?.length) ? columns.indexOf(imageColumn) : -1
+  const cellKey = (ri, ci) => `${ri}:${ci}`
+
+  // Re-seed the grid from initialText when it changes, but only while the user
+  // hasn't edited away from the last seed (so in-progress edits are never lost).
+  useEffect(() => {
+    const incoming = initialText || ''
+    if (incoming !== seededRef.current && text === seededRef.current) {
+      seededRef.current = incoming
+      setText(incoming)
+      setGrid(splitTsv(incoming))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialText])
 
   // Column count: the schema's if provided, else the widest pasted row, else a
   // sensible 2-column default so the empty starter row still looks like a grid.
@@ -93,6 +127,70 @@ export default function LocalDataEntry({
 
   const addRow = () => applyGrid([...grid, Array(colCount).fill('')])
   const removeRow = (ri) => applyGrid(grid.filter((_, i) => i !== ri))
+
+  // Paste into an image column: if the clipboard holds an image, upload it and
+  // drop the URL in the cell. If it's plain text (a URL), fall through to the
+  // normal paste so the browser inserts it as-is.
+  const handleCellPaste = async (e, ri, ci) => {
+    if (ci !== imageColIndex) return
+    const dt = e.clipboardData
+    const imgFile =
+      Array.from(dt?.items || [])
+        .filter((it) => it.kind === 'file' && it.type?.startsWith('image/'))
+        .map((it) => it.getAsFile())
+        .find(Boolean) ||
+      Array.from(dt?.files || []).find((f) => f.type?.startsWith('image/'))
+    if (!imgFile) return // no image on the clipboard — let the URL paste happen
+    e.preventDefault()
+    const key = cellKey(ri, ci)
+    setUploadingCells((prev) => new Set(prev).add(key))
+    try {
+      const url = await uploadImage(imgFile)
+      editCell(ri, ci, url)
+      toast.success('Image uploaded.')
+    } catch (err) {
+      console.error('Cell image upload failed:', err)
+      toast.error(err?.message || 'Image upload failed. Try again or paste a URL.')
+    } finally {
+      setUploadingCells((prev) => {
+        const n = new Set(prev)
+        n.delete(key)
+        return n
+      })
+    }
+  }
+
+  // Excel-like navigation: Tab moves right (native tab order), Enter moves down
+  // the column. At the last row, Enter adds a fresh row and lands in it.
+  const cellEls = useRef({})
+  const registerCell = (ri, ci, el) => {
+    if (el) cellEls.current[cellKey(ri, ci)] = el
+    else delete cellEls.current[cellKey(ri, ci)]
+  }
+  const focusCell = (ri, ci) => {
+    const el = cellEls.current[cellKey(ri, ci)]
+    if (!el) return false
+    el.focus()
+    if (typeof el.select === 'function') { try { el.select() } catch { /* selects have no select() */ } }
+    return true
+  }
+  const handleCellKeyDown = (e, ri, ci) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    if (!focusCell(ri + 1, ci)) {
+      addRow()
+      setTimeout(() => focusCell(ri + 1, ci), 0)
+    }
+  }
+
+  // Allowed dropdown values for a column, or null for a free-text cell.
+  const optionsFor = (ci, row) => {
+    if (!columnOptions || !columns?.length) return null
+    const spec = columnOptions[columns[ci]]
+    if (!spec) return null
+    const arr = typeof spec === 'function' ? spec(row, columns) : spec
+    return Array.isArray(arr) ? arr : null
+  }
 
   const copyPrompt = async () => {
     try {
@@ -251,17 +349,48 @@ export default function LocalDataEntry({
             <tbody>
               {displayRows.map((row, ri) => (
                 <tr key={ri}>
-                  {Array.from({ length: colCount }).map((_, ci) => (
-                    <td key={ci} className="border border-surface-5">
-                      <input
-                        type="text"
-                        value={row[ci] ?? ''}
-                        onChange={(e) => editCell(ri, ci, e.target.value)}
-                        aria-label={columns?.[ci] ? `${columns[ci]} row ${ri + 1}` : `Row ${ri + 1} column ${ci + 1}`}
-                        className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
-                      />
-                    </td>
-                  ))}
+                  {Array.from({ length: colCount }).map((_, ci) => {
+                    const isImageCol = ci === imageColIndex
+                    const uploading = isImageCol && uploadingCells.has(cellKey(ri, ci))
+                    const opts = optionsFor(ci, row)
+                    const val = row[ci] ?? ''
+                    const label = columns?.[ci] ? `${columns[ci]} row ${ri + 1}` : `Row ${ri + 1} column ${ci + 1}`
+                    return (
+                      <td key={ci} className="border border-surface-5">
+                        {uploading ? (
+                          <div className="px-2 py-0.5 text-txt-tertiary italic">Uploading…</div>
+                        ) : opts ? (
+                          <select
+                            ref={(el) => registerCell(ri, ci, el)}
+                            value={val}
+                            onChange={(e) => editCell(ri, ci, e.target.value)}
+                            onKeyDown={(e) => handleCellKeyDown(e, ri, ci)}
+                            aria-label={label}
+                            className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                          >
+                            <option value=""></option>
+                            {/* Keep an off-list current value visible instead of silently blanking it. */}
+                            {val && !opts.includes(val) && <option value={val}>{val}</option>}
+                            {opts.map((o) => (
+                              <option key={o} value={o}>{o}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            ref={(el) => registerCell(ri, ci, el)}
+                            type="text"
+                            value={val}
+                            placeholder={isImageCol ? 'paste image or URL' : undefined}
+                            onChange={(e) => editCell(ri, ci, e.target.value)}
+                            onPaste={isImageCol ? (e) => handleCellPaste(e, ri, ci) : undefined}
+                            onKeyDown={(e) => handleCellKeyDown(e, ri, ci)}
+                            aria-label={label}
+                            className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
+                          />
+                        )}
+                      </td>
+                    )
+                  })}
                   <td className="w-6 text-center border border-surface-5">
                     <button
                       type="button"

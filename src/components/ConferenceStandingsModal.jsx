@@ -300,6 +300,36 @@ FINAL CHECK before you send
     onClose()
   }
 
+  // Pre-fill the local grid with this year's saved conference standings.
+  // readConferenceStandingsFromSheet reads self-describing rows in the column
+  // order: Conference, Rank, Team, Wins, Losses, Points For, Points Against
+  //   (row[0..6]). It groups by row[0] and re-sorts each conference by rank,
+  //   so line order is irrelevant. Saved data lives in
+  //   conferenceStandingsByYear[year] = { conf: [{ rank, team, wins, losses,
+  //   pointsFor, pointsAgainst }] } — emitting one line per team round-trips.
+  const initialText = useMemo(() => {
+    const byConf = currentDynasty?.conferenceStandingsByYear?.[currentYear]
+      || currentDynasty?.conferenceStandingsByYear?.[String(currentYear)]
+      || {}
+    const lines = []
+    for (const [conference, teams] of Object.entries(byConf)) {
+      if (!conference || !Array.isArray(teams)) continue
+      for (const t of teams) {
+        if (!t || !t.team) continue
+        lines.push([
+          conference,
+          t.rank ?? '',
+          String(t.team).toUpperCase(),
+          t.wins ?? 0,
+          t.losses ?? 0,
+          t.pointsFor ?? 0,
+          t.pointsAgainst ?? 0,
+        ].join('\t'))
+      }
+    }
+    return lines.join('\n')
+  }, [currentDynasty?.conferenceStandingsByYear, currentYear])
+
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
     setSyncing(true)
@@ -427,6 +457,7 @@ FINAL CHECK before you send
               onCancel={handleClose}
               importLabel="Import Conference Standings"
               columns={['Conference', 'Rank', 'Team', 'Wins', 'Losses', 'Points For', 'Points Against']}
+              initialText={initialText}
             />
           </div>
         ) : isLoading ? (

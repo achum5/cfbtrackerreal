@@ -189,6 +189,23 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, recruits])
 
+  // Pre-fill the local Overalls grid with recruits who already have a saved
+  // overall, so re-opening the modal shows existing entries instead of a blank
+  // grid. Column order mirrors parseRecruitOverallsLocal: Name, Overall, Jersey.
+  // The parser keeps only overalls in 40–99, so only round-trippable rows are
+  // emitted here (a not-yet-entered recruit has no valid overall and is skipped).
+  const initialText = useMemo(() => {
+    return (recruits || [])
+      .map(p => {
+        const ovr = parseInt(p.overall, 10)
+        if (!Number.isFinite(ovr) || ovr < 40 || ovr > 99) return null
+        const jersey = p.jerseyNumber != null ? String(p.jerseyNumber).trim() : ''
+        return `${p.name || ''}\t${ovr}\t${jersey}`
+      })
+      .filter(Boolean)
+      .join('\n')
+  }, [recruits])
+
   // Full-attributes prompt — the AI emits each recruit's complete rating set in
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
@@ -469,6 +486,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Overalls"
             columns={['Recruit', 'Overall', 'Jersey #']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

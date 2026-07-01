@@ -120,6 +120,20 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // Pre-fill the local grid with players already marked "encourage transfer"
+  // for this year, so re-opening the modal shows prior picks instead of a blank
+  // grid. Source: teams[tid].byYear[currentYear].encourageTransfers (the array
+  // the onSave persists — only encouraged players are stored). Column order
+  // mirrors the local flow (Player, Encourage Transfer): each row is name + TRUE.
+  const initialText = useMemo(() => {
+    const teamTid = getCurrentTeamTid(currentDynasty)
+    const saved = currentDynasty?.teams?.[teamTid]?.byYear?.[currentYear]?.encourageTransfers || []
+    return saved
+      .filter(p => p.name)
+      .map(p => `${p.name}\tTRUE`)
+      .join('\n')
+  }, [currentDynasty?.teams, currentDynasty?.currentTid, currentYear])
+
   // LOCAL-PASTE prompt: self-describing rows, no pre-filled column to align
   // against. The AI emits ONE line ONLY for players the coach wants to push
   // out, as PlayerName<TAB>TRUE. Everyone else is omitted (their absence means
@@ -402,6 +416,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Encourage Transfers"
             columns={['Player', 'Encourage Transfer']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

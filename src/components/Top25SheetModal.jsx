@@ -126,6 +126,35 @@ REQUIRED OUTPUT FORMAT
     dynastyTeams: currentDynasty?.teams,
   }), [targetYear, selectedWeekLabel, currentDynasty?.teams])
 
+  // Pre-fill the local grid with the SELECTED week's existing poll so the
+  // modal opens ready to edit instead of blank. parseTop25WeekLocal reads
+  // "Rank<TAB>Abbr" rows and is scoped to exactly the selected (year, week),
+  // so the seed must reflect ONLY that week's stored rankByWeek picture —
+  // recomputed whenever selectedWeek (or teams / year) changes. Rank slots
+  // with no team are omitted; the round-trip holds because the parser keys
+  // by rank and abbr.
+  const initialTop25Text = useMemo(() => {
+    if (!currentDynasty) return ''
+    const yearNum = Number(targetYear)
+    const wk = Number(selectedWeek)
+    const teams = currentDynasty.teams || {}
+    const byRank = new Map()
+    for (const team of Object.values(teams)) {
+      if (!team?.abbr) continue
+      const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[String(yearNum)]?.rankByWeek
+      if (!rbw) continue
+      const v = rbw[wk] ?? rbw[String(wk)]
+      if (typeof v !== 'number' || v < 1 || v > 25) continue
+      if (!byRank.has(v)) byRank.set(v, String(team.abbr).toUpperCase())
+    }
+    const lines = []
+    for (let r = 1; r <= 25; r++) {
+      const abbr = byRank.get(r)
+      if (abbr) lines.push(`${r}\t${abbr}`)
+    }
+    return lines.join('\n')
+  }, [currentDynasty, targetYear, selectedWeek])
+
   // Track mobile breakpoint so we can swap the iframe for an
   // open-in-Sheets CTA — Google's embedded view is unusable in a
   // phone-sized iframe (matches WeeklyScoresModal's mobile fork).
@@ -473,6 +502,7 @@ REQUIRED OUTPUT FORMAT
                 onUseGoogle={() => setUseLocal(false)}
                 onCancel={onClose}
                 importLabel="Preview changes"
+                initialText={initialTop25Text}
                 columns={['Rank', 'Team']}
               />
             </div>

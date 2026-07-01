@@ -147,6 +147,22 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // Pre-fill the local (Overalls) grid with this team's already-saved training
+  // results for the year so the modal opens ready to edit. The parser reads
+  // row[0]=Player, row[1]=Position, row[2]=Past OVR, row[3]=New OVR and requires
+  // a name + a valid New OVR (40–99), so we emit only saved rows that satisfy
+  // that. Round-trip safe: re-importing unchanged re-stores the same results.
+  const initialText = useMemo(() => {
+    const saved = currentDynasty?.trainingResultsByYear?.[currentYear] || []
+    return saved
+      .filter(r => r?.playerName && Number(r?.newOverall) >= 40 && Number(r?.newOverall) <= 99)
+      .map(r => {
+        const past = (r.pastOverall != null && r.pastOverall !== '') ? String(r.pastOverall) : ''
+        return `${r.playerName}\t${r.position || ''}\t${past}\t${r.newOverall}`
+      })
+      .join('\n')
+  }, [currentDynasty?.trainingResultsByYear, currentYear])
+
   // Full-attributes prompt — the AI emits each player's complete rating set in
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
@@ -425,6 +441,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Training Results"
             columns={['Player', 'Position', 'Past OVR', 'New OVR']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

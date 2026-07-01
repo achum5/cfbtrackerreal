@@ -313,6 +313,69 @@ FINAL CHECK before you send
     currentDynasty?.conferenceByTeamYear,
   ])
 
+  // Pre-fill the local grid with the year's existing CC games so the user opens
+  // ready to edit. Mirrors the existingCCData merge used for the Google-sheet
+  // prefill below (games[] primary, conferenceChampionshipsByYear fallback),
+  // then serializes to the parser's 7-column layout:
+  //   Conference \t Team1 \t Team2 \t Team1Score \t Team2Score \t Team1Rank \t Team2Rank
+  // The local prompt is self-describing (one line per conference with a known
+  // result), so we emit ONLY conferences that have both teams. Round-tripping
+  // this unchanged reproduces the same championships via readConferenceChampionshipsFromSheet.
+  const initialText = useMemo(() => {
+    const teams = currentDynasty?.teams || TEAMS
+
+    const ccGamesFromArray = (currentDynasty?.games || [])
+      .filter(g => (g.isConferenceChampionship || g.gameType === 'conference_championship') && Number(g.year) === Number(currentYear))
+      .map(g => {
+        let team1, team2
+        if (g.team1Tid && g.team2Tid) {
+          const t1Info = getGameTeamInfo(teams, g.team1Tid)
+          const t2Info = getGameTeamInfo(teams, g.team2Tid)
+          team1 = t1Info?.abbr || g.team1
+          team2 = t2Info?.abbr || g.team2
+        } else if (g.userTeam && g.opponent) {
+          team1 = g.userTeam
+          team2 = g.opponent
+        } else {
+          team1 = g.team1
+          team2 = g.team2
+        }
+        return {
+          conference: g.conference,
+          team1,
+          team2,
+          team1Score: g.team1Score ?? g.teamScore,
+          team2Score: g.team2Score ?? g.opponentScore,
+          team1Rank: g.team1Rank ?? null,
+          team2Rank: g.team2Rank ?? null,
+        }
+      })
+      .filter(cc => cc.conference)
+
+    const ccFromByYear = currentDynasty?.conferenceChampionshipsByYear?.[currentYear] || []
+
+    const existingByConference = {}
+    ccFromByYear.forEach(cc => { if (cc?.conference) existingByConference[cc.conference] = cc })
+    ccGamesFromArray.forEach(cc => { existingByConference[cc.conference] = cc })
+
+    const fmtScore = (s) => (s != null && !Number.isNaN(Number(s))) ? String(Number(s)) : ''
+    const fmtRank = (r) => { const n = Number(r); return (n >= 1 && n <= 25) ? String(n) : '' }
+
+    const lines = Object.values(existingByConference)
+      .filter(cc => cc.conference && (cc.team1 || cc.team2))
+      .map(cc => [
+        cc.conference,
+        (cc.team1 || '').toUpperCase(),
+        (cc.team2 || '').toUpperCase(),
+        fmtScore(cc.team1Score),
+        fmtScore(cc.team2Score),
+        fmtRank(cc.team1Rank),
+        fmtRank(cc.team2Rank),
+      ].join('\t'))
+
+    return lines.join('\n')
+  }, [currentDynasty?.games, currentDynasty?.conferenceChampionshipsByYear, currentDynasty?.teams, currentYear])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
 
@@ -593,6 +656,7 @@ FINAL CHECK before you send
         {useLocal && !showDeletedNote ? (
           <LocalDataEntry
             aiPrompt={localAiPrompt}
+            initialText={initialText}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

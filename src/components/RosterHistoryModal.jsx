@@ -68,6 +68,24 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
     years.push(y)
   }
 
+  // Pre-fill the local grid with the existing roster history so the editor opens
+  // on the current data (easy mass-edit) instead of a blank table. Mirrors
+  // prefillRosterHistorySheet: exclude honor-only, sort by name, emit
+  // [Name, PID, ...team-per-year] where team = teamsByYear[year] || team. The
+  // parser requires both a name and a PID, so rows without a pid are dropped.
+  const initialText = useMemo(() => {
+    const getTeamForYear = (player, year) => player.teamsByYear?.[year] || player.team || ''
+    return (currentDynasty?.players || [])
+      .filter(p => !p.isHonorOnly)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map(p => {
+        const cells = [p.name || '', p.pid ?? '']
+        years.forEach(year => { cells.push(getTeamForYear(p, year)) })
+        return cells.join('\t')
+      })
+      .join('\n')
+  }, [currentDynasty?.players, years.join(',')])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `Roster History`,
     structure: `This sheet has ONE tab: "Roster History". It has ${2 + years.length} columns total: Player Name (A), PID (B), then one team column per tracked year — ${years.map(y => `"${y} Team"`).join(', ')}. Row 1 is the protected header row. Up to 499 data rows (rows 2–500).
@@ -457,6 +475,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Roster History"
             columns={['Player Name', 'PID', ...years.map(y => `${y} Team`)]}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

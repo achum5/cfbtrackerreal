@@ -348,6 +348,36 @@ FINAL CHECK before you send
     onClose()
   }
 
+  // Pre-fill the local grid with this year's saved All-Conference honorees.
+  // parseAllConferenceLocal reads self-describing rows in the column order:
+  //   Conference, Designation, Position, Player, Team, Class
+  // The saved data lives keyed by conference in allAmericansByYear[year]
+  //   .allConferenceByConference, each entry = { designation, position, player,
+  //   school, class }. Emitting one line per honoree round-trips: re-importing
+  //   the untouched pre-fill reproduces the same allConferenceByConference.
+  const designationLabel = { first: 'First', second: 'Second', freshman: 'Freshman' }
+  const initialText = useMemo(() => {
+    const byConf = currentDynasty?.allAmericansByYear?.[currentYear]?.allConferenceByConference
+      || currentDynasty?.allAmericansByYear?.[String(currentYear)]?.allConferenceByConference
+      || {}
+    const lines = []
+    for (const [conference, entries] of Object.entries(byConf)) {
+      if (!conference || !Array.isArray(entries)) continue
+      for (const e of entries) {
+        if (!e || !e.designation || !e.player) continue
+        lines.push([
+          conference,
+          designationLabel[e.designation] || e.designation,
+          e.position || '',
+          e.player || '',
+          (e.school || '').toUpperCase(),
+          e.class || '',
+        ].join('\t'))
+      }
+    }
+    return lines.join('\n')
+  }, [currentDynasty?.allAmericansByYear, currentYear])
+
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
     setSyncing(true)
@@ -487,6 +517,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import All-Conference"
             columns={['Conference', 'Designation', 'Position', 'Player', 'Team', 'Class']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

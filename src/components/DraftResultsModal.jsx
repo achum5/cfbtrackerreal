@@ -64,6 +64,29 @@ export default function DraftResultsModal({ isOpen, onClose, onSave, currentYear
       .map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentYear, currentDynasty])
 
+  // Pre-fill the local grid with THIS team's already-saved draft results for
+  // the year so the modal opens ready to edit. The parser reads
+  // row[0]=Player, row[1]=Draft Round and requires BOTH non-blank, so we emit
+  // only entries that have both a name and a round — round-trip safe.
+  const initialText = useMemo(() => {
+    const tid = getCurrentTeamTid(currentDynasty)
+    const teamAbbr =
+      currentDynasty?.teams?.[currentDynasty?.currentTid]?.abbr ||
+      currentDynasty?.teamName
+    const fromTid = tid != null
+      ? currentDynasty?.teams?.[tid]?.byYear?.[currentYear]?.draftResults
+      : null
+    const legacy = currentDynasty?.draftResultsByTeamYear
+    const fromLegacy =
+      (tid != null ? legacy?.[tid]?.[currentYear] : null) ??
+      (teamAbbr ? legacy?.[teamAbbr]?.[currentYear] : null)
+    const results = fromTid ?? fromLegacy ?? []
+    return results
+      .filter(r => r?.playerName && r?.draftRound)
+      .map(r => `${r.playerName}\t${r.draftRound}`)
+      .join('\n')
+  }, [currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, currentDynasty?.draftResultsByTeamYear, currentYear])
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Draft Results`,
     roster: userRoster,
@@ -397,6 +420,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Draft Results"
             columns={['Player', 'Draft Round']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

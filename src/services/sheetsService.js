@@ -1963,6 +1963,35 @@ export async function readRosterFromRosterSheet(spreadsheetId, opts = {}) {
 
 // Pre-fill roster data into a Roster-only sheet. `year` (optional) selects which
 // season's NIL to pre-fill into col N (CFB 27+); omitted → blank NIL column.
+// Serialize roster players to the local-paste TSV — the SAME column order the
+// Google sheet + readRosterFromRosterSheet use (First Name … NIL [, Attributes]).
+// Used to pre-fill the local grid so "Edit Roster" opens on the current roster
+// instead of a blank table. includeAttributes adds the 15th (col O) cell.
+export function serializeRosterToTsv(players, { year = null, includeAttributes = true } = {}) {
+  const splitName = (fullName) => {
+    if (!fullName) return { firstName: '', lastName: '' }
+    const parts = String(fullName).trim().split(/\s+/)
+    if (parts.length === 1) return { firstName: parts[0], lastName: '' }
+    return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+  }
+  const nilFor = (p) => (year != null ? (p.nilByYear?.[year] ?? p.nilByYear?.[String(year)] ?? '') : '')
+  const attrsFor = (p) => {
+    const byYear = (year != null && p.attributesByYear)
+      ? (p.attributesByYear[year] ?? p.attributesByYear[String(year)]) : null
+    return serializeAttributes(byYear || p.attributes || null)
+  }
+  return (players || []).map((p) => {
+    const { firstName, lastName } = p.firstName ? { firstName: p.firstName, lastName: p.lastName || '' } : splitName(p.name)
+    const row = [
+      firstName, lastName, p.position || '', p.year || '', p.devTrait || '',
+      p.jerseyNumber || '', p.archetype || '', p.overall || '', p.height || '',
+      p.weight || '', p.hometown || '', p.state || '', p.pictureUrl || '', nilFor(p),
+    ]
+    if (includeAttributes) row.push(attrsFor(p))
+    return row.map((v) => (v == null ? '' : String(v))).join('\t')
+  }).join('\n')
+}
+
 export async function prefillRosterSheet(spreadsheetId, players, year = null) {
   try {
     // Get OAuth access token (works for both free and paid tiers)

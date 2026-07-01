@@ -126,6 +126,19 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // Pre-fill the local grid with the players-leaving list already saved for this
+  // year so re-opening the modal shows prior entries instead of a blank grid.
+  // Source: playersLeavingByYear[currentYear] (what handlePlayersLeavingSave
+  // persisted). Column order mirrors the local parser (Player, Transfer Reason):
+  // serialize playerName + reason. Rows need both values to round-trip.
+  const initialText = useMemo(() => {
+    const saved = currentDynasty?.playersLeavingByYear?.[currentYear] || []
+    return saved
+      .filter(p => p.playerName && p.reason)
+      .map(p => `${p.playerName}\t${p.reason}`)
+      .join('\n')
+  }, [currentDynasty?.playersLeavingByYear, currentYear])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -366,6 +379,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import Players Leaving"
             columns={['Player', 'Transfer Reason']}
+            initialText={initialText}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

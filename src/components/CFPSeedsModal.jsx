@@ -22,6 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getAbbrFromTid } from '../data/teamRegistry'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -126,6 +127,38 @@ FINAL CHECK before you send the answer
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])
+
+  // Pre-fill the local grid with the year's existing seeds so the user opens
+  // ready to edit. Mirrors prefillCFPSeedsData: 12 fixed rows in seed order
+  // (row i = seed i+1), each a single team-abbr cell. The local parser maps a
+  // 1-cell line to [seedFromPosition, abbr], so round-tripping this unchanged
+  // reproduces the same {seed, tid}. Saved format is tid-only ({seed, tid}), so
+  // resolve tid → abbr via the dynasty teams map.
+  const initialText = useMemo(() => {
+    const existingSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear]
+      || currentDynasty?.cfpSeedsByYear?.[String(currentYear)]
+      || []
+    if (!existingSeeds.length) return ''
+    const teams = currentDynasty?.teams || currentDynasty?.customTeams
+    const bySeed = new Array(12).fill('')
+    for (const entry of existingSeeds) {
+      const seedNum = Number(entry?.seed)
+      if (!(seedNum >= 1 && seedNum <= 12)) continue
+      const abbr = entry?.tid != null ? (getAbbrFromTid(teams, entry.tid) || '') : (entry?.team || '')
+      bySeed[seedNum - 1] = abbr || ''
+    }
+    // splitTsv drops blank lines, and the local import derives each seed from
+    // ROW POSITION after that split — so an interior gap would shift every
+    // later seed up by one. Only pre-fill when the filled seeds are contiguous
+    // from #1 (the normal case: a saved bracket has all 12). Bail to a blank
+    // grid on any interior gap so we never seed a misaligning round-trip.
+    const lastFilled = bySeed.reduce((last, abbr, i) => (abbr ? i : last), -1)
+    if (lastFilled < 0) return ''
+    for (let i = 0; i <= lastFilled; i++) {
+      if (!bySeed[i]) return ''
+    }
+    return bySeed.slice(0, lastFilled + 1).join('\n')
+  }, [currentDynasty?.cfpSeedsByYear, currentDynasty?.teams, currentYear])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
@@ -414,6 +447,7 @@ FINAL CHECK before you send the answer
             <LocalDataEntry
               aiPrompt={aiPrompt}
               columns={['Team']}
+              initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}
               onCancel={handleClose}
