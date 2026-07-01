@@ -166,14 +166,31 @@ export default function Recruiting() {
   const teamAbbr = team?.abbr || baseTeam?.abbr || currentTeamAbbr
   const commitSchoolName = team?.name || baseTeam?.name || teamAbbr || 'the school'
 
-  // Commit graphics live in a small pid-keyed map so saving one doesn't rewrite
-  // the players list. onSave persists it and the recruit card reads it back.
+  // Commit graphics live in a small pid-keyed map (drives the card button) AND
+  // are added to the player's photos so they show on the player page. The
+  // graphic is unshifted to the front of player.photos so it leads the gallery
+  // (player-uploaded photos already sort ahead of game photos, in array order).
   const saveCommitGraphic = async (pid, url) => {
     if (!pid || isViewOnly) return
-    const next = { ...(currentDynasty.commitGraphics || {}) }
-    if (url) next[pid] = url
-    else delete next[pid]
-    await updateDynasty(currentDynasty.id, { commitGraphics: next })
+    const oldUrl = currentDynasty.commitGraphics?.[pid] || ''
+
+    const nextMap = { ...(currentDynasty.commitGraphics || {}) }
+    if (url) nextMap[pid] = url
+    else delete nextMap[pid]
+
+    const players = (currentDynasty.players || []).map((p) => {
+      if (String(p.pid) !== String(pid)) return p
+      const existing = Array.isArray(p.photos) ? p.photos : []
+      // Drop the previous commit graphic and any duplicate of the new url.
+      const cleaned = existing.filter((u) => u && u !== oldUrl && u !== url)
+      return { ...p, photos: url ? [url, ...cleaned] : cleaned }
+    })
+
+    await updateDynasty(
+      currentDynasty.id,
+      { commitGraphics: nextMap, players },
+      { changedPlayerPids: [pid] },
+    )
   }
   const selectedYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : currentDynasty?.currentYear)
 
