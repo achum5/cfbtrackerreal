@@ -1919,14 +1919,14 @@ FINAL CHECK before you send
                   <tr className="text-txt-tertiary">
                     <th className="text-left font-semibold px-2 py-1 border border-surface-5">Stat</th>
                     <th className="px-2 py-1 border border-surface-5">
-                      <div className="flex justify-end">
+                      <div className="flex justify-center">
                         {awayTeamLogo
                           ? <img src={awayTeamLogo} alt={awayTeamAbbr} title={awayTeamAbbr} className="h-5 w-5 object-contain" />
                           : <span className="font-semibold">{awayTeamAbbr}</span>}
                       </div>
                     </th>
                     <th className="px-2 py-1 border border-surface-5">
-                      <div className="flex justify-end">
+                      <div className="flex justify-center">
                         {homeTeamLogo
                           ? <img src={homeTeamLogo} alt={homeTeamAbbr} title={homeTeamAbbr} className="h-5 w-5 object-contain" />
                           : <span className="font-semibold">{homeTeamAbbr}</span>}
