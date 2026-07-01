@@ -529,7 +529,7 @@ export default function Home() {
                 </Link>
                 <Link to="/install" className="lg:hidden px-5 py-3.5 sm:px-6 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
                   <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
-                    Want the app on your home screen?
+                    Install Mobile App
                   </span>
                   <span className="btn-refined flex-shrink-0">Install</span>
                 </Link>
@@ -901,7 +901,7 @@ export default function Home() {
               </Link>
               <Link to="/install" className="lg:hidden px-4 py-3.5 sm:px-5 sm:py-4 flex items-center justify-between gap-4 hover:bg-surface-2/40 transition-colors">
                 <span className="font-display text-sm sm:text-base font-semibold text-txt-secondary tracking-tight leading-tight min-w-0">
-                  Want the app on your home screen?
+                  Install Mobile App
                 </span>
                 <span className="btn-refined flex-shrink-0">Install</span>
               </Link>
