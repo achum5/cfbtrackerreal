@@ -10,7 +10,7 @@ import {
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
 import { useDynasty, getCurrentSchedule, getScheduleForTeam, computeScheduleDiff } from '../context/DynastyContext'
-import { getAbbrFromTid, getTidFromAbbr } from '../data/teamRegistry'
+import { getAbbrFromTid, getTidFromAbbr, getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
 import { getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
@@ -33,20 +33,22 @@ const WEEK_LABELS = Array.from({ length: 16 }, (_, i) => `Week ${i}`)
 export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYear, teamColors, teamTid, teamName }) {
   const { currentDynasty, updateDynasty } = useDynasty()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
-  // Opponent typeahead: every schedulable team (incl. FCS) plus the "BYE" literal.
+  // Opponent typeahead: every schedulable team (incl. FCS) by NAME, plus "BYE".
   const opponentOptions = useMemo(
-    () => [...getSchedulableTeamsList(currentDynasty?.teams), 'BYE'],
+    () => [...getTeamNameOptions(currentDynasty?.teams, { includeFCS: true }), 'BYE'],
     [currentDynasty?.teams],
   )
 
   // Resolve team name for display - use provided teamName or fall back to dynasty team
   const displayTeamName = teamName || currentDynasty?.teamName || 'Dynasty'
-  // Resolve team abbreviation for the sheet — must read from
+  // Resolve team name for the sheet — must read from
   // dynasty.teams[tid] so a TeamBuilder takeover's CURRENT abbr is
   // returned, not the static FBS abbr that used to live in this slot.
   const targetTeamAbbr = teamTid
     ? getAbbrFromTid(currentDynasty?.teams, teamTid)
     : (currentDynasty?.teamName || '')
+  // The user team as a NAME label (what the AI prompt + grid now show).
+  const targetTeamName = (teamTid ? getTeamNameLabel(currentDynasty?.teams, teamTid) : null) || displayTeamName
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -84,11 +86,11 @@ CRITICAL RULES — read before anything else
 2. ROW ORDER IS FIXED: row 1 = Week 0, row 2 = Week 1, ..., row 16 = Week 15. Rows are keyed to the pre-filled Week number in column A — never reorder.
 3. Output EXACTLY 16 data rows, each with EXACTLY 2 tab-separated values.
 4. There are NO score columns. Do NOT output scores. This sheet is the pre-game schedule, not the results.
-5. TEAM ABBREVIATIONS ONLY (column C) — use values from the TEAM ABBREVIATIONS mapping below, OR the literal word "BYE" for a bye week. Column C is a strict dropdown.
+5. TEAM NAMES ONLY (column C) — use values from the TEAM NAMES list below, OR the literal word "BYE" for a bye week. Column C is a strict dropdown.
 6. SITE (column D) must be EXACTLY one of these 3 literal values, case-sensitive: "Home", "Road", "Neutral". Do NOT use "Away" — the sheet's dropdown uses "Road" instead. Do NOT invent other values.
 7. BYE WEEKS: If the user has a bye that week, put "BYE" in column C and leave column D BLANK.
 8. BLANK CELLS if the matchup is unknown. Never guess, never use "N/A", "TBD", dash. Never leave column C blank if a game is scheduled — fill the opponent or "BYE".
-9. Never change or output the User Team (column B is pre-filled with ${targetTeamAbbr} on every row).
+9. Never change or output the User Team (column B is pre-filled with ${targetTeamName} on every row).
 10. No header row, no Week numbers, no scores, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
 11. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
 
@@ -99,26 +101,26 @@ Paste your block at cell C2 of the "Schedule" tab
 
 Row | Col A (PROTECTED) | Col B (PROTECTED)    | Col C (CPU Team)                             | Col D (Site)
 ----+-------------------+----------------------+----------------------------------------------+-----------------------------
-  1 | 0                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank if unknown | "Home" / "Road" / "Neutral" / blank
-  2 | 1                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  3 | 2                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  4 | 3                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  5 | 4                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  6 | 5                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  7 | 6                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  8 | 7                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
-  9 | 8                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 10 | 9                 | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 11 | 10                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 12 | 11                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 13 | 12                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 14 | 13                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 15 | 14                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
- 16 | 15                | ${targetTeamAbbr}    | opponent abbr, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  1 | 0                 | ${targetTeamName}    | opponent name, or "BYE", or blank if unknown | "Home" / "Road" / "Neutral" / blank
+  2 | 1                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  3 | 2                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  4 | 3                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  5 | 4                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  6 | 5                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  7 | 6                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  8 | 7                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+  9 | 8                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 10 | 9                 | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 11 | 10                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 12 | 11                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 13 | 12                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 14 | 13                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 15 | 14                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
+ 16 | 15                | ${targetTeamName}    | opponent name, or "BYE", or blank            | "Home" / "Road" / "Neutral" / blank
 
 Column C (CPU Team) allowed values (strict dropdown — wrong value is rejected):
   - "BYE" — for a bye week (then leave column D blank)
-  - Any team abbreviation from the TEAM ABBREVIATIONS mapping at the bottom of this prompt
+  - Any team name from the TEAM NAMES list at the bottom of this prompt
 
 Column D (Site) allowed values (strict dropdown — exactly these three, case-sensitive):
   - "Home"    — the user team hosts the game
@@ -153,13 +155,13 @@ FINAL CHECK before you send the answer
 ═══════════════════════════════════════════════════════════
 [ ] Exactly 16 data rows (Weeks 0 through 15), each LEADING with its week number 0-15 in order
 [ ] Exactly 3 tab-separated values per row (2 tab characters): Week number, then CPU Team, then Site
-[ ] Field 2 (CPU Team): team abbreviation from the mapping, or the literal "BYE", or blank
+[ ] Field 2 (CPU Team): team name from the list, or the literal "BYE", or blank
 [ ] Field 3 (Site): EXACTLY "Home", "Road", or "Neutral" — not "Away", not any other value; blank on bye weeks
 [ ] No score columns, no user team column, no header row INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
 [ ] Blank CPU Team / Site only where the week's matchup is genuinely unknown — invented nothing`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
-  }), [currentYear, displayTeamName, targetTeamAbbr, currentDynasty?.teams])
+  }), [currentYear, displayTeamName, targetTeamName, targetTeamAbbr, currentDynasty?.teams])
 
   // Pre-fill the local grid with the team's existing schedule so Edit
   // Schedule opens ready to edit instead of blank. The local parser
@@ -194,7 +196,10 @@ FINAL CHECK before you send the answer
       if (!e) { rows.push(`${wk}\t\t`); continue }
       const isBye = e.isBye || (!e.opponent && !e.opponentTid)
       if (isBye) { rows.push(`${wk}\tBYE\t`); continue }
-      const opp = (e.opponent || '').toString().toUpperCase()
+      // Seed the opponent as a NAME label (matching the combobox options),
+      // resolving from the stored tid; fall back to any stored opponent string.
+      const oppTid = e.opponentTid != null ? e.opponentTid : getTidFromAbbr(e.opponent, currentDynasty)
+      const opp = getTeamNameLabel(currentDynasty?.teams, oppTid) || (e.opponent || '')
       rows.push(`${wk}\t${opp}\t${siteLabel(e.location)}`)
     }
     return rows.join('\n')

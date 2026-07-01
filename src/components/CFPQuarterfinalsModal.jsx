@@ -22,7 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 // The QF bracket's fixed bye-seed display order. The reader keys slot
 // determination off this order (rowToByeSeed in
@@ -67,7 +67,7 @@ export default function CFPQuarterfinalsModal({ isOpen, onClose, onSave, current
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
 
@@ -89,8 +89,8 @@ CRITICAL RULES — read before anything else
 3. Output EXACTLY 4 data rows, each with EXACTLY 5 tab-separated values.
 4. NO COMMAS in numbers. Output "28" never "1,234".
 5. INTEGERS ONLY for scores — no decimals, no "pts", no minus signs.
-6. TEAM ABBREVIATIONS ONLY (columns B, C, F) — use the abbreviation mapping below. Never full names, nicknames, cities, or mascots.
-7. WINNER (column F) must EXACTLY equal whichever abbreviation in that row's columns B or C has the higher score. If the two scores are tied or blank, leave Winner blank.
+6. TEAM NAMES ONLY (columns B, C, F) — use the TEAM NAMES list below. Never an abbreviation, nickname, mascot, or city.
+7. WINNER (column F) must EXACTLY equal whichever team name in that row's columns B or C has the higher score. If the two scores are tied or blank, leave Winner blank.
 8. BLANK CELL if unknown. Never guess, never use "N/A", "TBD", dash. Zero (0) is only valid if the team truly scored zero.
    - If an entire game hasn't been played: leave all 5 cells blank.
    - If teams are known but scores aren't: fill columns B and C only; leave D, E, F blank.
@@ -107,14 +107,14 @@ Column A (Bowl Game) shows which CFP bowl game hosts that matchup — the specif
 
 Row | Col A (PROTECTED)    | Col B (Team 1 = bye seed) | Col C (Team 2 = First Round winner) | Col D (Team 1 Score) | Col E (Team 2 Score) | Col F (Winner)
 ----+----------------------+---------------------------+-------------------------------------+----------------------+----------------------+--------------------------------
-  1 | bowl hosting seed-4  | #4 seed team abbr         | winner of 5-vs-12 First Round game  | integer              | integer              | abbr matching higher scorer
-  2 | bowl hosting seed-1  | #1 seed team abbr         | winner of 8-vs-9 First Round game   | integer              | integer              | abbr matching higher scorer
-  3 | bowl hosting seed-3  | #3 seed team abbr         | winner of 6-vs-11 First Round game  | integer              | integer              | abbr matching higher scorer
-  4 | bowl hosting seed-2  | #2 seed team abbr         | winner of 7-vs-10 First Round game  | integer              | integer              | abbr matching higher scorer
+  1 | bowl hosting seed-4  | #4 seed team name         | winner of 5-vs-12 First Round game  | integer              | integer              | name matching higher scorer
+  2 | bowl hosting seed-1  | #1 seed team name         | winner of 8-vs-9 First Round game   | integer              | integer              | name matching higher scorer
+  3 | bowl hosting seed-3  | #3 seed team name         | winner of 6-vs-11 First Round game  | integer              | integer              | name matching higher scorer
+  4 | bowl hosting seed-2  | #2 seed team name         | winner of 7-vs-10 First Round game  | integer              | integer              | name matching higher scorer
 
-Columns B, C, F: team abbreviation from the TEAM ABBREVIATIONS mapping below.
+Columns B, C, F: team name from the TEAM NAMES list below.
 Columns D, E: integer score (0 or higher), no commas, no decimal point.
-Column F (Winner) rule: Winner === (Team 1 Score > Team 2 Score) ? Team 1 abbr : Team 2 abbr. Winner MUST equal whichever of columns B/C has the higher score.
+Column F (Winner) rule: Winner === (Team 1 Score > Team 2 Score) ? Team 1 name : Team 2 name. Winner MUST equal whichever of columns B/C has the higher score.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
@@ -133,10 +133,10 @@ FINAL CHECK before you send the answer
 [ ] Exactly 4 data rows (not 3, not 5)
 [ ] Exactly 5 tab-separated values per row (4 tab characters per line)
 [ ] Row order: seed-4 bowl, seed-1 bowl, seed-3 bowl, seed-2 bowl (matches the protected Bowl Game column)
-[ ] Columns B and C use TEAM ABBREVIATIONS only
+[ ] Columns B and C use TEAM NAMES only
 [ ] Team 1 is always the bye seed, Team 2 is always the First Round winner (not swapped)
 [ ] Scores are INTEGERS only, no commas or decimals
-[ ] Winner column matches the team abbreviation with the higher score (or blank if tied/unknown)
+[ ] Winner column matches the team name with the higher score (or blank if tied/unknown)
 [ ] Blank cells for any unknowns — I invented nothing`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
@@ -164,10 +164,10 @@ CRITICAL RULES — read before anything else
 2. NO header row. NO blank lines. NO Bowl Game name. NO commentary, totals, or labels INSIDE the data.
 3. OMIT any quarterfinal whose result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A game with no line is left unchanged.
 4. ByeSeed is the FIRST field and MUST be one of: 1, 2, 3, 4 (the top-4 seed that earned the bye). It is the ONLY identifier for the game — never output the bowl name.
-5. ByeTeam = the bye seed's team abbreviation. OpponentTeam = the First Round winner's team abbreviation. Do NOT swap them — the bye seed's team is always the SECOND field.
+5. ByeTeam = the bye seed's team name. OpponentTeam = the First Round winner's team name. Do NOT swap them — the bye seed's team is always the SECOND field.
 6. ByeScore = the bye seed team's integer score. OpponentScore = the opponent's integer score. No commas, no decimals, no "pts".
-7. Winner = the abbreviation (matching ByeTeam or OpponentTeam) with the HIGHER score. If scores are tied or unknown, leave Winner blank.
-8. All team values (ByeTeam, OpponentTeam, Winner) are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names, nicknames, cities, or mascots.
+7. Winner = the team name (matching ByeTeam or OpponentTeam) with the HIGHER score. If scores are tied or unknown, leave Winner blank.
+8. All team values (ByeTeam, OpponentTeam, Winner) are team names from the list at the bottom — NEVER an abbreviation, nickname, mascot, or city.
 9. If teams are known but scores aren't, you may emit ByeSeed, ByeTeam, OpponentTeam and leave the three trailing fields blank (still keep all 6 fields / 5 tabs).
 
 ═══════════════════════════════════════════════════════════
@@ -190,7 +190,7 @@ FINAL CHECK before you send
 [ ] Every line has exactly 6 tab-separated fields (five tabs)
 [ ] The FIRST field of every line is a bye seed 1, 2, 3, or 4 — no duplicates
 [ ] ByeTeam is the bye seed's team; OpponentTeam is the First Round winner (not swapped)
-[ ] All team values are uppercase abbreviations from the mapping — no full names
+[ ] All team values are uppercase names from the list — no full names
 [ ] Scores are integers with no commas or decimals
 [ ] Winner matches the higher-scoring team's abbreviation (or blank if tied/unknown)
 [ ] No blank lines, no header row, no bowl name, no commentary — only games with a known result`,

@@ -22,8 +22,8 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getAbbrFromTid } from '../data/teamRegistry'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getAbbrFromTid, getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -47,7 +47,7 @@ export default function CFPSeedsModal({ isOpen, onClose, onSave, currentYear, te
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
   const [bowlConfig, setBowlConfig] = useState(() => {
@@ -71,7 +71,7 @@ CRITICAL RULES — read before anything else
 1. OUTPUT COLUMN B ONLY. Column A (the seed number) is pre-filled and protected — never output it.
 2. ROW ORDER IS FIXED: row 1 = #1 seed, row 2 = #2 seed, ..., row 12 = #12 seed. Do not reorder.
 3. Output EXACTLY 12 lines. Not 11, not 13. One team per line.
-4. TEAM ABBREVIATIONS ONLY — use the abbreviation mapping below. Never output full names, nicknames, mascots, or cities.
+4. TEAM NAMES ONLY — use the TEAM NAMES list below. Never output an abbreviation, nickname, mascot, or city.
 5. The team column is a STRICT dropdown. Wrong spelling/casing/nickname will be rejected by the sheet.
 6. BLANK LINE if the seed is unknown. Never guess, never use "N/A", "TBD", dash, or zero.
 7. No header row, no seed numbers, no commentary or explanation INSIDE the data, no blank leading line before row 1. The paste-target label above the fence is required (see TSV delivery rules above).
@@ -85,46 +85,46 @@ Paste your block at cell B2 of the "CFP Seeds" tab
 
 Row | Column A (PROTECTED / pre-filled) | Your column B value    | Format / Allowed values
 ----+-----------------------------------+------------------------+-------------------------------------
-  1 | 1                                 | #1 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  2 | 2                                 | #2 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  3 | 3                                 | #3 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  4 | 4                                 | #4 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  5 | 5                                 | #5 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  6 | 6                                 | #6 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  7 | 7                                 | #7 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  8 | 8                                 | #8 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
-  9 | 9                                 | #9 seed team abbr      | Exactly one value from the TEAM ABBREVIATIONS mapping below
- 10 | 10                                | #10 seed team abbr     | Exactly one value from the TEAM ABBREVIATIONS mapping below
- 11 | 11                                | #11 seed team abbr     | Exactly one value from the TEAM ABBREVIATIONS mapping below
- 12 | 12                                | #12 seed team abbr     | Exactly one value from the TEAM ABBREVIATIONS mapping below
+  1 | 1                                 | #1 seed team name      | Exactly one value from the TEAM NAMES list below
+  2 | 2                                 | #2 seed team name      | Exactly one value from the TEAM NAMES list below
+  3 | 3                                 | #3 seed team name      | Exactly one value from the TEAM NAMES list below
+  4 | 4                                 | #4 seed team name      | Exactly one value from the TEAM NAMES list below
+  5 | 5                                 | #5 seed team name      | Exactly one value from the TEAM NAMES list below
+  6 | 6                                 | #6 seed team name      | Exactly one value from the TEAM NAMES list below
+  7 | 7                                 | #7 seed team name      | Exactly one value from the TEAM NAMES list below
+  8 | 8                                 | #8 seed team name      | Exactly one value from the TEAM NAMES list below
+  9 | 9                                 | #9 seed team name      | Exactly one value from the TEAM NAMES list below
+ 10 | 10                                | #10 seed team name     | Exactly one value from the TEAM NAMES list below
+ 11 | 11                                | #11 seed team name     | Exactly one value from the TEAM NAMES list below
+ 12 | 12                                | #12 seed team name     | Exactly one value from the TEAM NAMES list below
 
-All 12 cells use the same strict dropdown of team abbreviations. The complete list of allowed abbreviations is in the TEAM ABBREVIATIONS mapping at the bottom of this prompt — use ONLY those exact values.
+All 12 cells use the same strict dropdown of team names. The complete list of allowed team names is in the TEAM NAMES list at the bottom of this prompt — use ONLY those exact values.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === CFP SEEDS — paste at cell B2 of "CFP Seeds" tab ===
-<#1 seed abbr>
-<#2 seed abbr>
-<#3 seed abbr>
-<#4 seed abbr>
-<#5 seed abbr>
-<#6 seed abbr>
-<#7 seed abbr>
-<#8 seed abbr>
-<#9 seed abbr>
-<#10 seed abbr>
-<#11 seed abbr>
-<#12 seed abbr>
+<#1 seed name>
+<#2 seed name>
+<#3 seed name>
+<#4 seed name>
+<#5 seed name>
+<#6 seed name>
+<#7 seed name>
+<#8 seed name>
+<#9 seed name>
+<#10 seed name>
+<#11 seed name>
+<#12 seed name>
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send the answer
 ═══════════════════════════════════════════════════════════
 [ ] Exactly 12 lines in the block (not counting the "=== CFP SEEDS ===" label)
-[ ] Every value is a team ABBREVIATION from the mapping — no full names, no nicknames
+[ ] Every value is a team name from the TEAM NAMES list — no abbreviations, no nicknames
 [ ] No seed numbers, no column A, no header row in the output
 [ ] Blank line for any seed I could not determine — I invented nothing
-[ ] Casing matches the mapping exactly (e.g. "BAMA" not "bama" or "Bama")
+[ ] Team name matches the TEAM NAMES list exactly (e.g. "Alabama", "Miami (FL)")
 [ ] No commas, no surrounding quotes, no trailing commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
@@ -146,7 +146,7 @@ FINAL CHECK before you send the answer
     for (const entry of existingSeeds) {
       const seedNum = Number(entry?.seed)
       if (!(seedNum >= 1 && seedNum <= 12)) continue
-      const abbr = entry?.tid != null ? (getAbbrFromTid(teams, entry.tid) || '') : (entry?.team || '')
+      const abbr = entry?.tid != null ? (getTeamNameLabel(teams, entry.tid) || '') : (entry?.team || '')
       bySeed[seedNum - 1] = abbr || ''
     }
     // splitTsv drops blank lines, and the local import derives each seed from

@@ -5955,23 +5955,6 @@ export default function Dashboard() {
                 })
               }
 
-              {
-                const staffMoves = currentDynasty?.staffMovesByYear?.[yearForW5] || currentDynasty?.staffMovesByYear?.[String(yearForW5)]
-                const staffMovesDone = !!staffMoves?.completed
-                const staffMovesCount = Array.isArray(staffMoves?.moves) ? staffMoves.moves.length : 0
-                w5Todos.push({
-                  key: 'staff-moves',
-                  done: staffMovesDone,
-                  title: 'Staff Moves',
-                  subtitle: staffMovesDone
-                    ? `${staffMovesCount} coaching move${staffMovesCount === 1 ? '' : 's'} recorded`
-                    : 'Enter the coaching carousel (hires, firings, retirements)',
-                  onAction: () => setShowStaffMovesModal(true),
-                  actionLabel: staffMovesDone ? 'Edit' : 'Enter',
-                  viewTo: staffMovesDone ? `${pathPrefix}/weekly-scores/${yearForW5}/20?tab=coachCarousel` : null,
-                })
-              }
-
               w5Todos.push({
                 key: 'gp-snaps',
                 done: !!gpSnapsCompleted,
@@ -6175,6 +6158,26 @@ export default function Dashboard() {
                   viewTo: done ? `${pathPrefix}/weekly-scores/${yearNum}/19?tab=recap` : null,
                   onAction: () => setRecapModalContext({ year: yearNum, week: 19 }),
                   actionLabel: done ? 'Edit' : 'Generate',
+                })
+              }
+
+              // Staff Moves (coaching carousel) — belongs to the National
+              // Championship phase, not the End of Season Recap.
+              {
+                const scYear = Number(currentDynasty.currentYear)
+                const staffMoves = currentDynasty?.staffMovesByYear?.[scYear] || currentDynasty?.staffMovesByYear?.[String(scYear)]
+                const staffMovesDone = !!staffMoves?.completed
+                const staffMovesCount = Array.isArray(staffMoves?.moves) ? staffMoves.moves.length : 0
+                w34Todos.push({
+                  key: 'staff-moves',
+                  done: staffMovesDone,
+                  title: 'Staff Moves',
+                  subtitle: staffMovesDone
+                    ? `${staffMovesCount} coaching move${staffMovesCount === 1 ? '' : 's'} recorded`
+                    : 'Enter the coaching carousel (hires, firings, retirements)',
+                  onAction: () => setShowStaffMovesModal(true),
+                  actionLabel: staffMovesDone ? 'Edit' : 'Enter',
+                  viewTo: staffMovesDone ? `${pathPrefix}/weekly-scores/${scYear}/20?tab=coachCarousel` : null,
                 })
               }
             }

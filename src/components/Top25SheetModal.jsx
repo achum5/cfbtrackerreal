@@ -13,7 +13,7 @@ import { saveGamesToSubcollection } from '../services/dynastyService'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -54,7 +54,7 @@ import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
  *   - if any year's clears (= old entries removed) exceed 30% of
  *     the prior total, the confirmation flags it as a bulk
  *     deletion
- *   - unknown abbreviations (typos / non-dynasty teams) are
+ *   - unknown team names (typos / non-dynasty teams) are
  *     surfaced separately so the user can fix them on the sheet
  */
 export default function Top25SheetModal({ isOpen, onClose }) {
@@ -71,7 +71,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   const [isMobile, setIsMobile] = useState(isMobileDevice)
   const auth = useAuthErrorHandler()
   const [pendingSave, setPendingSave] = useState(null) // { diff, summary, alsoDelete }
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback
   // for bulk multi-week catch-up.
   const [useLocal, setUseLocal] = useState(true)
@@ -110,20 +110,20 @@ export default function Top25SheetModal({ isOpen, onClose }) {
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. EXACTLY 2 tab-separated fields per line: Rank<TAB>Team abbreviation.
+1. EXACTLY 2 tab-separated fields per line: Rank<TAB>Team name.
 2. Rank is an integer 1–25, in ascending order (1 first). Output at most 25 lines.
-3. Team is an UPPERCASE abbreviation from the mapping at the bottom — NEVER a full name or nickname.
-4. Each team abbreviation appears AT MOST ONCE. Omit any rank you cannot see — never guess.
+3. Team is an team name from the list at the bottom — NEVER a full name or nickname.
+4. Each team name appears AT MOST ONCE. Omit any rank you cannot see — never guess.
 5. NO header row, NO commentary inside the data, NO commas. The paste-target label above the fence is required (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === TOP 25 ===
-1\\t<Rank 1 abbr>
-2\\t<Rank 2 abbr>
+1\\t<Rank 1 name>
+2\\t<Rank 2 name>
 …
-25\\t<Rank 25 abbr>`,
+25\\t<Rank 25 name>`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [targetYear, selectedWeekLabel, currentDynasty?.teams])
@@ -147,7 +147,7 @@ REQUIRED OUTPUT FORMAT
       if (!rbw) continue
       const v = rbw[wk] ?? rbw[String(wk)]
       if (typeof v !== 'number' || v < 1 || v > 25) continue
-      if (!byRank.has(v)) byRank.set(v, String(team.abbr).toUpperCase())
+      if (!byRank.has(v)) byRank.set(v, getTeamNameLabel(currentDynasty?.teams, team.tid) || String(team.abbr))
     }
     const lines = []
     for (let r = 1; r <= 25; r++) {
@@ -263,7 +263,7 @@ REQUIRED OUTPUT FORMAT
     // Same guardrail as the sheet read: refuse to clear a full poll on empty input.
     const totals = result.yearTotals?.[targetYear]
     if (totals && totals.newCount === 0 && totals.oldCount >= 10) {
-      toast.error('No teams recognized in the paste — refusing to clear rankings. Check the abbreviations and try again.')
+      toast.error('No teams recognized in the paste — refusing to clear rankings. Check the team names and try again.')
       return
     }
     const summary = buildTop25Diff(currentDynasty, result.teamUpdates)
@@ -710,14 +710,14 @@ function Top25DiffConfirmModal({ summary, yearTotals, unknownAbbrs, alsoDelete, 
 
           {unknownAbbrs?.length > 0 && (
             <div className="rounded-lg p-3 border border-surface-4" style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)' }}>
-              <p className="text-txt-primary font-semibold mb-1">Unknown team abbreviations (skipped)</p>
+              <p className="text-txt-primary font-semibold mb-1">Unknown team names (skipped)</p>
               <ul className="list-disc list-inside text-xs space-y-0.5">
                 {unknownAbbrs.slice(0, 12).map((u, i) => (
                   <li key={i}>{u.year} {weekLabel(u.weekKey)} #{u.rank}: <span className="font-mono">{u.raw}</span></li>
                 ))}
                 {unknownAbbrs.length > 12 && <li className="opacity-70">…and {unknownAbbrs.length - 12} more</li>}
               </ul>
-              <p className="text-xs mt-1.5">These cells were ignored. Fix the abbreviations on the sheet and re-save to include them.</p>
+              <p className="text-xs mt-1.5">These cells were ignored. Fix the team names on the sheet and re-save to include them.</p>
             </div>
           )}
 

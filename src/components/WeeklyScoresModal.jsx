@@ -357,7 +357,7 @@ This is the score-swap defense: you do NOT have to look at logos and try to pair
 
 ═══ ABBREVIATION MISMATCH: result text ≠ dropdown ═══
 
-CFB26's result-column abbreviations are the game's internal short codes. They MAY NOT match the dropdown abbreviations in your TEAM ABBREVIATIONS mapping. Examples I've personally seen:
+CFB26's result-column abbreviations are the game's internal short codes. They MAY NOT match the dropdown abbreviations in your TEAM NAMES list. Examples I've personally seen:
 
   Result-text abbr → Dropdown abbr
   ────────────────────────────────────
@@ -381,7 +381,7 @@ When the result-text abbr doesn't match a dropdown entry, **do NOT use the resul
 
 1. Read the FULL TEAM NAMES from the matchup column. Examples:
    "Missouri State", "Kennesaw State", "Notre Dame", "Fresno State".
-2. Look up each full name in your TEAM ABBREVIATIONS mapping at the bottom of this prompt. Use the dropdown abbr you find there. The matchup column's text is the SOURCE OF TRUTH for team identity.
+2. Look up each full name in your TEAM NAMES list at the bottom of this prompt. Use the dropdown abbr you find there. The matchup column's text is the SOURCE OF TRUTH for team identity.
 3. Read the result text: "XXX score1, YYY score2".
 4. Match each result-text abbr (XXX, YYY) back to one of the two team names in the matchup column. There are only two teams in the row — one of them is XXX, the other is YYY. Use abbr similarity + position-in-the-row as the matching cue.
 5. Pair each team with its score: the team matched to XXX scored score1, the team matched to YYY scored score2.
@@ -416,7 +416,7 @@ CRITICAL RULES — output format
    Col F — AWAY SCORE (integer)
    Col G — NEUTRAL? ("Y" if neutral site, otherwise leave BLANK)
 2. ONE ROW PER GAME. The sheet allows up to ${WEEKLY_SCORES_MAX_ROWS} rows. The screenshots are the SOURCE OF TRUTH for how many games to output (see EXHAUSTIVENESS above).
-3. TEAM ABBREVIATIONS ONLY (columns A and D). Use ONLY values from the TEAM ABBREVIATIONS mapping at the bottom of this prompt. Columns A and D are STRICT dropdowns — wrong text is rejected by the sheet.
+3. TEAM NAMES ONLY (columns A and D). Use ONLY values from the TEAM NAMES list at the bottom of this prompt. Columns A and D are STRICT dropdowns — wrong text is rejected by the sheet.
 4. INTEGERS ONLY for scores — no decimals, no "pts", no commas. "24" never "1,234" never "24.0".
 5. RANKS FOR PLAYED TEAMS — transcribe, do not reason.
    For every team that appears in a game row (Col A or Col D), the rank is EXACTLY what the screenshot shows — the integer prefix next to the team name, or blank if there is no prefix. That's it. You are a transcription machine for these ranks.
@@ -509,8 +509,8 @@ CRITICAL RULES — output format
    Col C. If TEAM_LEFT goes to Col D (because it was the visitor), then
    SCORE_LEFT goes to Col F. Score moves with the team, period.
 7. NEUTRAL FLAG: column G is "Y" only when the game is explicitly at a neutral site (kickoff games, neutral-site classics, the Army-Navy Game, etc.). For ordinary home games leave column G BLANK. Do NOT write "N". Conference championships are NEVER entered through this weekly-scores flow — they have a dedicated entry modal — so any neutral game you flag here is a regular-season neutral-site game, not a CCG.
-8. FCS OPPONENTS — INCLUDE THEM. EA College Football 26 represents real FCS schools as one of four generic FCS placeholders, and those placeholders ARE in the team mapping at the bottom of this prompt (typically FCSE, FCSM, FCSN, FCSW — but follow whatever appears in your mapping). When a Power-or-Group-of-5 FBS team plays an FCS opponent in Week 0 (or later), that game IS in scope — find the matching FCS placeholder abbreviation in the mapping and write the row. Do NOT drop FCS games — they're part of the user's records.
-9. UNKNOWN ABBREVIATIONS — never invent. If you cannot find a team in the mapping AT ALL after a careful re-scan, OMIT that game (rare — almost everything an in-game screenshot shows is in the mapping, including all FBS teams, FCS placeholders, and any user-renamed teambuilder teams). Re-check the mapping CAREFULLY before omitting — it includes every valid abbreviation for this dynasty.
+8. FCS OPPONENTS — INCLUDE THEM. EA College Football 26 represents real FCS schools as one of four generic FCS placeholders, and those placeholders ARE in the TEAM NAMES list at the bottom of this prompt (e.g. FCS East, FCS Midwest, FCS Northwest, FCS West — but follow whatever appears in your list). When a Power-or-Group-of-5 FBS team plays an FCS opponent in Week 0 (or later), that game IS in scope — find the matching FCS placeholder name in the TEAM NAMES list and write the row. Do NOT drop FCS games — they're part of the user's records.
+9. UNKNOWN TEAMS — never invent. If you cannot find a team in the TEAM NAMES list AT ALL after a careful re-scan, OMIT that game (rare — almost everything an in-game screenshot shows is in the mapping, including all FBS teams, FCS placeholders, and any user-renamed teambuilder teams). Re-check the mapping CAREFULLY before omitting — it includes every valid team name for this dynasty.
 10. SKIP bye weeks. Teams on bye are not games and have no row.
 11. NO HEADER ROW in the output. Do not include "HOME TEAM" / "AWAY TEAM" labels.
 12. ${userAbbr ? `OPTIONAL — the user's own team is ${userAbbr}. If you can see their game in the screenshots, INCLUDE it; if not, that's fine — they enter their own game separately and any duplicate row is harmlessly preserved.` : `If the user's own team plays in this week, include the row anyway — duplicates with their separately-entered game are handled automatically.`}
@@ -637,7 +637,7 @@ LAYOUT EXAMPLE (concrete shape — 3 games, 2 bye teams):
   CLEM\\t3\\t\\t\\t\\t\\t                      ← bye rank: Clemson at #3
 
 The KEY DIFFERENCE between a game row and a bye row is column D:
-  • Game row: column D is the away-team abbreviation. NEVER blank.
+  • Game row: column D is the away-team name. NEVER blank.
   • Bye row:  column D is BLANK. Only columns A (team) and B (rank)
               are filled. Columns C, E, F, G are all blank.
 
@@ -649,7 +649,7 @@ The WORKSHEET is for audit only — the user reads it but pastes only the
 TSV (everything from the "=== WEEK ..." marker through the last bye row)
 into the sheet.
 
-Example rows (for illustration only — your data should match the screenshots, and you should use ONLY abbreviations that appear in the mapping at the bottom of this prompt):
+Example rows (for illustration only — your data should match the screenshots, and you should use ONLY team names that appear in the TEAM NAMES list at the bottom of this prompt):
 TEX\\t7\\t34\\tOU\\t\\t21\\t
 BAMA\\t\\t28\\tUGA\\t3\\t31\\tY
 LSU\\t\\t52\\tFCSE\\t\\t10\\t
@@ -666,7 +666,7 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] EVERY SCREENSHOT PROCESSED: if the user sent multiple images (look for "1 of 2", "2 of 2" etc., or simply more than one attachment), confirm you read every one of them, not just the first.
 [ ] NO TRUNCATION: your output does not end with "...", "[and the rest]", "etc.", or any phrase implying you stopped early. The full list goes through.
 [ ] EXACTLY 7 tab-separated values per row (6 tab characters per line) — even when rank/neutral columns are blank, the surrounding tabs MUST still be present.
-[ ] Columns A and D are team ABBREVIATIONS only, from the TEAM ABBREVIATIONS mapping (re-check before omitting any unfamiliar one).
+[ ] Columns A and D are team NAMES only, from the TEAM NAMES list (re-check before omitting any unfamiliar one).
 [ ] Scores in columns C and F are INTEGERS only — no commas, no decimals, no "pts".
 [ ] Ranks in columns B and E are integers 1–25 or BLANK — never "NR", never "—", never 0.
 [ ] Column G is exactly "Y" or BLANK — never "N", never "neutral", never anything else.

@@ -21,7 +21,7 @@ import {
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -35,7 +35,7 @@ export default function PreseasonTop25Modal({ isOpen, onClose, year, teamColors 
   const { user } = useAuth()
   const auth = useAuthErrorHandler()
   const yearNum = Number(year)
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
 
   const [sheetId, setSheetId] = useState(null)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -128,12 +128,12 @@ You fill column B (Top 25 team for that rank).
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. Output ONLY column B (one team abbreviation per line). NEVER output column A (rank), the header row, or any rank labels.
+1. Output ONLY column B (one team name per line). NEVER output column A (rank), the header row, or any rank labels.
 2. Row order is FIXED: rank 1 first, rank 25 last. EXACTLY 25 lines of output.
-3. Each line has EXACTLY 1 field: <Team abbreviation>
-4. Team values must be UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames.
+3. Each line has EXACTLY 1 field: <Team name>
+4. Team values must be team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
 5. NO COMMAS. No commentary INSIDE the data. No rank numbers. No header row. No tabs. The paste-target label above the fence is required (see TSV delivery rules above).
-6. Each team abbreviation must appear AT MOST ONCE across all 25 ranks — no duplicates in the poll.
+6. Each team name must appear AT MOST ONCE across all 25 ranks — no duplicates in the poll.
 7. BLANK line for unknown ranks (just an empty line). Never guess.
 8. ONE block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
@@ -179,7 +179,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
   // lines). So the pre-fill can only round-trip when the saved poll is a
   // CONTIGUOUS 1..N (no internal gaps). Abbr is derived from tid (mirroring
   // createPreseasonRankingsSheet's seed: dynasty.teams[tid].abbr preferred,
-  // else e.team). When ranks are dense from 1, emit one abbr per line in rank
+  // else e.team). When ranks are dense from 1, emit one team name per line in rank
   // order; when ragged, leave the grid blank rather than mis-rank the pre-fill.
   const initialText = useMemo(() => {
     const poll = currentDynasty?.preseasonRankingsByYear?.[yearNum]
@@ -191,7 +191,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
       .filter(e => e && typeof e.rank === 'number' && e.rank >= 1)
       .map(e => {
         const abbr = e.tid != null
-          ? (teams?.[e.tid]?.abbr || teams?.[String(e.tid)]?.abbr || e.team)
+          ? (getTeamNameLabel(teams, e.tid) || e.team)
           : e.team
         return { rank: e.rank, abbr }
       })

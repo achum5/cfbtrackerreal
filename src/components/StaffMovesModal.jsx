@@ -6,6 +6,7 @@ import LocalDataEntry from './ui/LocalDataEntry'
 import SheetManualEntry from './ui/SheetManualEntry'
 import SheetModalAIHero from './ui/SheetModalAIHero'
 import { splitTsv } from '../utils/tsvParse'
+import { getTeamNameOptions } from '../data/teamRegistry'
 import {
   STAFF_MOVE_COLUMNS,
   STAFF_MOVE_ROLES,
@@ -48,11 +49,11 @@ export default function StaffMovesModal({ isOpen, onClose, currentYear }) {
   const existingMoves = currentDynasty?.staffMovesByYear?.[yearNum]?.moves || []
   const initialText = useMemo(() => staffMovesToTsv(existingMoves), [existingMoves])
 
-  // Team abbreviations for the school combobox columns.
-  const teamAbbrOptions = useMemo(() => {
-    const abbrs = Object.values(currentDynasty?.teams || {}).map((t) => t?.abbr).filter(Boolean)
-    return Array.from(new Set(abbrs)).sort()
-  }, [currentDynasty?.teams])
+  // Team NAMES for the school combobox columns.
+  const teamNameOptions = useMemo(
+    () => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }),
+    [currentDynasty?.teams],
+  )
 
   const columnOptions = useMemo(() => ({
     'Prev Pos': STAFF_MOVE_ROLES,
@@ -61,9 +62,9 @@ export default function StaffMovesModal({ isOpen, onClose, currentYear }) {
   }), [])
 
   const comboboxColumns = useMemo(() => ({
-    'Prev School': teamAbbrOptions,
-    'New School': teamAbbrOptions,
-  }), [teamAbbrOptions])
+    'Prev School': teamNameOptions,
+    'New School': teamNameOptions,
+  }), [teamNameOptions])
 
   if (!isOpen) return null
 
@@ -171,7 +172,7 @@ export default function StaffMovesModal({ isOpen, onClose, currentYear }) {
                 columns={STAFF_MOVE_COLUMNS}
                 columnOptions={columnOptions}
                 comboboxColumns={comboboxColumns}
-                instructions={`Take a screenshot of the Staff Moves board (scroll to catch every row). Upload it with the copied prompt to your AI of choice — it returns a TSV of coach moves. Paste that below. Schools use team abbreviations; leave "New School" blank for coaches who retired or left for the NFL.`}
+                instructions={`Take a screenshot of the Staff Moves board (scroll to catch every row). Upload it with the copied prompt to your AI of choice — it returns a TSV of coach moves. Paste that below. Schools use team names; leave "New School" blank for coaches who retired or left for the NFL.`}
               />
             </div>
           ) : (

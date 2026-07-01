@@ -16,7 +16,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 import {
   createCFPFirstRoundSheet,
   readCFPFirstRoundFromSheet,
@@ -42,7 +42,7 @@ export default function CFPFirstRoundModal({ isOpen, onClose, onSave, currentYea
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
   const [useLocal, setUseLocal] = useState(true)
 
@@ -63,7 +63,7 @@ CRITICAL RULES — read before anything else
 3. Output EXACTLY 4 data rows, each with EXACTLY 4 tab-separated values.
 4. NO COMMAS in numbers. Output "24" never "024", never "1,234".
 5. INTEGERS ONLY for scores — no decimals, no "pts", no minus signs, no plus signs.
-6. TEAM ABBREVIATIONS ONLY (columns B and C) — use the abbreviation mapping below. Never full names, nicknames, cities, or mascots. Columns B and C are strict dropdowns.
+6. TEAM NAMES ONLY (columns B and C) — use the TEAM NAMES list below. Never an abbreviation, nickname, mascot, or city. Columns B and C are strict dropdowns.
 7. BLANK CELL if unknown. Never guess, never use "N/A", "TBD", dash, or zero (0 is a real score).
    - If an entire game hasn't been played yet: leave all 4 cells blank (empty tab-separated fields).
    - If only the teams are known but not scores: fill Higher Seed + Lower Seed, leave score cells blank.
@@ -79,12 +79,12 @@ Each row is one game. Column A (Game) is pre-filled/protected. You output column
 
 Row | Col A (PROTECTED / pre-filled) | Col B (Higher Seed) | Col C (Lower Seed) | Col D (Higher Score) | Col E (Lower Score)
 ----+--------------------------------+---------------------+--------------------+----------------------+--------------------
-  1 | Game 1 (5 vs 12)               | #5 seed team abbr   | #12 seed team abbr | points by #5 seed    | points by #12 seed
-  2 | Game 2 (6 vs 11)               | #6 seed team abbr   | #11 seed team abbr | points by #6 seed    | points by #11 seed
-  3 | Game 3 (7 vs 10)               | #7 seed team abbr   | #10 seed team abbr | points by #7 seed    | points by #10 seed
-  4 | Game 4 (8 vs 9)                | #8 seed team abbr   | #9 seed team abbr  | points by #8 seed    | points by #9 seed
+  1 | Game 1 (5 vs 12)               | #5 seed team name   | #12 seed team name | points by #5 seed    | points by #12 seed
+  2 | Game 2 (6 vs 11)               | #6 seed team name   | #11 seed team name | points by #6 seed    | points by #11 seed
+  3 | Game 3 (7 vs 10)               | #7 seed team name   | #10 seed team name | points by #7 seed    | points by #10 seed
+  4 | Game 4 (8 vs 9)                | #8 seed team name   | #9 seed team name  | points by #8 seed    | points by #9 seed
 
-Column B and Column C: STRICT dropdown of team abbreviations — use ONLY values from the TEAM ABBREVIATIONS mapping at the bottom of this prompt.
+Column B and Column C: STRICT dropdown of team names — use ONLY values from the TEAM NAMES list at the bottom of this prompt.
 Column D and Column E: INTEGER scores (0 or higher), no commas, no decimal point.
 
 ═══════════════════════════════════════════════════════════
@@ -104,7 +104,7 @@ FINAL CHECK before you send the answer
 [ ] Exactly 4 data rows (not 3, not 5)
 [ ] Exactly 4 tab-separated values per row (3 tab characters per line)
 [ ] Row order is 5v12, 6v11, 7v10, 8v9 — matches the protected Game column
-[ ] Columns B and C use team ABBREVIATIONS only, from the mapping
+[ ] Columns B and C use team NAMES only, from the TEAM NAMES list
 [ ] Columns D and E are INTEGERS only (no commas, no decimals)
 [ ] Blank cell for any unknown value — invented nothing
 [ ] Winner is implied by the higher of the two scores; I did not add a winner column`,

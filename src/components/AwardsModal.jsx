@@ -89,7 +89,7 @@ CRITICAL RULES
 3. NO COMMAS in any value. No totals, no explanation text, no "N/A", no dashes.
 4. BLANK field for unknown (empty string between the tabs). Never guess, never write "Unknown", never put zero.
 5. Use ONLY the literal dropdown values listed — wrong spelling/casing = Google Sheets rejects it.
-6. Team column (D) uses the ABBREVIATION from the mapping at the bottom of this prompt — NEVER full names or mascots.
+6. Team column (D) uses the team NAME from the TEAM NAMES list at the bottom of this prompt — NEVER an abbreviation, nickname, or mascot.
 7. COACH AWARDS (rows 5 & 17 only — see the explicit list above) have cells C, D, E MERGED into ONE wide cell that holds the Team. The merge anchor is column C. For those two rows ONLY, output exactly 3 tab characters yielding 4 fields:
        CoachName<TAB>TeamAbbr<TAB><TAB>
    Concretely: field1 = CoachName, field2 = TeamAbbr, field3 = EMPTY, field4 = EMPTY.
@@ -139,7 +139,7 @@ Field formats:
 - Position (strict dropdown) — must be EXACTLY one of these 21 values, case-sensitive:
     QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
   Do NOT use "RB", "OL", "LB", "DE", "S", "OG", "OT" — those will be REJECTED by the dropdown.
-- Team (strict dropdown) — uppercase abbreviation from the team mapping at the bottom of this prompt (e.g. BAMA, OSU, UGA). NEVER full names ("Alabama", "Ohio State") or nicknames ("Crimson Tide"). On COACH rows this is the coach's TEAM (the school the coach works for), in field 2.
+- Team (strict dropdown) — team name from the TEAM NAMES list at the bottom of this prompt (e.g. Alabama, Ohio State, Georgia). NEVER an abbreviation, nickname, or mascot ("Crimson Tide"). On COACH rows this is the coach's TEAM (the school the coach works for), in field 2.
 - Class (strict dropdown) — must be EXACTLY one of these 8 values, case-sensitive:
     Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
   Note the literal space in "RS Fr", "RS So", "RS Jr", "RS Sr". Do NOT use "Freshman", "Sophomore", "Junior", "Senior", "FR", "SO", "JR", "SR", "RSFr", "R-Fr", etc.
@@ -181,7 +181,7 @@ FINAL CHECK before you send
 [ ] All 20 non-coach lines have 4 tab-separated slots: Player<TAB>Position<TAB>Team<TAB>Class (individual fields may be blank if unknown)
 [ ] All Position values are from the exact list: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
-[ ] All Team values are uppercase abbreviations from the mapping — no full names
+[ ] All Team values are team names from the TEAM NAMES list
 [ ] Blank fields for unknowns — nothing was invented
 [ ] No award name, header row, commas, commentary, or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
     includeTeamMap: true,

@@ -1,3 +1,5 @@
+import { getTeamNameOptions } from '../data/teamRegistry'
+
 export const TEAM_ABBR_MAPPING = `AFA = Air Force
 AKR = Akron
 BAMA = Alabama
@@ -404,16 +406,17 @@ export function buildAIPrompt({
     sections.push('', opponentBlock)
   }
   if (includeTeamMap) {
-    const dynamicMap = buildTeamMapFromDynasty(dynastyTeams)
+    const nameList = getTeamNameOptions(dynastyTeams, { includeFCS: true })
     sections.push(
       '',
-      `When a team appears, use the following abbreviations (format: ABBR = Full Name). EVERY team in this list — including any FCS placeholders or custom names — is a VALID, in-scope team for this dynasty:`,
-      dynamicMap || TEAM_ABBR_MAPPING,
+      `TEAM NAMES — whenever a team appears, output its EXACT name from the list below. Use the team NAME, never an abbreviation and never the mascot/nickname (write "Kentucky", not "UK" and not "Kentucky Wildcats"). EVERY team in this list — including any FCS placeholders or custom teams — is a VALID, in-scope team for this dynasty:`,
+      nameList.join('\n'),
       '',
-      `IMPORTANT — abbreviation handling:`,
-      `• The mapping above is the SOURCE OF TRUTH. The Google Sheet's strict dropdown is built from this exact list — anything else is rejected.`,
-      `• If the in-game screenshot shows a slightly different short form than what's in the mapping (e.g. screenshot shows "FCSMW" but mapping shows "FCSM", or vice versa), USE THE MAPPING's value. Match by the team's full name and direction (East / Midwest / Northwest / Southeast / West) — not by character-for-character abbreviation match.`,
-      `• Never invent an abbreviation that isn't in the mapping. If after a careful re-scan you still can't find a team in the mapping, omit that row — but check carefully first, because abbreviation drift between the in-game UI and the dropdown is a known issue.`,
+      `IMPORTANT — team name handling:`,
+      `• This list is the SOURCE OF TRUTH. The chart's dropdown accepts EXACTLY these strings — anything else (an abbreviation, a nickname, a misspelling) is rejected.`,
+      `• Copy the name character-for-character as written above. Match the team in the screenshot to this list by school; output that list entry verbatim.`,
+      `• The two Miami schools are disambiguated: output "Miami (FL)" for the Hurricanes and "Miami (OH)" for the RedHawks. Use the logo/colors/conference in the screenshot to tell them apart.`,
+      `• Never invent a name that isn't in the list. If after a careful re-scan you still can't match a team, omit that row rather than guessing.`,
     )
   }
   return sections.join('\n')

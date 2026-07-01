@@ -4,6 +4,11 @@ import ImageUpload from './ImageUpload'
 import { useToast } from './ui/Toast'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useDynasty } from '../context/DynastyContext'
+import { stripMascotFromName } from '../data/teams'
+
+// Combine school + nickname into the full display name, e.g.
+// ("Louisville", "Cardinals") -> "Louisville Cardinals". Tolerates empty parts.
+const combineName = (teamName, nickname) => [String(teamName || '').trim(), String(nickname || '').trim()].filter(Boolean).join(' ')
 
 /**
  * Team edit modal for a specific (team, year). Two tabs:
@@ -63,7 +68,9 @@ export default function TeamEditModal({
   }
 
   // Branding tab state
-  const [name, setName] = useState('')
+  const [teamName, setTeamName] = useState('')
+  const [nickname, setNickname] = useState('')
+  const name = combineName(teamName, nickname)
   const [abbr, setAbbr] = useState('')
   const [primary, setPrimary] = useState('#1f2937')
   const [secondary, setSecondary] = useState('#FFFFFF')
@@ -81,7 +88,14 @@ export default function TeamEditModal({
     setOverall(initialRatings?.overall != null ? String(initialRatings.overall) : '')
     setOffense(initialRatings?.offense != null ? String(initialRatings.offense) : '')
     setDefense(initialRatings?.defense != null ? String(initialRatings.defense) : '')
-    setName(team?.name || '')
+    // Prefer the explicit split; fall back to deriving it from the full name
+    // for teams saved before the split existed.
+    {
+      const school = team?.teamName || stripMascotFromName(team?.name || '') || ''
+      const nick = team?.nickname != null ? team.nickname : String(team?.name || '').slice(school.length).trim()
+      setTeamName(school)
+      setNickname(nick)
+    }
     setAbbr(team?.abbr || '')
     setPrimary(team?.primaryColor || '#1f2937')
     setSecondary(team?.secondaryColor || '#FFFFFF')
@@ -176,6 +190,8 @@ export default function TeamEditModal({
         tasks.push((async () => {
           const result = await updateTeambuilderTeam(currentDynasty.id, tid, {
             name: name.trim(),
+            teamName: teamName.trim(),
+            nickname: nickname.trim(),
             abbreviation: abbr.toUpperCase(),
             primaryColor: primary,
             secondaryColor: secondary,
@@ -372,15 +388,29 @@ export default function TeamEditModal({
             </div>
           ) : (
             <div className="space-y-5">
-              <div>
-                <label className="label-sm text-txt-secondary mb-2 block">Team Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Springfield Tigers"
-                  className="w-full px-3 py-2 rounded-lg font-semibold bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="label-sm text-txt-secondary mb-2 block">Team Name</label>
+                  <input
+                    type="text"
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="e.g. Springfield"
+                    className="w-full px-3 py-2 rounded-lg font-semibold bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
+                  />
+                  <p className="label-xs text-txt-muted mt-1.5">School / location (no mascot)</p>
+                </div>
+                <div>
+                  <label className="label-sm text-txt-secondary mb-2 block">Nickname</label>
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="e.g. Tigers"
+                    className="w-full px-3 py-2 rounded-lg font-semibold bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
+                  />
+                  <p className="label-xs text-txt-muted mt-1.5">Mascot</p>
+                </div>
               </div>
 
               <div>

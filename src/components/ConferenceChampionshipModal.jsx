@@ -18,13 +18,13 @@ import {
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
-import { getGameTeamInfo, TEAMS } from '../data/teamRegistry'
+import { getGameTeamInfo, TEAMS, getTeamNameLabel } from '../data/teamRegistry'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -34,7 +34,7 @@ const isMobileDevice = () => {
 export default function ConferenceChampionshipModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
   const { currentDynasty } = useDynasty()
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const { user, signOut } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -146,7 +146,7 @@ CRITICAL RULES — read before anything else
 4. NO COMMAS in scores. Integers only. No decimals.
 5. BLANK LINE (empty, no tabs) if you do not know the CC result for a conference. Never guess. Never invent scores. The blank still counts as that conference's line — keep position so all later lines stay aligned.
 6. Team 1 and Team 2 must BOTH be members of the conference for that row, ACCORDING TO THE CONFERENCE MEMBERSHIP BLOCK BELOW — not according to real-world conferences. Users realign teams (e.g. Missouri and Georgia could be in the Pac-12 in this dynasty). Look every team up in the membership block before you write it.
-7. Both teams must use UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames.
+7. Both teams must use team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
 8. ONE TSV block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
@@ -175,7 +175,7 @@ Per-line output (6 tab-separated fields):
 <Team 1 Abbr>\\t<Team 2 Abbr>\\t<Team 1 Score>\\t<Team 2 Score>\\t<Team 1 Rank>\\t<Team 2 Rank>
 
 Field formats:
-- Team 1 (strict dropdown) — UPPERCASE abbreviation from the mapping at the bottom. Must be a member of the conference on that row.
+- Team 1 (strict dropdown) — team name from the list at the bottom. Must be a member of the conference on that row.
 - Team 2 (strict dropdown) — same rules. Must be a different team from Team 1, same conference.
 - Team 1 Score — integer (no commas, no decimals). e.g. "31" not "31.0".
 - Team 2 Score — integer (no commas, no decimals).
@@ -197,7 +197,7 @@ FINAL CHECK before you send
 [ ] Every non-blank line has exactly 6 tab-separated fields (5 tabs)
 [ ] Both teams on each line appear in that row's conference list in the CONFERENCE MEMBERSHIP block (not your real-world knowledge)
 [ ] Team 1 and Team 2 are different teams
-[ ] All team values are uppercase abbreviations from the mapping — no full names
+[ ] All team values are uppercase names from the list — no full names
 [ ] All scores are integers with no commas and no decimals
 [ ] Ranks are integers 1–25 or blank — never 0, never a word
 [ ] Blank entire lines for unknown results — nothing invented (still keeps the line position)
@@ -270,7 +270,7 @@ CRITICAL RULES — read before anything else
 3. OMIT any conference whose CCG result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A conference with no line is left unchanged.
 4. The order does not matter, but the FIRST field of every line MUST be one of these EXACT conference names: ${orderListInline}.
 5. Both teams must be members of that line's conference ACCORDING TO THE MEMBERSHIP BLOCK BELOW — not real-world conferences. Users realign teams.
-6. Team1 and Team2 are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames. They must be two different teams.
+6. Team1 and Team2 are team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot. They must be two different teams.
 7. Score1 and Score2 are integers (no commas, no decimals).
 8. Rank1 and Rank2 are integers 1–25 if ranked, blank if unranked (never 0, never a word). If both blank, still emit the two trailing tabs so the line keeps 7 fields.
 
@@ -301,7 +301,7 @@ FINAL CHECK before you send
 [ ] Every line has exactly 7 tab-separated fields (six tabs)
 [ ] The first field of every line is an exact conference name from: ${orderListInline}
 [ ] Both teams on each line appear in that conference's membership list above
-[ ] Team1 and Team2 are different uppercase abbreviations from the mapping
+[ ] Team1 and Team2 are different uppercase names from the list
 [ ] Scores are integers with no commas or decimals; ranks are 1–25 or blank
 [ ] No blank lines, no header row, no commentary INSIDE the data — only conferences with a known result`,
       includeTeamMap: true,
@@ -333,8 +333,8 @@ FINAL CHECK before you send
         if (g.team1Tid && g.team2Tid) {
           const t1Info = getGameTeamInfo(teams, g.team1Tid)
           const t2Info = getGameTeamInfo(teams, g.team2Tid)
-          team1 = t1Info?.abbr || g.team1
-          team2 = t2Info?.abbr || g.team2
+          team1 = getTeamNameLabel(teams, g.team1Tid) || g.team1
+          team2 = getTeamNameLabel(teams, g.team2Tid) || g.team2
         } else if (g.userTeam && g.opponent) {
           team1 = g.userTeam
           team2 = g.opponent
@@ -439,8 +439,8 @@ FINAL CHECK before you send
               if (g.team1Tid && g.team2Tid) {
                 const t1Info = getGameTeamInfo(teams, g.team1Tid)
                 const t2Info = getGameTeamInfo(teams, g.team2Tid)
-                team1 = t1Info?.abbr || g.team1
-                team2 = t2Info?.abbr || g.team2
+                team1 = getTeamNameLabel(teams, g.team1Tid) || g.team1
+                team2 = getTeamNameLabel(teams, g.team2Tid) || g.team2
               } else if (g.userTeam && g.opponent) {
                 // Legacy user game format
                 team1 = g.userTeam

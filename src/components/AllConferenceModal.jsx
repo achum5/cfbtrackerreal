@@ -24,7 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -37,7 +37,7 @@ export default function AllConferenceModal({ isOpen, onClose, onSave, currentYea
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -82,7 +82,7 @@ CRITICAL RULES — read before anything else
 5. NO COMMAS in any value. No commentary, totals, "N/A", or dashes.
 6. BLANK field for unknown (empty between tabs). Never guess. A Freshman-team slot empty = leave Player/Team/Class blank.
 7. Use ONLY the literal dropdown values listed below for Position, Team, and Class.
-8. Team column values (cols C, G, K) must be UPPERCASE team abbreviations from the mapping below — NEVER full names. Each team listed in a block MUST actually belong to THIS conference for this tab. Teams from other conferences will be semantically wrong even if the dropdown accepts them.
+8. Team column values (cols C, G, K) must be team names from the TEAM NAMES list below — NEVER an abbreviation, nickname, or mascot. Each team listed in a block MUST actually belong to THIS conference for this tab. Teams from other conferences will be semantically wrong even if the dropdown accepts them.
 9. Do NOT output rows 1-3 (merged title, team-group headers, column headers) — they are pre-filled.
 
 ═══════════════════════════════════════════════════════════
@@ -130,7 +130,7 @@ Field formats:
     QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
   Use the position that matches the row from the list above. The same value goes in all three Position slots.
 - Player — full name string. Leave blank if unknown. Do NOT invent players.
-- Team (strict dropdown) — uppercase abbreviation from the mapping below (e.g. BAMA, OSU, UGA, TEX, USC). NEVER full names or nicknames. Must be a member of the conference this tab represents.
+- Team (strict dropdown) — team name from the list below (e.g. Alabama, Ohio State, Georgia, Texas, USC). NEVER an abbreviation, nickname, or mascot. Must be a member of the conference this tab represents.
 - Class (strict dropdown) — must be EXACTLY one of, case-sensitive:
     Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
   Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". No "Freshman"/"Sophomore"/"FR"/"SO"/"R-Fr"/"RSFr". Freshman-team slots must be Fr or RS Fr only.
@@ -180,7 +180,7 @@ FINAL CHECK before you send
 [ ] All Position values are from the exact list: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Freshman-team Class values are Fr or RS Fr
-[ ] All Team values are uppercase abbreviations from the mapping — and each team is a member of THIS tab's conference
+[ ] All Team values are uppercase names from the list — and each team is a member of THIS tab's conference
 [ ] Blank fields for unknowns — nothing was invented
 [ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see TSV delivery rules above).`,
     includeTeamMap: true,
@@ -214,7 +214,7 @@ FIELD FORMATS
 - Position — EXACTLY one of, case-sensitive:
     QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
 - Player — full name string. Do NOT invent players. If a name is illegible, omit the whole line.
-- Team — UPPERCASE abbreviation from the mapping below (e.g. BAMA, OSU, UGA, TEX, USC). NEVER full names or nicknames. Must be a member of that line's Conference.
+- Team — team name from the list below (e.g. Alabama, Ohio State, Georgia, Texas, USC). NEVER an abbreviation, nickname, or mascot. Must be a member of that line's Conference.
 - Class — EXACTLY one of, case-sensitive:
     Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
   Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". Freshman-designation honorees must be Fr or RS Fr.
@@ -233,7 +233,7 @@ FINAL CHECK before you send
 [ ] The 1st field is a conference name and the 5th field (Team) is a member of that conference
 [ ] Designation is exactly first, second, or freshman
 [ ] Position is from the exact list; Class is from the exact list; freshman honorees are Fr or RS Fr
-[ ] Team values are uppercase abbreviations from the mapping — no full names
+[ ] Team values are uppercase names from the list — no full names
 [ ] No blank lines, no header row, no commentary INSIDE the data — only honorees you can actually see`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,

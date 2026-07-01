@@ -288,7 +288,7 @@ CRITICAL RULES — read before anything else
 3. Output ONE row per bowl shown in the screenshot, with EXACTLY 6 tab-separated values per row.
 4. NO COMMAS in numbers. "24" never "1,234".
 5. INTEGERS ONLY for scores — no decimals, no "pts".
-6. TEAM ABBREVIATIONS ONLY (columns B and D) — use the abbreviation mapping below. Columns B and D are strict dropdowns.
+6. TEAM NAMES ONLY (columns B and D) — use the TEAM NAMES list below. Columns B and D are strict dropdowns.
 7. RANKS (columns C and E): integer 1–25 if the team is ranked at the time of the bowl, BLANK if unranked. Rankings appear as a number prefix on the team name in the scores list (e.g. "4 Alabama" = Alabama is #4). No prefix = unranked = leave blank. Never write "NR" or "—".
 8. BLANK CELLS if unknown. Never guess, never use "N/A", "TBD", dash. Zero is only valid if the team truly scored zero.
 9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
@@ -320,11 +320,11 @@ Col A (PROTECTED)    | Col B (Team 1) | Col C (T1 Rank) | Col D (Team 2) | Col E
 ---------------------+----------------+-----------------+----------------+-----------------+------------------+------------------
 pre-filled bowl name | team abbr      | rank or blank   | team abbr      | rank or blank   | integer          | integer
 
-Column B, Column D: STRICT dropdown of team abbreviations — use ONLY values from the TEAM ABBREVIATIONS mapping at the bottom of this prompt.
+Column B, Column D: STRICT dropdown of team names — use ONLY values from the TEAM NAMES list at the bottom of this prompt.
 Column C, Column E: integer rank 1–25 if ranked, BLANK if unranked. Read directly from the number prefix shown on the team name in the screenshot.
 Column F, Column G: integer score (0 or higher), no commas, no decimal point.
 
-For "(CFP QF)" rows, the team abbreviations are PRE-DETERMINED by this
+For "(CFP QF)" rows, the team names are PRE-DETERMINED by this
 dynasty's playoff seeds — use the EXACT abbreviations shown in the
 right-hand column of the row table above. Team 1 (column B) is always
 the First Round winner (the lower-seeded team that advanced); Team 2
@@ -375,7 +375,7 @@ HOW TO BUILD THIS BLOCK:
 
 For each team in this block, output ONE row:
   • Leave Col A BLANK (no bowl name)
-  • Col B = team abbreviation (from the TEAM ABBREVIATIONS mapping)
+  • Col B = team name (from the TEAM NAMES list)
   • Col C = their AP rank (1–25)
   • Cols D–G = leave blank
 
@@ -407,10 +407,10 @@ FINAL CHECK before you send the answer
 [ ] Row count matches the number of bowl rows shown in the screenshot exactly (${13 - excludedBowlGames.length} rows)
 [ ] Row order matches the screenshot's pre-filled Bowl Game column top-to-bottom (alphabetical)
 [ ] Exactly 6 tab-separated values per game row (5 tab characters per line)
-[ ] Columns B and D are team ABBREVIATIONS only, from the TEAM ABBREVIATIONS mapping
+[ ] Columns B and D are team NAMES only, from the TEAM NAMES list
 [ ] Columns C and E are ranks (1–25) or BLANK — never "NR", never guessed
 [ ] Scores are INTEGERS only — no commas, no decimals, no "pts"
-[ ] For "(CFP QF)" rows: used the exact team abbreviations from the right-hand column of the EXACT ROW ORDER table above (not real-world bowl matchups, not guessed); Team 1 = First Round winner (lower seed), Team 2 = bye seed (1-4)
+[ ] For "(CFP QF)" rows: used the exact team names from the right-hand column of the EXACT ROW ORDER table above (not real-world bowl matchups, not guessed); Team 1 = First Round winner (lower seed), Team 2 = bye seed (1-4)
 [ ] Line N of my output corresponds to row N+1 of the sheet exactly per the row table — I did NOT re-alphabetize or reorder
 [ ] Blank cells for any unknown scores or unplayed bowls — invented nothing
 [ ] Bottom block = ranked teams whose AP rank is NOT on a regular bowl row: non-playing teams PLUS CFP teams (CFP rows show a seed, not the AP rank)
@@ -443,10 +443,10 @@ CRITICAL RULES — read before anything else
 3. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
 4. OMIT any bowl whose result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A bowl with no line is left unchanged.
 5. BowlName MUST be one of the EXACT pre-defined bowl names listed in the BOWL NAMES table below — copy it CHARACTER-FOR-CHARACTER, INCLUDING the "(CFP QF)" suffix where shown. This name is the ONLY identifier for the game.
-6. Team1 / Team2 are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names, nicknames, cities, or mascots.
+6. Team1 / Team2 are team names from the TEAM NAMES list at the bottom — NEVER an abbreviation, nickname, mascot, or city.
 7. Team1Rank / Team2Rank: integer 1–25 if the team is ranked at bowl time, BLANK if unranked. Read off the number prefix on the team name. Never "NR" or "—".
 8. Team1Score / Team2Score: integers (no commas, no decimals, no "pts"). If teams are known but scores aren't, leave both score fields blank (still keep all 7 fields / 6 tabs).
-9. For "(CFP QF)" rows, use the exact team abbreviations shown in the BOWL NAMES table's right-hand hint column. Team 1 = First Round winner (lower seed that advanced), Team 2 = bye seed (1-4). Do NOT swap or substitute real-world matchups.
+9. For "(CFP QF)" rows, use the exact team names shown in the BOWL NAMES table's right-hand hint column. Team 1 = First Round winner (lower seed that advanced), Team 2 = bye seed (1-4). Do NOT swap or substitute real-world matchups.
 10. POLL lines are ONLY for ranked teams whose AP rank does NOT appear on a REGULAR (non-CFP) game line above. CFP teams DO get a POLL line (their game line shows a SEED, not the AP rank). Do not duplicate a regular-bowl team in a POLL line.
 
 ═══════════════════════════════════════════════════════════
@@ -483,7 +483,7 @@ FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every GAME line has exactly 7 tab-separated fields (six tabs) and LEADS with an exact bowl name from the BOWL NAMES table (with the "(CFP QF)" suffix where shown)
 [ ] Every POLL line has exactly 3 fields: the literal word POLL, then rank, then team abbr
-[ ] Team values are uppercase abbreviations from the mapping — no full names
+[ ] Team values are team names from the TEAM NAMES list
 [ ] Ranks are 1–25 or blank; scores are integers with no commas or decimals
 [ ] "(CFP QF)" lines use the exact teams from the hint column; Team1 = First Round winner, Team2 = bye seed
 [ ] No team is on BOTH a regular game line and a POLL line; CFP teams appear on a POLL line with their AP rank

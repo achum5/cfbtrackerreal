@@ -1,7 +1,7 @@
 // Note: Firebase auth import removed - we use OAuth tokens from localStorage directly
 // This allows Google Sheets to work with free tier (IndexedDB) users who have signed in with Google
 import { teamAbbreviations, getTeamAbbreviationsList, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
-import { getAbbrFromTeamName, getTidFromAbbr, TEAMS as DEFAULT_TEAMS } from '../data/teamRegistry'
+import { getAbbrFromTeamName, getTidFromAbbr, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -293,9 +293,16 @@ function getTeamsWithCustom(dynastyTeams = null) {
 }
 
 // Get list of team abbreviations with dynastyTeams support
+// Team-column dropdown values for the sheet builders. Charts now use team NAMES
+// (and the AI prompts output names), but existing sheets/prefills may still hold
+// abbreviations. Return BOTH the name labels and the abbreviations so a strict
+// ONE_OF_LIST dropdown accepts either — a pasted name (the new default) OR a
+// legacy/prefilled abbr. The read path resolves both back to a tid.
 function getTeamAbbreviationsListWithCustom(dynastyTeams = null) {
   const teams = getTeamsWithCustom(dynastyTeams)
-  return Object.keys(teams).sort()
+  const abbrs = Object.keys(teams)
+  const names = getTeamNameOptions(dynastyTeams, { includeFCS: true })
+  return Array.from(new Set([...names, ...abbrs])).sort()
 }
 
 // Generate conditional formatting rules for team colors (case-insensitive)
@@ -758,7 +765,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getSelectableTeamsList(dynastyTeams).map(abbr => ({ userEnteredValue: abbr }))
+              values: [...getTeamNameOptions(dynastyTeams, { includeFCS: false }), ...getSelectableTeamsList(dynastyTeams)].map(v => ({ userEnteredValue: v }))
             },
             showCustomUi: true,
             strict: true
@@ -778,7 +785,7 @@ async function initializeSheetHeaders(spreadsheetId, accessToken, scheduleSheetI
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getSchedulableTeamsList(dynastyTeams).map(abbr => ({ userEnteredValue: abbr }))
+              values: [...getTeamNameOptions(dynastyTeams, { includeFCS: true }), ...getSchedulableTeamsList(dynastyTeams)].map(v => ({ userEnteredValue: v }))
             },
             showCustomUi: true,
             strict: true
@@ -1377,7 +1384,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: getSelectableTeamsList(dynastyTeams).map(abbr => ({ userEnteredValue: abbr }))
+              values: [...getTeamNameOptions(dynastyTeams, { includeFCS: false }), ...getSelectableTeamsList(dynastyTeams)].map(v => ({ userEnteredValue: v }))
             },
             showCustomUi: true,
             strict: true
@@ -1397,7 +1404,7 @@ async function initializeScheduleSheetOnly(spreadsheetId, accessToken, scheduleS
           rule: {
             condition: {
               type: 'ONE_OF_LIST',
-              values: ['BYE', ...getSchedulableTeamsList(dynastyTeams)].map(abbr => ({ userEnteredValue: abbr }))
+              values: ['BYE', ...getTeamNameOptions(dynastyTeams, { includeFCS: true }), ...getSchedulableTeamsList(dynastyTeams)].map(v => ({ userEnteredValue: v }))
             },
             showCustomUi: true,
             strict: true

@@ -24,7 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -69,7 +69,7 @@ export default function RosterHistoryModal({ isOpen, onClose, teamColors }) {
     years.push(y)
   }
 
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const teamCols = useMemo(() => Object.fromEntries(years.map(y => [`${y} Team`, teamAbbrs])), [years.join(','), teamAbbrs])
 
   // Pre-fill the local grid with the existing roster history so the editor opens
@@ -103,7 +103,7 @@ CRITICAL RULES — read before anything else
 4. NO COMMAS anywhere — not in names, not in PIDs.
 5. PID is an INTEGER (no decimal point) OR blank. NEVER invent a PID. If you do not see a PID on the screenshot, leave that cell blank — the app will match by player name for new rows. Wrong PIDs will cause silent data corruption.
 6. BLANK CELL for any year the player was NOT on a roster that season — leave empty (two tabs in a row). Do NOT use "-", "N/A", "None", or "FA".
-7. Team columns: use ONLY the team abbreviations from the mapping below (e.g. BAMA, OSU, UGA). NEVER use full names ("Alabama"), nicknames ("Tide"), or mascots. Case-sensitive — all uppercase/mixed as shown in the mapping.
+7. Team columns: use ONLY the team names from the TEAM NAMES list below (e.g. Alabama, Ohio State, Georgia). NEVER an abbreviation, nickname, or mascot. Match the team name exactly as written in the TEAM NAMES list.
 8. No header row, no totals, no commentary INSIDE the data, no blank separator rows. The paste-target label above the fence is required (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
@@ -116,11 +116,11 @@ Col | Header (row 1, protected) | Your value                             | Forma
 ----+---------------------------+----------------------------------------+---------------------------------------
  A  | Player Name               | Full name (First Last)                 | text — no commas, include suffix (Jr./II) if known
  B  | PID                       | Existing player ID (or blank)          | integer — ONLY if screenshot shows it; NEVER invent
-${years.map((y, i) => ` ${String.fromCharCode(67 + i)}  | ${y} Team                   | Team player was on in ${y}                | DROPDOWN — team abbreviation from mapping, or BLANK`).join('\n')}
+${years.map((y, i) => ` ${String.fromCharCode(67 + i)}  | ${y} Team                   | Team player was on in ${y}                | DROPDOWN — team name from mapping, or BLANK`).join('\n')}
 
 ───────────────────────────────────────────────────────────
 TEAM COLUMNS — Dropdown values:
-Use ONLY abbreviations from the team-abbreviation mapping provided at the bottom of this prompt (format: ABBR = Full Name). Examples: BAMA = Alabama, OSU = Ohio State, UGA = Georgia. Case must match the mapping exactly.
+Use ONLY team names from the TEAM NAMES list provided at the bottom of this prompt. Examples: Alabama, Ohio State, Georgia. Match the team name exactly as written in the list.
 
 A blank cell means "not on any roster that year" (e.g. pre-enrollment year, transferred out with unknown destination, graduated, not yet recruited). Blank is the correct answer for any unknown season — never guess.
 
@@ -128,8 +128,8 @@ A blank cell means "not on any roster that year" (e.g. pre-enrollment year, tran
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
 === ROSTER HISTORY — paste at cell A2 of "Roster History" tab ===
-<Player Name>\t<PID or blank>\t${years.map(y => `<${y} team abbr or blank>`).join('\t')}
-<Player Name>\t<PID or blank>\t${years.map(y => `<${y} team abbr or blank>`).join('\t')}
+<Player Name>\t<PID or blank>\t${years.map(y => `<${y} team name or blank>`).join('\t')}
+<Player Name>\t<PID or blank>\t${years.map(y => `<${y} team name or blank>`).join('\t')}
 …one line per player
 
 ═══════════════════════════════════════════════════════════
@@ -139,7 +139,7 @@ FINAL CHECK before you send
 [ ] No header row, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
 [ ] PID column is either an integer from the screenshot, or BLANK — never invented
 [ ] No commas in any cell
-[ ] All team values are exact abbreviations from the mapping below
+[ ] All team values are exact names from the list below
 [ ] Blank cell for every year a player was NOT on a roster — no "-", "N/A", "FA"
 [ ] Player Name has no trailing whitespace
 [ ] At most 499 data lines`,

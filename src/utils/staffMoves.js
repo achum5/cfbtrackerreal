@@ -12,7 +12,7 @@
 // The parsed rows feed two things: the season's Coach Carousel display list and
 // the real coach-entity model (see applyStaffMovesToCoaches in coachModel.js).
 
-import { getTidFromAbbr, getTeam } from '../data/teamRegistry'
+import { getTidFromAbbr, getTeam, getTeamNameLabel } from '../data/teamRegistry'
 import { buildAIPrompt } from './aiPrompt'
 
 // Grid/column order. This is the positional contract the parser reads by index
@@ -136,12 +136,12 @@ COLUMN RULES:
    known coach, otherwise output the abbreviated name exactly as shown.
 2. Prev Pos — the coach's PREVIOUS position (the "PREV. POS" column). Output HC, OC, or DC.
 3. Prev School — the PREVIOUS school (the "PREV. SCHOOL" column). Output the TEAM
-   ABBREVIATION from the mapping below. The board may prefix a poll rank
-   ("7 Alabama", "12 Rice") — IGNORE the rank number, output only the abbreviation
-   ("BAMA", "RICE").
+   NAME from the TEAM NAMES list below. The board may prefix a poll rank
+   ("7 Alabama", "12 Rice") — IGNORE the rank number, output only the team name
+   ("Alabama", "Rice").
 4. New Pos — the NEW position (the "POS" column). Output HC, OC, or DC.
 5. New School — the NEW school (the "NEW SCHOOL" column). Output the TEAM
-   ABBREVIATION. If the cell shows "---" (no new school, e.g. retired or left for
+   NAME. If the cell shows "---" (no new school, e.g. retired or left for
    the NFL), leave this field BLANK.
 6. Reason — copy the reason text EXACTLY as shown (the "REASON" column). It is one
    of: "Hired by Another Team", "Went to the NFL", "Retired", "Fired".
@@ -187,7 +187,8 @@ export function parseStaffMovesRows(rows, dynasty) {
     const s = stripRank(v)
     if (!s || s === '---' || s === '—' || s === '–') return { tid: null, abbr: '' }
     const tid = getTidFromAbbr(s, dynasty)
-    const abbr = tid != null ? (getTeam(teams, tid)?.abbr || s.toUpperCase()) : s.toUpperCase()
+    // Store the team NAME label for display (falls back to the raw input).
+    const abbr = tid != null ? (getTeamNameLabel(teams, tid) || s) : s
     return { tid, abbr }
   }
   const out = []

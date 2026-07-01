@@ -7475,6 +7475,8 @@ export function DynastyProvider({ children }) {
           setTeambuilderTeam(teams, replacedTid, {
             abbr: abbr,
             name: customTeam.name,
+            teamName: customTeam.teamName,
+            nickname: customTeam.nickname,
             logo: customTeam.logoUrl,
             primaryColor: customTeam.backgroundColor || customTeam.primaryColor,
             secondaryColor: customTeam.textColor || customTeam.secondaryColor

@@ -162,7 +162,7 @@ COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first em
  K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
  N Dev Trait  | Elite, Star, Impact, Normal
  O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
- P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team ABBR they committed to (use YOUR team's abbr if they committed to you). Use ONLY abbreviations from the team mapping below.
+ P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team NAME they committed to (use YOUR team's name if they committed to you). Use ONLY team names from the TEAM NAMES list below.
 
 ═══════════════════════════════════════════════════════════
 ENUMERATED DROPDOWN VALUES (use EXACTLY — case-sensitive)
@@ -202,7 +202,7 @@ FINAL CHECK
 [ ] Board rows have exactly 16 tab-separated fields (15 tabs); scouted rows have 17 (the Q Attributes cell added)
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
-[ ] Column P is "Uncommitted" or a team abbreviation
+[ ] Column P is "Uncommitted" or a team name
 [ ] The Q cell is one cell of "<name> <rating>" pairs from the Attributes tab; blank when not scouted; pid/NIL never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,

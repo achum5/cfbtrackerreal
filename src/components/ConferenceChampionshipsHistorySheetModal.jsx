@@ -23,7 +23,7 @@ import {
 import { buildAIPrompt } from '../utils/aiPrompt'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -64,7 +64,7 @@ const HISTORY_CONFERENCES = [
  */
 export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClose }) {
   const { currentDynasty, updateDynasty, saveConferenceChampionshipsHistoryFromSheet, isViewOnly } = useDynasty()
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -194,7 +194,7 @@ export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClo
       .map((conf, i) => {
         const sheetRow = String(i + 2).padStart(5, ' ')
         const confPadded = conf.padEnd(20, ' ')
-        return `  ${sheetRow}    | ${confPadded} | <Team1 abbr>\\t<Team2 abbr>\\t<int>\\t<int>`
+        return `  ${sheetRow}    | ${confPadded} | <Team1 name>\\t<Team2 name>\\t<int>\\t<int>`
       })
       .join('\n')
 
@@ -245,7 +245,7 @@ CRITICAL RULES — read before anything else
 4. NO COMMAS in scores. Integers only. No decimals.
 5. BLANK LINE (empty, no tabs) if you do not know the CC result for a conference for that year. Never guess. Never invent scores. The blank still counts as that conference's line — keep position so all later lines stay aligned.
 6. Team 1 and Team 2 must BOTH be members of the conference for that row, ACCORDING TO THE PER-YEAR CONFERENCE MEMBERSHIP BLOCK BELOW — not according to real-world conferences. Users realign teams (e.g. Missouri and Georgia could be in the Pac-12 in this dynasty). Look every team up in the membership block for that year before you write it.
-7. Both teams must use UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames.
+7. Both teams must use team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
 8. ONE block per year tab. Each block is preceded by its own paste-target label (TSV delivery rules above).
 
 Order of conferences (same for every year): ${orderListInline}.
@@ -260,7 +260,7 @@ FINAL CHECK before you send
 [ ] Every non-blank line has exactly 4 tab-separated fields (3 tabs)
 [ ] Both teams on each line appear in that year's conference list in its CONFERENCE MEMBERSHIP block (not your real-world knowledge)
 [ ] Team 1 and Team 2 are different teams
-[ ] All team values are uppercase abbreviations from the mapping — no full names
+[ ] All team values are uppercase names from the list — no full names
 [ ] All scores are integers with no commas and no decimals
 [ ] Blank entire lines for unknown results — nothing invented (still keeps the line position)
 [ ] No Conference name, no header row, no commentary INSIDE the data. Paste-target labels live OUTSIDE each fence.`,
@@ -323,7 +323,7 @@ CRITICAL RULES — read before anything else
 3. OMIT any conference/year whose CCG result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A year you do not include is left completely unchanged; a conference you do not include for an included year simply gets no game.
 4. Line order does not matter (each line self-identifies with its year + conference).
 5. Both teams must be members of that line's conference FOR THAT YEAR, according to the PER-YEAR MEMBERSHIP block below — not real-world conferences. Users realign teams year to year.
-6. Team1 and Team2 are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames. Two different teams.
+6. Team1 and Team2 are team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot. Two different teams.
 7. Score1 and Score2 are integers (no commas, no decimals). Do NOT emit a line unless you have BOTH scores — a scoreless line is dropped.
 
 ═══════════════════════════════════════════════════════════
@@ -331,7 +331,7 @@ FIELDS
 ═══════════════════════════════════════════════════════════
 - Year — the 4-digit season year (e.g. ${yearsInline}).
 - Conference — EXACTLY one of: ${orderListInline}.
-- Team1 / Team2 — uppercase abbreviations, both members of that year's conference (see below).
+- Team1 / Team2 — exact team names, both members of that year's conference (see below).
 - Score1 / Score2 — integers.
 
 ═══════════════════════════════════════════════════════════
@@ -352,7 +352,7 @@ FINAL CHECK before you send
 [ ] Every line has exactly 6 tab-separated fields (five tabs)
 [ ] The 1st field is a 4-digit year; the 2nd is one of: ${orderListInline}
 [ ] Both teams appear in that year's conference membership list above
-[ ] Team1 and Team2 are different uppercase abbreviations from the mapping
+[ ] Team1 and Team2 are different uppercase names from the list
 [ ] Both scores are present and are integers with no commas or decimals
 [ ] No blank lines, no header row, no commentary INSIDE the data — only CCGs you can actually see`,
       includeTeamMap: true,

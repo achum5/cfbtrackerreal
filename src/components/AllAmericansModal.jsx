@@ -24,7 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -37,7 +37,7 @@ export default function AllAmericansModal({ isOpen, onClose, onSave, currentYear
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -127,7 +127,7 @@ CRITICAL RULES — read before anything else
 5. NO COMMAS anywhere. No commentary, totals, or extra columns. No "N/A", no dashes.
 6. BLANK field for unknown (empty between tabs). Never guess. Never invent players.
 7. Use ONLY the literal dropdown values listed below for Position, Team, and Class — wrong spelling = dropdown rejects it.
-8. Team values must be UPPERCASE abbreviations from the mapping at the bottom of this prompt — NEVER full names, city, or nickname.
+8. Team values must be team names from the list at the bottom of this prompt — NEVER an abbreviation, nickname, or city.
 9. ONE TSV block, 25 lines, 12 tab-separated fields each — preceded by the required paste-target label line above the fence (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
@@ -174,7 +174,7 @@ Field formats:
     QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
   Use the position that matches the row from the list above. The same value goes in all three Position slots on that line.
 - Player (3 slots per row: First, Second, Freshman) — full name string, blank if unknown. A Freshman-team player must actually be a freshman (Fr or RS Fr).
-- Team (3 slots per row — strict dropdown) — uppercase abbreviation from the mapping at the bottom (e.g. BAMA, OSU, UGA, TEX). NEVER full names or nicknames.
+- Team (3 slots per row — strict dropdown) — team name from the list at the bottom (e.g. Alabama, Ohio State, Georgia, Texas). NEVER an abbreviation, nickname, or mascot.
 - Class (3 slots per row — strict dropdown) — must be EXACTLY one of:
     Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
   Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". No "Freshman", "Sophomore", "FR", "SO", "R-Fr", "RSFr".
@@ -191,7 +191,7 @@ FINAL CHECK before you send
 [ ] Exactly 25 lines in the block, one per position (order: QB, HB, HB, WR, WR, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, DT, SAM, MIKE, WILL, CB, CB, FS, SS, K, P)
 [ ] Every line has exactly 12 tab-separated fields (11 tabs per line)
 [ ] The 1st, 5th, and 9th fields on every line are the SAME position value from the row list
-[ ] All Team values are uppercase abbreviations from the mapping — no full names
+[ ] All Team values are uppercase names from the list — no full names
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Freshman-team Class values are Fr or RS Fr (no Sophomores or above in Freshman slot)
 [ ] Blank fields for unknowns — nothing was invented

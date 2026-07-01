@@ -22,7 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getSelectableTeamsList } from '../data/teamAbbreviations'
+import { getTeamNameOptions, getTeamNameLabel, getTidFromAbbr } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -31,7 +31,7 @@ const isMobileDevice = () => {
 
 export default function ConferenceStandingsModal({ isOpen, onClose, onSave, currentYear, teamColors }) {
   const { currentDynasty } = useDynasty()
-  const teamAbbrs = useMemo(() => getSelectableTeamsList(currentDynasty?.teams), [currentDynasty?.teams])
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
   const { user, signOut } = useAuth()
   const { toast } = useToast()
@@ -73,7 +73,7 @@ CRITICAL RULES — read before anything else
 5. NO COMMAS in numbers: "1234" not "1,234". No thousands separators.
 6. Integers only — no decimal points in Wins/Losses/Points For/Points Against.
 7. Fewer than 20 lines is allowed if a conference has fewer teams. Do NOT pad with fake entries. Do NOT guess — leave the remaining lines out rather than inventing teams.
-8. Team values (col C) must be UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames. Must be a member of the conference for that block.
+8. Team values (col C) must be team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot. Must be a member of the conference for that block.
 9. Spacer rows between conferences in the sheet are NOT part of your output — each block starts fresh at the rank-1 cell of its conference.
 
 ═══════════════════════════════════════════════════════════
@@ -101,7 +101,7 @@ PER-LINE OUTPUT (5 tab-separated fields)
 <Team Abbr>\\t<Wins>\\t<Losses>\\t<Points For>\\t<Points Against>
 
 Field formats:
-- Team Abbr (strict dropdown) — UPPERCASE abbreviation from the mapping at the bottom (e.g. BAMA, OSU, UGA). Must be a team in THIS block's conference. NEVER full names ("Alabama", "Ohio State") or nicknames.
+- Team Abbr (strict dropdown) — team name from the list at the bottom (e.g. Alabama, Ohio State, Georgia). Must be a team in THIS block's conference. NEVER an abbreviation, nickname, or mascot.
 - Wins — integer, no decimals, no commas (e.g. "12" not "12.0" or "12,0").
 - Losses — integer, same rules.
 - Points For — season total integer, no commas (e.g. "487" not "4,870").
@@ -154,7 +154,7 @@ FINAL CHECK before you send
 [ ] Every line has exactly 5 tab-separated fields (4 tabs)
 [ ] No commas in any number
 [ ] No decimals (all values are integers)
-[ ] All team values are uppercase abbreviations from the mapping — no full names
+[ ] All team values are uppercase names from the list — no full names
 [ ] Every team is a valid member of its block's conference
 [ ] Teams within a block are in rank order (rank 1 first)
 [ ] Did not invent teams to fill to 20 — shorter blocks allowed
@@ -186,7 +186,7 @@ FIELD FORMATS
 ═══════════════════════════════════════════════════════════
 - Conference — the EXACT conference this team plays in (e.g. "ACC", "SEC", "Big Ten", "Big 12", "Pac-12", "American", "Conference USA", "Mountain West", "MAC", "Sun Belt", "Independent"). Copy the conference name as shown in your screenshots. The Team MUST be a member of this conference.
 - Rank — the team's place WITHIN its conference standings (integer, 1 = first place). If the screenshot lists teams top-to-bottom, the top team is 1, next is 2, and so on.
-- Team — UPPERCASE abbreviation from the mapping at the bottom (e.g. BAMA, OSU, UGA). NEVER full names or nicknames. Must be a member of that line's Conference.
+- Team — team name from the list at the bottom (e.g. Alabama, Ohio State, Georgia). NEVER an abbreviation, nickname, or mascot. Must be a member of that line's Conference.
 - Wins — integer, no decimals, no commas (e.g. "12" not "12.0").
 - Losses — integer, same rules.
 - PointsFor — season total points scored, integer, no commas (e.g. "487" not "4,870").
@@ -205,7 +205,7 @@ FINAL CHECK before you send
 [ ] Every line has exactly 7 tab-separated fields (six tabs)
 [ ] The 1st field is a conference name and the 3rd field (Team) is a member of that conference
 [ ] Rank is an integer (1 = conference leader) reflecting the team's place within its conference
-[ ] Team values are uppercase abbreviations from the mapping — no full names
+[ ] Team values are uppercase names from the list — no full names
 [ ] Wins/Losses/PointsFor/PointsAgainst are integers with no commas or decimals
 [ ] No blank lines, no spacer rows, no header row, no commentary INSIDE the data — only teams you can actually see`,
     includeTeamMap: true,
@@ -321,7 +321,7 @@ FINAL CHECK before you send
         lines.push([
           conference,
           t.rank ?? '',
-          String(t.team).toUpperCase(),
+          getTeamNameLabel(currentDynasty?.teams, t.tid ?? getTidFromAbbr(t.team, currentDynasty)) || String(t.team),
           t.wins ?? 0,
           t.losses ?? 0,
           t.pointsFor ?? 0,

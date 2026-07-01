@@ -1332,7 +1332,13 @@ export function getTidFromAbbr(abbr, dynastyOrTeams = null) {
       )
     }
   }
-  return staticTid
+  if (staticTid) return staticTid
+  // Name fallback: the value may be a team NAME/label rather than an
+  // abbreviation (charts now let users pick teams by name). Additive — every
+  // abbr check above is unchanged and takes priority. Resolves against the
+  // dynasty teams when available, else the static registry.
+  const nameTid = getTidFromTeamLabel(abbr, dynastyTeams || null)
+  return nameTid != null ? nameTid : null
 }
 
 /**
@@ -1403,6 +1409,93 @@ export function getAbbrFromTeamName(teamName, dynastyTeams = null) {
     return teamName
   }
 
+  return null
+}
+
+// ============================================================================
+// TEAM-NAME LABELS (user-facing team selection, rooted in tid)
+// ============================================================================
+//
+// Charts and AI prompts show the school name ("Kentucky") instead of an
+// abbreviation. Short names are unique across the 143 base teams EXCEPT for the
+// two Miamis, so collisions are disambiguated to a stable, unique label. A
+// custom team that happens to share a short name with another falls back to
+// "<name> (<abbr>)". Everything still resolves to a tid.
+
+// Built-in disambiguation for known short-name collisions (keyed by tid).
+const TEAM_NAME_DISAMBIG = { 56: 'Miami (FL)', 53: 'Miami (OH)' }
+
+// The short name to label a team by: the split `teamName`, else the full name.
+function baseTeamLabel(team) {
+  return team?.teamName || team?.name || null
+}
+
+// Build { [tid]: uniqueLabel } for a whole teams map. Deterministic, so the
+// option list, the AI prompt list, and the resolver all agree.
+export function buildTeamNameLabels(teams) {
+  const src = (teams && Object.keys(teams).length) ? teams : TEAMS
+  const groups = {}
+  for (const [tid, team] of Object.entries(src)) {
+    const base = baseTeamLabel(team)
+    if (!base) continue
+    ;(groups[base] || (groups[base] = [])).push(Number(tid))
+  }
+  const labels = {}
+  for (const [tid, team] of Object.entries(src)) {
+    const base = baseTeamLabel(team)
+    if (!base) continue
+    if (groups[base].length === 1) {
+      labels[tid] = base
+    } else {
+      labels[tid] = TEAM_NAME_DISAMBIG[tid] || `${base} (${team.abbr || tid})`
+    }
+  }
+  return labels
+}
+
+// The unique display label for one team (e.g. "Kentucky", "Miami (FL)").
+export function getTeamNameLabel(teams, tid) {
+  if (tid == null) return null
+  return buildTeamNameLabels(teams)[tid] || null
+}
+
+// Sorted array of unique team-name labels for a dropdown/combobox. includeFCS
+// controls whether the FCS placeholder slots are offered (schedule opponents
+// want them; polls/standings usually don't).
+export function getTeamNameOptions(teams, { includeFCS = true } = {}) {
+  const src = (teams && Object.keys(teams).length) ? teams : TEAMS
+  const labels = buildTeamNameLabels(src)
+  const out = []
+  for (const [tid, team] of Object.entries(src)) {
+    if (!includeFCS && team?.isFCS) continue
+    const label = labels[tid]
+    if (label) out.push(label)
+  }
+  return out.sort((a, b) => a.localeCompare(b))
+}
+
+// Resolve a user/AI-entered team label to a tid. Tolerant by design so pasted
+// data still lands even if the AI emits a slightly different form: tries the
+// exact unique label, then the full name, then a unique short name, then a
+// disambiguated "name (abbr)". Returns null when nothing matches.
+export function getTidFromTeamLabel(label, dynastyOrTeams = null) {
+  if (label == null || label === '') return null
+  const teams = dynastyOrTeams?.teams || dynastyOrTeams || TEAMS
+  if (!teams || typeof teams !== 'object') return null
+  const norm = String(label).trim().toLowerCase()
+  if (!norm) return null
+  // 1. Exact unique label match.
+  const labels = buildTeamNameLabels(teams)
+  for (const [tid, lb] of Object.entries(labels)) {
+    if (String(lb).toLowerCase() === norm) return Number(tid)
+  }
+  // 2. Full display name match.
+  for (const [tid, team] of Object.entries(teams)) {
+    if ((team?.name || '').toLowerCase() === norm) return Number(tid)
+  }
+  // 3. Unique short name match (bare "Miami" stays ambiguous -> no match).
+  const shortHits = Object.entries(teams).filter(([, t]) => (t?.teamName || '').toLowerCase() === norm)
+  if (shortHits.length === 1) return Number(shortHits[0][0])
   return null
 }
 

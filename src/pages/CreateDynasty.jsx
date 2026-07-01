@@ -13,6 +13,8 @@ import { EDITIONS, DEFAULT_EDITION, getEditionConfig } from '../editions'
 
 const newBlankTeambuilder = () => ({
   name: '',
+  teamName: '',
+  nickname: '',
   abbreviation: '',
   logoUrl: '',
   primaryColor: '#FF5500',
@@ -243,6 +245,8 @@ export default function CreateDynasty() {
       if (!abbr) continue
       out[abbr] = {
         name: t.name.trim(),
+        teamName: (t.teamName || '').trim(),
+        nickname: (t.nickname || '').trim(),
         abbreviation: abbr,
         logoUrl: t.logoUrl,
         backgroundColor: t.primaryColor,
