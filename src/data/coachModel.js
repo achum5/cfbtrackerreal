@@ -566,6 +566,96 @@ export function migrateDynastyToCoaches(dynasty, currentYear) {
   }
 }
 
+// ── staff-moves (coaching carousel) import ───────────────────────────
+//
+// Fold an end-of-season Staff Moves board into the real coach-entity model so
+// every coach on the carousel becomes a tracked cid with a page and a tid-by-
+// year career. Called during the National Championship phase.
+//
+// For a board captured after season Y:
+//   • Prev School + Prev Pos  → coach.byYear[Y]     (the job they just held).
+//   • New School + New Pos     → coach.byYear[Y+1]  (their next job, hiredVia
+//                                                    'carousel'), status active.
+//   • No new school (Retired / Went to the NFL) → status 'departed', departedYear Y.
+//
+// Matches board names to existing coaches by normalized name (creating a new
+// cid when unseen), and NEVER overwrites a user-controlled coach's tracked
+// career — that path is owned by the postseason job-flip carousel. Legacy
+// coachingStaff names are bridged for every touched team-year so team pages
+// reflect the move. Pure — returns { coaches, teams, memberTeams }; caller persists.
+
+function isDepartureReasonInternal(reason) {
+  const r = (reason || '').toLowerCase()
+  return r.includes('nfl') || r.includes('retire')
+}
+
+// Does a CONTROLLED coach already hold this team-year-role? If so we leave it
+// alone — an NPC board import must never displace the user's tracked career.
+function roleHeldByControlled(coaches, tid, year, role) {
+  const tidNum = Number(tid)
+  const yearKey = String(year)
+  return Object.values(coaches).some((c) => {
+    if (!c || c.controlledBy == null) return false
+    const r = c.byYear?.[yearKey]
+    return r && Number(r.teamTid) === tidNum && r.role === role
+  })
+}
+
+export function applyStaffMovesToCoaches(dynasty, moves, year) {
+  const y = Number(year)
+  const coaches = { ...(dynasty?.coaches || {}) }
+  const byName = new Map()
+  for (const c of Object.values(coaches)) {
+    if (c?.name) byName.set(normName(c.name), c.cid)
+  }
+  const touched = new Set() // `${tid}:${year}` team-years to bridge legacy names
+
+  for (const mv of Array.isArray(moves) ? moves : []) {
+    const name = (mv?.name || '').trim()
+    if (!name) continue
+    let cid = byName.get(normName(name))
+    if (!cid) {
+      cid = generateCid()
+      coaches[cid] = { cid, name, controlledBy: null, status: 'active', departedYear: null, byYear: {} }
+      byName.set(normName(name), cid)
+    }
+    let coach = coaches[cid]
+    // Never rewrite a user-controlled coach's tracked career from an import.
+    if (coach.controlledBy != null) continue
+
+    // Previous season assignment — only fill if empty (don't clobber richer data).
+    const prevTid = mv.prevTeamTid
+    if (prevTid != null && mv.prevRole && !coach.byYear?.[String(y)] &&
+        !roleHeldByControlled(coaches, prevTid, y, mv.prevRole)) {
+      coach = setCoachSeason(coach, y, { teamTid: Number(prevTid), role: mv.prevRole })
+      touched.add(`${Number(prevTid)}:${y}`)
+    }
+
+    // New season assignment (next year) or departure.
+    const newTid = mv.newTeamTid
+    if (newTid != null && mv.newRole) {
+      if (!roleHeldByControlled(coaches, newTid, y + 1, mv.newRole)) {
+        coach = setCoachSeason(coach, y + 1, { teamTid: Number(newTid), role: mv.newRole, hiredVia: 'carousel' })
+        coach = { ...coach, status: 'active', departedYear: null }
+        touched.add(`${Number(newTid)}:${y + 1}`)
+      }
+    } else if (isDepartureReasonInternal(mv.reason)) {
+      coach = { ...coach, status: 'departed', departedYear: y }
+    }
+    coaches[cid] = coach
+  }
+
+  // Bridge legacy coachingStaff names for every touched team-year.
+  let teams = dynasty?.teams || {}
+  for (const key of touched) {
+    const [tidStr, yrStr] = key.split(':')
+    const names = deriveCoachingStaffNames(coaches, Number(tidStr), Number(yrStr))
+    teams = applyCoachingStaffNames(teams, Number(tidStr), Number(yrStr), names)
+  }
+  const memberTeams = deriveMemberTeamsIndex({ ...dynasty, coaches })
+  return { coaches, teams, memberTeams }
+}
+
 // Build a brand-new coach with a first-season record.
 export function makeCoach({ name, year, teamTid, role, level, salary, hiredVia, archetype, controlledBy = null, photo = null }) {
   const cid = generateCid()

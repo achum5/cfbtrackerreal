@@ -124,9 +124,13 @@ export default function LocalDataEntry({
 
   // grid and text are kept in lockstep: whichever the user edits, the other
   // follows, so Import (which uses text) always matches what's on screen.
+  // On a bulk paste we also SNAP dropdown-column cells onto their canonical
+  // option (see normalizeGrid) so a pasted "hc"/"bama "/"Ul" lands on the exact
+  // "HC"/"BAMA"/"UL" a <select>, combobox, or strict downstream parser expects.
   const applyText = (t) => {
-    setText(t)
-    setGrid(parseIncoming(t))
+    const g = normalizeGrid(parseIncoming(t))
+    setGrid(g)
+    setText(serialize(g))
   }
   const applyGrid = (g) => {
     setGrid(g)
@@ -217,6 +221,37 @@ export default function LocalDataEntry({
     const opts = comboboxColumns[columns[ci]]
     return Array.isArray(opts) ? opts : null
   }
+
+  // The allowed option list for a column, whether it renders as a <select>
+  // (columnOptions) or a typeahead combobox (comboboxColumns), or null for a
+  // free-text column.
+  const dropdownOptionsFor = (ci, row) => optionsFor(ci, row) || comboOptionsFor(ci)
+
+  // Snap ONE pasted cell onto its column's canonical option when it matches
+  // case-insensitively (ignoring surrounding spaces): "hc" -> "HC", "bama " ->
+  // "BAMA", "Ul" -> "UL". A value that matches no option is returned untouched,
+  // so free text and off-list entries are never lost. Free-text columns (no
+  // options) are returned unchanged.
+  const snapCell = (ci, row, val) => {
+    if (val == null || val === '') return val
+    const opts = dropdownOptionsFor(ci, row)
+    if (!opts || opts.length === 0) return val
+    const trimmed = String(val).trim()
+    if (trimmed === '') return val
+    if (opts.includes(trimmed)) return trimmed
+    const lower = trimmed.toLowerCase()
+    const hit = opts.find((o) => String(o).toLowerCase() === lower)
+    return hit != null ? hit : val
+  }
+
+  // Snap every dropdown cell in a freshly-parsed grid. Walks each row left to
+  // right so a column whose options depend on an earlier cell (e.g. archetypes
+  // filtered by an already-snapped position) sees the canonical earlier value.
+  const normalizeGrid = (g) => g.map((row) => {
+    const out = [...row]
+    for (let ci = 0; ci < out.length; ci++) out[ci] = snapCell(ci, out, out[ci])
+    return out
+  })
 
 
   const pasteFromClipboard = async () => {

@@ -35,6 +35,7 @@ import CFPFirstRoundModal from '../../components/CFPFirstRoundModal'
 import CFPQuarterfinalsModal from '../../components/CFPQuarterfinalsModal'
 import CFPSemifinalsModal from '../../components/CFPSemifinalsModal'
 import CFPChampionshipModal from '../../components/CFPChampionshipModal'
+import StaffMovesModal from '../../components/StaffMovesModal'
 import ConferencesModal from '../../components/ConferencesModal'
 import StatsEntryModal from '../../components/StatsEntryModal'
 import DetailedStatsEntryModal from '../../components/DetailedStatsEntryModal'
@@ -493,6 +494,7 @@ export default function Dashboard() {
   const [showCFPQuarterfinalsModal, setShowCFPQuarterfinalsModal] = useState(false)
   const [showCFPSemifinalsModal, setShowCFPSemifinalsModal] = useState(false)
   const [showCFPChampionshipModal, setShowCFPChampionshipModal] = useState(false)
+  const [showStaffMovesModal, setShowStaffMovesModal] = useState(false)
   const [showStatsEntryModal, setShowStatsEntryModal] = useState(false)
   const [showDetailedStatsModal, setShowDetailedStatsModal] = useState(false)
   const [showConferenceStandingsModal, setShowConferenceStandingsModal] = useState(false)
@@ -5953,6 +5955,23 @@ export default function Dashboard() {
                 })
               }
 
+              {
+                const staffMoves = currentDynasty?.staffMovesByYear?.[yearForW5] || currentDynasty?.staffMovesByYear?.[String(yearForW5)]
+                const staffMovesDone = !!staffMoves?.completed
+                const staffMovesCount = Array.isArray(staffMoves?.moves) ? staffMoves.moves.length : 0
+                w5Todos.push({
+                  key: 'staff-moves',
+                  done: staffMovesDone,
+                  title: 'Staff Moves',
+                  subtitle: staffMovesDone
+                    ? `${staffMovesCount} coaching move${staffMovesCount === 1 ? '' : 's'} recorded`
+                    : 'Enter the coaching carousel (hires, firings, retirements)',
+                  onAction: () => setShowStaffMovesModal(true),
+                  actionLabel: staffMovesDone ? 'Edit' : 'Enter',
+                  viewTo: staffMovesDone ? `${pathPrefix}/weekly-scores/${yearForW5}/20?tab=coachCarousel` : null,
+                })
+              }
+
               w5Todos.push({
                 key: 'gp-snaps',
                 done: !!gpSnapsCompleted,
@@ -8764,6 +8783,13 @@ export default function Dashboard() {
         }}
         currentYear={currentDynasty.currentYear}
         teamColors={teamColors}
+      />
+
+      {/* Staff Moves Modal (National Championship phase) */}
+      <StaffMovesModal
+        isOpen={showStaffMovesModal}
+        onClose={() => setShowStaffMovesModal(false)}
+        currentYear={currentDynasty.currentYear}
       />
 
       {/* Stats Entry Modal (End of Season Recap) */}

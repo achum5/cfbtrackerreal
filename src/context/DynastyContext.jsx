@@ -103,7 +103,7 @@ import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
-import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches } from '../data/coachModel'
+import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches } from '../data/coachModel'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
@@ -14849,6 +14849,25 @@ export function DynastyProvider({ children }) {
     }
   }
 
+  // Persist an end-of-season Staff Moves board: store the season's carousel
+  // list AND fold every coach into the real cid coach-entity model (tid-by-year
+  // + HC/OC/DC), bridging legacy staff names and re-deriving the security index.
+  const saveStaffMoves = async (dynastyId, year, moves) => {
+    if (blockIfReadOnly(dynastyId, 'save staff moves')) return
+    const dynasty = await findDynastyById(dynastyId)
+    if (!dynasty) {
+      console.error('Dynasty not found:', dynastyId)
+      return
+    }
+    const yr = Number(year)
+    const { coaches, teams, memberTeams } = applyStaffMovesToCoaches(dynasty, moves, yr)
+    const staffMovesByYear = {
+      ...(dynasty.staffMovesByYear || {}),
+      [yr]: { moves: Array.isArray(moves) ? moves : [], completed: true, updatedAt: Date.now() },
+    }
+    await updateDynasty(dynastyId, { coaches, teams, memberTeams, staffMovesByYear })
+  }
+
   const saveCoachingStaff = async (dynastyId, staff) => {
     if (blockIfReadOnly(dynastyId, 'save coaching staff')) return
     // Use helper functions for consistent storage routing based on dynasty.storageType
@@ -17362,6 +17381,7 @@ export function DynastyProvider({ children }) {
     saveTeamRatings,
     saveTeamYearInfo,
     saveCoachingStaff,
+    saveStaffMoves,
     updatePlayer,
     deletePlayer,
     syncAllPlayersStats,

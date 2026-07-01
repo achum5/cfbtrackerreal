@@ -3615,6 +3615,130 @@ const ALL_BOWL_GAMES = [...BOWL_GAMES_WEEK_1, ...BOWL_GAMES_WEEK_2]
 
 // Create Bowl Week 1 sheet with all bowl games (including CFP First Round with pre-filled teams)
 // excludeGames: array of game names to exclude (user's CFP First Round game, user's bowl game)
+// ── Staff Moves (coaching carousel) ──────────────────────────────────
+//
+// A single-tab sheet mirroring the in-game Staff Moves board (minus prestige).
+// Columns A–F: Name, Prev Pos, Prev School, New Pos, New School, Reason. The
+// local-paste path is the default; this is the "Use Google Sheet instead"
+// fallback. readStaffMovesFromSheet returns raw rows[][] so the SAME
+// parseStaffMovesRows (utils/staffMoves.js) handles both paths.
+
+async function initializeStaffMovesSheet(spreadsheetId, accessToken, sheetId, moves, rowCount, dynastyTeams = null) {
+  const teamAbbrs = getTeamAbbreviationsListWithCustom(dynastyTeams)
+  const roleList = ['HC', 'OC', 'DC']
+  const headers = ['Name', 'Prev Pos', 'Prev School', 'New Pos', 'New School', 'Reason']
+  const dataRows = (moves || []).map((m) => ({
+    values: [
+      { userEnteredValue: { stringValue: String(m.name ?? '') } },
+      { userEnteredValue: { stringValue: String(m.prevRole ?? '') } },
+      { userEnteredValue: { stringValue: String(m.prevTeamAbbr ?? '') } },
+      { userEnteredValue: { stringValue: String(m.newRole ?? '') } },
+      { userEnteredValue: { stringValue: String(m.newTeamAbbr ?? '') } },
+      { userEnteredValue: { stringValue: String(m.reason ?? '') } },
+    ],
+  }))
+
+  const requests = [
+    {
+      updateCells: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 6 },
+        rows: [{ values: headers.map((h) => ({ userEnteredValue: { stringValue: h } })) }],
+        fields: 'userEnteredValue',
+      },
+    },
+  ]
+  if (dataRows.length) {
+    requests.push({
+      updateCells: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: 1 + dataRows.length, startColumnIndex: 0, endColumnIndex: 6 },
+        rows: dataRows,
+        fields: 'userEnteredValue',
+      },
+    })
+  }
+  // Position dropdowns (Prev Pos col 1, New Pos col 3) — lenient so blanks pass.
+  for (const col of [1, 3]) {
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: rowCount + 1, startColumnIndex: col, endColumnIndex: col + 1 },
+        rule: { condition: { type: 'ONE_OF_LIST', values: roleList.map((r) => ({ userEnteredValue: r })) }, showCustomUi: true, strict: false },
+      },
+    })
+  }
+  // School dropdowns (Prev School col 2, New School col 4) — lenient so blank /
+  // "---" (retired / NFL) pass without a validation error.
+  for (const col of [2, 4]) {
+    requests.push({
+      setDataValidation: {
+        range: { sheetId, startRowIndex: 1, endRowIndex: rowCount + 1, startColumnIndex: col, endColumnIndex: col + 1 },
+        rule: { condition: { type: 'ONE_OF_LIST', values: teamAbbrs.map((a) => ({ userEnteredValue: a })) }, showCustomUi: true, strict: false },
+      },
+    })
+  }
+  requests.push({
+    addProtectedRange: {
+      protectedRange: { range: { sheetId, startRowIndex: 0, endRowIndex: 1 }, description: 'Header row - do not edit', warningOnly: true },
+    },
+  })
+
+  const batchResponse = await fetchWithTimeout(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests }),
+  })
+  if (!batchResponse.ok) {
+    const error = await batchResponse.json()
+    console.error('Error initializing staff moves sheet:', error)
+    throw new Error(`Failed to initialize staff moves sheet: ${error.error?.message || 'Unknown error'}`)
+  }
+}
+
+export async function createStaffMovesSheet(dynastyName, year, existingMoves = [], dynastyTeams = null) {
+  try {
+    const accessToken = await getAccessToken()
+    const moves = Array.isArray(existingMoves) ? existingMoves : []
+    const rowCount = Math.max(moves.length, 40)
+    const response = await fetchWithTimeout(SHEETS_API_BASE, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        properties: { title: `${dynastyName} - Staff Moves ${year}` },
+        sheets: [{ properties: { title: 'Staff Moves', gridProperties: { rowCount: rowCount + 5, columnCount: 6, frozenRowCount: 1 } } }],
+      }),
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Sheets API error:', error)
+      throw new Error(`Failed to create staff moves sheet: ${error.error?.message || 'Unknown error'}`)
+    }
+    const sheet = await response.json()
+    const gridSheetId = sheet.sheets[0].properties.sheetId
+    await initializeStaffMovesSheet(sheet.spreadsheetId, accessToken, gridSheetId, moves, rowCount, dynastyTeams)
+    await shareSheetPublicly(sheet.spreadsheetId, accessToken)
+    return { spreadsheetId: sheet.spreadsheetId, spreadsheetUrl: sheet.spreadsheetUrl }
+  } catch (error) {
+    console.error('Error creating staff moves sheet:', error)
+    throw error
+  }
+}
+
+// Read Staff Moves rows. Returns raw rows[][] (data.values) so the caller runs
+// the same parseStaffMovesRows used by the local-paste path.
+export async function readStaffMovesFromSheet(spreadsheetId, opts = {}) {
+  if (opts.rows) return opts.rows
+  const accessToken = await getAccessToken()
+  const response = await fetchWithTimeout(
+    `${SHEETS_API_BASE}/${spreadsheetId}/values/Staff Moves!A2:F1000`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  )
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Failed to read staff moves: ${error.error?.message || 'Unknown error'}`)
+  }
+  const data = await response.json()
+  return data.values || []
+}
+
 export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], excludeGames = [], existingBowlWeek1 = [], existingCFPFirstRound = [], dynastyTeams = null) {
   try {
     const accessToken = await getAccessToken()
