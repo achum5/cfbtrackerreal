@@ -14,6 +14,7 @@ import SheetManualEntry from './ui/SheetManualEntry'
 import {
   createAllConferenceSheet,
   readAllConferenceFromSheet,
+  parseAllConferenceLocal,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -21,6 +22,8 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -40,6 +43,8 @@ export default function AllConferenceModal({ isOpen, onClose, onSave, currentYea
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
@@ -180,6 +185,58 @@ FINAL CHECK before you send
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])
 
+  // LOCAL-PASTE prompt: self-describing rows. Each line LEADS with the
+  // conference name plus its designation (First/Second/Freshman) and position,
+  // so there is NO per-tab grid to line up against and NO fixed row order. The
+  // user omits any honor they cannot see — the save keys by conference + honor
+  // identity, so omitted rows are simply not written.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} All-Conference`,
+    structure: `Output ONE line per All-Conference honoree you can see. Each line is SELF-DESCRIBING — it LEADS with the conference name, then the team designation, then the position — so there is NO grid and NO fixed row order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 6 tab-separated fields (5 tabs):
+   Conference<TAB>Designation<TAB>Position<TAB>Player<TAB>Team<TAB>Class
+2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any honor slot you cannot see — do NOT pad, do NOT guess, do NOT invent a player. A slot with no line is simply left unset.
+4. The order of lines does not matter (each line self-identifies). Output a separate line for every honoree across all three designations.
+
+═══════════════════════════════════════════════════════════
+FIELD FORMATS
+═══════════════════════════════════════════════════════════
+- Conference — the EXACT conference this honoree belongs to (e.g. "Big Ten", "SEC", "Conference USA", "Mountain West"). Copy the name as shown in your screenshots. The Player's Team MUST be a member of this conference.
+- Designation — EXACTLY one of (case-insensitive): first | second | freshman
+    "first" = First-Team All-Conference. "second" = Second-Team. "freshman" = Freshman Team.
+- Position — EXACTLY one of, case-sensitive:
+    QB | HB | FB | WR | TE | LT | LG | C | RG | RT | LEDG | REDG | DT | SAM | MIKE | WILL | CB | FS | SS | K | P
+- Player — full name string. Do NOT invent players. If a name is illegible, omit the whole line.
+- Team — UPPERCASE abbreviation from the mapping below (e.g. BAMA, OSU, UGA, TEX, USC). NEVER full names or nicknames. Must be a member of that line's Conference.
+- Class — EXACTLY one of, case-sensitive:
+    Fr | RS Fr | So | RS So | Jr | RS Jr | Sr | RS Sr
+  Note the literal space in "RS Fr"/"RS So"/"RS Jr"/"RS Sr". Freshman-designation honorees must be Fr or RS Fr.
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== ALL-CONFERENCE ===
+<Conference>\\t<Designation>\\t<Position>\\t<Player>\\t<Team>\\t<Class>
+…one line per honoree across all conferences and all three designations; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 6 tab-separated fields (five tabs)
+[ ] The 1st field is a conference name and the 5th field (Team) is a member of that conference
+[ ] Designation is exactly first, second, or freshman
+[ ] Position is from the exact list; Class is from the exact list; freshman honorees are Fr or RS Fr
+[ ] Team values are uppercase abbreviations from the mapping — no full names
+[ ] No blank lines, no header row, no commentary INSIDE the data — only honorees you can actually see`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [currentYear, currentDynasty?.teams])
+
   // Ref to prevent concurrent sheet creation
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -219,7 +276,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
         setCreatingSheet(true)
@@ -267,15 +325,28 @@ FINAL CHECK before you send
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits Conference<TAB>Designation<TAB>Position<TAB>
+  // Player<TAB>Team<TAB>Class rows. parseAllConferenceLocal groups by the
+  // per-row conference and returns the SAME { allConference,
+  // allConferenceByConference } shape the Google reader returns, so the existing
+  // onSave path applies unchanged (keyed by conference + honor identity).
+  const handleLocalImport = async (text) => {
+    const dynastyTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
+    const data = parseAllConferenceLocal(splitTsv(text), dynastyTeams)
+    await onSave(data)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -408,7 +479,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Postseason" title={`${currentYear} All-Conference`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import All-Conference"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent' }} />

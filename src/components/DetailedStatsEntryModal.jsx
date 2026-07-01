@@ -15,11 +15,14 @@ import SheetToolbar from './SheetToolbar'
 import {
   createDetailedStatsSheet,
   readDetailedStatsFromSheet,
+  parseDetailedStatsLocal,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 // Mapping from internal stat keys (player.statsByYear) to box score format
 // (used by sheet). MUST stay in lock-step with SHEET_TO_INTERNAL in
@@ -101,6 +104,8 @@ export default function DetailedStatsEntryModal({
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [authErrorOccurred, setAuthErrorOccurred] = useState(false) // Prevents retry loops on auth errors
   const [createAttempts, setCreateAttempts] = useState(0) // Tracks creation attempts
@@ -350,6 +355,74 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, userRoster])
 
+  // LOCAL-PASTE prompt: self-describing rows. Each line LEADS with the category
+  // (tab name) and the player's full name, so there is NO nine-tab layout and NO
+  // pre-filled Name/Snaps columns to line up against. parseDetailedStatsLocal
+  // groups by the per-row category (col 0) and maps the remaining cells
+  // positionally into that category's fixed column order — the SAME positional
+  // read the Google path does. Line order does not matter; a player/stat that
+  // is not seen is simply omitted.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Detailed Stats Entry`,
+    roster: userRoster,
+    structure: `Output ONE line per player per stat category you can see. Each line is SELF-DESCRIBING — it LEADS with the category name, then the player's full name, then that category's stat values in the exact order listed below.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Line shape: Category<TAB>PlayerName<TAB><stat values in the exact order for that category>.
+2. The FIRST field is the exact category name (see list). The SECOND field is the player's full name. Then come that category's stat columns — no Name column, no Snaps column, no header.
+3. Tab-separated. Each category has a FIXED number of stat values (listed below); every line for that category must have EXACTLY: 2 leading fields + that many stat values.
+4. NO COMMAS in numbers. "1234" never "1,234". No quotes, units, "+/-", or percent signs.
+5. INTEGERS have no decimal point, with these EXCEPTIONS:
+   • Passing "Net Yards/Attempt" and "Adjusted Net Yards/Attempt" use 1 decimal place.
+   • Defensive "Tackles for Loss" and "Sacks" accept ".5" half-credits when the screenshot shows them (e.g. "1.5"). Never round; never invent a half.
+   Every other value is an integer.
+6. BLANK cell for an unknown value — just have nothing between the two tabs. Never guess, never use 0/"-"/"N/A".
+7. OMIT a player entirely from a category if they have no stats there. OMIT a category entirely if you cannot see it. Do NOT pad, do NOT invent players.
+8. A player can appear in MULTIPLE categories — one line each (e.g. a QB on both Passing and Rushing). Use the player's FULL name identically on every line (match the roster list at the bottom).
+
+═══════════════════════════════════════════════════════════
+CATEGORY COLUMN ORDERS (the stat values after Category + PlayerName)
+═══════════════════════════════════════════════════════════
+Passing (9 values): Completions, Attempts, Yards, Touchdowns, Interceptions, Net Yards/Attempt (1 decimal), Adjusted Net Yards/Attempt (1 decimal), Passing Long, Sacks Taken
+Rushing (8 values): Carries, Yards, Touchdowns, 20+ Yard Runs, Broken Tackles, Yards After Contact, Rushing Long, Fumbles
+Receiving (6 values): Receptions, Yards, Touchdowns, Receiving Long, Yards After Catch, Drops
+Blocking (2 values): Pancakes, Sacks Allowed
+Defensive (15 values): Solo Tackles, Assisted Tackles, Tackles for Loss (may be .5), Sacks (may be .5), Interceptions, INT Return Yards, INT Long, Defensive TDs, Deflections, Catches Allowed, Forced Fumbles, Fumble Recoveries, Fumble Return Yards, Blocks, Safeties
+Kicking (17 values): FG Made, FG Attempted, FG Long, XP Made, XP Attempted, FG Made (0-29), FG Att (0-29), FG Made (30-39), FG Att (30-39), FG Made (40-49), FG Att (40-49), FG Made (50+), FG Att (50+), Kickoffs, Touchbacks, FG Blocked, XP Blocked
+Punting (7 values): Punts, Punting Yards, Net Punting Yards, Punts Inside 20, Touchbacks, Punt Long, Punts Blocked
+Kick Return (4 values): Kickoff Returns, KR Yardage, KR Touchdowns, KR Long
+Punt Return (4 values): Punt Returns, PR Yardage, PR Long, PR Touchdowns
+
+⚠️ CRITICAL — RETURN CATEGORY COLUMN ORDERS ARE INVERTED FOR TD/LONG:
+  Kick Return: … KR Touchdowns THEN KR Long
+  Punt Return: … PR Long THEN PR Touchdowns
+  Copy each in the literal order shown. Mixing them silently corrupts stats.
+
+Category name spellings (first field, use EXACTLY one of):
+  Passing | Rushing | Receiving | Blocking | Defensive | Kicking | Punting | Kick Return | Punt Return
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== DETAILED STATS ===
+Passing\\t<Player>\\t<Completions>\\t<Attempts>\\t<Yards>\\t<Touchdowns>\\t<Interceptions>\\t<NetYds/Att>\\t<AdjNetYds/Att>\\t<Long>\\t<Sacks Taken>
+Rushing\\t<Player>\\t<Carries>\\t<Yards>\\t<Touchdowns>\\t<20+ Runs>\\t<Broken Tackles>\\t<YAC>\\t<Long>\\t<Fumbles>
+…one line per player per category you can see; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line = Category, then PlayerName, then that category's stat values in the exact order above
+[ ] Stat-value count per line matches the category (Passing 9, Rushing 8, Receiving 6, Blocking 2, Defensive 15, Kicking 17, Punting 7, Kick Return 4, Punt Return 4)
+[ ] Return categories: Kick Return is …TD,Long; Punt Return is …Long,TD — not mixed up
+[ ] Passing Net/Adj-Net Yards per Attempt are 1-decimal; Defensive TFL/Sacks may be .5; everything else integer
+[ ] No commas in any number; blank cells for unknowns; nothing invented
+[ ] Player full names match the roster list; a player used in several categories has one line per category`,
+    includeTeamMap: false,
+  }), [currentYear, userRoster])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
 
@@ -391,7 +464,8 @@ FINAL CHECK before you send
       // Don't retry if auth error occurred or max attempts reached
       if (authErrorOccurred || createAttempts >= MAX_CREATE_ATTEMPTS) return
 
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // ALWAYS create a fresh sheet - never reuse old sheets
         // This ensures the sheet reflects current player data (user may have edited players directly)
 
@@ -498,7 +572,7 @@ FINAL CHECK before you send
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentDynasty?.players, currentYear, auth.retryCount, overrideTeamAbbr, overrideTeamName, authErrorOccurred, createAttempts])
+  }, [isOpen, useLocal, user, sheetId, creatingSheet, showDeletedNote, currentDynasty?.id, currentDynasty?.players, currentYear, auth.retryCount, overrideTeamAbbr, overrideTeamName, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
@@ -508,9 +582,22 @@ FINAL CHECK before you send
       creatingSheetRef.current = false
       setAuthErrorOccurred(false)
       setCreateAttempts(0)
+      setUseLocal(true)
       auth.setShowAuthError(false)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits Category<TAB>PlayerName<TAB><stat values in
+  // category order> rows. parseDetailedStatsLocal groups by the per-row category
+  // and maps the trailing cells positionally into that category's fixed column
+  // order, returning the SAME { tabName: [ { name, <col>: value } ] } shape the
+  // Google reader returns. onSave keys by category + player NAME + column name,
+  // so the existing save path applies unchanged.
+  const handleLocalImport = async (text) => {
+    const detailedStats = parseDetailedStatsLocal(splitTsv(text))
+    await onSave(detailedStats)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -636,7 +723,24 @@ FINAL CHECK before you send
           <span className="font-semibold text-txt-primary">Tip:</span> Make sure you've completed GP/Snaps Entry first. In CFB 26, sort your stats by Snaps Played, then go through each category tab - the order will match and make entry quick!
         </div>
 
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <div className="flex-1 flex flex-col overflow-hidden gap-3">
+            <div
+              className="rounded-lg border border-surface-4 bg-surface-2 px-4 py-3 text-xs sm:text-sm text-txt-secondary"
+              role="note"
+            >
+              <span className="text-txt-primary font-semibold">Skip this if you've been entering box scores game-by-game.</span>
+              {' '}This is only for end-of-season catch-up. If every game already has a box score, your detailed stats are already in the app.
+            </div>
+            <LocalDataEntry
+              aiPrompt={localAiPrompt}
+              onImport={handleLocalImport}
+              onUseGoogle={() => setUseLocal(false)}
+              onCancel={handleClose}
+              importLabel="Import Detailed Stats"
+            />
+          </div>
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div

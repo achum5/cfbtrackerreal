@@ -16,10 +16,13 @@ import SheetLoadingHint from './SheetLoadingHint'
 import {
   createConferenceChampionshipsHistorySheet,
   readConferenceChampionshipsHistoryFromSheet,
+  parseConferenceChampionshipsHistoryLocal,
   deleteGoogleSheet,
   getSingleSheetEmbedUrl,
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -76,6 +79,8 @@ export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClo
   const [useEmbedded, setUseEmbedded] = useState(() => {
     return localStorage.getItem('sheetEmbedPreference') === 'true'
   })
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const auth = useAuthErrorHandler()
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -108,12 +113,13 @@ export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClo
   }, [isOpen, sheetId, useEmbedded])
 
   // Resume an existing sheet if one is already stored on the dynasty.
+  // Skipped while the local paste path is active (no sheet needed).
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || useLocal) return
     if (currentDynasty?.confChampHistorySheetId && !sheetId && !showDeletedNote) {
       setSheetId(currentDynasty.confChampHistorySheetId)
     }
-  }, [isOpen, currentDynasty?.confChampHistorySheetId, sheetId, showDeletedNote])
+  }, [isOpen, useLocal, currentDynasty?.confChampHistorySheetId, sheetId, showDeletedNote])
 
   // Determine which years would render on a fresh sheet — used by the AI
   // prompt and shown to the user as eyebrow context. Same logic the
@@ -267,6 +273,98 @@ FINAL CHECK before you send
     promptYears,
   ])
 
+  // LOCAL-PASTE prompt: self-describing rows. Each line LEADS with the year and
+  // the conference, so there are NO per-year tabs and NO pre-filled column to
+  // line up against. The save is year-authoritative (an included year's CC games
+  // are replaced) and dedupes by conference, so the user includes ONLY the years
+  // and conferences they can see; omitted years are left untouched.
+  const localAiPrompt = useMemo(() => {
+    if (!currentDynasty) return ''
+
+    const orderListInline = HISTORY_CONFERENCES.join(', ')
+    const yearsInline = promptYears.length > 0 ? promptYears.join(', ') : String(currentDynasty.currentYear ?? '')
+
+    const abbrToName = {}
+    for (const t of Object.values(currentDynasty.teams || {})) {
+      if (t?.abbr && t?.name) abbrToName[String(t.abbr).toUpperCase()] = t.name
+    }
+    const buildMembershipBlock = (year) => {
+      const customConfs = getCustomConferencesForYear(currentDynasty, year)
+      const sourceMap = customConfs || DEFAULT_CONFERENCE_TEAMS
+      return HISTORY_CONFERENCES.map(conf => {
+        const abbrs = Array.isArray(sourceMap[conf]) ? [...sourceMap[conf]] : []
+        abbrs.sort((a, b) => String(a).localeCompare(String(b)))
+        if (abbrs.length === 0) return `${conf}: (no teams assigned in this dynasty)`
+        const entries = abbrs.map(a => {
+          const upper = String(a).toUpperCase()
+          const name = abbrToName[upper]
+          return name ? `${upper} (${name})` : upper
+        })
+        return `${conf}: ${entries.join(', ')}`
+      }).join('\n')
+    }
+    const membershipByYear = (promptYears.length > 0 ? promptYears : [Number(currentDynasty.currentYear)])
+      .filter(Number.isFinite)
+      .map(year => `--- ${year} ---\n${buildMembershipBlock(year)}`)
+      .join('\n\n')
+
+    return buildAIPrompt({
+      title: `Conference Championships History`,
+      structure: `Output ONE line per conference championship game you can see, across ANY number of years. Each line is SELF-DESCRIBING — it LEADS with the year and the conference — so there are NO per-year tabs and NO fixed row order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 6 tab-separated fields (5 tabs):
+   Year<TAB>Conference<TAB>Team1<TAB>Team2<TAB>Score1<TAB>Score2
+2. NO header row. NO blank lines. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any conference/year whose CCG result you cannot see — do NOT pad, do NOT guess, do NOT invent scores. A year you do not include is left completely unchanged; a conference you do not include for an included year simply gets no game.
+4. Line order does not matter (each line self-identifies with its year + conference).
+5. Both teams must be members of that line's conference FOR THAT YEAR, according to the PER-YEAR MEMBERSHIP block below — not real-world conferences. Users realign teams year to year.
+6. Team1 and Team2 are UPPERCASE abbreviations from the mapping at the bottom — NEVER full names or nicknames. Two different teams.
+7. Score1 and Score2 are integers (no commas, no decimals). Do NOT emit a line unless you have BOTH scores — a scoreless line is dropped.
+
+═══════════════════════════════════════════════════════════
+FIELDS
+═══════════════════════════════════════════════════════════
+- Year — the 4-digit season year (e.g. ${yearsInline}).
+- Conference — EXACTLY one of: ${orderListInline}.
+- Team1 / Team2 — uppercase abbreviations, both members of that year's conference (see below).
+- Score1 / Score2 — integers.
+
+═══════════════════════════════════════════════════════════
+PER-YEAR CONFERENCE MEMBERSHIP — DYNASTY-SPECIFIC, NOT REAL LIFE
+═══════════════════════════════════════════════════════════
+${membershipByYear}
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CONFERENCE CHAMPIONSHIPS HISTORY ===
+<Year>\\t<Conference>\\t<Team1>\\t<Team2>\\t<Score1>\\t<Score2>
+…one line per CCG you can see; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 6 tab-separated fields (five tabs)
+[ ] The 1st field is a 4-digit year; the 2nd is one of: ${orderListInline}
+[ ] Both teams appear in that year's conference membership list above
+[ ] Team1 and Team2 are different uppercase abbreviations from the mapping
+[ ] Both scores are present and are integers with no commas or decimals
+[ ] No blank lines, no header row, no commentary INSIDE the data — only CCGs you can actually see`,
+      includeTeamMap: true,
+      dynastyTeams: currentDynasty?.teams,
+    })
+  }, [
+    currentDynasty?.teams,
+    currentDynasty?.customConferences,
+    currentDynasty?.customConferencesByYear,
+    currentDynasty?.conferenceByTeamYear,
+    currentDynasty?.currentYear,
+    promptYears,
+  ])
+
   // Create the sheet on first open (or after a delete) when none is
   // currently stored.
   useEffect(() => {
@@ -275,6 +373,8 @@ FINAL CHECK before you send
       creationAttemptedRef.current = false
     }
 
+    // Don't create a Google Sheet while the local paste path is active.
+    if (useLocal) return
     if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || creationAttemptedRef.current) return
     if (!currentDynasty?.id || isViewOnly) return
     if (showDeletedNote) return
@@ -300,7 +400,7 @@ FINAL CHECK before you send
       }
     }
     create()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
 
   // Reset state on close so re-opening starts clean.
   useEffect(() => {
@@ -308,8 +408,82 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Apply a parsed { years, byYear } result (from the Google sheet OR a local
+  // paste) through the SAME empty-tab guardrail + year-authoritative save. The
+  // save (saveConferenceChampionshipsHistoryFromSheet) replaces each included
+  // year's CC games and dedupes by conference, so a year not present in `byYear`
+  // is left untouched. Returns true when the save ran, false when everything was
+  // refused (so the caller knows not to close on a no-op).
+  const applyHistoryResult = async (result) => {
+    if (!result.years || result.years.length === 0) {
+      toast.error('No conference championship data found. Check your entry and try again.')
+      return false
+    }
+
+    // Guardrail: any year that came back fully blank AND has ≥1 existing CC
+    // games in the dynasty gets dropped from the save. Almost always an
+    // accidental wipe — refusing keeps the existing history intact.
+    const existingCCCountByYear = {}
+    for (const g of (currentDynasty.games || [])) {
+      if (!(g?.isConferenceChampionship || g?.gameType === 'conference_championship')) continue
+      const y = Number(g.year)
+      if (!Number.isFinite(y)) continue
+      existingCCCountByYear[y] = (existingCCCountByYear[y] || 0) + 1
+    }
+    const refusedYears = []
+    const safeByYear = {}
+    for (const [yearStr, list] of Object.entries(result.byYear)) {
+      const year = Number(yearStr)
+      const validRows = (list || []).filter(cc =>
+        cc?.team1 && cc?.team2 && cc.team1Score != null && cc.team2Score != null
+      ).length
+      if (validRows === 0 && (existingCCCountByYear[year] || 0) >= 1) {
+        refusedYears.push(year)
+        continue
+      }
+      safeByYear[yearStr] = list
+    }
+    if (refusedYears.length > 0) {
+      refusedYears.sort((a, b) => b - a)
+      toast.error(
+        `Skipped ${refusedYears.join(', ')} — empty year${refusedYears.length === 1 ? '' : 's'} would have wiped existing CC games. Re-enter at least one row to save those years.`,
+        { duration: 8000 },
+      )
+    }
+    if (Object.keys(safeByYear).length === 0 && refusedYears.length > 0) {
+      return false
+    }
+
+    const applied = await saveConferenceChampionshipsHistoryFromSheet(
+      currentDynasty.id,
+      safeByYear,
+    )
+
+    const yearsTouched = applied?.yearsApplied || []
+    const totalGames = Object.values(applied?.gameCountsByYear || {}).reduce((s, n) => s + n, 0)
+    toast.success(
+      `Saved Conference Championships — ${totalGames} game${totalGames === 1 ? '' : 's'} across ${yearsTouched.length} year${yearsTouched.length === 1 ? '' : 's'}.`,
+    )
+    return true
+  }
+
+  // Local paste import: the AI emits Year<TAB>Conference<TAB>Team1<TAB>Team2<TAB>
+  // Score1<TAB>Score2 rows. parseConferenceChampionshipsHistoryLocal groups by
+  // the per-row year and returns the SAME { years, byYear } shape the Google
+  // reader returns, so applyHistoryResult (guardrail + year-authoritative save)
+  // runs unchanged.
+  const handleLocalImport = async (text) => {
+    const result = parseConferenceChampionshipsHistoryLocal(
+      splitTsv(text),
+      currentDynasty?.teams || currentDynasty?.customTeams,
+    )
+    const saved = await applyHistoryResult(result)
+    if (saved) onClose()
+  }
 
   const handleSyncFromSheet = async (alsoDelete = false) => {
     if (!sheetId || !currentDynasty) return
@@ -330,55 +504,9 @@ FINAL CHECK before you send
       // generated the sheet in a prior season.
       setYearsOnSheet(result.years)
 
-      // Guardrail: any year tab that came back fully blank AND has ≥1
-      // existing CC games in the dynasty gets dropped from the save.
-      // Almost always an accidental select-all-delete on a past tab —
-      // refusing keeps the existing history intact. The user can still
-      // delete CC games individually via the game page if they really
-      // mean to wipe a year.
-      const existingCCCountByYear = {}
-      for (const g of (currentDynasty.games || [])) {
-        if (!(g?.isConferenceChampionship || g?.gameType === 'conference_championship')) continue
-        const y = Number(g.year)
-        if (!Number.isFinite(y)) continue
-        existingCCCountByYear[y] = (existingCCCountByYear[y] || 0) + 1
-      }
-      const refusedYears = []
-      const safeByYear = {}
-      for (const [yearStr, list] of Object.entries(result.byYear)) {
-        const year = Number(yearStr)
-        const validRows = (list || []).filter(cc =>
-          cc?.team1 && cc?.team2 && cc.team1Score != null && cc.team2Score != null
-        ).length
-        if (validRows === 0 && (existingCCCountByYear[year] || 0) >= 1) {
-          refusedYears.push(year)
-          continue
-        }
-        safeByYear[yearStr] = list
-      }
-      if (refusedYears.length > 0) {
-        refusedYears.sort((a, b) => b - a)
-        toast.error(
-          `Skipped ${refusedYears.join(', ')} — empty tab${refusedYears.length === 1 ? '' : 's'} would have wiped existing CC games. Re-enter at least one row to save those years.`,
-          { duration: 8000 },
-        )
-      }
-      if (Object.keys(safeByYear).length === 0 && refusedYears.length > 0) {
-        return
-      }
+      const saved = await applyHistoryResult(result)
 
-      const applied = await saveConferenceChampionshipsHistoryFromSheet(
-        currentDynasty.id,
-        safeByYear,
-      )
-
-      const yearsTouched = applied?.yearsApplied || []
-      const totalGames = Object.values(applied?.gameCountsByYear || {}).reduce((s, n) => s + n, 0)
-      toast.success(
-        `Saved Conference Championships — ${totalGames} game${totalGames === 1 ? '' : 's'} across ${yearsTouched.length} year${yearsTouched.length === 1 ? '' : 's'}.`,
-      )
-
-      if (alsoDelete) {
+      if (saved && alsoDelete) {
         try { await deleteGoogleSheet(sheetId) } catch (e) { console.error('Failed to delete sheet:', e) }
         await updateDynasty(currentDynasty.id, { confChampHistorySheetId: null })
         setSheetId(null)
@@ -481,7 +609,15 @@ FINAL CHECK before you send
         />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-          {isLoading ? (
+          {useLocal && !showDeletedNote ? (
+            <LocalDataEntry
+              aiPrompt={localAiPrompt}
+              onImport={handleLocalImport}
+              onUseGoogle={() => setUseLocal(false)}
+              onCancel={onClose}
+              importLabel="Import Conference Championships"
+            />
+          ) : isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <div

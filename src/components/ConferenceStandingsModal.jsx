@@ -20,6 +20,8 @@ import {
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -40,6 +42,8 @@ export default function ConferenceStandingsModal({ isOpen, onClose, onSave, curr
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [useEmbedded, setUseEmbedded] = useState(() => {
     // Load preference from localStorage
@@ -154,6 +158,55 @@ FINAL CHECK before you send
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])
 
+  // LOCAL-PASTE prompt: self-describing rows. Each line LEADS with the
+  // conference name and the team's conference rank, so there is NO pre-filled
+  // column to align against and NO spacer rows. The save keys by conference +
+  // team, and re-sorts each conference by the rank field, so line order does
+  // not matter and omitting unknown teams simply leaves them out.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Conference Standings`,
+    structure: `Output ONE line per team's conference standing you can see. Each line is SELF-DESCRIBING — it LEADS with the conference name and the team's conference rank — so there is NO grid, NO spacer rows, and NO fixed block order.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 7 tab-separated fields (6 tabs):
+   Conference<TAB>Rank<TAB>Team<TAB>Wins<TAB>Losses<TAB>PointsFor<TAB>PointsAgainst
+2. NO header row. NO blank lines. NO spacer rows. NO commentary, totals, or labels INSIDE the data.
+3. OMIT any team you cannot see — do NOT pad, do NOT guess, do NOT invent teams. A team with no line is simply not recorded.
+4. Line order does not matter (each line self-identifies with its conference + rank). Output a line for every team in every conference you can see.
+
+═══════════════════════════════════════════════════════════
+FIELD FORMATS
+═══════════════════════════════════════════════════════════
+- Conference — the EXACT conference this team plays in (e.g. "ACC", "SEC", "Big Ten", "Big 12", "Pac-12", "American", "Conference USA", "Mountain West", "MAC", "Sun Belt", "Independent"). Copy the conference name as shown in your screenshots. The Team MUST be a member of this conference.
+- Rank — the team's place WITHIN its conference standings (integer, 1 = first place). If the screenshot lists teams top-to-bottom, the top team is 1, next is 2, and so on.
+- Team — UPPERCASE abbreviation from the mapping at the bottom (e.g. BAMA, OSU, UGA). NEVER full names or nicknames. Must be a member of that line's Conference.
+- Wins — integer, no decimals, no commas (e.g. "12" not "12.0").
+- Losses — integer, same rules.
+- PointsFor — season total points scored, integer, no commas (e.g. "487" not "4,870").
+- PointsAgainst — season total points allowed, integer, no commas.
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== CONFERENCE STANDINGS ===
+<Conference>\\t<Rank>\\t<Team>\\t<Wins>\\t<Losses>\\t<PointsFor>\\t<PointsAgainst>
+…one line per team across all conferences; omit unknowns entirely
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 7 tab-separated fields (six tabs)
+[ ] The 1st field is a conference name and the 3rd field (Team) is a member of that conference
+[ ] Rank is an integer (1 = conference leader) reflecting the team's place within its conference
+[ ] Team values are uppercase abbreviations from the mapping — no full names
+[ ] Wins/Losses/PointsFor/PointsAgainst are integers with no commas or decimals
+[ ] No blank lines, no spacer rows, no header row, no commentary INSIDE the data — only teams you can actually see`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [currentYear, currentDynasty?.teams])
+
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
@@ -197,7 +250,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Set ref immediately to prevent concurrent calls (state updates are async)
         creationAttemptedRef.current = true
         creatingSheetRef.current = true
@@ -219,7 +273,7 @@ FINAL CHECK before you send
       }
     }
     createSheet()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote])
 
   useEffect(() => {
     if (!isOpen) {
@@ -227,8 +281,21 @@ FINAL CHECK before you send
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
       setSheetId(null)
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits Conference<TAB>Rank<TAB>Team<TAB>Wins<TAB>
+  // Losses<TAB>PointsFor<TAB>PointsAgainst rows — exactly the columns the reader
+  // reads as row[0..6]. The reader groups by the per-row conference (row[0]) and
+  // sorts each conference by rank, so the split rows flow straight through the
+  // same path the Google sync uses. onSave keys by conference + team.
+  const handleLocalImport = async (text) => {
+    const dynastyTeams = currentDynasty?.teams || currentDynasty?.customTeams || null
+    const standings = await readConferenceStandingsFromSheet(null, dynastyTeams, { rows: splitTsv(text) })
+    await onSave(standings)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -341,7 +408,24 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Standings" title={`${currentYear} Conference Standings`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <div className="flex-1 flex flex-col overflow-hidden gap-3">
+            <div
+              className="rounded-lg border border-surface-4 bg-surface-2 px-4 py-3 text-xs sm:text-sm text-txt-secondary"
+              role="note"
+            >
+              <span className="text-txt-primary font-semibold">Skip this if you've been entering weekly scores all season.</span>
+              {' '}Standings are computed from your saved game results. This is only for end-of-season catch-up if you skipped weekly entry.
+            </div>
+            <LocalDataEntry
+              aiPrompt={localAiPrompt}
+              onImport={handleLocalImport}
+              onUseGoogle={() => setUseLocal(false)}
+              onCancel={handleClose}
+              importLabel="Import Conference Standings"
+            />
+          </div>
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent' }} />

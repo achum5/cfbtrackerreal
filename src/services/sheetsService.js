@@ -3421,6 +3421,66 @@ export async function readConferenceChampionshipsHistoryFromSheet(spreadsheetId,
   return { years, byYear }
 }
 
+// LOCAL-PASTE parse for multi-year Conference Championships History. The Google
+// reader above fetches one tab PER YEAR and reads each tab's 5-column grid
+// (Conference, Team1, Team2, Score1, Score2) positionally. splitTsv can't carry
+// per-year tabs (blank lines + "=== … ===" labels stripped), so the local paste
+// is SELF-DESCRIBING per row:
+//
+//   Year<TAB>Conference<TAB>Team1<TAB>Team2<TAB>Score1<TAB>Score2
+//
+// We group by the per-row year (col 0) and, within a year, emit the SAME
+// per-conference championship objects the Google reader returns. Returns the
+// SAME { years, byYear } shape, so the modal's existing guardrail + save
+// (saveConferenceChampionshipsHistoryFromSheet) apply unchanged — that save is
+// year-authoritative (replaces a year's CC games) and dedupes by conference, so
+// omitting a year from the paste leaves it untouched and omitting a conference
+// within an included year simply doesn't create that game.
+export function parseConferenceChampionshipsHistoryLocal(rows, dynastyTeams = null) {
+  const byYear = {}
+  for (const row of (rows || [])) {
+    const year = Number(String(row?.[0] || '').trim())
+    if (!Number.isFinite(year)) continue
+    const conference = row?.[1] || ''
+    const team1Abbr = (row?.[2] || '').toUpperCase()
+    const team2Abbr = (row?.[3] || '').toUpperCase()
+    const rawT1Score = row?.[4]
+    const rawT2Score = row?.[5]
+    const team1Score = (rawT1Score !== '' && rawT1Score != null) ? parseInt(rawT1Score, 10) : null
+    const team2Score = (rawT2Score !== '' && rawT2Score != null) ? parseInt(rawT2Score, 10) : null
+    const team1Tid = team1Abbr ? getTidFromAbbr(team1Abbr, dynastyTeams) : null
+    const team2Tid = team2Abbr ? getTidFromAbbr(team2Abbr, dynastyTeams) : null
+
+    let winner = null
+    let winnerTid = null
+    if (team1Score != null && team2Score != null && !Number.isNaN(team1Score) && !Number.isNaN(team2Score)) {
+      if (team1Score > team2Score) {
+        winner = team1Abbr || null
+        winnerTid = team1Tid
+      } else if (team2Score > team1Score) {
+        winner = team2Abbr || null
+        winnerTid = team2Tid
+      }
+    }
+
+    if (!byYear[year]) byYear[year] = []
+    byYear[year].push({
+      conference,
+      team1: team1Abbr,
+      team2: team2Abbr,
+      team1Tid,
+      team2Tid,
+      team1Score: Number.isFinite(team1Score) ? team1Score : null,
+      team2Score: Number.isFinite(team2Score) ? team2Score : null,
+      winner,
+      winnerTid,
+    })
+  }
+
+  const years = Object.keys(byYear).map(Number).filter(Number.isFinite).sort((a, b) => b - a)
+  return { years, byYear }
+}
+
 // Bowl games list for Bowl Week 1 (25 regular bowls + 4 CFP First Round = 29 games)
 const BOWL_GAMES_WEEK_1 = [
   '68 Ventures Bowl',
@@ -7518,6 +7578,51 @@ export async function readDetailedStatsFromSheet(spreadsheetId, dynastyTeams = n
   }
 }
 
+// LOCAL-PASTE parse for Detailed Stats. The Google reader above reads NINE tabs
+// (one fetch per stat category) and reads each player row POSITIONALLY: col A =
+// Name, col B = Snaps (read-only), then the stat columns in the fixed order of
+// DETAILED_STATS_TABS[tabName]. splitTsv can't carry nine separate tabs (blank
+// lines + "=== … ===" labels are stripped), so the local paste is
+// SELF-DESCRIBING per row:
+//
+//   TabName<TAB>PlayerName<TAB><stat col 1><TAB><stat col 2>…
+//
+// TabName (col 0) picks the category and thus the column ORDER; PlayerName is
+// col 1; the remaining cells map positionally into DETAILED_STATS_TABS[TabName]
+// — the SAME positional read the Google reader does, minus the Snaps column
+// (which the reader discards anyway). Returns the SAME
+// { tabName: [ { name, <col>: value } ] } shape, so the existing onSave (which
+// keys by category + player NAME + column-name string, never by row index)
+// applies unchanged. Unknown players/stats are simply omitted.
+export function parseDetailedStatsLocal(rows) {
+  // Case-insensitive tab-name resolver so "kick return"/"KICK RETURN" match the
+  // canonical "Kick Return" key.
+  const tabByLower = {}
+  for (const tab of Object.keys(DETAILED_STATS_TABS)) tabByLower[tab.toLowerCase()] = tab
+
+  const result = {}
+  for (const row of (rows || [])) {
+    const tabName = tabByLower[String(row[0] || '').trim().toLowerCase()]
+    const name = String(row[1] || '').trim()
+    // A row needs a recognized category and a player name; otherwise skip.
+    if (!tabName || !name) continue
+
+    const statColumns = DETAILED_STATS_TABS[tabName]
+    const player = { name }
+    statColumns.forEach((col, i) => {
+      // Stat cells start at row index 2 (after TabName + PlayerName), mirroring
+      // the Google reader's `row[i + 2]` (Name + Snaps offset).
+      const value = row[i + 2]
+      player[col] = value !== undefined && value !== '' ? (isNaN(parseFloat(value)) ? value : parseFloat(value)) : null
+    })
+
+    if (!result[tabName]) result[tabName] = []
+    result[tabName].push(player)
+  }
+
+  return result
+}
+
 // Conference order for standings sheet
 const CONFERENCE_ORDER = [
   'ACC', 'American', 'Big 12', 'Big Ten', 'C-USA', 'Independent', 'MAC', 'MWC', 'Pac-12', 'SEC', 'Sun Belt'
@@ -7858,27 +7963,39 @@ async function prefillConferenceStandingsData(spreadsheetId, accessToken, existi
 /**
  * Read conference standings from Google Sheet
  */
-export async function readConferenceStandingsFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readConferenceStandingsFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
   try {
-    const accessToken = await getAccessToken()
+    // Local-paste path: rows are already section-tagged. The Google sheet
+    // pre-fills cols A (conference) and B (rank) and reads them back here, so
+    // each row already carries its conference in row[0]. The local prompt asks
+    // the AI to emit those same 7 columns per line —
+    // Conference⇥Rank⇥Team⇥Wins⇥Losses⇥PointsFor⇥PointsAgainst — so the pasted
+    // rows flow through the EXACT same per-row grouping below (group by row[0]
+    // conference). No separate parser needed.
+    let rows
+    if (opts.rows) {
+      rows = opts.rows
+    } else {
+      const accessToken = await getAccessToken()
 
-    // Read all data from the Standings tab
-    const response = await fetchWithTimeout(
-      `${SHEETS_API_BASE}/${spreadsheetId}/values/Standings!A2:G250`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
+      // Read all data from the Standings tab
+      const response = await fetchWithTimeout(
+        `${SHEETS_API_BASE}/${spreadsheetId}/values/Standings!A2:G250`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
         }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to read standings: ${error.error?.message || 'Unknown error'}`)
       }
-    )
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to read standings: ${error.error?.message || 'Unknown error'}`)
+      const data = await response.json()
+      rows = data.values || []
     }
-
-    const data = await response.json()
-    const rows = data.values || []
 
     // Parse rows into standings by conference
     const standings = {}
@@ -8600,6 +8717,67 @@ export async function readTeamStatsFromSheet(spreadsheetId, dynastyTeams = null)
     console.error('Error reading team stats:', error)
     throw error
   }
+}
+
+// LOCAL-PASTE parse for Team Stats. The Google reader above reads two tabs
+// (Offense col B, Defense col B) POSITIONALLY, indexing each value into the
+// fixed TEAM_STATS_OFFENSE / TEAM_STATS_DEFENSE label arrays. splitTsv can't
+// preserve that two-tab layout (blank-line + "=== … ===" stripping), so the
+// local paste is SELF-DESCRIBING per row instead:
+//
+//   Section<TAB>StatLabel<TAB>Value
+//
+// Section ∈ {OFFENSE, DEFENSE} picks which key map to use; StatLabel is looked
+// up in that map (NOT by position), so line order is irrelevant and unknown
+// stats can simply be omitted. Returns the SAME flat { key: number|null }
+// object shape the Google reader returns (all 15 keys present, absent stats =
+// null), so the existing onSave (which replaces teamStatsByYear[year]) applies
+// unchanged.
+export function parseTeamStatsLocal(rows) {
+  // Case-insensitive label → key lookup, per section. yardsPerPlay is derived
+  // downstream but the sheet has a row for it, so we keep it here for parity.
+  const offenseByLabel = {}
+  for (const label of TEAM_STATS_OFFENSE) offenseByLabel[label.toLowerCase()] = TEAM_STATS_OFFENSE_KEY_MAP[label]
+  const defenseByLabel = {}
+  for (const label of TEAM_STATS_DEFENSE) defenseByLabel[label.toLowerCase()] = TEAM_STATS_DEFENSE_KEY_MAP[label]
+
+  // Seed every key to null so the returned object matches the Google reader's
+  // shape (which always emits all keys, null for blanks).
+  const stats = {}
+  for (const label of TEAM_STATS_OFFENSE) {
+    const key = TEAM_STATS_OFFENSE_KEY_MAP[label]
+    if (key) stats[key] = null
+  }
+  for (const label of TEAM_STATS_DEFENSE) {
+    const key = TEAM_STATS_DEFENSE_KEY_MAP[label]
+    if (key) stats[key] = null
+  }
+
+  for (const row of (rows || [])) {
+    const section = String(row[0] || '').trim().toUpperCase()
+    const label = String(row[1] || '').trim().toLowerCase()
+    const rawValue = row[2]
+    if (!label) continue
+
+    // Resolve the key from the section's map; fall back to the other section's
+    // map only if the label is unique there (defends against a mis-tagged
+    // section without cross-contaminating an offense/defense pair — the two
+    // label sets don't overlap, so this is safe).
+    let key = null
+    if (section === 'OFFENSE') key = offenseByLabel[label]
+    else if (section === 'DEFENSE') key = defenseByLabel[label]
+    if (!key) key = offenseByLabel[label] || defenseByLabel[label]
+    if (!key) continue
+
+    if (rawValue === undefined || rawValue === '' || rawValue === null) {
+      stats[key] = null
+    } else {
+      const n = parseFloat(rawValue)
+      stats[key] = Number.isFinite(n) ? n : null
+    }
+  }
+
+  return stats
 }
 
 // Awards columns and list
@@ -10692,6 +10870,64 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
     console.error('Error reading all-conference data:', error)
     throw error
   }
+}
+
+// LOCAL-PASTE parse for All-Conference. The Google reader above groups by TAB
+// (one fetch per conference tab) and reads a fixed 12-column-per-row grid. The
+// local paste cannot carry that grid (splitTsv drops blank lines + the
+// "=== … ===" tab labels), so each pasted line is SELF-DESCRIBING instead:
+//
+//   Conference<TAB>Designation<TAB>Position<TAB>Player<TAB>School<TAB>Class
+//
+// Designation ∈ {first, second, freshman}. We group by the per-row conference
+// (col 0) and emit the SAME { allConference, allConferenceByConference } shape
+// the Google reader returns — entries carry their own designation/position/
+// school, so downstream save (handleAllConferenceSave) keys by conference and
+// honor identity, never by array index or row order.
+export function parseAllConferenceLocal(rows, dynastyTeams = null) {
+  const tidFor = (abbr) => {
+    const t = abbr ? getTidFromAbbr(abbr, dynastyTeams) : null
+    return t != null ? Number(t) : null
+  }
+  const normDesignation = (raw) => {
+    const s = String(raw || '').trim().toLowerCase()
+    if (s.startsWith('first') || s === '1' || s === '1st') return 'first'
+    if (s.startsWith('second') || s === '2' || s === '2nd') return 'second'
+    if (s.startsWith('fresh') || s === 'fr') return 'freshman'
+    return null
+  }
+
+  const allConferenceByConference = {}
+  for (const row of (rows || [])) {
+    const conference = (row[0] || '').trim()
+    const designation = normDesignation(row[1])
+    const position = (row[2] || '').trim()
+    const player = (row[3] || '').trim()
+    // A row needs at minimum a conference, a recognized designation, and a
+    // player name — otherwise it is noise (header echo, stray line) and is
+    // skipped rather than written as a corrupt honor.
+    if (!conference || !designation || !player) continue
+    const school = (row[4] || '').toUpperCase().trim()
+    const playerClass = (row[5] || '').trim()
+
+    const entry = {
+      team: 'all-conference',
+      designation,
+      position,
+      player,
+      school,
+      schoolTid: tidFor(school),
+      class: playerClass
+    }
+    if (!allConferenceByConference[conference]) allConferenceByConference[conference] = []
+    allConferenceByConference[conference].push(entry)
+  }
+
+  const allConference = []
+  for (const conf of Object.keys(allConferenceByConference)) {
+    allConference.push(...allConferenceByConference[conf])
+  }
+  return { allConference, allConferenceByConference }
 }
 
 // Transfer/Leaving reasons for Players Leaving sheet
