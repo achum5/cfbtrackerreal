@@ -111,7 +111,7 @@ export default function PasteEntrySteps({
 
   return (
     <div className="flex-shrink-0">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-3">
+      <div className="flex flex-col items-center sm:flex-row sm:items-end sm:justify-center gap-3 sm:gap-3">
         {/* Step 1 — screenshot & copy */}
         <div className="flex flex-col gap-2">
           <Caption num="1" title="Screenshot & copy" active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
@@ -175,7 +175,7 @@ export default function PasteEntrySteps({
 
       {/* Info line for the open step */}
       {openInfo && (
-        <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl">
+        <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl mx-auto text-center">
           {hint[openInfo]}
         </p>
       )}
