@@ -519,6 +519,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Conferences"
+            columns={['Conference', 'Team']}
             instructions={`This replaces the COMPLETE conference alignment for the current season. It is the WHOLE grid, not a partial screenshot of one conference. Screenshot every conference's full team list (or all of them at once), upload the shots with the copied prompt to your AI, and it returns a TSV listing every team and its conference. Paste that below. If any FBS team is missing or duplicated, the import is rejected and nothing is saved.`}
           />
         ) : isLoading ? (

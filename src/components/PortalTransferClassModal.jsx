@@ -465,6 +465,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Portal Transfer Classes"
+            columns={['Player', 'Class', 'Jersey #']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

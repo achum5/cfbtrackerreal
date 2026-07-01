@@ -413,6 +413,7 @@ FINAL CHECK before you send the answer
             {bowlConfigSection}
             <LocalDataEntry
               aiPrompt={aiPrompt}
+              columns={['Team']}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}
               onCancel={handleClose}

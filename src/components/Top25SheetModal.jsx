@@ -473,6 +473,7 @@ REQUIRED OUTPUT FORMAT
                 onUseGoogle={() => setUseLocal(false)}
                 onCancel={onClose}
                 importLabel="Preview changes"
+                columns={['Rank', 'Team']}
               />
             </div>
           ) : creatingSheet ? (

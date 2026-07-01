@@ -169,7 +169,7 @@ export default function PlayerStatsPasteGrid({
         <button
           type="button"
           onClick={copyPrompt}
-          className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
+          className="flex-shrink-0 w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
           style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
         >
           {copied ? 'Copied!' : 'Copy AI Prompt'}
@@ -177,7 +177,7 @@ export default function PlayerStatsPasteGrid({
       )}
 
       {/* 2. Collapsible how-to */}
-      <div className="rounded-lg border border-surface-4 bg-surface-2/50">
+      <div className="flex-shrink-0 rounded-lg border border-surface-4 bg-surface-2/50">
         <button
           type="button"
           onClick={() => setShowHelp((v) => !v)}
@@ -197,7 +197,7 @@ export default function PlayerStatsPasteGrid({
       </div>
 
       {/* 3. Paste AI output + reveal-textarea arrow (both white) */}
-      <div className="flex items-center gap-2">
+      <div className="flex-shrink-0 flex items-center gap-2">
         <div className="inline-flex rounded-md overflow-hidden border border-surface-5">
           <Button variant="primary" size="sm" onClick={pasteFromClipboard} className="rounded-none">Paste</Button>
           <button
@@ -230,41 +230,41 @@ export default function PlayerStatsPasteGrid({
           autoCapitalize="off"
           spellCheck={false}
           rows={5}
-          className="w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+          className="flex-shrink-0 w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
         />
       )}
 
       {/* One editable table per category, dynamic player rows. */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pr-0.5">
         {sections.map((s) => (
-          <div key={s.key} className="rounded-md border border-surface-4">
-            <div className="px-2 py-1 label-xs text-txt-secondary bg-surface-2 rounded-t-md">{s.title}</div>
+          <div key={s.key} className="flex-shrink-0 rounded-md border border-surface-5 overflow-hidden">
+            <div className="px-2 py-1 label-xs text-txt-secondary bg-surface-2 border-b border-surface-5">{s.title}</div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs tabular">
+              <table className="w-full text-xs tabular border-collapse">
                 <thead>
                   <tr className="text-txt-tertiary">
                     {s.headers.map((h, idx) => (
-                      <th key={h} className={`px-1.5 py-1 font-semibold whitespace-nowrap ${idx === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
+                      <th key={h} className={`px-1.5 py-1 font-semibold whitespace-nowrap border border-surface-5 ${idx === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
                     ))}
-                    <th className="px-1 py-1 w-6" aria-label="Remove" />
+                    <th className="px-1 py-1 w-6 border border-surface-5" aria-label="Remove" />
                   </tr>
                 </thead>
                 <tbody>
                   {(grid[s.key] || []).map((row, rowIdx) => (
-                    <tr key={rowIdx} className="border-t border-surface-3">
+                    <tr key={rowIdx}>
                       {s.fieldKeys.map((fk, idx) => (
-                        <td key={fk} className={idx === 0 ? 'px-1 py-0.5 min-w-[7rem]' : 'px-1 py-0.5 w-14'}>
+                        <td key={fk} className={`border border-surface-5 ${idx === 0 ? 'min-w-[7rem]' : 'w-14'}`}>
                           <input
                             type="text"
                             inputMode={idx === 0 ? 'text' : 'decimal'}
                             value={row[fk] ?? ''}
                             onChange={(e) => editCell(s.key, rowIdx, fk, e.target.value)}
                             aria-label={`${s.title} ${s.headers[idx]} row ${rowIdx + 1}`}
-                            className={`w-full bg-transparent tabular text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5 ${idx === 0 ? 'text-left' : 'text-right'}`}
+                            className={`w-full bg-transparent tabular text-txt-primary px-1.5 py-0.5 focus:outline-none focus:bg-surface-3 ${idx === 0 ? 'text-left' : 'text-right'}`}
                           />
                         </td>
                       ))}
-                      <td className="px-1 py-0.5 w-6 text-center">
+                      <td className="w-6 text-center border border-surface-5">
                         <button
                           type="button"
                           onClick={() => removeRow(s.key, rowIdx)}
@@ -277,7 +277,7 @@ export default function PlayerStatsPasteGrid({
                     </tr>
                   ))}
                   <tr>
-                    <td colSpan={s.headers.length + 1} className="px-1.5 py-1">
+                    <td colSpan={s.headers.length + 1} className="px-1.5 py-1 border border-surface-5">
                       <button
                         type="button"
                         onClick={() => addRow(s.key)}

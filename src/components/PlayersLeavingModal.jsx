@@ -365,6 +365,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Players Leaving"
+            columns={['Player', 'Transfer Reason']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

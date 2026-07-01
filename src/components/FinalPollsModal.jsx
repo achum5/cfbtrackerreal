@@ -345,6 +345,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Final Polls"
+            columns={['Team']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

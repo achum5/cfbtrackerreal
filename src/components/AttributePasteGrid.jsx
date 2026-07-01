@@ -146,7 +146,7 @@ export default function AttributePasteGrid({
         <button
           type="button"
           onClick={copyPrompt}
-          className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
+          className="flex-shrink-0 w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
           style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
         >
           {copied ? 'Copied!' : 'Copy AI Prompt'}
@@ -154,7 +154,7 @@ export default function AttributePasteGrid({
       )}
 
       {/* 2. Collapsible how-to */}
-      <div className="rounded-lg border border-surface-4 bg-surface-2/50">
+      <div className="flex-shrink-0 rounded-lg border border-surface-4 bg-surface-2/50">
         <button
           type="button"
           onClick={() => setShowHelp((v) => !v)}
@@ -174,7 +174,7 @@ export default function AttributePasteGrid({
       </div>
 
       {/* 3. Paste AI output + reveal-textarea arrow (both white) */}
-      <div className="flex items-center gap-2">
+      <div className="flex-shrink-0 flex items-center gap-2">
         <div className="inline-flex rounded-md overflow-hidden border border-surface-5">
           <Button variant="primary" size="sm" onClick={pasteFromClipboard} className="rounded-none">Paste</Button>
           <button
@@ -202,66 +202,66 @@ export default function AttributePasteGrid({
           autoCapitalize="off"
           spellCheck={false}
           rows={6}
-          className="w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+          className="flex-shrink-0 w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
         />
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto rounded-md border border-surface-4">
-        <table className="w-full text-xs tabular">
+      <div className="flex-1 min-h-0 overflow-auto rounded-md border border-surface-5">
+        <table className="w-full text-xs tabular border-collapse">
           <thead className="sticky top-0 bg-surface-2 z-10">
             <tr className="text-txt-tertiary">
-              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">Player</th>
-              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">Pos</th>
-              <th className="px-2 py-1 text-right font-semibold whitespace-nowrap">OVR</th>
-              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap">Attributes</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Player</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Pos</th>
+              <th className="px-2 py-1 text-right font-semibold whitespace-nowrap border border-surface-5">OVR</th>
+              <th className="px-2 py-1 text-left font-semibold whitespace-nowrap border border-surface-5">Attributes</th>
             </tr>
           </thead>
           <tbody>
             {grid.map((row, i) => (
-              <tr key={i} className="border-t border-surface-3">
-                <td className="px-1 py-0.5 min-w-[8rem]">
+              <tr key={i}>
+                <td className="min-w-[8rem] border border-surface-5">
                   <input
                     type="text"
                     value={row.playerName ?? ''}
                     onChange={(e) => editCell(i, 'playerName', e.target.value)}
                     aria-label={`Player ${i + 1}`}
-                    className="w-full bg-transparent text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                    className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                   />
                 </td>
-                <td className="px-1 py-0.5 w-14">
+                <td className="w-14 border border-surface-5">
                   <input
                     type="text"
                     value={row.position ?? ''}
                     onChange={(e) => editCell(i, 'position', e.target.value)}
                     aria-label={`Position ${i + 1}`}
-                    className="w-full bg-transparent text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                    className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                   />
                 </td>
-                <td className="px-1 py-0.5 w-14">
+                <td className="w-14 border border-surface-5">
                   <input
                     type="text"
                     inputMode="numeric"
                     value={row.overall ?? ''}
                     onChange={(e) => editCell(i, 'overall', e.target.value)}
                     aria-label={`Overall ${i + 1}`}
-                    className="w-full bg-transparent text-right tabular text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                    className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                   />
                 </td>
-                <td className="px-1 py-0.5 min-w-[16rem]">
+                <td className="min-w-[16rem] border border-surface-5">
                   <input
                     type="text"
                     value={attrsCellText(row)}
                     onChange={(e) => editAttrsCell(i, e.target.value)}
                     aria-label={`Attributes ${i + 1}`}
                     placeholder="AWR 88, SPD 90, …"
-                    className="w-full bg-transparent text-txt-primary rounded px-1 py-0.5 font-mono focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                    className="w-full bg-transparent text-txt-primary px-2 py-0.5 font-mono focus:outline-none focus:bg-surface-3"
                   />
                 </td>
               </tr>
             ))}
             {grid.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-2 py-4 text-center text-txt-tertiary">
+                <td colSpan={4} className="px-2 py-4 text-center text-txt-tertiary border border-surface-5">
                   Paste the AI reply to fill ratings.
                 </td>
               </tr>

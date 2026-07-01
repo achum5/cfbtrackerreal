@@ -331,6 +331,7 @@ FINAL CHECK before you send the answer
         {useLocal && !showDeletedNote ? (
           <LocalDataEntry
             aiPrompt={aiPrompt}
+            columns={['Higher Seed', 'Lower Seed', 'Higher Score', 'Lower Score']}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

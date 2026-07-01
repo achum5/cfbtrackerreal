@@ -538,6 +538,7 @@ FINAL CHECK before you send the answer
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Schedule"
+            columns={['Opponent', 'Site']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

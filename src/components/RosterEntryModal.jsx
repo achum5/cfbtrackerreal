@@ -430,6 +430,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Roster"
+            columns={['First Name', 'Last Name', 'Position', 'Class', 'Dev Trait', 'Jersey #', 'Archetype', 'Overall', 'Height', 'Weight', 'Hometown', 'State', 'Image URL', 'NIL']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

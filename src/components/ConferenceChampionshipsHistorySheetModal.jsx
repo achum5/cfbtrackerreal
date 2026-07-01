@@ -612,6 +612,7 @@ FINAL CHECK before you send
           {useLocal && !showDeletedNote ? (
             <LocalDataEntry
               aiPrompt={localAiPrompt}
+              columns={['Year', 'Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score']}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}
               onCancel={onClose}

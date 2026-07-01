@@ -456,6 +456,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Roster History"
+            columns={['Player Name', 'PID', ...years.map(y => `${y} Team`)]}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

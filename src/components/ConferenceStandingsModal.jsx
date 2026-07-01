@@ -426,6 +426,7 @@ FINAL CHECK before you send
               onUseGoogle={() => setUseLocal(false)}
               onCancel={handleClose}
               importLabel="Import Conference Standings"
+              columns={['Conference', 'Rank', 'Team', 'Wins', 'Losses', 'Points For', 'Points Against']}
             />
           </div>
         ) : isLoading ? (

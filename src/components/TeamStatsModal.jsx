@@ -404,6 +404,7 @@ FINAL CHECK before you send
               onUseGoogle={() => setUseLocal(false)}
               onCancel={handleClose}
               importLabel="Import Team Stats"
+              columns={['Section', 'Stat', 'Value']}
             />
           </div>
         ) : isLoading ? (

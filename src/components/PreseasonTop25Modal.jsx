@@ -376,6 +376,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
               onUseGoogle={() => setUseLocal(false)}
               onCancel={onClose}
               importLabel="Import Top 25"
+              columns={['Team']}
             />
           ) : creatingSheet ? (
             <div className="flex-1 flex items-center justify-center">

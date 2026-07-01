@@ -131,6 +131,9 @@ export default function BoxScoreSheetModal({
   const creatingSheetRef = useRef(false)
   const creationAttemptedRef = useRef(false)
   const lastRetryCountRef = useRef(auth.retryCount)
+  // Team-stats grid inputs, keyed by column, so Tab moves DOWN a column
+  // (away 1→30, then home 1→30) instead of the default left-to-right per row.
+  const teamStatInputs = useRef({ away: [], home: [] })
   // Prefill the paste grid from saved stats exactly once per open (so it never
   // clobbers in-progress edits on re-render).
   const pastePrefilledRef = useRef(false)
@@ -1495,6 +1498,35 @@ FINAL CHECK before you send
     setRawText(statRowsToTsv(next))
   }
 
+  // Tab moves DOWN the current column; at the bottom of the away column it
+  // jumps to the top of the home column. Shift+Tab reverses it. At the outer
+  // edges (top of away / bottom of home) we let the default happen so focus
+  // leaves the grid for the surrounding controls.
+  const handleStatTabDown = (e, side, i) => {
+    if (e.key !== 'Tab') return
+    const cols = ['away', 'home']
+    const rows = TEAM_STATS_ROWS.length
+    let target = null
+    if (!e.shiftKey) {
+      if (i < rows - 1) target = teamStatInputs.current[side][i + 1]
+      else {
+        const nextCol = cols[cols.indexOf(side) + 1]
+        if (nextCol) target = teamStatInputs.current[nextCol][0]
+      }
+    } else {
+      if (i > 0) target = teamStatInputs.current[side][i - 1]
+      else {
+        const prevCol = cols[cols.indexOf(side) - 1]
+        if (prevCol) target = teamStatInputs.current[prevCol][rows - 1]
+      }
+    }
+    if (target) {
+      e.preventDefault()
+      target.focus()
+      if (typeof target.select === 'function') target.select()
+    }
+  }
+
   // Default path: read the clipboard straight into the grid, no textarea needed.
   const pasteFromClipboard = async () => {
     if (!navigator.clipboard?.readText) {
@@ -1877,7 +1909,7 @@ FINAL CHECK before you send
               <button
                 type="button"
                 onClick={copyPrompt}
-                className="w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
+                className="flex-shrink-0 w-full px-4 py-2.5 rounded-lg font-semibold text-sm transition-all active:scale-[0.99]"
                 style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }}
               >
                 {copied ? 'Copied!' : 'Copy AI Prompt'}
@@ -1885,7 +1917,7 @@ FINAL CHECK before you send
             )}
 
             {/* Collapsible how-to */}
-            <div className="rounded-lg border border-surface-4 bg-surface-2/50">
+            <div className="flex-shrink-0 rounded-lg border border-surface-4 bg-surface-2/50">
               <button
                 type="button"
                 onClick={() => setShowHelp((v) => !v)}
@@ -1905,7 +1937,7 @@ FINAL CHECK before you send
             </div>
 
             {/* Paste AI output + reveal-textarea arrow (both white). */}
-            <div className="inline-flex rounded-md overflow-hidden border border-surface-5 self-start">
+            <div className="flex-shrink-0 inline-flex rounded-md overflow-hidden border border-surface-5 self-start">
               <Button variant="primary" size="sm" onClick={pasteFromClipboard} className="rounded-none">Paste</Button>
               <button
                 type="button"
@@ -1931,25 +1963,26 @@ FINAL CHECK before you send
                 autoCapitalize="off"
                 spellCheck={false}
                 rows={5}
-                className="w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
+                className="flex-shrink-0 w-full rounded-md border border-surface-5 bg-surface-2 p-2 text-sm font-mono text-txt-primary resize-y focus:outline-none focus:ring-2 focus:ring-surface-5"
               />
             )}
 
             {/* Editable grid — the source of truth. Paste fills it; edits flow
-                back to the text box. Type directly into any cell to fix a value. */}
-            <div className="flex-1 min-h-0 overflow-y-auto rounded-md border border-surface-4">
-              <table className="w-full text-xs tabular">
+                back to the text box. Type directly into any cell to fix a value.
+                Full gridlines (surface-5), no inter-cell gaps. */}
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-md border border-surface-5">
+              <table className="w-full text-xs tabular border-collapse">
                 <thead className="sticky top-0 bg-surface-2 z-10">
                   <tr className="text-txt-tertiary">
-                    <th className="text-left font-semibold px-2 py-1">Stat</th>
-                    <th className="px-2 py-1">
+                    <th className="text-left font-semibold px-2 py-1 border border-surface-5">Stat</th>
+                    <th className="px-2 py-1 border border-surface-5">
                       <div className="flex justify-end">
                         {awayTeamLogo
                           ? <img src={awayTeamLogo} alt={awayTeamAbbr} title={awayTeamAbbr} className="h-5 w-5 object-contain" />
                           : <span className="font-semibold">{awayTeamAbbr}</span>}
                       </div>
                     </th>
-                    <th className="px-2 py-1">
+                    <th className="px-2 py-1 border border-surface-5">
                       <div className="flex justify-end">
                         {homeTeamLogo
                           ? <img src={homeTeamLogo} alt={homeTeamAbbr} title={homeTeamAbbr} className="h-5 w-5 object-contain" />
@@ -1960,26 +1993,30 @@ FINAL CHECK before you send
                 </thead>
                 <tbody>
                   {TEAM_STATS_ROWS.map((label, i) => (
-                    <tr key={label} className="border-t border-surface-3">
-                      <td className="px-2 py-0.5 text-txt-secondary whitespace-nowrap">{label}</td>
-                      <td className="px-1 py-0.5 w-20">
+                    <tr key={label}>
+                      <td className="px-2 py-0.5 text-txt-secondary whitespace-nowrap border border-surface-5">{label}</td>
+                      <td className="w-20 border border-surface-5">
                         <input
+                          ref={(el) => { teamStatInputs.current.away[i] = el }}
                           type="text"
                           inputMode="decimal"
                           value={statRows[i]?.away ?? ''}
                           onChange={(e) => editStatCell(i, 'away', e.target.value)}
+                          onKeyDown={(e) => handleStatTabDown(e, 'away', i)}
                           aria-label={`${label} ${awayTeamAbbr}`}
-                          className="w-full bg-transparent text-right tabular text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                          className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                         />
                       </td>
-                      <td className="px-1 py-0.5 w-20">
+                      <td className="w-20 border border-surface-5">
                         <input
+                          ref={(el) => { teamStatInputs.current.home[i] = el }}
                           type="text"
                           inputMode="decimal"
                           value={statRows[i]?.home ?? ''}
                           onChange={(e) => editStatCell(i, 'home', e.target.value)}
+                          onKeyDown={(e) => handleStatTabDown(e, 'home', i)}
                           aria-label={`${label} ${homeTeamAbbr}`}
-                          className="w-full bg-transparent text-right tabular text-txt-primary rounded px-1 py-0.5 focus:outline-none focus:bg-surface-2 focus:ring-1 focus:ring-surface-5"
+                          className="w-full bg-transparent text-right tabular text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                         />
                       </td>
                     </tr>

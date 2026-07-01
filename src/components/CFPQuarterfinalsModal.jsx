@@ -457,6 +457,7 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import CFP Quarterfinals"
+            columns={['Bye Seed', 'Bye Team', 'Opponent', 'Bye Score', 'Opponent Score', 'Winner']}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
