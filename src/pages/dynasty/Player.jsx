@@ -1036,11 +1036,16 @@ function PlayerInner() {
     const pid = player?.pid
     if (pid == null) return []
     const out = []
+    // The recruit's commit graphic (if any) — a commitment is the earliest
+    // moment chronologically, so it sorts to the very BOTTOM (oldest).
+    const commitGraphicUrl = dynasty?.commitGraphics?.[pid] || null
     // Photos uploaded directly to this player (player editor → Photos).
     // They have no game context, so they sort to the top (no year/week).
     if (Array.isArray(player?.photos)) {
       for (const url of player.photos) {
-        if (url) out.push({ url, playerUpload: true })
+        if (!url) continue
+        if (commitGraphicUrl && url === commitGraphicUrl) out.push({ url, commitGraphic: true })
+        else out.push({ url, playerUpload: true })
       }
     }
     const games = dynasty?.games
@@ -1075,19 +1080,20 @@ function PlayerInner() {
         }
       }
     }
-    // Newest first: year desc, then within-season chronological position desc
-    // (rank already encodes CCG/bowls/CFP as later than the regular weeks).
+    // Newest first: player uploads lead, then game photos (year desc, within-
+    // season position desc), then the commit graphic last as the oldest moment.
+    const band = (p) => (p.commitGraphic ? 2 : p.playerUpload ? 0 : 1)
     out.sort((a, b) => {
-      // Player-uploaded photos always lead; game photos follow, newest first.
-      if (a.playerUpload && !b.playerUpload) return -1
-      if (b.playerUpload && !a.playerUpload) return 1
+      const ba = band(a)
+      const bb = band(b)
+      if (ba !== bb) return ba - bb
       const yA = Number(a.year) || 0
       const yB = Number(b.year) || 0
       if (yB !== yA) return yB - yA
       return (b.rank ?? -1) - (a.rank ?? -1)
     })
     return out
-  }, [player?.pid, player?.photos, player?.teamsByYear, player?.team, dynasty?.games, dynasty?.teams])
+  }, [player?.pid, player?.photos, player?.teamsByYear, player?.team, dynasty?.games, dynasty?.teams, dynasty?.commitGraphics])
 
   const [photoTabLightboxIdx, setPhotoTabLightboxIdx] = useState(null)
 
