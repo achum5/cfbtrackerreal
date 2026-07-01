@@ -9680,23 +9680,23 @@ export default function Dashboard() {
       <ConferencesModal
         isOpen={showOffseasonConferencesModal}
         onClose={() => setShowOffseasonConferencesModal(false)}
-        onSave={async (data) => {
+        onSave={async (data, divData) => {
           // Year already flipped at Signing Day (Week 6), so currentYear IS the upcoming season
           const upcomingSeasonYear = currentDynasty.currentYear
           // Check if data is multi-year format (keys are years like "2025", "2026")
           const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
 
-          // saveConferenceAlignment fans the bulk map out to each
-          // team's per-year `byYear[year].conference` field AND
-          // continues writing the legacy stores. Routes through the
-          // dynasty's storageType automatically — no dev-mode /
-          // prod-mode branch needed here.
+          // saveConferenceAlignment fans the bulk map out to each team's per-year
+          // `byYear[year].conference` (+ `.division`) field. divData is keyed by
+          // year: { [year]: { divisions, teamDivisions } }.
           if (isMultiYear) {
             for (const [yearKey, mapForYear] of Object.entries(data)) {
-              await saveConferenceAlignment(currentDynasty.id, Number(yearKey), mapForYear)
+              const opts = divData?.[yearKey] || {}
+              await saveConferenceAlignment(currentDynasty.id, Number(yearKey), mapForYear, opts)
             }
           } else {
-            await saveConferenceAlignment(currentDynasty.id, upcomingSeasonYear, data)
+            const opts = divData?.[upcomingSeasonYear] || {}
+            await saveConferenceAlignment(currentDynasty.id, upcomingSeasonYear, data, opts)
           }
         }}
         teamColors={teamColors}

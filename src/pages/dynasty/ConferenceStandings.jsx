@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useDynasty, calculateTeamRecordFromGames, getTeamRecord, getCustomConferencesForYear, getTeamRankForWeek } from '../../context/DynastyContext'
+import { useDynasty, calculateTeamRecordFromGames, getTeamRecord, getCustomConferencesForYear, getTeamRankForWeek, getConferenceDivisionsForYear, getTeamDivisionForDynasty } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
@@ -665,7 +665,8 @@ export default function ConferenceStandings() {
                 // shared helper (handles both numeric and string year keys).
                 return getTeamRankForWeek(currentDynasty, tid, displayYear, 0)
               }
-              const enriched = teams.map(t => {
+              const renderRows = (list) => {
+              const enriched = list.map(t => {
                 const tid = t.tid != null ? Number(t.tid) : resolveTid(t.team, teamsSrc || TEAMS)
                 // Use the same coverage-aware helper as the row render
                 // above. Without it the sort would happily reorder a
@@ -731,6 +732,40 @@ export default function ConferenceStandings() {
                   rank={anyLive ? idx + 1 : (team.rank || idx + 1)}
                 />
               ))
+              }
+
+              // If this conference is split into divisions, group the teams under
+              // two division sub-headers (still one column). Teams whose stored
+              // division matches the SECOND name go to division 2; everyone else
+              // (including no/other division) defaults to division 1 — matching
+              // how the alignment modal seeds a split.
+              const divs = getConferenceDivisionsForYear(currentDynasty, displayYear)?.[conferenceName]
+              if (divs && divs.length === 2) {
+                const secondName = divs[1]
+                return [0, 1].map((idx) => {
+                  const list = teams.filter(t => {
+                    const d = getTeamDivisionForDynasty(currentDynasty, t.tid != null ? t.tid : t.team, displayYear)
+                    return idx === 1 ? d === secondName : d !== secondName
+                  })
+                  return (
+                    <div key={idx}>
+                      <div
+                        className="flex items-center justify-between px-3 py-1"
+                        style={{ backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--surface-4)' }}
+                      >
+                        <span className="label-xs text-txt-secondary font-bold truncate" style={{ letterSpacing: '1px', fontSize: '10px' }}>
+                          {divs[idx]}
+                        </span>
+                        <span className="text-[10px] tabular text-txt-tertiary flex-shrink-0">{list.length}</span>
+                      </div>
+                      {list.length
+                        ? renderRows(list)
+                        : <div className="px-3 py-2 text-[11px] text-txt-tertiary text-center">No teams</div>}
+                    </div>
+                  )
+                })
+              }
+              return renderRows(teams)
             })()}
           </div>
         ) : (
@@ -792,18 +827,19 @@ export default function ConferenceStandings() {
       <ConferencesModal
         isOpen={showConferencesModal}
         onClose={() => setShowConferencesModal(false)}
-        onSave={async (data) => {
+        onSave={async (data, divData) => {
           const isMultiYear = Object.keys(data).every(key => /^\d{4}$/.test(key))
-          // saveConferenceAlignment fans the bulk map out to each
-          // team's per-year `byYear[year].conference` field, AND
-          // continues writing the legacy customConferencesByYear /
-          // customConferences stores for backward compat.
+          // saveConferenceAlignment fans the bulk map out to each team's per-year
+          // `byYear[year].conference` (+ `.division`) field. divData is keyed by
+          // year: { [year]: { divisions, teamDivisions } }.
           if (isMultiYear) {
             for (const [yearKey, mapForYear] of Object.entries(data)) {
-              await saveConferenceAlignment(currentDynasty.id, Number(yearKey), mapForYear)
+              const opts = divData?.[yearKey] || {}
+              await saveConferenceAlignment(currentDynasty.id, Number(yearKey), mapForYear, opts)
             }
           } else {
-            await saveConferenceAlignment(currentDynasty.id, currentDynasty.currentYear, data)
+            const opts = divData?.[currentDynasty.currentYear] || {}
+            await saveConferenceAlignment(currentDynasty.id, currentDynasty.currentYear, data, opts)
           }
         }}
         teamColors={teamColors}

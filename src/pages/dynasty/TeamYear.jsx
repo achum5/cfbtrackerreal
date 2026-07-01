@@ -5,7 +5,7 @@ import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { getEditionConfig } from '../../editions'
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { getCoachByRole } from '../../data/coachModel'
-import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
+import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { StatRings } from '../../components/CfbUI'
 // Team colors are derived from the viewed team, not the user's team
@@ -744,6 +744,8 @@ export default function TeamYear() {
   // Conference with custom conferences support (year-specific)
   // Uses getTeamConferenceForDynasty which checks: manual override -> custom conferences -> default conferences
   const conference = getTeamConferenceForDynasty(currentDynasty, teamAbbr, selectedYear)
+  // Display label appends the division when the conference is split, e.g. "SEC (East)".
+  const conferenceLabel = getTeamConferenceLabel(currentDynasty, teamAbbr, selectedYear) || conference
   const conferenceLogo = conference ? getConferenceLogo(conference) : null
   const mascotName = team?.name || ''
   // Single source of truth for this team's logo: dynasty.teams[tid].logo, with
@@ -2949,7 +2951,7 @@ export default function TeamYear() {
                     style={{ color: teamBgText, opacity: 0.85 }}
                     title={`View ${conference} standings`}
                   >
-                    {confRank ? `${ordinal(confRank)} in ${conference}` : conference}
+                    {confRank ? `${ordinal(confRank)} in ${conferenceLabel}` : conferenceLabel}
                   </Link>
                 )}
               </div>

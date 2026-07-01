@@ -4660,6 +4660,91 @@ export function getTeamConferenceForDynasty(dynasty, teamAbbr, year = null) {
   return getTeamConference(teamAbbr, customConferences, dynasty?.teams)
 }
 
+/**
+ * Which conferences are split into divisions for a season, and the ordered
+ * division names. Reads dynasty.conferenceDivisionsByYear[year], carrying BACK
+ * to the most recent prior season it was set (divisions persist until changed),
+ * mirroring the conference carry-back. Returns { conferenceName: [name0, name1] }
+ * for split conferences only, or {} when none are split.
+ */
+export function getConferenceDivisionsForYear(dynasty, year) {
+  if (!dynasty || !year) return {}
+  const yearNum = Number(year)
+  if (isNaN(yearNum)) return {}
+  const store = dynasty.conferenceDivisionsByYear
+  if (!store || typeof store !== 'object') return {}
+
+  // A saved year is authoritative even when empty (all splits removed that
+  // season), so carry-back applies ONLY when the year has no entry at all.
+  const hasYear = Object.prototype.hasOwnProperty.call(store, yearNum) || Object.prototype.hasOwnProperty.call(store, String(yearNum))
+  let map = store[yearNum] || store[String(yearNum)] || {}
+  if (!hasYear) {
+    const startYear = Number(dynasty.startYear)
+    const minYear = Number.isFinite(startYear) ? startYear : (yearNum - 50)
+    for (let y = yearNum - 1; y >= minYear; y--) {
+      if (Object.prototype.hasOwnProperty.call(store, y) || Object.prototype.hasOwnProperty.call(store, String(y))) {
+        map = store[y] || store[String(y)] || {}
+        break
+      }
+    }
+  }
+
+  const out = {}
+  for (const [conf, names] of Object.entries(map)) {
+    if (Array.isArray(names) && names.length === 2 && names[0] && names[1]) out[conf] = [names[0], names[1]]
+  }
+  return out
+}
+
+/**
+ * A team's division NAME for a season (single source of truth:
+ * teams[tid].byYear[year].division), with the same carry-back as conference.
+ * Returns null when the team isn't in a split conference / has no division.
+ */
+export function getTeamDivisionForDynasty(dynasty, abbrOrTid, year = null) {
+  if (!dynasty) return null
+  const targetYear = Number(year || dynasty.currentYear)
+  if (!Number.isFinite(targetYear)) return null
+  const teams = dynasty.teams || {}
+
+  // Resolve tid → team (accept a tid or an abbr).
+  let team = null
+  if (typeof abbrOrTid === 'number' || (typeof abbrOrTid === 'string' && /^\d+$/.test(abbrOrTid))) {
+    team = teams[String(abbrOrTid)] || teams[Number(abbrOrTid)]
+  }
+  if (!team && abbrOrTid) {
+    const up = String(abbrOrTid).toUpperCase()
+    team = Object.values(teams).find(t => (t?.abbr || '').toUpperCase() === up) || null
+  }
+  if (!team?.byYear) return null
+
+  const by = team.byYear
+  let div = by[targetYear]?.division ?? by[String(targetYear)]?.division
+  if (!div) {
+    const startYear = Number(dynasty.startYear)
+    const minYear = Number.isFinite(startYear) ? startYear : (targetYear - 50)
+    for (let y = targetYear - 1; y >= minYear; y--) {
+      const d = by[y]?.division ?? by[String(y)]?.division
+      if (d) { div = d; break }
+    }
+  }
+  return div || null
+}
+
+/**
+ * Shared display formatter for a team's conference label: "SEC (East)" when the
+ * team is in a split conference, otherwise just "SEC" (or null if unknown). This
+ * is the single place that formats conference+division for display.
+ */
+export function getTeamConferenceLabel(dynasty, abbrOrTid, year = null) {
+  const conf = getTeamConferenceForDynasty(dynasty, abbrOrTid, year)
+  if (!conf) return null
+  const divisions = getConferenceDivisionsForYear(dynasty, year || dynasty?.currentYear)
+  if (!divisions[conf]) return conf
+  const div = getTeamDivisionForDynasty(dynasty, abbrOrTid, year)
+  return div ? `${conf} (${div})` : conf
+}
+
 // ============================================================================
 // PLAYER STATS HELPERS - Unified stats access
 // ============================================================================
@@ -12043,7 +12128,12 @@ export function DynastyProvider({ children }) {
             }
           }
           const yearData = localTeamsPatch[tid].byYear[nextYear] || {}
-          localTeamsPatch[tid].byYear[nextYear] = { ...yearData, conference: prevConf }
+          const nextData = { ...yearData, conference: prevConf }
+          // Carry the team's division forward too (if the conference is split).
+          const prevDiv = team?.byYear?.[previousSeasonYear]?.division
+            ?? team?.byYear?.[String(previousSeasonYear)]?.division
+          if (prevDiv && !yearData.division) nextData.division = prevDiv
+          localTeamsPatch[tid].byYear[nextYear] = nextData
           carryCount++
         }
 
@@ -12070,6 +12160,21 @@ export function DynastyProvider({ children }) {
             [nextYear]: resolvedMap,
           }
           additionalUpdates.customConferences = resolvedMap
+        }
+
+        // Carry the division definitions (which conferences are split + their
+        // names) forward, unless next year already has its own definition.
+        const divStore = dynasty.conferenceDivisionsByYear || {}
+        const nextHasDivs = Object.prototype.hasOwnProperty.call(divStore, nextYear)
+          || Object.prototype.hasOwnProperty.call(divStore, String(nextYear))
+        if (!nextHasDivs) {
+          const prevDivs = getConferenceDivisionsForYear(dynasty, previousSeasonYear)
+          if (prevDivs && Object.keys(prevDivs).length > 0) {
+            additionalUpdates.conferenceDivisionsByYear = {
+              ...divStore,
+              [nextYear]: prevDivs,
+            }
+          }
         }
       }
     } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 6 && nextWeek === 7) {
@@ -15388,7 +15493,7 @@ export function DynastyProvider({ children }) {
    * emitted by callers for the duration of Phase 1 — the migration
    * pass in Phase 2 will let us retire them.
    */
-  const buildPerTeamConferencePatch = (dynasty, year, conferenceMap) => {
+  const buildPerTeamConferencePatch = (dynasty, year, conferenceMap, teamDivisions = null) => {
     const yearKey = String(year)
     const cloudPatch = {}
     const localTeamsPatch = {}
@@ -15396,6 +15501,14 @@ export function DynastyProvider({ children }) {
       return { localPatch: {}, cloudPatch }
     }
     const teams = dynasty.teams || {}
+    // Optional per-team division (ABBR-uppercase → division name). Written into
+    // the SAME byYear[year] entry as conference so a split conference's teams
+    // carry their division. Only teams present here get a division; others are
+    // left as-is (a stale division is ignored because every consumer gates on
+    // conferenceDivisionsByYear, the authoritative "is this conference split").
+    const divByAbbr = teamDivisions && typeof teamDivisions === 'object'
+      ? new Map(Object.entries(teamDivisions).map(([a, d]) => [String(a).toUpperCase(), d]))
+      : null
     // Build an abbr-uppercase → tid index of the dynasty's current
     // team registry so we can resolve "MICH" → tid 42 even if the
     // user has renamed a teambuilder team since the last save.
@@ -15408,9 +15521,12 @@ export function DynastyProvider({ children }) {
       if (!Array.isArray(abbrs)) continue
       for (const rawAbbr of abbrs) {
         if (!rawAbbr) continue
-        const tid = abbrToTid.get(String(rawAbbr).toUpperCase())
+        const up = String(rawAbbr).toUpperCase()
+        const tid = abbrToTid.get(up)
         if (!tid) continue
+        const division = divByAbbr ? (divByAbbr.get(up) || null) : undefined
         cloudPatch[`teams.${tid}.byYear.${yearKey}.conference`] = conferenceName
+        if (division !== undefined) cloudPatch[`teams.${tid}.byYear.${yearKey}.division`] = division
         // Nested local patch — caller merges this into updates.teams.
         if (!localTeamsPatch[tid]) {
           const existingTeam = teams[tid] || {}
@@ -15420,7 +15536,9 @@ export function DynastyProvider({ children }) {
           }
         }
         const yearData = localTeamsPatch[tid].byYear[yearKey] || {}
-        localTeamsPatch[tid].byYear[yearKey] = { ...yearData, conference: conferenceName }
+        const nextYearData = { ...yearData, conference: conferenceName }
+        if (division !== undefined) nextYearData.division = division
+        localTeamsPatch[tid].byYear[yearKey] = nextYearData
       }
     }
     return {
@@ -15510,7 +15628,11 @@ export function DynastyProvider({ children }) {
     }
     const useLocalStorage = dynasty.storageType !== 'cloud'
     const yearKey = String(year)
-    const { localPatch, cloudPatch } = buildPerTeamConferencePatch(dynasty, year, conferenceMap)
+    // Divisions (optional): options.teamDivisions = { ABBR: divName } fans out to
+    // each team's byYear[year].division; options.divisions = { conf: [n0,n1] } is
+    // the authoritative "which conferences are split + names" for this season.
+    const { localPatch, cloudPatch } = buildPerTeamConferencePatch(dynasty, year, conferenceMap, options.teamDivisions)
+    const hasDivisions = options.divisions && typeof options.divisions === 'object'
 
     if (useLocalStorage) {
       const existingByYear = dynasty.customConferencesByYear || {}
@@ -15524,6 +15646,10 @@ export function DynastyProvider({ children }) {
           ...localPatch.teams,
         }
       }
+      if (hasDivisions) {
+        const existingDiv = dynasty.conferenceDivisionsByYear || {}
+        updates.conferenceDivisionsByYear = { ...existingDiv, [yearKey]: options.divisions }
+      }
       // Optional: caller can pass extra updates to merge in atomically
       // (e.g. preseasonSetup flags). Spread last so callers can override
       // anything if needed.
@@ -15535,6 +15661,9 @@ export function DynastyProvider({ children }) {
         customConferencesByYear: { ...existingByYear, [yearKey]: conferenceMap },
         customConferences: conferenceMap,
         ...cloudPatch,
+      }
+      if (hasDivisions) {
+        cloudUpdates[`conferenceDivisionsByYear.${yearKey}`] = options.divisions
       }
       if (options.extraUpdates) Object.assign(cloudUpdates, options.extraUpdates)
       await updateDynasty(dynastyId, cloudUpdates)
