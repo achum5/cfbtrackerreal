@@ -7037,6 +7037,30 @@ export async function readStatsFromSheet(spreadsheetId, dynastyTeams = null) {
   }
 }
 
+// Local (no-Google) counterpart of readStatsFromSheet. Takes splitTsv rows
+// (the "=== GP/SNAPS ===" label and code fences are already stripped) and
+// returns the SAME [{ name, gamesPlayed, snapsPlayed }] shape the Google
+// reader produces, so the existing onSave applies unchanged. Blank cell = null
+// ("don't touch the saved value"), never 0 — same semantics as the reader.
+export function parseGpSnapsLocal(rows) {
+  const parseIntOrNull = (raw) => {
+    if (raw === undefined || raw === null) return null
+    const s = String(raw).trim()
+    if (s === '') return null
+    const n = parseInt(s, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return (rows || [])
+    .map((row) => ({
+      name: String(row[0] || '').trim(),
+      gamesPlayed: parseIntOrNull(row[1]),
+      snapsPlayed: parseIntOrNull(row[2]),
+    }))
+    // Drop a stray header row and require a real player name (the strict
+    // dropdown the Google flow enforced is replaced here by this filter).
+    .filter((p) => p.name && p.name.toLowerCase() !== 'player')
+}
+
 // ============================================
 // DETAILED STATS SHEET (9 TABS)
 // ============================================
@@ -12343,6 +12367,31 @@ export async function readTrainingResultsFromSheet(spreadsheetId, dynastyTeams =
   }
 }
 
+// Local (no-Google) counterpart of readTrainingResultsFromSheet. The Training
+// Results AI prompt already emits the full self-describing 4-column row
+// (Player<TAB>Position<TAB>Past OVR<TAB>New OVR) and matches by name, so the
+// same prompt drives the local paste. Returns the SAME shape the reader does.
+export function parseTrainingResultsLocal(rows) {
+  const intOrNull = (raw) => {
+    if (raw === undefined || raw === null) return null
+    const s = String(raw).trim()
+    if (s === '') return null
+    const n = parseInt(s, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return (rows || [])
+    .map((row) => ({
+      playerName: String(row[0] || '').trim(),
+      position: String(row[1] || '').trim(),
+      pastOverall: intOrNull(row[2]),
+      newOverall: intOrNull(row[3]) ?? 0,
+    }))
+    // Drop a stray header row; require a real name and a valid new overall
+    // (mirrors the reader, which needs row[0] && row[3] in 40–99).
+    .filter((r) => r.playerName && r.playerName.toLowerCase() !== 'player')
+    .filter((r) => r.newOverall >= 40 && r.newOverall <= 99)
+}
+
 // ============================================
 // Encourage Transfers Sheet Functions
 // ============================================
@@ -12922,6 +12971,30 @@ export async function readRecruitOverallsFromSheet(spreadsheetId, dynastyTeams =
     console.error('Error reading recruit overalls:', error)
     throw error
   }
+}
+
+// Local (no-Google) counterpart of readRecruitOverallsFromSheet. The Google
+// prompt emits only cols E/F in fixed row order (relies on the sheet's
+// pre-filled Name column); the LOCAL prompt instead leads each row with the
+// recruit's name so paste order doesn't matter. Rows are
+// Name<TAB>Overall<TAB>Jersey#. Returns { name, overall, jerseyNumber } — the
+// fields handleRecruitOverallsSave matches on.
+export function parseRecruitOverallsLocal(rows) {
+  const intOrNull = (raw) => {
+    if (raw === undefined || raw === null) return null
+    const s = String(raw).trim()
+    if (s === '') return null
+    const n = parseInt(s, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return (rows || [])
+    .map((row) => ({
+      name: String(row[0] || '').trim(),
+      overall: intOrNull(row[1]) ?? 0,
+      jerseyNumber: String(row[2] ?? '').trim(),
+    }))
+    .filter((r) => r.name && r.name.toLowerCase() !== 'name')
+    .filter((r) => r.overall >= 40 && r.overall <= 99)
 }
 
 // ============================================
@@ -16533,6 +16606,105 @@ export async function readTop25FromSheet(spreadsheetId, dynasty) {
           if (!teamUpdates[tidKey][yearStr]) teamUpdates[tidKey][yearStr] = {}
           teamUpdates[tidKey][yearStr][wk] = null
         }
+      }
+    }
+  }
+
+  return { yearTotals, teamUpdates, unknownAbbrs }
+}
+
+// Week options for the local Top 25 paste picker (one entry per rankByWeek key).
+export function getTop25WeekOptions() {
+  const label = (w) => {
+    if (w === 0) return 'Preseason'
+    if (w === 16) return 'Conf Championships'
+    if (w === 101) return 'CFP First Round'
+    if (w === 102) return 'CFP Quarterfinals'
+    if (w === 103) return 'CFP Semifinals'
+    if (w === 104) return 'National Championship'
+    if (w === 105) return 'Final'
+    return `Week ${w}`
+  }
+  return TOP25_WEEK_KEYS.map((w) => ({ key: w, label: label(w) }))
+}
+
+// Local (no-Google) counterpart of readTop25FromSheet, scoped to ONE (year,
+// week). The user pastes a single week's poll (Rank<TAB>Abbr, or a bare Abbr
+// per line with rank = line order) and this returns the SAME { yearTotals,
+// teamUpdates, unknownAbbrs } shape the grid reader does — so buildTop25Diff /
+// applyTop25SheetDiff and the whole confirm-and-apply pipeline are reused
+// unchanged. Only the selected week is "touched", so every other week's
+// existing rankings are preserved exactly as the sheet reader would.
+export function parseTop25WeekLocal(rows, dynasty, year, weekKey) {
+  if (!dynasty) throw new Error('parseTop25WeekLocal: dynasty is required')
+  const yearNum = Number(year)
+  const yearStr = String(yearNum)
+  const wk = Number(weekKey)
+
+  const abbrToTid = new Map()
+  for (const [tidKey, team] of Object.entries(dynasty.teams || {})) {
+    if (!team?.abbr) continue
+    abbrToTid.set(String(team.abbr).toUpperCase(), Number(tidKey))
+  }
+
+  const newEntries = {} // tidKey -> rank
+  const unknownAbbrs = []
+  let seq = 0
+  for (const row of (rows || [])) {
+    // Accept "<rank>\t<abbr>" OR a bare "<abbr>" (rank = running line order).
+    let rank
+    let rawAbbr
+    if (row.length >= 2 && /^\d{1,2}$/.test(String(row[0]).trim())) {
+      rank = parseInt(row[0], 10)
+      rawAbbr = String(row[1] || '').trim()
+    } else {
+      rawAbbr = String(row[0] || '').trim()
+      rank = seq + 1
+    }
+    if (!rawAbbr) continue
+    if (!(rank >= 1 && rank <= TOP25_NUM_RANKS)) continue
+    seq = Math.max(seq, rank)
+    const tid = abbrToTid.get(rawAbbr.toUpperCase())
+    if (tid == null) {
+      unknownAbbrs.push({ year: yearNum, weekKey: wk, rank, raw: rawAbbr })
+      continue
+    }
+    newEntries[String(tid)] = rank
+  }
+
+  const newCount = Object.keys(newEntries).length
+  // oldCount across ALL weeks of the year — same guardrail input the reader uses.
+  let oldCount = 0
+  for (const team of Object.values(dynasty.teams || {})) {
+    const rbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[yearStr]?.rankByWeek
+    if (!rbw) continue
+    for (const v of Object.values(rbw)) {
+      if (typeof v === 'number' && v >= 1 && v <= 25) oldCount += 1
+    }
+  }
+  const yearTotals = { [yearNum]: { oldCount, newCount } }
+
+  // Seed new entries for the selected week.
+  const teamUpdates = {}
+  for (const [tidKey, rank] of Object.entries(newEntries)) {
+    teamUpdates[tidKey] = { [yearStr]: { [wk]: rank } }
+  }
+
+  // Removal nulls: the selected week IS touched, so any team that had an old
+  // rank THIS week but isn't in the paste gets cleared. Past years are
+  // protected (never generate removals), matching the reader.
+  const dynastyCurrentYear = Number(dynasty.currentYear)
+  if (!(Number.isFinite(dynastyCurrentYear) && yearNum < dynastyCurrentYear)) {
+    for (const [tidKey, team] of Object.entries(dynasty.teams || {})) {
+      const oldRbw = team?.byYear?.[yearNum]?.rankByWeek ?? team?.byYear?.[yearStr]?.rankByWeek
+      if (!oldRbw) continue
+      const hasOldThisWeek = oldRbw[wk] != null || oldRbw[String(wk)] != null
+      if (!hasOldThisWeek) continue
+      const carried = teamUpdates[tidKey]?.[yearStr] || {}
+      if (!(wk in carried) && !(String(wk) in carried)) {
+        if (!teamUpdates[tidKey]) teamUpdates[tidKey] = {}
+        if (!teamUpdates[tidKey][yearStr]) teamUpdates[tidKey][yearStr] = {}
+        teamUpdates[tidKey][yearStr][wk] = null
       }
     }
   }

@@ -13,6 +13,7 @@ import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
 import {
   createTrainingResultsSheet,
   readTrainingResultsFromSheet,
+  parseTrainingResultsLocal,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -22,6 +23,8 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { getEditionConfig } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -36,6 +39,8 @@ export default function TrainingResultsModal({ isOpen, onClose, onSave, onImport
   // attributes feature; defaults to the existing Overalls flow.
   const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
   const [mode, setMode] = useState('overalls') // 'overalls' | 'attributes'
+  // Within Overalls mode, local paste is the DEFAULT; Google is the fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -199,7 +204,8 @@ FINAL CHECK before you send
       creationAttemptedRef.current = false
     }
     const createSheet = async () => {
-      if (isOpen && user && mode === 'overalls' && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && mode === 'overalls' && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted before the first await so a failure can't loop back in.
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -240,7 +246,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, mode, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
+  }, [isOpen, useLocal, user, mode, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, players, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -248,8 +254,18 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: the Training Results AI prompt already emits the full
+  // self-describing 4-column rows, matched by name — so parseTrainingResultsLocal
+  // returns the SAME shape the Google reader does and onSave applies unchanged.
+  const handleLocalImport = async (text) => {
+    const results = parseTrainingResultsLocal(splitTsv(text))
+    await onSave(results)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -400,6 +416,14 @@ FINAL CHECK before you send
             onImport={async (entries) => { await onImportAttributes?.(entries) }}
             onClose={handleClose}
             hint="Paste the AI reply: one line per player — name, position, OVR, then the ratings cell (AWR 88, SPD 90, …)."
+          />
+        ) : useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Training Results"
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

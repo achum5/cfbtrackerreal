@@ -6,8 +6,13 @@ import {
   refreshTop25SheetData,
   deleteGoogleSheet,
   getSingleSheetEmbedUrl,
+  parseTop25WeekLocal,
+  getTop25WeekOptions,
 } from '../services/sheetsService'
 import { saveGamesToSubcollection } from '../services/dynastyService'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
+import { buildAIPrompt } from '../utils/aiPrompt'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -65,6 +70,21 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   const [isMobile, setIsMobile] = useState(isMobileDevice)
   const auth = useAuthErrorHandler()
   const [pendingSave, setPendingSave] = useState(null) // { diff, summary, alsoDelete }
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback
+  // for bulk multi-week catch-up.
+  const [useLocal, setUseLocal] = useState(true)
+  const weekOptions = useMemo(() => getTop25WeekOptions(), [])
+  const targetYear = Number(currentDynasty?.currentYear)
+  // Default the picker to the dynasty's current in-season week (1–16); else Preseason.
+  const defaultWeekKey = useMemo(() => {
+    const cw = Number(currentDynasty?.currentWeek)
+    return Number.isFinite(cw) && cw >= 1 && cw <= 16 ? cw : 0
+  }, [currentDynasty?.currentWeek])
+  const [selectedWeek, setSelectedWeek] = useState(0)
+  const selectedWeekLabel = useMemo(
+    () => weekOptions.find((o) => o.key === selectedWeek)?.label || `Week ${selectedWeek}`,
+    [weekOptions, selectedWeek],
+  )
   const creatingSheetRef = useRef(false)
   // Single-attempt guard: a FAILED creation must not silently re-fire (the
   // runaway loop that spam-created sheets). One attempt per modal-open; an
@@ -78,6 +98,34 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   // rankByWeek before the user starts editing.
   const refreshedSheetRef = useRef(null)
 
+  // AI prompt for the selected week's poll — output Rank<TAB>Abbr, one line
+  // per ranked team. includeTeamMap appends the dynasty's abbr mapping so the
+  // AI emits abbreviations the parser can resolve to tids.
+  const aiPrompt = useMemo(() => buildAIPrompt({
+    title: `${targetYear} Top 25 — ${selectedWeekLabel}`,
+    structure: `Output the Top 25 poll for ONE week: ${targetYear}, ${selectedWeekLabel}.
+
+═══════════════════════════════════════════════════════════
+CRITICAL RULES — read before anything else
+═══════════════════════════════════════════════════════════
+1. EXACTLY 2 tab-separated fields per line: Rank<TAB>Team abbreviation.
+2. Rank is an integer 1–25, in ascending order (1 first). Output at most 25 lines.
+3. Team is an UPPERCASE abbreviation from the mapping at the bottom — NEVER a full name or nickname.
+4. Each team abbreviation appears AT MOST ONCE. Omit any rank you cannot see — never guess.
+5. NO header row, NO commentary inside the data, NO commas. The paste-target label above the fence is required (see TSV delivery rules above).
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== TOP 25 ===
+1\\t<Rank 1 abbr>
+2\\t<Rank 2 abbr>
+…
+25\\t<Rank 25 abbr>`,
+    includeTeamMap: true,
+    dynastyTeams: currentDynasty?.teams,
+  }), [targetYear, selectedWeekLabel, currentDynasty?.teams])
+
   // Track mobile breakpoint so we can swap the iframe for an
   // open-in-Sheets CTA — Google's embedded view is unusable in a
   // phone-sized iframe (matches WeeklyScoresModal's mobile fork).
@@ -87,13 +135,19 @@ export default function Top25SheetModal({ isOpen, onClose }) {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // Default the week picker to the current week each time the modal opens.
+  useEffect(() => {
+    if (isOpen) setSelectedWeek(defaultWeekKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
   // Resume session — pull sheetId off the dynasty if one's stored.
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || useLocal) return
     if (currentDynasty?.top25SheetId && !sheetId && !showDeletedNote) {
       setSheetId(currentDynasty.top25SheetId)
     }
-  }, [isOpen, currentDynasty?.top25SheetId, sheetId, showDeletedNote])
+  }, [isOpen, useLocal, currentDynasty?.top25SheetId, sheetId, showDeletedNote])
 
   // Refresh the existing sheet's pre-fill from the current dynasty
   // every time the modal opens with a stored sheet. Without this, a
@@ -104,7 +158,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
   // with the current dynasty so the diff only contains the user's
   // actual in-modal edits.
   useEffect(() => {
-    if (!isOpen || !user || !sheetId || isViewOnly) return
+    if (!isOpen || useLocal || !user || !sheetId || isViewOnly) return
     if (refreshedSheetRef.current === sheetId) return
     refreshedSheetRef.current = sheetId
     refreshTop25SheetData(sheetId, currentDynasty).catch((error) => {
@@ -114,7 +168,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       // open retries the refresh.
       refreshedSheetRef.current = null
     })
-  }, [isOpen, user, sheetId, isViewOnly, currentDynasty])
+  }, [isOpen, useLocal, user, sheetId, isViewOnly, currentDynasty])
 
   // Clear the refresh marker on close so the next open triggers a
   // fresh sync.
@@ -130,6 +184,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       creationAttemptedRef.current = false
     }
 
+    if (useLocal) return // local paste path — never touch Google
     if (!isOpen || !user || sheetId || creatingSheet || creatingSheetRef.current || creationAttemptedRef.current) return
     if (!currentDynasty?.id || isViewOnly) return
     if (showDeletedNote) return
@@ -155,7 +210,7 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       }
     }
     create()
-  }, [isOpen, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
+  }, [isOpen, useLocal, user, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, isViewOnly])
 
   // Reset state on close so re-opening starts clean.
   useEffect(() => {
@@ -164,8 +219,31 @@ export default function Top25SheetModal({ isOpen, onClose }) {
       setPendingSave(null)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: parse ONE week's poll into the same { teamUpdates,
+  // yearTotals, unknownAbbrs } shape readTop25FromSheet returns, then run the
+  // exact same guard → buildTop25Diff → confirm → apply pipeline. No sheet.
+  const handleLocalImport = async (text) => {
+    if (!currentDynasty) return
+    const result = parseTop25WeekLocal(splitTsv(text), currentDynasty, targetYear, selectedWeek)
+    // Same guardrail as the sheet read: refuse to clear a full poll on empty input.
+    const totals = result.yearTotals?.[targetYear]
+    if (totals && totals.newCount === 0 && totals.oldCount >= 10) {
+      toast.error('No teams recognized in the paste — refusing to clear rankings. Check the abbreviations and try again.')
+      return
+    }
+    const summary = buildTop25Diff(currentDynasty, result.teamUpdates)
+    setPendingSave({
+      diff: result.teamUpdates,
+      summary,
+      unknownAbbrs: result.unknownAbbrs || [],
+      yearTotals: result.yearTotals,
+      alsoDelete: false,
+    })
+  }
 
   const handleParseAndPreview = async (alsoDelete) => {
     if (!sheetId || !currentDynasty) return
@@ -373,7 +451,31 @@ export default function Top25SheetModal({ isOpen, onClose }) {
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {creatingSheet ? (
+          {useLocal && !showDeletedNote ? (
+            <div className="flex-1 flex flex-col overflow-hidden px-5 sm:px-7 py-5 gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="top25-week" className="label-xs text-txt-tertiary">Week</label>
+                <select
+                  id="top25-week"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                  className="rounded-md border border-surface-5 bg-surface-2 px-2 py-1.5 text-sm text-txt-primary focus:outline-none focus:ring-2 focus:ring-surface-5"
+                >
+                  {weekOptions.map((o) => (
+                    <option key={o.key} value={o.key}>{o.label}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-txt-tertiary ml-auto">{targetYear} season</span>
+              </div>
+              <LocalDataEntry
+                aiPrompt={aiPrompt}
+                onImport={handleLocalImport}
+                onUseGoogle={() => setUseLocal(false)}
+                onCancel={onClose}
+                importLabel="Preview changes"
+              />
+            </div>
+          ) : creatingSheet ? (
             <div className="flex-1 flex items-center justify-center p-6">
               <div className="text-center">
                 <div className="animate-spin w-10 h-10 border-2 rounded-full mx-auto mb-4" style={{ borderColor: 'var(--text-primary)', borderTopColor: 'transparent' }} />

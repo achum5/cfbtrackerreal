@@ -718,20 +718,13 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Stats" title={`${currentYear} Detailed Stats Entry`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6">
-        {/* Helper tip */}
-        <div className="mb-4 p-3 rounded-lg text-sm bg-surface-2 text-txt-secondary">
-          <span className="font-semibold text-txt-primary">Tip:</span> Make sure you've completed GP/Snaps Entry first. In CFB 26, sort your stats by Snaps Played, then go through each category tab - the order will match and make entry quick!
+        {/* One compact tip — end-of-season catch-up only; per-game box scores already fill these. */}
+        <div className="mb-3 px-3 py-2 rounded-md bg-surface-2 text-xs text-txt-tertiary leading-snug" role="note">
+          <span className="font-semibold text-txt-secondary">Tip:</span> Only needed for end-of-season catch-up — if every game already has a box score, your detailed stats are in the app. Do GP/Snaps first, then in CFB 26 sort by Snaps Played and go category by category.
         </div>
 
         {useLocal && !showDeletedNote ? (
           <div className="flex-1 flex flex-col overflow-hidden gap-3">
-            <div
-              className="rounded-lg border border-surface-4 bg-surface-2 px-4 py-3 text-xs sm:text-sm text-txt-secondary"
-              role="note"
-            >
-              <span className="text-txt-primary font-semibold">Skip this if you've been entering box scores game-by-game.</span>
-              {' '}This is only for end-of-season catch-up. If every game already has a box score, your detailed stats are already in the app.
-            </div>
             <LocalDataEntry
               aiPrompt={localAiPrompt}
               onImport={handleLocalImport}

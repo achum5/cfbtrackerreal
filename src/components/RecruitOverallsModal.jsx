@@ -14,6 +14,7 @@ import SheetToolbar from './SheetToolbar'
 import {
   createRecruitOverallsSheet,
   readRecruitOverallsFromSheet,
+  parseRecruitOverallsLocal,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   sheetExists
@@ -22,6 +23,8 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import { buildAttributesStructure } from '../utils/attributeEntry'
 import { getEditionConfig } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 import SheetLoadingHint from './SheetLoadingHint'
 
 const isMobileDevice = () => {
@@ -35,6 +38,8 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
   // sheet. Gated on the edition attributes feature; defaults to Overalls.
   const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
   const [mode, setMode] = useState('overalls') // 'overalls' | 'attributes'
+  // Within Overalls mode, local paste is the DEFAULT; Google is the fallback.
+  const [useLocal, setUseLocal] = useState(true)
   const { user, signOut } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -131,6 +136,59 @@ FINAL CHECK before you send
     includeTeamMap: false,
   }), [currentYear, recruits])
 
+  // Local-paste prompt — the Google flow emits only cols E/F in a FIXED row
+  // order (it leans on the sheet's pre-filled Name column). Local paste has no
+  // pre-filled names, so this variant LEADS each row with the recruit's name
+  // and matches by name, making paste order irrelevant.
+  const localAiPrompt = useMemo(() => buildAIPrompt({
+    title: `${currentYear} Incoming Freshmen Overalls`,
+    roster: (recruits || []).map(p => ({
+      name: p.name,
+      jerseyNumber: p.jerseyNumber,
+      position: p.position,
+    })),
+    rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
+    structure: `WHERE TO FIND THE DATA IN EA CFB
+═══════════════════════════════════════════════════════════
+Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
+Browse each position group depth chart — incoming freshmen are shown with
+Year = "Fr". Their OVR column is their initial overall. Their abbreviated name
+(e.g. "D.Ware") resolves to a full name using the YOUR INCOMING RECRUITING
+CLASS roster block below. The jersey number may be visible on the depth-chart row.
+
+═══════════════════════════════════════════════════════════
+OUTPUT — one SELF-DESCRIBING line per recruit (the app matches by NAME, so
+row order does NOT matter)
+═══════════════════════════════════════════════════════════
+1. Each line has EXACTLY 3 tab-separated fields (2 tabs):
+   Name<TAB>Overall<TAB>Jersey #
+2. Name MUST be the FULL name from the YOUR INCOMING RECRUITING CLASS block —
+   never an abbreviation. Only output recruits that appear in that block.
+3. Overall: integer 40–99. Jersey #: integer 0–99, or BLANK if not visible
+   (output the name and overall, then a trailing tab with nothing after it).
+4. NO header row, NO commentary inside the data, NO commas, NO decimals,
+   NO units. The paste-target label above the fence is required.
+5. NEVER guess. Omit a recruit entirely if you cannot see their overall.
+
+═══════════════════════════════════════════════════════════
+REQUIRED OUTPUT FORMAT
+═══════════════════════════════════════════════════════════
+=== RECRUIT OVERALLS ===
+<Name>\\t<Overall>\\t<Jersey #>
+<Name>\\t<Overall>\\t<Jersey #>
+...
+
+═══════════════════════════════════════════════════════════
+FINAL CHECK before you send
+═══════════════════════════════════════════════════════════
+[ ] Every line has exactly 2 tab characters (3 fields)
+[ ] Field 1 is a FULL name from the recruiting-class block (no initials)
+[ ] Every Overall is an integer 40–99
+[ ] Every Jersey # is an integer 0–99, or blank
+[ ] No commas, no decimals, no quotes, no units`,
+    includeTeamMap: false,
+  }), [currentYear, recruits])
+
   // Full-attributes prompt — the AI emits each recruit's complete rating set in
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
@@ -190,7 +248,8 @@ FINAL CHECK before you send
     }
 
     const createSheet = async () => {
-      if (isOpen && user && mode === 'overalls' && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && mode === 'overalls' && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote && !creationAttemptedRef.current) {
         // Mark attempted BEFORE any await so a rejection can't loop back in
         creationAttemptedRef.current = true
         // Set ref immediately to prevent concurrent calls (state updates are async)
@@ -231,7 +290,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, mode, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, recruits, currentYear])
+  }, [isOpen, useLocal, user, mode, sheetId, currentDynasty?.id, auth.retryCount, showDeletedNote, recruits, currentYear])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -239,8 +298,18 @@ FINAL CHECK before you send
       setShowDeletedNote(false)
       creatingSheetRef.current = false
       creationAttemptedRef.current = false
+      setUseLocal(true)
     }
   }, [isOpen])
+
+  // Local paste import: parseRecruitOverallsLocal returns { name, overall,
+  // jerseyNumber } — the fields handleRecruitOverallsSave matches on — so the
+  // Google reader and the local paste feed onSave the same shape.
+  const handleLocalImport = async (text) => {
+    const results = parseRecruitOverallsLocal(splitTsv(text))
+    await onSave(results)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -391,6 +460,14 @@ FINAL CHECK before you send
             onImport={async (entries) => { await onImportAttributes?.(entries) }}
             onClose={handleClose}
             hint="Paste the AI reply: one line per recruit — name, position, OVR, then the ratings cell (AWR 88, SPD 90, …)."
+          />
+        ) : useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={localAiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import Overalls"
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

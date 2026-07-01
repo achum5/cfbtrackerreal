@@ -12,9 +12,12 @@ import SheetModalFooter from './ui/SheetModalFooter'
 import AuthErrorModal from './AuthErrorModal'
 import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler'
 import SheetToolbar from './SheetToolbar'
+import LocalDataEntry from './ui/LocalDataEntry'
+import { splitTsv } from '../utils/tsvParse'
 import {
   createStatsEntrySheet,
   readStatsFromSheet,
+  parseGpSnapsLocal,
   deleteGoogleSheet,
   getSheetEmbedUrl
 } from '../services/sheetsService'
@@ -48,6 +51,8 @@ export default function StatsEntryModal({
   const [showDeletedNote, setShowDeletedNote] = useState(false)
   const auth = useAuthErrorHandler()
   const [isMobile, setIsMobile] = useState(false)
+  // Local paste is the DEFAULT; the Google Sheet flow is the opt-in fallback.
+  const [useLocal, setUseLocal] = useState(true)
 
   const [authErrorOccurred, setAuthErrorOccurred] = useState(false) // Prevents retry loops on auth errors
   const [createAttempts, setCreateAttempts] = useState(0) // Tracks creation attempts
@@ -275,7 +280,8 @@ FINAL CHECK before you send
       // Don't retry if auth error occurred or max attempts reached
       if (authErrorOccurred || createAttempts >= MAX_CREATE_ATTEMPTS) return
 
-      if (isOpen && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
+      // Don't create a Google Sheet while the local paste path is active.
+      if (isOpen && !useLocal && user && !sheetId && !creatingSheet && !creatingSheetRef.current && !showDeletedNote) {
         // ALWAYS create a fresh sheet - never reuse old sheets
         // This ensures the sheet reflects current player data (user may have edited players directly)
 
@@ -358,7 +364,7 @@ FINAL CHECK before you send
     }
 
     createSheet()
-  }, [isOpen, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, overrideTeamAbbr, overrideTeamName, currentYear, authErrorOccurred, createAttempts])
+  }, [isOpen, useLocal, user, sheetId, creatingSheet, currentDynasty?.id, auth.retryCount, showDeletedNote, overrideTeamAbbr, overrideTeamName, currentYear, authErrorOccurred, createAttempts])
 
   // Reset state when modal closes - clear sheetId so a fresh sheet is created next time
   useEffect(() => {
@@ -368,9 +374,19 @@ FINAL CHECK before you send
       creatingSheetRef.current = false
       setAuthErrorOccurred(false)
       setCreateAttempts(0)
+      setUseLocal(true)
       auth.setShowAuthError(false)
     }
   }, [isOpen])
+
+  // Local paste import: the AI emits <Player>\t<Games Played>\t<Snaps Played>
+  // rows. parseGpSnapsLocal returns the SAME [{ name, gamesPlayed, snapsPlayed }]
+  // array the Google reader returns, so the existing onSave applies unchanged.
+  const handleLocalImport = async (text) => {
+    const stats = parseGpSnapsLocal(splitTsv(text))
+    await onSave(stats)
+    onClose()
+  }
 
   const handleSyncFromSheet = async () => {
     if (!sheetId) return
@@ -491,7 +507,15 @@ FINAL CHECK before you send
         <SheetModalHeader eyebrow="Stats" title={`${currentYear} GP / Snaps`} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-y-auto min-h-0 p-4 sm:p-6">
-        {isLoading ? (
+        {useLocal && !showDeletedNote ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt}
+            onImport={handleLocalImport}
+            onUseGoogle={() => setUseLocal(false)}
+            onCancel={handleClose}
+            importLabel="Import GP / Snaps"
+          />
+        ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div
