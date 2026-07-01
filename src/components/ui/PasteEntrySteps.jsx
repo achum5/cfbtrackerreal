@@ -2,53 +2,52 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AI_TOOLS, getPreferredAiKey, setPreferredAiKey, getAiTool } from '../../data/aiTools'
 
-// The unified header for every data-entry modal — a framed, numbered 3-step
-// flow so the workflow reads at a glance:
-//   1. Screenshot & copy   📸 + Copy Prompt
-//   2. Send to your AI      Open <AI> (dropdown to switch; choice remembered)
-//   3. Paste it back        Paste (▾ reveals a raw text box)
-// Each step title carries an "i" that toggles a one-line explanation below.
+// The unified header for every data-entry modal. A genuine 3-step sequence
+// (screenshot & copy -> send to your AI -> paste it back), kept deliberately
+// quiet: the white action buttons are the one bold element; the numbers,
+// captions, and hairline chevrons stay muted. A small info dot on each step
+// toggles a one-line explanation beneath the row.
 
 const STEP_HINTS = {
   screenshot: 'Take screenshots of the data you want to enter (they don\'t have to be perfect, just clear and fully showing). Then tap Copy Prompt to copy the instructions.',
-  ai: 'Open your AI, paste the copied prompt, and upload your screenshot(s). It replies with a block of data. Use the arrow to switch assistants — your choice is saved on this device.',
+  ai: 'Open your AI, paste the copied prompt, and upload your screenshot(s). It replies with a block of data. Use the arrow to switch assistants; your choice is saved on this device.',
   paste: 'Copy the AI\'s reply, then tap Paste. The grid fills in automatically. Tap the arrow to open a text box if the normal paste doesn\'t work.',
 }
 
-const WHITE_BTN = 'px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90'
+const WHITE_BTN = 'h-9 px-3 inline-flex items-center gap-1.5 text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90 whitespace-nowrap'
 const WHITE_STYLE = { backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }
 
-const Chevron = () => (
-  <div className="hidden sm:flex items-center self-stretch text-txt-tertiary/70" aria-hidden="true">
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  </div>
+const InfoIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </svg>
 )
 
-function Step({ num, title, infoKey, openInfo, onToggle, children }) {
-  const active = openInfo === infoKey
+function Caption({ num, title, active, onToggle }) {
   return (
-    <div className="flex-1 min-w-[150px] flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-surface-4 text-txt-secondary flex-shrink-0">{num}</span>
-        <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-txt-tertiary truncate">{title}</span>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={`What do I do in step ${num}?`}
-          aria-pressed={active}
-          className={`ml-auto flex-shrink-0 w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold border transition-colors ${
-            active ? 'border-surface-5 bg-surface-4 text-txt-primary' : 'border-surface-5 text-txt-tertiary hover:text-txt-primary'
-          }`}
-        >
-          i
-        </button>
-      </div>
-      <div className="flex items-center">{children}</div>
+    <div className="flex items-center gap-1.5 h-4">
+      <span className="text-[11px] font-bold tabular text-txt-secondary">{num}</span>
+      <span className="text-[11px] font-medium text-txt-tertiary whitespace-nowrap">{title}</span>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={`What do I do in step ${num}?`}
+        aria-pressed={active}
+        className={`transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
+      >
+        <InfoIcon className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 }
+
+// A hairline chevron between steps, aligned to the control row (not the caption).
+const Chevron = () => (
+  <svg className="hidden sm:block self-end mb-2.5 w-4 h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+)
 
 export default function PasteEntrySteps({
   aiPrompt,
@@ -111,30 +110,23 @@ export default function PasteEntrySteps({
   }
 
   return (
-    <div className="flex-shrink-0 rounded-xl border border-surface-4 bg-surface-2/40 px-3 py-3">
-      <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-2">
-        {/* Step 1 — screenshot + copy prompt */}
-        <Step num={1} title="Screenshot & copy" infoKey="screenshot" openInfo={openInfo} onToggle={() => toggleInfo('screenshot')}>
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-lg bg-surface-3 border border-surface-4 flex-shrink-0"
-              role="img"
-              aria-label="Screenshot"
-            >
-              📸
-            </span>
-            <span className="text-txt-tertiary font-bold">+</span>
-            <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
-              {copied ? 'Copied!' : 'Copy Prompt'}
-            </button>
-          </div>
-        </Step>
+    <div className="flex-shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-3">
+        {/* Step 1 — screenshot & copy */}
+        <div className="flex flex-col gap-2">
+          <Caption num="1" title="Screenshot & copy" active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
+          <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
+            <span className="text-base leading-none" role="img" aria-label="Screenshot">📸</span>
+            {copied ? 'Copied!' : 'Copy Prompt'}
+          </button>
+        </div>
 
         <Chevron />
 
-        {/* Step 2 — open the chosen AI */}
-        <Step num={2} title="Send to your AI" infoKey="ai" openInfo={openInfo} onToggle={() => toggleInfo('ai')}>
-          <div ref={aiWrapRef} className="inline-flex rounded-md overflow-hidden border border-surface-5">
+        {/* Step 2 — send to your AI */}
+        <div className="flex flex-col gap-2">
+          <Caption num="2" title="Send to your AI" active={openInfo === 'ai'} onToggle={() => toggleInfo('ai')} />
+          <div ref={aiWrapRef} className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
             <a href={ai.url} target="_blank" rel="noopener noreferrer" className={WHITE_BTN} style={WHITE_STYLE}>
               Open {ai.name}
             </a>
@@ -151,13 +143,14 @@ export default function PasteEntrySteps({
               </svg>
             </button>
           </div>
-        </Step>
+        </div>
 
         <Chevron />
 
         {/* Step 3 — paste it back */}
-        <Step num={3} title="Paste it back" infoKey="paste" openInfo={openInfo} onToggle={() => toggleInfo('paste')}>
-          <div className="inline-flex rounded-md overflow-hidden border border-surface-5">
+        <div className="flex flex-col gap-2">
+          <Caption num="3" title="Paste it back" active={openInfo === 'paste'} onToggle={() => toggleInfo('paste')} />
+          <div className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
             <button type="button" onClick={onPaste} disabled={disabled} className={WHITE_BTN} style={WHITE_STYLE}>
               Paste
             </button>
@@ -177,15 +170,12 @@ export default function PasteEntrySteps({
               </button>
             )}
           </div>
-        </Step>
+        </div>
       </div>
 
-      {/* Info panel for the open step */}
+      {/* Info line for the open step */}
       {openInfo && (
-        <p className="mt-3 rounded-lg border border-surface-4 bg-surface-1/60 px-3 py-2 text-xs text-txt-secondary leading-relaxed">
-          <span className="font-semibold text-txt-primary">
-            {openInfo === 'screenshot' ? 'Step 1. ' : openInfo === 'ai' ? 'Step 2. ' : 'Step 3. '}
-          </span>
+        <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl">
           {hint[openInfo]}
         </p>
       )}
