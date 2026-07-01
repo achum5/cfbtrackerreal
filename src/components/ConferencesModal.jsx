@@ -43,12 +43,20 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
   const { currentDynasty } = useDynasty()
   const { toast } = useToast()
   const teams = currentDynasty?.teams || currentDynasty?.customTeams
-  const year = currentDynasty?.currentYear
+  const currentYear = currentDynasty?.currentYear
+  const startYear = currentDynasty?.startYear || currentYear
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+  // Past seasons through next season (for planning realignment).
+  const years = useMemo(() => {
+    const list = []
+    for (let y = Math.min(startYear, currentYear); y <= currentYear + 1; y++) list.push(y)
+    return list
+  }, [startYear, currentYear])
 
-  // Effective current-year alignment -> initial columns (known order, then extras).
+  // Effective alignment for the selected year -> initial columns (known order, then extras).
   const initial = useMemo(() => {
     let eff = {}
-    try { eff = getCustomConferencesForYear(currentDynasty, year) || {} } catch { eff = {} }
+    try { eff = getCustomConferencesForYear(currentDynasty, selectedYear) || {} } catch { eff = {} }
     const names = Object.keys(eff)
     const ordered = [
       ...CONFERENCE_ORDER.filter((n) => names.includes(n)),
@@ -57,7 +65,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
     const containers = {}
     for (const n of ordered) containers[colId(n)] = [...(eff[n] || [])]
     return { containers, order: ordered.map(colId) }
-  }, [currentDynasty, year])
+  }, [currentDynasty, selectedYear])
 
   const [containers, setContainers] = useState(initial.containers)
   const [order, setOrder] = useState(initial.order)
@@ -65,11 +73,19 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
   const [newConf, setNewConf] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Seed fresh from the current alignment each time the modal opens.
+  // Default back to the current season each time the modal opens.
   useEffect(() => {
-    if (isOpen) { setContainers(initial.containers); setOrder(initial.order); setNewConf('') }
+    if (isOpen) setSelectedYear(currentYear)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
+
+  // Seed the board from the selected year's alignment (on open and on year change).
+  useEffect(() => {
+    setContainers(initial.containers)
+    setOrder(initial.order)
+    setNewConf('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedYear])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -135,7 +151,9 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
       const gridRows = [confNames]
       for (let r = 0; r < maxLen; r++) gridRows.push(cols.map((c) => c[r] ?? ''))
       const conferences = await readConferencesFromSheet(null, teams, { rows: gridRows })
-      await onSave(conferences)
+      // Keyed by year so the save applies to the SELECTED season (parents route
+      // year-keyed payloads through saveConferenceAlignment per year).
+      await onSave({ [String(selectedYear)]: conferences })
       onClose()
     } catch (err) {
       console.error('[ConferencesModal] save failed:', err)
@@ -160,10 +178,21 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
       >
         {/* Header */}
         <header className="flex items-center justify-between gap-3 px-5 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--surface-4)' }}>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-txt-primary leading-tight" style={{ fontFamily: 'var(--font-display)' }}>Conference Alignment</h2>
-            <p className="text-[11px] text-txt-tertiary">Drag teams between conferences{year ? ` — ${year}` : ''}.</p>
-          </div>
+          <h2 className="text-base font-bold text-txt-primary leading-tight flex items-center gap-2 min-w-0" style={{ fontFamily: 'var(--font-display)' }}>
+            <span className="relative inline-flex items-center">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                aria-label="Season"
+                className="appearance-none bg-surface-3 border border-surface-5 rounded-md pl-2 pr-6 py-0.5 text-base font-bold text-txt-primary tabular cursor-pointer focus:outline-none"
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <svg className="w-4 h-4 absolute right-1.5 pointer-events-none text-txt-tertiary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </span>
+            Conference Alignment
+          </h2>
           <button type="button" aria-label="Close" onClick={onClose} className="p-1.5 rounded-md text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors flex-shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>

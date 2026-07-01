@@ -287,9 +287,20 @@ export default function ConferenceStandings() {
     </Button>
   ) : null
 
+  const heroSearch = (
+    <div className="w-44 sm:w-56">
+      <Input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="Search conferences..."
+        size="sm"
+      />
+    </div>
+  )
+
   const hero = (
     <PageHero
-      eyebrow="Standings"
       title={
         availableYears.length > 0 ? (
           <TitleWithYear
@@ -302,7 +313,12 @@ export default function ConferenceStandings() {
           "Conference Standings"
         )
       }
-      actions={heroActions}
+      actions={
+        <>
+          {heroSearch}
+          {heroActions}
+        </>
+      }
     />
   )
 
@@ -564,12 +580,6 @@ export default function ConferenceStandings() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <div
-              className="label-xs text-txt-tertiary"
-              style={{ letterSpacing: '1.5px', fontSize: '9px' }}
-            >
-              CONFERENCE
-            </div>
             <h3 className="font-display font-bold text-txt-primary text-base truncate leading-tight">
               {conferenceName}
             </h3>
@@ -740,16 +750,6 @@ export default function ConferenceStandings() {
   return (
     <div className={pageWrapperClass}>
       {hero}
-
-      <div className="max-w-md">
-        <Input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search conferences..."
-          size="md"
-        />
-      </div>
 
       <div ref={containerRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6 stagger-reveal">
         {filteredConferences.map(conferenceName => (
