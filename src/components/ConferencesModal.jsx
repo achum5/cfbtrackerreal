@@ -4,13 +4,14 @@ import {
   DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, pointerWithin, closestCenter, useDroppable,
 } from '@dnd-kit/core'
-import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useDynasty, getCustomConferencesForYear } from '../context/DynastyContext'
+import { useDynasty } from '../context/DynastyContext'
 import { readConferencesFromSheet } from '../services/sheetsService'
 import { getColorsByAbbr, getLogoByAbbr } from '../data/teamRegistry'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { useToast } from './ui/Toast'
+import { useConfirm } from './ui/ConfirmDialog'
 
 // Drag-and-drop conference alignment board. Every FBS team is a colored card in
 // a conference column; drag cards between columns to realign. Reuses the same
@@ -20,6 +21,7 @@ import { useToast } from './ui/Toast'
 // which validates (every team exactly once) before onSave applies the alignment.
 
 const COL = 'col:' // container-id prefix so a team abbr can never collide with a column id
+const UNASSIGNED = 'Unassigned' // holding column for teams with no per-tid conference yet
 const colId = (name) => COL + name
 const colName = (id) => id.slice(COL.length)
 
@@ -30,6 +32,7 @@ const CONFERENCE_ORDER = [
 
 const findIn = (map, id) => (id in map ? id : Object.keys(map).find((c) => map[c].includes(id)))
 const isCol = (id) => typeof id === 'string' && id.startsWith(COL)
+const sameOrder = (a, b) => a.length === b.length && a.every((v, i) => v === b[i])
 
 // Pointer-driven collisions so the card tracks the cursor and columns register.
 // Team cards are preferred over their column so reordering lands precisely.
@@ -42,6 +45,7 @@ function collisionDetection(args) {
 export default function ConferencesModal({ isOpen, onClose, onSave }) {
   const { currentDynasty } = useDynasty()
   const { toast } = useToast()
+  const { confirm } = useConfirm()
   const teams = currentDynasty?.teams || currentDynasty?.customTeams
   const currentYear = currentDynasty?.currentYear
   const startYear = currentDynasty?.startYear || currentYear
@@ -53,19 +57,41 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
     return list
   }, [startYear, currentYear])
 
-  // Effective alignment for the selected year -> initial columns (known order, then extras).
+  // Build the board STRICTLY from each team's own per-tid source of truth:
+  // teams[tid].byYear[year].conference for the selected season, carrying back to
+  // the most recent prior season it was set (a conference persists until the
+  // team is moved). No default/real-world baseline is consulted, so only this
+  // dynasty's real teams appear and none are invented. FCS placeholders are
+  // skipped. A team with no conference in any season lands in "Unassigned" so
+  // the gap is visible and fixable rather than silently guessed.
   const initial = useMemo(() => {
-    let eff = {}
-    try { eff = getCustomConferencesForYear(currentDynasty, selectedYear) || {} } catch { eff = {} }
-    const names = Object.keys(eff)
-    const ordered = [
-      ...CONFERENCE_ORDER.filter((n) => names.includes(n)),
-      ...names.filter((n) => !CONFERENCE_ORDER.includes(n)).sort(),
-    ]
+    const yearNum = Number(selectedYear)
+    const minYear = Number(startYear) || yearNum
+    const groups = {} // conferenceName -> [abbr]
+    for (const t of Object.values(teams || {})) {
+      if (!t || t.isFCS || !t.abbr) continue
+      const by = t.byYear || {}
+      let conf = by[yearNum]?.conference ?? by[String(yearNum)]?.conference
+      if (!conf) {
+        for (let y = yearNum - 1; y >= minYear; y--) {
+          const c = by[y]?.conference ?? by[String(y)]?.conference
+          if (c) { conf = c; break }
+        }
+      }
+      const key = conf || UNASSIGNED
+      ;(groups[key] ||= []).push(t.abbr)
+    }
+    for (const k of Object.keys(groups)) groups[k].sort((a, b) => a.localeCompare(b))
+    // Always show every standard conference as a column (even when empty) so it
+    // stays a drop target and never disappears; then any custom conferences the
+    // dynasty invented, then Unassigned last (only when it holds teams).
+    const extras = Object.keys(groups).filter((n) => n !== UNASSIGNED && !CONFERENCE_ORDER.includes(n))
+    const ordered = [...CONFERENCE_ORDER, ...extras.sort()]
+    if (groups[UNASSIGNED]?.length) ordered.push(UNASSIGNED)
     const containers = {}
-    for (const n of ordered) containers[colId(n)] = [...(eff[n] || [])]
+    for (const n of ordered) containers[colId(n)] = [...(groups[n] || [])]
     return { containers, order: ordered.map(colId) }
-  }, [currentDynasty, selectedYear])
+  }, [teams, selectedYear, startYear])
 
   const [containers, setContainers] = useState(initial.containers)
   const [order, setOrder] = useState(initial.order)
@@ -96,40 +122,47 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
   const onDragStart = ({ active }) => setActiveId(active.id)
   const onDragCancel = () => setActiveId(null)
 
+  // Live moves for BOTH same- and cross-column drags, so the gap always lands
+  // where the cursor is. When the cursor is in a column's empty area the target
+  // is the column itself (append at the end); when it's over a card we insert
+  // before/after based on which half of that card the cursor sits in. Without
+  // the midpoint check, dragging below the last card would resolve to a middle
+  // card and open the gap in the middle instead of the bottom.
   const onDragOver = ({ active, over }) => {
-    if (!over) return
+    if (!over || active.id === over.id) return
+    const translated = active.rect?.current?.translated
+    const overRect = over.rect
     setContainers((cs) => {
       const a = findIn(cs, active.id)
       const o = findIn(cs, over.id)
-      if (!a || !o || a === o) return cs
-      const oItems = cs[o]
+      if (!a || !o) return cs
+      // Destination as it stands with the active card removed (handles same-column).
+      const src = cs[a].filter((id) => id !== active.id)
+      const dst = a === o ? src : cs[o]
       const overIsContainer = over.id in cs
-      const overIndex = overIsContainer ? oItems.length : oItems.indexOf(over.id)
-      const insertAt = overIndex < 0 ? oItems.length : overIndex
-      return {
-        ...cs,
-        [a]: cs[a].filter((id) => id !== active.id),
-        [o]: [...oItems.slice(0, insertAt), active.id, ...oItems.slice(insertAt)],
+      let insertAt
+      if (overIsContainer) {
+        insertAt = dst.length
+      } else {
+        const overIndex = dst.indexOf(over.id)
+        if (overIndex < 0) {
+          insertAt = dst.length
+        } else {
+          const activeCenter = translated ? translated.top + translated.height / 2 : 0
+          const overCenter = overRect ? overRect.top + overRect.height / 2 : 0
+          insertAt = overIndex + (activeCenter > overCenter ? 1 : 0)
+        }
       }
+      const next = [...dst.slice(0, insertAt), active.id, ...dst.slice(insertAt)]
+      if (a === o) {
+        return sameOrder(next, cs[a]) ? cs : { ...cs, [a]: next }
+      }
+      return { ...cs, [a]: src, [o]: next }
     })
   }
 
-  const onDragEnd = ({ active, over }) => {
-    setActiveId(null)
-    if (!over) return
-    setContainers((cs) => {
-      const a = findIn(cs, active.id)
-      const o = findIn(cs, over.id)
-      if (a && o && a === o) {
-        const items = cs[a]
-        const oldIndex = items.indexOf(active.id)
-        const overIsContainer = over.id in cs
-        const newIndex = overIsContainer ? items.length - 1 : items.indexOf(over.id)
-        if (oldIndex !== newIndex && newIndex >= 0) return { ...cs, [a]: arrayMove(items, oldIndex, newIndex) }
-      }
-      return cs
-    })
-  }
+  // All reordering happens live in onDragOver; drag end just settles the overlay.
+  const onDragEnd = () => setActiveId(null)
 
   const addConference = () => {
     const name = newConf.trim()
@@ -142,10 +175,19 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
   }
 
   const save = async () => {
+    // Every real team must belong to a conference before saving. Teams still in
+    // the Unassigned holding column would otherwise fail the "missing teams"
+    // validation with a generic error — surface a clear one instead.
+    const unplaced = containers[colId(UNASSIGNED)] || []
+    if (unplaced.length) {
+      toast.error(`Assign these teams to a conference first: ${unplaced.join(', ')}`)
+      return
+    }
     setSaving(true)
     try {
       // Only conferences that still have teams; build the header + team-per-row grid.
-      const confNames = order.map(colName).filter((n) => (containers[colId(n)] || []).length > 0)
+      // (Unassigned is never a real conference, so it never reaches the save.)
+      const confNames = order.map(colName).filter((n) => n !== UNASSIGNED && (containers[colId(n)] || []).length > 0)
       const cols = confNames.map((n) => containers[colId(n)])
       const maxLen = Math.max(0, ...cols.map((c) => c.length))
       const gridRows = [confNames]
@@ -163,13 +205,46 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
     }
   }
 
+  // Unsaved-changes guard: compare each team's conference on the board against
+  // the alignment we seeded from per-tid season data. Only the team→conference
+  // assignment matters (intra-column order and empty conferences don't change
+  // what would be saved), so we compare abbr→conference maps.
+  const isDirty = useMemo(() => {
+    const assignmentOf = (cs) => {
+      const m = {}
+      for (const [cid, abbrs] of Object.entries(cs || {})) {
+        const name = colName(cid)
+        for (const a of abbrs) m[a] = name
+      }
+      return m
+    }
+    const before = assignmentOf(initial.containers)
+    const after = assignmentOf(containers)
+    const keys = new Set([...Object.keys(before), ...Object.keys(after)])
+    for (const k of keys) if (before[k] !== after[k]) return true
+    return false
+  }, [initial.containers, containers])
+
+  const requestClose = async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title: 'Leave without saving?',
+        message: 'You have unsaved conference changes. Leaving now discards them.',
+        confirmLabel: 'Discard changes',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
+    onClose()
+  }
+
   if (!isOpen || typeof document === 'undefined') return null
 
   return createPortal(
     <div
       className="fixed inset-0 top-0 left-0 right-0 bottom-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] p-3 sm:p-4"
       style={{ margin: 0 }}
-      onMouseDown={onClose}
+      onMouseDown={requestClose}
     >
       <div
         className="w-full max-w-[min(96vw,1100px)] max-h-[92dvh] flex flex-col rounded-xl overflow-hidden"
@@ -193,7 +268,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
             </span>
             Conference Alignment
           </h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="p-1.5 rounded-md text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors flex-shrink-0">
+          <button type="button" aria-label="Close" onClick={requestClose} className="p-1.5 rounded-md text-txt-tertiary hover:text-txt-primary hover:bg-surface-3 transition-colors flex-shrink-0">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </header>
@@ -238,7 +313,7 @@ export default function ConferencesModal({ isOpen, onClose, onSave }) {
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onClose} className="text-xs font-semibold px-3 py-1.5 rounded border border-surface-5 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors">Cancel</button>
+            <button type="button" onClick={requestClose} className="text-xs font-semibold px-3 py-1.5 rounded border border-surface-5 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors">Cancel</button>
             <button type="button" onClick={save} disabled={saving} className="text-xs font-bold px-4 py-1.5 rounded text-white transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--accent-info)' }}>
               {saving ? 'Saving…' : 'Save Alignment'}
             </button>
