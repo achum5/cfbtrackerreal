@@ -25,6 +25,7 @@ import ScoutBoard from './ScoutBoard'
 const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
+import CommitGraphicModal from '../../components/CommitGraphicModal'
 
 const stateFullNames = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas', 'CA': 'California',
@@ -157,11 +158,23 @@ export default function Recruiting() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
   const [showRankModal, setShowRankModal] = useState(false)
+  const [graphicRecruit, setGraphicRecruit] = useState(null) // { recruit, pid } for the commit-graphic modal
 
   const baseTeam = TEAMS[selectedTid]
   const dynastyTeam = currentDynasty?.teams?.[selectedTid]
   const team = baseTeam ? { ...baseTeam, ...dynastyTeam } : dynastyTeam
   const teamAbbr = team?.abbr || baseTeam?.abbr || currentTeamAbbr
+  const commitSchoolName = team?.name || baseTeam?.name || teamAbbr || 'the school'
+
+  // Commit graphics live in a small pid-keyed map so saving one doesn't rewrite
+  // the players list. onSave persists it and the recruit card reads it back.
+  const saveCommitGraphic = async (pid, url) => {
+    if (!pid || isViewOnly) return
+    const next = { ...(currentDynasty.commitGraphics || {}) }
+    if (url) next[pid] = url
+    else delete next[pid]
+    await updateDynasty(currentDynasty.id, { commitGraphics: next })
+  }
   const selectedYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : currentDynasty?.currentYear)
 
   // Open targets for this class — drives the "Resolve Targets" action + modal.
@@ -1333,6 +1346,8 @@ export default function Recruiting() {
                 interactive={!!linkPid}
                 playStyle={playStyle}
                 model={scoutModel}
+                graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
+                onOpenGraphic={linkPid ? () => setGraphicRecruit({ recruit, pid: linkPid }) : null}
               />
             )
 
@@ -1403,6 +1418,17 @@ export default function Recruiting() {
         currentRank={nationalRank}
         seasonLabel={!isAllSeasons ? `${selectedYear} ${teamFullName}` : ''}
         teamColors={teamColorsRaw}
+      />
+
+      <CommitGraphicModal
+        isOpen={!!graphicRecruit}
+        onClose={() => setGraphicRecruit(null)}
+        recruit={graphicRecruit?.recruit}
+        schoolName={commitSchoolName}
+        graphicUrl={graphicRecruit?.pid ? (currentDynasty.commitGraphics?.[graphicRecruit.pid] || '') : ''}
+        onSave={(url) => saveCommitGraphic(graphicRecruit?.pid, url)}
+        canEdit={!isViewOnly}
+        accent={teamAccent}
       />
 
       <Modal
