@@ -251,12 +251,64 @@ export function stripMascotFromName(fullName) {
   return parts.slice(0, -1).join(' ')
 }
 
+// Resolve the team slot object from an abbr or tid, mirroring getMascotName's
+// resolution. Used by the split-name getters so they can read the explicit
+// teamName/nickname fields when a save has them.
+function resolveTeamObj(abbrOrTid, dynastyTeams) {
+  if (abbrOrTid == null || !dynastyTeams) return null
+  if (typeof abbrOrTid === 'number') return dynastyTeams[abbrOrTid] || null
+  if (typeof abbrOrTid === 'string' && /^\d+$/.test(abbrOrTid)) return dynastyTeams[parseInt(abbrOrTid, 10)] || null
+  const upper = String(abbrOrTid).toUpperCase()
+  for (const t of Object.values(dynastyTeams)) {
+    if (t?.abbr?.toUpperCase() === upper) return t
+  }
+  return null
+}
+
+// Additively backfill teamName + nickname on a dynasty.teams map for saves made
+// before the split existed. Derives from the full `name` via the SAME strip the
+// frontend already uses, so nothing changes on screen; `name` is never touched.
+// Mutates the passed map in place; returns true if anything was filled in. Safe
+// to run on every load (idempotent — already-split teams are skipped).
+export function migrateTeamNameParts(teams) {
+  if (!teams || typeof teams !== 'object') return false
+  let changed = false
+  for (const t of Object.values(teams)) {
+    if (!t || !t.name) continue
+    if (t.teamName && t.nickname !== undefined) continue // already split
+    const school = stripMascotFromName(t.name)
+    const nick = t.name.slice(school.length).trim()
+    if (t.teamName == null) { t.teamName = school; changed = true }
+    if (t.nickname == null) { t.nickname = nick; changed = true }
+  }
+  return changed
+}
+
 // Helper function to get just the school name (without mascot) from abbreviation or tid
 // e.g., "Memphis Tigers" -> "Memphis", "Kentucky Wildcats" -> "Kentucky"
+// Prefers the explicit stored `teamName` (from the split); falls back to the
+// mascot-strip heuristic so un-migrated saves and name-only custom teams render
+// exactly as before.
 export function getSchoolName(abbrOrTid, teamsOrCustomTeams = null) {
+  const team = resolveTeamObj(abbrOrTid, teamsOrCustomTeams)
+  if (team?.teamName) return team.teamName
   const fullName = getMascotName(abbrOrTid, teamsOrCustomTeams)
   if (!fullName) return null
   return stripMascotFromName(fullName)
+}
+
+// The nickname/mascot only, e.g. "Kentucky Wildcats" -> "Wildcats". Prefers the
+// explicit stored `nickname`; otherwise derives it (full name minus school name)
+// so it works for un-migrated saves and custom teams that only have a `name`.
+// Returns null when there is no mascot (e.g. FCS placeholder slots).
+export function getNickname(abbrOrTid, teamsOrCustomTeams = null) {
+  const team = resolveTeamObj(abbrOrTid, teamsOrCustomTeams)
+  if (team?.nickname) return team.nickname
+  const fullName = getMascotName(abbrOrTid, teamsOrCustomTeams)
+  if (!fullName) return null
+  const school = team?.teamName || stripMascotFromName(fullName)
+  const nick = fullName.slice(school.length).trim()
+  return nick || null
 }
 
 // Get team logo URL by name or abbreviation. Single tid-based path:

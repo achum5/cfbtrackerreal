@@ -104,6 +104,7 @@ import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
 import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches } from '../data/coachModel'
+import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
@@ -6422,6 +6423,12 @@ export function DynastyProvider({ children }) {
       // skips on _fcs5TeamsMigrated, but it still runs the FCSSE-logo
       // backfill (only acts when the logo is empty).
       migrated = migrateFCSFiveTeams(migrated)
+
+      // Backfill the teamName + nickname split ("Kentucky" | "Wildcats") on the
+      // teams map for saves created before the split existed. Additive and
+      // idempotent: derives from the full `name` via the same strip the frontend
+      // already uses, and never touches `name`, so nothing changes on screen.
+      try { if (migrated.teams) migrateTeamNameParts(migrated.teams) } catch (e) { console.error('[migrateTeamNameParts] skipped:', e) }
 
       // Per-team-per-week ranks. Walks every stored game and seeds
       // dynasty.teams[tid].byYear[year].rankByWeek so display sites
@@ -16859,6 +16866,10 @@ export function DynastyProvider({ children }) {
       ...team,
       abbr: newAbbr,
       name: updates.name || team.name,
+      // Split name parts ride alongside `name`; take the new values when the
+      // editor supplied them, else keep whatever the slot already had.
+      teamName: updates.teamName != null ? updates.teamName : team.teamName,
+      nickname: updates.nickname != null ? updates.nickname : team.nickname,
       primaryColor: updates.primaryColor || team.primaryColor,
       secondaryColor: updates.secondaryColor || team.secondaryColor,
       logo: updates.logoUrl || updates.logo || team.logo,
@@ -16914,6 +16925,8 @@ export function DynastyProvider({ children }) {
       tid: newTid,
       abbr,
       name: newTeam.name || abbr,
+      teamName: newTeam.teamName != null ? newTeam.teamName : (newTeam.name || abbr),
+      nickname: newTeam.nickname != null ? newTeam.nickname : '',
       primaryColor: newTeam.primaryColor || '#444444',
       secondaryColor: newTeam.secondaryColor || '#ffffff',
       logo: newTeam.logoUrl || newTeam.logo || '',

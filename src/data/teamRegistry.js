@@ -52,6 +52,7 @@
  */
 
 import { EDITION_CONFIGS, LEGACY_EDITION } from '../editions'
+import { TEAM_NAME_PARTS } from './teamNameParts'
 
 // ============================================================================
 // MASTER TEAM LIST - TID IS THE PRIMARY KEY
@@ -1227,6 +1228,20 @@ export const TEAMS = {
   }
 }
 
+// Attach the teamName + nickname split onto every registry team. This is
+// ADDITIVE — `name` stays the combined identity string ("Kentucky Wildcats")
+// that keys colors/logos/ESPN ids; teamName ("Kentucky") + nickname ("Wildcats")
+// ride alongside. Because initializeDynastyTeams spreads `...team`, every new
+// dynasty's teams map carries the split for free. A tid missing from the parts
+// map simply has no split (readers fall back to the strip helper).
+for (const [tid, parts] of Object.entries(TEAM_NAME_PARTS)) {
+  const team = TEAMS[tid]
+  if (team && parts) {
+    team.teamName = parts.teamName
+    team.nickname = parts.nickname
+  }
+}
+
 // ============================================================================
 // LOOKUP MAPS - Built once for fast lookups
 // ============================================================================
@@ -1446,6 +1461,12 @@ export function setTeambuilderTeam(teams, tid, teambuilderData) {
     tid: parseInt(tid),
     abbr: teambuilderData.abbr || teambuilderData.abbreviation,
     name: teambuilderData.name,
+    // Take the split when the TB supplied it; otherwise CLEAR the inherited
+    // slot's teamName/nickname (they belonged to the replaced FBS team and would
+    // be stale against the new name). Left undefined, the load-time backfill
+    // (migrateTeamNameParts) re-derives them from the new `name`.
+    teamName: teambuilderData.teamName != null ? teambuilderData.teamName : undefined,
+    nickname: teambuilderData.nickname != null ? teambuilderData.nickname : undefined,
     primaryColor: teambuilderData.primaryColor || teambuilderData.backgroundColor,
     secondaryColor: teambuilderData.secondaryColor || teambuilderData.textColor,
     logo: teambuilderData.logo || teambuilderData.logoUrl,
