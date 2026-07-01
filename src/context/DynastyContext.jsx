@@ -14599,11 +14599,13 @@ export function DynastyProvider({ children }) {
 
     const updates = {}
 
-    // Handle record update
-    if (info.wins !== undefined && info.losses !== undefined) {
+    // Handle record update. clearRecord === true removes the manual override
+    // (record set to null) so the calculated record is used again — this is the
+    // "Update automatically" checkbox in the team edit modal.
+    if (info.clearRecord === true || (info.wins !== undefined && info.losses !== undefined)) {
       const existingRecords = dynasty.teamRecordsByTeamYear || {}
       const teamRecords = existingRecords[teamAbbr] || {}
-      const recordData = { wins: info.wins, losses: info.losses }
+      const recordData = info.clearRecord === true ? null : { wins: info.wins, losses: info.losses }
 
       if (useLocalStorage) {
         // NEW tid-based byYear structure
@@ -14686,6 +14688,43 @@ export function DynastyProvider({ children }) {
           // Fallback for legacy abbr-only teams.
           Object.assign(updates, buildByTeamYearUpdates('conferenceByTeamYear', dynasty, teamAbbr, year, info.conference))
         }
+      }
+    }
+
+    // Handle team ratings (overall / offense / defense) for this team+year.
+    // Canonical store is teams[tid].byYear[year].teamRatings. For the USER's
+    // current team+year, getTeamRatingsForYear reads dynasty.teamRatings first,
+    // so mirror there too or the edit wouldn't take effect for that one team.
+    if (info.teamRatings !== undefined) {
+      const r = info.teamRatings // { overall, offense, defense } — numbers or null
+      const isUserCurrent = tid != null
+        && Number(tid) === Number(getCurrentTeamTid(dynasty))
+        && Number(year) === Number(dynasty.currentYear)
+      if (useLocalStorage) {
+        if (tid) {
+          const existingTeams = updates.teams || dynasty.teams || {}
+          const existingTeamData = existingTeams[tid] || {}
+          const existingByYear = existingTeamData.byYear || {}
+          const existingYearData = existingByYear[year] || {}
+          updates.teams = {
+            ...existingTeams,
+            [tid]: {
+              ...existingTeamData,
+              byYear: { ...existingByYear, [year]: { ...existingYearData, teamRatings: r } }
+            }
+          }
+        }
+        const existingR = dynasty.teamRatingsByTeamYear || {}
+        updates.teamRatingsByTeamYear = {
+          ...existingR,
+          [teamAbbr]: { ...(existingR[teamAbbr] || {}), [year]: r },
+          ...(tid ? { [tid]: { ...(existingR[tid] || {}), [year]: r } } : {}),
+        }
+        if (isUserCurrent) updates.teamRatings = r
+      } else {
+        if (tid) updates[`teams.${tid}.byYear.${year}.teamRatings`] = r
+        Object.assign(updates, buildByTeamYearUpdates('teamRatingsByTeamYear', dynasty, tid ?? teamAbbr, year, r))
+        if (isUserCurrent) updates.teamRatings = r
       }
     }
 

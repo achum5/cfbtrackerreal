@@ -29,6 +29,8 @@ export default function TeamEditModal({
   dynastyTeams,
   initialRecord,
   initialConference,
+  initialRatings,
+  manualRecord,
   onSavedInfo,
   onSavedBranding,
 }) {
@@ -39,9 +41,26 @@ export default function TeamEditModal({
   const [abbrError, setAbbrError] = useState('')
 
   // Info tab state
+  const [autoRecord, setAutoRecord] = useState(true) // "Update automatically" — use the calculated record
   const [wins, setWins] = useState('')
   const [losses, setLosses] = useState('')
   const [conference, setConference] = useState('')
+  const [overall, setOverall] = useState('')
+  const [offense, setOffense] = useState('')
+  const [defense, setDefense] = useState('')
+
+  const hadManual = !!manualRecord
+  const manualWins = manualRecord?.wins != null ? String(manualRecord.wins) : ''
+  const manualLosses = manualRecord?.losses != null ? String(manualRecord.losses) : ''
+  const initOverall = initialRatings?.overall != null ? String(initialRatings.overall) : ''
+  const initOffense = initialRatings?.offense != null ? String(initialRatings.offense) : ''
+  const initDefense = initialRatings?.defense != null ? String(initialRatings.defense) : ''
+  const numOrNull = (v) => {
+    const s = String(v ?? '').trim()
+    if (s === '') return null
+    const n = parseInt(s, 10)
+    return Number.isFinite(n) ? n : null
+  }
 
   // Branding tab state
   const [name, setName] = useState('')
@@ -54,16 +73,21 @@ export default function TeamEditModal({
   useEffect(() => {
     if (!isOpen) return
     setActiveTab('info')
+    // Auto (calculated) unless a manual record override already exists.
+    setAutoRecord(!manualRecord)
     setWins(initialRecord?.wins != null ? String(initialRecord.wins) : '')
     setLosses(initialRecord?.losses != null ? String(initialRecord.losses) : '')
     setConference(initialConference || '')
+    setOverall(initialRatings?.overall != null ? String(initialRatings.overall) : '')
+    setOffense(initialRatings?.offense != null ? String(initialRatings.offense) : '')
+    setDefense(initialRatings?.defense != null ? String(initialRatings.defense) : '')
     setName(team?.name || '')
     setAbbr(team?.abbr || '')
     setPrimary(team?.primaryColor || '#1f2937')
     setSecondary(team?.secondaryColor || '#FFFFFF')
     setLogoUrl(team?.logo || '')
     setAbbrError('')
-  }, [isOpen, team, initialRecord, initialConference])
+  }, [isOpen, team, initialRecord, initialConference, initialRatings, manualRecord])
 
   // Validate abbreviation against OTHER teams in this dynasty (allow current)
   const validateAbbr = (next) => {
@@ -88,15 +112,21 @@ export default function TeamEditModal({
   }
 
   // Detect what changed
-  const infoChanged = useMemo(() => {
-    const initWins = initialRecord?.wins != null ? String(initialRecord.wins) : ''
-    const initLosses = initialRecord?.losses != null ? String(initialRecord.losses) : ''
-    return (
-      wins !== initWins ||
-      losses !== initLosses ||
-      conference !== (initialConference || '')
-    )
-  }, [wins, losses, conference, initialRecord, initialConference])
+  const recordChanged = useMemo(() => {
+    if (autoRecord) return hadManual // switching back to calculated clears an override
+    if (wins === '' || losses === '') return hadManual // manual-but-blank reverts to calculated
+    return !hadManual || wins !== manualWins || losses !== manualLosses
+  }, [autoRecord, wins, losses, hadManual, manualWins, manualLosses])
+
+  const ratingsChanged = useMemo(() => (
+    overall !== initOverall || offense !== initOffense || defense !== initDefense
+  ), [overall, offense, defense, initOverall, initOffense, initDefense])
+
+  const infoChanged = useMemo(() => (
+    recordChanged ||
+    ratingsChanged ||
+    conference !== (initialConference || '')
+  ), [recordChanged, ratingsChanged, conference, initialConference])
 
   const brandingChanged = useMemo(() => (
     name !== (team?.name || '') ||
@@ -116,13 +146,24 @@ export default function TeamEditModal({
 
       if (infoChanged) {
         const info = {}
-        if (wins !== '' && losses !== '') {
+        if (autoRecord) {
+          // Use the calculated record — clear any manual override.
+          if (hadManual) info.clearRecord = true
+        } else if (wins !== '' && losses !== '') {
           info.wins = parseInt(wins, 10)
           info.losses = parseInt(losses, 10)
-        } else {
-          // Empty == "use calculated record" — no wins/losses written
+        } else if (hadManual) {
+          // Manual mode but left blank — revert to calculated.
+          info.clearRecord = true
         }
         if (conference) info.conference = conference
+        if (ratingsChanged) {
+          info.teamRatings = {
+            overall: numOrNull(overall),
+            offense: numOrNull(offense),
+            defense: numOrNull(defense),
+          }
+        }
         if (Object.keys(info).length > 0) {
           tasks.push(
             saveTeamYearInfo(currentDynasty.id, team?.abbr, year, info)
@@ -249,15 +290,25 @@ export default function TeamEditModal({
             <div className="space-y-5">
               <div>
                 <label className="label-sm text-txt-secondary mb-2 block">Season Record</label>
-                <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoRecord}
+                    onChange={(e) => setAutoRecord(e.target.checked)}
+                    className="w-4 h-4 rounded accent-current cursor-pointer"
+                  />
+                  <span className="text-sm text-txt-secondary">Update automatically</span>
+                </label>
+                <div className={`flex items-center gap-3 transition-opacity ${autoRecord ? 'opacity-40' : ''}`}>
                   <input
                     type="number"
                     min="0"
                     max="20"
                     value={wins}
+                    disabled={autoRecord}
                     onChange={(e) => setWins(e.target.value)}
                     placeholder="W"
-                    className="w-24 px-3 py-2 rounded-lg text-center font-display font-black text-xl tabular bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
+                    className="w-24 px-3 py-2 rounded-lg text-center font-display font-black text-xl tabular bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5 disabled:cursor-not-allowed"
                   />
                   <span className="text-2xl font-bold text-txt-tertiary">–</span>
                   <input
@@ -265,13 +316,43 @@ export default function TeamEditModal({
                     min="0"
                     max="20"
                     value={losses}
+                    disabled={autoRecord}
                     onChange={(e) => setLosses(e.target.value)}
                     placeholder="L"
-                    className="w-24 px-3 py-2 rounded-lg text-center font-display font-black text-xl tabular bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
+                    className="w-24 px-3 py-2 rounded-lg text-center font-display font-black text-xl tabular bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5 disabled:cursor-not-allowed"
                   />
                 </div>
                 <p className="label-xs text-txt-muted mt-2">
-                  Leave blank to use the calculated record
+                  {autoRecord
+                    ? 'Using the automatically calculated record. Uncheck to set it manually.'
+                    : 'Manually set this team’s record for this season.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="label-sm text-txt-secondary mb-2 block">Ratings</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { key: 'ovr', label: 'OVR', val: overall, set: setOverall },
+                    { key: 'off', label: 'OFF', val: offense, set: setOffense },
+                    { key: 'def', label: 'DEF', val: defense, set: setDefense },
+                  ].map((f) => (
+                    <div key={f.key}>
+                      <span className="label-xs text-txt-tertiary block mb-1 tracking-widest" style={{ letterSpacing: '1px' }}>{f.label}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={f.val}
+                        onChange={(e) => f.set(e.target.value)}
+                        placeholder="—"
+                        className="w-full px-3 py-2 rounded-lg text-center font-display font-black text-xl tabular bg-surface-3 border border-surface-4 text-txt-primary focus:outline-none focus:border-surface-5"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="label-xs text-txt-muted mt-2">
+                  Leave a field blank to clear that rating.
                 </p>
               </div>
 
