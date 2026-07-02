@@ -322,6 +322,44 @@ export default function LeaguePreferences() {
         <h1 className="text-display-md text-txt-primary m-0">League Preferences</h1>
       </div>
 
+      {/* Scout Staff — opt-in alternative to MaxPlaysCFB ScoutScore. Pinned to
+          the top of League Preferences, above Social Media. Default OFF. */}
+      <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
+        <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-txt-primary">Use Scout Staff instead of MaxPlaysCFB ScoutScore</div>
+            <p className="text-xs text-txt-tertiary mt-1 leading-relaxed m-0">
+              <span className="text-txt-secondary font-medium">Scout Staff</span> hires a scout and analyst to grade recruits A+–F and build a recruiting database from the players you scout.{' '}
+              <span className="text-txt-secondary font-medium">ScoutScore</span> benchmarks a recruit's visible ratings against a community data pool. Off keeps ScoutScore.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={scoutStaffEnabled}
+            onClick={toggleScoutStaff}
+            disabled={isViewOnly || savingScoutStaff}
+            className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
+            style={{
+              width: 46,
+              height: 26,
+              backgroundColor: scoutStaffEnabled ? 'var(--text-primary)' : 'var(--surface-4)',
+            }}
+            title={scoutStaffEnabled ? 'Disable Scout Staff' : 'Enable Scout Staff'}
+          >
+            <span
+              className="inline-block rounded-full transition-transform"
+              style={{
+                width: 20,
+                height: 20,
+                background: 'var(--surface-1)',
+                transform: scoutStaffEnabled ? 'translateX(23px)' : 'translateX(3px)',
+              }}
+            />
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
         <div className="px-4 py-3 border-b border-surface-4 flex items-start justify-between gap-2 flex-wrap">
           <div>
@@ -512,40 +550,6 @@ export default function LeaguePreferences() {
             </div>
           )
         })()}
-      </section>
-
-      {/* Scout Staff — opt-in alternative to MaxPlaysCFB ScoutScore. Kept at the
-          very bottom of League Preferences. Default OFF. */}
-      <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
-        <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-txt-primary">Use Scout Staff instead of MaxPlaysCFB ScoutScore</div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={scoutStaffEnabled}
-            onClick={toggleScoutStaff}
-            disabled={isViewOnly || savingScoutStaff}
-            className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
-            style={{
-              width: 46,
-              height: 26,
-              backgroundColor: scoutStaffEnabled ? 'var(--text-primary)' : 'var(--surface-4)',
-            }}
-            title={scoutStaffEnabled ? 'Disable Scout Staff' : 'Enable Scout Staff'}
-          >
-            <span
-              className="inline-block rounded-full transition-transform"
-              style={{
-                width: 20,
-                height: 20,
-                background: 'var(--surface-1)',
-                transform: scoutStaffEnabled ? 'translateX(23px)' : 'translateX(3px)',
-              }}
-            />
-          </button>
-        </div>
       </section>
 
       {editingChar && (

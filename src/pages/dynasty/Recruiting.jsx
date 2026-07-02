@@ -25,6 +25,7 @@ import ScoutBoard from './ScoutBoard'
 const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
+import { buildRevealedPool, buildWeightsMap } from '../../utils/devTraitLearning'
 import CommitGraphicModal from '../../components/CommitGraphicModal'
 import CommitGraphicViewer from '../../components/CommitGraphicViewer'
 
@@ -118,20 +119,34 @@ export default function Recruiting() {
   const selectedTid = tidParam ? parseInt(tidParam, 10) : currentTeamTid
   const isOwnTeam = Number(selectedTid) === Number(currentTeamTid)
 
-  // Commitments / Targets tab (persisted in the URL like the other filters).
-  // Default depends on the class being viewed: the CURRENT recruiting year
-  // opens on Targets (you're actively scouting); past/future years open on
-  // Commitments (you're reviewing a finished class). An explicit ?tab= always
-  // wins, and the param is omitted when it matches the year's default so URLs
-  // stay clean.
+  // Commitments / Targets / Scout Staff tab (persisted in the URL like the
+  // other filters — an explicit ?tab= always wins across refresh/back-forward,
+  // and is omitted when it matches the default so URLs stay clean). When Scout
+  // Staff is enabled for this dynasty (League Preferences), it becomes the
+  // primary recruiting workflow, so it takes over as both the first tab shown
+  // and the default landing tab. Otherwise, default depends on the class being
+  // viewed: the CURRENT recruiting year opens on Targets (you're actively
+  // scouting); past/future years open on Commitments (reviewing a finished class).
+  const scoutStaffEnabled = !!currentDynasty?.scoutStaffEnabled
   const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
   const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
   const hasTargetsThisYear = isCurrentRecruitingYear && isOwnTeam
     && (currentDynasty?.players || []).some((p) => p?.isTarget && Number(p.targetYear) === viewingYear)
-  const defaultTab = hasTargetsThisYear ? 'targets' : 'commitments'
+  const defaultTab = scoutStaffEnabled ? 'staff' : hasTargetsThisYear ? 'targets' : 'commitments'
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : defaultTab
+  const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : tabParam === 'staff' ? 'staff' : defaultTab
   const setActiveTab = (t) => setParam('tab', t === defaultTab ? null : t, null)
+  // When Scout Staff is off the tab is hidden entirely, so the Recruiting page
+  // is byte-identical to before the feature (Commitments / Targets only).
+  const tabOrder = scoutStaffEnabled
+    ? [{ k: 'staff', l: 'Scout Staff' }, { k: 'targets', l: 'Targets' }, { k: 'commitments', l: 'Commitments' }]
+    : [{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }]
+
+  // Tab switches only touch the URL's query string, not its pathname, so the
+  // route-level ScrollToTop never fires — land at the top of each tab manually.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [activeTab])
 
   // In-app target resolution (Phase 4). openTargets is defined below, once
   // selectedYear exists.
@@ -213,6 +228,11 @@ export default function Recruiting() {
   // Self-calibrating scout model (learned from past recruit outcomes) so the
   // commitment cards grade on the same sharpened scale as the Targets board.
   const scoutModel = useMemo(() => scoutCalibration(currentDynasty?.players || []), [currentDynasty?.players])
+
+  // Revealed-devTrait HS recruit pool — nudges Scout Staff archetype grading
+  // once enough real data exists.
+  const revealedPool = useMemo(() => buildRevealedPool(currentDynasty?.players || []), [currentDynasty?.players])
+  const weightsMap = useMemo(() => buildWeightsMap(revealedPool, currentDynasty?.players || []), [revealedPool, currentDynasty?.players])
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
@@ -1194,7 +1214,7 @@ export default function Recruiting() {
 
         {/* Commitments / Targets tabs — docked under the hero title */}
         <div className="flex gap-1 px-3 sm:px-5" style={{ borderTop: '1px solid rgba(255,255,255,0.18)' }}>
-          {[{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }].map(t => (
+          {tabOrder.map(t => (
             <button
               key={t.k}
               type="button"
@@ -1365,6 +1385,8 @@ export default function Recruiting() {
                 interactive={!!linkPid}
                 playStyle={playStyle}
                 model={scoutModel}
+                scoutStaffEnabled={!!currentDynasty?.scoutStaffEnabled}
+                weightsMap={weightsMap}
                 graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
                 onOpenGraphic={linkPid ? () => {
                   const target = { recruit, pid: linkPid, headshot: player?.pictureUrl || recruit.pictureUrl || '' }
@@ -1395,10 +1417,16 @@ export default function Recruiting() {
           />
         </Card>
         )
-      ) : currentDynasty?.scoutStaffEnabled ? (
-        <Suspense fallback={<div className="py-12 text-center text-sm text-txt-tertiary">Loading Scout Staff…</div>}>
-          <ScoutStaff year={selectedYear} />
-        </Suspense>
+      ) : activeTab === 'staff' ? (
+        currentDynasty?.scoutStaffEnabled ? (
+          <Suspense fallback={<div className="py-12 text-center text-sm text-txt-tertiary">Loading Scout Staff…</div>}>
+            <ScoutStaff year={selectedYear} />
+          </Suspense>
+        ) : (
+          <Card>
+            <EmptyState title="Scout Staff is not enabled for this dynasty" />
+          </Card>
+        )
       ) : (
         <ScoutBoard
           dynasty={currentDynasty}

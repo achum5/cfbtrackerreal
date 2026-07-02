@@ -161,7 +161,7 @@ COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first em
  F Nat. Rank  | integer        G State Rank | integer        H Pos. Rank | integer
  I Height     | Dropdown: 5'5" … 7'0" (straight quotes)      J Weight | integer lbs
  K Hometown   | text           L State | 2-letter code        M Gem/Bust | Gem, Bust, or blank
- N Dev Trait  | Elite, Star, Impact, Normal
+ N Dev Trait  | Elite, Star, Impact, Normal, Hidden (Hidden = trait not yet revealed; do not guess — use Hidden when trait is unknown)
  O Prev Team  | team ABBR (transfers only; blank for HS/JUCO or unknown)
  P Commitment | "Uncommitted" if uncommitted/still being recruited; otherwise the team NAME they committed to (use YOUR team's name if they committed to you). Use ONLY team names from the TEAM NAMES list below.
 

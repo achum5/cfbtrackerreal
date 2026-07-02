@@ -1,22 +1,78 @@
-import React, { useState, useEffect } from 'react';
-import { getStaffData } from './staffDB';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { createStaffAccessor } from './staffDB';
 import { archetypeBaseScore } from './archetypeWeights';
+import { buildRevealedPool, buildWeightsMap, predictDevTrait, getFormAttrs } from '../utils/devTraitLearning';
+import { ATTRIBUTE_ABBR } from '../utils/recruitAttributes';
+import { OPTIONS_REGISTRY } from './ScoutingReport';
+import GemBustIcon from './GemBustIcon';
+
+// Places the gem/bust icon at the diagonal right end of the name's actual
+// FIRST rendered line — whether that line ends up being the whole name (short
+// name, fits on one line) or just the first word (long name that wraps).
+// Text wrapping depends on the live column width, so we can't know which case
+// applies just from the string — render once, measure, and only re-anchor to
+// the first word if the browser actually wrapped it to a second line.
+function ProspectName({ name, gemBust }) {
+  const hiddenRef = useRef(null);
+  const [wrapped, setWrapped] = useState(false);
+  const splitAt = name.indexOf(' ');
+
+  // Range.getClientRects() returns one rect per visual line a run of content
+  // occupies — a direct, font/line-height-agnostic way to tell whether the
+  // name actually wrapped under the live column width. (An earlier version of
+  // this check compared el.offsetHeight against getComputedStyle(el).lineHeight,
+  // which silently breaks whenever line-height resolves to the non-numeric
+  // keyword "normal" instead of a pixel value — that's why the split-name
+  // anchor stopped working in the running app despite working in isolation.)
+  // The measurement runs against an invisible clone, kept separate from the
+  // visible markup below, so switching which branch is displayed can never
+  // invalidate what's being measured.
+  useLayoutEffect(() => {
+    const el = hiddenRef.current;
+    if (!el || splitAt === -1) return;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const isWrapped = range.getClientRects().length > 1;
+    setWrapped(prev => (prev !== isWrapped ? isWrapped : prev));
+  });
+
+  if (splitAt === -1) {
+    return <span className="relative inline-block">{name}<GemBustIcon type={gemBust} /></span>;
+  }
+
+  const firstWord = name.slice(0, splitAt);
+  const rest = name.slice(splitAt);
+
+  return (
+    <span className="relative block">
+      <span ref={hiddenRef} aria-hidden="true" className="invisible absolute inset-0 pointer-events-none">{name}</span>
+      {wrapped ? (
+        <>
+          <span className="relative inline-block">{firstWord}<GemBustIcon type={gemBust} /></span>
+          {rest}
+        </>
+      ) : (
+        <span className="relative inline-block">{name}<GemBustIcon type={gemBust} /></span>
+      )}
+    </span>
+  );
+}
 
 // ── Grade tier definitions ───────────────────────────────────────────────────
 const GRADE_TIERS = [
-  { grade: 'A+', min: 95, badgeCls: 'bg-emerald-950 border-emerald-500 text-emerald-200' },
-  { grade: 'A',  min: 90, badgeCls: 'bg-emerald-950 border-emerald-700 text-emerald-300' },
-  { grade: 'A-', min: 86, badgeCls: 'bg-emerald-950/70 border-emerald-800 text-emerald-400' },
-  { grade: 'B+', min: 82, badgeCls: 'bg-sky-950 border-sky-600 text-sky-200' },
-  { grade: 'B',  min: 78, badgeCls: 'bg-sky-950 border-sky-700 text-sky-300' },
-  { grade: 'B-', min: 74, badgeCls: 'bg-sky-950/70 border-sky-800 text-sky-400' },
-  { grade: 'C+', min: 70, badgeCls: 'bg-yellow-950 border-yellow-700 text-yellow-300' },
-  { grade: 'C',  min: 66, badgeCls: 'bg-amber-950 border-amber-700 text-amber-300' },
-  { grade: 'C-', min: 62, badgeCls: 'bg-amber-950/70 border-amber-800 text-amber-400' },
-  { grade: 'D+', min: 58, badgeCls: 'bg-orange-950 border-orange-700 text-orange-300' },
-  { grade: 'D',  min: 54, badgeCls: 'bg-orange-950/70 border-orange-800 text-orange-400' },
-  { grade: 'D-', min: 50, badgeCls: 'bg-red-950/70 border-red-800 text-red-400' },
-  { grade: 'F',  min: 0,  badgeCls: 'bg-red-950 border-red-700 text-red-400' },
+  { grade: 'A+', min: 95, badgeCls: 'bg-surface-3 border-[#0F9D3E] text-[#3DFF7F]' },
+  { grade: 'A',  min: 90, badgeCls: 'bg-surface-3 border-[#0E7A2A] text-[#22E065]' },
+  { grade: 'A-', min: 86, badgeCls: 'bg-surface-3 border-[#0B6420] text-[#17C454]' },
+  { grade: 'B+', min: 82, badgeCls: 'bg-surface-3 border-[#B8860B] text-[#FFDD33]' },
+  { grade: 'B',  min: 78, badgeCls: 'bg-surface-3 border-[#9C7209] text-[#FFD100]' },
+  { grade: 'B-', min: 74, badgeCls: 'bg-surface-3 border-[#7A5C08] text-[#E8B923]' },
+  { grade: 'C+', min: 70, badgeCls: 'bg-surface-3 border-[#9BA7AF] text-[#F0F5F7]' },
+  { grade: 'C',  min: 66, badgeCls: 'bg-surface-3 border-[#7C8991] text-[#D6DEE2]' },
+  { grade: 'C-', min: 62, badgeCls: 'bg-surface-3 border-[#606B73] text-[#AEB7BC]' },
+  { grade: 'D+', min: 58, badgeCls: 'bg-surface-3 border-[#B35900] text-[#FF9F40]' },
+  { grade: 'D',  min: 54, badgeCls: 'bg-surface-3 border-[#8C5524] text-[#CD7F32]' },
+  { grade: 'D-', min: 50, badgeCls: 'bg-surface-3 border-[#7A4210] text-[#C86A1E]' },
+  { grade: 'F',  min: 0,  badgeCls: 'bg-surface-3 border-[#8C5524] text-[#CD7F32]' },
 ];
 
 // ── Grading constants ────────────────────────────────────────────────────────
@@ -109,9 +165,9 @@ function estimateHiddenDev(player) {
   return base + physBump;
 }
 
-function computeScore(player) {
+function computeScore(player, weightsMap = null) {
   const devBonus  = isHiddenDev(player.devTrait) ? estimateHiddenDev(player) : getDevBonus(player.devTrait);
-  const archBase  = archetypeBaseScore(player);
+  const archBase  = archetypeBaseScore(player, weightsMap);
   const base      = archBase !== null ? archBase : calcWeightedAvg(player);
   return base + devBonus + (STAR_BONUS[String(player.stars)] ?? 0) + physOutlierBonus(player);
 }
@@ -121,9 +177,9 @@ function getGradeTier(score) {
 }
 
 // ── Pool context ─────────────────────────────────────────────────────────────
-function getPoolRank(player, allPlayers) {
+function getPoolRank(player, allPlayers, weightsMap = null) {
   const group = allPlayers.filter(p => p.position === player.position);
-  const sorted = [...group].sort((a, b) => computeScore(b) - computeScore(a));
+  const sorted = [...group].sort((a, b) => computeScore(b, weightsMap) - computeScore(a, weightsMap));
   const rank = sorted.findIndex(p => p.name === player.name) + 1;
   return { rank, total: group.length };
 }
@@ -493,9 +549,12 @@ function buildAnalysisText(player, score, baseAvg, rank, total) {
 }
 
 // ── Grade Breakdown Modal ────────────────────────────────────────────────────
-function GradeModal({ player, allPlayers, onClose }) {
-  const score      = computeScore(player);
+function GradeModal({ player, allPlayers, weightsMap, onClose }) {
+  const score      = computeScore(player, weightsMap);
   const baseAvg    = calcWeightedAvg(player);
+  const archBase   = archetypeBaseScore(player, weightsMap);
+  const displayBase = archBase !== null ? archBase : baseAvg;
+  const usingArch  = archBase !== null;
   const tier       = getGradeTier(score);
   const hidden     = isHiddenDev(player.devTrait);
   const devBonus   = hidden ? estimateHiddenDev(player) : getDevBonus(player.devTrait);
@@ -504,7 +563,7 @@ function GradeModal({ player, allPlayers, onClose }) {
   const combine  = generateCombine(player);
   const { gpa, major } = generateAcademic(player);
   const quote    = generateQuote(player);
-  const { rank, total } = getPoolRank(player, allPlayers);
+  const { rank, total } = getPoolRank(player, allPlayers, weightsMap);
   const poolAvg  = getPoolAvg(player.position, allPlayers);
   const analysis = buildAnalysisText(player, score, baseAvg, rank, total);
 
@@ -522,11 +581,12 @@ function GradeModal({ player, allPlayers, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-surface-2 border border-surface-4 rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto"
+        style={{ maxHeight: 'calc(100dvh - var(--app-header-height, 64px) * 2)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 border-b border-slate-800 flex items-start justify-between gap-4">
+        <div className="p-5 border-b border-surface-4 flex items-start justify-between gap-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
               {player.position} · {player.archetype}
@@ -537,9 +597,9 @@ function GradeModal({ player, allPlayers, onClose }) {
               {hidden
                 ? <span className="text-slate-500 italic">Dev Trait Hidden</span>
                 : <span className={
-                    player.devTrait === 'Elite'  ? 'text-yellow-300 font-black' :
-                    player.devTrait === 'Star'   ? 'text-blue-300 font-bold' :
-                    player.devTrait === 'Impact' ? 'text-orange-300 font-bold' :
+                    player.devTrait === 'Elite'  ? 'text-[#D89EFF] font-black' :
+                    player.devTrait === 'Star'   ? 'text-[#FFD100] font-bold' :
+                    player.devTrait === 'Impact' ? 'text-[#D6DEE2] font-bold' :
                     'text-slate-400'
                   }>{player.devTrait} Dev</span>
               }
@@ -554,25 +614,31 @@ function GradeModal({ player, allPlayers, onClose }) {
         <div className="p-5 space-y-5">
 
           {/* Analysis summary */}
-          <p className="text-xs text-slate-400 leading-relaxed">{analysis}</p>
+          <p className="text-xs text-txt-secondary leading-relaxed">{analysis}</p>
 
           {/* Score breakdown */}
           <section>
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Score Breakdown</h3>
-            <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden divide-y divide-slate-800/50 text-xs">
+            <div className="bg-surface-3 border border-surface-4 rounded-lg overflow-hidden divide-y divide-surface-4 text-xs">
               <div className="flex justify-between px-3 py-2">
-                <span className="text-slate-400">Weighted Attribute Avg</span>
-                <span className="font-bold text-white">{baseAvg.toFixed(1)}</span>
+                <span className="text-slate-400">{usingArch ? 'Archetype Base Score' : 'Weighted Attribute Avg'}</span>
+                <span className="font-bold text-white">{displayBase.toFixed(1)}</span>
               </div>
+              {usingArch && (
+                <div className="flex justify-between px-3 py-2 opacity-50">
+                  <span className="text-slate-500 text-[11px] italic">Attr avg (all entered)</span>
+                  <span className="text-slate-500 text-[11px]">{baseAvg.toFixed(1)}</span>
+                </div>
+              )}
               {hidden ? (
                 <div className="flex justify-between px-3 py-2">
-                  <span className="text-amber-500/80 italic text-[11px]">Estimated Dev (pending reveal)</span>
-                  <span className="font-bold text-amber-400">+{devBonus.toFixed(1)}</span>
+                  <span className="text-txt-tertiary italic text-[11px]">Estimated Dev (pending reveal)</span>
+                  <span className="font-bold text-txt-secondary">+{devBonus.toFixed(1)}</span>
                 </div>
               ) : (
                 <div className="flex justify-between px-3 py-2">
                   <span className="text-slate-400">{player.devTrait} Dev Adjustment</span>
-                  <span className={`font-bold ${devBonus > 0 ? 'text-emerald-400' : devBonus < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                  <span className={'font-bold text-txt-secondary'}>
                     {devBonus > 0 ? '+' : ''}{devBonus}
                   </span>
                 </div>
@@ -580,18 +646,18 @@ function GradeModal({ player, allPlayers, onClose }) {
               {ceilBonus > 0 && (
                 <div className="flex justify-between px-3 py-2">
                   <span className="text-slate-400">Physical Ceiling Bonus</span>
-                  <span className="font-bold text-violet-400">+{ceilBonus.toFixed(1)}</span>
+                  <span className="font-bold text-txt-secondary">+{ceilBonus.toFixed(1)}</span>
                 </div>
               )}
               {starBonus !== 0 && (
                 <div className="flex justify-between px-3 py-2">
                   <span className="text-slate-400">{player.stars}-Star Rating Bonus</span>
-                  <span className={`font-bold ${starBonus > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className={'font-bold text-txt-secondary'}>
                     {starBonus > 0 ? '+' : ''}{starBonus}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between px-3 py-2 bg-slate-900/60">
+              <div className="flex justify-between px-3 py-2 bg-surface-4">
                 <span className="text-slate-300 font-bold">Composite Score</span>
                 <span className="font-black text-white">{score.toFixed(1)}</span>
               </div>
@@ -608,23 +674,23 @@ function GradeModal({ player, allPlayers, onClose }) {
           {/* Strengths / Needs Work */}
           <section className="grid grid-cols-2 gap-3">
             <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Strengths</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-tertiary mb-2">Strengths</h3>
               <div className="space-y-1.5">
                 {strengths.map(([k, v]) => (
-                  <div key={k} className="flex justify-between items-center bg-slate-900 border border-emerald-900/50 rounded px-2.5 py-1.5">
-                    <span className="text-[10px] text-slate-300 font-medium">{k}</span>
-                    <span className="text-[10px] font-black text-emerald-400">{v}</span>
+                  <div key={k} className="flex justify-between items-center bg-surface-3 border border-surface-4 rounded px-2.5 py-1.5">
+                    <span className="text-[10px] text-txt-secondary font-medium">{k}</span>
+                    <span className="text-[10px] font-black text-txt-secondary">{v}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2">Needs Work</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-txt-tertiary mb-2">Needs Work</h3>
               <div className="space-y-1.5">
                 {weaknesses.map(([k, v]) => (
-                  <div key={k} className="flex justify-between items-center bg-slate-900 border border-red-900/50 rounded px-2.5 py-1.5">
-                    <span className="text-[10px] text-slate-300 font-medium">{k}</span>
-                    <span className="text-[10px] font-black text-red-400">{v}</span>
+                  <div key={k} className="flex justify-between items-center bg-surface-3 border border-surface-4 rounded px-2.5 py-1.5">
+                    <span className="text-[10px] text-txt-secondary font-medium">{k}</span>
+                    <span className="text-[10px] font-black text-txt-secondary">{v}</span>
                   </div>
                 ))}
               </div>
@@ -642,7 +708,7 @@ function GradeModal({ player, allPlayers, onClose }) {
                 { label: '3-Cone',   value: `${combine.cone}s` },
                 { label: 'Broad',    value: `${combine.broad}"` },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-center">
+                <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg p-2.5 text-center">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
                   <p className="text-xs font-black text-white">{value}</p>
                 </div>
@@ -651,22 +717,19 @@ function GradeModal({ player, allPlayers, onClose }) {
           </section>
 
           {/* Academic profile */}
-          <section className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-lg px-4 py-3">
+          <section className="flex items-center justify-between bg-surface-3 border border-surface-4 rounded-lg px-4 py-3">
             <div>
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Academic Profile</p>
               <p className="text-sm font-bold text-white mt-0.5">{major}</p>
             </div>
             <div className="text-right">
               <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">GPA</p>
-              <p className={`text-xl font-black ${
-                parseFloat(gpa) >= 3.5 ? 'text-emerald-400' :
-                parseFloat(gpa) >= 2.8 ? 'text-sky-400' : 'text-amber-400'
-              }`}>{gpa}</p>
+              <p className="text-xl font-black text-txt-secondary">{gpa}</p>
             </div>
           </section>
 
           {/* Scout interview */}
-          <section className="bg-slate-900/60 border border-slate-800 rounded-lg p-4 space-y-2">
+          <section className="bg-surface-3 border border-surface-4 rounded-lg p-4 space-y-2">
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Scout: "Describe your game for me."</p>
             <p className="text-xs text-slate-200 leading-relaxed italic">"{quote}"</p>
             <p className="text-[9px] text-slate-500 mt-1">— {player.name}</p>
@@ -691,32 +754,93 @@ function GradeModal({ player, allPlayers, onClose }) {
 const POSITIONS_LIST = ['QB','HB','WR','TE','OT','OG','C','DE','DT','OLB','MIKE','CB','FS','SS','ATH'];
 const DEV_TRAITS = ['Hidden', 'Normal', 'Impact', 'Star', 'Elite'];
 
-function EditModal({ player, onSave, onClose }) {
+function EditModal({ player, pool, weightsMap, onSave, onClose }) {
   const [form, setForm] = useState({
     name: player.name,
     position: player.position,
     archetype: player.archetype,
     devTrait: player.devTrait || 'Hidden',
+    gemBust: player.gemBust || '',
     stars: player.stars,
-    attributes: { ...player.attributes },
+    // A superset of every attribute value ever entered in this session — kept
+    // separate from what's currently DISPLAYED so cycling archetypes back and
+    // forth never permanently discards a value. Only the fields relevant to
+    // the current position+archetype are shown (see visibleAttrKeys below),
+    // but switching away and back just changes which subset is visible; the
+    // underlying values for a temporarily-hidden field are still sitting here.
+    allAttributes: { ...player.attributes },
   });
 
   const setField = (field, val) => setForm(f => ({ ...f, [field]: val }));
-  const setAttr  = (key, val)   => setForm(f => ({ ...f, attributes: { ...f.attributes, [key]: val } }));
+  const setAttr  = (key, val)   => setForm(f => ({ ...f, allAttributes: { ...f.allAttributes, [key]: val } }));
 
-  const handleSave = () => {
+  // Archetype choices are position-specific — same registry ScoutingReport's
+  // add-prospect form uses, so Edit stays consistent with how a player would
+  // have been entered fresh.
+  const availableArchetypes = useMemo(
+    () => OPTIONS_REGISTRY.find(item => item.position === form.position)?.archetypes || [],
+    [form.position]
+  );
+  const visibleAttrKeys = useMemo(
+    () => getFormAttrs(form.position, form.archetype),
+    [form.position, form.archetype]
+  );
+  const setPosition = (pos) => {
+    const opts = OPTIONS_REGISTRY.find(item => item.position === pos)?.archetypes || [];
+    setForm(f => ({ ...f, position: pos, archetype: opts.includes(f.archetype) ? f.archetype : (opts[0] || f.archetype) }));
+  };
+  const setArchetype = (arch) => {
+    setForm(f => ({ ...f, archetype: arch }));
+  };
+
+  // The subset of allAttributes relevant to the CURRENTLY selected position +
+  // archetype — this is what's shown, scored, and ultimately saved. Reading
+  // through allAttributes (rather than storing this subset directly) is what
+  // lets cycling back to a previous archetype restore values that were
+  // temporarily hidden while a different archetype was selected.
+  const visibleAttrs = useMemo(() => {
+    const obj = {};
+    visibleAttrKeys.forEach(k => { obj[k] = form.allAttributes[k] ?? ''; });
+    return obj;
+  }, [visibleAttrKeys, form.allAttributes]);
+
+  // Nearest-centroid suggestion from revealed HS recruits at this archetype+star
+  // — only meaningful while the real dev trait isn't locked in yet.
+  const prediction = useMemo(() => {
+    if (form.devTrait !== 'Hidden' || !form.position || !form.archetype) return null;
+    const numericAttrs = Object.fromEntries(Object.entries(visibleAttrs).map(([k, v]) => [k, parseInt(v, 10) || 0]));
+    return predictDevTrait(pool, form.position, form.archetype, String(form.stars), numericAttrs, weightsMap);
+  }, [pool, weightsMap, form.devTrait, form.position, form.archetype, form.stars, visibleAttrs]);
+
+  // Live grade/score preview — recomputed from the in-progress form state so
+  // editing attributes or dev trait visibly moves the grade before saving,
+  // instead of only updating once the modal closes and the table re-renders.
+  const liveScore = useMemo(() => {
+    const numericAttrs = Object.fromEntries(Object.entries(visibleAttrs).map(([k, v]) => [k, parseInt(v, 10) || 0]));
+    return computeScore({ position: form.position, archetype: form.archetype, devTrait: form.devTrait, stars: form.stars, attributes: numericAttrs }, weightsMap);
+  }, [weightsMap, form.position, form.archetype, form.devTrait, form.stars, visibleAttrs]);
+  const liveTier = useMemo(() => getGradeTier(liveScore), [liveScore]);
+
+  const [saving, setSaving] = useState(false);
+  const handleSave = async () => {
     const updated = {
       ...player,
       name:      form.name.trim(),
       position:  form.position,
       archetype: form.archetype.trim(),
       devTrait:  form.devTrait,
+      gemBust:   form.gemBust,
       stars:     form.stars,
       group:     form.position === 'ATH' ? 'Athlete Pipeline' : ['QB','HB','WR','TE','OT','OG','C'].includes(form.position) ? 'Offense' : 'Defense',
-      attributes: Object.fromEntries(Object.entries(form.attributes).map(([k, v]) => [k, parseInt(v, 10) || 0])),
+      attributes: Object.fromEntries(Object.entries(visibleAttrs).map(([k, v]) => [k, parseInt(v, 10) || 0])),
     };
-    onSave(updated);
-    onClose();
+    setSaving(true);
+    // onSave resolves false (and shows its own error toast) if the write
+    // failed — keep the modal open with the user's edits intact so nothing
+    // is lost and they can just retry, instead of closing on a failed save.
+    const ok = await onSave(updated);
+    setSaving(false);
+    if (ok !== false) onClose();
   };
 
   return (
@@ -726,15 +850,27 @@ function EditModal({ player, onSave, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-surface-2 border border-surface-4 rounded-2xl shadow-2xl w-full max-w-lg overflow-y-auto"
+        style={{ maxHeight: 'calc(100dvh - var(--app-header-height, 64px) * 2)' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-5 border-b border-surface-4 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-0.5">Edit Prospect</p>
-            <h2 className="text-lg font-black text-white">{player.name}</h2>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Edit Prospect</p>
+            {/* Same name+icon markup as the database row/Recently Filed, bound to the
+                live form state — so the icon's position here is guaranteed to match
+                exactly what saving will produce, instead of a bare name with no preview. */}
+            <h2 className="text-lg font-black text-white">
+              <ProspectName name={form.name} gemBust={form.gemBust} />
+            </h2>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white transition text-lg font-bold">✕</button>
+          <div className="flex items-center gap-3">
+            <div className="inline-flex flex-col items-center gap-0.5" title="Live grade — updates as you edit">
+              <span className={`font-black tracking-wide text-xs px-2 py-0.5 rounded border ${liveTier.badgeCls}`}>{liveTier.grade}</span>
+              <span className="text-[9px] tabular-nums text-slate-500">{liveScore.toFixed(1)}</span>
+            </div>
+            <button onClick={onClose} className="text-slate-500 hover:text-white transition text-lg font-bold">✕</button>
+          </div>
         </div>
 
         <div className="p-5 space-y-5">
@@ -748,15 +884,15 @@ function EditModal({ player, onSave, onClose }) {
                   type="text"
                   value={form.name}
                   onChange={e => setField('name', e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-xs p-2.5 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-surface-5 transition"
                 />
               </div>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Position</label>
                 <select
                   value={form.position}
-                  onChange={e => setField('position', e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-emerald-500 transition"
+                  onChange={e => setPosition(e.target.value)}
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
                 >
                   {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                 </select>
@@ -766,7 +902,7 @@ function EditModal({ player, onSave, onClose }) {
                 <select
                   value={form.stars}
                   onChange={e => setField('stars', e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-emerald-500 transition"
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
                 >
                   {['5','4','3','2','1'].map(s => <option key={s} value={s}>{s} Star</option>)}
                 </select>
@@ -776,19 +912,40 @@ function EditModal({ player, onSave, onClose }) {
                 <select
                   value={form.devTrait}
                   onChange={e => setField('devTrait', e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-emerald-500 transition"
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
                 >
                   {DEV_TRAITS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
+                {prediction && (
+                  <p className="text-[9px] text-txt-secondary mt-1">
+                    Predicted: {prediction.closest} (closest match · {prediction.availableGroups} group{prediction.availableGroups !== 1 ? 's' : ''} of data, n={prediction.n})
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Archetype</label>
-                <input
-                  type="text"
+                <select
                   value={form.archetype}
-                  onChange={e => setField('archetype', e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 text-xs p-2.5 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-                />
+                  onChange={e => setArchetype(e.target.value)}
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
+                >
+                  {!availableArchetypes.includes(form.archetype) && form.archetype && (
+                    <option value={form.archetype}>{form.archetype}</option>
+                  )}
+                  {availableArchetypes.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Gem/Bust</label>
+                <select
+                  value={form.gemBust}
+                  onChange={e => setField('gemBust', e.target.value)}
+                  className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
+                >
+                  <option value="">None</option>
+                  <option value="Gem">Gem</option>
+                  <option value="Bust">Bust</option>
+                </select>
               </div>
             </div>
           </section>
@@ -797,16 +954,16 @@ function EditModal({ player, onSave, onClose }) {
           <section>
             <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Attributes</h3>
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(form.attributes).map(([key, val]) => (
-                <div key={key} className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                  <label className="text-[10px] text-slate-400 flex-1 truncate">{key}</label>
+              {Object.entries(visibleAttrs).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-2 bg-surface-3 border border-surface-4 rounded-lg px-3 py-2">
+                  <label className="text-[10px] uppercase text-slate-400 flex-1 truncate">{key}</label>
                   <input
                     type="number"
                     min="0"
                     max="99"
                     value={val}
                     onChange={e => setAttr(key, e.target.value)}
-                    className="w-14 bg-slate-950 border border-slate-700 text-xs p-1.5 rounded text-white text-center font-bold focus:outline-none focus:border-emerald-500 transition"
+                    className="w-14 bg-surface-4 border border-surface-5 text-xs p-1.5 rounded text-white text-center font-bold focus:outline-none focus:border-surface-5 transition"
                   />
                 </div>
               ))}
@@ -817,9 +974,10 @@ function EditModal({ player, onSave, onClose }) {
         <div className="px-5 pb-5 flex gap-3">
           <button
             onClick={handleSave}
-            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-black text-white transition"
+            disabled={saving}
+            className="flex-1 py-2.5 bg-surface-4 hover:bg-surface-5 disabled:opacity-60 disabled:cursor-not-allowed border border-surface-5 rounded-lg text-xs font-black text-white transition"
           >
-            Save Changes
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
           <button
             onClick={onClose}
@@ -834,28 +992,52 @@ function EditModal({ player, onSave, onClose }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PlayerDatabase({ players, roleContext, teamColors, teamLogo, onDelete, onEdit, onGoToInput, onGoToThresholds, onBack }) {
+export default function PlayerDatabase({ players, roleContext, teamColors, teamLogo, onDelete, onEdit, onGoToInput, onGoToThresholds, onBack, dynastyId = null, recruitingDbIsolated = false, onToggleIsolated = null, highlightPid = null }) {
+  const { getStaffData } = createStaffAccessor(dynastyId);
   const p = teamColors?.primary || '#374151';
   const [filterPos, setFilterPos] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const rowRefs = useRef({});
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [editingDevFor, setEditingDevFor] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'recency', dir: 'desc' });
-  const [analystImg, setAnalystImg] = useState('');
-  const [analystName, setAnalystName] = useState('Data Analyst');
+  const [scoutImg, setScoutImg] = useState('');
+  const [scoutName, setScoutName] = useState('National Scout');
 
   useEffect(() => {
-    async function loadAnalyst() {
-      const img  = await getStaffData('analyst_img');
-      const name = await getStaffData('analyst_name');
-      if (img)  setAnalystImg(img);
-      if (name) setAnalystName(name);
+    async function loadScout() {
+      const img  = await getStaffData('scout_img');
+      const name = await getStaffData('scout_name');
+      if (img)  setScoutImg(img);
+      if (name) setScoutName(name);
     }
-    loadAnalyst();
+    loadScout();
   }, []);
 
+  // Surface a specific player when navigated here via a link (e.g. Recently
+  // Filed, Actively Targeting, Removed) — drop their name into the search bar
+  // so the table filters straight down to them, rather than popping their
+  // report open unasked.
+  useEffect(() => {
+    if (!highlightPid || !players.length) return;
+    const match = players.find(pl => String(pl.pid) === String(highlightPid));
+    if (match) {
+      setSearchQuery(match.name);
+      // Slight delay so the row ref is rendered before we scroll
+      setTimeout(() => {
+        const el = rowRefs.current[highlightPid];
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+  }, [highlightPid, players]);
+
   const positionsList = ['ALL', 'QB', 'HB', 'WR', 'TE', 'OT', 'OG', 'C', 'DE', 'DT', 'OLB', 'MIKE', 'CB', 'FS', 'SS', 'ATH'];
+
+  // Revealed-devTrait HS recruit pool — nudges archetype grading toward what
+  // actually separates Elite/Star/Impact/Normal once enough data exists.
+  const pool = useMemo(() => buildRevealedPool(players), [players]);
+  const weightsMap = useMemo(() => buildWeightsMap(pool, players), [pool, players]);
 
   const filteredPlayers = players.filter(p => {
     const matchesPos = filterPos === 'ALL' || p.position === filterPos;
@@ -873,9 +1055,9 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     let av, bv;
     switch (sortConfig.key) {
-      case 'recency':   av = a.addedIndex ?? 0;                            bv = b.addedIndex ?? 0;                            break;
+      case 'recency':   av = a.recentRank ?? a.addedIndex ?? 0;             bv = b.recentRank ?? b.addedIndex ?? 0;            break;
       case 'name':      av = a.name;                                       bv = b.name;                                       break;
-      case 'score':     av = computeScore(a);                              bv = computeScore(b);                              break;
+      case 'score':     av = computeScore(a, weightsMap);                  bv = computeScore(b, weightsMap);                  break;
       case 'group':     av = a.group;                                      bv = b.group;                                      break;
       case 'position':  av = a.position;                                   bv = b.position;                                   break;
       case 'archetype': av = a.archetype;                                  bv = b.archetype;                                  break;
@@ -893,12 +1075,12 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
     const active = sortConfig.key === sortKey;
     return (
       <th
-        className={`p-3.5 cursor-pointer select-none hover:text-white transition-colors ${active ? 'text-emerald-400' : ''} ${className}`}
+        className={`px-2 py-3.5 cursor-pointer select-none hover:text-white transition-colors overflow-hidden ${className}`}
         onClick={() => toggleSort(sortKey)}
       >
-        <span className="inline-flex items-center gap-1">
-          {children}
-          <span className="text-[8px] opacity-60">
+        <span className="inline-flex items-center gap-1 max-w-full overflow-hidden whitespace-nowrap">
+          <span className="truncate">{children}</span>
+          <span className="text-[8px] opacity-60 shrink-0">
             {active ? (sortConfig.dir === 'desc' ? '▼' : '▲') : '⇅'}
           </span>
         </span>
@@ -906,71 +1088,66 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
     );
   };
 
-  const analystQuip = (() => {
-    if (!players.length) return "Nothing in the system yet — waiting on the scout to get me some data to work with.";
-    const hiddenCount = players.filter(pl => isHiddenDev(pl.devTrait)).length;
-    if (hiddenCount >= 3) return `${hiddenCount} dev traits still sealed — those signing day reveals could flip this whole class ranking.`;
-    if (hiddenCount > 0) return `${hiddenCount} dev trait${hiddenCount > 1 ? 's' : ''} still hidden — holding off on final grades until those come in.`;
-    const topCount = players.filter(pl => ['A+','A','A-'].includes(getGradeTier(computeScore(pl)).grade)).length;
-    const lowCount = players.filter(pl => ['D+','D','D-','F'].includes(getGradeTier(computeScore(pl)).grade)).length;
-    if (topCount >= Math.ceil(players.length * 0.4)) return "Elite-heavy class on this board — if those dev traits hold, this group is special.";
-    if (lowCount >= Math.ceil(players.length * 0.35)) return "A lot of low-ceiling prospects here — need higher dev traits to lift this board's grade.";
-    const posCounts = {};
-    players.forEach(pl => posCounts[pl.position] = (posCounts[pl.position] || 0) + 1);
-    const top = Object.entries(posCounts).sort((a,b) => b[1]-a[1])[0];
-    return `${top[0]} leads the board at ${top[1]} — watching the full class balance as more prospects come in.`;
-  })();
-
   return (
     <div className="space-y-4">
       {selectedPlayer && (
-        <GradeModal player={selectedPlayer} allPlayers={players} onClose={() => setSelectedPlayer(null)} />
+        <GradeModal player={selectedPlayer} allPlayers={players} weightsMap={weightsMap} onClose={() => setSelectedPlayer(null)} />
       )}
       {editingPlayer && (
-        <EditModal player={editingPlayer} onSave={updated => onEdit && onEdit(updated, editingPlayer)} onClose={() => setEditingPlayer(null)} />
+        <EditModal player={editingPlayer} pool={pool} weightsMap={weightsMap} onSave={updated => onEdit && onEdit(updated, editingPlayer)} onClose={() => setEditingPlayer(null)} />
       )}
 
       {/* Header strip */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-surface-2 border border-surface-4">
-        <h2 className="text-sm font-display font-bold uppercase text-txt-primary">Player Database</h2>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <h2 className="text-sm font-display font-bold uppercase text-txt-primary">Recruiting Database</h2>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {onToggleIsolated && (
+            <label className="flex items-center gap-1.5 text-[10px] text-txt-tertiary hover:text-txt-secondary transition cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={recruitingDbIsolated}
+                onChange={onToggleIsolated}
+                className="w-3 h-3 accent-current"
+              />
+              Reset Database (This Dynasty Only)
+            </label>
+          )}
           {onGoToInput && (
             <button onClick={onGoToInput} className="text-xs text-txt-secondary hover:text-txt-primary transition px-3 py-1.5 rounded-lg border border-surface-4 hover:bg-surface-3">
               + New Report
             </button>
           )}
-          {onGoToThresholds && (
-            <button onClick={onGoToThresholds} className="text-xs text-txt-secondary hover:text-txt-primary transition px-3 py-1.5 rounded-lg border border-surface-4 hover:bg-surface-3">
-              Thresholds
+          {onBack && (
+            <button onClick={onBack} className="flex items-center gap-1.5 text-xs font-display font-bold uppercase text-txt-secondary hover:text-txt-primary transition px-3 py-1.5 rounded-lg border border-surface-4 hover:bg-surface-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><polyline points="15 18 9 12 15 6"/></svg>
+              Main Hub
             </button>
           )}
-          {onBack && (
-            <button onClick={onBack} className="text-xs font-display font-bold uppercase text-txt-secondary hover:text-txt-primary transition px-3 py-1.5 rounded-lg border border-surface-4 hover:bg-surface-3">
-              ← Main Hub
+          {onGoToThresholds && (
+            <button onClick={onGoToThresholds} className="flex items-center gap-1.5 text-xs font-display font-bold uppercase text-txt-secondary hover:text-txt-primary transition px-3 py-1.5 rounded-lg border border-surface-4 hover:bg-surface-3">
+              Threshold Lookup
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           )}
         </div>
       </div>
 
       {/* Analyst identity + filters row */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start">
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch">
 
-        {/* Analyst portrait card */}
-        <div className="relative rounded-xl overflow-hidden shadow-xl w-full h-40 sm:w-[110px] sm:h-[280px] sm:flex-shrink-0">
-          {analystImg ? (
-            <img src={analystImg} alt="Data Analyst" className="absolute inset-0 w-full h-full object-cover object-top" />
+        {/* Scout portrait card */}
+        <div className="relative rounded-xl overflow-hidden shadow-xl w-full h-32 sm:w-[110px] sm:h-[100px] sm:flex-shrink-0">
+          {scoutImg ? (
+            <img src={scoutImg} alt="National Scout" className="absolute inset-0 w-full h-full object-cover object-top" />
           ) : (
             <div className="absolute inset-0 bg-surface-3" />
           )}
           <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.82) 68%, rgba(0,0,0,0.92) 100%)' }} />
-          <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent 45%, #10b98155 100%)' }} />
-          <div className="absolute top-2 left-2 pointer-events-none">
-            <span className="text-[7px] font-black uppercase tracking-[0.15em] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,0,0,0.6)', color: '#34d399', backdropFilter: 'blur(4px)', border: '1px solid #34d39944' }}>Analyst</span>
-          </div>
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent 45%, #38bdf855 100%)' }} />
           <div className="absolute bottom-0 left-0 right-0 p-2">
-            <div className="w-4 h-0.5 mb-1 rounded-full bg-emerald-400" />
+            <div className="w-4 h-0.5 mb-1 rounded-full bg-sky-400" />
             {(() => {
-              const parts = analystName.trim().split(' ');
+              const parts = scoutName.trim().split(' ');
               const last = parts.pop() || '';
               const first = parts.join(' ');
               return (
@@ -980,25 +1157,15 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                 </>
               );
             })()}
-            <p className="text-[6px] font-black uppercase tracking-[0.12em] mt-0.5 text-emerald-400">Data Analyst</p>
-            <p className="text-[8px] text-white/55 italic leading-snug mt-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,1)' }}>
-              {players.length} prospect{players.length !== 1 ? 's' : ''} on file
-            </p>
+            <p className="text-[6px] font-black uppercase tracking-[0.12em] mt-0.5 text-sky-400">National Scout</p>
           </div>
         </div>
 
         {/* Right column: quip card + filters */}
         <div className="flex-1 space-y-3 min-w-0">
 
-          {/* Analyst quip */}
-          <div className="rounded-xl p-3.5 bg-surface-2 border border-surface-4">
-            <p className="text-[8px] font-semibold uppercase tracking-widest leading-none text-emerald-500">Analysis</p>
-            <p className="text-[11px] text-txt-secondary italic leading-snug mt-1">"{analystQuip}"</p>
-            <p className="text-[9px] text-txt-tertiary mt-1">— {analystName}</p>
-          </div>
-
           {/* Search + position filters */}
-          <div className="rounded-xl p-3.5 space-y-2.5 bg-surface-2 border border-surface-4">
+          <div className="rounded-xl p-3.5 space-y-2.5 bg-surface-2 border border-surface-4 sm:h-[100px]">
             <input
               type="text"
               placeholder="Search prospect name or archetype..."
@@ -1026,8 +1193,21 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
 
       {/* Table */}
       <div className="rounded-xl overflow-hidden bg-surface-2 border border-surface-4">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-hidden">
+          <table className="w-full table-fixed text-left border-collapse">
+            <colgroup>
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '4%' }} />
+            </colgroup>
             <thead>
               <tr className="text-[10px] font-semibold uppercase tracking-widest text-txt-tertiary bg-surface-3 border-b border-surface-4">
                 <SortTh sortKey="recency">Recent</SortTh>
@@ -1039,46 +1219,58 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                 <SortTh sortKey="stars" className="text-center">Stars</SortTh>
                 <SortTh sortKey="dev">Dev</SortTh>
                 <SortTh sortKey="gpa" className="text-center">GPA</SortTh>
-                <th className="p-3.5 text-slate-500">Attributes</th>
-                <th className="p-3.5 w-8"></th>
+                <th className="px-2 py-3.5 text-slate-500">Attributes</th>
+                <th className="px-2 py-3.5"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-4 text-xs">
               {filteredPlayers.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="p-12 text-center text-txt-tertiary text-xs">
-                    No scouting logs found matching active criteria.
+                  <td colSpan={11} className="p-12 text-center text-txt-tertiary text-xs">
+                    {players.length === 0
+                      ? 'No scouting logs found. Add freshman targets via the Recruiting page.'
+                      : 'No prospects matching active filters.'}
                   </td>
                 </tr>
               ) : (
                 sortedPlayers.map((pl, i) => {
-                  const score = computeScore(pl);
+                  const score = computeScore(pl, weightsMap);
                   const tier  = getGradeTier(score);
                   const { gpa } = generateAcademic(pl);
                   const hiddenDev = isHiddenDev(pl.devTrait);
+                  const formOrder = getFormAttrs(pl.position, pl.archetype);
+                  const orderedAttrs = formOrder.length
+                    ? [
+                        ...formOrder.filter(k => pl.attributes[k] != null).map(k => [k, pl.attributes[k]]),
+                        ...Object.entries(pl.attributes).filter(([k]) => !formOrder.includes(k)),
+                      ]
+                    : Object.entries(pl.attributes);
                   return (
                     <tr
                       key={i}
+                      ref={el => { if (el) rowRefs.current[pl.pid] = el; }}
                       onClick={() => setSelectedPlayer(pl)}
-                      className="transition group cursor-pointer border-b border-surface-4 hover:bg-surface-3"
+                      className={`transition group cursor-pointer border-b border-surface-4 hover:bg-surface-3 ${String(pl.pid) === String(highlightPid) ? 'bg-surface-3' : ''}`}
                     >
-                      <td className="p-3.5 text-center text-[10px] tabular-nums text-txt-tertiary">{pl.addedIndex != null ? pl.addedIndex + 1 : '—'}</td>
-                      <td className="p-3.5 font-semibold text-txt-secondary group-hover:text-txt-primary transition">{pl.name}</td>
-                      <td className="p-3.5 text-center">
+                      <td className="px-2 py-3.5 text-center text-[10px] tabular-nums text-txt-tertiary overflow-hidden">{pl.recentRank ?? (pl.addedIndex != null ? pl.addedIndex + 1 : '—')}</td>
+                      <td className="px-2 py-3.5 font-semibold text-txt-secondary group-hover:text-txt-primary transition overflow-hidden">
+                        <ProspectName name={pl.name} gemBust={pl.gemBust} />
+                      </td>
+                      <td className="px-2 py-3.5 text-center overflow-hidden">
                         <div className="inline-flex flex-col items-center gap-0.5">
                           <span className={`font-black tracking-wide text-xs px-2 py-0.5 rounded border ${tier.badgeCls}`}>{tier.grade}</span>
                           <span className="text-[9px] tabular-nums text-slate-600">{score.toFixed(1)}</span>
                         </div>
                       </td>
-                      <td className="p-3.5 uppercase font-semibold text-txt-tertiary text-[10px] tracking-wider">{pl.group}</td>
-                      <td className="p-3.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-black text-emerald-400" style={{ background: '#022c22', border: '1px solid #10b98130' }}>
+                      <td className="px-2 py-3.5 uppercase font-semibold text-txt-tertiary text-[10px] tracking-wider overflow-hidden truncate">{pl.group}</td>
+                      <td className="px-2 py-3.5 overflow-hidden">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black text-txt-tertiary bg-surface-4 border border-surface-4">
                           {pl.position}
                         </span>
                       </td>
-                      <td className="p-3.5 text-txt-secondary font-medium">{pl.archetype}</td>
-                      <td className="p-3.5 text-center font-black text-amber-400 tracking-wide">{pl.stars}★</td>
-                      <td className="p-3.5" onClick={e => e.stopPropagation()}>
+                      <td className="px-2 py-3.5 text-txt-secondary font-medium overflow-hidden">{pl.archetype}</td>
+                      <td className="px-2 py-3.5 text-center font-black text-amber-400 tracking-wide overflow-hidden">{pl.stars}★</td>
+                      <td className="px-2 py-3.5 overflow-hidden" onClick={e => e.stopPropagation()}>
                         {editingDevFor === pl ? (
                           <select
                             autoFocus
@@ -1094,39 +1286,39 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                             onClick={() => setEditingDevFor(pl)}
                             title="Click to update dev trait"
                             className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer hover:ring-1 hover:ring-emerald-600/60 transition ${
-                              pl.devTrait === 'Elite'  ? 'bg-yellow-950/50 border border-yellow-700 text-yellow-300' :
-                              pl.devTrait === 'Star'   ? 'bg-blue-950/40 border border-blue-900 text-blue-300' :
-                              pl.devTrait === 'Impact' ? 'bg-orange-950/40 border border-orange-900 text-orange-300' :
-                              pl.devTrait === 'Normal' ? 'bg-slate-950 border border-slate-800 text-slate-500' :
+                              pl.devTrait === 'Elite'  ? 'bg-surface-3 border border-[#0E7A2A] text-[#22E065] shadow-[0_0_16px_rgba(14,122,42,0.85)]' :
+                              pl.devTrait === 'Star'   ? 'bg-surface-3 border border-[#9C7209] text-[#FFD100] shadow-[0_0_14px_rgba(156,114,9,0.8)]' :
+                              pl.devTrait === 'Impact' ? 'bg-surface-3 border border-[#7C8991] text-[#D6DEE2]' :
+                              pl.devTrait === 'Normal' ? 'bg-surface-3 border border-[#8C5524] text-[#CD7F32]' :
                                                          'bg-slate-950 border border-slate-700 text-slate-600 italic'
                             }`}>
-                            {hiddenDev ? 'Hidden' : pl.devTrait}
+                            {hiddenDev ? 'HIDDEN' : pl.devTrait.toUpperCase()}
                           </span>
                         )}
                       </td>
-                      <td className="p-3.5 text-center">
-                        <span className={`text-xs font-bold ${parseFloat(gpa) >= 3.5 ? 'text-emerald-400' : parseFloat(gpa) >= 2.5 ? 'text-sky-400' : 'text-amber-400'}`}>{gpa}</span>
+                      <td className="px-2 py-3.5 text-center overflow-hidden">
+                        <span className={'text-xs font-bold text-txt-tertiary'}>{gpa}</span>
                       </td>
-                      <td className="p-3.5 tabular-nums text-[10px] text-txt-tertiary max-w-sm">
-                        <div className="flex flex-wrap gap-1">
-                          {Object.entries(pl.attributes).map(([key, val]) => (
-                            <span key={key} className="px-1.5 py-0.5 rounded text-txt-secondary shrink-0 bg-surface-3 border border-surface-4">
-                              <strong className="text-txt-tertiary font-normal mr-0.5">{key}:</strong>{val}
+                      <td className="px-2 py-3.5 tabular-nums text-[10px] text-txt-tertiary overflow-hidden">
+                        <div className="grid grid-flow-col grid-rows-5 auto-cols-max gap-x-1 gap-y-1">
+                          {orderedAttrs.map(([key, val]) => (
+                            <span key={key} title={key} className="px-1 py-0.5 rounded text-txt-secondary whitespace-nowrap bg-surface-3 border border-surface-4">
+                              <strong className="text-txt-tertiary font-normal mr-px">{ATTRIBUTE_ABBR[key] || key}:</strong>{val}
                             </span>
                           ))}
                         </div>
                       </td>
-                      <td className="p-3.5 text-center" onClick={e => e.stopPropagation()}>
+                      <td className="py-3.5 px-1 text-center overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition">
                           {onEdit && (
-                            <button onClick={() => setEditingPlayer(pl)} className="p-1.5 rounded text-slate-600 hover:text-sky-400 hover:bg-sky-950/40 transition" title="Edit prospect">
+                            <button onClick={() => setEditingPlayer(pl)} className="p-1.5 rounded text-slate-600 hover:text-txt-primary hover:bg-surface-3 transition" title="Edit prospect">
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                               </svg>
                             </button>
                           )}
                           {onDelete && (
-                            <button onClick={() => onDelete(pl)} className="p-1.5 rounded text-slate-600 hover:text-red-400 hover:bg-red-950/40 transition" title="Delete prospect">
+                            <button onClick={() => onDelete(pl)} className="p-1.5 rounded text-slate-600 hover:text-red-400 hover:bg-surface-3 transition" title="Delete prospect">
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                                 <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                               </svg>
