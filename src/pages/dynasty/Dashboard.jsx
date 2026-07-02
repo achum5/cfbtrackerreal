@@ -54,6 +54,7 @@ import DraftResultsModal from '../../components/DraftResultsModal'
 import TransferDestinationsModal from '../../components/TransferDestinationsModal'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import RecruitingInsightLink from '../../components/ui/RecruitingInsightLink'
+import { useToast } from '../../components/ui/Toast'
 import SellVsSendCalculator, { SellVsSendButton } from '../../components/SellVsSendCalculator'
 import PositionChangesModal from '../../components/PositionChangesModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
@@ -162,6 +163,7 @@ export default function Dashboard() {
   // Check if dynasty data is being lazily loaded
   const isLoadingDynastyData = loadingDynastyId === currentDynasty?.id
   const { user } = useAuth()
+  const { toast } = useToast()
   const { id: dynastyId, shareCode } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -554,6 +556,7 @@ export default function Dashboard() {
   // Inline budget editing on the preseason "Enter Dynasty Points Budget" to-do.
   const [dpBudgetEditing, setDpBudgetEditing] = useState(false)
   const [dpBudgetInput, setDpBudgetInput] = useState('')
+  const [dpBudgetSaving, setDpBudgetSaving] = useState(false)
   const [showSupportStaffModal, setShowSupportStaffModal] = useState(false)
   // Preseason Top 25 entry modal — opens for a specific year
   const [preseasonTop25Year, setPreseasonTop25Year] = useState(null)
@@ -3581,9 +3584,22 @@ export default function Dashboard() {
               const dpBudget = getSeasonBudget(currentDynasty, preseasonYear, preseasonUserTid)
               const dpDone = dpBudget != null
               const saveDpBudget = async () => {
-                const next = setSeasonBudget(currentDynasty, preseasonYear, parseDp(dpBudgetInput), preseasonUserTid)
-                await updateDynasty(currentDynasty.id, { dynastyPoints: next })
-                setDpBudgetEditing(false)
+                if (dpBudgetSaving) return
+                setDpBudgetSaving(true)
+                try {
+                  const next = setSeasonBudget(currentDynasty, preseasonYear, parseDp(dpBudgetInput), preseasonUserTid)
+                  await updateDynasty(currentDynasty.id, { dynastyPoints: next })
+                  setDpBudgetEditing(false)
+                } catch (err) {
+                  // Previously this had no catch, so a failed write (e.g. the
+                  // main doc hitting Firestore's 1 MB cap) rejected silently and
+                  // the row just sat in edit mode — the "Save button does
+                  // nothing" report. Surface it instead.
+                  console.error('[Dashboard] Dynasty Points budget save failed:', err)
+                  toast.error(`Could not save budget: ${err?.message || 'try again'}`)
+                } finally {
+                  setDpBudgetSaving(false)
+                }
               }
               todos.push({
                 key: 'dynasty-points-budget',

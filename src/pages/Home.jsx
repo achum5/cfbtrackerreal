@@ -16,7 +16,7 @@ import BouncingLogos from '../components/BouncingLogos'
 import { Button, Badge, Modal, Input, LoadingState } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
-import { getEditionConfig, getEditionKey, LEGACY_EDITION } from '../editions'
+import { getEditionConfig, getEditionKey } from '../editions'
 
 // Resolve the tid THIS viewer controls in a dynasty. In a shared/online
 // league the dynasty-doc currentTid + teamName track the OWNER's team, so a
@@ -726,13 +726,11 @@ export default function Home() {
                     : 'Stored locally (this device only)'
                 const storageBadgeText = isCloudReadOnly ? 'Read-only' : dynasty.storageType === 'cloud' ? 'Cloud' : 'Local'
 
-                // Edition badge — only shown for non-legacy editions so the
-                // common CFB 26 card stays uncluttered. A CFB 27 (or later)
-                // dynasty gets a distinct label at a glance.
+                // Edition badge — shown for every dynasty so CFB 26 and CFB 27
+                // cards are both labeled at a glance (CFB 26 was previously
+                // unlabeled, which read as "no edition" rather than "CFB 26").
                 const editionKey = getEditionKey(dynasty)
-                const editionBadge = editionKey !== LEGACY_EDITION
-                  ? getEditionConfig(editionKey)?.label
-                  : null
+                const editionBadge = getEditionConfig(editionKey)?.label
 
                 // CFB 27 broadcast treatment — each card wears its team's colors
                 // with a faint logo watermark, matching the team/player hero.

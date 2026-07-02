@@ -16853,9 +16853,13 @@ export function parseTop25WeekLocal(rows, dynasty, year, weekKey) {
   let seq = 0
   for (const row of (rows || [])) {
     // Accept "<rank>\t<abbr>" OR a bare "<abbr>" (rank = running line order).
+    // A rank-only row ("15" with no team) is an intentionally-empty rank slot —
+    // detect it by a leading numeric cell even when the team cell is blank (a
+    // "15\t" line splits to just ["15"]), so it's skipped as blank below rather
+    // than misread as a team literally named "15".
     let rank
     let rawAbbr
-    if (row.length >= 2 && /^\d{1,2}$/.test(String(row[0]).trim())) {
+    if (/^\d{1,2}$/.test(String(row[0] ?? '').trim())) {
       rank = parseInt(row[0], 10)
       rawAbbr = String(row[1] || '').trim()
     } else {

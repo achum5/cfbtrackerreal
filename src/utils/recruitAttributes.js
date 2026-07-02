@@ -93,8 +93,8 @@ export const ATTRIBUTE_COLUMNS = [
   // Coverage
   'Man Coverage', 'Zone Coverage', 'Press',
   // Special teams (added beyond the Scout Staff config — not graded yet, but
-  // recordable for K/P recruits and rostered players)
-  'Kick Power', 'Kick Accuracy', 'Kick Return',
+  // recordable for K/P/LS recruits and rostered players)
+  'Kick Power', 'Kick Accuracy', 'Kick Return', 'Long Snap',
 ]
 
 // Game positions → the position bucket used by BASE_POSITION_CONFIG.
@@ -171,7 +171,7 @@ export const ATTRIBUTE_ABBR = {
   'Awareness': 'AWR', 'Speed': 'SPD', 'Acceleration': 'ACC', 'Strength': 'STR',
   'Agility': 'AGI', 'Change of Direction': 'COD',
   'Throw Power': 'THP', 'Short Accuracy': 'SAC', 'Medium Accuracy': 'MAC',
-  'Deep Accuracy': 'DAC', 'Throw On Run': 'TOR', 'Under Pressure': 'TUP', 'Break Sack': 'BSK',
+  'Deep Accuracy': 'DAC', 'Throw On Run': 'RUN', 'Under Pressure': 'TUP', 'Break Sack': 'BSK',
   'Carrying': 'CAR', 'Break Tackle': 'BTK', 'Juke Move': 'JKM', 'Spin Move': 'SPM', 'BC Vision': 'BCV',
   'Catching': 'CTH', 'Catch In Traffic': 'CIT', 'Spectacular Catch': 'SPC',
   'Short Route': 'SRR', 'Medium Route': 'MRR', 'Deep Route': 'DRR', 'Release': 'RLS',
@@ -183,8 +183,8 @@ export const ATTRIBUTE_ABBR = {
   'Kick Power': 'KPW', 'Kick Accuracy': 'KAC',
   // Full CFB 27 backend set (rostered players)
   'Jumping': 'JMP', 'Stamina': 'STA', 'Toughness': 'TGH', 'Injury': 'INJ',
-  'Play Action': 'PLA', 'Stiff Arm': 'SFA', 'Trucking': 'TRK', 'Lead Block': 'LBK',
-  'Kick Return': 'KR',
+  'Play Action': 'PAC', 'Stiff Arm': 'SFA', 'Trucking': 'TRK', 'Lead Block': 'LBK',
+  'Kick Return': 'RET', 'Long Snap': 'LSP',
 }
 
 // Display grouping for the full attribute set — used by the Player page Attributes
@@ -200,7 +200,7 @@ export const RATINGS_GROUP_DEFS = [
   { label: 'Blocking',      attrs: ['Run Block', 'Run Block Power', 'Run Block Finesse', 'Pass Block', 'Pass Block Power', 'Pass Block Finesse', 'Impact Blocking', 'Lead Block'] },
   { label: 'Front Seven',   attrs: ['Block Shedding', 'Tackle', 'Hit Power', 'Power Moves', 'Finesse Moves', 'Pursuit', 'Play Recognition'] },
   { label: 'Coverage',      attrs: ['Man Coverage', 'Zone Coverage', 'Press'] },
-  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Kick Return'] },
+  { label: 'Special Teams', attrs: ['Kick Power', 'Kick Accuracy', 'Kick Return', 'Long Snap'] },
 ]
 
 // RATINGS_GROUP_DEFS plus a generated "Other" bucket for any ATTRIBUTE_COLUMNS

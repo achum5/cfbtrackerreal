@@ -1156,11 +1156,10 @@ export const TEAMS = {
   // fields are CFB 26's identities (colors, no mascot). CFB 27 shipped a new
   // set of generic FCS teams (East=Sentinels, Southeast=Condors,
   // Midwest=Thunderbirds, Northwest=Kodiaks, West=Rivertoads) with new colors;
-  // those ride in `editionOverrides.cfb27` and are applied by
-  // initializeDynastyTeams only for cfb27+ dynasties, so a CFB 26 dynasty keeps
-  // the old teams and a CFB 27 dynasty gets the new ones. Abbreviations keep
-  // the 5-letter in-game codes. Logos point at the CFB 26 marks pending upload
-  // of the new CFB 27 art.
+  // those ride in `editionOverrides.cfb27` (including the new logo art) and are
+  // applied by initializeDynastyTeams only for cfb27+ dynasties, so a CFB 26
+  // dynasty keeps the old teams/logos and a CFB 27 dynasty gets the new ones.
+  // Abbreviations keep the 5-letter in-game codes.
   137: {
     tid: 137,
     abbr: "FCSE",
@@ -1170,7 +1169,7 @@ export const TEAMS = {
     logo: "https://i.imgur.com/eFyXxwT.png",
     isFCS: true,
     editionOverrides: {
-      cfb27: { primaryColor: "#1C2A4D", secondaryColor: "#C6A15B", nickname: "Sentinels" }
+      cfb27: { primaryColor: "#1C2A4D", secondaryColor: "#C6A15B", nickname: "Sentinels", logo: "https://i.imgur.com/youhHZ5.png" }
     }
   },
   138: {
@@ -1182,7 +1181,7 @@ export const TEAMS = {
     logo: "https://i.imgur.com/NOJOPG8.png",
     isFCS: true,
     editionOverrides: {
-      cfb27: { primaryColor: "#7C1D2E", secondaryColor: "#35B5AE", nickname: "Thunderbirds" }
+      cfb27: { primaryColor: "#7C1D2E", secondaryColor: "#35B5AE", nickname: "Thunderbirds", logo: "https://i.imgur.com/1jzzCpP.png" }
     }
   },
   139: {
@@ -1194,7 +1193,7 @@ export const TEAMS = {
     logo: "https://i.imgur.com/uBvbn1s.png",
     isFCS: true,
     editionOverrides: {
-      cfb27: { primaryColor: "#1E4A44", secondaryColor: "#C4A64C", nickname: "Kodiaks" }
+      cfb27: { primaryColor: "#1E4A44", secondaryColor: "#C4A64C", nickname: "Kodiaks", logo: "https://i.imgur.com/PgDD4FD.png" }
     }
   },
   140: {
@@ -1206,7 +1205,7 @@ export const TEAMS = {
     logo: "https://i.imgur.com/Y8A8u0g.png",
     isFCS: true,
     editionOverrides: {
-      cfb27: { primaryColor: "#D64D95", secondaryColor: "#1A1A1A", nickname: "Rivertoads" }
+      cfb27: { primaryColor: "#D64D95", secondaryColor: "#1A1A1A", nickname: "Rivertoads", logo: "https://i.imgur.com/XfzSZYZ.png" }
     }
   },
   141: {
@@ -1218,7 +1217,7 @@ export const TEAMS = {
     logo: "https://i.imgur.com/8qfTMIy.png",
     isFCS: true,
     editionOverrides: {
-      cfb27: { primaryColor: "#26314F", secondaryColor: "#E0691E", nickname: "Condors" }
+      cfb27: { primaryColor: "#26314F", secondaryColor: "#E0691E", nickname: "Condors", logo: "https://i.imgur.com/kwVO5vi.png" }
     }
   },
   // FBS additions for CFB 27 (2026 realignment): two FCS programs that

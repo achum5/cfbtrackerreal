@@ -25,6 +25,7 @@ import {
   buildTop25Diff,
   syncGameRanksFromRankByWeek,
   affectedYearWeeksFromTop25Diff,
+  derivePreseasonPollFromTeams,
 } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
@@ -149,10 +150,14 @@ REQUIRED OUTPUT FORMAT
       if (typeof v !== 'number' || v < 1 || v > 25) continue
       if (!byRank.has(v)) byRank.set(v, getTeamNameLabel(currentDynasty?.teams, team.tid) || String(team.abbr))
     }
+    // Emit ALL 25 rank rows (not just the populated ones) so every rank —
+    // including empty slots like #15 — shows up as an editable row with its
+    // rank pre-filled. Omitting empty ranks made them look "skipped" and left
+    // no cell to type the team into. Blank team cells are ignored on save.
     const lines = []
     for (let r = 1; r <= 25; r++) {
       const abbr = byRank.get(r)
-      if (abbr) lines.push(`${r}\t${abbr}`)
+      lines.push(`${r}\t${abbr || ''}`)
     }
     return lines.join('\n')
   }, [currentDynasty, targetYear, selectedWeek])
@@ -335,6 +340,22 @@ REQUIRED OUTPUT FORMAT
         affectedWeeks,
       )
 
+      // If this save touched week 0 (preseason) for any year, rebuild that
+      // year's preseasonRankingsByYear from the new rankByWeek[0] picture. That
+      // array is what the Dashboard todo + preseason recap read, so without
+      // this a preseason poll entered from the side menu never shows up there.
+      const preseasonYears = Object.entries(affectedWeeks)
+        .filter(([, weeks]) => weeks?.has?.(0))
+        .map(([yr]) => Number(yr))
+        .filter(Number.isFinite)
+      let preseasonPatch = null
+      if (preseasonYears.length > 0) {
+        preseasonPatch = { ...(currentDynasty.preseasonRankingsByYear || {}) }
+        for (const yr of preseasonYears) {
+          preseasonPatch[yr] = derivePreseasonPollFromTeams(newTeams, yr)
+        }
+      }
+
       const isCloud = currentDynasty.storageType === 'cloud'
 
       if (isCloud) {
@@ -388,6 +409,7 @@ REQUIRED OUTPUT FORMAT
         // so the UI reflects the rank corrections immediately.
         const stateUpdates = { ...teamPathUpdates }
         if (changedGames.length > 0) stateUpdates.games = newGames
+        if (preseasonPatch) stateUpdates.preseasonRankingsByYear = preseasonPatch
         if (Object.keys(stateUpdates).length > 0) {
           await updateDynasty(currentDynasty.id, stateUpdates, { skipGamesSubcollection: true })
         }
@@ -399,6 +421,7 @@ REQUIRED OUTPUT FORMAT
         if (newGames !== (currentDynasty.games || [])) {
           updatePayload.games = newGames
         }
+        if (preseasonPatch) updatePayload.preseasonRankingsByYear = preseasonPatch
         await updateDynasty(currentDynasty.id, updatePayload)
       }
 

@@ -1938,6 +1938,37 @@ export function affectedYearWeeksFromTop25Diff(diff) {
 }
 
 /**
+ * Derive the preseason poll array — dynasty.preseasonRankingsByYear[year],
+ * shape [{ rank, team: abbr, tid }] — from a teams map's rankByWeek[0]
+ * snapshot for a given year.
+ *
+ * The preseason poll lives in TWO stores: each team's rankByWeek[0] (what the
+ * Top 25 page + side-menu editor read/write) and preseasonRankingsByYear (what
+ * the Dashboard "Enter Preseason Top 25" todo, the preseason recap, and the
+ * preseason sheet pre-fill read). The side-menu Top 25 editor only wrote
+ * rankByWeek, so preseason entries made there never reached the Dashboard.
+ * This lets that editor rebuild the array form from rankByWeek[0] and keep the
+ * two in lockstep.
+ */
+export function derivePreseasonPollFromTeams(teams, year) {
+  const out = []
+  if (!teams || typeof teams !== 'object') return out
+  const yearNum = Number(year)
+  const yearStr = String(yearNum)
+  for (const team of Object.values(teams)) {
+    if (!team) continue
+    const rbw = team.byYear?.[yearNum]?.rankByWeek ?? team.byYear?.[yearStr]?.rankByWeek
+    if (!rbw) continue
+    const v = rbw[0] ?? rbw['0']
+    const n = Number(v)
+    if (!Number.isFinite(n) || n < 1 || n > 25) continue
+    out.push({ rank: n, team: team.abbr || null, tid: team.tid != null ? Number(team.tid) : null })
+  }
+  out.sort((a, b) => a.rank - b.rank)
+  return out
+}
+
+/**
  * Build a human-readable diff summary from a Top 25 sheet sync-back
  * diff + the current dynasty state. Shape:
  *
@@ -5386,9 +5417,8 @@ export function migrateFCSFiveTeams(dynasty) {
  * baked in at creation by initializeDynastyTeams. This migration retrofits
  * cfb27 dynasties created before the change: for each FCS slot still holding
  * the pristine CFB 26 default colors (i.e. the user never recolored it), it
- * applies the CFB 27 colors + mascot. Slots the user customized are left
- * untouched, and cfb26 dynasties are never touched at all. Logos are left as
- * the CFB 26 marks pending upload of the new CFB 27 art.
+ * applies the CFB 27 colors + mascot + logo. Slots the user customized are left
+ * untouched, and cfb26 dynasties are never touched at all.
  */
 const FCS_CFB26_DEFAULTS = {
   137: { primaryColor: '#2f1936', secondaryColor: '#8e85a1' },
@@ -5397,12 +5427,28 @@ const FCS_CFB26_DEFAULTS = {
   140: { primaryColor: '#462e6a', secondaryColor: '#af9458' },
   141: { primaryColor: '#4a7c59', secondaryColor: '#f0e68c' },
 }
+// The CFB 26 logo each FCS slot shipped with, lowercased for comparison. Used
+// so the logo backfill only swaps a slot the user never replaced.
+const FCS_CFB26_LOGOS = {
+  137: 'https://i.imgur.com/efyxxwt.png',
+  138: 'https://i.imgur.com/nojopg8.png',
+  139: 'https://i.imgur.com/ubvbn1s.png',
+  140: 'https://i.imgur.com/y8a8u0g.png',
+  141: 'https://i.imgur.com/8qftmiy.png',
+}
+const FCS_CFB27_LOGOS = {
+  137: 'https://i.imgur.com/youhHZ5.png',
+  138: 'https://i.imgur.com/1jzzCpP.png',
+  139: 'https://i.imgur.com/PgDD4FD.png',
+  140: 'https://i.imgur.com/XfzSZYZ.png',
+  141: 'https://i.imgur.com/kwVO5vi.png',
+}
 const FCS_CFB27_IDENTITY = {
-  137: { primaryColor: '#1C2A4D', secondaryColor: '#C6A15B', nickname: 'Sentinels' },
-  138: { primaryColor: '#7C1D2E', secondaryColor: '#35B5AE', nickname: 'Thunderbirds' },
-  139: { primaryColor: '#1E4A44', secondaryColor: '#C4A64C', nickname: 'Kodiaks' },
-  140: { primaryColor: '#D64D95', secondaryColor: '#1A1A1A', nickname: 'Rivertoads' },
-  141: { primaryColor: '#26314F', secondaryColor: '#E0691E', nickname: 'Condors' },
+  137: { primaryColor: '#1C2A4D', secondaryColor: '#C6A15B', nickname: 'Sentinels', logo: FCS_CFB27_LOGOS[137] },
+  138: { primaryColor: '#7C1D2E', secondaryColor: '#35B5AE', nickname: 'Thunderbirds', logo: FCS_CFB27_LOGOS[138] },
+  139: { primaryColor: '#1E4A44', secondaryColor: '#C4A64C', nickname: 'Kodiaks', logo: FCS_CFB27_LOGOS[139] },
+  140: { primaryColor: '#D64D95', secondaryColor: '#1A1A1A', nickname: 'Rivertoads', logo: FCS_CFB27_LOGOS[140] },
+  141: { primaryColor: '#26314F', secondaryColor: '#E0691E', nickname: 'Condors', logo: FCS_CFB27_LOGOS[141] },
 }
 export function migrateFCSCfb27Teams(dynasty) {
   if (!dynasty || dynasty._fcsCfb27Migrated) return dynasty
@@ -5426,6 +5472,38 @@ export function migrateFCSCfb27Teams(dynasty) {
 
   if (!changed) return { ...dynasty, _fcsCfb27Migrated: true }
   return { ...dynasty, teams, _fcsCfb27Migrated: true }
+}
+
+/**
+ * Migration: backfill CFB 27 FCS logos onto existing cfb27 dynasties.
+ *
+ * Separate from migrateFCSCfb27Teams because that one only fires when a slot
+ * still holds the pristine CFB 26 *colors* — a cfb27 dynasty created after the
+ * color/mascot change but before the logo art existed already has the new
+ * colors, so it would never re-run. This one keys off the *logo* instead:
+ * for each FCS slot still holding its CFB 26 logo, swap in the CFB 27 art. User
+ * -replaced logos and cfb26 dynasties are left untouched. Idempotent.
+ */
+export function migrateFCSCfb27Logos(dynasty) {
+  if (!dynasty || dynasty._fcsCfb27LogosMigrated) return dynasty
+  if (normalizeEditionKey(dynasty.gameEdition) !== 'cfb27') return dynasty
+
+  const teams = { ...(dynasty.teams || {}) }
+  let changed = false
+  for (const [tidStr, oldLogo] of Object.entries(FCS_CFB26_LOGOS)) {
+    const tid = Number(tidStr)
+    const slot = teams[tid]
+    if (!slot) continue
+    const cur = (slot.logo || '').toLowerCase()
+    // Swap the old CFB 26 mark (or an empty logo) for the new CFB 27 art.
+    if (cur === oldLogo || cur === '') {
+      teams[tid] = { ...slot, logo: FCS_CFB27_LOGOS[tid] }
+      changed = true
+    }
+  }
+
+  if (!changed) return { ...dynasty, _fcsCfb27LogosMigrated: true }
+  return { ...dynasty, teams, _fcsCfb27LogosMigrated: true }
 }
 
 // ============================================================================
@@ -6479,6 +6557,10 @@ export function DynastyProvider({ children }) {
       // new generic teams (colors + mascots). Gated + only touches slots the
       // user never recolored; cfb26 dynasties are left with the old teams.
       migrated = migrateFCSCfb27Teams(migrated)
+      // Backfill the CFB 27 FCS logo art onto cfb27 dynasties whose slots still
+      // hold the old CFB 26 logo (covers saves already color-migrated before
+      // the art existed). Keyed off the logo, so it's independent of the above.
+      migrated = migrateFCSCfb27Logos(migrated)
 
       // Backfill the teamName + nickname split ("Kentucky" | "Wildcats") on the
       // teams map for saves created before the split existed. Additive and

@@ -301,6 +301,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
   const handleSelectTier = (tier) => writeFacilities({ tier })
   const handleSetGrade = (grade) => writeFacilities({ grade })
   const handleAddEquipment = (item) => writeFacilities({ equipment: [...facilityEquipment, item] })
+  const handleUpdateEquipment = (idx, item) => writeFacilities({ equipment: facilityEquipment.map((eq, i) => (i === idx ? item : eq)) })
   const handleRemoveEquipment = (idx) => writeFacilities({ equipment: facilityEquipment.filter((_, i) => i !== idx) })
 
   // ── NIL (per-player; both lanes auto-derive from these, like Staff) ──────
@@ -658,6 +659,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
                 onSelectTier={handleSelectTier}
                 onSetGrade={handleSetGrade}
                 onAddEquipment={handleAddEquipment}
+                onUpdateEquipment={handleUpdateEquipment}
                 onRemoveEquipment={handleRemoveEquipment}
                 isViewOnly={isViewOnly}
               />
