@@ -166,6 +166,42 @@ const STAT_SECTIONS = [
 
 const MAX_COLUMNS = 6
 
+// Which attribute display groups matter most for a given position, in priority
+// order. Used to surface the most relevant groups first when comparing players
+// (e.g. two kickers → Kicking first; two OL → Blocking first). Group labels
+// match ATTRIBUTE_DISPLAY_GROUP_DEFS in recruitAttributes.js.
+const POS_ATTR_PRIORITY = {
+  QB: ['Passing', 'Ballcarrier'],
+  HB: ['Ballcarrier', 'Receiving'], RB: ['Ballcarrier', 'Receiving'], FB: ['Blocking', 'Ballcarrier'],
+  WR: ['Receiving', 'Ballcarrier'],
+  TE: ['Receiving', 'Blocking'],
+  LT: ['Blocking'], LG: ['Blocking'], C: ['Blocking'], RG: ['Blocking'], RT: ['Blocking'],
+  OL: ['Blocking'], OT: ['Blocking'], OG: ['Blocking'],
+  LE: ['Defense'], RE: ['Defense'], DE: ['Defense'], DT: ['Defense'], DL: ['Defense'], EDGE: ['Defense'],
+  LOLB: ['Defense'], ROLB: ['Defense'], MLB: ['Defense'], OLB: ['Defense'], ILB: ['Defense'], LB: ['Defense'],
+  CB: ['Defense'], FS: ['Defense'], SS: ['Defense'], S: ['Defense'], DB: ['Defense'],
+  K: ['Kicking'], P: ['Kicking'],
+}
+
+// Reorder attribute groups so the ones most relevant to the compared players'
+// positions come first. Ties keep the groups' original (default card) order.
+function orderAttrGroupsByPositions(groups, positions) {
+  const relevance = (label) => {
+    let best = Infinity
+    for (const pos of positions) {
+      const pri = POS_ATTR_PRIORITY[String(pos || '').toUpperCase()]
+      if (!pri) continue
+      const idx = pri.indexOf(label)
+      if (idx !== -1 && idx < best) best = idx
+    }
+    return best
+  }
+  return groups
+    .map((g, i) => ({ g, i, r: relevance(g.label) }))
+    .sort((a, b) => (a.r - b.r) || (a.i - b.i))
+    .map((x) => x.g)
+}
+
 // -------------------------------------------------------------------------
 // Inline player picker — a text-styled trigger (the player's name) that opens
 // a searchable list of every rostered player. The list is portaled to <body>
@@ -314,6 +350,14 @@ export default function ComparePlayers() {
   const teamColors = useTeamColors(currentDynasty?.teamName, teams)
   const accent = teamColors?.primary || '#ea580c'
 
+  // Collapsed section keys (click a section header to fold its rows away).
+  const [collapsed, setCollapsed] = useState(() => new Set())
+  const toggleSection = (key) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
   const players = useMemo(
     () => (currentDynasty?.players || []).filter(p => !isOpenTarget(p)),
     [currentDynasty?.players]
@@ -399,9 +443,11 @@ export default function ComparePlayers() {
   // players are shown.
   const attrSections = useMemo(() => {
     const has = (c, a) => c.attrs?.[a] != null && c.attrs[a] !== ''
-    return displayGroups()
+    const groups = displayGroups()
       .map(g => ({ label: g.label, rows: g.attrs.filter(a => filledCols.some(c => has(c, a))) }))
       .filter(g => g.rows.length)
+    const positions = filledCols.map(c => c.position).filter(Boolean)
+    return orderAttrGroupsByPositions(groups, positions)
   }, [filledCols])
 
   if (!currentDynasty) return null
@@ -437,19 +483,21 @@ export default function ComparePlayers() {
   const winBorder = 'rgba(34,197,94,0.55)'
 
   const dataColCount = filledCols.length + (showAddCol ? 1 : 0)
-  const gridCols = { gridTemplateColumns: `minmax(96px, 150px) repeat(${Math.max(dataColCount, 1)}, minmax(0, 1fr))` }
+  const gridCols = { gridTemplateColumns: `minmax(112px, 176px) repeat(${Math.max(dataColCount, 1)}, minmax(0, 1fr))` }
   // Cap the whole table width by column count so data columns stay compact
   // (~215px each) instead of stretching to fill the page. Section bars still
   // span the full (now narrower) table.
-  const tableMaxWidth = `${150 + Math.max(dataColCount, 1) * 215}px`
+  const tableMaxWidth = `${176 + Math.max(dataColCount, 1) * 215}px`
 
   const StatRow = ({ label, cells, winSet }) => (
     <div className="grid items-center" style={gridCols}>
-      <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>{label}</div>
+      {/* Small, no-wrap label so long names (e.g. "Short Route Running") stay
+          on one line instead of wrapping and creating uneven row heights. */}
+      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap leading-tight" style={{ color: 'var(--text-tertiary)' }}>{label}</div>
       {cells.map((cell, i) => (
         <div
           key={i}
-          className="px-3 py-2 text-sm text-right tabular-nums"
+          className="px-3 py-2 text-sm text-center tabular-nums"
           style={{
             color: 'var(--text-primary)',
             backgroundColor: winSet?.has(i) ? winTint : 'transparent',
@@ -463,16 +511,26 @@ export default function ComparePlayers() {
     </div>
   )
 
-  const SectionTitle = ({ children }) => (
-    <div className="grid" style={gridCols}>
-      <div
-        className="px-3 py-2 text-[11px] font-bold uppercase tracking-widest"
-        style={{ color: getContrastTextColor(accent), backgroundColor: accent, gridColumn: '1 / -1' }}
-      >
-        {children}
+  // Collapsible section header — click to fold/unfold the section's rows.
+  const SectionTitle = ({ sectionKey, children }) => {
+    const isCollapsed = collapsed.has(sectionKey)
+    return (
+      <div className="grid" style={gridCols}>
+        <button
+          type="button"
+          onClick={() => toggleSection(sectionKey)}
+          className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-left transition-opacity hover:opacity-90"
+          style={{ color: getContrastTextColor(accent), backgroundColor: accent, gridColumn: '1 / -1' }}
+          aria-expanded={!isCollapsed}
+        >
+          <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+          </svg>
+          {children}
+        </button>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -574,8 +632,8 @@ export default function ComparePlayers() {
         ) : (
           <>
             {/* Bio */}
-            <SectionTitle>Bio</SectionTitle>
-            {bioRows.map(row => {
+            <SectionTitle sectionKey="bio">Bio</SectionTitle>
+            {!collapsed.has('bio') && bioRows.map(row => {
               const winSet = row.better ? winners(c => row.num(c), row.better) : null
               return <StatRow key={row.label} label={row.label} winSet={winSet} cells={filledCols.map(c => row.get(c))} />
             })}
@@ -583,8 +641,8 @@ export default function ComparePlayers() {
             {/* Stat categories */}
             {visibleSections.map(sec => (
               <React.Fragment key={sec.key}>
-                <SectionTitle>{sec.label}</SectionTitle>
-                {sec.rows.map(row => {
+                <SectionTitle sectionKey={sec.key}>{sec.label}</SectionTitle>
+                {!collapsed.has(sec.key) && sec.rows.map(row => {
                   const rawVals = filledCols.map(c => row.get(c.stats))
                   const winSet = winners(c => num(row.get(c.stats)), row.better)
                   const cells = rawVals.map(v => (v == null ? '-' : `${typeof v === 'number' ? v.toLocaleString() : v}${row.suffix && v !== '-' ? row.suffix : ''}`))
@@ -594,19 +652,22 @@ export default function ComparePlayers() {
             ))}
 
             {/* Attributes (CFB 27 ratings) */}
-            {attrSections.map(sec => (
-              <React.Fragment key={'attr-' + sec.label}>
-                <SectionTitle>{sec.label}</SectionTitle>
-                {sec.rows.map(name => {
+            {attrSections.map(sec => {
+              const key = 'attr-' + sec.label
+              return (
+              <React.Fragment key={key}>
+                <SectionTitle sectionKey={key}>{sec.label}</SectionTitle>
+                {!collapsed.has(key) && sec.rows.map(name => {
                   const winSet = winners(c => num(c.attrs?.[name]), 'high')
                   const cells = filledCols.map(c => {
                     const v = c.attrs?.[name]
                     return (v == null || v === '') ? '-' : Number(v)
                   })
-                  return <StatRow key={'attr-' + sec.label + name} label={displayLabel(name)} winSet={winSet} cells={cells} />
+                  return <StatRow key={key + name} label={displayLabel(name)} winSet={winSet} cells={cells} />
                 })}
               </React.Fragment>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
