@@ -4071,11 +4071,21 @@ export default function Dashboard() {
               // has no Week -1 to "log scores for," so this row is skipped.
               if (hasPrevWeek) {
                 const weeklyEntered = currentDynasty.weeklyScoresEntered?.[yearNum]?.[prevWeek]
-                const savedCount = (currentDynasty.games || []).filter(g =>
-                  g && Number(g.year) === yearNum && Number(g.week) === prevWeek
-                  && g.gameType === 'regular' && g.source === 'weekly-scores'
+                const allGames = currentDynasty.games || []
+                const forWeek = (g) => g && Number(g.year) === yearNum && Number(g.week) === prevWeek && g.gameType === 'regular'
+                // "Done" gates on the across-the-country import (or its flag), so
+                // the user's own game alone never marks the task complete.
+                const importedCount = allGames.filter(g => forWeek(g) && g.source === 'weekly-scores').length
+                // Displayed count matches the recap: every PLAYED regular game
+                // this week, INCLUDING the user's own game (entered via its own
+                // flow, so it isn't source:'weekly-scores'). Without this the badge
+                // read one short of what the recap listed.
+                const savedCount = allGames.filter(g => forWeek(g)
+                  && g.team1Tid && g.team2Tid
+                  && typeof g.team1Score === 'number' && typeof g.team2Score === 'number'
+                  && (g.isPlayed || g.team1Score > 0 || g.team2Score > 0)
                 ).length
-                const done = !!weeklyEntered || savedCount > 0
+                const done = !!weeklyEntered || importedCount > 0
                 todos.push({
                   key: 'weekly-scores',
                   done,
@@ -4396,11 +4406,18 @@ export default function Dashboard() {
               const yearNum = Number(currentDynasty.currentYear)
               const prevWeek = 15
               const weeklyEntered = currentDynasty.weeklyScoresEntered?.[yearNum]?.[prevWeek]
-              const savedCount = (currentDynasty.games || []).filter(g =>
-                g && Number(g.year) === yearNum && Number(g.week) === prevWeek
-                && g.gameType === 'regular' && g.source === 'weekly-scores'
+              const allGames = currentDynasty.games || []
+              const forWeek = (g) => g && Number(g.year) === yearNum && Number(g.week) === prevWeek && g.gameType === 'regular'
+              // "Done" gates on the across-the-country import (or its flag).
+              const importedCount = allGames.filter(g => forWeek(g) && g.source === 'weekly-scores').length
+              // Displayed count matches the recap: every PLAYED regular game this
+              // week, including the user's own game (not source:'weekly-scores').
+              const savedCount = allGames.filter(g => forWeek(g)
+                && g.team1Tid && g.team2Tid
+                && typeof g.team1Score === 'number' && typeof g.team2Score === 'number'
+                && (g.isPlayed || g.team1Score > 0 || g.team2Score > 0)
               ).length
-              const done = !!weeklyEntered || savedCount > 0
+              const done = !!weeklyEntered || importedCount > 0
               todos.push({
                 key: 'cc-week15-scores',
                 done,
