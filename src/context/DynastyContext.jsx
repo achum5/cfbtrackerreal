@@ -17292,11 +17292,21 @@ export function DynastyProvider({ children }) {
 
   // The user's currently-focused tid: the saved active selection if it
   // still belongs to them, else their first assigned team.
+  //
+  // Resolution is uid-scoped and mirrors Home.jsx's getViewerTid: prefer the
+  // teams the user's controlled coaches hold, but FALL BACK to their
+  // memberTeams membership slot. Without that fallback, a returning user whose
+  // controlled-coach records didn't resolve (e.g. a commish after logout/login)
+  // got activeUserTid === null, the per-user override below no-op'd, and the
+  // Dashboard read the shared, owner-scoped currentTid — which could be a
+  // co-member's team (the "commish logs in and sees his buddy's Tulsa" bug).
   const activeUserTid = (() => {
-    if (!_activeTeamKey || userTeams.length === 0) return null
+    if (!_activeTeamKey || !user?.uid) return null
+    const mine = userTeams.length > 0 ? userTeams : getMemberTeams(currentDynasty, user.uid)
+    if (mine.length === 0) return null
     const saved = activeTeamByKey[_activeTeamKey]
-    if (saved != null && userTeams.includes(Number(saved))) return Number(saved)
-    return userTeams[0]
+    if (saved != null && mine.includes(Number(saved))) return Number(saved)
+    return mine[0]
   })()
 
   // ─── Per-user dynasty override ───────────────────────────────────
