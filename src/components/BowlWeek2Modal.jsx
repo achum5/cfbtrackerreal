@@ -150,7 +150,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
         if (!rbw) continue
         const v = rbw[slot] ?? rbw[String(slot)]
         if (typeof v !== 'number' || v < 1 || v > 25) continue
-        if (!slotMap.has(v)) slotMap.set(v, getTeamNameLabel(teams, team.tid) || team.abbr)
+        if (!slotMap.has(v)) slotMap.set(v, getTeamNameLabel(teamsData, team.tid) || team.abbr)
       }
       return slotMap
     }
