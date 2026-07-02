@@ -436,10 +436,21 @@ export default function ComparePlayers() {
   const setSlot = (idx, patch) => setSlots(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
   const removeSlot = idx => setSlots(prev => prev.filter((_, i) => i !== idx))
 
+  // Default a newly picked player to their most RECENT season that actually
+  // has recorded stats, not just their newest roster year. Otherwise adding a
+  // QB whose newest season is an unplayed/redshirt year (0 games) lands on a
+  // season with no passing stats, so the Passing section can't appear and the
+  // table looks like it didn't react to the selection. Falls back to the
+  // newest roster season, then the dynasty's current year.
+  const seasonHasStats = (player, year) => {
+    const s = normalizeSeason(player, year)
+    return s.gamesPlayed > 0 || !!(s.passing || s.rushing || s.receiving || s.defensive || s.kicking || s.blocking)
+  }
   const firstSeason = pid => {
     const p = playerById.get(String(pid))
-    const seasons = p ? playerSeasons(p) : []
-    return seasons[0] ?? currentDynasty?.currentYear ?? null
+    const seasons = p ? playerSeasons(p) : [] // newest-first
+    const withStats = p ? seasons.find(y => seasonHasStats(p, y)) : null
+    return withStats ?? seasons[0] ?? currentDynasty?.currentYear ?? null
   }
   const changePlayer = (idx, pid) => setSlot(idx, { pid, year: firstSeason(pid) })
   const addPlayer = pid => setSlots(prev => (prev.length >= MAX_COLUMNS ? prev : [...prev, { pid, year: firstSeason(pid) }]))
@@ -655,11 +666,6 @@ export default function ComparePlayers() {
                   >
                     {playerSeasons(c.player).map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
-                  {c.ovr != null && (
-                    <span className="px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: c.colors.primary, color: getContrastTextColor(c.colors.primary) }}>
-                      {c.ovr} OVR
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
