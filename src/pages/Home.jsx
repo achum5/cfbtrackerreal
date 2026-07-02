@@ -7,6 +7,8 @@ import { getTeamColors } from '../data/teamColors'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { getConferenceLogo } from '../data/conferenceLogos'
 import { TEAMS, getTidFromTeamName } from '../data/teamRegistry'
+import { getMemberTeam } from '../data/leagueModel'
+import { getCurrentTeamsForControlledCoaches } from '../data/coachModel'
 import ConfirmModal from '../components/ConfirmModal'
 import ShareDynastyModal from '../components/ShareDynastyModal'
 import StorageSwitchModal from '../components/StorageSwitchModal'
@@ -16,11 +18,37 @@ import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
 import { getEditionConfig, getEditionKey, LEGACY_EDITION } from '../editions'
 
-function getDynastyTeamConference(dynasty) {
+// Resolve the tid THIS viewer controls in a dynasty. In a shared/online
+// league the dynasty-doc currentTid + teamName track the OWNER's team, so a
+// member (e.g. Air Force in an Eastern Michigan commish's league) must be
+// resolved from the teams their coach controls, mirroring the same logic the
+// in-dynasty pages use (getCurrentTeamsForControlledCoaches). Falls back to
+// their memberTeams slot, then to the dynasty-doc currentTid for the owner /
+// solo dynasties.
+function getViewerTid(dynasty, uid) {
+  if (!dynasty) return null
+  if (uid) {
+    const controlled = getCurrentTeamsForControlledCoaches(dynasty, uid)
+    if (controlled.length > 0) return controlled[0]
+    const memberTid = getMemberTeam(dynasty, uid)
+    if (memberTid != null) return memberTid
+  }
+  return dynasty.currentTid ?? null
+}
+
+// Combined display name for a team object ("Air Force Falcons"), tolerant of
+// the teamName+nickname split and the legacy combined `name`.
+function fullTeamName(team, fallback) {
+  if (!team) return fallback
+  if (team.teamName && team.nickname) return `${team.teamName} ${team.nickname}`
+  return team.name || team.teamName || fallback
+}
+
+function getDynastyTeamConference(dynasty, tidOverride = null) {
   if (!dynasty.teamName) return null
-  const tid = dynasty.currentTid || getTidFromTeamName(dynasty.teamName, dynasty.teams)
+  const tid = tidOverride ?? dynasty.currentTid ?? getTidFromTeamName(dynasty.teamName, dynasty.teams)
   if (!tid) return dynasty.conference || null
-  const originalTeamAbbr = TEAMS[tid]?.abbr
+  const originalTeamAbbr = dynasty.teams?.[tid]?.abbr || TEAMS[tid]?.abbr
   if (!originalTeamAbbr) return dynasty.conference || null
   // Appends the division when the conference is split, e.g. "SEC (East)".
   return getTeamConferenceLabel(dynasty, originalTeamAbbr) || getTeamConferenceForDynasty(dynasty, originalTeamAbbr)
@@ -656,10 +684,16 @@ export default function Home() {
             <div className="stagger-reveal space-y-3">
               {sortedDynasties.map((dynasty) => {
                 const teamsData = dynasty.teams || dynasty.customTeams
+                // In a shared league the card should show THIS viewer's team,
+                // not the owner's dynasty-doc team. Resolve their tid and use
+                // it for the name, logo, colors, and conference below.
+                const viewerTid = getViewerTid(dynasty, user?.uid)
+                const viewerTeam = (viewerTid != null && teamsData) ? teamsData[viewerTid] : null
+                const displayTeamName = fullTeamName(viewerTeam, dynasty.teamName)
                 let logoUrl = null
                 if (teamsData) {
-                  if (dynasty.currentTid && dynasty.teams?.[dynasty.currentTid]) {
-                    logoUrl = dynasty.teams[dynasty.currentTid].logo
+                  if (viewerTid != null && teamsData[viewerTid]) {
+                    logoUrl = teamsData[viewerTid].logo || teamsData[viewerTid].logoUrl
                   } else {
                     const teambuilderTeam = Object.values(teamsData).find(t => t.name === dynasty.teamName)
                     if (teambuilderTeam) {
@@ -668,13 +702,21 @@ export default function Home() {
                   }
                 }
                 if (!logoUrl) {
-                  logoUrl = getTeamLogo(dynasty.teamName, teamsData)
+                  logoUrl = getTeamLogo(displayTeamName, teamsData)
                 }
                 const relativeTime = getRelativeTime(dynasty.lastModified)
                 const weekShort = weekShortFor(dynasty)
-                const conference = getDynastyTeamConference(dynasty)
+                const conference = getDynastyTeamConference(dynasty, viewerTid)
 
-                const isCloudReadOnly = dynasty.storageType === 'cloud' && !isPremium
+                // Read-only mirrors real edit access, not just the viewer's own
+                // premium: the OWNER needs premium (they pay for cloud storage),
+                // but an invited member edits under the commish's premium. So a
+                // non-premium member of a shared cloud dynasty is NOT read-only.
+                const isOwnerOfDynasty = dynasty.userId === user?.uid
+                const isSharedEditor = !isOwnerOfDynasty
+                  && Array.isArray(dynasty.editors) && dynasty.editors.includes(user?.uid)
+                const canEditCloud = isOwnerOfDynasty ? isPremium : isSharedEditor
+                const isCloudReadOnly = dynasty.storageType === 'cloud' && !canEditCloud
                 const storageBadgeVariant = isCloudReadOnly ? 'warning' : (dynasty.storageType === 'cloud' ? 'info' : 'outline')
                 const storageBadgeTitle = isCloudReadOnly
                   ? 'Cloud dynasty (read-only without Premium)'
@@ -693,7 +735,7 @@ export default function Home() {
 
                 // CFB 27 broadcast treatment — each card wears its team's colors
                 // with a faint logo watermark, matching the team/player hero.
-                const cardColors = getTeamColors(dynasty.teamName, teamsData)
+                const cardColors = getTeamColors(displayTeamName, teamsData)
                 const cardText = getContrastTextColor(cardColors.primary)
 
                 return (
@@ -709,7 +751,7 @@ export default function Home() {
                     {/* Whole-card click target sits behind the action affordances. */}
                     <Link
                       to={`/dynasty/${dynasty.id}`}
-                      aria-label={`Open ${dynasty.teamName} dynasty`}
+                      aria-label={`Open ${displayTeamName} dynasty`}
                       className="absolute inset-0 z-0 rounded-lg focus-visible:outline-2 focus-visible:outline-surface-5"
                     />
 
@@ -735,7 +777,7 @@ export default function Home() {
                           className="font-display font-bold truncate leading-tight mb-1"
                           style={{ fontSize: 'clamp(1.0625rem, 2.5vw, 1.375rem)', letterSpacing: '-0.015em', color: cardText, textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}
                         >
-                          {dynasty.teamName}
+                          {displayTeamName}
                         </h2>
                         <div className="flex items-center gap-1.5 text-xs sm:text-sm tabular-nums truncate" style={{ color: cardText, opacity: 0.9 }}>
                           {conference && getConferenceLogo(conference) && (

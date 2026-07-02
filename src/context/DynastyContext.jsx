@@ -8802,8 +8802,11 @@ export function DynastyProvider({ children }) {
     // CPU games: have team identifiers but no user involvement marker
     // In unified format: has team1Tid/team2Tid but user's tid is not involved
     // In legacy format: has team1/team2 but no userTeam/opponent
-    const currentUserTid = getCurrentTeamTid(dynasty)
-    const currentUserTeam = getCurrentTeamAbbr(dynasty) || dynasty.teamName
+    // ACTING user's team — in a shared league the raw doc's current team is
+    // the OWNER's, so a member's own game must classify against THEIR team
+    // (else it's mistaken for a CPU game and its box score/stats are skipped).
+    const currentUserTid = activeUserTid || getCurrentTeamTid(dynasty)
+    const currentUserTeam = (currentUserTid ? getAbbrFromTid(dynasty.teams, currentUserTid) : null) || getCurrentTeamAbbr(dynasty) || dynasty.teamName
 
     let isCPUGame = false
     if (hasUnifiedFormat) {
@@ -9058,7 +9061,7 @@ export function DynastyProvider({ children }) {
       } else if (cleanGameData.isCFPFirstRound || existingGame.isCFPFirstRound) {
         // Check if this is a CFP game that needs ID correction
         const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year || existingGame.year] || []
-        const userTidForSeed = getCurrentTeamTid(dynasty)
+        const userTidForSeed = activeUserTid || getCurrentTeamTid(dynasty)
         const userSeed = cfpSeeds.find(s => s.tid === userTidForSeed)?.seed
         const oppSeed = userSeed ? 17 - userSeed : null
         const slotId = getFirstRoundSlotId(userSeed, oppSeed)
@@ -9134,7 +9137,7 @@ export function DynastyProvider({ children }) {
 
       if (cleanGameData.isCFPFirstRound) {
         const cfpSeeds = dynasty.cfpSeedsByYear?.[cleanGameData.year] || []
-        const userTidForSeed = getCurrentTeamTid(dynasty)
+        const userTidForSeed = activeUserTid || getCurrentTeamTid(dynasty)
         const userSeed = cfpSeeds.find(s => s.tid === userTidForSeed)?.seed
         const oppSeed = userSeed ? 17 - userSeed : null
         const slotId = getFirstRoundSlotId(userSeed, oppSeed)
@@ -9550,8 +9553,6 @@ export function DynastyProvider({ children }) {
       existingGames = dynasty?.games || []
     }
 
-    const userTeamAbbr = getCurrentTeamAbbr(dynasty)
-
     // Only treat an incoming row as "I have data for this bowl" if it
     // carries both teams AND both scores. Blank rows in the sheet still
     // come back from the reader (column A is protected so bowlName is
@@ -9591,7 +9592,6 @@ export function DynastyProvider({ children }) {
     })
 
     // Create / refresh game entries for each valid incoming bowl.
-    const userTid = getCurrentTeamTid(dynasty)
     const newGames = validIncoming.map(bowl => {
       const existing = existingByBowlName.get(bowl.bowlName)
 
@@ -9971,7 +9971,10 @@ export function DynastyProvider({ children }) {
 
     const yearNum = Number(year)
     const weekNum = Number(week)
-    const userTid = getCurrentTeamTid(dynasty)
+    // ACTING user's team — a member's own game must be the one protected from
+    // the weekly-scores import (raw currentTid would protect the owner's game
+    // and let the import clobber the member's hand-entered game).
+    const userTid = activeUserTid || getCurrentTeamTid(dynasty)
     const existingGames = await getDynastyGames(dynasty)
 
     // Stable id keyed by sorted tids — same matchup re-imported updates in place
@@ -10802,8 +10805,9 @@ export function DynastyProvider({ children }) {
     console.log('[saveCPUCC] Existing games count:', existingGames.length)
     console.log('[saveCPUCC] Existing CC games:', existingGames.filter(g => g.isConferenceChampionship))
 
-    // Get user's team tid for this year
-    const userTidForYear = dynasty.coachTeamByYear?.[year]?.tid || getCurrentTeamTid(dynasty)
+    // Get user's team tid for this year. Member (non-owner) uses their own
+    // team; owner keeps year-accurate coachTeamByYear (job-change history).
+    const userTidForYear = (user?.uid && dynasty.userId !== user.uid ? activeUserTid : null) || dynasty.coachTeamByYear?.[year]?.tid || getCurrentTeamTid(dynasty)
 
     // Find the user's CC game for this year (if any)
     // Check both unified format (team1Tid/team2Tid) and legacy format (userTeam)
@@ -11034,7 +11038,8 @@ export function DynastyProvider({ children }) {
       if (!Number.isFinite(year)) continue
       const championships = Array.isArray(byYear[yearKey]) ? byYear[yearKey] : []
 
-      const userTidForYear = dynasty.coachTeamByYear?.[year]?.tid || getCurrentTeamTid(dynasty)
+      // Member (non-owner) uses their own team; owner keeps year-accurate history.
+      const userTidForYear = (user?.uid && dynasty.userId !== user.uid ? activeUserTid : null) || dynasty.coachTeamByYear?.[year]?.tid || getCurrentTeamTid(dynasty)
 
       const filtered = runningGames.filter(g => {
         if (Number(g.year) !== Number(year)) return true
@@ -11773,9 +11778,24 @@ export function DynastyProvider({ children }) {
       const leavingNames = new Set(playersLeavingList.map(p => p.name?.toLowerCase().trim()).filter(Boolean))
       console.log('[advanceWeek] Players Leaving count:', playersLeavingList.length)
 
-      // Helper to check if player was on THIS team last season
-      const wasOnTeamLastSeason = (player) => {
-        return isPlayerOnRoster(player, teamTid, previousSeasonYear)
+      // Every team a member controls is a first-class roster that must
+      // progress exactly like the commish's own (redshirt-aware class
+      // progression + carry-over), NOT the lighter "simple aging" CPU path.
+      // Build the set of member-controlled tids (commish's own team included).
+      const memberTidSet = new Set()
+      if (teamTid != null) memberTidSet.add(Number(teamTid))
+      for (const tids of Object.values(dynasty.memberTeams || {})) {
+        for (const t of (Array.isArray(tids) ? tids : [])) {
+          const n = Number(t); if (Number.isFinite(n)) memberTidSet.add(n)
+        }
+      }
+      // The member-controlled team this player was on last season, or null
+      // (null ⇒ a CPU team, which keeps the lighter simple-aging path).
+      const memberTeamOf = (player) => {
+        for (const t of memberTidSet) {
+          if (isPlayerOnRoster(player, t, previousSeasonYear)) return t
+        }
+        return null
       }
 
       // Teambuilder imports have been observed leaving isRecruit:true stuck on
@@ -11799,7 +11819,7 @@ export function DynastyProvider({ children }) {
       // migration, movements[] is removed and only movementByYear survives.
       // This caused transferred/graduated players to get silently carried
       // over on every year flip because the old check missed them.
-      const isPlayerLeaving = (player) => {
+      const isPlayerLeaving = (player, homeTid = teamTid) => {
         const legacyMovements = Array.isArray(player.movements) ? player.movements : []
 
         // Recommit override: if they recommitted after entering the portal
@@ -11864,7 +11884,7 @@ export function DynastyProvider({ children }) {
           // dynasty had imported portal transfers with arrival events
           // mis-stored as transfer_out+toTid=2, which caused this loop to
           // flag the player as "still gone" on every year flip.)
-          if (isDep && m?.departure === 'transfer_out' && m?.toTid === teamTid) continue
+          if (isDep && m?.departure === 'transfer_out' && m?.toTid === homeTid) continue
           if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
             earliestDeparture = y
           }
@@ -11908,8 +11928,8 @@ export function DynastyProvider({ children }) {
           const returnedViaTeamsByYear = Object.entries(player.teamsByYear || {}).some(([yStr, t]) => {
             const y = Number(yStr)
             if (!Number.isFinite(y) || !cameBackAfter(y)) return false
-            if (typeof t === 'number') return t === teamTid
-            return getTidFromAbbr(t, dynasty) === teamTid
+            if (typeof t === 'number') return t === homeTid
+            return getTidFromAbbr(t, dynasty) === homeTid
           })
           if (!returnedViaLegacy && !returnedViaV2 && !returnedViaTeamsByYear) return true
         }
@@ -11954,8 +11974,11 @@ export function DynastyProvider({ children }) {
           return player
         }
 
-        // Check if player was on THIS team last season
-        if (!wasOnTeamLastSeason(player)) {
+        // Which member-controlled team was this player on last season?
+        // null ⇒ a CPU team → lighter simple-aging path below. Any member
+        // team (commish OR another member) → full redshirt-aware path.
+        const playerMemberTid = memberTeamOf(player)
+        if (playerMemberTid == null) {
           otherTeamSkipped++
 
           // ========== SIMPLE AGING FOR OTHER TEAM PLAYERS ==========
@@ -12028,8 +12051,8 @@ export function DynastyProvider({ children }) {
           }
         }
 
-        // Check if player is leaving
-        if (isPlayerLeaving(player)) {
+        // Check if player is leaving (evaluated against THEIR team)
+        if (isPlayerLeaving(player, playerMemberTid)) {
           notCarriedOver++
           // Don't add next year to teamsByYear - player is leaving
           return player
@@ -12073,7 +12096,7 @@ export function DynastyProvider({ children }) {
           },
           teamsByYear: {
             ...(player.teamsByYear || {}),
-            [nextYear]: teamTid
+            [nextYear]: playerMemberTid
           },
           ...(player.devTrait ? {
             devTraitByYear: {
@@ -14096,7 +14119,14 @@ export function DynastyProvider({ children }) {
     // named "MUR" → Murray State Racers FCS), which would otherwise
     // resolve to the WRONG tid and save games against a team the
     // user doesn't actually own.
-    const targetTid = options.teamTid || getCurrentTeamTid(dynasty)
+    // In a shared league the RAW dynasty's currentTid / teams[].userId
+    // point at the OWNER's team, so getCurrentTeamTid(dynasty) would scope
+    // a member's schedule save to the commish's team (games created from
+    // the wrong perspective). When the caller didn't pass an explicit
+    // teamTid (e.g. the Dashboard "Enter Schedule" todo), use THIS user's
+    // active team — the same tid the UI is showing them — falling back to
+    // the dynasty-doc team for solo dynasties.
+    const targetTid = options.teamTid || activeUserTid || getCurrentTeamTid(dynasty)
     const targetYear = options.year || dynasty.currentYear
     const teamAbbr = targetTid
       ? getAbbrFromTid(dynasty.teams, targetTid)
@@ -14114,8 +14144,13 @@ export function DynastyProvider({ children }) {
     const userCurrentTid = getCurrentTeamTid(dynasty)
     const matchesUserTeam = Number(tid) === Number(userCurrentTid)
     const matchesCurrentYear = Number(year) === Number(dynasty.currentYear)
-    const isUserCurrentTeamYear = (!options.teamTid && !options.year)
-      || (matchesUserTeam && matchesCurrentYear)
+    // Root-level schedule / preseasonSetup are OWNER-scoped (a single value
+    // on the doc, historically the owner's team). Only mirror to them when
+    // the team being saved is the dynasty-doc's current team — i.e. the
+    // owner editing their own team. A member editing their team writes ONLY
+    // the per-team structures below, so they never clobber the owner's
+    // root-level schedule with their own games.
+    const isUserCurrentTeamYear = matchesUserTeam && matchesCurrentYear
 
     // Build team-centric schedule storage (old structure)
     const existingSchedulesByTeamYear = dynasty.schedulesByTeamYear || {}
@@ -14260,8 +14295,10 @@ export function DynastyProvider({ children }) {
       // correct slot tid, not whatever the static map says.
       teamTid = getTidFromAbbr(options.teamAbbr, dynasty)
     } else {
-      // Use current user team's tid directly
-      teamTid = getCurrentTeamTid(dynasty)
+      // Use the ACTING user's team. In a shared league the raw dynasty's
+      // currentTid is the OWNER's team, so a member saving their own roster
+      // must resolve to their own team (activeUserTid), not the commish's.
+      teamTid = activeUserTid || getCurrentTeamTid(dynasty)
     }
     // Resolve the EDITED team's abbr from its tid so legacy player.team
     // field comparisons match the right team. Was previously the user's
@@ -14614,10 +14651,12 @@ export function DynastyProvider({ children }) {
     // Derive storage type from dynasty's storageType field
     const useLocalStorage = dynasty.storageType !== 'cloud'
 
-    // Get current team abbreviation and year for team-centric storage
-    const teamAbbr = getCurrentTeamAbbr(dynasty) || dynasty.teamName
+    // Resolve the ACTING user's team first. In a shared league the raw
+    // dynasty's current team is the OWNER's, so a member must target their
+    // own team (activeUserTid); derive the abbr from that tid.
+    const tid = activeUserTid || getCurrentTeamTid(dynasty)
+    const teamAbbr = (tid ? getAbbrFromTid(dynasty.teams, tid) : null) || getCurrentTeamAbbr(dynasty) || dynasty.teamName
     const year = dynasty.currentYear
-    const tid = getTidFromAbbr(teamAbbr, dynasty)
 
     // Build team-centric preseason setup storage (old structure)
     const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
@@ -14890,10 +14929,12 @@ export function DynastyProvider({ children }) {
     // Derive storage type from dynasty's storageType field
     const useLocalStorage = dynasty.storageType !== 'cloud'
 
-    // Get current team abbreviation and year for team-centric storage
-    const teamAbbr = getCurrentTeamAbbr(dynasty) || dynasty.teamName
+    // Resolve the ACTING user's team first. In a shared league the raw
+    // dynasty's current team is the OWNER's, so a member must target their
+    // own team (activeUserTid); derive the abbr from that tid.
+    const tid = activeUserTid || getCurrentTeamTid(dynasty)
+    const teamAbbr = (tid ? getAbbrFromTid(dynasty.teams, tid) : null) || getCurrentTeamAbbr(dynasty) || dynasty.teamName
     const year = dynasty.currentYear
-    const tid = getTidFromAbbr(teamAbbr, dynasty)
 
     // Build team-centric preseason setup storage (old structure)
     const existingPreseasonSetupByTeamYear = dynasty.preseasonSetupByTeamYear || {}
