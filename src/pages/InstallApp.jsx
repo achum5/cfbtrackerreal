@@ -89,9 +89,11 @@ export default function InstallApp() {
         ) : (
           <div className="rounded-lg px-5 py-6" style={{ border: '1px solid var(--surface-4)', backgroundColor: 'var(--surface-2)' }}>
             <p className="text-sm text-txt-secondary leading-relaxed">
-              To be honest... I'm not sure how! I have heard the process is similar to iOS. If anyone
-              wouldn't mind sending me screenshots of how to do it on Android, I'll put them here. I would
-              be very appreciative!
+              I don't have an Android device, so no screenshots yet. But here's the gist: open
+              <span className="font-semibold text-txt-primary"> dynastytracker.app</span> in Google
+              Chrome, tap the three-dot menu in the top-right corner, then choose
+              <span className="font-semibold text-txt-primary"> Add to Home screen</span>. Chrome
+              installs the app for you automatically.
             </p>
             <Link
               to="/contact"
