@@ -9,6 +9,7 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { useDynasty } from '../context/DynastyContext'
 import { usePathPrefix } from '../hooks/usePathPrefix'
+import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../hooks/useCompareSelection'
 import { Card, Badge, Select, EmptyState, Tabs, useConfirm } from './ui'
 import { proxyImageUrl } from '../utils/imageProxy'
 import { projectRoster, projectDepartures, projectNflCandidates } from '../utils/rosterProjection'
@@ -147,6 +148,9 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   const setYear = (y) => onYearChange?.(y)
   const [markMode, setMarkMode] = useState(false)
   const [highlightKey, setHighlightKey] = useState(null)
+  // Multi-select "compare players" picker for the depth chart.
+  const compare = useCompareSelection()
+  const compareSet = useMemo(() => new Set(compare.selected), [compare.selected])
 
   // Last-saved plan (source of truth) and the editable working copy. All edits
   // mutate `draft` locally (instant — no Firestore round-trip per drag); the
@@ -474,10 +478,11 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   // A tile click either opens the player's page or, in "select departures"
   // mode (future seasons), toggles whether they're projected to leave.
   const onTileClick = (tile) => {
-    if (markMode && tile.pid) { toggleLeave(tile.pid); return }
     // pid (returning players) or linkPid (incoming recruits → their enrolled
-    // player record) both resolve to a player page.
+    // player record) both resolve to a player.
     const navPid = tile.pid || tile.linkPid
+    if (compare.active) { compare.toggle(navPid); return }
+    if (markMode && tile.pid) { toggleLeave(tile.pid); return }
     if (navPid) navigate(`${pathPrefix}/player/${navPid}`)
   }
   // Reset the CURRENT side back to the auto-suggested depth chart: drop any
@@ -577,6 +582,7 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
   const tileActions = {
     canEdit, teamLogo, leaveSet, markMode, highlightKey,
     onTileClick,
+    compareActive: compare.active, compareSet,
   }
 
   // Controls (side tabs + season + edit buttons). Rendered inline by default, or
@@ -593,6 +599,32 @@ export default function TeamOutlook({ tid, guardRef, focusPid, side: sideProp, o
                 : { borderColor: 'var(--surface-5)' }}>
               {markMode ? 'Done selecting' : 'Likely departures'}
             </button>
+          )}
+          {/* Compare players — select multiple tiles, then Confirm to open the
+              Compare Players page with them side by side. */}
+          {!compare.active ? (
+            <button onClick={() => { setMarkMode(false); compare.start() }}
+              className="text-xs font-semibold px-2.5 py-1 rounded border border-surface-5 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors inline-flex items-center gap-1"
+              title="Compare players">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={COMPARE_ICON_PATH} />
+              </svg>
+              Compare
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button onClick={() => { if (compare.count >= 2) navigate(buildCompareUrl(pathPrefix, compare.selected, year)) }}
+                disabled={compare.count < 2}
+                className="text-xs font-bold px-3 py-1 rounded text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: 'var(--accent-info)' }}
+                title={compare.count < 2 ? 'Select at least 2 players' : 'Compare selected players'}>
+                Confirm ({compare.count})
+              </button>
+              <button onClick={compare.cancel}
+                className="text-xs font-semibold px-2.5 py-1 rounded border border-surface-5 text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors">
+                Cancel
+              </button>
+            </div>
           )}
           <label className="flex items-center gap-2 text-xs text-txt-tertiary">Season
             <Select size="sm" value={String(year)} onChange={(e) => setYear(Number(e.target.value))}>
@@ -801,20 +833,35 @@ function ShrinkToFit({ children, className = '', onZoom }) {
 }
 
 // ── Sortable wrapper around a tile ────────────────────────────────────────────
-function SortableTile({ tile, isStarter, canEdit, teamLogo, leaveSet, markMode, highlightKey, onTileClick }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tile.key, disabled: !canEdit })
+function SortableTile({ tile, isStarter, canEdit, teamLogo, leaveSet, markMode, highlightKey, onTileClick, compareActive, compareSet }) {
+  // Drag is disabled while the compare picker is active so a tap selects
+  // instead of starting a drag.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tile.key, disabled: !canEdit || compareActive })
   // touchAction:'none' lets the TouchSensor long-press own the gesture once it
   // activates; without it the browser keeps scrolling and the tile never moves.
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1, touchAction: canEdit ? 'none' : undefined }
+  const dragActive = canEdit && !compareActive
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1, touchAction: dragActive ? 'none' : undefined }
   const leaving = tile.pid && leaveSet?.has(tile.pid)
   const highlighted = highlightKey && tile.key === highlightKey
+  const selPid = tile.pid || tile.linkPid
+  const selected = compareActive && selPid != null && compareSet?.has(String(selPid))
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}
+    <div ref={setNodeRef} style={style} {...attributes} {...(compareActive ? {} : listeners)}
       id={tile.pid ? `dc-tile-${tile.pid}` : undefined}
-      className={highlighted ? 'rounded-md ring-2 ring-[color:var(--accent-info)] ring-offset-2 ring-offset-surface-1 transition-shadow' : ''}
+      className={`relative ${highlighted ? 'rounded-md ring-2 ring-[color:var(--accent-info)] ring-offset-2 ring-offset-surface-1 transition-shadow' : ''} ${selected ? 'rounded-md ring-2 ring-[color:var(--accent-info)]' : ''}`}
       onClick={(e) => { e.stopPropagation(); onTileClick?.(tile) }}>
-      <TileView tile={tile} isStarter={isStarter} grab={canEdit}
-        teamLogo={teamLogo} leaving={leaving} markMode={markMode} />
+      <TileView tile={tile} isStarter={isStarter} grab={dragActive}
+        teamLogo={teamLogo} leaving={leaving} markMode={markMode || compareActive} />
+      {compareActive && selPid != null && (
+        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center shadow"
+          style={{ backgroundColor: selected ? 'var(--accent-info)' : 'var(--surface-4)', color: '#fff' }}>
+          {selected && (
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3.5} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </span>
+      )}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { getCoachByRole } from '../../data/coachModel'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
+import { useCompareSelection, buildCompareUrl, COMPARE_ICON_PATH } from '../../hooks/useCompareSelection'
 import { StatRings } from '../../components/CfbUI'
 // Team colors are derived from the viewed team, not the user's team
 import { getContrastTextColor } from '../../utils/colorUtils'
@@ -38,6 +39,27 @@ import { getCoachStints } from '../../data/coachStats'
 import { getRivalryTrophyForTeams } from '../../utils/trophyEngine'
 import TeamOutlook from '../../components/TeamOutlook'
 import RivalriesTab from '../../components/RivalriesTab'
+
+// Selection checkbox shown on roster rows while the compare picker is active.
+function CompareCheck({ active, selected, accent, accentText }) {
+  if (!active) return null
+  return (
+    <span
+      className="flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors"
+      style={{
+        borderColor: selected ? accent : 'var(--surface-5)',
+        backgroundColor: selected ? accent : 'transparent',
+        color: accentText,
+      }}
+    >
+      {selected && (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        </svg>
+      )}
+    </span>
+  )
+}
 
 // Map abbreviation to mascot name for logo lookup
 // Accepts optional teamsData for tid-based teambuilder support
@@ -492,6 +514,8 @@ export default function TeamYear() {
   const currentDynasty = _dyn || {}
   const { toast } = useToast()
   const pathPrefix = usePathPrefix()
+  // Multi-select "compare players" picker for the roster tab.
+  const compare = useCompareSelection()
 
   // Check if dynasty data is being lazily loaded from Firebase
   const isLoadingDynastyData = loadingDynastyId === currentDynasty?.id
@@ -4147,6 +4171,39 @@ export default function TeamYear() {
                   )
                 })}
               </div>
+              {/* Compare players — select multiple, then Confirm to open the
+                  Compare Players page with them side by side. */}
+              {!compare.active ? (
+                <button
+                  onClick={compare.start}
+                  className="flex-shrink-0 self-center p-1.5 sm:p-2 rounded-lg transition-colors text-txt-secondary hover:text-txt-primary hover:bg-surface-3"
+                  title="Compare players"
+                  aria-label="Compare players"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={COMPARE_ICON_PATH} />
+                  </svg>
+                </button>
+              ) : (
+                <div className="flex-shrink-0 self-center flex items-center gap-1">
+                  <button
+                    onClick={() => { if (compare.count >= 2) navigate(buildCompareUrl(pathPrefix, compare.selected, selectedYear)) }}
+                    disabled={compare.count < 2}
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: teamInfo.backgroundColor, color: teamBgText }}
+                    title={compare.count < 2 ? 'Select at least 2 players' : 'Compare selected players'}
+                  >
+                    Confirm ({compare.count})
+                  </button>
+                  <button
+                    onClick={compare.cancel}
+                    className="px-2 py-1 rounded-lg text-xs font-semibold text-txt-secondary hover:text-txt-primary hover:bg-surface-3 transition-colors"
+                    title="Cancel compare"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
               {!isViewOnly && (
                 <button
                   onClick={() => setShowRosterModal(true)}
@@ -4171,9 +4228,10 @@ export default function TeamYear() {
                   <Link
                     key={player.pid}
                     to={`${pathPrefix}/player/${player.pid}`}
-                    className="flex items-center gap-3 px-3 py-3 hover:bg-surface-3 transition-colors"
-                   
+                    onClick={(e) => { if (compare.active) { e.preventDefault(); compare.toggle(player.pid) } }}
+                    className={`flex items-center gap-3 px-3 py-3 hover:bg-surface-3 transition-colors ${compare.active && compare.isSelected(player.pid) ? 'bg-surface-3' : ''}`}
                   >
+                    <CompareCheck active={compare.active} selected={compare.isSelected(player.pid)} accent={teamInfo.backgroundColor} accentText={teamBgText} />
                     {/* Jersey */}
                     <div className="w-10 flex-shrink-0 text-center">
                       <span className="text-base font-bold tabular text-txt-primary">
@@ -4186,7 +4244,7 @@ export default function TeamYear() {
                       <button
                         type="button"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickImagePlayer(player) }}
-                        className="relative group flex-shrink-0"
+                        className={`relative group flex-shrink-0 ${compare.active ? 'pointer-events-none' : ''}`}
                         title="Click to add/change photo"
                       >
                         {player.pictureUrl ? (
@@ -4304,14 +4362,19 @@ export default function TeamYear() {
                     return (
                       <tr
                         key={player.pid}
-                        className="cursor-pointer border-b border-surface-4 hover:bg-surface-3 transition-colors"
-                       
-                        onClick={() => navigate(`${pathPrefix}/player/${player.pid}`)}
+                        className={`cursor-pointer border-b border-surface-4 hover:bg-surface-3 transition-colors ${compare.active && compare.isSelected(player.pid) ? 'bg-surface-3' : ''}`}
+                        onClick={() => compare.active ? compare.toggle(player.pid) : navigate(`${pathPrefix}/player/${player.pid}`)}
                       >
                         <td className="py-2 px-3 text-center">
-                          <span className="text-base font-bold tabular text-txt-primary">
-                            {player.jerseyNumber || '—'}
-                          </span>
+                          {compare.active ? (
+                            <div className="flex items-center justify-center">
+                              <CompareCheck active selected={compare.isSelected(player.pid)} accent={teamInfo.backgroundColor} accentText={teamBgText} />
+                            </div>
+                          ) : (
+                            <span className="text-base font-bold tabular text-txt-primary">
+                              {player.jerseyNumber || '—'}
+                            </span>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           <div className="flex items-center gap-3">
@@ -4319,7 +4382,7 @@ export default function TeamYear() {
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setQuickImagePlayer(player) }}
-                                className="relative group flex-shrink-0"
+                                className={`relative group flex-shrink-0 ${compare.active ? 'pointer-events-none' : ''}`}
                                 title="Click to add/change photo"
                               >
                                 {player.pictureUrl ? (
@@ -4345,7 +4408,7 @@ export default function TeamYear() {
                             ) : player.pictureUrl ? (
                               <Link
                                 to={`${pathPrefix}/player/${player.pid}`}
-                                className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden block border border-surface-5"
+                                className={`w-9 h-9 rounded-full flex-shrink-0 overflow-hidden block border border-surface-5 ${compare.active ? 'pointer-events-none' : ''}`}
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <img src={proxyImageUrl(player.pictureUrl, 300)} alt={player.name} className="w-full h-full object-cover" />
@@ -4359,7 +4422,7 @@ export default function TeamYear() {
                             )}
                             <Link
                               to={`${pathPrefix}/player/${player.pid}`}
-                              className="font-bold text-txt-primary"
+                              className={`font-bold text-txt-primary ${compare.active ? 'pointer-events-none' : ''}`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               {player.name}

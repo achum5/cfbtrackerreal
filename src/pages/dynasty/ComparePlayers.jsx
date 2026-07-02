@@ -500,6 +500,18 @@ export default function ComparePlayers() {
               >
                 ×
               </button>
+              {/* Open this player's page (external-link / box-with-arrow). */}
+              <Link
+                to={`${pathPrefix}/player/${c.player.pid}`}
+                className="absolute top-1.5 left-1.5 w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-white/10"
+                style={{ color: 'var(--text-tertiary)' }}
+                title="Open player page"
+                aria-label="Open player page"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </Link>
               <div className="flex flex-col items-center gap-1.5">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
