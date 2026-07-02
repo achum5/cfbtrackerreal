@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { useDynasty, getTeamConferenceForDynasty, getTeamConferenceLabel } from '../context/DynastyContext'
+import { useDynasty, getTeamConferenceForDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { getTeamLogo } from '../data/teams'
 import { getTeamColors } from '../data/teamColors'
@@ -50,8 +50,9 @@ function getDynastyTeamConference(dynasty, tidOverride = null) {
   if (!tid) return dynasty.conference || null
   const originalTeamAbbr = dynasty.teams?.[tid]?.abbr || TEAMS[tid]?.abbr
   if (!originalTeamAbbr) return dynasty.conference || null
-  // Appends the division when the conference is split, e.g. "SEC (East)".
-  return getTeamConferenceLabel(dynasty, originalTeamAbbr) || getTeamConferenceForDynasty(dynasty, originalTeamAbbr)
+  // Conference only (no division suffix) so the card reads "SEC" with its
+  // conference logo, not "SEC (East)" which also breaks the logo lookup.
+  return getTeamConferenceForDynasty(dynasty, originalTeamAbbr)
 }
 
 function getRelativeTime(timestamp) {

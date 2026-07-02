@@ -433,9 +433,9 @@ export default function LocalDataEntry({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-2 pt-3">
+      <div className="flex flex-wrap items-center gap-2 pt-3">
         <Button variant="ghost" size="sm" onClick={onUseGoogle} disabled={disabled}>Use Google Sheet instead</Button>
-        <div className="flex gap-2">
+        <div className="flex gap-2 ml-auto">
           {onCancel && <Button variant="secondary" size="sm" onClick={onCancel} disabled={disabled}>Cancel</Button>}
           <Button variant="primary" size="sm" onClick={handleImport} disabled={disabled || !text.trim()}>
             {importing ? 'Importing…' : importLabel}

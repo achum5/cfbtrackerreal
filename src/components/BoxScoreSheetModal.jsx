@@ -1968,9 +1968,9 @@ FINAL CHECK before you send
               </table>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button variant="ghost" size="sm" onClick={() => setPasteMode(false)}>Use Google Sheet instead</Button>
-              <div className="flex gap-2">
+              <div className="flex gap-2 ml-auto">
                 <Button variant="secondary" size="sm" onClick={handleClose}>Cancel</Button>
                 <Button variant="primary" size="sm" onClick={handleImportPaste} disabled={importing || statRows.every((r) => !r.away && !r.home)}>
                   {importing ? 'Importing…' : 'Import Stats'}

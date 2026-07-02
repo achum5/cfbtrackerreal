@@ -14,7 +14,7 @@ const STEP_HINTS = {
   paste: 'Copy the AI\'s reply, then tap Paste. The grid fills in automatically. Tap the arrow to open a text box if the normal paste doesn\'t work.',
 }
 
-const WHITE_BTN = 'h-9 px-3 inline-flex items-center gap-1.5 text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90 whitespace-nowrap'
+const WHITE_BTN = 'h-8 sm:h-9 px-2 sm:px-3 inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-semibold transition-colors disabled:opacity-60 hover:opacity-90 whitespace-nowrap'
 const WHITE_STYLE = { backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)' }
 
 const InfoIcon = ({ className }) => (
@@ -26,9 +26,9 @@ const InfoIcon = ({ className }) => (
 
 function Caption({ num, title, active, onToggle }) {
   return (
-    <div className="flex items-center gap-1.5 h-4">
-      <span className="text-[11px] font-bold tabular text-txt-secondary">{num}</span>
-      <span className="text-[11px] font-medium text-txt-tertiary whitespace-nowrap">{title}</span>
+    <div className="flex items-center gap-1 sm:gap-1.5 h-4">
+      <span className="text-[10px] sm:text-[11px] font-bold tabular text-txt-secondary">{num}</span>
+      <span className="text-[10px] sm:text-[11px] font-medium text-txt-tertiary whitespace-nowrap">{title}</span>
       <button
         type="button"
         onClick={onToggle}
@@ -36,7 +36,7 @@ function Caption({ num, title, active, onToggle }) {
         aria-pressed={active}
         className={`transition-colors ${active ? 'text-txt-primary' : 'text-txt-tertiary/50 hover:text-txt-secondary'}`}
       >
-        <InfoIcon className="w-3.5 h-3.5" />
+        <InfoIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
       </button>
     </div>
   )
@@ -44,7 +44,7 @@ function Caption({ num, title, active, onToggle }) {
 
 // A hairline chevron between steps, aligned to the control row (not the caption).
 const Chevron = () => (
-  <svg className="hidden sm:block self-end mb-2.5 w-4 h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg className="hidden min-[380px]:block self-end mb-2 sm:mb-2.5 w-3 h-3 sm:w-4 sm:h-4 text-txt-tertiary/40 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M9 6l6 6-6 6" />
   </svg>
 )
@@ -111,7 +111,7 @@ export default function PasteEntrySteps({
 
   return (
     <div className="flex-shrink-0">
-      <div className="flex flex-col items-center sm:flex-row sm:items-end sm:justify-center gap-3 sm:gap-3">
+      <div className="flex flex-row items-end justify-center gap-1.5 sm:gap-3">
         {/* Step 1 — screenshot & copy */}
         <div className="flex flex-col gap-2">
           <Caption num="1" title="Screenshot & copy" active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
@@ -135,7 +135,7 @@ export default function PasteEntrySteps({
               onClick={() => setAiMenuOpen((v) => !v)}
               aria-label="Choose a different AI"
               aria-expanded={aiMenuOpen}
-              className="px-2 flex items-center justify-center transition-colors hover:opacity-90"
+              className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
               style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
             >
               <svg className={`w-4 h-4 transition-transform ${aiMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -161,7 +161,7 @@ export default function PasteEntrySteps({
                 title={showText ? 'Hide text box' : 'Show text box'}
                 aria-label={showText ? 'Hide text box' : 'Show text box'}
                 aria-pressed={showText}
-                className="px-2 flex items-center justify-center transition-colors hover:opacity-90"
+                className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
                 style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
               >
                 <svg className={`w-4 h-4 transition-transform ${showText ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

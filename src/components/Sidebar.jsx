@@ -180,6 +180,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'All-Conference', path: `${pathPrefix}/all-conference/${currentYear}/${conferenceUrlParam}` },
     { name: 'All Teams', path: `${pathPrefix}/teams` },
     { name: 'All Players', path: `${pathPrefix}/players` },
+    { name: 'Compare Players', path: `${pathPrefix}/compare` },
     { name: 'Card Collection', path: `${pathPrefix}/cards` },
     ...(showCoachesLink ? [{ name: 'Coaches', path: `${pathPrefix}/coaches` }] : []),
     ...(!isViewOnly ? [{ name: 'AI Prompts', path: `${pathPrefix}/ai-prompts` }] : []),

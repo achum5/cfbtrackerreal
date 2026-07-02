@@ -210,11 +210,11 @@ export default function AttributePasteGrid({
         </table>
       </div>
 
-      <div className="flex items-center justify-between gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         {onUseGoogle
           ? <Button variant="ghost" size="sm" onClick={onUseGoogle}>Use Google Sheet instead</Button>
           : <span />}
-        <div className="flex gap-2">
+        <div className="flex gap-2 ml-auto">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
           <Button variant="primary" size="sm" onClick={handleImport} disabled={importing || !hasAny}>
             {importing ? 'Importing…' : 'Import Ratings'}

@@ -16,6 +16,7 @@ export const Stats = lazyWithPreload(() => import('../pages/dynasty/Stats'))
 export const CoachCareer = lazyWithPreload(() => import('../pages/dynasty/CoachCareer'))
 export const Coaches = lazyWithPreload(() => import('../pages/dynasty/Coaches'))
 export const Players = lazyWithPreload(() => import('../pages/dynasty/Players'))
+export const ComparePlayers = lazyWithPreload(() => import('../pages/dynasty/ComparePlayers'))
 export const Player = lazyWithPreload(() => import('../pages/dynasty/Player'))
 export const PlayerEdit = lazyWithPreload(() => import('../pages/dynasty/PlayerEdit'))
 export const PlayersByState = lazyWithPreload(() => import('../pages/dynasty/PlayersByState'))
@@ -65,6 +66,7 @@ export const preloadByNavName = {
   'Around the Country': WeeklyScores.preload,
   'All Teams': Teams.preload,
   'All Players': Players.preload,
+  'Compare Players': ComparePlayers.preload,
   'Danger Zone': DangerZone.preload,
   'AI Prompts': PromptStudio.preload,
   'Dynasty Blueprint': TeamYear.preload,

@@ -25,7 +25,7 @@ import cfb26 from './cfb26'
 import cfb27 from './cfb27'
 
 export const LEGACY_EDITION = 'cfb26'
-export const DEFAULT_EDITION = 'cfb26'
+export const DEFAULT_EDITION = 'cfb27'
 
 // Raw edition definitions, keyed by edition key. Each may declare
 // `extends` to inherit from another edition (resolved below).

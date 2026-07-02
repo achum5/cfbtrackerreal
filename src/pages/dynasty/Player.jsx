@@ -1921,6 +1921,23 @@ function PlayerInner() {
                     </svg>
                   </button>
                 )}
+                {/* Compare — deep-links to the Compare Players tool with this
+                    player pre-loaded as player 1 (their most recent season). */}
+                <button
+                  onClick={() => {
+                    const yrs = [
+                      ...Object.keys(player?.teamsByYear || {}),
+                      ...Object.keys(player?.statsByYear || {}),
+                    ].map(y => parseInt(y)).filter(Number.isFinite)
+                    const yr = yrs.length ? Math.max(...yrs) : (dynasty?.currentYear ?? '')
+                    navigate(`${pathPrefix}/compare?players=${player.pid}-${yr}`)
+                  }}
+                  className="hidden sm:inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/20 transition-colors flex-shrink-0 self-center"
+                  style={{ color: teamBgText, border: `1px solid ${teamBgText}40` }}
+                  title="Compare Player"
+                >
+                  Compare
+                </button>
               </div>
 
               {/* Team link + status badges */}
