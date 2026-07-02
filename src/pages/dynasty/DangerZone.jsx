@@ -1259,6 +1259,15 @@ export default function DangerZone() {
                 gameModified = true
               }
             }
+            // A CFP game is never also a plain bowl. Demoted games (edited
+            // through the Game Editor without the CFP bowl-name marker) carry
+            // isBowlGame=true, which makes them render as regular-season bowls
+            // even after the CFP flag is restored. Clear it.
+            if (updatedGame.isBowlGame) {
+              console.log(`[CFP Repair] Clearing isBowlGame for ${game.id}`)
+              updatedGame.isBowlGame = false
+              gameModified = true
+            }
           }
 
           if (correctRound && updatedGame.cfpRound !== correctRound) {

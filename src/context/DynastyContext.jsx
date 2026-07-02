@@ -16438,7 +16438,12 @@ export function DynastyProvider({ children }) {
         const honorYear = update.entry?.year
         if (honorYear) {
           if (update.addTeam) {
-            const teamTid = getTidFromAbbr(update.addTeam, dynasty) || update.addTeam
+            // Reuse the tid the sheet reader already resolved (entry.schoolTid)
+            // so teamsByYear gets a numeric tid, not a raw uppercase-name
+            // string fallback. Fall back to name resolution only if absent.
+            const teamTid = update.entry?.schoolTid != null
+              ? Number(update.entry.schoolTid)
+              : (getTidFromAbbr(update.addTeam, dynasty) || update.addTeam)
             updatedPlayer.teamsByYear[honorYear] = teamTid
           }
           if (update.entry?.class) {
@@ -16482,6 +16487,7 @@ export function DynastyProvider({ children }) {
               designation: update.entry.designation,
               position: update.entry.position,
               school: update.entry.school,
+              schoolTid: update.entry.schoolTid ?? null,
               class: update.entry.class
             })
           }
@@ -16497,6 +16503,7 @@ export function DynastyProvider({ children }) {
               designation: update.entry.designation,
               position: update.entry.position,
               school: update.entry.school,
+              schoolTid: update.entry.schoolTid ?? null,
               class: update.entry.class
             })
           }
@@ -16510,8 +16517,11 @@ export function DynastyProvider({ children }) {
     for (const newPlayer of playersToCreate) {
       // Get the year from the entry for teamsByYear
       const entryYear = newPlayer.entry?.year || dynasty.currentYear
-      // Convert team abbreviation to tid for proper storage
-      const teamTid = getTidFromAbbr(newPlayer.team, dynasty) || newPlayer.team
+      // Convert team to tid for storage — prefer the schoolTid the sheet reader
+      // already resolved so we don't re-run the weaker name resolver.
+      const teamTid = newPlayer.entry?.schoolTid != null
+        ? Number(newPlayer.entry.schoolTid)
+        : (getTidFromAbbr(newPlayer.team, dynasty) || newPlayer.team)
       const normalizedName = newPlayer.name?.toLowerCase().trim()
 
       // Check if we already created this player in this batch (same name + team)
@@ -16558,6 +16568,7 @@ export function DynastyProvider({ children }) {
               designation: newPlayer.entry.designation,
               position: newPlayer.entry.position,
               school: newPlayer.entry.school,
+              schoolTid: newPlayer.entry.schoolTid ?? null,
               class: newPlayer.entry.class
             })
           }
@@ -16571,6 +16582,7 @@ export function DynastyProvider({ children }) {
               designation: newPlayer.entry.designation,
               position: newPlayer.entry.position,
               school: newPlayer.entry.school,
+              schoolTid: newPlayer.entry.schoolTid ?? null,
               class: newPlayer.entry.class
             })
           }
@@ -16618,6 +16630,7 @@ export function DynastyProvider({ children }) {
           designation: newPlayer.entry.designation,
           position: newPlayer.entry.position,
           school: newPlayer.entry.school,
+          schoolTid: newPlayer.entry.schoolTid ?? null,
           class: newPlayer.entry.class
         })
       } else if (newPlayer.honorType === 'allConference') {
@@ -16626,6 +16639,7 @@ export function DynastyProvider({ children }) {
           designation: newPlayer.entry.designation,
           position: newPlayer.entry.position,
           school: newPlayer.entry.school,
+          schoolTid: newPlayer.entry.schoolTid ?? null,
           class: newPlayer.entry.class
         })
       }

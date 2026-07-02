@@ -11030,10 +11030,12 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
       const rows = data.values || []
 
       // Extract All-Conference data starting at row 4 (index 3). Resolve
-      // school abbr → tid at read time so post-rename teambuilder teams
-      // keep their honor links.
-      const tidFor = (abbr) => {
-        const t = abbr ? getTidFromAbbr(abbr, dynastyTeams) : null
+      // school text → tid at read time so post-rename teambuilder teams keep
+      // their honor links. Use getTidFromTeamText (the tolerant, mascot-strip
+      // resolver the All-Americans reader uses) so full names AND custom teams
+      // resolve — getTidFromAbbr alone missed both, leaving schoolTid null.
+      const tidFor = (text) => {
+        const t = text ? getTidFromTeamText(text, dynastyTeams) : null
         return t != null ? Number(t) : null
       }
       const confEntries = []
@@ -11042,7 +11044,7 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
 
         // First-Team (cols 0-3)
         if (row[1]) {
-          const school = (row[2] || '').toUpperCase()
+          const school = (row[2] || '').trim().toUpperCase()
           confEntries.push({
             team: 'all-conference',
             designation: 'first',
@@ -11056,7 +11058,7 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
 
         // Second-Team (cols 4-7)
         if (row[5]) {
-          const school = (row[6] || '').toUpperCase()
+          const school = (row[6] || '').trim().toUpperCase()
           confEntries.push({
             team: 'all-conference',
             designation: 'second',
@@ -11070,7 +11072,7 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
 
         // Freshman Team (cols 8-11)
         if (row[9]) {
-          const school = (row[10] || '').toUpperCase()
+          const school = (row[10] || '').trim().toUpperCase()
           confEntries.push({
             team: 'all-conference',
             designation: 'freshman',
@@ -11117,8 +11119,10 @@ export async function readAllConferenceFromSheet(spreadsheetId, conferences = AL
 // school, so downstream save (handleAllConferenceSave) keys by conference and
 // honor identity, never by array index or row order.
 export function parseAllConferenceLocal(rows, dynastyTeams = null) {
-  const tidFor = (abbr) => {
-    const t = abbr ? getTidFromAbbr(abbr, dynastyTeams) : null
+  // Tolerant resolver (mascot-strip, full names, custom teams) — matches the
+  // All-Americans reader so AC entries aren't left with a null schoolTid.
+  const tidFor = (text) => {
+    const t = text ? getTidFromTeamText(text, dynastyTeams) : null
     return t != null ? Number(t) : null
   }
   const normDesignation = (raw) => {

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useDynasty, getEncourageTransfers, getRecruitingCommitments, getPlayerClassForYear } from '../../context/DynastyContext'
+import { useDynasty, getEncourageTransfers, getRecruitingCommitments, getPlayerClassForYear, getTeamConferenceForDynasty } from '../../context/DynastyContext'
 import CardComposer from '../../components/CardComposer'
 import FlippableCard from '../../components/FlippableCard'
 import PlayerErrorBoundary from '../../components/PlayerErrorBoundary'
@@ -20,7 +20,7 @@ import { getContrastTextColor } from '../../utils/colorUtils'
 import { isOpenTarget } from '../../utils/recruitingTargets'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
-import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
+import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid, getGameTeamInfo } from '../../data/teamRegistry'
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { displayGroups, displayLabel } from '../../utils/recruitAttributes'
 import { getTeamColors } from '../../data/teamColors'
@@ -4925,16 +4925,37 @@ function PlayerInner() {
         Object.entries(groupDes(allAmericans))
           .sort((a, b) => (desOrder[a[0]] ?? 9) - (desOrder[b[0]] ?? 9))
           .forEach(([d, yrs]) => honorRows.push({ label: `All-American (${desTier(d)})`, years: uniqSortDesc(yrs), linkBase: 'all-americans' }))
+        // Resolve the conference each All-Conference honor belongs to (from the
+        // entry's tid/school), so the year chips link to THAT conference's page
+        // and the player actually appears — not the viewer's own conference.
+        const acConfByYear = {}
+        allConference.forEach(a => {
+          const yr = Number(a.year)
+          if (acConfByYear[yr]) return
+          let tid = a.schoolTid != null ? Number(a.schoolTid) : null
+          if (tid == null && a.school) tid = resolveTid(a.school, currentDynasty?.teams || TEAMS) || null
+          const abbr = tid != null ? (getGameTeamInfo(currentDynasty?.teams || TEAMS, tid)?.abbr || null) : (a.school || null)
+          const conf = abbr ? getTeamConferenceForDynasty(currentDynasty, abbr, yr) : null
+          if (conf) acConfByYear[yr] = conf
+        })
         Object.entries(groupDes(allConference))
           .sort((a, b) => (desOrder[a[0]] ?? 9) - (desOrder[b[0]] ?? 9))
-          .forEach(([d, yrs]) => honorRows.push({ label: `All-Conference (${desTier(d)})`, years: uniqSortDesc(yrs), linkBase: 'all-conference' }))
+          .forEach(([d, yrs]) => honorRows.push({ label: `All-Conference (${desTier(d)})`, years: uniqSortDesc(yrs), linkBase: 'all-conference', confByYear: acConfByYear }))
         Object.values(honorMap)
           .sort((a, b) => b.years.length - a.years.length || a.label.localeCompare(b.label))
           .forEach(h => honorRows.push({ label: h.label, years: uniqSortDesc(h.years), linkBase: 'awards' }))
 
-        const YearChip = ({ year, base }) => (
+        // Append the conference segment for All-Conference links so they open
+        // the honored player's conference (route: all-conference/:year/:conf).
+        const honorLink = (base, year, confByYear) => {
+          const conf = base === 'all-conference' && confByYear?.[year]
+          return conf
+            ? `${pathPrefix}/${base}/${year}/${encodeURIComponent(String(conf).replace(/\s+/g, '-'))}`
+            : `${pathPrefix}/${base}/${year}`
+        }
+        const YearChip = ({ year, base, confByYear }) => (
           <Link
-            to={`${pathPrefix}/${base}/${year}`}
+            to={honorLink(base, year, confByYear)}
             className="px-2 py-0.5 rounded text-[11px] font-bold tabular-nums bg-surface-3 text-white hover:bg-surface-4 transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
@@ -5000,12 +5021,12 @@ function PlayerInner() {
                   {honorRows.map((h, idx) => (
                     <div key={idx} className="flex items-center gap-2.5 px-3 py-2.5">
                       {h.years.length > 0 ? (
-                        <Link to={`${pathPrefix}/${h.linkBase}/${h.years[0]}`} className="font-semibold text-sm text-white hover:underline">{h.label}</Link>
+                        <Link to={honorLink(h.linkBase, h.years[0], h.confByYear)} className="font-semibold text-sm text-white hover:underline">{h.label}</Link>
                       ) : (
                         <span className="font-semibold text-sm text-white">{h.label}</span>
                       )}
                       <div className="flex flex-wrap gap-1">
-                        {h.years.map(yr => <YearChip key={yr} year={yr} base={h.linkBase} />)}
+                        {h.years.map(yr => <YearChip key={yr} year={yr} base={h.linkBase} confByYear={h.confByYear} />)}
                       </div>
                     </div>
                   ))}

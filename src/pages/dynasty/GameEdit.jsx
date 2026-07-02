@@ -712,6 +712,44 @@ export default function GameEdit() {
   // Derived classification flags from the current editWeek + editBowlName selection
   const computedWeekFlags = (() => {
     const bn = (editBowlName || '').trim()
+
+    // Durable CFP identity. A game that already carries a cfpSlot IS a playoff
+    // game, and its round is fixed by that slot (cfpfr/cfpqf/cfpsf/cfpnc). The
+    // classification below (for FR/QF) otherwise depends on a fragile marker
+    // substring in the bowl name ("CFP First Round" / "(CFP QF)"). When a user
+    // logged a playoff result through this editor without that marker present,
+    // the save silently DEMOTED the game to a plain bowl (isCFP* stripped,
+    // isBowlGame=true, gameType='bowl'), which broke the bracket and made the
+    // game render as a regular-season bowl. Deriving from the slot instead
+    // keeps the CFP identity no matter what the week/bowl pickers say.
+    const cfpSlot = existingGame?.cfpSlot ||
+      (existingGame?.id && existingGame.id.match(/^(cfp(?:fr|qf|sf|nc)\d?)-\d+$/)?.[1]) || null
+    if (cfpSlot) {
+      if (cfpSlot.startsWith('cfpfr')) return {
+        week: 'Bowl', gameType: 'cfp_first_round',
+        isConferenceChampionship: false, isBowlGame: false,
+        isCFPFirstRound: true, isCFPQuarterfinal: false, isCFPSemifinal: false, isCFPChampionship: false,
+        bowlName: existingGame?.bowlName || null, bowlWeek: 'week1', conference: null,
+      }
+      if (cfpSlot.startsWith('cfpqf')) return {
+        week: 'Bowl', gameType: 'cfp_quarterfinal',
+        isConferenceChampionship: false, isBowlGame: false,
+        isCFPFirstRound: false, isCFPQuarterfinal: true, isCFPSemifinal: false, isCFPChampionship: false,
+        bowlName: existingGame?.bowlName || null, bowlWeek: 'week2', conference: null,
+      }
+      if (cfpSlot.startsWith('cfpsf')) return {
+        week: 'Bowl', gameType: 'cfp_semifinal',
+        isConferenceChampionship: false, isBowlGame: false,
+        isCFPFirstRound: false, isCFPQuarterfinal: false, isCFPSemifinal: true, isCFPChampionship: false,
+        bowlName: existingGame?.bowlName || null, bowlWeek: null, conference: null,
+      }
+      if (cfpSlot === 'cfpnc') return {
+        week: 'NatChamp', gameType: 'cfp_championship',
+        isConferenceChampionship: false, isBowlGame: false,
+        isCFPFirstRound: false, isCFPQuarterfinal: false, isCFPSemifinal: false, isCFPChampionship: true,
+        bowlName: existingGame?.bowlName || 'National Championship', bowlWeek: null, conference: null,
+      }
+    }
     if (editWeek === 'NatChamp') return {
       week: 'NatChamp', gameType: 'cfp_championship',
       isConferenceChampionship: false, isBowlGame: false,

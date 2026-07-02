@@ -6510,21 +6510,18 @@ export default function TeamYear() {
         // Calculate AP Top 25 finishes
         const apTop25Finishes = yearRecords.filter(yr => yr.finalRank && yr.finalRank <= 25)
 
-        // Calculate All-Americans for this team
+        // All-Americans for this team. Honors live in p.allAmericans (array of
+        // { designation, year, school, schoolTid }); the legacy p.honors/p.awards
+        // fields this used to read no longer exist, so the count was always 0.
+        // Count a player if they earned an All-American honor WITH this team,
+        // matched tid-first (school name is only a legacy fallback).
         const teamAllAmericans = (currentDynasty.players || []).filter(p => {
-          // Check if player was on this team and has all-american honors
-          const wasOnTeam = Object.entries(p.teamsByYear || {}).some(([year, team]) => {
-            const playerTid = resolveTid(team, teamsSource)
-            return playerTid === tid
-          }) || resolveTid(p.team, teamsSource) === tid
-
-          if (!wasOnTeam) return false
-
-          // Check for all-american honors
-          const honors = p.honors || p.awards || []
-          return honors.some(h => {
-            const honorStr = typeof h === 'string' ? h.toLowerCase() : (h.award || h.type || '').toLowerCase()
-            return honorStr.includes('all-american') || honorStr.includes('all american')
+          const aa = p.allAmericans
+          if (!Array.isArray(aa) || aa.length === 0) return false
+          return aa.some(h => {
+            let hTid = h.schoolTid != null ? Number(h.schoolTid) : null
+            if (hTid == null && h.school) hTid = resolveTid(h.school, teamsSource) || null
+            return hTid === tid
           })
         })
 

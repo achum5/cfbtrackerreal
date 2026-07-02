@@ -1431,9 +1431,16 @@ const TEAM_NAME_DISAMBIG = { 56: 'Miami (FL)', 53: 'Miami (OH)' }
 // A bare "miami" intentionally maps to the Hurricanes (the FBS convention), so
 // even a dropped qualifier resolves rather than blanks. Guarded at resolve time
 // so a teambuilder takeover of the slot is never mis-resolved.
+// Each entry has the squashed alias forms plus a `guard` regex that must match
+// the team currently occupying that tid slot, so a teambuilder takeover is
+// never mis-resolved to the original school.
 const TEAM_LABEL_ALIASES = {
-  53: ['miamioh', 'miamiohio', 'miamiredhawks', 'miamiredhawk', 'redhawks', 'redhawk', 'moh', 'muoh', 'miamiuniversity'],
-  56: ['miamifl', 'miamiflorida', 'miamihurricanes', 'miamihurricane', 'miamicanes', 'hurricanes', 'canes', 'theu', 'mia', 'miami'],
+  53: { aliases: ['miamioh', 'miamiohio', 'miamiredhawks', 'miamiredhawk', 'redhawks', 'redhawk', 'moh', 'muoh', 'miamiuniversity'], guard: /miami|hurricane|redhawk/i },
+  56: { aliases: ['miamifl', 'miamiflorida', 'miamihurricanes', 'miamihurricane', 'miamicanes', 'hurricanes', 'canes', 'theu', 'mia', 'miami'], guard: /miami|hurricane|redhawk/i },
+  // EA CFB labels the Ragin' Cajuns "Louisiana"; the registry calls them
+  // Lafayette (abbr UL). Bare "Louisiana" is the Cajuns by convention (LSU,
+  // Louisiana Tech, and UL Monroe all carry their own distinct labels).
+  110: { aliases: ['louisiana', 'louisianalafayette', 'ullafayette', 'ull', 'raginccajuns', 'ragincajuns', 'raginacajuns'], guard: /louisiana|lafayette|cajun/i },
 }
 const squashLabel = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 
@@ -1513,10 +1520,10 @@ export function getTidFromTeamLabel(label, dynastyOrTeams = null) {
   //    when that tid's slot is still that school (never a teambuilder override).
   const squashed = squashLabel(norm)
   if (squashed) {
-    for (const [tid, aliases] of Object.entries(TEAM_LABEL_ALIASES)) {
-      if (!aliases.includes(squashed)) continue
+    for (const [tid, entry] of Object.entries(TEAM_LABEL_ALIASES)) {
+      if (!entry.aliases.includes(squashed)) continue
       const t = teams[tid]
-      if (t && /miami|hurricane|redhawk/i.test(`${t.name || ''} ${t.teamName || ''}`)) return Number(tid)
+      if (t && entry.guard.test(`${t.name || ''} ${t.teamName || ''}`)) return Number(tid)
     }
   }
   return null
