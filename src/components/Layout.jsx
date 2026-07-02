@@ -655,28 +655,28 @@ export default function Layout({ children }) {
         <div className="w-full px-2 sm:px-4">
           <div className="flex items-center justify-between py-2 relative">
             {/* Left: Burger menu + Home button (dynasty pages only) */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-0.5 sm:gap-2 flex-shrink-0">
               {useTeamTheme && (
                 <>
                   <button
                     onClick={() => window.toggleDynastySidebar?.()}
-                    className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
                     style={{ color: headerText }}
                     aria-label="Toggle sidebar"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                   </button>
                   {/* Home Button */}
                   <Link
                     to={`/dynasty/${currentDynasty.id}`}
-                    className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
                     style={{ color: headerText }}
                     title="Dashboard"
                     aria-label="Dashboard"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>
                   </Link>
@@ -691,7 +691,7 @@ export default function Layout({ children }) {
                 logo left of true center — so there we absolutely center it to the
                 header instead. */}
             <div className={useTeamTheme
-              ? "flex-1 flex items-center justify-center gap-2 sm:gap-3 min-w-0"
+              ? "flex-1 flex items-center justify-center gap-1.5 sm:gap-3 min-w-0"
               : "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center"}>
               <Link
                 to="/"
@@ -701,7 +701,7 @@ export default function Layout({ children }) {
                 <img
                   src="/header-logo.png"
                   alt="CFB Dynasty Tracker"
-                  className="h-9 sm:h-11 object-contain"
+                  className="h-7 sm:h-11 object-contain"
                   onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://i.imgur.com/e1iYDSZ.png' }}
                 />
               </Link>
@@ -714,12 +714,12 @@ export default function Layout({ children }) {
                 return (
                 <>
                   {/* Separator */}
-                  <span className="text-sm" style={{ color: headerText, opacity: 0.3 }}>|</span>
+                  <span className="hidden sm:inline text-sm" style={{ color: headerText, opacity: 0.3 }}>|</span>
 
                   {/* Team Logo */}
                   {currentTeamLogo && (
                     <div
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                      className="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0"
                       style={{
                         backgroundColor: '#FFFFFF',
                         border: '2px solid var(--surface-5)',
@@ -767,16 +767,16 @@ export default function Layout({ children }) {
             {useTeamTheme ? (
               <>
                 {/* Right: Contact + Advance Week - hugging right edge */}
-                <div className="relative flex items-center flex-shrink-0 gap-1">
+                <div className="relative flex items-center flex-shrink-0 gap-0.5 sm:gap-1">
                   {/* Contact button — quick access to bug reports / feature requests */}
                   <Link
                     to="/contact"
-                    className="p-2 rounded-lg hover:opacity-70 transition-opacity"
+                    className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity"
                     style={{ color: headerText }}
                     title="Contact / Feedback"
                     aria-label="Contact"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </Link>
@@ -788,7 +788,7 @@ export default function Layout({ children }) {
                     <button
                       onClick={handleToggleReady}
                       disabled={readyBusy}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
+                      className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50"
                       style={{
                         color: advanceReadyInfo.iAmReady ? '#fff' : headerText,
                         background: advanceReadyInfo.iAmReady ? '#16a34a' : 'transparent',
@@ -797,7 +797,7 @@ export default function Layout({ children }) {
                       title={advanceReadyInfo.iAmReady ? 'Ready to advance (tap to undo)' : 'Mark ready to advance'}
                       aria-pressed={advanceReadyInfo.iAmReady}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                       <span className="tabular-nums">{advanceReadyInfo.readyCount}/{advanceReadyInfo.total}</span>
@@ -811,7 +811,7 @@ export default function Layout({ children }) {
                     <button
                       onClick={handleAdvanceWeek}
                       disabled={isAdvancing}
-                      className="p-2 rounded-lg hover:opacity-70 transition-opacity disabled:opacity-60 disabled:cursor-wait"
+                      className="p-1.5 sm:p-2 rounded-lg hover:opacity-70 transition-opacity disabled:opacity-60 disabled:cursor-wait"
                       style={{ color: headerText }}
                       title={isAdvancing ? 'Advancing…' : (advanceReadyInfo?.isShared ? 'Force Advance' : 'Advance Week')}
                       aria-label={isAdvancing ? 'Advancing week' : 'Advance week'}
@@ -821,12 +821,12 @@ export default function Layout({ children }) {
                         // Spinner — gives mobile users feedback during the
                         // slow end-of-season → next-season transition that
                         // used to look frozen.
-                        <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
                           <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                         </svg>
                       ) : (
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                         </svg>
                       )}
