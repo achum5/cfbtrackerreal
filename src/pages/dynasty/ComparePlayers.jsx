@@ -437,7 +437,11 @@ export default function ComparePlayers() {
   const winBorder = 'rgba(34,197,94,0.55)'
 
   const dataColCount = filledCols.length + (showAddCol ? 1 : 0)
-  const gridCols = { gridTemplateColumns: `minmax(96px, 168px) repeat(${Math.max(dataColCount, 1)}, minmax(0, 1fr))` }
+  const gridCols = { gridTemplateColumns: `minmax(96px, 150px) repeat(${Math.max(dataColCount, 1)}, minmax(0, 1fr))` }
+  // Cap the whole table width by column count so data columns stay compact
+  // (~215px each) instead of stretching to fill the page. Section bars still
+  // span the full (now narrower) table.
+  const tableMaxWidth = `${150 + Math.max(dataColCount, 1) * 215}px`
 
   const StatRow = ({ label, cells, winSet }) => (
     <div className="grid items-center" style={gridCols}>
@@ -480,7 +484,7 @@ export default function ComparePlayers() {
       </div>
 
       {/* Comparison table — selection lives in the column headers */}
-      <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)' }}>
+      <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: tableMaxWidth }}>
         {/* Player header cards (each is a selector) */}
         <div className="grid" style={gridCols}>
           <div className="px-3 py-4" />
@@ -499,7 +503,13 @@ export default function ComparePlayers() {
               <div className="flex flex-col items-center gap-1.5">
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0"
-                  style={{ backgroundColor: c.colors.primary }}
+                  style={{
+                    // No photo but a team logo → team logo on a white circle
+                    // (matches the player-page badge treatment). Photo/initials
+                    // keep the team-colored circle.
+                    backgroundColor: (!c.player.pictureUrl && c.logo) ? '#ffffff' : c.colors.primary,
+                    ...((!c.player.pictureUrl && c.logo) ? { boxShadow: '0 0 0 1px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.2)' } : {}),
+                  }}
                 >
                   {c.player.pictureUrl ? (
                     <img src={c.player.pictureUrl} alt={c.player.name} className="w-full h-full object-cover" />
