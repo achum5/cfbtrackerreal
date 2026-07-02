@@ -243,15 +243,17 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        // Invited editors may create/update but NOT delete — prevents a
-        // regular member from wiping shared roster/season data (audit H1).
+        // Invited editors may create/update (delete is granted below too).
         allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
-        // Co-commishes (league stewards) may also delete.
+        // Any invited editor may also delete — members edit exactly like
+        // the commish (trusted-league model). Roster/schedule/season edits
+        // legitimately delete docs (orphan cleanup, removed games), so
+        // gating delete to co-commishes blocked normal member editing.
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       match /games/{gameId} {
@@ -261,55 +263,27 @@ service cloud.firestore {
                     && request.auth.uid in parentDynasty().get('editors', []);
         allow read: if parentDynasty().isPublic == true;
 
-        // ── Per-team write gating ────────────────────────────────
-        // Owner: any team, must be premium (storage cost).
-        // Co-commish: any team, no premium required.
-        // Regular member: only games involving a team they manage —
-        //   either side (team1Tid OR team2Tid) must appear in their
-        //   memberTeams[uid] list. Both the OLD doc (resource, for
-        //   updates/deletes) AND the NEW doc (request.resource, for
-        //   creates/updates) are checked so members can't swap an
-        //   opponent's tid to their own to sneak in a write.
-        // Tid-less games (CFP shells, bowl bids with TBD positions):
-        //   only owner / co-commish — they're "league-level" before
-        //   the bracket fills.
+        // Write model: everyone with access edits like the commish.
+        // Owner write requires premium (they pay for storage); any invited
+        // editor writes/deletes ANY game with no premium and no per-team
+        // gate. A dynasty is a trusted group — there are no gameplay
+        // permission tiers. (The old per-team gate blocked members from
+        // ever saving a schedule, since the schedule save rewrites the
+        // WHOLE game set, all teams + orphan cleanup, not just their own.)
 
         // Owner write — premium required.
         allow write: if isPremium()
                      && parentDynasty().userId == request.auth.uid;
         // Owner can always DELETE their own dynasty's docs (teardown),
-        // even if premium has lapsed. You can always remove your own
-        // data; premium only gates create/update (storage cost) above.
+        // even if premium has lapsed.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
 
-        // Co-commish — any team, no premium required.
+        // Any invited editor (member or co-commish) — full write + delete,
+        // any team, no premium.
         allow write: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
-
-        // Regular member — only their team's games.
-        allow write: if isSignedIn()
-                     && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('editors', [])
-                     && !(request.auth.uid in parentDynasty().get('coCommishes', []))
-                     && parentDynasty().get('memberTeams', {}).get(request.auth.uid, []).size() > 0
-                     && (
-                       (resource != null
-                        && (
-                          (resource.data.get('team1Tid', null) != null
-                           && resource.data.team1Tid in parentDynasty().memberTeams[request.auth.uid])
-                          || (resource.data.get('team2Tid', null) != null
-                              && resource.data.team2Tid in parentDynasty().memberTeams[request.auth.uid])
-                        ))
-                       || (request.resource != null
-                           && (
-                             (request.resource.data.get('team1Tid', null) != null
-                              && request.resource.data.team1Tid in parentDynasty().memberTeams[request.auth.uid])
-                             || (request.resource.data.get('team2Tid', null) != null
-                                 && request.resource.data.team2Tid in parentDynasty().memberTeams[request.auth.uid])
-                           ))
-                     );
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       // ─── Season-scoped data (subcollection) ─────────────────────
@@ -340,15 +314,17 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        // Invited editors may create/update but NOT delete — prevents a
-        // regular member from wiping shared roster/season data (audit H1).
+        // Invited editors may create/update (delete is granted below too).
         allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
-        // Co-commishes (league stewards) may also delete.
+        // Any invited editor may also delete — members edit exactly like
+        // the commish (trusted-league model). Roster/schedule/season edits
+        // legitimately delete docs (orphan cleanup, removed games), so
+        // gating delete to co-commishes blocked normal member editing.
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       // ─── Week recaps (subcollection) ────────────────────────────
@@ -374,15 +350,17 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        // Invited editors may create/update but NOT delete — prevents a
-        // regular member from wiping shared roster/season data (audit H1).
+        // Invited editors may create/update (delete is granted below too).
         allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
-        // Co-commishes (league stewards) may also delete.
+        // Any invited editor may also delete — members edit exactly like
+        // the commish (trusted-league model). Roster/schedule/season edits
+        // legitimately delete docs (orphan cleanup, removed games), so
+        // gating delete to co-commishes blocked normal member editing.
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       // ─── Social Media feature subcollections ────────────────────
@@ -404,15 +382,17 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        // Invited editors may create/update but NOT delete — prevents a
-        // regular member from wiping shared roster/season data (audit H1).
+        // Invited editors may create/update (delete is granted below too).
         allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
-        // Co-commishes (league stewards) may also delete.
+        // Any invited editor may also delete — members edit exactly like
+        // the commish (trusted-league model). Roster/schedule/season edits
+        // legitimately delete docs (orphan cleanup, removed games), so
+        // gating delete to co-commishes blocked normal member editing.
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       match /socialCharacters/{docId} {
@@ -429,15 +409,17 @@ service cloud.firestore {
         // data; premium only gates create/update (storage cost) above.
         allow delete: if isSignedIn()
                       && parentDynasty().userId == request.auth.uid;
-        // Invited editors may create/update but NOT delete — prevents a
-        // regular member from wiping shared roster/season data (audit H1).
+        // Invited editors may create/update (delete is granted below too).
         allow create, update: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
                      && request.auth.uid in parentDynasty().get('editors', []);
-        // Co-commishes (league stewards) may also delete.
+        // Any invited editor may also delete — members edit exactly like
+        // the commish (trusted-league model). Roster/schedule/season edits
+        // legitimately delete docs (orphan cleanup, removed games), so
+        // gating delete to co-commishes blocked normal member editing.
         allow delete: if isSignedIn()
                      && parentDynasty().userId != request.auth.uid
-                     && request.auth.uid in parentDynasty().get('coCommishes', []);
+                     && request.auth.uid in parentDynasty().get('editors', []);
       }
 
       // ─── Invite tokens (subcollection) ──────────────────────────
