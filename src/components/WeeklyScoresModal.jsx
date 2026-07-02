@@ -1042,7 +1042,7 @@ Don't just glance at this list. Physically execute each check on your draft.
         <div className="flex items-center justify-between px-5 sm:px-7 py-4 border-b border-surface-4">
           <div className="flex flex-col">
             <h2 className="text-xl sm:text-2xl font-bold text-txt-primary tracking-tight tabular-nums">
-              {year} Week {week}
+              {year} Week {week} Scores
             </h2>
           </div>
           <button
@@ -1059,15 +1059,9 @@ Don't just glance at this list. Physically execute each check on your draft.
         <div className="flex-1 flex flex-col overflow-hidden">
           {useLocal && !showDeletedNote ? (
             <div className="flex-1 flex flex-col overflow-hidden px-5 sm:px-7 py-4">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <label htmlFor="weekly-rank-week" className="label-xs text-txt-tertiary">
-                  Rankings week
-                </label>
-                {rankWeekSelect}
-                <p className="basis-full text-xs text-txt-tertiary leading-relaxed">
-                  The Top 25 the AI extracts lands in this week's slot. Defaults to your dynasty's current week.
-                </p>
-              </div>
+              <p className="mb-3 text-xs sm:text-sm text-txt-secondary leading-relaxed">
+                Screenshot <strong className="text-txt-primary">all of this week's scores</strong> and send them with the prompt. The AI reads every final and <strong className="text-txt-primary">derives the Top 25 rankings automatically</strong> from those screenshots. You don't enter a Top 25 separately.
+              </p>
               <LocalDataEntry
                 aiPrompt={aiPrompt}
                 onImport={handleLocalImport}
@@ -1075,7 +1069,18 @@ Don't just glance at this list. Physically execute each check on your draft.
                 onCancel={onClose}
                 importLabel="Import Scores"
                 initialText={initialWeeklyText}
-              />
+                instructions={"Screenshot this week's full scoreboard — every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
+              >
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <label htmlFor="weekly-rank-week" className="label-xs text-txt-tertiary">
+                    Rankings week
+                  </label>
+                  {rankWeekSelect}
+                  <p className="basis-full text-xs text-txt-tertiary leading-relaxed">
+                    Which week's slot the derived Top 25 lands in. Defaults to your dynasty's current week.
+                  </p>
+                </div>
+              </LocalDataEntry>
             </div>
           ) : isLoading ? (
             <div className="flex-1 flex items-center justify-center p-6">
