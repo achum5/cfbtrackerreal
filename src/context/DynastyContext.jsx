@@ -16042,10 +16042,20 @@ export function DynastyProvider({ children }) {
       // allowed size of 1,048,576 bytes" — see Alabama Prince's
       // import failure at 1,082,432 bytes.
 
-      // Extract players, games, week recaps, and seasonal fields.
-      // Whatever's left in mainDocData is identity + small per-year
-      // scalars + dynasty.teams, which together fit comfortably.
-      const { players, games, weekRecapsByYear, ...rest } = cleanDynastyData
+      // Extract players, games, week recaps, the social feed/characters,
+      // and every seasonal field. Whatever's left in mainDocData is
+      // identity + small per-year scalars + dynasty.teams, which together
+      // fit comfortably.
+      //
+      // socialFeedByYear + socialCharacters MUST be stripped here too: a
+      // dynasty with an active social universe carries a multi-MB feed
+      // (the exported social-universe blobs run ~2 MB), and leaving them
+      // embedded pushed the import's main-doc write past Firestore's 1 MiB
+      // cap — the exact "exceeds the maximum allowed size of 1,048,576
+      // bytes" failure a social-heavy dynasty hit on import. The migrate
+      // (Move to Cloud) path already fans these out; import must match it
+      // or a user who exports/re-imports instead of migrating still fails.
+      const { players, games, weekRecapsByYear, socialFeedByYear, socialCharacters, ...rest } = cleanDynastyData
       const playerCount = players?.length || 0
       const gameCount = games?.length || 0
 
@@ -16113,6 +16123,36 @@ export function DynastyProvider({ children }) {
             try { await saveWeekRecapToSubcollection(result.id, yearN, weekN, entry) }
             catch (err) { console.warn('[import] week recap save failed:', yearN, weekN, err?.message) }
           }
+        }
+      }
+
+      // Stage 2d: Fan the social feed out into its subcollection, one doc
+      // per (year, week) — same shape saveSocialFeedToSubcollection uses in
+      // the normal save flow and that migrate (Move to Cloud) fans out.
+      // This is what keeps a multi-MB social universe off the main doc.
+      if (socialFeedByYear && typeof socialFeedByYear === 'object') {
+        let feedWeeks = 0
+        for (const [yearStr, byWeek] of Object.entries(socialFeedByYear)) {
+          if (!byWeek || typeof byWeek !== 'object') continue
+          for (const [weekStr, posts] of Object.entries(byWeek)) {
+            if (!Array.isArray(posts) || posts.length === 0) continue
+            const yearN = Number(yearStr); const weekN = Number(weekStr)
+            if (!Number.isFinite(yearN) || !Number.isFinite(weekN)) continue
+            try { await saveSocialFeedToSubcollection(result.id, yearN, weekN, posts); feedWeeks++ }
+            catch (err) { console.warn('[import] social feed save failed:', yearN, weekN, err?.message) }
+          }
+        }
+        if (feedWeeks > 0) reportProgress('social', `Importing ${feedWeeks} social feed week${feedWeeks === 1 ? '' : 's'}...`, 24)
+      }
+
+      // Stage 2e: Save social characters to their sharded subcollection.
+      if (socialCharacters && typeof socialCharacters === 'object'
+          && Object.keys(socialCharacters).length > 0) {
+        try {
+          await saveSocialCharacterShards(result.id, socialCharacters)
+          reportProgress('social', `Importing ${Object.keys(socialCharacters).length} social character${Object.keys(socialCharacters).length === 1 ? '' : 's'}...`, 24)
+        } catch (err) {
+          console.warn('[import] social characters save failed:', err?.message)
         }
       }
 

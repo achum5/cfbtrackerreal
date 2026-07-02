@@ -1114,7 +1114,7 @@ Don't just glance at this list. Physically execute each check on your draft.
           {useLocal && !showDeletedNote ? (
             <div className="flex-1 flex flex-col overflow-hidden px-5 sm:px-7 py-4">
               <p className="mb-3 text-[11px] leading-snug sm:text-sm sm:leading-relaxed text-txt-secondary">
-                Screenshot <strong className="text-txt-primary">all of this week's scores</strong> and send them with the prompt. The AI reads every final and <strong className="text-txt-primary">derives the Top 25 automatically</strong> from them. Ranked teams on bye are listed below the games so their rankings stay recorded — edit any of it before importing.
+                Screenshot <strong className="text-txt-primary">all of this week's scores</strong> and send them with the prompt. The AI reads every final and <strong className="text-txt-primary">derives the Top 25 automatically</strong> from them. Ranked teams on bye are auto derived from the past week's rankings. The AI makes its best judgement to fill in the entire Top 25.
               </p>
               <LocalDataEntry
                 aiPrompt={aiPrompt}
