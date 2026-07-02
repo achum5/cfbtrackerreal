@@ -306,7 +306,7 @@ export default function LeaguePreferences() {
     setSavingScoutStaff(true)
     try {
       await updateDynasty(currentDynasty.id, { scoutStaffEnabled: next })
-      toast.success(next ? 'Scout Staff enabled — the Targets tab now uses Scout Staff.' : 'Scout Staff disabled — back to MaxPlaysCFB ScoutScore.')
+      toast.success(next ? 'Scout Staff enabled. The Recruiting tab now uses Scout Staff.' : 'Scout Staff disabled — back to MaxPlaysCFB ScoutScore.')
     } catch (err) {
       console.error('[LeaguePreferences] scout staff toggle failed:', err)
       toast.error(`Could not update: ${err?.message || 'Unknown error'}`)

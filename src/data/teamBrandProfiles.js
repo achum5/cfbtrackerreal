@@ -2695,98 +2695,102 @@ const BATCH_4 = {
 
 // ---------------------------------------------------------------------------
 // FCS — Generic in-game FCS opponents that appear on dynasty schedules.
-// Same profile shape as FBS teams; add as logos/brand info becomes available.
+// CFB 27 replaced CFB 26's five generic FCS schools with a new set: East
+// (Sentinels), Southeast (Condors), Midwest (Thunderbirds), Northwest
+// (Kodiaks), West (Rivertoads). Colors below are read from the in-game
+// team cards; logoDescription/graphicNotes are placeholders pending upload
+// of the real CFB 27 marks.
 // ---------------------------------------------------------------------------
 const FCS_TEAMS = {
   "FCS Southeast": {
     primaryPMS: null,
-    primaryHex: "#4A7C59",
+    primaryHex: "#26314F",
     secondaryPMS: null,
-    secondaryHex: "#F0E68C",
+    secondaryHex: "#E0691E",
     tertiaryHex: "#FFFFFF",
-    motifs: ["snarling grouper fish head"],
-    helmet: { baseColor: "sea green", logoMark: "snarling grouper head", stripe: "single black center stripe", finish: "glossy" },
-    logoDescription: "An aggressive snarling grouper fish head facing forward and slightly to the right, jaw clamped shut with the grouper's characteristic prominent thick lips and stout broad jaw. A jagged spiky dorsal fin with multiple sharp triangular points fans up from the top of the head, and a small side fin protrudes from the lower-left of the body with the tail fin tip just visible behind the right side. The fish has a large angry eye with a heavy black brow, curved gill lines, and bared aggressive features. Rendered in sage / sea green (#4A7C59) as the dominant fill with bold black outlines and shadow detail and crisp white inline highlights along the gills, mouth, brow, and fin edges. No wordmark.",
-    wordmarkStyle: "Logo-driven brand — the snarling grouper head is the primary identity, with no consistent wordmark treatment.",
+    motifs: ["condor head"],
+    helmet: { baseColor: "navy", logoMark: "condor head", stripe: "single white center stripe", finish: "glossy" },
+    logoDescription: "A fierce condor head in orange (#E0691E) set against a navy field, feathered crest sweeping back over the crown. Statesboro, Georgia. Placeholder pending the real CFB 27 mark.",
+    wordmarkStyle: "Logo-driven brand — the condor head is the primary identity, with no consistent wordmark treatment.",
     visualEra: "modern/athletic",
     isFictional: true,
-    homeJerseyColor: "sea green",
+    homeJerseyColor: "navy",
     awayJerseyColor: "white",
-    graphicNotes: "Generic in-game FCS opponent — the Groupers. Sea / sage green (#4A7C59) paired with khaki yellow (#F0E68C, used sparingly), with heavy black outlines and white inline highlights. The snarling grouper head is the only mark — no secondary logo, no wordmark fallback.",
-    shortNickname: "Groupers",
-    confidence: "high"
+    graphicNotes: "Generic in-game FCS opponent — the Condors (Statesboro, Georgia). Navy (#26314F) paired with orange (#E0691E). Placeholder art pending upload of the CFB 27 mark.",
+    shortNickname: "Condors",
+    confidence: "medium"
   },
   "FCS Northwest": {
     primaryPMS: null,
-    primaryHex: "#BFA544",
+    primaryHex: "#1E4A44",
     secondaryPMS: null,
-    secondaryHex: "#477F62",
+    secondaryHex: "#C4A64C",
     tertiaryHex: "#FFFFFF",
-    motifs: ["stallion head", "flowing mane"],
-    helmet: { baseColor: "forest green", logoMark: "stallion head with green mane", stripe: "single gold center stripe", finish: "glossy" },
-    logoDescription: "A side-profile stallion head facing right with a fierce aggressive expression — heavy black brow, sharp piercing eye, defined nostril, and clamped jaw. The horse's face is rendered in old gold (#BFA544) with bold black internal detail lines defining the muzzle, cheek, jawline, and facial musculature. A flowing wild mane streams back behind the head in layered sections — the upper layers are forest green (#477F62) with jagged spike-like tips, and lower mane sections alternate between gold and green, all separated by sharp black shadow cuts. A small pointed ear tucks at the top, partly hidden by the green mane. The whole mark is wrapped in a thin white outer outline. No wordmark.",
-    wordmarkStyle: "Logo-driven brand — the stallion head with flowing green-and-gold mane is the primary identity, with no consistent wordmark treatment.",
+    motifs: ["kodiak bear head"],
+    helmet: { baseColor: "white", logoMark: "roaring kodiak bear head", stripe: "single pine-green center stripe", finish: "glossy" },
+    logoDescription: "A roaring kodiak bear head rendered in deep pine green (#1E4A44) with gold (#C4A64C) accents, mouth open in a snarl. White helmet. Portland, Oregon. Placeholder pending the real CFB 27 mark.",
+    wordmarkStyle: "Logo-driven brand — the kodiak bear head is the primary identity, with no consistent wordmark treatment.",
     visualEra: "modern/athletic",
     isFictional: true,
-    homeJerseyColor: "forest green",
+    homeJerseyColor: "pine green",
     awayJerseyColor: "white",
-    graphicNotes: "Generic in-game FCS opponent. Old gold (#BFA544) and forest green (#477F62) co-dominate — gold for the horse's face/body, green for the layered mane — with heavy black internal line work and a white outer outline. The stallion head with streaming green-and-gold mane is the only mark; no secondary logo, no wordmark fallback.",
-    shortNickname: "Stallions",
-    confidence: "high"
+    graphicNotes: "Generic in-game FCS opponent — the Kodiaks (Portland, Oregon). Deep pine green (#1E4A44) paired with gold (#C4A64C) over white. Placeholder art pending upload of the CFB 27 mark.",
+    shortNickname: "Kodiaks",
+    confidence: "medium"
   },
   "FCS Midwest": {
     primaryPMS: null,
-    primaryHex: "#91ABC7",
+    primaryHex: "#7C1D2E",
     secondaryPMS: null,
-    secondaryHex: "#E1D76E",
+    secondaryHex: "#35B5AE",
     tertiaryHex: "#FFFFFF",
-    motifs: ["donkey/mule head", "lightning bolt"],
-    helmet: { baseColor: "powder blue", logoMark: "donkey head with lightning bolt", stripe: "single yellow center stripe", finish: "glossy" },
-    logoDescription: "A front-facing donkey/mule head with two tall pointed ears upright, the head and ears centered over a horizontal yellow lightning bolt that zigzags diagonally behind it from lower-left to upper-right. The donkey head is rendered in powder blue (#91ABC7) as the dominant fill with dark navy/black internal detail lines defining the snout, nostrils, mouth, brow, and inner-ear contours; the lightning bolt is solid pale yellow (#E1D76E) with a thin dark outline. The whole mark is wrapped in a thin white outer outline. No wordmark.",
-    wordmarkStyle: "Logo-driven brand — the donkey-and-lightning-bolt mark is the primary identity, with no consistent wordmark treatment.",
+    motifs: ["thunderbird"],
+    helmet: { baseColor: "maroon", logoMark: "thunderbird", stripe: "single teal center stripe", finish: "glossy" },
+    logoDescription: "A stylized thunderbird with outstretched wings, rendered in teal (#35B5AE) with gold outline against a maroon (#7C1D2E) field. Springfield, Missouri. Placeholder pending the real CFB 27 mark.",
+    wordmarkStyle: "Logo-driven brand — the thunderbird is the primary identity, with no consistent wordmark treatment.",
     visualEra: "modern/athletic",
     isFictional: true,
-    homeJerseyColor: "powder blue",
+    homeJerseyColor: "maroon",
     awayJerseyColor: "white",
-    graphicNotes: "Generic in-game FCS opponent. Powder blue (#91ABC7) paired with pale yellow (#E1D76E), with dark navy/black used for internal line work and a white outer outline. The donkey/mule head over a diagonal lightning bolt is the only mark — no secondary logos, no wordmark fallback.",
-    shortNickname: "Rebels",
-    confidence: "high"
+    graphicNotes: "Generic in-game FCS opponent — the Thunderbirds (Springfield, Missouri). Maroon (#7C1D2E) paired with teal (#35B5AE). Placeholder art pending upload of the CFB 27 mark.",
+    shortNickname: "Thunderbirds",
+    confidence: "medium"
   },
   "FCS East": {
     primaryPMS: null,
-    primaryHex: "#2F1936",
+    primaryHex: "#1C2A4D",
     secondaryPMS: null,
-    secondaryHex: "#8E85A1",
+    secondaryHex: "#C6A15B",
     tertiaryHex: "#FFFFFF",
-    motifs: ["robed magistrate", "judicial wig"],
-    helmet: { baseColor: "dark purple", logoMark: "robed judge silhouette", stripe: "single lavender center stripe", finish: "matte" },
-    logoDescription: "A side-profile silhouette of a robed judicial magistrate striding to the right. The figure wears a long flowing floor-length robe and a curly British-style judicial wig with tight scrolled curls cascading down the back of the head. The right arm is raised forward and slightly upward holding a small circular handheld object aloft (reads as a hand-held emblem or scales-of-justice medallion); the left arm is bent across the body at the waist. The figure stands on a small horizontal stepped pedestal. The mark is rendered in two-tone deep eggplant purple (#2F1936) as the dominant fill with lighter lavender-gray (#8E85A1) interior detail lines defining the robe folds, wig curls, and facial features, wrapped in a thin white outer outline. No wordmark.",
-    wordmarkStyle: "Logo-driven brand — the robed magistrate figure is the primary identity, with no consistent wordmark treatment.",
+    motifs: ["colonial sentinel", "tricorn hat"],
+    helmet: { baseColor: "gold", logoMark: "colonial minuteman bust", stripe: "single navy center stripe", finish: "glossy" },
+    logoDescription: "A colonial minuteman / sentinel bust in profile wearing a tricorn hat, rendered in navy (#1C2A4D) against a gold (#C6A15B) field. Gold helmet. Orangeburg, South Carolina. Placeholder pending the real CFB 27 mark.",
+    wordmarkStyle: "Logo-driven brand — the colonial sentinel bust is the primary identity, with no consistent wordmark treatment.",
     visualEra: "modern/athletic",
     isFictional: true,
-    homeJerseyColor: "dark purple",
+    homeJerseyColor: "navy",
     awayJerseyColor: "white",
-    graphicNotes: "Generic in-game FCS opponent. Deep eggplant purple (#2F1936) paired with lavender-gray (#8E85A1) and a white outline are the entire palette — distinctly darker and more muted than FCS West's royal purple. The robed-magistrate silhouette is the only mark; no secondary logo, no wordmark fallback.",
-    shortNickname: "Judicials",
-    confidence: "high"
+    graphicNotes: "Generic in-game FCS opponent — the Sentinels (Orangeburg, South Carolina). Navy (#1C2A4D) paired with gold (#C6A15B). Placeholder art pending upload of the CFB 27 mark.",
+    shortNickname: "Sentinels",
+    confidence: "medium"
   },
   "FCS West": {
     primaryPMS: null,
-    primaryHex: "#462E6A",
+    primaryHex: "#D64D95",
     secondaryPMS: null,
-    secondaryHex: "#AF9458",
+    secondaryHex: "#1A1A1A",
     tertiaryHex: "#FFFFFF",
-    motifs: ["lightning bolt"],
-    helmet: { baseColor: "purple", logoMark: "purple-and-gold lightning bolt", stripe: "single gold center stripe", finish: "glossy" },
-    logoDescription: "A stylized lightning bolt mark, vertically oriented. The top of the bolt is a wide horizontal rectangular banner-like section (the bolt's 'head'); the body then zigzags downward with sharp angular cuts and tapers to a single sharp point at the bottom. The mark is constructed in three nested layers: a solid royal purple core fill (#462E6A), wrapped by a metallic Vegas-gold inline outline (#AF9458), then a white outer outline. No wordmark, no internal detail beyond the layered outlines. Reads as a single bold lightning-bolt monogram.",
-    wordmarkStyle: "Logo-driven brand — the lightning bolt mark is the primary identity, with no consistent wordmark treatment.",
+    motifs: ["river toad"],
+    helmet: { baseColor: "pink", logoMark: "aggressive river toad head", stripe: "single black center stripe", finish: "matte" },
+    logoDescription: "An aggressive river toad / frog head rendered in pink (#D64D95) with darker magenta and black detailing, wide-mouthed and snarling. Pink helmet. Carson, California. Placeholder pending the real CFB 27 mark.",
+    wordmarkStyle: "Logo-driven brand — the river toad head is the primary identity, with no consistent wordmark treatment.",
     visualEra: "modern/athletic",
     isFictional: true,
-    homeJerseyColor: "purple",
+    homeJerseyColor: "pink",
     awayJerseyColor: "white",
-    graphicNotes: "Generic in-game FCS opponent. Royal purple (#462E6A) paired with metallic Vegas gold (#AF9458) and a white outline are the entire palette. The triple-outlined lightning bolt is the only mark — no secondary logos, no wordmark to fall back on.",
-    shortNickname: "Titans",
-    confidence: "high"
+    graphicNotes: "Generic in-game FCS opponent — the Rivertoads (Carson, California). Pink (#D64D95) paired with black (#1A1A1A). Placeholder art pending upload of the CFB 27 mark.",
+    shortNickname: "Rivertoads",
+    confidence: "medium"
   }
 }
 

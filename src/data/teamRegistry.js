@@ -1152,13 +1152,15 @@ export const TEAMS = {
     secondaryColor: "#ffc425",
     logo: "https://i.imgur.com/Pjw5U7w.png"
   },
-  // FCS Teams (137-141) — match CFB26's actual five generic directional
-  // schools: FCS East, FCS Southeast, FCS Midwest, FCS Northwest, FCS West.
-  // Abbreviations match CFB26's 5-letter in-game codes (FCSE, FCSSE, FCSMW,
-  // FCSNW, FCSW). Existing dynasties created before FCSSE was added (or
-  // that still hold the old 4-letter FCSM / FCSN abbrs and the made-up
-  // nicknames) are migrated forward by migrateFCSFiveTeams() in
-  // DynastyContext.
+  // FCS Teams (137-141) — the five generic directional schools. The base
+  // fields are CFB 26's identities (colors, no mascot). CFB 27 shipped a new
+  // set of generic FCS teams (East=Sentinels, Southeast=Condors,
+  // Midwest=Thunderbirds, Northwest=Kodiaks, West=Rivertoads) with new colors;
+  // those ride in `editionOverrides.cfb27` and are applied by
+  // initializeDynastyTeams only for cfb27+ dynasties, so a CFB 26 dynasty keeps
+  // the old teams and a CFB 27 dynasty gets the new ones. Abbreviations keep
+  // the 5-letter in-game codes. Logos point at the CFB 26 marks pending upload
+  // of the new CFB 27 art.
   137: {
     tid: 137,
     abbr: "FCSE",
@@ -1166,7 +1168,10 @@ export const TEAMS = {
     primaryColor: "#2F1936",
     secondaryColor: "#8E85A1",
     logo: "https://i.imgur.com/eFyXxwT.png",
-    isFCS: true
+    isFCS: true,
+    editionOverrides: {
+      cfb27: { primaryColor: "#1C2A4D", secondaryColor: "#C6A15B", nickname: "Sentinels" }
+    }
   },
   138: {
     tid: 138,
@@ -1175,7 +1180,10 @@ export const TEAMS = {
     primaryColor: "#91ABC7",
     secondaryColor: "#1a1a1a",
     logo: "https://i.imgur.com/NOJOPG8.png",
-    isFCS: true
+    isFCS: true,
+    editionOverrides: {
+      cfb27: { primaryColor: "#7C1D2E", secondaryColor: "#35B5AE", nickname: "Thunderbirds" }
+    }
   },
   139: {
     tid: 139,
@@ -1184,7 +1192,10 @@ export const TEAMS = {
     primaryColor: "#BFA544",
     secondaryColor: "#477F62",
     logo: "https://i.imgur.com/uBvbn1s.png",
-    isFCS: true
+    isFCS: true,
+    editionOverrides: {
+      cfb27: { primaryColor: "#1E4A44", secondaryColor: "#C4A64C", nickname: "Kodiaks" }
+    }
   },
   140: {
     tid: 140,
@@ -1193,7 +1204,10 @@ export const TEAMS = {
     primaryColor: "#462E6A",
     secondaryColor: "#AF9458",
     logo: "https://i.imgur.com/Y8A8u0g.png",
-    isFCS: true
+    isFCS: true,
+    editionOverrides: {
+      cfb27: { primaryColor: "#D64D95", secondaryColor: "#1A1A1A", nickname: "Rivertoads" }
+    }
   },
   141: {
     tid: 141,
@@ -1202,7 +1216,10 @@ export const TEAMS = {
     primaryColor: "#4A7C59",
     secondaryColor: "#F0E68C",
     logo: "https://i.imgur.com/8qfTMIy.png",
-    isFCS: true
+    isFCS: true,
+    editionOverrides: {
+      cfb27: { primaryColor: "#26314F", secondaryColor: "#E0691E", nickname: "Condors" }
+    }
   },
   // FBS additions for CFB 27 (2026 realignment): two FCS programs that
   // reclassified up — North Dakota State (to the Mountain West) and
@@ -1546,10 +1563,22 @@ export function initializeDynastyTeams(editionKey = LEGACY_EDITION) {
   const teams = {}
   for (const [tid, team] of Object.entries(TEAMS)) {
     if (team.addedEdition && dynastyYear < editionReleaseYear(team.addedEdition)) continue
-    teams[tid] = {
-      ...team,
+    const { editionOverrides, ...base } = team
+    const slot = {
+      ...base,
       byYear: {}  // Initialize empty season data
     }
+    // Apply any edition-scoped identity overrides (e.g. CFB 27's new generic
+    // FCS teams) whose edition is at or before this dynasty's edition, oldest
+    // first so the newest applicable one wins. This bakes the edition-correct
+    // name/colors/nickname into the dynasty's own teams map.
+    if (editionOverrides) {
+      const applicable = Object.entries(editionOverrides)
+        .filter(([ek]) => editionReleaseYear(ek) <= dynastyYear)
+        .sort((a, b) => editionReleaseYear(a[0]) - editionReleaseYear(b[0]))
+      for (const [, override] of applicable) Object.assign(slot, override)
+    }
+    teams[tid] = slot
   }
   return teams
 }

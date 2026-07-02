@@ -595,8 +595,9 @@ export default function ComparePlayers() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-5">
+      {/* Header — matched to the table width + mx-auto so its left edge lines
+          up with the centered comparison table below. */}
+      <div className="mb-5 mx-auto" style={{ maxWidth: `${tableWidth}px` }}>
         <h1 className="font-display font-extrabold uppercase tracking-tight text-2xl sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
           Compare Players
         </h1>
@@ -605,7 +606,7 @@ export default function ComparePlayers() {
       {/* Comparison table — selection lives in the column headers. The outer
           box scrolls horizontally; the inner wrapper is the table's fixed
           intrinsic width so every row aligns and scrolls together. */}
-      <div className="rounded-lg overflow-x-auto" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: `${tableWidth}px` }}>
+      <div className="rounded-lg overflow-x-auto mx-auto" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: `${tableWidth}px` }}>
         <div style={{ width: `${tableWidth}px` }}>
         {/* Player header cards (each is a selector) */}
         <div className="grid" style={gridCols}>
@@ -732,12 +733,6 @@ export default function ComparePlayers() {
         </div>
       </div>
 
-      {filledCols.length > 0 && (
-        <p className="mt-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-          Tip: open any player&apos;s page and tap Compare to jump here with them pre-loaded.{' '}
-          <Link to={`${pathPrefix}/players`} className="underline">Browse all players</Link>
-        </p>
-      )}
     </div>
   )
 }

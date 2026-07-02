@@ -4,7 +4,9 @@
 // ("Kentucky") and nickname ("Wildcats"). Derived from the SAME stripMascotFromName
 // logic the frontend already uses, so `teamName` equals today's short-name display
 // exactly. `name` stays the combined identity string; these are additive.
-// FCS placeholder slots ("FCS East") have no mascot, so nickname is ''.
+// FCS placeholder slots ("FCS East") have no mascot in the CFB 26 base set,
+// so nickname is ''. CFB 27's mascots (Sentinels, etc.) are applied per-edition
+// via editionOverrides in the registry, not here.
 export const TEAM_NAME_PARTS = {
   1: { teamName: "Air Force", nickname: "Falcons" },
   2: { teamName: "Akron", nickname: "Zips" },

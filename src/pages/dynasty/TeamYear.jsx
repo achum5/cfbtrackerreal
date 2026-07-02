@@ -221,8 +221,8 @@ const getMascotName = (abbr, teamsData = null) => {
     'SAM': 'Sam Houston State Bearkats', 'TUL': 'Tulane Green Wave', 'TXTECH': 'Texas Tech Red Raiders',
     'UF': 'Florida Gators', 'UM': 'Miami Hurricanes',
     // FCS teams
-    'FCSE': 'FCS East Judicials', 'FCSM': 'FCS Midwest Rebels',
-    'FCSN': 'FCS Northwest Stallions', 'FCSW': 'FCS West Titans'
+    'FCSE': 'FCS East Sentinels', 'FCSM': 'FCS Midwest Thunderbirds',
+    'FCSN': 'FCS Northwest Kodiaks', 'FCSW': 'FCS West Rivertoads'
   }
   return mascotMap[abbr] || null
 }

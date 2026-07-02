@@ -5377,6 +5377,57 @@ export function migrateFCSFiveTeams(dynasty) {
   }
 }
 
+/**
+ * Migration: upgrade the five generic FCS teams to CFB 27's set.
+ *
+ * CFB 27 shipped a new generic FCS lineup — East (Sentinels), Southeast
+ * (Condors), Midwest (Thunderbirds), Northwest (Kodiaks), West (Rivertoads)
+ * — with new colors, replacing CFB 26's teams. New cfb27 dynasties get these
+ * baked in at creation by initializeDynastyTeams. This migration retrofits
+ * cfb27 dynasties created before the change: for each FCS slot still holding
+ * the pristine CFB 26 default colors (i.e. the user never recolored it), it
+ * applies the CFB 27 colors + mascot. Slots the user customized are left
+ * untouched, and cfb26 dynasties are never touched at all. Logos are left as
+ * the CFB 26 marks pending upload of the new CFB 27 art.
+ */
+const FCS_CFB26_DEFAULTS = {
+  137: { primaryColor: '#2f1936', secondaryColor: '#8e85a1' },
+  138: { primaryColor: '#91abc7', secondaryColor: '#1a1a1a' },
+  139: { primaryColor: '#bfa544', secondaryColor: '#477f62' },
+  140: { primaryColor: '#462e6a', secondaryColor: '#af9458' },
+  141: { primaryColor: '#4a7c59', secondaryColor: '#f0e68c' },
+}
+const FCS_CFB27_IDENTITY = {
+  137: { primaryColor: '#1C2A4D', secondaryColor: '#C6A15B', nickname: 'Sentinels' },
+  138: { primaryColor: '#7C1D2E', secondaryColor: '#35B5AE', nickname: 'Thunderbirds' },
+  139: { primaryColor: '#1E4A44', secondaryColor: '#C4A64C', nickname: 'Kodiaks' },
+  140: { primaryColor: '#D64D95', secondaryColor: '#1A1A1A', nickname: 'Rivertoads' },
+  141: { primaryColor: '#26314F', secondaryColor: '#E0691E', nickname: 'Condors' },
+}
+export function migrateFCSCfb27Teams(dynasty) {
+  if (!dynasty || dynasty._fcsCfb27Migrated) return dynasty
+  if (normalizeEditionKey(dynasty.gameEdition) !== 'cfb27') return dynasty
+
+  const teams = { ...(dynasty.teams || {}) }
+  let changed = false
+  for (const [tidStr, defaults] of Object.entries(FCS_CFB26_DEFAULTS)) {
+    const tid = Number(tidStr)
+    const slot = teams[tid]
+    if (!slot) continue
+    // Only upgrade a slot the user hasn't recolored — compare against the
+    // CFB 26 defaults case-insensitively so stored casing doesn't matter.
+    const p = (slot.primaryColor || '').toLowerCase()
+    const s = (slot.secondaryColor || '').toLowerCase()
+    if (p === defaults.primaryColor && s === defaults.secondaryColor) {
+      teams[tid] = { ...slot, ...FCS_CFB27_IDENTITY[tid] }
+      changed = true
+    }
+  }
+
+  if (!changed) return { ...dynasty, _fcsCfb27Migrated: true }
+  return { ...dynasty, teams, _fcsCfb27Migrated: true }
+}
+
 // ============================================================================
 // MOVEMENT TYPES - Player movement tracking system
 // ============================================================================
@@ -6423,6 +6474,11 @@ export function DynastyProvider({ children }) {
       // skips on _fcs5TeamsMigrated, but it still runs the FCSSE-logo
       // backfill (only acts when the logo is empty).
       migrated = migrateFCSFiveTeams(migrated)
+
+      // cfb27 dynasties: upgrade any pristine CFB 26 FCS slots to CFB 27's
+      // new generic teams (colors + mascots). Gated + only touches slots the
+      // user never recolored; cfb26 dynasties are left with the old teams.
+      migrated = migrateFCSCfb27Teams(migrated)
 
       // Backfill the teamName + nickname split ("Kentucky" | "Wildcats") on the
       // teams map for saves created before the split existed. Additive and
