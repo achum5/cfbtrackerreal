@@ -9,7 +9,7 @@ import { createStaffAccessor } from './staffDB';
 import RecruitingPlanRow from './RecruitingPlanRow';
 import { PROFILES, POSITIONS } from './ThresholdLookup';
 import { archetypeBaseScore, normalizeArch } from './archetypeWeights';
-import { isPlayerOnRoster } from '../context/DynastyContext';
+import { isPlayerOnRoster, useDynasty } from '../context/DynastyContext';
 import { buildRevealedPool, buildWeightsMap } from '../utils/devTraitLearning';
 
 // Drop target for a sub-position group in the Current Roster list — the whole
@@ -1118,7 +1118,8 @@ function buildPositionHub(pos, posPlayers, archList, rosterCtx, availableSpots, 
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function ScoutAnalysis({ players = [], removedRecruits = [], onToggleBoardRemoved = null, teamColors, teamLogo, dynasty, committedRecruits = [], onBack, onOutlookReady, jumpToPos = null }) {
-  const { getStaffData, saveStaffData } = createStaffAccessor(dynasty?.id ?? null);
+  const { updateDynasty } = useDynasty();
+  const { getStaffData, saveStaffData } = createStaffAccessor(dynasty, updateDynasty);
   const navigate = useNavigate();
   const p = teamColors?.primary || '#374151';
   const onOutlookReadyRef = React.useRef(onOutlookReady);

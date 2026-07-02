@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createStaffAccessor } from './staffDB';
+import { useDynasty } from '../context/DynastyContext';
 import { archetypeBaseScore } from './archetypeWeights';
 import { buildRevealedPool, buildWeightsMap, predictDevTrait, getFormAttrs } from '../utils/devTraitLearning';
 import { ATTRIBUTE_ABBR } from '../utils/recruitAttributes';
@@ -993,7 +994,8 @@ function EditModal({ player, pool, weightsMap, onSave, onClose }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function PlayerDatabase({ players, roleContext, teamColors, teamLogo, onDelete, onEdit, onGoToInput, onGoToThresholds, onBack, dynastyId = null, recruitingDbIsolated = false, onToggleIsolated = null, highlightPid = null }) {
-  const { getStaffData } = createStaffAccessor(dynastyId);
+  const { currentDynasty } = useDynasty();
+  const { getStaffData } = createStaffAccessor(currentDynasty);
   const p = teamColors?.primary || '#374151';
   const [filterPos, setFilterPos] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createStaffAccessor } from './staffDB';
+import { useDynasty } from '../context/DynastyContext';
 import { normalizeArch } from './archetypeWeights';
 import {
   DEV_TRAITS, getFormAttrs, buildRevealedPool, buildWeightsMap,
@@ -635,7 +636,8 @@ function dynamicBadgeText(profile, attrEntries, direction = 'above') {
 }
 
 export default function ThresholdLookup({ players = [], teamColors, teamLogo, onGoToDatabase, onBack, dynastyId = null, recruitingDbIsolated = false, onToggleIsolated = null }) {
-  const { getStaffData } = createStaffAccessor(dynastyId);
+  const { currentDynasty } = useDynasty();
+  const { getStaffData } = createStaffAccessor(currentDynasty);
   const p = teamColors?.primary || '#374151';
   const [activePos, setActivePos] = useState('QB');
   const [activeArch, setActiveArch] = useState('Pocket Passer');

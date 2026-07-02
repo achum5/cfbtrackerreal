@@ -6,6 +6,8 @@ import { buildRevealedPool, buildWeightsMap } from '../utils/devTraitLearning';
 // LIGHTWEIGHT INDEXEDDB MANAGER (Permanently Bypasses the 5MB Quota Limit)
 // =========================================================================
 import { createStaffAccessor } from './staffDB';
+import { useDynasty } from '../context/DynastyContext';
+import { uploadImage } from '../utils/imageUpload';
 import RecruitingPlanRow from './RecruitingPlanRow';
 import GemBustIcon from './GemBustIcon';
 
@@ -60,7 +62,8 @@ function Signature({ name, color = 'currentColor', fontSize = '1.45rem' }) {
 }
 
 export default function ScoutStaffFrontPage({ setView, onViewDatabase, onJumpToPosition, currentTeamName = 'college football team', currentYear, coachName = '', teamColors, teamLogo, recruits = [], databaseRecruits = [], rosterWarnings = [], rosterSummary = null, outlookSummary = null, committedRecruits = [], dynastyId = null }) {
-  const { getStaffData, saveStaffData, deleteStaffData } = createStaffAccessor(dynastyId);
+  const { currentDynasty, updateDynasty } = useDynasty();
+  const { getStaffData, saveStaffData, deleteStaffData } = createStaffAccessor(currentDynasty, updateDynasty);
   const p = teamColors?.primary   || '#374151';
   const s = teamColors?.secondary || '#ffffff';
   // Live State Holders
@@ -356,16 +359,26 @@ Staff Note: (${noteContext} ${connectionInstruction} Write one tight sentence th
         const mCtx = maxCanvas.getContext('2d');
         const mSide = Math.min(img.width, img.height);
         mCtx.drawImage(img, (img.width - mSide)/2, (img.height - mSide)/2, mSide, mSide, 0, 0, MAX_DIM, MAX_DIM);
-        const highResUrl = maxCanvas.toDataURL('image/jpeg', 0.95);
-
-        if (slot === 1) {
-          setScoutImg(highResUrl);
-          await saveStaffData('scout_img', highResUrl);
-          if (scoutContractLength === 0) await generateRandomContract(1);
-        } else {
-          setAnalystImg(highResUrl);
-          await saveStaffData('analyst_img', highResUrl);
-          if (analystContractLength === 0) await generateRandomContract(2);
+        // Show the local crop instantly for feedback, then upload to the image
+        // host and persist the HOSTED URL. Never store the base64 data URL —
+        // for cloud dynasties that would bloat the Firestore doc toward its 1MB
+        // limit (staff config now lives on the dynasty object).
+        const previewUrl = maxCanvas.toDataURL('image/jpeg', 0.95);
+        if (slot === 1) setScoutImg(previewUrl); else setAnalystImg(previewUrl);
+        try {
+          const blob = await new Promise((res) => maxCanvas.toBlob(res, 'image/jpeg', 0.95));
+          const hostedUrl = await uploadImage(blob);
+          if (slot === 1) {
+            setScoutImg(hostedUrl);
+            await saveStaffData('scout_img', hostedUrl);
+            if (scoutContractLength === 0) await generateRandomContract(1);
+          } else {
+            setAnalystImg(hostedUrl);
+            await saveStaffData('analyst_img', hostedUrl);
+            if (analystContractLength === 0) await generateRandomContract(2);
+          }
+        } catch (err) {
+          console.error('[ScoutStaff] portrait upload failed:', err);
         }
       };
       img.src = rawDataUrl;

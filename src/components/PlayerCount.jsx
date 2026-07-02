@@ -37,7 +37,7 @@ export default function PlayerCount({ onBack, onGoToDatabase }) {
   const [scoutName, setScoutName] = useState('National Scout');
 
   useEffect(() => {
-    const { getStaffData } = createStaffAccessor(currentDynasty?.id ?? null);
+    const { getStaffData } = createStaffAccessor(currentDynasty, updateDynasty);
     async function loadScout() {
       const img  = await getStaffData('scout_img');
       const name = await getStaffData('scout_name');
