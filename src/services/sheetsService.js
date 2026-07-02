@@ -1,7 +1,8 @@
 // Note: Firebase auth import removed - we use OAuth tokens from localStorage directly
 // This allows Google Sheets to work with free tier (IndexedDB) users who have signed in with Google
 import { teamAbbreviations, getTeamAbbreviationsList, getSelectableTeamsList, getSchedulableTeamsList } from '../data/teamAbbreviations'
-import { getAbbrFromTeamName, getTidFromAbbr, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
+import { getAbbrFromTeamName, getTidFromAbbr, getAbbrFromTid, TEAMS as DEFAULT_TEAMS, getTeamNameOptions } from '../data/teamRegistry'
+import { getTidFromTeamText } from '../data/teams'
 import { conferenceTeams as CANONICAL_CONFERENCES } from '../data/conferenceTeams'
 import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, QUARTERS, DOWNS, PLAY_TYPES, AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
@@ -1868,8 +1869,22 @@ export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams 
           location = 'away'
         }
 
-        const userTeamAbbr = (row[1] || '').toUpperCase()
-        const opponentAbbr = row[2].toUpperCase()
+        // Resolve teams tolerantly: the cell may hold an abbreviation, a full
+        // name with mascot, or a bare school name (users often paste team
+        // names straight from the game). getTidFromTeamText handles all three;
+        // we then normalize the stored string to the resolved abbreviation.
+        const userTeamRaw = (row[1] || '').trim()
+        const opponentRaw = (row[2] || '').trim()
+
+        const userTeamTid = userTeamRaw ? getTidFromTeamText(userTeamRaw, dynastyTeams) : null
+        const opponentTid = opponentRaw ? getTidFromTeamText(opponentRaw, dynastyTeams) : null
+
+        const userTeamAbbr = userTeamTid != null
+          ? (getAbbrFromTid(dynastyTeams, userTeamTid) || getAbbrFromTid(DEFAULT_TEAMS, userTeamTid) || userTeamRaw.toUpperCase())
+          : userTeamRaw.toUpperCase()
+        const opponentAbbr = opponentTid != null
+          ? (getAbbrFromTid(dynastyTeams, opponentTid) || getAbbrFromTid(DEFAULT_TEAMS, opponentTid) || opponentRaw.toUpperCase())
+          : opponentRaw.toUpperCase()
 
         // parseInt("0") is 0 (falsy), so a plain `|| index + 1` fallback
         // would silently re-assign Week 0 entries to the row index + 1 and
@@ -1881,9 +1896,9 @@ export async function readScheduleFromScheduleSheet(spreadsheetId, dynastyTeams 
         return {
           week,
           userTeam: userTeamAbbr,
-          userTeamTid: userTeamAbbr ? getTidFromAbbr(userTeamAbbr, dynastyTeams) : null,
+          userTeamTid,
           opponent: opponentAbbr,
-          opponentTid: opponentAbbr ? getTidFromAbbr(opponentAbbr, dynastyTeams) : null,
+          opponentTid,
           location
         }
       })

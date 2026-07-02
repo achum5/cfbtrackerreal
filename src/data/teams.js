@@ -1,5 +1,5 @@
 import { teamAbbreviations } from './teamAbbreviations'
-import { getAbbrFromTeamName, TEAMS as TEAMS_REGISTRY } from './teamRegistry'
+import { getAbbrFromTeamName, TEAMS as TEAMS_REGISTRY, getTidFromAbbr, getTidFromTeamName } from './teamRegistry'
 import { espnTeamIds } from './espnTeamIds'
 
 // Team logo URLs (Imgur hosted)
@@ -249,6 +249,41 @@ export function stripMascotFromName(fullName) {
 
   // Default: drop just the last word (single-word mascot)
   return parts.slice(0, -1).join(' ')
+}
+
+// Tolerant team resolver for pasted / typed input. Accepts an abbreviation
+// ("OU"), a full name with mascot ("Oklahoma Sooners"), or a bare school name
+// ("Oklahoma", "Appalachian State"). Data-entry paste ingest uses this so a
+// user can copy team names straight from the game instead of hunting for the
+// exact abbreviation. Resolution order: abbr → exact stored name →
+// mascot-stripped school-name match (dynasty/custom teams first, then the
+// static registry). Mascot-stripped matching is exact (not prefix) so
+// "Texas" resolves to the Longhorns and never collides with "Texas A&M".
+export function getTidFromTeamText(text, dynastyTeams = null) {
+  if (text == null) return null
+  const raw = String(text).trim()
+  if (!raw) return null
+
+  const byAbbr = getTidFromAbbr(raw, dynastyTeams)
+  if (byAbbr) return byAbbr
+  const byName = getTidFromTeamName(raw, dynastyTeams)
+  if (byName) return byName
+
+  const school = (s) => {
+    const stripped = stripMascotFromName(String(s || '')).trim().toLowerCase()
+    return stripped || String(s || '').trim().toLowerCase()
+  }
+  const target = school(raw)
+  if (!target) return null
+
+  const scan = (teamsObj) => {
+    if (!teamsObj || typeof teamsObj !== 'object') return null
+    for (const [tid, team] of Object.entries(teamsObj)) {
+      if (team?.name && school(team.name) === target) return Number(tid)
+    }
+    return null
+  }
+  return scan(dynastyTeams) ?? scan(TEAMS_REGISTRY)
 }
 
 // Resolve the team slot object from an abbr or tid, mirroring getMascotName's

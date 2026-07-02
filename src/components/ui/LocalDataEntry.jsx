@@ -77,11 +77,26 @@ export default function LocalDataEntry({
   // lines, which would otherwise shift every later row).
   const isLabeled = Array.isArray(rowLabels) && rowLabels.length > 0
   const parseIncoming = (t) => {
-    if (!isLabeled) return splitTsv(t)
-    const rows = Array.from({ length: rowLabels.length }, () => [])
-    for (const cells of splitTsv(t)) {
+    const parsed = splitTsv(t)
+    if (!isLabeled) return parsed
+    // Fixed-row grid (e.g. the schedule's weeks 0–15). Accept BOTH shapes:
+    //   • index-led   <idx>\t<col1>\t<col2>  — how serialize() round-trips and
+    //     what our AI prompt emits; robust to blank rows (splitTsv drops blanks,
+    //     which would otherwise shift every later row).
+    //   • positional  <col1>\t<col2>         — a natural paste with no leading
+    //     index (one row per label, in order — e.g. copying opponent+site
+    //     straight from the game). Mapped by row position.
+    // Only treat it as index-led when EVERY row starts with a valid label
+    // index; otherwise fall back to position so a plain paste is never dropped.
+    const indexLed = parsed.length > 0 && parsed.every((cells) => {
       const idx = Number(cells[0])
-      if (Number.isInteger(idx) && idx >= 0 && idx < rowLabels.length) rows[idx] = cells.slice(1)
+      return Number.isInteger(idx) && idx >= 0 && idx < rowLabels.length
+    })
+    const rows = Array.from({ length: rowLabels.length }, () => [])
+    if (indexLed) {
+      for (const cells of parsed) rows[Number(cells[0])] = cells.slice(1)
+    } else {
+      parsed.forEach((cells, i) => { if (i < rowLabels.length) rows[i] = cells })
     }
     return rows
   }

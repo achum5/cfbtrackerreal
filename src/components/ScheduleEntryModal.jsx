@@ -447,7 +447,22 @@ FINAL CHECK before you send the answer
   // fixed 16-row grid, so the WEEK comes from the row itself — never from the
   // surviving line index (a blank week no longer shifts every later week).
   const handleLocalImport = async (text) => {
-    const rows = splitTsv(text).map((cells) => [String(cells[0] ?? ''), targetTeamAbbr, (cells[1] ?? ''), (cells[2] ?? '')])
+    const raw = splitTsv(text)
+    // Accept BOTH shapes so a paste "just works":
+    //   • week-led  <week>\t<opponent>\t<site>   (what our AI prompt emits)
+    //   • positional <opponent>\t<site>          (natural copy from the game —
+    //     one row per week in order 0→15, BYE lines included, no week column)
+    // Detect by the first column: if EVERY row leads with a 0–15 integer it's
+    // week-led; otherwise treat each row's position as its week. Without this,
+    // a positional paste slides the opponent into the site column and the week
+    // falls back to the row index, so nothing but "0–15" lands.
+    const weekLed = raw.length > 0 && raw.every((c) => {
+      const first = String(c[0] ?? '').trim()
+      return /^\d{1,2}$/.test(first) && Number(first) <= 15
+    })
+    const rows = weekLed
+      ? raw.map((c) => [String(c[0] ?? ''), targetTeamAbbr, (c[1] ?? ''), (c[2] ?? '')])
+      : raw.map((c, i) => [String(i), targetTeamAbbr, (c[0] ?? ''), (c[1] ?? '')])
     const schedule = await readScheduleFromScheduleSheet(null, currentDynasty?.teams || currentDynasty?.customTeams, { rows })
     await submitSchedule({ schedule })
   }
