@@ -1492,7 +1492,11 @@ export default function Dashboard() {
 
     // Map player names to PIDs for tracking
     const playersWithPids = playersLeaving.map(entry => {
-      const player = currentDynasty.players?.find(p => p.name === entry.playerName)
+      // Tolerant name match (case/whitespace/curly-apostrophe folded) so a
+      // pasted "De'Von Achane" still links to the roster player — matching the
+      // sibling offseason handlers below. Exact-match previously left pid null,
+      // so the player wasn't removed from the roster.
+      const player = currentDynasty.players?.find(p => normalizePlayerName(p.name) === normalizePlayerName(entry.playerName))
       return {
         playerName: entry.playerName,
         pid: player?.pid || null,

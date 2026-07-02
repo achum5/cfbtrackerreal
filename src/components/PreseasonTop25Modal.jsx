@@ -245,7 +245,13 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
   // Sheets API A1:B26 read returns. Reuses handleSheetSync's guardrails.
   const handleLocalImport = async (text) => {
     if (!currentDynasty) return
-    const rows = [[], ...splitTsv(text).map((cells) => ['', cells[0] ?? ''])]
+    // Accept a bare "Team" per line OR a rank-led "1<TAB>Team": take the team
+    // from cell 1 when cell 0 is a rank number, else cell 0. The reader reads
+    // the team from column index 1 (the A1:B26 [rank, abbr] shape).
+    const rows = [[], ...splitTsv(text).map((cells) => {
+      const rankLed = cells.length >= 2 && /^\d{1,2}$/.test(String(cells[0]).trim())
+      return ['', (rankLed ? cells[1] : cells[0]) ?? '']
+    })]
     const result = await readPreseasonRankingsFromSheet(null, currentDynasty, yearNum, { rows })
 
     const oldCount = (currentDynasty.preseasonRankingsByYear?.[yearNum] || []).length

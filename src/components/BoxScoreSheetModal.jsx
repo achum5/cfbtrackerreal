@@ -1460,6 +1460,24 @@ FINAL CHECK before you send
   // optional textarea.
   const tsvToStatRows = (text) => {
     const parsed = splitTsv(text).filter(isTeamStatsDataRow)
+    // If the AI echoed the stat-label column (rows like "First Downs\t18\t21"),
+    // key each row to its stat BY LABEL instead of by position — otherwise a
+    // label echo, a dropped line, or a reordered line silently shifts every
+    // stat onto the wrong row (the same class as the schedule paste bug).
+    const labelToIndex = new Map()
+    TEAM_STATS_ROWS.forEach((label, i) => labelToIndex.set(teamStatKey(label), i))
+    const labeledCount = parsed.filter(
+      (c) => c.length >= 3 && labelToIndex.has(teamStatKey(String(c[0] || '')))
+    ).length
+    if (labeledCount > 0 && labeledCount >= Math.min(5, parsed.length)) {
+      const out = TEAM_STATS_ROWS.map(() => ({ away: '', home: '' }))
+      for (const c of parsed) {
+        const idx = labelToIndex.get(teamStatKey(String(c[0] || '')))
+        if (idx == null) continue
+        out[idx] = { away: String(c[1] ?? '').trim(), home: String(c[2] ?? '').trim() }
+      }
+      return out
+    }
     return TEAM_STATS_ROWS.map((_, i) => ({
       away: (parsed[i]?.[0] ?? '').toString().trim(),
       home: (parsed[i]?.[1] ?? '').toString().trim(),

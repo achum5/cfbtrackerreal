@@ -81,7 +81,13 @@ export function parseAttributeRows(rows) {
     if (!playerName) continue
     const position = (row?.[1] ?? '').toString().trim()
     const overall = coerceNum(row?.[2])
-    const attributes = parseAttributes(row?.[3])
+    // Attributes live in ONE cell (col 3, comma-separated pairs). If the AI used
+    // TABS between pairs instead of commas, splitTsv scatters them into cols 4+;
+    // rejoin everything from col 3 on so no trailing ratings are silently lost.
+    const attrCell = Array.isArray(row)
+      ? row.slice(3).map((c) => String(c ?? '').trim()).filter(Boolean).join(', ')
+      : row?.[3]
+    const attributes = parseAttributes(attrCell)
     if (overall == null && !attributes) continue // not a data row
     out.push({ playerName, position, overall, attributes: attributes || {} })
   }

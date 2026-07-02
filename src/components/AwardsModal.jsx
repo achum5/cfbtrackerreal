@@ -280,8 +280,14 @@ FINAL CHECK before you send
   // Prepend each award name by position so the parser's row[0] (award) resolves,
   // matching the [award, ...cells] shape the Sheets API returns.
   const handleLocalImport = async (text) => {
-    const lines = splitTsv(text)
-    const rows = lines.map((cells, i) => [AWARDS_LIST[i] ?? '', ...cells])
+    // The grid is labeled (rowLabels={AWARDS_LIST}), so LocalDataEntry serializes
+    // each row index-led ("<i>\t<B>\t<C>..."). Key each row to its award by that
+    // index rather than by line position — a dropped/blank line can no longer
+    // slide every later award onto the wrong winner.
+    const rows = splitTsv(text).map((cells) => {
+      const i = Number(cells[0])
+      return [Number.isInteger(i) ? (AWARDS_LIST[i] ?? '') : '', ...cells.slice(1)]
+    })
     const awards = await readAwardsFromSheet(null, currentYear, (currentDynasty?.teams || currentDynasty?.customTeams), { rows })
     await onSave(awards)
     onClose()
@@ -410,6 +416,8 @@ FINAL CHECK before you send
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Awards"
+            rowLabels={AWARDS_LIST}
+            rowLabelHeader="Award"
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

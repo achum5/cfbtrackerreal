@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
+import { normalizePlayerName } from '../utils/playerMatching'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
 import SheetModalHeader from './ui/SheetModalHeader'
@@ -269,7 +270,9 @@ FINAL CHECK before you send
 
     const updatedPlayers = (currentDynasty?.players || []).map(player => {
       if (player.isHonorOnly) return player
-      const match = historyData.find(h => h.pid === player.pid)
+      const match = historyData.find(h =>
+        (h.pid != null && h.pid === player.pid) ||
+        (h.pid == null && !!player.name && normalizePlayerName(h.playerName) === normalizePlayerName(player.name)))
       if (match && Object.keys(match.teamsByYear).length > 0) {
         return {
           ...player,
@@ -311,7 +314,9 @@ FINAL CHECK before you send
         if (player.isHonorOnly) return player
 
         // Find matching entry by PID
-        const match = historyData.find(h => h.pid === player.pid)
+        const match = historyData.find(h =>
+        (h.pid != null && h.pid === player.pid) ||
+        (h.pid == null && !!player.name && normalizePlayerName(h.playerName) === normalizePlayerName(player.name)))
         if (match && Object.keys(match.teamsByYear).length > 0) {
           return {
             ...player,
@@ -361,7 +366,9 @@ FINAL CHECK before you send
         if (player.isHonorOnly) return player
 
         // Find matching entry by PID
-        const match = historyData.find(h => h.pid === player.pid)
+        const match = historyData.find(h =>
+        (h.pid != null && h.pid === player.pid) ||
+        (h.pid == null && !!player.name && normalizePlayerName(h.playerName) === normalizePlayerName(player.name)))
         if (match && Object.keys(match.teamsByYear).length > 0) {
           return {
             ...player,

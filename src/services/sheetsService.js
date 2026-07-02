@@ -1958,7 +1958,7 @@ export async function readRosterFromRosterSheet(spreadsheetId, opts = {}) {
     }
 
     return rows
-      .filter(row => row[0] && row[7]) // Has first name (col A) and overall rating (col H)
+      .filter(row => row[0]) // Has a first name (col A). Overall (col H) may be blank — it defaults to 0 below rather than dropping the player, because roster import REPLACES the roster, so a dropped row silently DELETES that player.
       .map(row => ({
         name: `${row[0] || ''} ${row[1] || ''}`.trim(),  // Combine first + last name
         firstName: row[0] || '',                          // A: First Name
@@ -2356,7 +2356,7 @@ export async function readRosterFromSheet(spreadsheetId, dynastyTeams = null) {
     }
 
     return rows
-      .filter(row => row[0] && row[7]) // Has first name (col A) and overall rating (col H)
+      .filter(row => row[0]) // Has a first name (col A). Overall (col H) may be blank — it defaults to 0 below rather than dropping the player, because roster import REPLACES the roster, so a dropped row silently DELETES that player.
       .map(row => ({
         name: `${row[0] || ''} ${row[1] || ''}`.trim(),  // Combine first + last name
         firstName: row[0] || '',                          // A: First Name
@@ -7812,10 +7812,26 @@ export function parseDetailedStatsLocal(rows) {
   // canonical "Kick Return" key.
   const tabByLower = {}
   for (const tab of Object.keys(DETAILED_STATS_TABS)) tabByLower[tab.toLowerCase()] = tab
+  // Common natural-language variants the AI/user writes for a category so a
+  // near-miss header doesn't silently drop that whole category's rows.
+  const CATEGORY_ALIASES = {
+    'defense': 'Defensive', 'defensive stats': 'Defensive', 'defense stats': 'Defensive',
+    'kickoff return': 'Kick Return', 'kickoff returns': 'Kick Return', 'kick returns': 'Kick Return',
+    'punt returns': 'Punt Return', 'receiving stats': 'Receiving', 'rushing stats': 'Rushing',
+    'passing stats': 'Passing', 'kicking stats': 'Kicking', 'punting stats': 'Punting',
+    'blocking stats': 'Blocking',
+  }
+  const resolveTab = (key) => {
+    const k = String(key || '').trim().toLowerCase()
+    if (!k) return undefined
+    if (tabByLower[k]) return tabByLower[k]
+    const alias = CATEGORY_ALIASES[k]
+    return alias && DETAILED_STATS_TABS[alias] ? alias : undefined
+  }
 
   const result = {}
   for (const row of (rows || [])) {
-    const tabName = tabByLower[String(row[0] || '').trim().toLowerCase()]
+    const tabName = resolveTab(row[0])
     const name = String(row[1] || '').trim()
     // A row needs a recognized category and a player name; otherwise skip.
     if (!tabName || !name) continue
@@ -10577,6 +10593,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
           position: row[0] || ALL_AMERICAN_POSITIONS[i],
           player: row[1],
           school: (row[2] || '').toUpperCase(),
+          schoolTid: getTidFromTeamText((row[2] || ''), dynastyTeams),
           class: row[3] || ''
         })
       }
@@ -10589,6 +10606,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
           position: row[4] || ALL_AMERICAN_POSITIONS[i],
           player: row[5],
           school: (row[6] || '').toUpperCase(),
+          schoolTid: getTidFromTeamText((row[6] || ''), dynastyTeams),
           class: row[7] || ''
         })
       }
@@ -10601,6 +10619,7 @@ export async function readAllAmericansOnlyFromSheet(spreadsheetId, year, dynasty
           position: row[8] || ALL_AMERICAN_POSITIONS[i],
           player: row[9],
           school: (row[10] || '').toUpperCase(),
+          schoolTid: getTidFromTeamText((row[10] || ''), dynastyTeams),
           class: row[11] || ''
         })
       }
@@ -13685,6 +13704,21 @@ export function parseUnifiedBoxScoreRows(rows) {
   const norm = (s) => String(s || '').replace(/═/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
   const titleToSection = {}
   for (const section of layout.sections) titleToSection[norm(section.title)] = section
+  // Fuzzy banner resolver: exact normalized title, else a section whose every
+  // title word appears in the banner — so "RECEIVING STATS" or a decorated
+  // "═══ RECEIVING ═══" still maps to the Receiving section instead of silently
+  // dropping that whole category. Only applied to single-cell banner lines
+  // (restEmpty below), so a data row can never be mistaken for a banner.
+  const resolveSectionTitle = (a) => {
+    const key = norm(a)
+    if (titleToSection[key]) return titleToSection[key]
+    const words = new Set(key.split(' ').filter(Boolean))
+    for (const section of layout.sections) {
+      const tWords = norm(section.title).split(' ').filter(Boolean)
+      if (tWords.length && tWords.every((w) => words.has(w))) return section
+    }
+    return null
+  }
 
   const boxScore = {}
   for (const section of layout.sections) boxScore[section.key] = []
@@ -13698,7 +13732,7 @@ export function parseUnifiedBoxScoreRows(rows) {
 
     // Banner line: decorated with ═, or a bare section title on its own row.
     const decorated = a.includes('═')
-    const asTitle = titleToSection[norm(a)]
+    const asTitle = resolveSectionTitle(a)
     const restEmpty = row.slice(1).every(c => !String(c || '').trim())
     if (decorated || (asTitle && restEmpty)) {
       // First occurrence of a known section wins; a duplicate banner (stale
@@ -15391,7 +15425,8 @@ export async function readRosterHistoryFromSheet(spreadsheetId, years = [2025, 2
     }
 
     return rows
-      .filter(row => row[0] && row[1]) // Must have name and PID
+      .filter(row => row[0]) // Must have a name. PID (col B) may be blank — the
+      // user can't know internal PIDs; the modal falls back to name matching.
       .map(row => {
         const teamsByYear = {}
         const teamsByYearTid = {}  // New tid-based version
@@ -16641,14 +16676,6 @@ export async function readTop25FromSheet(spreadsheetId, dynasty) {
   const meta = await metaRes.json()
   const tabs = (meta.sheets || []).map(s => s.properties)
 
-  // Reverse map: abbr → tid (case-insensitive). We use this to convert
-  // each cell's text back to a tid.
-  const abbrToTid = new Map()
-  for (const [tidKey, team] of Object.entries(dynasty.teams || {})) {
-    if (!team?.abbr) continue
-    abbrToTid.set(String(team.abbr).toUpperCase(), Number(tidKey))
-  }
-
   const NUM_COLS = 1 + TOP25_WEEK_KEYS.length
   const NUM_ROWS = 1 + TOP25_NUM_RANKS
 
@@ -16715,7 +16742,8 @@ export async function readTop25FromSheet(spreadsheetId, dynasty) {
         const raw = (row[cIdx] || '').trim()
         if (!raw) continue
         const weekKey = TOP25_WEEK_KEYS[cIdx - 1]
-        const tid = abbrToTid.get(raw.toUpperCase())
+        // Resolve tolerantly (team name / abbr / mascot-stripped school name).
+        const tid = getTidFromTeamText(raw, dynasty.teams)
         if (tid == null) {
           unknownAbbrs.push({ year, weekKey, rank, raw })
           continue
@@ -16816,12 +16844,6 @@ export function parseTop25WeekLocal(rows, dynasty, year, weekKey) {
   const yearStr = String(yearNum)
   const wk = Number(weekKey)
 
-  const abbrToTid = new Map()
-  for (const [tidKey, team] of Object.entries(dynasty.teams || {})) {
-    if (!team?.abbr) continue
-    abbrToTid.set(String(team.abbr).toUpperCase(), Number(tidKey))
-  }
-
   const newEntries = {} // tidKey -> rank
   const unknownAbbrs = []
   let seq = 0
@@ -16839,7 +16861,8 @@ export function parseTop25WeekLocal(rows, dynasty, year, weekKey) {
     if (!rawAbbr) continue
     if (!(rank >= 1 && rank <= TOP25_NUM_RANKS)) continue
     seq = Math.max(seq, rank)
-    const tid = abbrToTid.get(rawAbbr.toUpperCase())
+    // Resolve tolerantly: the poll grid + AI prompt emit team NAMES, not abbrs.
+    const tid = getTidFromTeamText(rawAbbr, dynasty.teams)
     if (tid == null) {
       unknownAbbrs.push({ year: yearNum, weekKey: wk, rank, raw: rawAbbr })
       continue
@@ -17133,20 +17156,14 @@ export async function readPreseasonRankingsFromSheet(spreadsheetId, dynasty, yea
     rows = data.values || []
   }
 
-  // Build abbr → tid lookup.
-  const abbrToTid = new Map()
-  for (const [tidKey, team] of Object.entries(dynasty.teams || {})) {
-    if (!team?.abbr) continue
-    abbrToTid.set(String(team.abbr).toUpperCase(), Number(tidKey))
-  }
-
   const entries = []
   const unknownAbbrs = []
   for (let r = 1; r <= PRESEASON_NUM_RANKS; r++) {
     const row = rows[r] || []
     const raw = (row[1] || '').trim()
     if (!raw) continue
-    const tid = abbrToTid.get(raw.toUpperCase())
+    // Resolve tolerantly: the poll grid + AI prompt emit team NAMES, not abbrs.
+    const tid = getTidFromTeamText(raw, dynasty.teams)
     if (tid == null) {
       unknownAbbrs.push({ rank: r, raw })
       continue
