@@ -166,6 +166,45 @@ const STAT_SECTIONS = [
 
 const MAX_COLUMNS = 6
 
+// Which STAT sections matter most for a given position, in priority order.
+// Used to surface the most relevant stat category first when comparing players
+// (e.g. two OL → Blocking before Defense; two QBs → Passing first). Keys match
+// STAT_SECTIONS[].key. Positions not listed fall back to the default
+// STAT_SECTIONS order.
+const POS_STAT_PRIORITY = {
+  QB: ['passing', 'rushing'],
+  HB: ['rushing', 'receiving'], RB: ['rushing', 'receiving'], FB: ['blocking', 'rushing', 'receiving'],
+  WR: ['receiving', 'rushing'],
+  TE: ['receiving', 'blocking'],
+  LT: ['blocking'], LG: ['blocking'], C: ['blocking'], RG: ['blocking'], RT: ['blocking'],
+  OL: ['blocking'], OT: ['blocking'], OG: ['blocking'],
+  LE: ['defense'], RE: ['defense'], DE: ['defense'], DT: ['defense'], DL: ['defense'], EDGE: ['defense'],
+  LOLB: ['defense'], ROLB: ['defense'], MLB: ['defense'], OLB: ['defense'], ILB: ['defense'], LB: ['defense'],
+  CB: ['defense'], FS: ['defense'], SS: ['defense'], S: ['defense'], DB: ['defense'],
+  K: ['kicking'], P: ['kicking'],
+}
+
+// Reorder stat sections so the ones most relevant to the compared players'
+// positions come first. Mirrors orderAttrGroupsByPositions: a section's
+// relevance is its best (lowest) priority index across the compared positions;
+// ties (and unlisted sections) keep the default STAT_SECTIONS order.
+function orderStatSectionsByPositions(sections, positions) {
+  const relevance = (key) => {
+    let best = Infinity
+    for (const pos of positions) {
+      const pri = POS_STAT_PRIORITY[String(pos || '').toUpperCase()]
+      if (!pri) continue
+      const idx = pri.indexOf(key)
+      if (idx !== -1 && idx < best) best = idx
+    }
+    return best
+  }
+  return sections
+    .map((s, i) => ({ s, i, r: relevance(s.key) }))
+    .sort((a, b) => (a.r - b.r) || (a.i - b.i))
+    .map((x) => x.s)
+}
+
 // Which attribute display groups matter most for a given position, in priority
 // order. Used to surface the most relevant groups first when comparing players
 // (e.g. two kickers → Kicking first; two OL → Blocking first). Group labels
@@ -432,11 +471,14 @@ export default function ComparePlayers() {
   const filledCols = columns
   const showAddCol = slots.length < MAX_COLUMNS
 
-  // Which stat sections have at least one player with meaningful data.
-  const visibleSections = useMemo(
-    () => STAT_SECTIONS.filter(sec => filledCols.some(c => sec.present(c.stats))),
-    [filledCols]
-  )
+  // Which stat sections have at least one player with meaningful data, ordered
+  // so the categories most relevant to the compared players' positions lead
+  // (e.g. all OL → Blocking before Defense).
+  const visibleSections = useMemo(() => {
+    const present = STAT_SECTIONS.filter(sec => filledCols.some(c => sec.present(c.stats)))
+    const positions = filledCols.map(c => c.position).filter(Boolean)
+    return orderStatSectionsByPositions(present, positions)
+  }, [filledCols])
 
   // Attribute sections (CFB 27 ratings) — grouped like the in-game player card.
   // Only groups/rows with at least one non-empty value across the selected
@@ -483,11 +525,19 @@ export default function ComparePlayers() {
   const winBorder = 'rgba(34,197,94,0.55)'
 
   const dataColCount = filledCols.length + (showAddCol ? 1 : 0)
-  const gridCols = { gridTemplateColumns: `minmax(112px, 176px) repeat(${Math.max(dataColCount, 1)}, minmax(0, 1fr))` }
-  // Cap the whole table width by column count so data columns stay compact
-  // (~215px each) instead of stretching to fill the page. Section bars still
-  // span the full (now narrower) table.
-  const tableMaxWidth = `${176 + Math.max(dataColCount, 1) * 215}px`
+  // Fixed pixel widths for every column instead of flex (`1fr`) tracks. Flex
+  // tracks collapse the data columns on a narrow (mobile) screen until the
+  // team name, header select + OVR badge, and long labels truncate/overlap.
+  // Fixed widths keep each column readable and let the whole table scroll
+  // sideways in its container when it can't fit — the page never squeezes it.
+  const LABEL_COL_W = 150
+  const DATA_COL_W = 176
+  const gridCols = { gridTemplateColumns: `${LABEL_COL_W}px repeat(${Math.max(dataColCount, 1)}, ${DATA_COL_W}px)` }
+  // Intrinsic table width = label column + every data column. The bordered box
+  // is capped at this width (so on a wide screen it's exactly as wide as its
+  // content, no dead space) and scrolls horizontally when the viewport is
+  // narrower (mobile).
+  const tableWidth = LABEL_COL_W + Math.max(dataColCount, 1) * DATA_COL_W
 
   const StatRow = ({ label, cells, winSet }) => (
     <div className="grid items-center" style={gridCols}>
@@ -541,8 +591,11 @@ export default function ComparePlayers() {
         </h1>
       </div>
 
-      {/* Comparison table — selection lives in the column headers */}
-      <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: tableMaxWidth }}>
+      {/* Comparison table — selection lives in the column headers. The outer
+          box scrolls horizontally; the inner wrapper is the table's fixed
+          intrinsic width so every row aligns and scrolls together. */}
+      <div className="rounded-lg overflow-x-auto" style={{ backgroundColor: 'var(--surface-1)', border: '1px solid var(--surface-4)', maxWidth: `${tableWidth}px` }}>
+        <div style={{ width: `${tableWidth}px` }}>
         {/* Player header cards (each is a selector) */}
         <div className="grid" style={gridCols}>
           <div className="px-3 py-4" />
@@ -670,6 +723,7 @@ export default function ComparePlayers() {
             })}
           </>
         )}
+        </div>
       </div>
 
       {filledCols.length > 0 && (

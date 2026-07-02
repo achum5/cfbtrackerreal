@@ -117,21 +117,38 @@ export default function LocalDataEntry({
   const imageColIndex = (imageColumn && columns?.length) ? columns.indexOf(imageColumn) : -1
   const cellKey = (ri, ci) => `${ri}:${ci}`
 
-  // Horizontal-scroll capture fix. The grid overflows sideways when there are
-  // more columns than fit, so its wrapper scrolls. But every cell is an
-  // <input>/<select>, and when a cell's value is wider than the cell, a
-  // horizontal wheel/trackpad gesture over it scrolls that ONE input's text a
-  // pixel or two and swallows the gesture — the table appears frozen. Attach a
-  // NON-passive wheel listener (React's onWheel is passive, so preventDefault
-  // there is ignored) that redirects any horizontal intent to the wrapper.
+  // Wheel-capture fix. Every cell is an <input>/<select>, and a text input
+  // whose value is wider than the cell is itself horizontally scrollable. Two
+  // desktop failure modes fall out of that:
+  //   • A horizontal wheel/trackpad gesture over the cell scrolls that ONE
+  //     input's text a pixel or two and swallows the gesture — the table
+  //     appears frozen.
+  //   • A plain mouse wheel emits deltaY only. Chrome maps a vertical wheel
+  //     over a horizontal-only scroller (the overflowing input) to scroll the
+  //     input's TEXT sideways, so the modal never scrolls — the gesture is
+  //     trapped in the hovered cell.
+  // Attach a NON-passive wheel listener (React's onWheel is passive, so
+  // preventDefault there is ignored) that routes horizontal intent to the
+  // grid's own sideways scroll and vertical intent to the modal's scroll
+  // container, and preventDefault()s so the hovered input never eats it.
   const gridScrollRef = useRef(null)
+  const outerScrollRef = useRef(null)
   useEffect(() => {
     const el = gridScrollRef.current
     if (!el) return
     const onWheel = (e) => {
-      if (el.scrollWidth <= el.clientWidth) return
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return // vertical → let it bubble
-      el.scrollLeft += e.deltaX
+      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY)
+      if (horizontal) {
+        if (el.scrollWidth <= el.clientWidth) return // nothing to scroll sideways
+        el.scrollLeft += e.deltaX
+        e.preventDefault()
+        return
+      }
+      // Vertical: scroll the modal body ourselves so Chrome can't hijack the
+      // wheel into scrolling the hovered input's overflowing text.
+      const outer = outerScrollRef.current
+      if (!outer || outer.scrollHeight <= outer.clientHeight) return
+      outer.scrollTop += e.deltaY
       e.preventDefault()
     }
     el.addEventListener('wheel', onWheel, { passive: false })
@@ -336,7 +353,7 @@ export default function LocalDataEntry({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-0.5">
+      <div ref={outerScrollRef} className="flex-1 overflow-y-auto flex flex-col gap-3 pr-0.5">
         {/* Unified step header: 📸 + Copy Prompt → Open AI → Paste, each with an info toggle. */}
         <PasteEntrySteps
           aiPrompt={aiPrompt}
