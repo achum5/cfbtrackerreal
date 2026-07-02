@@ -31,6 +31,12 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
+// Header labels for the weekly-scores grid. Seven columns, mirroring the
+// Google Sheet layout the parser reads: game rows fill both sides; bye-rank
+// rows put the team + rank in the first two and leave the rest blank. Kept
+// short so all seven fit (and scroll) on a phone.
+const WEEKLY_SCORES_COLUMNS = ['Home', 'Rk', 'Score', 'Away', 'Rk', 'Score', 'Neutral']
+
 /**
  * WeeklyScoresModal — paste-and-sync entry for league-wide regular-season
  * results. Mirrors BowlWeek1Modal's pattern: creates a Google Sheet with
@@ -751,24 +757,72 @@ Don't just glance at this list. Physically execute each check on your draft.
     return out
   }, [isOpen, currentDynasty, year, week, userTid])
 
+  // Ranked teams on BYE this week, reconstructed from the stored poll so the
+  // grid pre-fills them the same way the Google Sheet flow recorded them: one
+  // row per ranked bye team (team in col A, rank in col B, no opponent). A team
+  // is "on bye" when it holds a 1-25 rank at the rank-week slot (the poll this
+  // week's scores feed) yet played no game this year+week. Seeded only when a
+  // poll actually exists at that slot (i.e. after the week was saved) — on a
+  // first-ever open there's nothing stored, so the AI fills the bye block on
+  // import. Keeping them filled lets the user edit a bye team's rank inline.
+  const byeRowsForPrefill = useMemo(() => {
+    if (!isOpen || !currentDynasty) return []
+    const yearNum = Number(year)
+    const weekNum = Number(week)
+    const rw = Number(rankWeek)
+    if (!Number.isFinite(rw)) return []
+    const teams = currentDynasty.teams || {}
+
+    // Every team that appears in a game this year+week (including the user's
+    // own game — otherwise the user's team could be mistaken for a bye).
+    const playedTids = new Set()
+    for (const g of (currentDynasty.games || [])) {
+      if (!g) continue
+      if (Number(g.year) !== yearNum || Number(g.week) !== weekNum) continue
+      if (g.team1Tid) playedTids.add(Number(g.team1Tid))
+      if (g.team2Tid) playedTids.add(Number(g.team2Tid))
+    }
+
+    const rows = []
+    for (const team of Object.values(teams)) {
+      const rbw = team?.byYear?.[yearNum]?.rankByWeek
+        ?? team?.byYear?.[String(yearNum)]?.rankByWeek
+      if (!rbw) continue
+      const v = rbw[rw] ?? rbw[String(rw)]
+      if (typeof v !== 'number' || v < 1 || v > 25) continue
+      if (playedTids.has(Number(team.tid))) continue
+      const abbr = getTeamNameLabel(teams, team.tid) || team.abbr || ''
+      if (!abbr) continue
+      rows.push({ rank: v, abbr })
+    }
+    rows.sort((a, b) => a.rank - b.rank)
+    return rows
+  }, [isOpen, currentDynasty, year, week, rankWeek])
+
   // Pre-fill the local grid with the week's existing CPU games so the modal
   // opens ready to edit instead of blank. The parser (readWeeklyScoresFromSheet)
   // is content-classified and reads a game row as
   // [HomeTeam, HomeRank, HomeScore, AwayTeam, AwayRank, AwayScore, Neutral].
   // existingForPrefill already resolves home/away orientation, scores, ranks,
   // and the neutral flag, so we serialize those seven columns per game (blank
-  // cell where a value is missing). Only game rows are seeded — bye-rank rows
-  // are the AI's job on import and aren't part of the pre-fill.
+  // cell where a value is missing). Ranked bye teams (byeRowsForPrefill) are
+  // appended below the game rows as bye-rank rows (team + rank, col D empty) so
+  // the recorded rankings for teams on bye stay visible and editable — the same
+  // layout the sheet used and the same shape readWeeklyScoresFromSheet expects.
   const initialWeeklyText = useMemo(() => {
-    return existingForPrefill.map((g) => {
+    const gameLines = existingForPrefill.map((g) => {
       const homeRank = g.homeRank != null ? String(g.homeRank) : ''
       const awayRank = g.awayRank != null ? String(g.awayRank) : ''
       const homeScore = g.homeScore != null ? String(g.homeScore) : ''
       const awayScore = g.awayScore != null ? String(g.awayScore) : ''
       const neutral = g.neutral ? 'Y' : ''
       return [g.homeTeam || '', homeRank, homeScore, g.awayTeam || '', awayRank, awayScore, neutral].join('\t')
-    }).join('\n')
-  }, [existingForPrefill])
+    })
+    const byeLines = byeRowsForPrefill.map((b) =>
+      [b.abbr, String(b.rank), '', '', '', '', ''].join('\t')
+    )
+    return [...gameLines, ...byeLines].join('\n')
+  }, [existingForPrefill, byeRowsForPrefill])
 
   useEffect(() => {
     // An explicit retry (Refresh after re-auth, or Regenerate) re-arms one attempt.
@@ -1059,8 +1113,8 @@ Don't just glance at this list. Physically execute each check on your draft.
         <div className="flex-1 flex flex-col overflow-hidden">
           {useLocal && !showDeletedNote ? (
             <div className="flex-1 flex flex-col overflow-hidden px-5 sm:px-7 py-4">
-              <p className="mb-3 text-xs sm:text-sm text-txt-secondary leading-relaxed">
-                Screenshot <strong className="text-txt-primary">all of this week's scores</strong> and send them with the prompt. The AI reads every final and <strong className="text-txt-primary">derives the Top 25 rankings automatically</strong> from those screenshots. You don't enter a Top 25 separately.
+              <p className="mb-3 text-[11px] leading-snug sm:text-sm sm:leading-relaxed text-txt-secondary">
+                Screenshot <strong className="text-txt-primary">all of this week's scores</strong> and send them with the prompt. The AI reads every final and <strong className="text-txt-primary">derives the Top 25 automatically</strong> from them. Ranked teams on bye are listed below the games so their rankings stay recorded — edit any of it before importing.
               </p>
               <LocalDataEntry
                 aiPrompt={aiPrompt}
@@ -1069,6 +1123,7 @@ Don't just glance at this list. Physically execute each check on your draft.
                 onCancel={onClose}
                 importLabel="Import Scores"
                 initialText={initialWeeklyText}
+                columns={WEEKLY_SCORES_COLUMNS}
                 instructions={"Screenshot this week's full scoreboard — every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
               >
                 <div className="flex flex-wrap items-center gap-2 pt-1">

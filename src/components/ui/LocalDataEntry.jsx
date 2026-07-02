@@ -117,6 +117,27 @@ export default function LocalDataEntry({
   const imageColIndex = (imageColumn && columns?.length) ? columns.indexOf(imageColumn) : -1
   const cellKey = (ri, ci) => `${ri}:${ci}`
 
+  // Horizontal-scroll capture fix. The grid overflows sideways when there are
+  // more columns than fit, so its wrapper scrolls. But every cell is an
+  // <input>/<select>, and when a cell's value is wider than the cell, a
+  // horizontal wheel/trackpad gesture over it scrolls that ONE input's text a
+  // pixel or two and swallows the gesture — the table appears frozen. Attach a
+  // NON-passive wheel listener (React's onWheel is passive, so preventDefault
+  // there is ignored) that redirects any horizontal intent to the wrapper.
+  const gridScrollRef = useRef(null)
+  useEffect(() => {
+    const el = gridScrollRef.current
+    if (!el) return
+    const onWheel = (e) => {
+      if (el.scrollWidth <= el.clientWidth) return
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return // vertical → let it bubble
+      el.scrollLeft += e.deltaX
+      e.preventDefault()
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   // Re-seed the grid from initialText when it changes, but only while the user
   // hasn't edited away from the last seed (so in-progress edits are never lost).
   useEffect(() => {
@@ -341,8 +362,12 @@ export default function LocalDataEntry({
 
         {/* 4. Editable grid — the primary view. Full gridlines (surface-5), no
             inter-cell gaps. Paste fills it; edits flow back to the text. */}
-        <div className="flex-shrink-0 rounded-md border border-surface-5 overflow-x-auto">
-          <table className="w-full text-xs tabular border-collapse">
+        <div
+          ref={gridScrollRef}
+          className="flex-shrink-0 rounded-md border border-surface-5 overflow-x-auto"
+          style={{ touchAction: 'pan-x pan-y' }}
+        >
+          <table className="w-full text-[11px] sm:text-xs tabular border-collapse">
             {columns?.length ? (
               <thead className="bg-surface-2">
                 <tr className="text-txt-tertiary">
@@ -407,6 +432,9 @@ export default function LocalDataEntry({
                             onPaste={isImageCol ? (e) => handleCellPaste(e, ri, ci) : undefined}
                             onKeyDown={(e) => handleCellKeyDown(e, ri, ci)}
                             aria-label={label}
+                            // pan-x pan-y: a horizontal finger drag over an overflowing
+                            // cell scrolls the TABLE, not the input's own text.
+                            style={{ touchAction: 'pan-x pan-y' }}
                             className="w-full bg-transparent text-txt-primary px-2 py-0.5 focus:outline-none focus:bg-surface-3"
                           />
                         )}
