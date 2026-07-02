@@ -17319,7 +17319,19 @@ export function DynastyProvider({ children }) {
     if (!currentDynasty || !user?.uid) return currentDynasty
     const myTid = activeUserTid
     if (myTid == null) return currentDynasty
-    if (Number(currentDynasty.currentTid) === Number(myTid)) return currentDynasty
+    // The `userId: 'currentUser'` sentinel is a SHARED field on the teams map,
+    // so a co-member's session can leave it stamped on THEIR team. Because
+    // getUserTeamTid() returns the sentinel team BEFORE currentTid, we can't
+    // shortcut on `currentTid === myTid` alone — the sentinel may still point
+    // at another team (the "commish's currentTid is CSU but the sentinel is on
+    // the buddy's Tulsa" bug). Only skip the remap when currentTid matches AND
+    // the sentinel already sits on exactly myTid.
+    const teamsMap = currentDynasty.teams || {}
+    const sentinelTids = Object.keys(teamsMap)
+      .filter((t) => teamsMap[t]?.userId === 'currentUser')
+      .map(Number)
+    const sentinelCorrect = sentinelTids.length === 1 && sentinelTids[0] === Number(myTid)
+    if (Number(currentDynasty.currentTid) === Number(myTid) && sentinelCorrect) return currentDynasty
     const remappedTeams = {}
     if (currentDynasty.teams) {
       for (const [tidStr, team] of Object.entries(currentDynasty.teams)) {
