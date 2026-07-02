@@ -19,7 +19,7 @@ import {
   isBowlInWeek1,
   getBowlGamesList,
 } from '../services/sheetsService'
-import { getCurrentTeamTid, getCurrentTeamAbbr, getGameTeamInfo, TEAMS } from '../data/teamRegistry'
+import { getCurrentTeamTid, getCurrentTeamAbbr, getGameTeamInfo, TEAMS, getTeamNameLabel } from '../data/teamRegistry'
 import { CFP_BRACKET_SLOTS } from '../data/cfpConstants'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
@@ -113,7 +113,7 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
         if (!rbw) continue
         const v = rbw[slot] ?? rbw[String(slot)]
         if (typeof v !== 'number' || v < 1 || v > 25) continue
-        if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+        if (!slotMap.has(v)) slotMap.set(v, getTeamNameLabel(teams, team.tid) || team.abbr)
       }
       return slotMap
     }
@@ -142,22 +142,21 @@ export default function BowlWeek1Modal({ isOpen, onClose, onSave, currentYear, t
   const bw1RowTable = useMemo(() => {
     const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
     const teams = currentDynasty?.teams || TEAMS
-    const abbrFromTid = (tid) => {
+    const nameFromTid = (tid) => {
       if (tid == null) return null
-      const info = getGameTeamInfo(teams, tid)
-      return info?.abbr || null
+      return getTeamNameLabel(teams, tid) || getGameTeamInfo(teams, tid)?.abbr || null
     }
-    const seedToAbbr = (seed) => {
+    const seedToName = (seed) => {
       const entry = cfpSeeds.find(s => s.seed === seed)
-      return entry ? (abbrFromTid(entry.tid) || entry.team || null) : null
+      return entry ? (nameFromTid(entry.tid) || entry.team || null) : null
     }
     const cfpHintFor = (bowl) => {
       const m = bowl.match(/^CFP First Round \(#(\d+) vs #(\d+)\)$/)
       if (!m) return ''
       const high = Number(m[1])
       const low = Number(m[2])
-      const t1 = seedToAbbr(high)
-      const t2 = seedToAbbr(low)
+      const t1 = seedToName(high)
+      const t2 = seedToName(low)
       if (t1 && t2) {
         return `Team 1 = ${t1} (#${high} seed, host) Team 2 = ${t2} (#${low} seed)`
       }
@@ -233,7 +232,7 @@ Column C, Column E: integer rank 1–25 if ranked, BLANK if unranked. Read direc
 Column F, Column G: integer score (0 or higher), no commas, no decimal point.
 
 For CFP First Round rows, the team names are PRE-DETERMINED by
-this dynasty's playoff seeds — use the EXACT abbreviations shown in the
+this dynasty's playoff seeds — use the EXACT team names shown in the
 right-hand column of the row table above. Team 1 (column B) is always
 the higher seed (smaller number, the host); Team 2 (column D) is the
 lower seed. Do NOT swap, do NOT substitute real-world matchups.

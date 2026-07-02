@@ -4,6 +4,7 @@ import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
+import { getTeamNameLabel } from '../data/teamRegistry'
 import SheetModalHeader from './ui/SheetModalHeader'
 import SheetModalAIHero from './ui/SheetModalAIHero'
 import SheetManualEntry from './ui/SheetManualEntry'
@@ -80,7 +81,7 @@ export default function RecruitingCommitmentsModal({
     const players = currentDynasty?.players || []
     const teams = currentDynasty?.teams || {}
     const userTid = Number(currentDynasty?.currentTid)
-    const abbrOf = (tid) => teams[tid]?.abbr || ''
+    const abbrOf = (tid) => getTeamNameLabel(teams, tid) || teams[tid]?.abbr || ''
     const userAbbr = abbrOf(userTid)
     const byPid = new Map()
     for (const p of players) {

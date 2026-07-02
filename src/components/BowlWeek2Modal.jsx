@@ -19,7 +19,7 @@ import {
   isBowlInWeek2,
   getBowlGamesWeek2,
 } from '../services/sheetsService'
-import { getCurrentTeamAbbr, getCurrentTeamTid, TEAMS, getGameTeamInfo } from '../data/teamRegistry'
+import { getCurrentTeamAbbr, getCurrentTeamTid, TEAMS, getGameTeamInfo, getTeamNameLabel } from '../data/teamRegistry'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
@@ -105,10 +105,10 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     const firstRoundResults = allGames
       .filter(g => g && (g.gameType === 'cfp_first_round' || g.isCFPFirstRound) && Number(g.year) === Number(currentYear))
       .map(g => {
-        const t1 = g.team1Tid ? getGameTeamInfo(teams, g.team1Tid)?.abbr || g.team1 : g.team1
-        const t2 = g.team2Tid ? getGameTeamInfo(teams, g.team2Tid)?.abbr || g.team2 : g.team2
+        const t1 = g.team1Tid ? (getTeamNameLabel(teams, g.team1Tid) || getGameTeamInfo(teams, g.team1Tid)?.abbr || g.team1) : g.team1
+        const t2 = g.team2Tid ? (getTeamNameLabel(teams, g.team2Tid) || getGameTeamInfo(teams, g.team2Tid)?.abbr || g.team2) : g.team2
         const winnerTid = g.winnerTid != null ? Number(g.winnerTid) : null
-        const winner = g.winner || (winnerTid ? getGameTeamInfo(teams, winnerTid)?.abbr : null)
+        const winner = (winnerTid ? getTeamNameLabel(teams, winnerTid) : null) || g.winner || (winnerTid ? getGameTeamInfo(teams, winnerTid)?.abbr : null)
         return { seed1: g.seed1, seed2: g.seed2, team1: t1, team2: t2, winner, winnerTid }
       })
     const excluded = []
@@ -150,7 +150,7 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
         if (!rbw) continue
         const v = rbw[slot] ?? rbw[String(slot)]
         if (typeof v !== 'number' || v < 1 || v > 25) continue
-        if (!slotMap.has(v)) slotMap.set(v, team.abbr)
+        if (!slotMap.has(v)) slotMap.set(v, getTeamNameLabel(teams, team.tid) || team.abbr)
       }
       return slotMap
     }
@@ -181,14 +181,13 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
     const cfpSeeds = currentDynasty?.cfpSeedsByYear?.[currentYear] || []
     const teams = currentDynasty?.teams || TEAMS
     const cfg = currentDynasty?.cfpBowlConfigByYear?.[currentYear] || DEFAULT_BOWL_CONFIG
-    const abbrFromTid = (tid) => {
+    const nameFromTid = (tid) => {
       if (tid == null) return null
-      const info = getGameTeamInfo(teams, tid)
-      return info?.abbr || null
+      return getTeamNameLabel(teams, tid) || getGameTeamInfo(teams, tid)?.abbr || null
     }
     const seedToAbbr = (seed) => {
       const entry = cfpSeeds.find(s => s.seed === seed)
-      return entry ? (abbrFromTid(entry.tid) || entry.team || null) : null
+      return entry ? (nameFromTid(entry.tid) || entry.team || null) : null
     }
 
     // First-round winners by seed-pair, derived from games[].
@@ -199,10 +198,11 @@ export default function BowlWeek2Modal({ isOpen, onClose, onSave, currentYear, t
         const seed1 = g.seed1 ?? slotCfg?.higherSeed ?? null
         const seed2 = g.seed2 ?? slotCfg?.lowerSeed ?? null
         const winnerTid = g.winnerTid != null ? Number(g.winnerTid) : null
-        let winnerAbbr = g.winner || (winnerTid ? abbrFromTid(winnerTid) : null)
+        // Prefer the tid-derived NAME; fall back to any stored winner string.
+        let winnerAbbr = (winnerTid ? nameFromTid(winnerTid) : null) || g.winner || null
         if (!winnerAbbr && typeof g.team1Score === 'number' && typeof g.team2Score === 'number') {
           const winningTid = g.team1Score > g.team2Score ? g.team1Tid : g.team2Tid
-          winnerAbbr = abbrFromTid(winningTid) || null
+          winnerAbbr = nameFromTid(winningTid) || null
         }
         return { seed1, seed2, winner: winnerAbbr }
       })
@@ -325,7 +325,7 @@ Column C, Column E: integer rank 1–25 if ranked, BLANK if unranked. Read direc
 Column F, Column G: integer score (0 or higher), no commas, no decimal point.
 
 For "(CFP QF)" rows, the team names are PRE-DETERMINED by this
-dynasty's playoff seeds — use the EXACT abbreviations shown in the
+dynasty's playoff seeds — use the EXACT team names shown in the
 right-hand column of the row table above. Team 1 (column B) is always
 the First Round winner (the lower-seeded team that advanced); Team 2
 (column D) is the bye seed (1–4). Do NOT swap, do NOT substitute

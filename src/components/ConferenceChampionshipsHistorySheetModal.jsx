@@ -23,7 +23,7 @@ import {
 import { buildAIPrompt } from '../utils/aiPrompt'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -391,11 +391,11 @@ FINAL CHECK before you send
       let team2Abbr = g.team2
       if (g.team1Tid != null) {
         const t = teamsByTid[g.team1Tid] || teamsByTid[String(g.team1Tid)]
-        if (t?.abbr) team1Abbr = t.abbr
+        if (t?.abbr) team1Abbr = getTeamNameLabel(teamsByTid, g.team1Tid) || t.abbr
       }
       if (g.team2Tid != null) {
         const t = teamsByTid[g.team2Tid] || teamsByTid[String(g.team2Tid)]
-        if (t?.abbr) team2Abbr = t.abbr
+        if (t?.abbr) team2Abbr = getTeamNameLabel(teamsByTid, g.team2Tid) || t.abbr
       }
       if (!team1Abbr && g.userTeam) team1Abbr = g.userTeam
       if (!team2Abbr && g.opponent) team2Abbr = g.opponent

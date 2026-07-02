@@ -1425,6 +1425,18 @@ export function getAbbrFromTeamName(teamName, dynastyTeams = null) {
 // Built-in disambiguation for known short-name collisions (keyed by tid).
 const TEAM_NAME_DISAMBIG = { 56: 'Miami (FL)', 53: 'Miami (OH)' }
 
+// Every form the AI or a user might produce for a collision school, keyed by
+// tid, in "squashed" form (lowercase, non-alphanumerics removed) so spacing and
+// punctuation don't matter: "Miami (OH)" / "Miami-OH" / "Miami OH" all match.
+// A bare "miami" intentionally maps to the Hurricanes (the FBS convention), so
+// even a dropped qualifier resolves rather than blanks. Guarded at resolve time
+// so a teambuilder takeover of the slot is never mis-resolved.
+const TEAM_LABEL_ALIASES = {
+  53: ['miamioh', 'miamiohio', 'miamiredhawks', 'miamiredhawk', 'redhawks', 'redhawk', 'moh', 'muoh', 'miamiuniversity'],
+  56: ['miamifl', 'miamiflorida', 'miamihurricanes', 'miamihurricane', 'miamicanes', 'hurricanes', 'canes', 'theu', 'mia', 'miami'],
+}
+const squashLabel = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+
 // The short name to label a team by: the split `teamName`, else the full name.
 function baseTeamLabel(team) {
   return team?.teamName || team?.name || null
@@ -1493,9 +1505,20 @@ export function getTidFromTeamLabel(label, dynastyOrTeams = null) {
   for (const [tid, team] of Object.entries(teams)) {
     if ((team?.name || '').toLowerCase() === norm) return Number(tid)
   }
-  // 3. Unique short name match (bare "Miami" stays ambiguous -> no match).
+  // 3. Unique short name match (bare "Miami" collides -> falls through to 4).
   const shortHits = Object.entries(teams).filter(([, t]) => (t?.teamName || '').toLowerCase() === norm)
   if (shortHits.length === 1) return Number(shortHits[0][0])
+  // 4. Robust aliases for the collision schools (both "Miami"), matched in
+  //    squashed form so any spelling/spacing works. Guarded so it only resolves
+  //    when that tid's slot is still that school (never a teambuilder override).
+  const squashed = squashLabel(norm)
+  if (squashed) {
+    for (const [tid, aliases] of Object.entries(TEAM_LABEL_ALIASES)) {
+      if (!aliases.includes(squashed)) continue
+      const t = teams[tid]
+      if (t && /miami|hurricane|redhawk/i.test(`${t.name || ''} ${t.teamName || ''}`)) return Number(tid)
+    }
+  }
   return null
 }
 

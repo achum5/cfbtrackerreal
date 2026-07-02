@@ -17,7 +17,7 @@ import {
   getSheetEmbedUrl,
   WEEKLY_SCORES_MAX_ROWS,
 } from '../services/sheetsService'
-import { getCurrentTeamTid } from '../data/teamRegistry'
+import { getCurrentTeamTid, getTeamNameLabel, getTidFromAbbr } from '../data/teamRegistry'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -102,7 +102,7 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
 
   const userTid = currentDynasty ? getCurrentTeamTid(currentDynasty) : null
   const userTeam = userTid ? currentDynasty?.teams?.[userTid] : null
-  const userAbbr = userTeam?.abbr || null
+  const userAbbr = getTeamNameLabel(currentDynasty?.teams, userTeam?.tid) || userTeam?.abbr || null
 
   // Build a conference→[teams] block keyed off the dynasty's actual
   // alignment for the year. Custom conferences (teambuilder dynasties
@@ -121,11 +121,14 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
       'American', 'Conference USA', 'MAC', 'Mountain West', 'Pac-12', 'Sun Belt',
       'Independent',
     ]
+    // The conference maps store team abbreviations; render each as its NAME
+    // label (tid-rooted) so the alignment block matches the names-based prompt.
+    const toName = (abbr) => getTeamNameLabel(currentDynasty?.teams, getTidFromAbbr(abbr, currentDynasty)) || abbr
     const seen = new Set()
     for (const conf of order) {
       const teams = Array.isArray(confMap[conf]) ? confMap[conf].filter(Boolean) : null
       if (!teams || teams.length === 0) continue
-      lines.push(`  ${conf}: ${teams.join(', ')}`)
+      lines.push(`  ${conf}: ${teams.map(toName).join(', ')}`)
       seen.add(conf)
     }
     // Anything else in the map that wasn't in the canonical order
@@ -133,7 +136,7 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
     for (const [conf, teams] of Object.entries(confMap)) {
       if (seen.has(conf)) continue
       if (!Array.isArray(teams) || teams.length === 0) continue
-      lines.push(`  ${conf}: ${teams.join(', ')}`)
+      lines.push(`  ${conf}: ${teams.map(toName).join(', ')}`)
     }
     return lines.join('\n')
   }, [currentDynasty, year])
@@ -170,7 +173,7 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
         if (!rbw) continue
         const v = rbw[wk] ?? rbw[String(wk)]
         if (typeof v !== 'number' || v < 1 || v > 25) continue
-        if (!slots.has(v)) slots.set(v, team.abbr)
+        if (!slots.has(v)) slots.set(v, getTeamNameLabel(teams, team.tid) || team.abbr)
       }
       return slots
     }
@@ -525,7 +528,7 @@ Week 15 is the LAST regular-season week. The Army-Navy Game lives here at a neut
 ═══════════════════════════════════════════════════════════
 DYNASTY CONFERENCE MAP — use this, not real-world assumptions
 ═══════════════════════════════════════════════════════════
-This is the conference alignment for the ${year} season in THIS dynasty. Use it to set conference labels and infer in-conference matchups when needed. Each line is "<conference>: <comma-separated team abbreviations>".
+This is the conference alignment for the ${year} season in THIS dynasty. Use it to set conference labels and infer in-conference matchups when needed. Each line is "<conference>: <comma-separated team names>".
 
 ${conferenceMapBlock || '  (no custom conference data — fall back to standard FBS alignment)'}
 
@@ -727,8 +730,8 @@ Don't just glance at this list. Physically execute each check on your draft.
       const homeTid = g.homeTeamTid ?? Number(g.team1Tid)
       const isNeutral = g.homeTeamTid == null
       const homeIsTeam1 = !isNeutral && homeTid === Number(g.team1Tid)
-      const homeAbbr = teams[homeIsTeam1 ? g.team1Tid : g.team2Tid]?.abbr || ''
-      const awayAbbr = teams[homeIsTeam1 ? g.team2Tid : g.team1Tid]?.abbr || ''
+      const homeAbbr = getTeamNameLabel(teams, homeIsTeam1 ? g.team1Tid : g.team2Tid) || teams[homeIsTeam1 ? g.team1Tid : g.team2Tid]?.abbr || ''
+      const awayAbbr = getTeamNameLabel(teams, homeIsTeam1 ? g.team2Tid : g.team1Tid) || teams[homeIsTeam1 ? g.team2Tid : g.team1Tid]?.abbr || ''
       const homeScore = homeIsTeam1 ? g.team1Score : g.team2Score
       const awayScore = homeIsTeam1 ? g.team2Score : g.team1Score
       const homeRankRaw = homeIsTeam1 ? g.team1Rank : g.team2Rank

@@ -273,7 +273,7 @@ FINAL CHECK before you send the answer
             const games = currentDynasty?.games || []
             const teams = currentDynasty?.teams || {}
             const myTid = Number(teamTid)
-            const myAbbr = teams[myTid]?.abbr || targetTeamAbbr
+            const myAbbr = getTeamNameLabel(teams, myTid) || teams[myTid]?.abbr || targetTeamName
             const yr = Number(currentYear)
             const synthesized = []
             for (const g of games) {
@@ -283,7 +283,7 @@ FINAL CHECK before you send the answer
               const t2 = Number(g.team2Tid)
               if (t1 !== myTid && t2 !== myTid) continue
               const oppTid = t1 === myTid ? t2 : t1
-              const oppAbbr = teams[oppTid]?.abbr || ''
+              const oppAbbr = getTeamNameLabel(teams, oppTid) || teams[oppTid]?.abbr || ''
               if (!oppAbbr) continue
               const homeT = g.homeTeamTid == null ? null : Number(g.homeTeamTid)
               let location = 'neutral'
