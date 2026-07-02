@@ -67,9 +67,14 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   const rosterPlayers = useMemo(() => {
     const teamAbbr = getCurrentTeamAbbr(currentDynasty)
     const teamTid = getCurrentTeamTid(currentDynasty)
-    return (currentDynasty?.players || []).filter(p =>
-      isPlayerOnRoster(p, teamTid ?? teamAbbr, currentYear, currentDynasty)
-    )
+    // Overall for THIS year (per-year map wins, else the flat field).
+    const ovrFor = (p) =>
+      Number(p?.overallByYear?.[currentYear] ?? p?.overallByYear?.[String(currentYear)] ?? p?.overall ?? 0)
+    return (currentDynasty?.players || [])
+      .filter(p => isPlayerOnRoster(p, teamTid ?? teamAbbr, currentYear, currentDynasty))
+      // Highest overall first so the grid opens sorted like the in-game roster —
+      // edits don't mean hunting for a player.
+      .sort((a, b) => ovrFor(b) - ovrFor(a))
   }, [currentDynasty, currentYear])
   const initialRosterText = useMemo(
     () => serializeRosterToTsv(rosterPlayers, { year: currentYear, includeAttributes: attributesEnabled }),
@@ -111,7 +116,7 @@ CRITICAL RULES — read before anything else
 5. INTEGERS have no decimal point. Jersey # "7" not "7.0", Overall "88" not "88.0", Weight "210" not "210.0".
 6. BLANK CELL for unknowns — leave the cell empty (two tabs in a row). NEVER guess, NEVER use "N/A", "-", "0", or "unknown".
 7. Use ONLY the exact literal values listed for each dropdown column below. Wrong casing, extra spaces, or aliases (e.g. "FR" instead of "Fr") will be rejected by the dropdown.
-8. Full Name: split into First Name (column A) and Last Name (column B). Hyphens and apostrophes stay intact. Suffixes like "Jr." or "II" go on the Last Name with a space (e.g. Last Name = "Smith Jr.").
+8. Full Name: split into First Name (column A) and Last Name (column B). Hyphens and apostrophes stay intact. Suffixes like "Jr." or "II" go on the Last Name with a space (e.g. Last Name = "Smith Jr."). EA's roster screen often abbreviates the first name to an initial ("B. Hubbard"); output the player's FULL first name when you can see it anywhere (a player card, another screenshot). If only the initial is visible, output just that initial for First Name rather than guessing the full name — the app will reconcile it with your existing roster.
 9. No header row, no totals, no commentary INSIDE the data, no blank separator rows. The paste-target label above the fence is required (see TSV delivery rules above).
 
 ═══════════════════════════════════════════════════════════
@@ -472,6 +477,9 @@ FINAL CHECK before you send
         >
           <p className="text-txt-secondary">
             <strong className="text-txt-primary">Note:</strong> This is the only time you'll need to enter your roster. In future seasons, your roster will carry over automatically based on players graduating/leaving and your recruiting class additions. All fields are optional - fill in whatever columns you want.
+          </p>
+          <p className="text-txt-tertiary text-xs mt-2">
+            The Attributes column is one cell for bulk AI import. To read or hand-edit a player's individual ratings, open that player's page — its Ratings tab lays every attribute out in the game's order.
           </p>
         </div>
 

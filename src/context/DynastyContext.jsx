@@ -14496,6 +14496,34 @@ export function DynastyProvider({ children }) {
       }
     })
 
+    // Fallback match indexes for THIS team's existing players. EA's roster screen
+    // abbreviates first names ("B. Hubbard"), so an AI paste re-typing the roster
+    // won't full-name-match "Bray Hubbard" — without this it lands as a NEW
+    // player, duplicating the roster and forcing the user to re-enter everything.
+    // Keyed by lastName+jersey (most specific) then lastName+position; only used
+    // when the exact-name match misses AND the key is unambiguous (exactly one
+    // candidate), so two different players are never merged.
+    const nrm = (s) => (s || '').toString().toLowerCase().trim()
+    const lastNameOf = (p) => nrm(p.lastName) || nrm(p.name).split(/\s+/).slice(1).join(' ')
+    const byLastJersey = {}
+    const byLastPos = {}
+    const pushIdx = (map, key, p) => { if (key) (map[key] = map[key] || []).push(p) }
+    existingPlayers.forEach(p => {
+      const isThisTeam = p.team === teamTid || p.team === teamAbbr
+      if (!p.name || !isThisTeam) return
+      const ln = lastNameOf(p)
+      if (!ln) return
+      if (p.jerseyNumber != null && String(p.jerseyNumber).trim() !== '') pushIdx(byLastJersey, `${ln}#${String(p.jerseyNumber).trim()}`, p)
+      if (p.position) pushIdx(byLastPos, `${ln}|${nrm(p.position)}`, p)
+    })
+    const uniqMatch = (map, key) => { const a = key && map[key]; return a && a.length === 1 ? a[0] : null }
+    const fallbackMatch = (player) => {
+      const ln = lastNameOf(player)
+      if (!ln) return null
+      const jersey = player.jerseyNumber != null && String(player.jerseyNumber).trim() !== '' ? `${ln}#${String(player.jerseyNumber).trim()}` : ''
+      return uniqMatch(byLastJersey, jersey) || uniqMatch(byLastPos, player.position ? `${ln}|${nrm(player.position)}` : '')
+    }
+
     // Track which players actually changed so the cloud save can write ONLY
     // those docs instead of rewriting the entire roster (a 1-player edit was
     // rewriting all ~1300 players). New players always count. For existing
@@ -14523,7 +14551,14 @@ export function DynastyProvider({ children }) {
     let nextPIDCounter = startPID
     const playersWithPIDs = players.map((player) => {
       const nameLower = (player.name || '').toLowerCase().trim()
-      const existingPlayer = existingPlayersByName[nameLower]
+      // Exact full-name match first; fall back to lastName+jersey/position so an
+      // abbreviated incoming name updates the existing player instead of duping.
+      let existingPlayer = existingPlayersByName[nameLower]
+      let matchedViaFallback = false
+      if (!existingPlayer) {
+        const cand = fallbackMatch(player)
+        if (cand) { existingPlayer = cand; matchedViaFallback = true }
+      }
 
       // For new players, assign a new PID
       let pid, id
@@ -14593,9 +14628,12 @@ export function DynastyProvider({ children }) {
           ...existingPlayer,
           // Update ONLY the fields that are editable via Google Sheet
           // These are the columns: First Name, Last Name, Position, Class, Dev Trait, Jersey #, Archetype, Overall, Height, Weight, Hometown, State, Image URL
-          firstName: player.firstName ?? existingPlayer.firstName,
-          lastName: player.lastName ?? existingPlayer.lastName,
-          name: player.name || existingPlayer.name,
+          // When matched via the abbreviated-name fallback, KEEP the existing
+          // full name — the incoming name is the abbreviated "B. Hubbard" form,
+          // so overwriting would replace "Bray Hubbard" with the initial.
+          firstName: matchedViaFallback ? existingPlayer.firstName : (player.firstName ?? existingPlayer.firstName),
+          lastName: matchedViaFallback ? existingPlayer.lastName : (player.lastName ?? existingPlayer.lastName),
+          name: matchedViaFallback ? existingPlayer.name : (player.name || existingPlayer.name),
           position: player.position || existingPlayer.position,
           year: player.year || existingPlayer.year, // class (Fr, So, Jr, Sr, etc.)
           devTrait: player.devTrait || existingPlayer.devTrait,

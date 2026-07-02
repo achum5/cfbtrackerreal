@@ -9,12 +9,13 @@
 //
 // Shape produced per row: Player<TAB>Position<TAB>OVR<TAB>Attributes
 //   parseAttributeRows(splitTsv(text)) -> [{ playerName, position, overall, attributes }]
-import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from './recruitAttributes'
+import { ATTRIBUTE_ABBR, GAME_ATTRIBUTE_ORDER } from './recruitAttributes'
 import { parseAttributes } from './recruitSheetParse'
 
-// "AWR=Awareness, SPD=Speed, …" legend in canonical column order, so the AI
-// knows exactly which code maps to which rating (and emits them in this order).
-export const ATTRIBUTE_PROMPT_LEGEND = ATTRIBUTE_COLUMNS
+// "SPD=Speed, ACC=Acceleration, …" legend in the game's roster-table order, so
+// the AI knows which code maps to which rating AND emits them in the same order
+// the user reads off-screen (easier to cross-check against the roster).
+export const ATTRIBUTE_PROMPT_LEGEND = GAME_ATTRIBUTE_ORDER
   .map((name) => `${ATTRIBUTE_ABBR[name] || name}=${name}`)
   .join(', ')
 
@@ -100,7 +101,7 @@ export function serializeAttributeRows(entries) {
   return (entries || [])
     .map((e) => {
       const attrs = e.attributes || {}
-      const cell = ATTRIBUTE_COLUMNS
+      const cell = GAME_ATTRIBUTE_ORDER
         .filter((name) => attrs[name] != null && attrs[name] !== '')
         .map((name) => `${ATTRIBUTE_ABBR[name] || name} ${attrs[name]}`)
         .join(', ')

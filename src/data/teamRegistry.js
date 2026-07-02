@@ -1268,6 +1268,22 @@ for (const [tid, team] of Object.entries(TEAMS)) {
   ABBR_TO_TID[team.abbr] = parseInt(tid)
 }
 
+// EA's in-game result-column abbreviations differ from our dropdown abbrs for a
+// handful of teams, so a paste (or manual entry) of the game's short code fails
+// to resolve and the row is dropped ("a school isn't listed"). Map the known
+// EA codes to our canonical abbr; getTidFromAbbr consults this as a last resort
+// (after the dynasty + registry lookups), so a real abbr or teambuilder override
+// always wins. Keys and values are UPPERCASE. Extend as new mismatches surface.
+export const EA_ABBR_ALIASES = {
+  AKRN: 'AKR',    // Akron
+  CUSE: 'SYR',    // Syracuse
+  MIST: 'MZST',   // Missouri State
+  JXST: 'JKST',   // Jacksonville State
+  OKLA: 'OU',     // Oklahoma (EA sometimes emits OKLA)
+  FCSM: 'FCSMW',  // legacy / EA 4-letter FCS Midwest
+  FCSN: 'FCSNW',  // legacy / EA 4-letter FCS Northwest
+}
+
 // Full name -> tid
 export const NAME_TO_TID = {}
 for (const [tid, team] of Object.entries(TEAMS)) {
@@ -1349,6 +1365,20 @@ export function getTidFromAbbr(abbr, dynastyOrTeams = null) {
     }
   }
   if (staticTid) return staticTid
+  // EA in-game code fallback: the value may be EA's result-column short code
+  // (e.g. "AKRN", "CUSE") rather than our dropdown abbr. Map it to the canonical
+  // abbr and re-resolve — dynasty first (teambuilder override wins), then the
+  // static registry.
+  const aliasCanonical = EA_ABBR_ALIASES[upper]
+  if (aliasCanonical) {
+    if (dynastyTeams && typeof dynastyTeams === 'object') {
+      for (const [tid, team] of Object.entries(dynastyTeams)) {
+        if (team?.abbr?.toUpperCase() === aliasCanonical) return Number(tid)
+      }
+    }
+    const aliasTid = ABBR_TO_TID[aliasCanonical]
+    if (aliasTid) return aliasTid
+  }
   // Name fallback: the value may be a team NAME/label rather than an
   // abbreviation (charts now let users pick teams by name). Additive — every
   // abbr check above is unchanged and takes priority. Resolves against the
