@@ -7706,9 +7706,9 @@ export function DynastyProvider({ children }) {
       },
       // CFB 27: pre-fill the user team's Dynasty Points budget (the first
       // preseason to-do) with that team's launch NIL budget. dynastyPoints is
-      // dynasty-wide, keyed by String(year) (see dynastyPointsModel).
+      // per-team, keyed by tid then String(year) (see dynastyPointsModel).
       ...(editionKey === 'cfb27' && currentTid != null && CFB27_NIL_BUDGETS[currentTid] != null
-        ? { dynastyPoints: { byYear: { [String(startYear)]: { budget: CFB27_NIL_BUDGETS[currentTid] } } } }
+        ? { dynastyPoints: { byTeam: { [String(currentTid)]: { byYear: { [String(startYear)]: { budget: CFB27_NIL_BUDGETS[currentTid] } } } } } }
         : {}),
       coachingStaff: {
         hcName: null,
