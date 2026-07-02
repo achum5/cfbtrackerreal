@@ -20,8 +20,16 @@ import {
   createDynasty as createDynastyInFirestore,
   updateDynasty as updateDynastyInFirestore,
   savePlayersToSubcollection,
-  saveGamesToSubcollection
+  saveGamesToSubcollection,
+  saveWeekRecapToSubcollection,
+  saveSocialFeedToSubcollection,
+  saveSocialCharacterShards
 } from '../dynastyService';
+import {
+  isSeasonalField,
+  splitSeasonalUpdateByYear,
+  writeSeasonalUpdate
+} from '../seasonSubcollection';
 
 // Storage type constants (per dynasty)
 export const STORAGE_TYPE = {
@@ -329,11 +337,39 @@ export const storageService = {
 
       log(`Migrating dynasty ${dynastyId} to cloud with subcollections...`);
 
-      // Extract players and games - these go to subcollections
-      const { players, games, id, ...mainDynastyData } = dynasty;
+      // Extract EVERY heavy field that a live cloud dynasty keeps out of its
+      // main doc, so the initial write stays under Firestore's 1 MB cap.
+      // Historically this only stripped players + games, which left the
+      // seasonal maps, week recaps, and social feed embedded — enough on a
+      // long-running dynasty to blow the cap and fail the migration outright.
+      // Mirror the exact fan-out that updateDynasty() does for cloud saves:
+      //   players / games          -> their own subcollections
+      //   seasonal ByYear/ByTeamYear fields -> seasons subcollection
+      //   weekRecapsByYear         -> weekRecaps subcollection
+      //   socialFeedByYear         -> socialFeed subcollection
+      //   socialCharacters         -> socialCharacters (sharded) subcollection
+      const {
+        players,
+        games,
+        id,
+        weekRecapsByYear,
+        socialFeedByYear,
+        socialCharacters,
+        ...rest
+      } = dynasty;
 
-      // Create the main dynasty document WITHOUT players and games
-      // This keeps the main document under Firestore's 1MB limit
+      // Pull the season-scoped fields out of the remaining main-doc data.
+      const seasonalUpdates = {};
+      const mainDynastyData = {};
+      for (const [key, value] of Object.entries(rest)) {
+        if (isSeasonalField(key)) {
+          seasonalUpdates[key] = value;
+        } else {
+          mainDynastyData[key] = value;
+        }
+      }
+
+      // Create the main dynasty document WITHOUT any of the heavy fields.
       const cloudDynasty = await createDynastyInFirestore(this._userId, {
         ...mainDynastyData,
         storageType: STORAGE_TYPE.CLOUD,
@@ -346,10 +382,10 @@ export const storageService = {
       const cloudDynastyId = cloudDynasty.id;
       log(`Created main document ${cloudDynastyId}, now saving subcollections...`);
 
-      // Save players + games to subcollections. Track whether BOTH fully
-      // succeeded — we must not delete the local (only complete) copy if a
-      // save threw, or the dynasty is left gutted in the cloud with no
-      // recoverable source (audit C5).
+      // Save all subcollections. Track whether EVERY write fully succeeded —
+      // we must not delete the local (only complete) copy if a save threw, or
+      // the dynasty is left gutted in the cloud with no recoverable source
+      // (audit C5).
       let subcollectionsOk = true;
 
       if (players && players.length > 0) {
@@ -372,6 +408,70 @@ export const storageService = {
         }
       }
 
+      // Seasonal ByYear / ByTeamYear fields -> seasons subcollection (one doc
+      // per year). splitSeasonalUpdateByYear fans the legacy maps into
+      // year-keyed patches; writeSeasonalUpdate persists them.
+      if (Object.keys(seasonalUpdates).length > 0) {
+        try {
+          const byYear = splitSeasonalUpdateByYear(seasonalUpdates);
+          const years = await writeSeasonalUpdate(cloudDynastyId, byYear);
+          log(`Saved seasonal fields for ${years.length} season(s) to subcollection`);
+        } catch (seasonErr) {
+          console.error('[Storage] Failed to save seasons subcollection:', seasonErr);
+          subcollectionsOk = false;
+        }
+      }
+
+      // Week recaps -> one doc per year/week.
+      if (weekRecapsByYear && typeof weekRecapsByYear === 'object') {
+        try {
+          let recapCount = 0;
+          for (const [year, byWeek] of Object.entries(weekRecapsByYear)) {
+            if (!byWeek || typeof byWeek !== 'object') continue;
+            for (const [week, recap] of Object.entries(byWeek)) {
+              if (!recap) continue;
+              await saveWeekRecapToSubcollection(cloudDynastyId, year, week, recap);
+              recapCount++;
+            }
+          }
+          if (recapCount) log(`Saved ${recapCount} week recap(s) to subcollection`);
+        } catch (recapErr) {
+          console.error('[Storage] Failed to save weekRecaps subcollection:', recapErr);
+          subcollectionsOk = false;
+        }
+      }
+
+      // Social feed -> one doc per year/week.
+      if (socialFeedByYear && typeof socialFeedByYear === 'object') {
+        try {
+          let feedCount = 0;
+          for (const [year, byWeek] of Object.entries(socialFeedByYear)) {
+            if (!byWeek || typeof byWeek !== 'object') continue;
+            for (const [week, posts] of Object.entries(byWeek)) {
+              if (!Array.isArray(posts) || posts.length === 0) continue;
+              await saveSocialFeedToSubcollection(cloudDynastyId, year, week, posts);
+              feedCount++;
+            }
+          }
+          if (feedCount) log(`Saved ${feedCount} social feed week(s) to subcollection`);
+        } catch (feedErr) {
+          console.error('[Storage] Failed to save socialFeed subcollection:', feedErr);
+          subcollectionsOk = false;
+        }
+      }
+
+      // Social characters -> sharded subcollection docs.
+      if (socialCharacters && typeof socialCharacters === 'object'
+          && Object.keys(socialCharacters).length > 0) {
+        try {
+          await saveSocialCharacterShards(cloudDynastyId, socialCharacters);
+          log(`Saved ${Object.keys(socialCharacters).length} social character(s) to subcollection`);
+        } catch (charErr) {
+          console.error('[Storage] Failed to save socialCharacters subcollection:', charErr);
+          subcollectionsOk = false;
+        }
+      }
+
       if (!subcollectionsOk) {
         // Keep the local copy intact so the user hasn't lost anything; the
         // cloud doc exists but is incomplete and will be reconciled on a
@@ -384,12 +484,26 @@ export const storageService = {
         };
       }
 
-      // Delete from local only after BOTH the cloud doc and its
+      // Delete from local only after the cloud doc and ALL of its
       // subcollections are fully persisted.
       await indexedDBStorage.deleteDynasty(dynastyId);
 
       log(`Migrated dynasty ${dynastyId} to cloud as ${cloudDynastyId}`);
-      return { success: true, dynasty: { ...cloudDynasty, players, games } };
+      // Re-embed every heavy field we stripped so the caller's React state
+      // still holds the full dynasty (the cloud main doc no longer carries
+      // them — they now live in subcollections and are lazy-loaded on open).
+      return {
+        success: true,
+        dynasty: {
+          ...cloudDynasty,
+          players,
+          games,
+          weekRecapsByYear,
+          socialFeedByYear,
+          socialCharacters,
+          ...seasonalUpdates,
+        },
+      };
     } catch (error) {
       console.error('[Storage] Migration to cloud failed:', error);
       return { success: false, error: error.message };
