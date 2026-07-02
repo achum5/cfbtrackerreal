@@ -1932,11 +1932,14 @@ function PlayerInner() {
                     const yr = yrs.length ? Math.max(...yrs) : (dynasty?.currentYear ?? '')
                     navigate(`${pathPrefix}/compare?players=${player.pid}-${yr}`)
                   }}
-                  className="hidden sm:inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/20 transition-colors flex-shrink-0 self-center"
+                  className="hidden sm:inline-flex items-center justify-center p-1.5 rounded-lg hover:bg-black/20 transition-colors flex-shrink-0 self-center"
                   style={{ color: teamBgText, border: `1px solid ${teamBgText}40` }}
                   title="Compare Player"
+                  aria-label="Compare Player"
                 >
-                  Compare
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
                 </button>
               </div>
 
