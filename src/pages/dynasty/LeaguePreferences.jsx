@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
+import { isCfb27 } from '../../editions'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
 import { getEffectiveCharacters, isRealAccount, SOCIAL_UNIVERSE_VERSION } from '../../data/socialModel'
@@ -322,8 +323,10 @@ export default function LeaguePreferences() {
         <h1 className="text-display-md text-txt-primary m-0">League Preferences</h1>
       </div>
 
-      {/* Scout Staff — opt-in alternative to MaxPlaysCFB ScoutScore. Pinned to
-          the top of League Preferences, above Social Media. Default OFF. */}
+      {/* Scout Staff — opt-in alternative to MaxPlaysCFB ScoutScore. CFB 27
+          ONLY (it doesn't work correctly against CFB 26 data), so the toggle is
+          hidden entirely on CFB 26 / untagged dynasties. Default OFF. */}
+      {isCfb27(currentDynasty) && (
       <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
         <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0 flex-1">
@@ -359,6 +362,7 @@ export default function LeaguePreferences() {
           </button>
         </div>
       </section>
+      )}
 
       <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
         <div className="px-4 py-3 border-b border-surface-4 flex items-start justify-between gap-2 flex-wrap">

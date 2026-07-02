@@ -36,7 +36,7 @@ import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../uti
 import { computeSeasonAV } from '../../utils/approximateValue'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
 import { predictRecruitOverall } from '../../utils/scoutScore'
-import { getEditionConfig } from '../../editions'
+import { getEditionConfig, isCfb27 } from '../../editions'
 import { getPlayerNil } from '../../data/playerNilModel'
 import nilIcon from '../../assets/blueprint/points.png'
 
@@ -552,7 +552,7 @@ function PlayerInner() {
   // ScoutScore surfaces. When on, suppress the ScoutScore overview/tab entirely
   // so the player page behaves as if ScoutScore didn't exist. When off, this is
   // a no-op and ScoutScore behaves exactly as before.
-  const scoutStaffEnabled = !!dynasty?.scoutStaffEnabled
+  const scoutStaffEnabled = !!dynasty?.scoutStaffEnabled && isCfb27(dynasty) // CFB 27 only
   const hasScoutAttributes = !!(player?.attributes && Object.keys(player.attributes).length > 0)
   const enrolledOnRoster = Object.keys(player?.teamsByYear || {})
     .map(Number)

@@ -105,3 +105,13 @@ export function getEditionConfig(dynastyOrKey) {
 export function editionHasFeature(dynastyOrKey, feature) {
   return Boolean(getEditionConfig(dynastyOrKey)?.features?.[feature])
 }
+
+// True when a dynasty (or edition key) resolves to CFB 27. Gate CFB 27-only
+// features on this — e.g. Scout Staff, which doesn't work correctly against
+// CFB 26 data — so they never surface on CFB 26 / untagged saves.
+export function isCfb27(dynastyOrKey) {
+  const key = typeof dynastyOrKey === 'string'
+    ? normalizeEditionKey(dynastyOrKey)
+    : getEditionKey(dynastyOrKey)
+  return key === 'cfb27'
+}

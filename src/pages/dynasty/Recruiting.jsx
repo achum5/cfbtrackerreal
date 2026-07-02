@@ -26,6 +26,7 @@ const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
 import { buildRevealedPool, buildWeightsMap } from '../../utils/devTraitLearning'
+import { isCfb27 } from '../../editions'
 import CommitGraphicModal from '../../components/CommitGraphicModal'
 import CommitGraphicViewer from '../../components/CommitGraphicViewer'
 
@@ -127,7 +128,7 @@ export default function Recruiting() {
   // and the default landing tab. Otherwise, default depends on the class being
   // viewed: the CURRENT recruiting year opens on Targets (you're actively
   // scouting); past/future years open on Commitments (reviewing a finished class).
-  const scoutStaffEnabled = !!currentDynasty?.scoutStaffEnabled
+  const scoutStaffEnabled = !!currentDynasty?.scoutStaffEnabled && isCfb27(currentDynasty) // CFB 27 only
   const viewingYear = urlYear === 'all' ? 'all' : (urlYear ? Number(urlYear) : Number(currentDynasty?.currentYear))
   const isCurrentRecruitingYear = viewingYear !== 'all' && viewingYear === Number(currentDynasty?.currentYear)
   const hasTargetsThisYear = isCurrentRecruitingYear && isOwnTeam
@@ -1385,7 +1386,7 @@ export default function Recruiting() {
                 interactive={!!linkPid}
                 playStyle={playStyle}
                 model={scoutModel}
-                scoutStaffEnabled={!!currentDynasty?.scoutStaffEnabled}
+                scoutStaffEnabled={scoutStaffEnabled}
                 weightsMap={weightsMap}
                 graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
                 onOpenGraphic={linkPid ? () => {
@@ -1418,7 +1419,7 @@ export default function Recruiting() {
         </Card>
         )
       ) : activeTab === 'staff' ? (
-        currentDynasty?.scoutStaffEnabled ? (
+        scoutStaffEnabled ? (
           <Suspense fallback={<div className="py-12 text-center text-sm text-txt-tertiary">Loading Scout Staff…</div>}>
             <ScoutStaff year={selectedYear} />
           </Suspense>
@@ -1438,6 +1439,7 @@ export default function Recruiting() {
           viewingOwnTeam={isOwnTeam}
           onResolveTargets={!isViewOnly && openTargets.length > 0 ? () => setShowResolveModal(true) : null}
           resolveCount={openTargets.length}
+          scoutStaffEnabled={scoutStaffEnabled}
         />
       )}
 
