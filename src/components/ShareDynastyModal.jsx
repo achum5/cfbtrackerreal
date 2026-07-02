@@ -1,10 +1,21 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
 import { generateShareCode } from '../services/dynastyService'
-import { getModalColors } from '../utils/colorUtils'
 import { useToast } from './ui/Toast'
+
+// Neutral, team-agnostic modal palette. This dialog is a generic "view-only
+// link" utility, so it intentionally does NOT theme to the user's team color.
+const modalColors = {
+  background: '#1a1a2e',
+  headerBg: '#232338',
+  text: '#ffffff',
+  textMuted: '#9ca3af',
+  accent: '#3b82f6',
+  border: 'rgba(255,255,255,0.12)',
+  inputBg: 'rgba(0,0,0,0.25)',
+}
 
 export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty: dynastyProp }) {
   const { currentDynasty: contextDynasty, updateDynasty } = useDynasty()
@@ -16,8 +27,6 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
   const [shareCode, setShareCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
 
   useEffect(() => {
     if (dynasty) {
@@ -106,10 +115,6 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
 
         {/* Content */}
         <div className="p-6">
-          <p className="mb-6" style={{ color: modalColors.textMuted }}>
-            Share your dynasty with viewers! They'll be able to see your schedule, roster, stats, and more in read-only mode.
-          </p>
-
           {/* Toggle */}
           <div className="flex items-center justify-between p-4 rounded-lg mb-6" style={{ backgroundColor: modalColors.inputBg }}>
             <div>
