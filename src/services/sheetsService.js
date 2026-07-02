@@ -3820,40 +3820,56 @@ export async function createBowlWeek1Sheet(dynastyName, year, cfpSeeds = [], exc
   }
 }
 
-// Generate conditional formatting rules for team colors in bowl sheet
+// Generate conditional formatting rules for team colors in bowl sheet.
+// getTeamsWithCustom is tid-based (built from dynasty.teams[tid]), so every
+// team in the dynasty — FBS, FCS placeholder, and custom/teambuilder — gets a
+// rule. Sheet cells now hold team NAMES (prefill + AI both output names), so we
+// match on the name; we also keep an abbr rule so legacy/abbr pastes still
+// color. TEXT_EQ is case-insensitive, covering "Wyoming"/"wyoming" alike.
 function generateBowlTeamFormattingRules(sheetId, columnIndex, rowCount, dynastyTeams = null) {
   const rules = []
   const teams = getTeamsWithCustom(dynastyTeams)
 
+  const range = {
+    sheetId,
+    startRowIndex: 1,
+    endRowIndex: rowCount + 1,
+    startColumnIndex: columnIndex,
+    endColumnIndex: columnIndex + 1,
+  }
+
   for (const [abbr, teamData] of Object.entries(teams)) {
-    rules.push({
-      addConditionalFormatRule: {
-        rule: {
-          ranges: [{
-            sheetId: sheetId,
-            startRowIndex: 1,
-            endRowIndex: rowCount + 1,
-            startColumnIndex: columnIndex,
-            endColumnIndex: columnIndex + 1
-          }],
-          booleanRule: {
-            condition: {
-              type: 'TEXT_EQ',
-              values: [{ userEnteredValue: abbr }]
+    const format = {
+      backgroundColor: hexToRgb(teamData.backgroundColor),
+      textFormat: {
+        foregroundColor: hexToRgb(teamData.textColor),
+        bold: true,
+        italic: true,
+      },
+    }
+    // Match values the cell can actually contain: the team NAME (default for
+    // prefills and AI output) and the ABBR (legacy pastes). Dedup so a team
+    // whose name equals its abbr doesn't emit two identical rules.
+    const matchValues = Array.from(
+      new Set([teamData.name, abbr].filter((v) => v && String(v).trim() !== '')),
+    )
+    for (const matchValue of matchValues) {
+      rules.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ ...range }],
+            booleanRule: {
+              condition: {
+                type: 'TEXT_EQ',
+                values: [{ userEnteredValue: String(matchValue) }],
+              },
+              format,
             },
-            format: {
-              backgroundColor: hexToRgb(teamData.backgroundColor),
-              textFormat: {
-                foregroundColor: hexToRgb(teamData.textColor),
-                bold: true,
-                italic: true
-              }
-            }
-          }
+          },
+          index: 0,
         },
-        index: 0
-      }
-    })
+      })
+    }
   }
 
   return rules
@@ -4704,8 +4720,11 @@ export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynas
       const accessToken = await getAccessToken()
       // Read through the full sheet (games region + bye section header
       // + 25 bye rows) in one call — the parser splits them by which
-      // row range they came from.
-      const range = `${sheetTitle}!A2:G${WEEKLY_SCORES_TOTAL_ROWS + 1}`
+      // row range they came from. Read out to col I (not just G) so that
+      // if the AI paste shifted columns (extra blank between each team's
+      // Rank and Score → away score lands in col H), the normalizer below
+      // can still recover the away score instead of truncating it.
+      const range = `${sheetTitle}!A2:I${WEEKLY_SCORES_TOTAL_ROWS + 1}`
 
       const response = await fetchWithTimeout(
         `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`,
@@ -4760,14 +4779,35 @@ export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynas
     // Track rows the parser dropped so the caller can surface them
     // in the save-confirmation modal (instead of silent loss).
     const droppedRows = []
+    // Some AI pastes insert an extra blank column between each team's
+    // Rank and Score, producing a 9-wide row
+    //   [Home, HomeRank, '', HomeScore, Away, AwayRank, '', AwayScore, Neutral]
+    // instead of the canonical 7. Detect that shape by its signature —
+    // col D (index 3) holds a bare score integer while the real away team
+    // sits in col E (index 4) — and remap to the canonical layout so the
+    // rest of the parser is unchanged. In a correct row col D is always a
+    // team name (never a bare integer) and col E is a rank or blank (never
+    // free text), so this can't misfire on well-formed data.
+    const isBareInt = (v) => v != null && /^\d+$/.test(String(v).trim())
+    const isTeamText = (v) => v != null && String(v).trim() !== '' && !/^\d+$/.test(String(v).trim())
+    const normalizeShiftedRow = (row) => {
+      if (!Array.isArray(row)) return row
+      if (isBareInt(row[3]) && isTeamText(row[4])) {
+        // [Home, HomeRank, HomeScore, Away, AwayRank, AwayScore, Neutral]
+        return [row[0], row[1], row[3], row[4], row[5], row[7], row[8]]
+      }
+      return row
+    }
+
     // Content-based classification — works regardless of where the
     // AI's paste lands the rows. A row is a game when both team
     // columns (A and D) are non-empty AND the team abbrs differ.
     // A row is a bye-rank entry when col A has a recognized abbr,
     // col D is empty, and col B has a 1-25 rank. Anything else
     // (blank rows, the section banner row) is skipped silently.
-    for (const row of rows) {
-      if (!row) continue
+    for (const rawRow of rows) {
+      if (!rawRow) continue
+      const row = normalizeShiftedRow(rawRow)
       const colA = (row[0] || '').toUpperCase().trim()
       const colD = (row[3] || '').toUpperCase().trim()
       if (!colA) continue

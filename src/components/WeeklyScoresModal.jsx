@@ -610,6 +610,13 @@ Col A (Home Team) | Col B (Home Rank) | Col C (Home Score) | Col D (Away Team) |
 ------------------+-------------------+--------------------+-------------------+-------------------+--------------------+-----------------
 team abbr         | 1–25 or BLANK     | integer            | team abbr         | 1–25 or BLANK     | integer            | "Y" or BLANK
 
+⚠ EXACTLY 7 columns (6 tabs) per row. The score comes DIRECTLY after the rank
+with NO blank column between them: Home Score is Col C (right after Home Rank in
+Col B), and Away Score is Col F (right after Away Rank in Col E). Do NOT insert an
+extra empty column between a team's Rank and its Score — a common mistake that
+pushes the away score into Col H and corrupts the import. A team is always the
+triple Team → Rank → Score with no gap.
+
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════

@@ -58,7 +58,7 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
   const [regenerating, setRegenerating] = useState(false)
 
   const aiPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Incoming Freshmen Overalls`,
+    title: `${currentYear} Signed Recruit Overalls`,
     roster: (recruits || []).map(p => ({
       name: p.name,
       jerseyNumber: p.jerseyNumber,
@@ -68,20 +68,23 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
     structure: `WHERE TO FIND THE DATA IN EA CFB
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
-Browse each position group depth chart — incoming
-freshmen are shown with Year = "Fr". Their OVR column is their initial overall.
 
-TWO ways to find recruits in the screenshots:
-1. Look for any player with Year = "Fr" in the position group screens — those
-   are the incoming freshmen (your new recruits). Their abbreviated name (e.g.
-   "D.Ware") resolves to a full name using the YOUR INCOMING RECRUITING CLASS
-   roster block below.
-2. Cross-reference the YOUR INCOMING RECRUITING CLASS roster block directly —
-   every player listed there should appear somewhere in the position group
-   screens as a "Fr" player.
+The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
+commits you signed this class — the SOURCE OF TRUTH for who to record. Your job
+is to find each of those exact players in the screenshots and read their overall
+(and jersey #). Do NOT filter by the class/year shown on the depth chart: a
+commit can appear as "Fr", "RS Fr", or any other year. Include a player because
+their name is in the commit list, not because of the year beside them.
 
-The OVR column shows each recruit's starting overall — a plain integer.
-The jersey number may be visible on the depth chart row.
+HOW TO FIND EACH COMMIT in the screenshots:
+1. Browse the position group depth charts and match each name against the commit
+   list below — EA's abbreviated names (e.g. "D.Ware") resolve to a full name there.
+2. Walk the commit list itself and locate every player on it somewhere in the
+   screenshots; each recruit in the block should have a depth-chart row.
+
+The OVR column shows each recruit's starting overall — a plain integer. The
+jersey number may be visible on the depth-chart row. If a commit is nowhere in
+the screenshots, leave their overall blank (never guess).
 
 ═══════════════════════════════════════════════════════════
 
@@ -141,7 +144,7 @@ FINAL CHECK before you send
   // pre-filled names, so this variant LEADS each row with the recruit's name
   // and matches by name, making paste order irrelevant.
   const localAiPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Incoming Freshmen Overalls`,
+    title: `${currentYear} Signed Recruit Overalls`,
     roster: (recruits || []).map(p => ({
       name: p.name,
       jerseyNumber: p.jerseyNumber,
@@ -151,10 +154,16 @@ FINAL CHECK before you send
     structure: `WHERE TO FIND THE DATA IN EA CFB
 ═══════════════════════════════════════════════════════════
 Recruit overalls appear on NATIONAL SIGNING DAY (before Training Results).
-Browse each position group depth chart — incoming freshmen are shown with
-Year = "Fr". Their OVR column is their initial overall. Their abbreviated name
-(e.g. "D.Ware") resolves to a full name using the YOUR INCOMING RECRUITING
-CLASS roster block below. The jersey number may be visible on the depth-chart row.
+
+The YOUR INCOMING RECRUITING CLASS block below is the definitive list of the
+commits you signed this class — the SOURCE OF TRUTH for who to record. Find each
+of those exact players in the screenshots and read their overall (and jersey #).
+Do NOT filter by the class/year shown on the depth chart: a commit can appear as
+"Fr", "RS Fr", or any other year. Include a player because their name is in the
+commit list, not because of the year beside them. Browse the position group
+depth charts and match each name to the block (abbreviated names like "D.Ware"
+resolve to a full name there). The OVR column is their initial overall; the
+jersey number may be visible on the depth-chart row.
 
 ═══════════════════════════════════════════════════════════
 OUTPUT — one SELF-DESCRIBING line per recruit (the app matches by NAME, so
@@ -209,7 +218,7 @@ FINAL CHECK before you send
   // Full-attributes prompt — the AI emits each recruit's complete rating set in
   // one cell, plus Position + OVR. Used by the local paste grid.
   const attributesPrompt = useMemo(() => buildAIPrompt({
-    title: `${currentYear} Incoming Freshmen — Full Attributes`,
+    title: `${currentYear} Signed Recruits — Full Attributes`,
     roster: (recruits || []).map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position })),
     rosterLabel: 'YOUR INCOMING RECRUITING CLASS (match abbreviated names like "A. Guess" to full names)',
     structure: buildAttributesStructure('recruits'),
