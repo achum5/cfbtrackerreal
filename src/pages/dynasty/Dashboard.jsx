@@ -3578,10 +3578,10 @@ export default function Dashboard() {
             // editable Dynasty Blueprint page. Gated by the edition feature
             // flag so CFB 26 dynasties never see this row.
             if (getEditionConfig(currentDynasty)?.features?.dynastyPoints) {
-              const dpBudget = getSeasonBudget(currentDynasty, preseasonYear)
+              const dpBudget = getSeasonBudget(currentDynasty, preseasonYear, preseasonUserTid)
               const dpDone = dpBudget != null
               const saveDpBudget = async () => {
-                const next = setSeasonBudget(currentDynasty, preseasonYear, parseDp(dpBudgetInput))
+                const next = setSeasonBudget(currentDynasty, preseasonYear, parseDp(dpBudgetInput), preseasonUserTid)
                 await updateDynasty(currentDynasty.id, { dynastyPoints: next })
                 setDpBudgetEditing(false)
               }
@@ -3605,8 +3605,8 @@ export default function Dashboard() {
               // Support staff — hired in the preseason in-game; record them so
               // their DP cost feeds the Staff budget lane. "Done" once the user
               // has either recorded staff or explicitly marked none this year.
-              const ssList = getSupportStaff(currentDynasty, preseasonYear)
-              const ssDone = isSupportStaffSet(currentDynasty, preseasonYear)
+              const ssList = getSupportStaff(currentDynasty, preseasonYear, preseasonUserTid)
+              const ssDone = isSupportStaffSet(currentDynasty, preseasonYear, preseasonUserTid)
               todos.push({
                 key: 'support-staff',
                 done: ssDone,
@@ -3620,7 +3620,7 @@ export default function Dashboard() {
                 inlineAction: !ssDone && !isViewOnly ? {
                   label: 'None this year',
                   onClick: async () => {
-                    await updateDynasty(currentDynasty.id, { dynastyPoints: setSupportStaff(currentDynasty, preseasonYear, []) })
+                    await updateDynasty(currentDynasty.id, { dynastyPoints: setSupportStaff(currentDynasty, preseasonYear, [], preseasonUserTid) })
                   },
                 } : null,
               })
@@ -5844,7 +5844,7 @@ export default function Dashboard() {
               // so that budget is entered in the preseason instead. CFB 27 only.
               if (getEditionConfig(currentDynasty)?.features?.dynastyPoints && w5Tid != null) {
                 const nextYear = Number(w5Year) + 1
-                const nextBudget = getSeasonBudget(currentDynasty, nextYear)
+                const nextBudget = getSeasonBudget(currentDynasty, nextYear, w5Tid)
                 const nbDone = nextBudget != null
                 const nextBlueprint = `${pathPrefix}/team/${w5Tid}/${nextYear}?tab=blueprint`
                 w5Todos.push({
@@ -5863,8 +5863,8 @@ export default function Dashboard() {
                 // recorded for nextYear (keeping the same tier still counts — you
                 // re-select it, which stores it).
                 const facTiers = getEditionConfig(currentDynasty)?.dynastyPoints?.facilities?.tiers ?? []
-                const nextFac = getFacilities(currentDynasty, nextYear)
-                const curTierKey = getCarriedFacilityTier(currentDynasty, Number(w5Year))
+                const nextFac = getFacilities(currentDynasty, nextYear, w5Tid)
+                const curTierKey = getCarriedFacilityTier(currentDynasty, Number(w5Year), w5Tid)
                 const facDone = !!nextFac.tier
                 const nextTierLabel = facTiers.find((t) => t.key === nextFac.tier)?.label
                 const curIdx = facTiers.findIndex((t) => t.key === curTierKey)

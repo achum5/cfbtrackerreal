@@ -24,9 +24,13 @@
 // team seeds its bucket from the legacy data — so existing dynasties keep their
 // numbers and simply stop sharing once a team is edited.
 //
-// SINGLE SOURCE OF TRUTH for reading + writing this structure. The active team
-// is resolved internally via getCurrentTeamTid(dynasty), so callers keep passing
-// just (dynasty, year). Every writer MERGE-PRESERVES the rest of the season
+// SINGLE SOURCE OF TRUTH for reading + writing this structure. Every function
+// takes the team as an OPTIONAL last `tid` argument. Pass it explicitly when the
+// caller knows which team's economy it's touching (e.g. the Blueprint panel,
+// which is scoped to a team page) — that's drift-proof even if the view isn't
+// the user's own team. When omitted, the active team is resolved via
+// getCurrentTeamTid(dynasty), which is correct for user-team-only screens
+// (Dashboard to-dos, etc.). Every writer MERGE-PRESERVES the rest of the season
 // entry, so independent edits (budget vs allocations vs support staff, possibly
 // from different screens) can never clobber each other. Do NOT hand-roll
 // `{ ...dp, byTeam: { ...} }` elsewhere — always go through
@@ -46,89 +50,90 @@ export function getDynastyPoints(dynasty) {
   return dynasty?.dynastyPoints ?? {}
 }
 
-// Active team key (string) for the viewing user, or null if unresolved.
-function activeTeamKey(dynasty) {
-  const tid = getCurrentTeamTid(dynasty)
-  return tid == null ? null : String(tid)
+// Team key (string) to read/write: the explicit tid when given, else the
+// viewing user's active team. null if unresolved.
+function teamKey(dynasty, tid) {
+  const resolved = tid != null ? tid : getCurrentTeamTid(dynasty)
+  return resolved == null ? null : String(resolved)
 }
 
-// The active team's bucket: { byYear: {...} }. Falls back to the legacy
-// top-level entry for any team that doesn't have its own bucket yet, so
-// pre-split dynasties keep showing their data until the team is edited.
-function getTeamBucket(dynasty) {
+// A team's bucket: { byYear: {...} }. Falls back to the legacy top-level entry
+// for any team that doesn't have its own bucket yet, so pre-split dynasties keep
+// showing their data until the team is edited.
+function getTeamBucket(dynasty, tid) {
   const dp = getDynastyPoints(dynasty)
-  const key = activeTeamKey(dynasty)
+  const key = teamKey(dynasty, tid)
   const bucket = key != null ? dp.byTeam?.[key] : null
   if (bucket) return bucket
   if (dp.byYear) return { byYear: dp.byYear } // legacy fallback
   return {}
 }
 
-export function getSeasonEntry(dynasty, year) {
-  return getTeamBucket(dynasty).byYear?.[String(year)] ?? null
+export function getSeasonEntry(dynasty, year, tid) {
+  return getTeamBucket(dynasty, tid).byYear?.[String(year)] ?? null
 }
 
-export function getSeasonBudget(dynasty, year) {
-  const b = getSeasonEntry(dynasty, year)?.budget
+export function getSeasonBudget(dynasty, year, tid) {
+  const b = getSeasonEntry(dynasty, year, tid)?.budget
   return b == null ? null : b
 }
 
-export function getSeasonAllocations(dynasty, year) {
-  return getSeasonEntry(dynasty, year)?.allocations ?? {}
+export function getSeasonAllocations(dynasty, year, tid) {
+  return getSeasonEntry(dynasty, year, tid)?.allocations ?? {}
 }
 
-export function getSupportStaff(dynasty, year) {
-  return getSeasonEntry(dynasty, year)?.supportStaff ?? []
+export function getSupportStaff(dynasty, year, tid) {
+  return getSeasonEntry(dynasty, year, tid)?.supportStaff ?? []
 }
 
 // True once the user has engaged with support staff for the season (added some,
 // or explicitly recorded "none" via setSupportStaff(..., [])). Used to mark the
 // preseason to-do done without forcing a non-empty list.
-export function isSupportStaffSet(dynasty, year) {
-  return Array.isArray(getSeasonEntry(dynasty, year)?.supportStaff)
+export function isSupportStaffSet(dynasty, year, tid) {
+  return Array.isArray(getSeasonEntry(dynasty, year, tid)?.supportStaff)
 }
 
-export function supportStaffTotal(dynasty, year) {
-  return getSupportStaff(dynasty, year).reduce((sum, s) => sum + (Number(s?.cost) || 0), 0)
+export function supportStaffTotal(dynasty, year, tid) {
+  return getSupportStaff(dynasty, year, tid).reduce((sum, s) => sum + (Number(s?.cost) || 0), 0)
 }
 
 // Facilities — { tier, grade, equipment: [{ name, effect, weeks }] }. The tier
 // is a key into the edition's facilities.tiers catalog (basic…nationalPowerhouse);
 // equipment is the list slotted in. carryForward defaults the tier to the most
 // recent prior season's tier so the user doesn't re-pick it every year.
-export function getFacilities(dynasty, year) {
-  return getSeasonEntry(dynasty, year)?.facilities ?? {}
+export function getFacilities(dynasty, year, tid) {
+  return getSeasonEntry(dynasty, year, tid)?.facilities ?? {}
 }
 
-export function getFacilityEquipment(dynasty, year) {
-  return getFacilities(dynasty, year).equipment ?? []
+export function getFacilityEquipment(dynasty, year, tid) {
+  return getFacilities(dynasty, year, tid).equipment ?? []
 }
 
 // Most recent facility tier at or before `year` — lets a new season inherit the
 // tier without re-entry (facilities persist until an upgrade/downgrade).
-export function getCarriedFacilityTier(dynasty, year) {
+export function getCarriedFacilityTier(dynasty, year, tid) {
   const y = Number(year)
-  const years = getDynastyPointsYears(dynasty).filter((yr) => yr <= y).reverse()
+  const years = getDynastyPointsYears(dynasty, tid).filter((yr) => yr <= y).reverse()
   for (const yr of years) {
-    const t = getSeasonEntry(dynasty, yr)?.facilities?.tier
+    const t = getSeasonEntry(dynasty, yr, tid)?.facilities?.tier
     if (t) return t
   }
   return null
 }
 
-// All years that have a Blueprint entry for the active team, ascending.
-export function getDynastyPointsYears(dynasty) {
-  return Object.keys(getTeamBucket(dynasty).byYear || {}).map(Number).sort((a, b) => a - b)
+// All years that have a Blueprint entry for the team, ascending.
+export function getDynastyPointsYears(dynasty, tid) {
+  return Object.keys(getTeamBucket(dynasty, tid).byYear || {}).map(Number).sort((a, b) => a - b)
 }
 
 // ── writes (all merge-preserving; return the next dynastyPoints object) ──
 //
 // Pass the result straight to updateDynasty(id, { dynastyPoints: <result> }).
 
-export function patchSeasonEntry(dynasty, year, patch) {
+export function patchSeasonEntry(dynasty, year, patch, tid) {
   const dp = getDynastyPoints(dynasty)
   const key = String(year)
-  const tkey = activeTeamKey(dynasty)
+  const tkey = teamKey(dynasty, tid)
 
   // No resolvable team (should be rare) — preserve the legacy top-level write so
   // nothing silently drops.
@@ -154,21 +159,21 @@ export function patchSeasonEntry(dynasty, year, patch) {
   }
 }
 
-export function setSeasonBudget(dynasty, year, budget) {
-  return patchSeasonEntry(dynasty, year, { budget })
+export function setSeasonBudget(dynasty, year, budget, tid) {
+  return patchSeasonEntry(dynasty, year, { budget }, tid)
 }
 
-export function setSeasonAllocations(dynasty, year, allocations) {
-  return patchSeasonEntry(dynasty, year, { allocations })
+export function setSeasonAllocations(dynasty, year, allocations, tid) {
+  return patchSeasonEntry(dynasty, year, { allocations }, tid)
 }
 
-export function setSupportStaff(dynasty, year, supportStaff) {
-  return patchSeasonEntry(dynasty, year, { supportStaff })
+export function setSupportStaff(dynasty, year, supportStaff, tid) {
+  return patchSeasonEntry(dynasty, year, { supportStaff }, tid)
 }
 
 // Merge-preserving facilities write: patches only the given facilities fields,
-// keeping the rest of the facilities object (tier vs equipment vs grade) intact.
-export function setFacilities(dynasty, year, facilitiesPatch) {
-  const current = getFacilities(dynasty, year)
-  return patchSeasonEntry(dynasty, year, { facilities: { ...current, ...facilitiesPatch } })
+// keeping the rest of the facilities object (tier vs grade vs equipment) intact.
+export function setFacilities(dynasty, year, facilitiesPatch, tid) {
+  const current = getFacilities(dynasty, year, tid)
+  return patchSeasonEntry(dynasty, year, { facilities: { ...current, ...facilitiesPatch } }, tid)
 }

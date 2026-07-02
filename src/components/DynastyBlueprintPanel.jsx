@@ -161,7 +161,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
 
   // Hydrate the form whenever the season (or its stored data) changes.
   useEffect(() => {
-    const stored = getSeasonEntry(currentDynasty, selectedYear)
+    const stored = getSeasonEntry(currentDynasty, selectedYear, tid)
     if (!stored) {
       setForm(blankForm)
       return
@@ -175,14 +175,14 @@ export default function DynastyBlueprintPanel({ year, tid }) {
       rosterNil: a.rosterNil ?? '',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedYear, currentDynasty?.lastModified])
+  }, [selectedYear, tid, currentDynasty?.lastModified])
 
   if (!features?.dynastyPoints) return null
 
   // Coaching staff for this team-season (derived from dynasty.coaches).
   const staff = tid != null ? getStaffForTeamYear(currentDynasty, tid, selectedYear) : []
   // Support staff recorded for this season (hired preseason-only in-game).
-  const supportStaff = getSupportStaff(currentDynasty, selectedYear)
+  const supportStaff = getSupportStaff(currentDynasty, selectedYear, tid)
   // The Staff allocation lane is AUTO-DERIVED: every coach's salary + every
   // support-staff cost this season. Add/edit either and the budget updates live.
   const coachSalaryTotal = staff.reduce((sum, { record }) => sum + (Number(record.salary) || 0), 0)
@@ -254,7 +254,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
   // Support staff are stored on the season's Blueprint entry. Merge-write so
   // the budget/allocations on that entry are preserved (and vice-versa).
   const writeSupportStaff = async (next) => {
-    await updateDynasty(currentDynasty.id, { dynastyPoints: setSupportStaff(currentDynasty, selectedYear, next) })
+    await updateDynasty(currentDynasty.id, { dynastyPoints: setSupportStaff(currentDynasty, selectedYear, next, tid) })
   }
 
   const handleAddSupportStaff = async (item) => {
@@ -282,9 +282,9 @@ export default function DynastyBlueprintPanel({ year, tid }) {
   const facilityTiers = config?.dynastyPoints?.facilities?.tiers ?? []
   const equipmentEffects = config?.dynastyPoints?.facilities?.equipmentEffects ?? []
   const equipmentTiers = config?.dynastyPoints?.facilities?.equipmentTiers ?? []
-  const facilities = getFacilities(currentDynasty, selectedYear)
-  const facilityEquipment = getFacilityEquipment(currentDynasty, selectedYear)
-  const carriedFacilityTier = getCarriedFacilityTier(currentDynasty, selectedYear)
+  const facilities = getFacilities(currentDynasty, selectedYear, tid)
+  const facilityEquipment = getFacilityEquipment(currentDynasty, selectedYear, tid)
+  const carriedFacilityTier = getCarriedFacilityTier(currentDynasty, selectedYear, tid)
   // The active tier (explicit for this year, else carried from a prior season).
   const activeFacilityTier = facilityTiers.find((t) => t.key === (facilities.tier || carriedFacilityTier)) || null
 
@@ -292,7 +292,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
   const writeFacilities = async (patch) => {
     if (isViewOnly) return
     try {
-      await updateDynasty(currentDynasty.id, { dynastyPoints: setFacilities(currentDynasty, selectedYear, patch) })
+      await updateDynasty(currentDynasty.id, { dynastyPoints: setFacilities(currentDynasty, selectedYear, patch, tid) })
     } catch (err) {
       console.error('[DynastyBlueprintPanel] facilities write failed:', err)
       toast.error('Failed to save facilities.')
@@ -388,7 +388,7 @@ export default function DynastyBlueprintPanel({ year, tid }) {
           recruitingNil: recruitingNilTotal, // auto: sum of target NIL offers
           rosterNil: rosterNilTotal,    // auto: sum of roster NIL
         },
-      })
+      }, tid)
       await updateDynasty(currentDynasty.id, { dynastyPoints: nextDynastyPoints })
       if (!silent) toast.success(`Saved ${selectedYear} Blueprint`)
     } catch (err) {
