@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { getScoutScore, ordinal, defaultLensKey } from '../utils/scoutScore'
+import { useDynasty } from '../context/DynastyContext'
+import { getEditionKey } from '../editions'
 
 // A percentile's accent color: strong (green) high, muted mid, weak (red) low.
 function pctColor(pct) {
@@ -61,6 +63,8 @@ function Bar({ pct }) {
 // Inline ScoutScore result for a single recruit. Self-fetching (cached), so it
 // renders the same whether on the Scout Board card or a player page.
 export default function ScoutScorePanel({ recruit }) {
+  const { currentDynasty } = useDynasty()
+  const sourceGame = getEditionKey(currentDynasty)
   const [state, setState] = useState({ status: 'loading', data: null, reason: null })
   const [lens, setLens] = useState(null)
 
@@ -68,14 +72,14 @@ export default function ScoutScorePanel({ recruit }) {
     let alive = true
     setState({ status: 'loading', data: null, reason: null })
     setLens(null)
-    getScoutScore(recruit).then((r) => {
+    getScoutScore(recruit, sourceGame).then((r) => {
       if (!alive) return
       if (!r.ok) { setState({ status: 'error', data: null, reason: r.reason }); return }
       setState({ status: 'done', data: r.data, reason: null })
       setLens(defaultLensKey(r.data))
     })
     return () => { alive = false }
-  }, [recruit])
+  }, [recruit, sourceGame])
 
   const data = state.data
   const lenses = (data?.availableLenses || []).filter((l) => l.eligible)

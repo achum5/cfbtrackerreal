@@ -4776,7 +4776,7 @@ export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynas
       if (!colD) {
         const byeRank = parseRank(row[1])
         if (byeRank == null) continue
-        const byeTid = getTidFromAbbr(colA, dynastyTeams)
+        const byeTid = getTidFromTeamText(colA, dynastyTeams)
         if (!byeTid) {
           droppedRows.push({ kind: 'bye', reason: 'unknown-abbr', team: colA, rank: byeRank })
           continue
@@ -4797,8 +4797,12 @@ export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynas
       const neutralFlag = (row[6] || '').toString().trim().toUpperCase()
       const neutral = neutralFlag === 'Y' || neutralFlag === 'YES' || neutralFlag === '1' || neutralFlag === 'TRUE'
 
-      const homeTid = getTidFromAbbr(homeAbbr, dynastyTeams)
-      const awayTid = getTidFromAbbr(awayAbbr, dynastyTeams)
+      // Columns A/D are team NAMES (per the prompt), but the AI can also emit an
+      // abbr. getTidFromTeamText handles abbr → name → tolerant school match
+      // (apostrophes, "&", and short forms like "NC State"), where the old
+      // getTidFromAbbr dropped "HAWAI'I" / "NC STATE" as unknown.
+      const homeTid = getTidFromTeamText(homeAbbr, dynastyTeams)
+      const awayTid = getTidFromTeamText(awayAbbr, dynastyTeams)
       if (!homeTid || !awayTid) {
         droppedRows.push({
           kind: 'game',

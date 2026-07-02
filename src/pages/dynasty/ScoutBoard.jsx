@@ -5,6 +5,7 @@ import { useDynasty } from '../../context/DynastyContext'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { getTargetStatus } from '../../utils/recruitingTargets'
 import { getScoutScoresFor, headlinePercentile, ordinal, predictRecruitOverall } from '../../utils/scoutScore'
+import { getEditionKey } from '../../editions'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
 import { computeScore } from '../../components/archetypeWeights'
@@ -213,6 +214,9 @@ const SORT_OPTIONS = ['scoutscore', 'projected', 'national', 'priority']
 export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positionFilter = 'all', onPositionFilterChange = null, viewingOwnTeam = true, onResolveTargets = null, resolveCount = 0, scoutStaffEnabled = false }) {
   const { updateDynasty, isViewOnly } = useDynasty()
   const canEdit = viewingOwnTeam && !isViewOnly
+  // Which MaxPlays cohort to score against (cfb26 vs cfb27) — the dynasty's
+  // edition. Stable per dynasty, so it's safe in the scoring effect's deps.
+  const sourceGame = getEditionKey(dynasty)
   const handleToggleRemove = async (pl) => {
     if (!dynasty) return
     const players = dynasty.players || []
@@ -295,13 +299,13 @@ export default function ScoutBoard({ dynasty, year, userTid, pathPrefix, positio
     let alive = true
     if (targets.length === 0) { setScores(new Map()); return }
     setScoring(true)
-    getScoutScoresFor(targets.map((t) => t.p)).then((map) => {
+    getScoutScoresFor(targets.map((t) => t.p), { sourceGame }).then((map) => {
       if (!alive) return
       setScores(map)
       setScoring(false)
     })
     return () => { alive = false }
-  }, [targets, scoutStaffEnabled])
+  }, [targets, scoutStaffEnabled, sourceGame])
 
   // Rank by the chosen sort (committed-elsewhere always sink to the bottom),
   // filtered by the active position dropdown.
