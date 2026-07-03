@@ -545,7 +545,7 @@ FINAL CHECK before you send
         className={`card-elevated w-full max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden ${
           useEmbedded
             ? 'sm:w-[95vw] sm:h-[95dvh]'
-            : 'sm:max-w-[680px] sm:h-auto'
+            : 'sm:max-w-[min(95vw,1100px)] sm:h-auto'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >

@@ -181,6 +181,49 @@ export default function LocalDataEntry({
     return widest || 2
   }, [columns, grid])
 
+  // Whether a column renders as a dropdown (select or combobox). Dropdown cells
+  // need a little extra room for the caret, so width sizing accounts for it.
+  const isDropdownColumn = (ci) => {
+    if (!columns?.length) return false
+    const key = columns[ci]
+    return !!((columnOptions && columnOptions[key]) || (comboboxColumns && comboboxColumns[key]))
+  }
+
+  // Per-column widths (in `ch`) sized to the LONGEST value in that column (and
+  // its header), so every column is as wide as its content instead of every
+  // cell being crammed to an equal share. A text <input> has a fixed intrinsic
+  // width regardless of its value, so auto table layout can't do this on its
+  // own — we measure the data and drive explicit widths via <colgroup> + a
+  // fixed table layout. Columns stay bounded: a floor keeps short columns
+  // legible; a ceiling lets a very long cell (e.g. the one-cell Attributes
+  // blob) scroll inside its input rather than dominating the whole table.
+  const MIN_CH = 7
+  const MAX_CH = 42
+  const colWidths = useMemo(() => {
+    const widths = []
+    for (let ci = 0; ci < colCount; ci++) {
+      let maxLen = columns?.[ci] ? String(columns[ci]).length : 0
+      for (const row of grid) {
+        const v = row[ci]
+        if (v != null && v !== '') maxLen = Math.max(maxLen, String(v).length)
+      }
+      const dropdown = isDropdownColumn(ci)
+      let ch = maxLen + 3 + (dropdown ? 2 : 0) // +3 breathing room, +2 for a caret
+      ch = Math.min(Math.max(ch, dropdown ? 9 : MIN_CH), MAX_CH)
+      widths.push(ch)
+    }
+    return widths
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grid, columns, colCount, columnOptions, comboboxColumns])
+
+  // Leading row-label column (fixed-row grids like the schedule) sized to its
+  // longest label. The remove-row column (dynamic grids) is a fixed narrow ch.
+  const labelWidthCh = isLabeled
+    ? Math.max(String(rowLabelHeader || '').length, ...rowLabels.map((l) => String(l ?? '').length)) + 3
+    : 0
+  const removeColCh = isLabeled ? 0 : 3
+  const tableWidthCh = colWidths.reduce((a, b) => a + b, 0) + labelWidthCh + removeColCh
+
   // grid and text are kept in lockstep: whichever the user edits, the other
   // follows, so Import (which uses text) always matches what's on screen.
   // On a bulk paste we also SNAP dropdown-column cells onto their canonical
@@ -423,7 +466,21 @@ export default function LocalDataEntry({
           className="flex-shrink-0 rounded-md border border-surface-5 overflow-x-auto"
           style={{ touchAction: 'pan-x pan-y' }}
         >
-          <table className="w-full text-[11px] sm:text-xs tabular border-collapse">
+          {/* table-layout:fixed honors the per-column <col> widths below; width
+              is the summed content width so long columns push the table past the
+              modal (horizontal scroll), while minWidth:100% still fills it when
+              the content is narrow. */}
+          <table
+            className="text-[11px] sm:text-xs tabular border-collapse"
+            style={{ tableLayout: 'fixed', width: `${tableWidthCh}ch`, minWidth: '100%' }}
+          >
+            <colgroup>
+              {isLabeled && <col style={{ width: `${labelWidthCh}ch` }} />}
+              {colWidths.map((w, ci) => (
+                <col key={ci} style={{ width: `${w}ch` }} />
+              ))}
+              {!isLabeled && <col style={{ width: `${removeColCh}ch` }} />}
+            </colgroup>
             {columns?.length ? (
               <thead className="bg-surface-2">
                 <tr className="text-txt-tertiary">
