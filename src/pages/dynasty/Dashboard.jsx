@@ -57,6 +57,7 @@ import RecruitingInsightLink from '../../components/ui/RecruitingInsightLink'
 import { useToast } from '../../components/ui/Toast'
 import SellVsSendCalculator, { SellVsSendButton } from '../../components/SellVsSendCalculator'
 import PositionChangesModal from '../../components/PositionChangesModal'
+import NationalCommitsModal from '../../components/NationalCommitsModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
 import TrainingResultsModal from '../../components/TrainingResultsModal'
 import WeekRecapModal from '../../components/WeekRecapModal'
@@ -542,6 +543,7 @@ export default function Dashboard() {
     </div>
   ) : null
   const [showPositionChangesModal, setShowPositionChangesModal] = useState(false)
+  const [showNationalCommitsModal, setShowNationalCommitsModal] = useState(false)
   const [showRecruitingClassRankModal, setShowRecruitingClassRankModal] = useState(false)
   const [showTrainingResultsModal, setShowTrainingResultsModal] = useState(false)
   const [showEncourageTransfersModal, setShowEncourageTransfersModal] = useState(false)
@@ -1944,6 +1946,19 @@ export default function Dashboard() {
     }
 
     await updateDynasty(currentDynasty.id, updates)
+  }
+
+  // Handle national commits save (National Signing Day). League-wide watch
+  // list, not tied to a team — stored in nationalCommitsByYear[year].
+  const handleNationalCommitsSave = async (commits) => {
+    const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
+    const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+    await updateDynasty(currentDynasty.id, {
+      nationalCommitsByYear: {
+        ...(currentDynasty.nationalCommitsByYear || {}),
+        [year]: commits,
+      },
+    })
   }
 
   // Handle position changes save (National Signing Day)
@@ -6895,6 +6910,33 @@ export default function Dashboard() {
                   actionLabel: !hasFringeCases ? undefined : (fringeComplete ? 'Done' : 'Open'),
                   viewTo: hasFringeCaseClassData ? `${pathPrefix}/team/${teamTidF}/${offseasonDataYear}?tab=roster` : null,
                 })
+
+                // National Commits — free-form "247 Top 100" style watch list:
+                // notable recruits nationwide and where they committed, whether
+                // or not they were ever the user's target. Optional; marked done
+                // once saved (an explicit empty list counts as "confirmed none").
+                const nationalCommits = currentDynasty?.nationalCommitsByYear?.[offseasonDataYear]
+                const hasNationalCommitsData = Array.isArray(nationalCommits)
+                const nationalCommitsCount = nationalCommits?.length || 0
+                o26Todos.push({
+                  key: 'national-commits',
+                  done: hasNationalCommitsData,
+                  title: 'National Commits',
+                  subtitle: hasNationalCommitsData
+                    ? (nationalCommitsCount > 0
+                        ? `${nationalCommitsCount} recruit${nationalCommitsCount !== 1 ? 's' : ''} tracked`
+                        : 'No national commits tracked')
+                    : 'Track top recruits nationwide and where they committed',
+                  onAction: () => setShowNationalCommitsModal(true),
+                  actionLabel: hasNationalCommitsData ? 'Edit' : 'Enter',
+                  inlineAction: !hasNationalCommitsData && !isViewOnly ? {
+                    label: 'None',
+                    onClick: async () => {
+                      try { await handleNationalCommitsSave([]) }
+                      catch (e) { console.error('[national-commits] skip failed:', e); toast.error('Failed to save. Try again.') }
+                    },
+                  } : null,
+                })
               }
 
               return (
@@ -9345,6 +9387,15 @@ export default function Dashboard() {
           isPlayerOnRoster(p, getCurrentTeamTid(currentDynasty), currentDynasty.currentYear, currentDynasty)
         )}
         existingChanges={currentDynasty?.positionChangesByYear?.[offseasonDataYear] || []}
+        teamColors={teamColors}
+      />
+
+      {/* National Commits Modal (National Signing Day) */}
+      <NationalCommitsModal
+        isOpen={showNationalCommitsModal}
+        onClose={() => setShowNationalCommitsModal(false)}
+        onSave={handleNationalCommitsSave}
+        existingCommits={currentDynasty?.nationalCommitsByYear?.[offseasonDataYear] || []}
         teamColors={teamColors}
       />
 
