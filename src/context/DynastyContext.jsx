@@ -6327,6 +6327,31 @@ export function DynastyProvider({ children }) {
         migrated = { ...withoutCustomTeams, teams }
       }
 
+      // ─── CFB 27: heal launch team abbreviations ─────────────────────────
+      // The cfb27 abbr set (e.g. Louisville LOU→UL, Lafayette UL→ULL) is applied
+      // at CREATION only. A dynasty whose teams map predates a given remap — or
+      // was re-initialized somewhere — can carry a stale/colliding abbr. That's
+      // the "UL shows Lafayette, Lafayette is duplicated" report: two slots end
+      // up resolving to Lafayette because Louisville took UL while Lafayette
+      // never moved to ULL. Re-assert each base tid's cfb27 abbr on every load
+      // so dynasty-first name/logo resolution is correct everywhere (conference
+      // standings, edit-conference, etc.). Idempotent (only rewrites a differing
+      // abbr) and additive; teambuilder-overridden slots (isCustom) keep theirs.
+      if (normalizeEditionKey(migrated.gameEdition) === 'cfb27' && migrated.teams) {
+        let teamsChanged = false
+        const nextTeams = { ...migrated.teams }
+        for (const [tidStr, abbr] of Object.entries(CFB27_TEAM_ABBRS)) {
+          const tid = Number(tidStr)
+          const t = nextTeams[tid]
+          if (!t || t.isCustom) continue
+          if (t.abbr !== abbr) {
+            nextTeams[tid] = { ...t, abbr }
+            teamsChanged = true
+          }
+        }
+        if (teamsChanged) migrated = { ...migrated, teams: nextTeams }
+      }
+
       // ─── Fold legacy bulk conference stores into the per-team field ──────
       // teams[tid].byYear[year].conference is the single source of truth for
       // conference alignment; this backfills it from the old bulk stores so the
