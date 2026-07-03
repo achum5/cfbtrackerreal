@@ -14577,6 +14577,23 @@ export function DynastyProvider({ children }) {
     // candidate), so two different players are never merged.
     const nrm = (s) => (s || '').toString().toLowerCase().trim()
     const lastNameOf = (p) => nrm(p.lastName) || nrm(p.name).split(/\s+/).slice(1).join(' ')
+    const firstNameOf = (p) => nrm(p.firstName) || nrm(p.name).split(/\s+/)[0] || ''
+    // The fallback exists ONLY for EA's abbreviated first names ("B. Hubbard" ⇄
+    // "Bray Hubbard"). It must NOT merge two DIFFERENT players who merely share a
+    // last name + position (e.g. incoming "R.J. Rogers" vs existing "Noah Rogers",
+    // both WR) — that silently drops the new player and corrupts the existing one.
+    // So require the first names to be compatible: equal, or one is an
+    // initial-style abbreviation of the other. Missing first name on either side
+    // can't disprove a match, so it's allowed through.
+    const firstNamesCompatible = (a, b) => {
+      const fa = firstNameOf(a).replace(/\./g, '')
+      const fb = firstNameOf(b).replace(/\./g, '')
+      if (!fa || !fb) return true
+      if (fa === fb) return true
+      if (fa.length <= 2 && fb.startsWith(fa[0])) return true
+      if (fb.length <= 2 && fa.startsWith(fb[0])) return true
+      return false
+    }
     const byLastJersey = {}
     const byLastPos = {}
     const pushIdx = (map, key, p) => { if (key) (map[key] = map[key] || []).push(p) }
@@ -14593,7 +14610,11 @@ export function DynastyProvider({ children }) {
       const ln = lastNameOf(player)
       if (!ln) return null
       const jersey = player.jerseyNumber != null && String(player.jerseyNumber).trim() !== '' ? `${ln}#${String(player.jerseyNumber).trim()}` : ''
-      return uniqMatch(byLastJersey, jersey) || uniqMatch(byLastPos, player.position ? `${ln}|${nrm(player.position)}` : '')
+      const cand = uniqMatch(byLastJersey, jersey) || uniqMatch(byLastPos, player.position ? `${ln}|${nrm(player.position)}` : '')
+      // Same last name + jersey/position is not enough when the first names
+      // clearly disagree — that's a different person, not an abbreviated re-type.
+      if (cand && !firstNamesCompatible(player, cand)) return null
+      return cand
     }
 
     // Track which players actually changed so the cloud save can write ONLY
