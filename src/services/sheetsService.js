@@ -14764,7 +14764,49 @@ export async function readGameBoxScoreFromSheet(spreadsheetId, dynastyTeams = nu
 // we now stop at col M, so any col-N+ data on legacy sheets is
 // silently dropped on the next sync. The frontend reconstructs the
 // highlight string from the structured atoms in A-M instead.
-export async function readScoringSummaryFromSheet(spreadsheetId, dynastyTeams = null) {
+export async function readScoringSummaryFromSheet(spreadsheetId, dynastyTeams = null, opts = {}) {
+  // Filter + map shared by the live-sheet read AND the local-paste path. Keep a
+  // row when the team column is set AND at least one other meaningful field is
+  // set. Scoring-play detection is via col E (Score Type) / col F (2PT in PAT
+  // Result), NEVER col M — that keeps scoring-only users on the same strict
+  // filter; PBP-only rows survive via the down / playType / scorer signals.
+  const buildFromRows = (rows) => rows
+    .filter(row => {
+      const hasTeam = row[0] && row[0].trim()
+      if (!hasTeam) return false
+      const hasScoreType = row[4] && row[4].trim()
+      const patResult = (row[5] || '').trim()
+      const is2PTAttempt = patResult.includes('2PT')
+      if (hasScoreType || is2PTAttempt) return true
+      const hasDown = row[9] && row[9].trim()
+      const hasPlayType = row[12] && row[12].trim()
+      const hasScorer = row[1] && row[1].trim()
+      return hasDown || hasPlayType || hasScorer
+    })
+    .map(row => ({
+      // Legacy 9-col fields (A-I).
+      team: (row[0] || '').trim().toUpperCase(),
+      scorer: (row[1] || '').trim(),
+      passer: (row[2] || '').trim(),
+      yards: (row[3] || '').trim(),
+      scoreType: (row[4] || '').trim(),
+      patResult: (row[5] || '').trim(),
+      quarter: (row[6] || '').trim(),
+      timeLeft: (row[7] || '').trim(),
+      videoLink: (row[8] || '').trim(),
+      // Play-by-play extension (J-M). Empty on legacy / scoring-only rows.
+      down: (row[9] || '').trim(),
+      distance: (row[10] || '').trim(),
+      fieldPos: (row[11] || '').trim(),
+      playType: (row[12] || '').trim(),
+    }))
+
+  // Local paste path: the caller passes pre-split rows (splitTsv output), so we
+  // skip the Google Sheets network fetch entirely and run the same filter/map.
+  if (Array.isArray(opts.rows)) {
+    return buildFromRows(opts.rows)
+  }
+
   try {
     const accessToken = await getAccessToken()
 
@@ -14785,62 +14827,7 @@ export async function readScoringSummaryFromSheet(spreadsheetId, dynastyTeams = 
     }
 
     const data = await response.json()
-    const rows = data.values || []
-
-    // Filter: keep a row when the team column is set AND at least
-    // one other meaningful field is set. Two failure modes this
-    // guards against:
-    //   (a) A user clicking the Team dropdown on an unused row by
-    //       accident and walking away — old reader dropped these
-    //       (because hasScoreType was false), and we MUST preserve
-    //       that behavior for scoring-only users so their data shape
-    //       doesn't change.
-    //   (b) A stray PBP-only edit where only one field was filled.
-    //       We also drop that.
-    //
-    // Critical: scoring-play detection here is via column E
-    // (Score Type) and column F (PAT Result, for 2PT), NEVER via
-    // column M (Play Type). That keeps scoring-only users on the
-    // same strict filter the old reader used. PBP-only rows are
-    // accepted via the playType / down / scorer signals — all-plays
-    // uploads populate at least one of those on every row.
-    return rows
-      .filter(row => {
-        const hasTeam = row[0] && row[0].trim()
-        if (!hasTeam) return false
-        const hasScoreType = row[4] && row[4].trim()
-        const patResult = (row[5] || '').trim()
-        const is2PTAttempt = patResult.includes('2PT')
-        // Old strict-scoring path — preserved exactly for back-compat.
-        if (hasScoreType || is2PTAttempt) return true
-        // New PBP path — accept non-scoring play rows when at least
-        // one descriptive PBP field is filled. Without this guard a
-        // user who only typed in column A on a row would get a stray
-        // empty record in their array; with it, a row needs to carry
-        // real data to survive the filter.
-        const hasDown = row[9] && row[9].trim()
-        const hasPlayType = row[12] && row[12].trim()
-        const hasScorer = row[1] && row[1].trim()
-        return hasDown || hasPlayType || hasScorer
-      })
-      .map(row => ({
-        // Legacy 9-col fields (A-I).
-        team: (row[0] || '').trim().toUpperCase(),
-        scorer: (row[1] || '').trim(),
-        passer: (row[2] || '').trim(),
-        yards: (row[3] || '').trim(),
-        scoreType: (row[4] || '').trim(),
-        patResult: (row[5] || '').trim(),
-        quarter: (row[6] || '').trim(),
-        timeLeft: (row[7] || '').trim(),
-        videoLink: (row[8] || '').trim(),
-        // Play-by-play extension (J-M). Empty strings on legacy
-        // sheets / scoring-only rows; populated on all-plays rows.
-        down: (row[9] || '').trim(),
-        distance: (row[10] || '').trim(),
-        fieldPos: (row[11] || '').trim(),
-        playType: (row[12] || '').trim(),
-      }))
+    return buildFromRows(data.values || [])
   } catch (error) {
     console.error('Error reading scoring summary:', error)
     throw error

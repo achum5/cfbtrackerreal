@@ -20,6 +20,7 @@ import {
 import { splitTsv } from '../utils/tsvParse'
 import { getTeamLogoRobust } from '../utils/teamLogo'
 import PlayerStatsPasteGrid from './PlayerStatsPasteGrid'
+import LocalDataEntry from './ui/LocalDataEntry'
 import PasteEntrySteps from './ui/PasteEntrySteps'
 import Button from './ui/Button'
 import { useDynasty, isPlayerOnRoster } from '../context/DynastyContext'
@@ -34,7 +35,7 @@ import { getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFro
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import { getPlayerStatsForTid, getTeamStatsForTid, getPlayerStatsSheetIdForTid, canonicalBoxScore, setScoringSummary } from '../utils/boxScoreHelpers'
-import { AI_UNIFIED_TAB, computeUnifiedTabLayout } from '../data/boxScoreConstants'
+import { AI_UNIFIED_TAB, computeUnifiedTabLayout, SCORING_SUMMARY } from '../data/boxScoreConstants'
 import SheetLoadingHint from './SheetLoadingHint'
 
 // A pasted team-stats line is "<away>\t<home>", both numeric or blank. AIs
@@ -112,13 +113,13 @@ export default function BoxScoreSheetModal({
   const [ignoreExistingSheetId, setIgnoreExistingSheetId] = useState(false)
 
   // ── Local TSV paste ───────────────────────────────────────────────────
-  // A Google-free ingest path, now the DEFAULT for player + team stats — even
-  // when the game already has a Google sheet. Paste the AI's TSV straight in,
-  // no sheet created, so none of the OAuth / quota / rate-limit / grid bugs can
-  // fire. The grid pre-fills from any stats already saved on the game, and the
-  // in-panel "Use Google Sheet instead" toggle still opens the existing sheet
-  // for anyone who wants it. Only scoring stays Google-only (not in the list).
-  const [pasteMode, setPasteMode] = useState(['teamStats', 'playerStats'].includes(sheetType))
+  // A Google-free ingest path, now the DEFAULT for player + team stats AND the
+  // scoring summary — even when the game already has a Google sheet. Paste the
+  // AI's TSV straight in, no sheet created, so none of the OAuth / quota /
+  // rate-limit / grid bugs can fire. The grid pre-fills from any data already
+  // saved on the game, and the in-panel "Use Google Sheet instead" toggle still
+  // opens the existing sheet for anyone who wants it.
+  const [pasteMode, setPasteMode] = useState(['teamStats', 'playerStats', 'scoring'].includes(sheetType))
   // The editable grid is the source of truth (30 {away,home} pairs). The raw
   // textarea is an optional power-user view, hidden behind the expand arrow;
   // both stay in sync. rawText holds whatever the user pasted/typed verbatim.
@@ -1250,6 +1251,30 @@ FINAL CHECK before you send
     })
   }, [sheetType, config.teamAbbr, config.opponentAbbr, config.isUserControlled, homeTeamAbbr, awayTeamAbbr, game?.week, gameYear, game?.boxScore, homeRosterObjects, awayRosterObjects, targetRosterObjects, homeTeamTid, awayTeamTid, targetTidNum, userTidForGameYear, currentDynasty?.teams])
 
+  // Scoring-summary local paste: pre-fill the grid with any scoring plays
+  // already on the game, serialized to the 13-col A–M TSV order the parser
+  // reads, so the modal opens on existing data for edits instead of blank.
+  const scoringInitialText = useMemo(() => {
+    if (sheetType !== 'scoring') return ''
+    const plays = game?.boxScore?.scoringSummary || []
+    return plays.map(p => [
+      p.team || '', p.scorer || '', p.passer || '', p.yards || '',
+      p.scoreType || '', p.patResult || '', p.quarter || '', p.timeLeft || '',
+      p.videoLink || '', p.down || '', p.distance || '', p.fieldPos || '',
+      p.playType || '',
+    ].join('\t')).join('\n')
+  }, [sheetType, game?.boxScore?.scoringSummary])
+
+  // Parse a pasted scoring-summary TSV through the SAME reader the Google sheet
+  // uses (its rows short-circuit), then hand the play array to onSave — no sheet
+  // created, matching the player/team-stats paste path.
+  const handleScoringImport = async (text) => {
+    const teams = currentDynasty?.teams || currentDynasty?.customTeams
+    const data = await readScoringSummaryFromSheet(null, teams, { rows: splitTsv(text) })
+    await onSave(data)
+    handleClose()
+  }
+
   // Short label used inside the Reset/Regenerate button text so the
   // user can tell at a glance what's about to be wiped (e.g. "wipe
   // BAMA stats" not just "wipe data"). Kept short on purpose — the
@@ -1903,6 +1928,32 @@ FINAL CHECK before you send
             onClose={handleClose}
             onUseGoogle={() => setPasteMode(false)}
           />
+        ) : pasteMode && sheetType === 'scoring' ? (
+          <LocalDataEntry
+            aiPrompt={aiPrompt?.allPlays}
+            onImport={handleScoringImport}
+            onUseGoogle={() => setPasteMode(false)}
+            onCancel={handleClose}
+            importLabel="Import Scoring Summary"
+            columns={SCORING_SUMMARY.headers}
+            initialText={scoringInitialText}
+            instructions={"Screenshot the play-by-play (or just the scoring summary) for this game. The prompt already carries this game's teams and rosters — no need to be exact, just clear."}
+          >
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(aiPrompt?.scoring || '')
+                  toast.success('Scoring-summary prompt copied')
+                } catch {
+                  toast.error('Copy blocked — use "Use Google Sheet instead" to copy it there.')
+                }
+              }}
+              className="text-xs text-txt-tertiary hover:text-txt-secondary underline underline-offset-2"
+            >
+              Only have the scoring-summary screen (not full play-by-play)? Copy that prompt instead.
+            </button>
+          </LocalDataEntry>
         ) : pasteMode ? (
           <div className="flex-1 flex flex-col overflow-hidden gap-3">
             {/* Unified step header: 📸 + Copy Prompt → Open AI → Paste, each with an info toggle. */}
