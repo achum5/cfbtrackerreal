@@ -21,6 +21,7 @@ import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
 import SheetModalHeader from './ui/SheetModalHeader'
 import { buildAIPrompt } from '../utils/aiPrompt'
+import { arePlayerAttributesEnabled } from '../editions'
 import { ATTRIBUTE_PROMPT_LEGEND } from '../utils/attributeEntry'
 import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/rosterOptions'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -57,11 +58,11 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
   const [highlightSave, setHighlightSave] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
 
-  // The roster paste always includes the Attributes column (O) so the AI can
-  // fill every player's ratings in one pass. Attribute storage is edition-
-  // agnostic (the reader always parses col O and saveRoster persists it), and
-  // the column is optional — left blank when you have no ratings to enter.
-  const attributesEnabled = true
+  // Include the Attributes column (O) only when full-attribute entry is on for
+  // this dynasty — the edition supports attributes AND "Hide all ratings" is
+  // off (arePlayerAttributesEnabled). When it's off, the roster sheet drops to
+  // a clean A–N (14 cols) so it matches Edit Roster and the other entry flows.
+  const attributesEnabled = arePlayerAttributesEnabled(currentDynasty)
   // Pre-fill the local grid with the current roster (when one exists) so the
   // grid opens on the team for easy mass-editing instead of a blank table.
   const rosterPlayers = useMemo(() => {
