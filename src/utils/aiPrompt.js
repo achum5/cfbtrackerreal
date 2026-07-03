@@ -1,4 +1,4 @@
-import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamInGameNames } from '../data/teamRegistry'
 
 export const TEAM_ABBR_MAPPING = `AFA = Air Force
 AKR = Akron
@@ -405,10 +405,10 @@ export function buildAIPrompt({
     // label (e.g. EA shows the Ragin' Cajuns as "Louisiana"; the list has
     // "Lafayette Ragin' Cajuns"). Annotate those so the AI can bridge the
     // in-game name to the exact list entry it must output.
-    const aliasMap = getTeamNameAliases(dynastyTeams)
+    const aliasMap = getTeamInGameNames(dynastyTeams)  // { label: primaryInGameName }
     const annotatedList = nameList.map((name) => {
-      const al = aliasMap[name]
-      return al && al.length ? `${name}  (in-game name: ${al.join(', ')})` : name
+      const ign = aliasMap[name]
+      return ign ? `${name}  (in-game name: ${ign})` : name
     })
     const hasAliases = Object.keys(aliasMap).length > 0
     sections.push(

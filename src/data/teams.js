@@ -1,5 +1,5 @@
 import { teamAbbreviations } from './teamAbbreviations'
-import { getAbbrFromTeamName, TEAMS as TEAMS_REGISTRY, getTidFromAbbr, getTidFromTeamName } from './teamRegistry'
+import { getAbbrFromTeamName, TEAMS as TEAMS_REGISTRY, getTidFromAbbr, getTidFromTeamName, getTidFromTeamLabel } from './teamRegistry'
 import { espnTeamIds } from './espnTeamIds'
 
 // Team logo URLs (Imgur hosted)
@@ -271,28 +271,6 @@ const normNameKey = (s) => String(s || '')
   .replace(/\s+/g, ' ')
   .trim()
 
-// EA/AI short forms that abbreviate the SCHOOL itself (not just punctuation), so
-// they never match a registry school name even normalized. Keyed by normalized
-// alias → the registry abbreviation to resolve. Extend as new ones surface.
-const NAME_ALIASES = {
-  'nc state': 'NCST', 'n c state': 'NCST',
-  'miami oh': 'M-OH', 'miami ohio': 'M-OH',
-  'umass': 'MASS',
-  'uconn': 'CONN',
-  'southern miss': 'USM',
-  // EA labels the Warhawks "UL Monroe"; the registry school name is just
-  // "Monroe" (abbr ULM), so neither "UL Monroe" nor "Louisiana Monroe" matches
-  // the name scan on its own.
-  'ul monroe': 'ULM', 'louisiana monroe': 'ULM',
-  // Sibling "UL X" form: the Ragin' Cajuns (registry school "Lafayette", abbr UL).
-  'ul lafayette': 'UL',
-  // EA's current in-game name for the Ragin' Cajuns is just "Louisiana" (the
-  // registry school is "Lafayette", abbr UL). Two-word forms — "Louisiana Tech"
-  // and "Louisiana State" — resolve by exact school name BEFORE this alias is
-  // consulted, so this only catches the bare, otherwise-unresolvable "Louisiana".
-  'louisiana': 'UL',
-}
-
 export function getTidFromTeamText(text, dynastyTeams = null) {
   if (text == null) return null
   const raw = String(text).trim()
@@ -303,13 +281,12 @@ export function getTidFromTeamText(text, dynastyTeams = null) {
   const byName = getTidFromTeamName(raw, dynastyTeams)
   if (byName) return byName
 
-  // School-short-form aliases (check both the raw and mascot-stripped forms —
-  // stripMascot mangles "NC State" to "NC", so the raw key is what matches).
-  const aliasAbbr = NAME_ALIASES[normNameKey(raw)] || NAME_ALIASES[normNameKey(stripMascotFromName(raw))]
-  if (aliasAbbr) {
-    const aliasTid = getTidFromAbbr(aliasAbbr, dynastyTeams)
-    if (aliasTid) return aliasTid
-  }
+  // Alternate-name aliases live on each team record (TEAMS[tid].aliases — the
+  // single source of truth). getTidFromTeamLabel resolves them in squashed form
+  // (teambuilder-safe, self-healing for older dynasties), so e.g. "Louisiana",
+  // "UMass", "NC State", "UL Monroe" all land on the right tid here.
+  const aliasTid = getTidFromTeamLabel(raw, dynastyTeams)
+  if (aliasTid) return aliasTid
 
   // Tolerant school-name scan: compare punctuation-normalized school names so
   // apostrophe/diacritic/ampersand variants still resolve.
