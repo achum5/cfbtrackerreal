@@ -23,6 +23,8 @@ import {
   removeCoachSeason,
   applyControlledCoachTeam,
   deriveMemberTeamsIndex,
+  COACH_ROLES,
+  COACH_ROLE_LABELS,
 } from '../data/coachModel'
 
 export default function MemberTimelineEditor({ isOpen, onClose, cid }) {
@@ -46,6 +48,9 @@ export default function MemberTimelineEditor({ isOpen, onClose, cid }) {
     const tid = Number(coach.byYear?.[year]?.teamTid ?? coach.byYear?.[String(year)]?.teamTid)
     return Number.isFinite(tid) ? [tid] : []
   }
+  // This coach's position (HC/OC/DC) for a given year — defaults to HC.
+  const roleForYear = (year) =>
+    coach.byYear?.[year]?.role ?? coach.byYear?.[String(year)]?.role ?? 'HC'
   // Other CONTROLLED coaches holding `tid` in `year` (a claim steals from them).
   const otherCoachesOnTeamYear = (tid, year) =>
     Object.values(getCoaches(currentDynasty)).filter(c =>
@@ -100,6 +105,24 @@ export default function MemberTimelineEditor({ isOpen, onClose, cid }) {
     } catch (err) {
       console.error('[MemberTimeline] claim failed:', err)
       toast.error('Failed to update timeline.')
+    } finally {
+      setBusyYear(null)
+    }
+  }
+
+  const handleSetRole = async (year, role) => {
+    if (!COACH_ROLES.includes(role)) return
+    setBusyYear(year)
+    try {
+      // Merge just the role into that season — teamTid and everything else
+      // on the record are preserved. Coach displays, staff lists, and the
+      // team header all read this same byYear[year].role, so the position
+      // updates everywhere at once.
+      const next = setCoachSeason(coach, year, { role })
+      await writeCoaches({ ...getCoaches(currentDynasty), [cid]: next })
+    } catch (err) {
+      console.error('[MemberTimeline] set role failed:', err)
+      toast.error('Failed to update position.')
     } finally {
       setBusyYear(null)
     }
@@ -211,6 +234,20 @@ export default function MemberTimelineEditor({ isOpen, onClose, cid }) {
                 </div>
 
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {tids.length > 0 && (
+                    <select
+                      value={roleForYear(year)}
+                      onChange={(e) => handleSetRole(year, e.target.value)}
+                      disabled={isBusy}
+                      aria-label={`Position for ${year}`}
+                      title="Coaching position this season"
+                      className="text-xs px-2 py-1 rounded-md bg-surface-2 border border-surface-4 text-txt-secondary cursor-pointer focus:outline-none focus:border-surface-5"
+                    >
+                      {COACH_ROLES.map(r => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  )}
                   {(cap === Infinity || tids.length < cap) && (
                   <select
                     value={pickValue}

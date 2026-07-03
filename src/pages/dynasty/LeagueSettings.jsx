@@ -85,8 +85,11 @@ import {
   applyControlledCoachTeam,
   deriveMemberTeamsIndex,
   removeCoachSeason,
+  setCoachSeason,
   deleteCoach,
   generateCid,
+  COACH_ROLES,
+  COACH_ROLE_LABELS,
 } from '../../data/coachModel'
 import MemberTimelineEditor from '../../components/MemberTimelineEditor'
 
@@ -522,6 +525,27 @@ export default function LeagueSettings() {
     }
   }
 
+  // Set a coach's POSITION (HC/OC/DC) for the current season. Writes
+  // byYear[year].role on the coach entity — the single source of truth that
+  // Coach Career, the team-page staff list, and the Timeline all read, so
+  // the position updates everywhere at once.
+  const handleSetCoachRole = async (cid, role) => {
+    const coach = getCoach(currentDynasty, cid)
+    if (!coach) return
+    if (!canManage && coach.controlledBy !== user.uid) return
+    if (!COACH_ROLES.includes(role)) return
+    const year = currentDynasty.currentYear
+    setBusyUid(cid)
+    try {
+      await writeCoaches({ ...getCoaches(currentDynasty), [cid]: setCoachSeason(coach, year, { role }) })
+    } catch (err) {
+      console.error('[Members] set coach position failed:', err)
+      toast.error('Failed to update position.')
+    } finally {
+      setBusyUid(null)
+    }
+  }
+
   const handleRemoveCoach = async (cid) => {
     const coach = getCoach(currentDynasty, cid)
     if (!coach) return
@@ -644,8 +668,11 @@ export default function LeagueSettings() {
     const cid = coach.cid
     const canEdit = canManage || coach.controlledBy === user.uid
     const busy = busyUid === cid
-    const tid = getCurrentTeamTidForCoach(coach, currentDynasty.currentYear)
+    const cy = currentDynasty.currentYear
+    const tid = getCurrentTeamTidForCoach(coach, cy)
     const team = tid != null ? teamsSource[tid] : null
+    // Coaching position (HC/OC/DC) for the current season — defaults to HC.
+    const coachRole = coach.byYear?.[cy]?.role ?? coach.byYear?.[String(cy)]?.role ?? 'HC'
     const logo = tid != null ? getTeamLogoByTid(tid, teamsSource) : null
     const teamColor = (tid != null && teamsSource[tid]?.primaryColor) || null
     const onColor = !!teamColor
@@ -727,6 +754,40 @@ export default function LeagueSettings() {
         ) : (
           <span className={`text-xs flex-shrink-0 ${onColor ? 'opacity-90' : 'text-txt-tertiary'}`} style={onColor ? { color: textColor } : undefined}>{team?.name || 'No team'}</span>
         )}
+
+        {/* Position picker (HC/OC/DC) — sits right next to the team. Writes
+            byYear[year].role, the same field every coach display reads. */}
+        {canEdit && tid != null ? (
+          <label
+            className={`relative inline-flex items-center gap-1 flex-shrink-0 pl-2 pr-1.5 py-1 rounded-lg transition-colors cursor-pointer ${chip} ${chipHover} ${onColor ? '' : 'border border-surface-4'}`}
+            style={onColor ? { color: textColor } : undefined}
+            title={COACH_ROLE_LABELS[coachRole] || coachRole}
+          >
+            <span className={`text-xs font-semibold ${onColor ? '' : 'text-txt-secondary'}`}>{coachRole}</span>
+            <svg className="w-3.5 h-3.5 flex-shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <select
+              value={coachRole}
+              onChange={e => handleSetCoachRole(cid, e.target.value)}
+              disabled={busy}
+              aria-label="Set coach's position"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            >
+              {COACH_ROLES.map(r => (
+                <option key={r} value={r}>{COACH_ROLE_LABELS[r] || r}</option>
+              ))}
+            </select>
+          </label>
+        ) : (tid != null && (
+          <span
+            className={`text-xs font-semibold flex-shrink-0 ${onColor ? 'opacity-90' : 'text-txt-tertiary'}`}
+            style={onColor ? { color: textColor } : undefined}
+            title={COACH_ROLE_LABELS[coachRole] || coachRole}
+          >
+            {coachRole}
+          </span>
+        ))}
 
         {canEdit && (
           <div className="flex items-center gap-0.5 flex-shrink-0" style={onColor ? { color: textColor } : undefined}>
