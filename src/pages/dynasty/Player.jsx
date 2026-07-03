@@ -195,6 +195,9 @@ function PlayerInner() {
   const [expandedGameLog, setExpandedGameLog] = useState(null) // { year, statType }
   const [showScoringHighlightsModal, setShowScoringHighlightsModal] = useState(false)
   const [selectedGameScoringPlays, setSelectedGameScoringPlays] = useState(null)
+  // Attributes tab: which recorded season to show. null = auto (current season,
+  // else most recent). User can override via the season dropdown on the tab.
+  const [attrViewYear, setAttrViewYear] = useState(null)
 
   // Sort preferences for stat tables (persisted in localStorage)
   const [statSortPrefs, setStatSortPrefs] = useState(() => {
@@ -491,8 +494,12 @@ function PlayerInner() {
   // back to the flat recruit `attributes` map for scouted recruits.
   const attrSeasons = player?.attributesByYear && typeof player.attributesByYear === 'object' ? player.attributesByYear : {}
   const attrYearKeys = Object.keys(attrSeasons).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b)
-  const attrDisplayYear = (currentYear != null && attrSeasons[currentYear]) ? Number(currentYear)
+  // Auto default: current season if it has data, else the most recent season.
+  const attrAutoYear = (currentYear != null && attrSeasons[currentYear]) ? Number(currentYear)
     : (attrYearKeys.length ? attrYearKeys[attrYearKeys.length - 1] : null)
+  // The user's dropdown pick wins when it points at a season that has data;
+  // otherwise fall back to the auto default (e.g. after switching players).
+  const attrDisplayYear = (attrViewYear != null && attrSeasons[attrViewYear]) ? Number(attrViewYear) : attrAutoYear
   const displayAttributes = (attrDisplayYear != null ? attrSeasons[attrDisplayYear] : null) || player?.attributes || null
   const hasAttributes = !!(displayAttributes && Object.keys(displayAttributes).length)
   // NIL (CFB 27+) — current-season earnings for the hero + per-year for timelines.
@@ -2258,8 +2265,21 @@ function PlayerInner() {
           <div className="media-card p-3 sm:p-5 mb-4">
             <div className="flex items-baseline justify-between gap-2 mb-3">
               <h3 className="font-display font-black uppercase tracking-wide text-txt-primary" style={{ fontSize: '1.05rem' }}>Attributes</h3>
-              {attrDisplayYear != null && (
-                <span className="text-xs font-semibold text-txt-tertiary uppercase tracking-wide">{attrDisplayYear} Season</span>
+              {attrYearKeys.length > 1 ? (
+                <select
+                  value={attrDisplayYear ?? ''}
+                  onChange={(e) => setAttrViewYear(Number(e.target.value))}
+                  className="text-xs font-semibold text-txt-tertiary uppercase tracking-wide bg-surface-2 border border-surface-4 rounded-md px-2 py-1 cursor-pointer hover:text-txt-secondary transition-colors"
+                  aria-label="Attributes season"
+                >
+                  {attrYearKeys.slice().reverse().map(y => (
+                    <option key={y} value={y}>{y} Season</option>
+                  ))}
+                </select>
+              ) : (
+                attrDisplayYear != null && (
+                  <span className="text-xs font-semibold text-txt-tertiary uppercase tracking-wide">{attrDisplayYear} Season</span>
+                )
               )}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 sm:gap-x-7 gap-y-4 items-start">

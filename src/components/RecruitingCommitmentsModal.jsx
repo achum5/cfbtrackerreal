@@ -144,19 +144,63 @@ You may get any of these screenshots. Handle each:
 Attributes appear ONLY on the player-page Attributes tab, never on the board. If you only have the board, the Attributes cell stays blank (not every recruit is scouted, and that is expected).
 
 ═══════════════════════════════════════════════════════════
+USE CODE EXECUTION (MANDATORY)
+═══════════════════════════════════════════════════════════
+Column-shift — Commitment leaking into Prev Team, Attributes leaking into
+Commitment — is the #1 failure mode for this sheet. It happens when an empty
+cell (HS recruits have a blank Dev Trait and Prev Team) is collapsed by hand
+instead of emitted as a true empty field, sliding every later column left.
+
+MANDATORY: use Python to build and emit every row. The csv module guarantees
+EXACTLY 16 tab characters per row no matter how many fields are blank — making
+column-shift structurally impossible.
+
+COLS = [
+    'player', 'class', 'position', 'archetype', 'stars', 'nat_rank',
+    'state_rank', 'pos_rank', 'height', 'weight', 'hometown', 'state',
+    'gem_bust', 'dev_trait', 'prev_team', 'commitment', 'attributes'
+]  # 17 fields → csv.writer always emits 16 tabs
+
+Step 1 — parse every NEW recruit from the screenshots into a Python list of
+dicts. EVERY dict must have ALL 17 keys; use '' (empty string) for any blank
+field. A typical HS recruit has dev_trait='' and prev_team='' — the code still
+emits the tabs. 'attributes' is '' unless this is a player-page Attributes tab.
+Example dict (HS recruit off the board, not scouted):
+  {'player':'Deon Goodin','class':'HS','position':'QB','archetype':'Dual Threat',
+   'stars':'☆☆☆','nat_rank':'1842','state_rank':'156','pos_rank':'119',
+   'height':'6\\'0"','weight':'181','hometown':'Rome','state':'GA',
+   'gem_bust':'','dev_trait':'','prev_team':'','commitment':'Uncommitted',
+   'attributes':''}
+
+Step 2 — emit with csv.writer (NOT f-strings or manual tab-join):
+  import csv, io
+  buf = io.StringIO()
+  w = csv.writer(buf, delimiter='\\t', lineterminator='\\n',
+                 quoting=csv.QUOTE_NONE, escapechar='\\\\')
+  for r in recruits:
+      w.writerow([r[c] for c in COLS])
+  print(buf.getvalue(), end='')
+
+WHY THIS IS NON-NEGOTIABLE: csv.writer always emits len(COLS)−1 = 16 tabs. An
+empty string between two delimiters is still a delimiter — the column slot is
+preserved, so Commitment stays in its slot and Attributes stays in its slot.
+Manually padding tabs by eye is where the bug lives; the code eliminates it.
+
+If code execution is unavailable: write each row as a 17-element Python list
+literal and assert len(row) == 17 BEFORE joining with tabs — never join until
+the list is confirmed complete.
+
+═══════════════════════════════════════════════════════════
 CRITICAL RULES
 ═══════════════════════════════════════════════════════════
 1. Output ONLY data rows for NEW recruits. NEVER output the header row or re-output existing rows.
-2. Tab-separated. Columns in EXACT order A→P (then the single Attributes cell Q when scouted).
+2. Tab-separated. Columns in EXACT order A→P, then ALWAYS the Attributes cell Q (blank when not scouted).
 3. One row per recruit; keep screenshot order.
 4. NO COMMAS in numbers ("1234", not "1,234"). Integers have no decimal point. No quotes around numbers.
 5. BLANK for unknown — never guess, never 0/"-"/"N/A". Blank ≠ zero.
-5a. EVERY row MUST have ALL 16 columns A→P (16 tab-separated fields = 15 tabs),
-    even when a field is blank. NEVER drop or skip an empty cell. In particular,
-    HS recruits usually have an EMPTY Dev Trait (N) and Prev Team (O) — keep those
-    cells as empty fields (consecutive tabs), so Commitment (P) stays in column P.
-    Dropping the empty Dev Trait / Prev Team cells slides Commitment + Attributes
-    into the wrong columns and corrupts the import.
+5a. EVERY row MUST have ALL 17 fields (A→P plus the Q Attributes cell) = 16 tabs,
+    even when fields are blank. The code in USE CODE EXECUTION guarantees this;
+    do NOT hand-trim empty cells.
 6. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST be EXACTLY one of the listed values.
 7. Column E (Stars) uses ☆ symbols, NOT digits.
 8. Do NOT output the hidden "pid" column, nor the trailing "NIL" column after it — the app fills pid, and NIL is the recruiting-offer column the user enters by hand.
@@ -189,33 +233,42 @@ State (L) — 2-letter US codes:
 ═══════════════════════════════════════════════════════════
 ATTRIBUTES — column Q, a SINGLE cell. Fill ONLY from a player-page "Attributes" tab. OPTIONAL.
 ═══════════════════════════════════════════════════════════
-Attributes go in ONE cell (column Q), NOT in separate columns. For each attribute the tab shows (~10), write its NAME (or its short code) then its 0–99 rating, separated by spaces, with the pairs separated by commas.
+Attributes go in ONE cell (column Q), NOT in separate columns. For each attribute, write its NAME (or its short code) then its 0–99 rating, separated by a space, with the pairs separated by commas.
 
-  EXAMPLE (an ATH whose tab shows Awareness 76, Speed 67, Acceleration 90, Strength 78, Play Recognition 74, Tackle 80, Hit Power 74, Pursuit 80, Man Coverage 76, Zone Coverage 74) →
-  the Q cell is:  Awareness 76, Speed 67, Acceleration 90, Strength 78, Play Recognition 74, Tackle 80, Hit Power 74, Pursuit 80, Man Coverage 76, Zone Coverage 74
+ONLY-WITH-A-NUMBER RULE (important): on the Attributes tab, a scouted attribute
+shows a NUMBER; an un-scouted one shows only a progress BAR with NO number.
+Include an attribute in the Q cell ONLY when a number is visible next to it.
+SKIP every attribute that has no number — do NOT write its name at all. A name
+with no rating is useless to the app and clutters the cell.
+
+  EXAMPLE — a QB tab shows: Awareness 61, Throw On Run 75, Throw Power (bar, no number),
+  Under Pressure (bar, no number), Short Accuracy 72, Break Sack (bar), Medium Accuracy 77,
+  Speed (bar), Deep Accuracy 75, Acceleration (bar) →
+  the Q cell is ONLY the ones with numbers:  Awareness 61, Throw On Run 75, Short Accuracy 72, Medium Accuracy 77, Deep Accuracy 75
+
+  EXAMPLE — a lightly-scouted WR tab shows only Speed 86 and Medium Route 69 with numbers (everything else is a bare bar) →
+  the Q cell is:  Speed 86, Medium Route 69
 
 Rules for the Q cell:
-  - Just read each attribute off the tab and copy "<name> <rating>". Order does not matter; the app places each value by its name. You do NOT need to leave blanks for attributes the position lacks — only list what the tab shows.
+  - Read each attribute off the tab; copy "<name> <rating>" ONLY when a rating number is shown. Order does not matter; the app places each value by its name.
   - Use the attribute name EXACTLY as it appears, or its short code. Recognized names (code): ${attrNameRef}
-  - One Q cell per scouted player. Leave it blank for un-scouted recruits.
+  - One Q cell per scouted player. If NO attribute shows a number (or the recruit was not opened to their Attributes tab), leave the Q cell blank.
 
 ═══════════════════════════════════════════════════════════
 OUTPUT FORMAT (TSV)
 ═══════════════════════════════════════════════════════════
 === TARGETS ===
-Board row (16 fields, A→P):
-<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>
-Scouted row (17 fields — the 16 A→P fields, then the single Attributes cell Q):
-<...A→P...>\\t<Attributes, e.g. "Awareness 76, Speed 67, Tackle 80, ...">
+Every row has 17 fields (A→P, then the Q Attributes cell) = 16 tabs. Q is blank when not scouted:
+<Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>\\t<Attributes or blank>
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK
 ═══════════════════════════════════════════════════════════
-[ ] Board rows have exactly 16 tab-separated fields (15 tabs); scouted rows have 17 (the Q Attributes cell added)
+[ ] Built via csv.writer (or a length-17 asserted list) so EVERY row has exactly 17 fields = 16 tabs — no column-shift
 [ ] No header row; no commas in numbers; Stars use ☆ symbols
 [ ] B/C/D/E/I/L/M/N/O/P are literal dropdown values
 [ ] Column P is "Uncommitted" or a team name
-[ ] The Q cell is one cell of "<name> <rating>" pairs from the Attributes tab; blank when not scouted; pid/NIL never output`,
+[ ] The Q cell holds ONLY "<name> <rating>" pairs where a NUMBER was shown (bar-only attributes omitted); blank when not scouted; pid/NIL never output`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
     notes: 'Column P (Commitment): "Uncommitted" for uncommitted recruits you are still pursuing, otherwise the team abbreviation the recruit committed to (your own team\'s abbr if they committed to you). The single Attributes cell (Q) is filled ONLY from a recruit\'s player-page "Attributes" tab, never from the recruiting board — leave it blank if the recruit has not been scouted.',

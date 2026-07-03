@@ -3855,10 +3855,6 @@ export default function Dashboard() {
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: recruitingDone ? 'Edit' : 'Enter',
                 extraTools: recruitingExtraTools,
-                inlineAction: !recruitingDone && !isViewOnly ? {
-                  label: 'None yet',
-                  onClick: handleNoCommitments,
-                } : null,
               })
             }
 
@@ -4186,16 +4182,6 @@ export default function Dashboard() {
                   onAction: () => setShowRecruitingModal(true),
                   actionLabel: hasCommitmentsData ? 'Edit' : 'Log',
                   extraTools: recruitingExtraTools,
-                  // "Mark None" gives the user a one-tap way to flip the
-                  // dot green when there were genuinely no commits this
-                  // week — the modal-driven Log path saves an empty
-                  // array, which is the same end state, but this avoids
-                  // a useless trip through the modal. Only offered when
-                  // the row is still red (nothing logged yet).
-                  inlineAction: !hasCommitmentsData && !isViewOnly ? {
-                    label: 'No commits',
-                    onClick: handleNoCommitments,
-                  } : null,
                 })
               }
 
@@ -4525,10 +4511,6 @@ export default function Dashboard() {
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: recruitingDone ? 'Edit' : 'Yes',
                 extraTools: recruitingExtraTools,
-                inlineAction: !recruitingDone && !isViewOnly ? {
-                  label: 'No commits',
-                  onClick: handleNoCommitments,
-                } : null,
               })
             }
 
@@ -5403,10 +5385,7 @@ export default function Dashboard() {
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: bw1HasCommitmentsData ? 'Edit' : 'Yes',
                 extraTools: recruitingExtraTools,
-                inlineAction: !bw1HasCommitmentsData && !isViewOnly ? {
-                  label: 'No commits',
-                  onClick: handleNoCommitments,
-                } : bw1HasCommitmentsData && bw1ClassScore > 0 ? {
+                inlineAction: bw1HasCommitmentsData && bw1ClassScore > 0 ? {
                   label: `Class Score ${formatRecruitingClassScore(bw1ClassScore)}`,
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw1UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
@@ -5755,10 +5734,7 @@ export default function Dashboard() {
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: bw2HasCommitmentsData ? 'Edit' : 'Yes',
                 extraTools: recruitingExtraTools,
-                inlineAction: !bw2HasCommitmentsData && !isViewOnly ? {
-                  label: 'No commits',
-                  onClick: handleNoCommitments,
-                } : bw2HasCommitmentsData && bw2ClassScore > 0 ? {
+                inlineAction: bw2HasCommitmentsData && bw2ClassScore > 0 ? {
                   label: `Class Score ${formatRecruitingClassScore(bw2ClassScore)}`,
                   onClick: () => navigate(`${pathPrefix}/recruiting/${bw2UserTidForCommits}/${currentDynasty.currentYear}`),
                 } : null,
@@ -6539,10 +6515,7 @@ export default function Dashboard() {
               onAction: () => setShowRecruitingModal(true),
               actionLabel: w34HasCommitmentsData ? 'Edit' : 'Yes',
               extraTools: recruitingExtraTools,
-              inlineAction: !w34HasCommitmentsData && !isViewOnly ? {
-                label: 'No commits',
-                onClick: handleNoCommitments,
-              } : w34HasCommitmentsData && w34ClassScore > 0 ? {
+              inlineAction: w34HasCommitmentsData && w34ClassScore > 0 ? {
                 label: `Class Score ${formatRecruitingClassScore(w34ClassScore)}`,
                 onClick: () => navigate(`${pathPrefix}/recruiting/${w34UserTidForCommits}/${currentDynasty.currentYear}`),
               } : null,
@@ -6830,10 +6803,6 @@ export default function Dashboard() {
                   onAction: () => setShowRecruitingModal(true),
                   actionLabel: hasCommitmentsData ? 'Edit' : 'Yes',
                   extraTools: recruitingExtraTools,
-                  inlineAction: !hasCommitmentsData && !isViewOnly ? {
-                    label: 'No commits',
-                    onClick: handleNoCommitments,
-                  } : null,
                 })
               }
 
