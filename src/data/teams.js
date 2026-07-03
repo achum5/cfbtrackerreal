@@ -280,6 +280,12 @@ const NAME_ALIASES = {
   'umass': 'MASS',
   'uconn': 'CONN',
   'southern miss': 'USM',
+  // EA labels the Warhawks "UL Monroe"; the registry school name is just
+  // "Monroe" (abbr ULM), so neither "UL Monroe" nor "Louisiana Monroe" matches
+  // the name scan on its own.
+  'ul monroe': 'ULM', 'louisiana monroe': 'ULM',
+  // Sibling "UL X" form: the Ragin' Cajuns (registry school "Lafayette", abbr UL).
+  'ul lafayette': 'UL',
 }
 
 export function getTidFromTeamText(text, dynastyTeams = null) {
