@@ -3857,7 +3857,7 @@ export default function Dashboard() {
                   ? (cnt > 0
                       ? `${cnt} target${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
                       : 'No targets recorded')
-                  : 'Scout players and build your Big Board — no commitments in the preseason',
+                  : null,
                 viewTo: `${pathPrefix}/recruiting/${userTid}/${currentDynasty.currentYear}?tab=targets`,
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: recruitingDone ? 'Edit' : 'Enter',
