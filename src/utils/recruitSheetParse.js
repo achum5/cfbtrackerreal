@@ -246,6 +246,20 @@ export function parseRecruitingRow(row) {
   }
 }
 
+// Normalize a grid of raw pasted recruit rows for DISPLAY — the hook the
+// LocalDataEntry grid calls (its `normalizeRows` prop) the moment a paste lands,
+// BEFORE rendering. Without this the grid shows the raw tab-split rows
+// positionally, so a shifted paste (dropped empty Gem/Bust / Dev / Prev Team)
+// visibly puts "Uncommitted" in Prev Team and the attributes in Commit — even
+// though import would fix it. Running the SAME realignment here means the grid
+// shows the corrected columns immediately, and the serialized import matches
+// what the user sees. Idempotent (realignTail is a no-op on aligned rows), so
+// parseRecruitingRow re-running it at import is harmless.
+export function normalizeRecruitRows(rows) {
+  if (!Array.isArray(rows)) return rows
+  return rows.map((row) => (Array.isArray(row) && trim(row[0]) ? fixMisalignedRow(row) : row))
+}
+
 export function parseRecruitingRows(rows) {
   return (rows || []).map(parseRecruitingRow).filter(Boolean)
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRecruitingRow, parseRecruitingRows, ATTR_COL_START, PID_COL } from '../recruitSheetParse'
+import { parseRecruitingRow, parseRecruitingRows, normalizeRecruitRows, ATTR_COL_START, PID_COL } from '../recruitSheetParse'
 import { attributeNamesFor, mapAttributeColumns, ATTRIBUTE_COLUMNS } from '../recruitAttributes'
 
 // A legacy A–O row (15 cells), mirroring the old reader's expected input.
@@ -149,6 +149,42 @@ describe('parseRecruitingRow — recovers AI paste that drops empty Dev Trait / 
     expect(r.previousTeam).toBe('OHIO')
     expect(r.commitment).toBe('Michigan')
     expect(r.devTrait).toBe('Normal')
+  })
+})
+
+describe('normalizeRecruitRows — corrects the GRID (paste preview) in place', () => {
+  it('realigns a shifted row so Gem/Bust/Dev/PrevTeam/Commit/Attrs land in their columns', () => {
+    // Exactly the on-screen failure: a blank cell dropped slid the tail one left,
+    // so "Uncommitted" showed under Prev Team (col 14) and the attributes under
+    // Commit (col 15). The grid normalizer must fix the columns before render.
+    const shiftedGrid = [[
+      'Deon Goodin', 'HS', 'QB', 'Dual Threat', '☆☆☆', '1842', '', '',
+      "6'0\"", '181', 'Rome', 'GA', '',
+      'Uncommitted',            // 13 — really the Commitment (slid one left)
+      'Awareness 61, Speed 75', // 14 — really the Attributes
+    ]]
+    const [row] = normalizeRecruitRows(shiftedGrid)
+    expect(row[12]).toBe('')             // Gem/Bust
+    expect(row[13]).toBe('')             // Dev
+    expect(row[14]).toBe('')             // Prev Team
+    expect(row[15]).toBe('Uncommitted')  // Commit
+    expect(row[16]).toBe('Awareness 61, Speed 75') // Attributes
+  })
+
+  it('leaves an already-aligned Hidden-dev row untouched', () => {
+    const alignedGrid = [[
+      'Karlos Spruce', 'HS', 'REDG', 'Power Rusher', '☆☆☆', '1856', '', '',
+      "6'5\"", '251', 'Harvest', 'AL', '', 'Hidden', '', 'Uncommitted', 'Hit Power 87',
+    ]]
+    const [row] = normalizeRecruitRows(alignedGrid)
+    expect(row[13]).toBe('Hidden')
+    expect(row[15]).toBe('Uncommitted')
+    expect(row[16]).toBe('Hit Power 87')
+  })
+
+  it('is a safe pass-through for empty / nameless rows', () => {
+    expect(normalizeRecruitRows([[''], ['  ']])).toEqual([[''], ['  ']])
+    expect(normalizeRecruitRows(null)).toBe(null)
   })
 })
 

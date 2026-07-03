@@ -23,6 +23,7 @@ import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
+import { normalizeRecruitRows } from '../utils/recruitSheetParse'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
@@ -567,6 +568,7 @@ FINAL CHECK
             importLabel="Import Recruits"
             columns={RECRUIT_PASTE_COLUMNS}
             columnOptions={RECRUIT_COLUMN_OPTIONS}
+            normalizeRows={normalizeRecruitRows}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
