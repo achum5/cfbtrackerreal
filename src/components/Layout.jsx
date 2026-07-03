@@ -9,6 +9,7 @@ import { TEAMS, getCurrentTeamAbbr, getCurrentTeamTid, getCurrentTeamName } from
 import { isCfb27 } from '../editions'
 import { warmScoutScoresForDynasty } from '../utils/scoutScore'
 import ClassAdvancementModal from './ClassAdvancementModal'
+import CloudSyncBanner from './CloudSyncBanner'
 import DynastyMigrationModal from './DynastyMigrationModal'
 import { needsV2Migration, isCleanButUnstamped } from '../data/migrateDynastyV2'
 import { useToast, useConfirm } from './ui'
@@ -970,6 +971,11 @@ export default function Layout({ children }) {
           </div>
         )}
       </main>
+
+      {/* Cloud sync health — a fixed banner that appears only when a write
+          hasn't reached the server, so a wedged connection is visible instead
+          of silently diverging. Renders nothing when synced. */}
+      <CloudSyncBanner />
 
       {/* Version Footer - tracked editorial treatment, hairline rule above. */}
       <footer

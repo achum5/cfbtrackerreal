@@ -19,11 +19,21 @@
 // A write that REJECTS quickly (permission-denied, validation) still rejects
 // before the timeout, so genuine errors continue to surface to the caller's
 // catch — this only short-circuits the "pending forever" case.
+import { trackWriteBegin, trackWriteResolved, trackWriteFailed } from './cloudSyncStatus'
+
 export function settleOrProceed(promise, ms = 10000, label = 'write') {
   const p = Promise.resolve(promise)
-  // Terminal handler so a rejection that lands AFTER we've already proceeded on
-  // timeout never becomes an unhandledrejection.
-  p.catch(() => {})
+  // Report this write to the sync-status store so a wedged connection (an ack
+  // that never arrives) surfaces as a visible "not synced to cloud" banner
+  // instead of silently diverging. Resolution = the server actually acked;
+  // rejection = a genuine error. This .then also serves as the terminal handler
+  // so a rejection that lands AFTER we've proceeded on timeout never becomes an
+  // unhandledrejection.
+  const writeId = trackWriteBegin(label)
+  p.then(
+    () => trackWriteResolved(writeId),
+    (err) => trackWriteFailed(writeId, err),
+  )
   let timer
   return Promise.race([
     p.then((v) => { clearTimeout(timer); return v }),
