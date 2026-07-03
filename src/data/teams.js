@@ -286,6 +286,11 @@ const NAME_ALIASES = {
   'ul monroe': 'ULM', 'louisiana monroe': 'ULM',
   // Sibling "UL X" form: the Ragin' Cajuns (registry school "Lafayette", abbr UL).
   'ul lafayette': 'UL',
+  // EA's current in-game name for the Ragin' Cajuns is just "Louisiana" (the
+  // registry school is "Lafayette", abbr UL). Two-word forms — "Louisiana Tech"
+  // and "Louisiana State" — resolve by exact school name BEFORE this alias is
+  // consulted, so this only catches the bare, otherwise-unresolvable "Louisiana".
+  'louisiana': 'UL',
 }
 
 export function getTidFromTeamText(text, dynastyTeams = null) {
