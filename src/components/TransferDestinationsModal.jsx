@@ -121,11 +121,11 @@ CRITICAL RULES — read before anything else
 5. NEVER use full team names ("Alabama"), nicknames ("Crimson Tide"), mascots ("Tide"), city names, or conference names. The column is a STRICT dropdown — wrong spelling / wrong casing / free text will be silently rejected.
 6. Team names must match the TEAM NAMES list below exactly.
 7. BLANK LINE if the destination is unknown — leave the line empty (an empty string between two newlines). Do NOT guess, NOT use "UNK", "N/A", "TBD", or "-".
-8. No header row, no commentary or explanation INSIDE the data, no totals. The paste-target label above the fence is required (see TSV delivery rules above).
+8. No header row, no commentary or explanation INSIDE the data, no totals.
 9. If the screenshot shows the player has withdrawn / is no longer transferring, leave that line blank.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Transfer Destinations" — paste at cell B2 of the "Transfer Destinations" tab
+SECTION: "Transfer Destinations"
 ═══════════════════════════════════════════════════════════
 
 Column layout:
@@ -144,7 +144,7 @@ Leave the line BLANK if the destination is not visible/known in the screenshots 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== TRANSFER DESTINATIONS — paste at cell B2 of "Transfer Destinations" tab ===
+=== TRANSFER DESTINATIONS ===
 <team name or blank>
 <team name or blank>
 <team name or blank>
@@ -158,7 +158,7 @@ FINAL CHECK before you send
 [ ] No full team names, nicknames, mascots, cities, conferences
 [ ] No tabs, no commas, no other columns
 [ ] Blank lines used for unknown destinations — nothing invented, no "UNK"/"N/A"/"TBD"
-[ ] No header row, no commentary INSIDE the data, no totals (the paste-target label above the fence is required, see TSV delivery rules above)`,
+[ ] No header row, no commentary INSIDE the data, no totals`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, userRoster, currentDynasty?.teams])

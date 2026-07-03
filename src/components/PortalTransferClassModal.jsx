@@ -131,7 +131,7 @@ CRITICAL OUTPUT RULES
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== PORTAL TRANSFERS — paste at cell D2 of "Portal Transfers" tab ===
+=== PORTAL TRANSFERS ===
 <class for Row 2 player>\\t<jersey # for Row 2 player>
 <class for Row 3 player>\\t<jersey # for Row 3 player>
 …exactly ${n} line${n !== 1 ? 's' : ''}

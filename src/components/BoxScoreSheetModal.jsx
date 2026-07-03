@@ -427,7 +427,7 @@ export default function BoxScoreSheetModal({
         opponentRosterLabel: homeScoringFallback
           ? `${homeTeamAbbr} KNOWN PLAYERS (extracted from this game's scoring plays — no full roster available; use for team-assignment)`
           : `${homeTeamAbbr} ROSTER (for team-assignment, see below)`,
-        structure: `This is an OCR task: extract structured data from images into TSV. Output the full play-by-play of this game as 13-col TSV — one row per highlight line, chronological order (earliest first). Paste target: cell A2 of the "Scoring Summary" tab.
+        structure: `This is an OCR task: extract structured data from images into TSV. Output the full play-by-play of this game as 13-col TSV — one row per highlight line, chronological order (earliest first).
 
 ═══════════════════════════════════════════════════════════
 USE CODE EXECUTION — NOT MANUAL TAB COUNTING
@@ -890,7 +890,7 @@ The user pastes a screenshot of CFB26's post-game Scoring Summary page. Each ent
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
 ═══════════════════════════════════════════════════════════
-1. Output ALL 9 columns (A through I) per row, paste at cell A2. The sheet has no pre-filled data rows — you fill everything below the header.
+1. Output ALL 9 columns (A through I) per row. The sheet has no pre-filled data rows — you fill everything below the header.
 2. ONE ROW PER SCORING PLAY, in chronological order (earliest quarter / latest game-clock time first). PAT attempts are NOT separate rows — they collapse into the TD row via column F (PAT Result).
 3. Output AT MOST 30 rows. Leave remaining rows blank (do not output them at all — just stop).
 4. NO COMMAS in numbers. "24" never "1,234".
@@ -898,11 +898,10 @@ CRITICAL RULES — read before anything else
 6. Use ONLY the literal dropdown values listed below for columns A, E, F, G. Strict dropdowns — wrong value is rejected.
 7. BLANK CELLS only for genuinely missing/illegible data. NEVER use "N/A". This sheet uses empty string, NOT "N/A", for plays without a PAT.
 8. EVERY scoring play in the screenshot must produce one row, and that row's column B (Scorer) MUST be filled with the name from the screenshot — for BOTH teams equally. Output is rejected if it skips opponent scorers.
-9. No header row, no commentary or explanation INSIDE the data. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
+9. No header row, no commentary or explanation INSIDE the data. ONE TSV block.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Scoring Summary" — up to 30 rows × 9 columns
-Paste your block at cell A2 of the "Scoring Summary" tab
+SECTION: "Scoring Summary" — up to 30 rows × 9 columns
 ═══════════════════════════════════════════════════════════
 
 Col | Header       | Format / Allowed values
@@ -945,7 +944,7 @@ PAT Result rules:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== SCORING SUMMARY — paste at cell A2 of "Scoring Summary" tab ===
+=== SCORING SUMMARY ===
 <Team>\\t<Scorer>\\t<Passer>\\t<Yards>\\t<Score Type>\\t<PAT Result>\\t<Quarter>\\t<Time Left>\\t<Video Link>
 ... one row per scoring play, chronological
 
@@ -993,7 +992,7 @@ At the top of every CFB26 Team Stats screenshot, the away team's logo+abbr appea
 CRITICAL RULES — non-negotiable
 ═══════════════════════════════════════════════════════════
 1. EXACTLY 30 rows of output. Count them before you send.
-2. EACH row = "<away>\\t<home>" — exactly ONE tab character per line. No header row, no labels, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
+2. EACH row = "<away>\\t<home>" — exactly ONE tab character per line. No header row, no labels, no commentary INSIDE the data.
 3. Row order is FIXED — see the 30-row table below. Row 1 = First Downs, row 2 = Total Offense, …, row 30 = Poss Seconds. Never reorder, skip, or add.
 4. Use INTEGERS everywhere EXCEPT row 26 (Punt Avg), which is a one-decimal number like 42.7.
 5. NO COMMAS in numbers ("1234", never "1,234"). NO percent signs. NO units.
@@ -1141,10 +1140,10 @@ If the screenshots showed (away → home):
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== TEAM STATS — paste at cell B2 of "Team Stats" tab ===
+=== TEAM STATS ===
 <row1 away>\\t<row1 home>
 <row2 away>\\t<row2 home>
-... (30 total rows, in the exact order above, no header inside the data, no commentary inside the data — the paste-target label above the fence is required, see TSV delivery rules above)
+... (30 total rows, in the exact order above, no header inside the data, no commentary inside the data)
 
 ═══════════════════════════════════════════════════════════
 SELF-CHECK BEFORE YOU SEND — run every line
@@ -1179,7 +1178,7 @@ SELF-CHECK BEFORE YOU SEND — run every line
     return buildAIPrompt({
       title: `${baseTitle} — ${teamAbbr} Player Stats`,
       roster: playerStatsRoster,
-      structure: `This Google Sheet has a tab named "${AI_UNIFIED_TAB.title}" that holds EVERY stat category for the ${teamAbbr} team in one place. Produce ONE tab-separated block that the user pastes at cell A1 of that tab. Stats are for the ${teamAbbr} team ONLY (opponent: ${opponentAbbrLabel}). Never include opponent players.
+      structure: `This Google Sheet has a tab named "${AI_UNIFIED_TAB.title}" that holds EVERY stat category for the ${teamAbbr} team in one place. Produce ONE tab-separated block. Stats are for the ${teamAbbr} team ONLY (opponent: ${opponentAbbrLabel}). Never include opponent players.
 
 ════════════════════════════════════════════════════════════
 THE OUTPUT: 9 SECTIONS, IN ORDER
@@ -1199,7 +1198,7 @@ This is the whole trick, and why it now works reliably:
   - The next banner comes immediately after the previous section's last data row. No blank separator rows anywhere.
   - Every DATA row has EXACTLY as many tab-separated columns as that section's HEADER. Column order is FIXED, never reorder.
 
-Output the entire block once (a fenced code block is fine so the tab characters survive copy-paste). Apart from the required paste-target label line, output nothing else: no preamble, no "here is the output", no trailing notes.
+Output the entire block once (a fenced code block is fine so the tab characters survive copy-paste). Output nothing else: no preamble, no "here is the output", no trailing notes.
 
 ════════════════════════════════════════════════════════════
 HOW TO READ THE GAME SCREENSHOTS
@@ -1245,7 +1244,7 @@ FINAL CHECK before you send
 [ ] Every DATA row has the right column count for its section, with no commas and only the allowed decimals.
 [ ] Every player is a ${teamAbbr} player${hasRoster ? ', named to match the roster' : ''} (no "#12", no "J. Smith").
 [ ] No blank separator rows, no padding rows, no zero-filled rows for players who did not appear.
-[ ] The output is just the paste-target label line and the one block, nothing else.`,
+[ ] The output is just the one block, nothing else.`,
       includeTeamMap: true,
       dynastyTeams: currentDynasty?.teams,
     })

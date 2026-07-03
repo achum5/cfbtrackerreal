@@ -105,10 +105,10 @@ CRITICAL RULES — read before anything else
 5. PID is an INTEGER (no decimal point) OR blank. NEVER invent a PID. If you do not see a PID on the screenshot, leave that cell blank — the app will match by player name for new rows. Wrong PIDs will cause silent data corruption.
 6. BLANK CELL for any year the player was NOT on a roster that season — leave empty (two tabs in a row). Do NOT use "-", "N/A", "None", or "FA".
 7. Team columns: use ONLY the team names from the TEAM NAMES list below (e.g. Alabama, Ohio State, Georgia). NEVER an abbreviation, nickname, or mascot. Match the team name exactly as written in the TEAM NAMES list.
-8. No header row, no totals, no commentary INSIDE the data, no blank separator rows. The paste-target label above the fence is required (see TSV delivery rules above).
+8. No header row, no totals, no commentary INSIDE the data, no blank separator rows.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Roster History" — paste at cell A2 of the "Roster History" tab
+SECTION: "Roster History"
 ═══════════════════════════════════════════════════════════
 
 Column layout, tab-separated:
@@ -128,7 +128,7 @@ A blank cell means "not on any roster that year" (e.g. pre-enrollment year, tran
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== ROSTER HISTORY — paste at cell A2 of "Roster History" tab ===
+=== ROSTER HISTORY ===
 <Player Name>\t<PID or blank>\t${years.map(y => `<${y} team name or blank>`).join('\t')}
 <Player Name>\t<PID or blank>\t${years.map(y => `<${y} team name or blank>`).join('\t')}
 …one line per player
@@ -137,7 +137,7 @@ REQUIRED OUTPUT FORMAT
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every line has exactly ${2 + years.length} tab-separated columns (${1 + years.length} tab characters)
-[ ] No header row, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
+[ ] No header row, no commentary INSIDE the data
 [ ] PID column is either an integer from the screenshot, or BLANK — never invented
 [ ] No commas in any cell
 [ ] All team values are exact names from the list below

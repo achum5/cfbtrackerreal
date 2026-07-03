@@ -138,34 +138,34 @@ Field formats:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT (one labeled block per conference tab)
 ═══════════════════════════════════════════════════════════
-=== Big Ten — paste at cell A4 of "Big Ten" tab ===
+=== Big Ten ===
 <25 lines × 12 tab-separated fields>
 
-=== SEC — paste at cell A4 of "SEC" tab ===
+=== SEC ===
 <25 lines × 12 tab-separated fields>
 
-=== Big 12 — paste at cell A4 of "Big 12" tab ===
+=== Big 12 ===
 <25 lines × 12 tab-separated fields>
 
-=== ACC — paste at cell A4 of "ACC" tab ===
+=== ACC ===
 <25 lines × 12 tab-separated fields>
 
-=== Pac-12 — paste at cell A4 of "Pac-12" tab ===
+=== Pac-12 ===
 <25 lines × 12 tab-separated fields>
 
-=== Mountain West — paste at cell A4 of "Mountain West" tab ===
+=== Mountain West ===
 <25 lines × 12 tab-separated fields>
 
-=== American — paste at cell A4 of "American" tab ===
+=== American ===
 <25 lines × 12 tab-separated fields>
 
-=== Sun Belt — paste at cell A4 of "Sun Belt" tab ===
+=== Sun Belt ===
 <25 lines × 12 tab-separated fields>
 
-=== Conference USA — paste at cell A4 of "Conference USA" tab ===
+=== Conference USA ===
 <25 lines × 12 tab-separated fields>
 
-=== MAC — paste at cell A4 of "MAC" tab ===
+=== MAC ===
 <25 lines × 12 tab-separated fields>
 
 (If the user's sheet has custom conferences, output one labeled block per tab that actually exists, using the exact tab name in the label.)
@@ -182,7 +182,7 @@ FINAL CHECK before you send
 [ ] All Freshman-team Class values are Fr or RS Fr
 [ ] All Team values are uppercase names from the list — and each team is a member of THIS tab's conference
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see TSV delivery rules above).`,
+[ ] No commas, no header rows, no commentary INSIDE the data. The only non-data lines are the === <SECTION> === labels above each fence.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

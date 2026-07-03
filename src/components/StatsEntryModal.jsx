@@ -224,13 +224,11 @@ CRITICAL OUTPUT RULES
    tabs). Never guess. Never use 0 as "unknown" — 0 means "the player
    genuinely had zero snaps / zero games played".
 9. NO COMMAS in numbers: "1234" not "1,234".
-10. No header row, no totals, no commentary INSIDE the data. ONE TSV
-    block, preceded by the required paste-target label line above the
-    fence (see TSV delivery rules above).
+10. No header row, no totals, no commentary INSIDE the data. Output
+    ONLY the fenced tsv block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB: "GP/Snaps"
-Paste at cell A2 of the "GP/Snaps" tab
+SECTION: "GP/Snaps"
 ═══════════════════════════════════════════════════════════
 
 Col | Header (protected)  | Your output                                                                 | Format
@@ -242,7 +240,7 @@ Col | Header (protected)  | Your output                                         
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== GP/SNAPS — paste at cell A2 of "GP/Snaps" tab ===
+=== GP/SNAPS ===
 <Player>\\t<Games Played>\\t<Snaps Played>
 <Player>\\t<Games Played>\\t<Snaps Played>
 ...
@@ -261,7 +259,7 @@ FINAL CHECK before you send
 [ ] Games Played is the literal value from the GP column (any view)
 [ ] No snap counts SUMMED across categories — would double-count
 [ ] No commas in any number; no decimals; no "snaps"/"games" suffix
-[ ] No header row, no totals, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)`,
+[ ] No header row, no totals, no commentary INSIDE the data`,
     includeTeamMap: false,
   }), [currentYear, userRoster])
 

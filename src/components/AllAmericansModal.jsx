@@ -128,14 +128,13 @@ CRITICAL RULES — read before anything else
 6. BLANK field for unknown (empty between tabs). Never guess. Never invent players.
 7. Use ONLY the literal dropdown values listed below for Position, Team, and Class — wrong spelling = dropdown rejects it.
 8. Team values must be team names from the list at the bottom of this prompt — NEVER an abbreviation, nickname, or city.
-9. ONE TSV block, 25 lines, 12 tab-separated fields each — preceded by the required paste-target label line above the fence (see TSV delivery rules above).
+9. ONE TSV block, 25 lines, 12 tab-separated fields each.
 
 ═══════════════════════════════════════════════════════════
-TAB "${currentYear}" — 25 data rows × 12 fields
-Paste at cell A4 of the "${currentYear}" tab
+SECTION: "${currentYear}" — 25 data rows × 12 fields
 ═══════════════════════════════════════════════════════════
 
-WHY PASTE AT A4 AND INCLUDE POSITIONS: Google Sheets pastes TSV into CONSECUTIVE cells. You cannot "skip" columns E and I — every tab in your line fills the next cell. To land data in the correct columns (B/C/D for First-Team, F/G/H for Second, J/K/L for Freshman), you MUST include the Position value in cols A/E/I. The Position value you output simply overwrites the pre-filled Position with the identical value from the list below. If you try to skip positions and paste at B4 with only 9 fields, your data will be shifted left across the middle and right blocks — CORRUPT.
+WHY INCLUDE POSITIONS IN ALL THREE SLOTS: each line has three side-by-side team blocks (First-Team, Second-Team, Freshman Team), and repeating the Position value in the 1st, 5th, and 9th fields keeps the three blocks aligned. If you drop the position fields and output only 9 fields, the middle and right blocks shift left and the data is CORRUPT.
 
 Position by row (repeat the same value in the 1st, 5th, 9th fields of that line):
   Row 4  → QB
@@ -182,7 +181,7 @@ Field formats:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== ALL-AMERICANS — paste at cell A4 of "${currentYear}" tab ===
+=== ALL-AMERICANS ===
 <25 lines × 12 tab-separated fields, positions as listed above>
 
 ═══════════════════════════════════════════════════════════
@@ -195,7 +194,7 @@ FINAL CHECK before you send
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Freshman-team Class values are Fr or RS Fr (no Sophomores or above in Freshman slot)
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No commas, no header rows, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
+[ ] No commas, no header rows, no commentary INSIDE the data.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

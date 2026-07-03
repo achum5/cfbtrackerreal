@@ -291,12 +291,11 @@ CRITICAL RULES — read before anything else
 6. TEAM NAMES ONLY (columns B and D) — use the TEAM NAMES list below. Columns B and D are strict dropdowns.
 7. RANKS (columns C and E): integer 1–25 if the team is ranked at the time of the bowl, BLANK if unranked. Rankings appear as a number prefix on the team name in the scores list (e.g. "4 Alabama" = Alabama is #4). No prefix = unranked = leave blank. Never write "NR" or "—".
 8. BLANK CELLS if unknown. Never guess, never use "N/A", "TBD", dash. Zero is only valid if the team truly scored zero.
-9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
-10. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
+9. No header row, no Bowl Game text, no winner column, no commentary INSIDE the data.
+10. ONE TSV block — output ONLY the fenced block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Bowl Games" — ${13 - excludedBowlGames.length} rows × 6 editable columns
-Paste your block at cell B2 of the "Bowl Games" tab
+SECTION: "Bowl Games" — ${13 - excludedBowlGames.length} rows × 6 editable columns
 ═══════════════════════════════════════════════════════════
 
 ═══════════════════════════════════════════════════════════
@@ -380,8 +379,7 @@ For each team in this block, output ONE row:
   • Cols D–G = leave blank
 
 Format: <TeamAbbr>\\t<Rank>\\t\\t\\t\\t
-(team, tab, rank, then 4 blank tabs — NO leading tab. The block pastes at
-cell B2, so the team lands in Col B and the rank in Col C; Col A stays blank.)
+(team, tab, rank, then 4 blank tabs — NO leading tab.)
 
 Only list teams that WERE ranked in the Prior-Week Top 25 above. If every
 ranked team already shows its AP rank on a regular bowl row, emit NO rows
@@ -391,7 +389,7 @@ do NOT invent rankings.
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== BOWL GAMES — paste at cell B2 of "Bowl Games" tab ===
+=== BOWL GAMES ===
 <row1 Team1>\\t<row1 T1Rank>\\t<row1 Team2>\\t<row1 T2Rank>\\t<row1 T1Score>\\t<row1 T2Score>
 <row2 Team1>\\t<row2 T1Rank>\\t<row2 Team2>\\t<row2 T2Rank>\\t<row2 T1Score>\\t<row2 T2Score>
 ... (one row per bowl in the screenshot, in the screenshot's alphabetical order)
@@ -417,7 +415,7 @@ FINAL CHECK before you send the answer
 [ ] No team appears in BOTH a REGULAR bowl row and the bottom block — regular-bowl teams' AP ranks live on their game row only
 [ ] Bottom-block rows have blank Col A, team abbr in Col B, rank in Col C
 [ ] Regular-bowl game-row ranks + bottom-block ranks together cover 1–25 — no gaps, no duplicates, no collisions
-[ ] No header row, no bowl name text, no winner column INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
+[ ] No header row, no bowl name text, no winner column INSIDE the data.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams, excludedBowlGames, prevWeekTop25Block, bw2RowTable])

@@ -95,11 +95,10 @@ CRITICAL RULES
    Concretely: field1 = CoachName, field2 = TeamAbbr, field3 = EMPTY, field4 = EMPTY.
    NEVER put the team in field 3 or 4 on a coach row — the team must land in column C (the merge anchor); fields 3 and 4 are merged-away cells D and E and MUST be empty.
    NEVER output the coach-row pattern for any other row. All 20 non-coach rows MUST output 4 fields: Player<TAB>Position<TAB>Team<TAB>Class.
-8. ONE TSV block total — exactly 22 lines, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
+8. ONE TSV block total — exactly 22 lines, preceded by its "=== AWARDS ===" label above the fence.
 
 ═══════════════════════════════════════════════════════════
-TAB "${currentYear}" — 22 rows × 4 output columns
-Paste at cell B2 of the "${currentYear}" tab
+SECTION "${currentYear}" — 22 rows × 4 output columns
 ═══════════════════════════════════════════════════════════
 
 Row-by-row map. Output line N corresponds to sheet row N+1.
@@ -147,7 +146,7 @@ Field formats:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== AWARDS — paste at cell B2 of "${currentYear}" tab ===
+=== AWARDS ===
 <line 1, row 2,  Heisman:                   Player\\tPosition\\tTeam\\tClass>
 <line 2, row 3,  Maxwell:                   Player\\tPosition\\tTeam\\tClass>
 <line 3, row 4,  Walter Camp:               Player\\tPosition\\tTeam\\tClass>     ← PLAYER AWARD — do NOT emit a coach name here
@@ -183,7 +182,7 @@ FINAL CHECK before you send
 [ ] All Class values are from the exact list: Fr, RS Fr, So, RS So, Jr, RS Jr, Sr, RS Sr
 [ ] All Team values are team names from the TEAM NAMES list
 [ ] Blank fields for unknowns — nothing was invented
-[ ] No award name, header row, commas, commentary, or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
+[ ] No award name, header row, commas, commentary, or explanation INSIDE the data.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

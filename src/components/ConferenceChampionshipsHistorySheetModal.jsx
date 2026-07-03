@@ -204,8 +204,7 @@ export default function ConferenceChampionshipsHistorySheetModal({ isOpen, onClo
 
     const yearBlocks = promptYears.map(year => `
 ═══════════════════════════════════════════════════════════
-TAB "${year} Conference Championships" — ${totalRows} rows × 4 output columns
-Paste at cell B2 of the "${year} Conference Championships" tab
+SECTION: "${year} Conference Championships" — ${totalRows} rows × 4 output columns
 ═══════════════════════════════════════════════════════════
 
 Column A is pre-filled with these ${totalRows} conferences in this EXACT order. Match line-for-line:
@@ -220,7 +219,7 @@ ${buildMembershipBlock(year)}
 Per-line output (4 tab-separated fields):
 <Team 1 Abbr>\\t<Team 2 Abbr>\\t<Team 1 Score>\\t<Team 2 Score>
 
-=== ${year} CONFERENCE CHAMPIONSHIPS — paste at cell B2 of "${year} Conference Championships" tab ===
+=== ${year} CONFERENCE CHAMPIONSHIPS ===
 ${perTabOutput}
 `).join('\n')
 
@@ -246,7 +245,7 @@ CRITICAL RULES — read before anything else
 5. BLANK LINE (empty, no tabs) if you do not know the CC result for a conference for that year. Never guess. Never invent scores. The blank still counts as that conference's line — keep position so all later lines stay aligned.
 6. Team 1 and Team 2 must BOTH be members of the conference for that row, ACCORDING TO THE PER-YEAR CONFERENCE MEMBERSHIP BLOCK BELOW — not according to real-world conferences. Users realign teams (e.g. Missouri and Georgia could be in the Pac-12 in this dynasty). Look every team up in the membership block for that year before you write it.
 7. Both teams must use team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
-8. ONE block per year tab. Each block is preceded by its own paste-target label (TSV delivery rules above).
+8. ONE block per year tab.
 
 Order of conferences (same for every year): ${orderListInline}.
 ${yearBlocks}
@@ -263,7 +262,7 @@ FINAL CHECK before you send
 [ ] All team values are uppercase names from the list — no full names
 [ ] All scores are integers with no commas and no decimals
 [ ] Blank entire lines for unknown results — nothing invented (still keeps the line position)
-[ ] No Conference name, no header row, no commentary INSIDE the data. Paste-target labels live OUTSIDE each fence.`,
+[ ] No Conference name, no header row, no commentary INSIDE the data. The only non-data lines are the \`=== <SECTION> ===\` labels above each fence.`,
       includeTeamMap: true,
       dynastyTeams: currentDynasty?.teams,
     })

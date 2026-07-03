@@ -37,7 +37,7 @@ export function buildAttributesStructure(kind = 'training') {
   const ovrSource = kind === 'recruits'
     ? "the recruit's projected/known Overall"
     : "the player's CURRENT overall AFTER training (the OVR shown in the screenshot)"
-  return `This sheet has ONE tab. The user pastes your output at cell A2; the app matches rows by PLAYER NAME, so row order does not matter. Output ONE row for ${who}.
+  return `The user pastes your output straight into the app; it matches rows by PLAYER NAME, so row order does not matter. Output ONE row for ${who}.
 
 OUTPUT 4 TAB-SEPARATED COLUMNS per row:
   Player<TAB>Position<TAB>OVR<TAB>Attributes
@@ -64,7 +64,7 @@ RULES:
 3. One row per roster/recruit player. Use the FULL name from the block below.
 4. NEVER GUESS. Omit a rating (or leave OVR blank) when it isn't visible.
 
-REQUIRED OUTPUT FORMAT — one fenced \`\`\`tsv block, preceded by the paste-target label line (see TSV delivery rules above):
+REQUIRED OUTPUT FORMAT — one fenced \`\`\`tsv block, nothing else (see TSV delivery rules above):
 \`\`\`tsv
 Alex Guess	QB	90	AWR 92, SPD 84, ACC 86, STR 78, THP 95, SAC 90, MAC 88, DAC 86
 Jaylen Miller	HB	82	AWR 80, SPD 93, ACC 94, CAR 90, BTK 85, JKM 88, BCV 84, CTH 70

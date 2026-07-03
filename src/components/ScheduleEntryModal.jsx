@@ -91,12 +91,11 @@ CRITICAL RULES — read before anything else
 7. BYE WEEKS: If the user has a bye that week, put "BYE" in column C and leave column D BLANK.
 8. BLANK CELLS if the matchup is unknown. Never guess, never use "N/A", "TBD", dash. Never leave column C blank if a game is scheduled — fill the opponent or "BYE".
 9. Never change or output the User Team (column B is pre-filled with ${targetTeamName} on every row).
-10. No header row, no Week numbers, no scores, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
-11. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
+10. No header row, no Week numbers, no scores, no commentary or explanation INSIDE the data.
+11. Output ONLY the fenced tsv block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Schedule" — 16 rows × 2 editable columns
-Paste your block at cell C2 of the "Schedule" tab
+SECTION: "Schedule" — 16 rows × 2 editable columns
 ═══════════════════════════════════════════════════════════
 
 Row | Col A (PROTECTED) | Col B (PROTECTED)    | Col C (CPU Team)                             | Col D (Site)
@@ -157,7 +156,7 @@ FINAL CHECK before you send the answer
 [ ] Exactly 3 tab-separated values per row (2 tab characters): Week number, then CPU Team, then Site
 [ ] Field 2 (CPU Team): team name from the list, or the literal "BYE", or blank
 [ ] Field 3 (Site): EXACTLY "Home", "Road", or "Neutral" — not "Away", not any other value; blank on bye weeks
-[ ] No score columns, no user team column, no header row INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
+[ ] No score columns, no user team column, no header row INSIDE the data
 [ ] Blank CPU Team / Site only where the week's matchup is genuinely unknown — invented nothing`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,

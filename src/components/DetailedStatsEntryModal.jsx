@@ -257,7 +257,7 @@ CRITICAL RULES — read before anything else
 1. Output stat columns ONLY (column C onward). NEVER output column A (Name) or column B (Snaps). NEVER output the header row.
 2. ROW ORDER IS FIXED per tab. Produce exactly one output line per pre-filled player row on that tab, in the SAME ORDER as column A. Do NOT reorder, skip, or add rows.
 3. Tab-separated values within a line. Each tab has a FIXED number of stat columns (see spec per tab below); every line must have EXACTLY that many values (that many commas-are-not-allowed; that many values separated by tabs).
-4. Return NINE separate blocks, one per tab — each preceded by the required paste-target label line above its fence (e.g. "Paste this TSV into cell C2 of the \"Passing\" tab"), as required by the TSV delivery rules above.
+4. Return NINE separate blocks, one per tab — each preceded by its "=== <SECTION> ===" label line above its fence.
 5. NO COMMAS in numbers. "1234" never "1,234". No quotes, no units, no "+/-", no percent signs.
 6. INTEGERS have no decimal point, with these EXCEPTIONS:
    • Passing columns H (Net Yards/Attempt) and I (Adj Net Yards/Attempt) use 1 decimal place.
@@ -265,11 +265,10 @@ CRITICAL RULES — read before anything else
    Every other column on every tab is an integer.
 7. BLANK cell for unknown values — never guess, never use 0, "-", or "N/A". To emit a blank cell between two tab characters, just have nothing between the tabs. To emit a blank line for a player with no visible stats, output the correct number of empty tab-separated cells (that is, N-1 tab characters with nothing between them).
 8. Only the positions listed per tab appear on that tab. Do NOT include quarterbacks on Receiving, for example.
-9. No commentary, no totals, no header row INSIDE the data. Nine TSV blocks, each preceded by the required paste-target label line above its fence (see TSV delivery rules above).
+9. No commentary, no totals, no header row INSIDE the data. Nine TSV blocks, each preceded by its "=== <SECTION> ===" label line above its fence.
 
 ═══════════════════════════════════════════════════════════
 TAB 1: "Passing" — positions filtered to QB only
-Paste at cell C2 of the "Passing" tab
 ═══════════════════════════════════════════════════════════
 9 stat columns (C–K), in this EXACT order:
   C  Completions                    integer
@@ -285,7 +284,6 @@ Each line: 9 tab-separated values (8 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 2: "Rushing" — positions: QB, HB, FB, WR, TE
-Paste at cell C2 of the "Rushing" tab
 ═══════════════════════════════════════════════════════════
 8 stat columns (C–J), in this EXACT order:
   C  Carries                        integer
@@ -300,7 +298,6 @@ Each line: 8 tab-separated values (7 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 3: "Receiving" — positions: HB, FB, WR, TE
-Paste at cell C2 of the "Receiving" tab
 ═══════════════════════════════════════════════════════════
 6 stat columns (C–H), in this EXACT order:
   C  Receptions                     integer
@@ -313,7 +310,6 @@ Each line: 6 tab-separated values (5 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 4: "Blocking" — positions: LT, LG, C, RG, RT
-Paste at cell C2 of the "Blocking" tab
 ═══════════════════════════════════════════════════════════
 2 stat columns (C–D), in this EXACT order:
   C  Pancakes                       integer
@@ -322,7 +318,6 @@ Each line: 2 tab-separated values (1 tab character).
 
 ═══════════════════════════════════════════════════════════
 TAB 5: "Defensive" — positions: LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS
-Paste at cell C2 of the "Defensive" tab
 ═══════════════════════════════════════════════════════════
 15 stat columns (C–Q), in this EXACT order:
   C  Solo Tackles                   integer
@@ -344,7 +339,6 @@ Each line: 15 tab-separated values (14 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 6: "Kicking" — positions: K, P
-Paste at cell C2 of the "Kicking" tab
 ═══════════════════════════════════════════════════════════
 17 stat columns (C–S), in this EXACT order:
   C  FG Made                        integer
@@ -368,7 +362,6 @@ Each line: 17 tab-separated values (16 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 7: "Punting" — positions: K, P
-Paste at cell C2 of the "Punting" tab
 ═══════════════════════════════════════════════════════════
 7 stat columns (C–I), in this EXACT order:
   C  Punts                          integer
@@ -382,7 +375,6 @@ Each line: 7 tab-separated values (6 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 8: "Kick Return" — positions: HB, FB, WR, CB, FS, SS
-Paste at cell C2 of the "Kick Return" tab
 ═══════════════════════════════════════════════════════════
 4 stat columns (C–F), in this EXACT order:
   C  Kickoff Returns                integer
@@ -393,7 +385,6 @@ Each line: 4 tab-separated values (3 tab characters).
 
 ═══════════════════════════════════════════════════════════
 TAB 9: "Punt Return" — positions: HB, FB, WR, CB, FS, SS
-Paste at cell C2 of the "Punt Return" tab
 ═══════════════════════════════════════════════════════════
 4 stat columns (C–F), in this EXACT order:
   C  Punt Returns                   integer
@@ -414,40 +405,40 @@ Each line: 4 tab-separated values (3 tab characters).
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== PASSING — paste at cell C2 of "Passing" tab ===
+=== PASSING ===
 <9 tab-separated values>
 <9 tab-separated values>
 ...
 
-=== RUSHING — paste at cell C2 of "Rushing" tab ===
+=== RUSHING ===
 <8 tab-separated values>
 ...
 
-=== RECEIVING — paste at cell C2 of "Receiving" tab ===
+=== RECEIVING ===
 <6 tab-separated values>
 ...
 
-=== BLOCKING — paste at cell C2 of "Blocking" tab ===
+=== BLOCKING ===
 <2 tab-separated values>
 ...
 
-=== DEFENSIVE — paste at cell C2 of "Defensive" tab ===
+=== DEFENSIVE ===
 <15 tab-separated values>
 ...
 
-=== KICKING — paste at cell C2 of "Kicking" tab ===
+=== KICKING ===
 <17 tab-separated values>
 ...
 
-=== PUNTING — paste at cell C2 of "Punting" tab ===
+=== PUNTING ===
 <7 tab-separated values>
 ...
 
-=== KICK RETURN — paste at cell C2 of "Kick Return" tab ===
+=== KICK RETURN ===
 <4 tab-separated values>
 ...
 
-=== PUNT RETURN — paste at cell C2 of "Punt Return" tab ===
+=== PUNT RETURN ===
 <4 tab-separated values>
 ...
 
@@ -459,7 +450,7 @@ FINAL CHECK before you send
 [ ] Per-tab tab-count per line: Passing 8, Rushing 7, Receiving 5, Blocking 1, Defensive 14, Kicking 16, Punting 6, Kick Return 3, Punt Return 3
 [ ] Net Yards/Attempt and Adjusted Net Yards/Attempt (Passing columns H and I) use 1 decimal place; Defensive TFL (E) and Sacks (F) MAY use ".5" half-credits when the screenshot shows them; every other value on every tab is an integer
 [ ] No commas in any number
-[ ] No player name, no Snaps column, no header row, no commentary INSIDE the data blocks. The paste-target label lines above each fence are required (see TSV delivery rules above).
+[ ] No player name, no Snaps column, no header row, no commentary INSIDE the data blocks.
 [ ] Row order within each block matches column A on that tab exactly
 [ ] Blank cells/lines for unknowns — invented nothing`,
     includeTeamMap: false,

@@ -242,44 +242,40 @@ export function buildAIPrompt({
     `═══════════════════════════════════════════════════════════`,
     `OUTPUT DELIVERY FORMAT — READ THIS FIRST, OBEY EXACTLY`,
     `═══════════════════════════════════════════════════════════`,
-    `Do NOT generate a downloadable file attachment. Do NOT use code execution, artifacts, or a file builder to create a file. Your ONLY delivery method is an inline fenced TSV code block in your chat response${multiBlock ? ' (one per tab)' : ''}, so the user can copy and paste it directly from the chat window. ".tsv" = tab-separated values, the format that pastes cleanly into Google Sheets without any post-processing on the user's end.`,
+    `Do NOT generate a downloadable file attachment. Do NOT use code execution, artifacts, or a file builder to create a file. Your ONLY delivery method is an inline fenced TSV code block in your chat response${multiBlock ? ' (one per section)' : ''}, so the user can copy and paste it directly from the chat window into the app's import box. ".tsv" = tab-separated values, the format that pastes cleanly into the app without any post-processing on the user's end.`,
     ``,
-    `WHY TSV (NOT CSV, NOT MARKDOWN): the user is going to paste your output directly into Google Sheets. Tabs split fields into cells in one keystroke. CSV requires escape rules for commas inside numbers; markdown tables don't paste at all. The user has confirmed empirically that pasting TSV works every time. Anything else creates work for the user. Default to TSV unless you literally cannot.`,
-    ``,
-    multiBlock
-      ? `This sheet has MULTIPLE tabs. The structure below describes one block per tab; each block must land in a DIFFERENT tab at a DIFFERENT cell. Block labels (e.g. "=== PASSING — paste at cell C2 of Passing tab ===") are paste-target markers the user reads by eye — they live OUTSIDE the data and are NOT copied into the sheet.`
-      : `This sheet has a SINGLE tab. Your entire output is one block of tab-separated data rows that the user pastes at the cell specified in the structure below.`,
+    `WHY TSV (NOT CSV, NOT MARKDOWN): the user is going to paste your output directly into the app. Tabs split fields into cells in one keystroke. CSV requires escape rules for commas inside numbers; markdown tables don't paste at all. The user has confirmed empirically that pasting TSV works every time. Anything else creates work for the user. Default to TSV unless you literally cannot.`,
     ``,
     multiBlock
-      ? `Output ONE labeled \`\`\`tsv fence PER TAB. The label line goes ABOVE its fence and tells the user where to paste; the fence contains ONLY data rows for that tab. Layout — exactly this shape, one repetition per tab:`
-      : `Output a single fenced TSV code block, preceded by ONE line that tells the user where to paste it. Layout — exactly this shape:`,
+      ? `This data has MULTIPLE sections. The structure below describes one block per section. Output one block per section, each in its OWN fenced tsv code block. Section labels (e.g. "=== PASSING ===") are markers the user reads by eye — they live OUTSIDE the data and are NOT copied into the app.`
+      : `Your entire output is ONE block of tab-separated data rows that the user copies straight into the app's import box.`,
+    ``,
     multiBlock
-      ? `      Paste this TSV into cell <CELL> of the "<Tab>" tab`
-      : `      Paste this TSV into cell <CELL> of the "<Tab>" tab    ← read the structure below for the exact cell + tab`,
+      ? `Output ONE fenced \`\`\`tsv block PER SECTION. Immediately ABOVE each fence, put a plain label line of the form "=== <SECTION NAME> ===" so the user can tell the blocks apart; the fence contains ONLY data rows for that section. Layout — exactly this shape, one repetition per section:`
+      : `Output a single fenced \`\`\`tsv code block — nothing else. Layout — exactly this shape:`,
     multiBlock
-      ? `      \`\`\`tsv`
-      : `      \`\`\`tsv`,
+      ? `      === <SECTION NAME> ===`
+      : null,
+    `      \`\`\`tsv`,
     multiBlock
-      ? `      <tab-separated data rows for this tab only>`
+      ? `      <tab-separated data rows for this section only>`
       : `      <tab-separated data rows>`,
+    `      \`\`\``,
     multiBlock
-      ? `      \`\`\``
-      : `      \`\`\``,
-    multiBlock
-      ? `  • The "Paste this TSV into cell …" line is the ONE allowed non-data line. It lives OUTSIDE the fence, immediately ABOVE the opening backticks.`
-      : `  • The "Paste this TSV into cell …" line is the ONE allowed non-data line. It lives OUTSIDE the fence, immediately ABOVE the opening backticks. Use the EXACT cell + tab name from the structure below — don't paraphrase, don't guess. The user reads this line so they know where to click before pasting.`,
+      ? `  • The "=== <SECTION NAME> ===" label is the ONLY allowed non-data line and it lives OUTSIDE the fence, immediately ABOVE the opening backticks. It just tells the user which block is which — it is NOT copied into the app.`
+      : `  • The fenced tsv block is your ENTIRE deliverable. Do NOT add a paste-target line, a cell reference, or a tab name — the user pastes the block straight into the app's import box.`,
     multiBlock ? `  • Each fence contains ONLY tab-separated data rows. No column header row, no commentary, no totals.` : `  • The fence contains ONLY tab-separated data rows. No column header row, no commentary, no totals.`,
     multiBlock
-      ? `  • Before the FIRST paste-target line: NOTHING. Between blocks: ONE blank line, nothing else. After the LAST closing fence: NOTHING.`
-      : `  • Before the paste-target line: NOTHING — no greeting, no "Here is the output:", no "Sure, ", no preamble. After the closing fence: NOTHING — no "Let me know if you need changes", no summary, no follow-up questions.`,
+      ? `  • Before the FIRST label line: NOTHING. Between blocks: ONE blank line, nothing else. After the LAST closing fence: NOTHING.`
+      : `  • Before the opening fence: NOTHING — no greeting, no "Here is the output:", no "Sure, ", no preamble. After the closing fence: NOTHING — no "Let me know if you need changes", no summary, no follow-up questions.`,
     multiBlock
-      ? `  • If you must flag an ambiguity, do it ONCE at the very top before the first paste-target line, on a single line prefixed with "PRE-NOTE:".`
-      : `  • If you must flag an ambiguity, do it ONCE on a single line prefixed with "PRE-NOTE:" placed BEFORE the paste-target line — never after the fence.`,
+      ? `  • If you must flag an ambiguity, do it ONCE at the very top before the first block, on a single line prefixed with "PRE-NOTE:".`
+      : `  • If you must flag an ambiguity, do it ONCE on a single line prefixed with "PRE-NOTE:" placed BEFORE the opening fence — never after it.`,
     ``,
     `Hard rules:`,
     `  1. 100% accuracy or blank. If you are not certain about a cell, leave it blank. Never guess, never invent a plausible value.`,
     `  2. Preserve the exact column order, row order, and row count described below.`,
-    `  3. No column header row, no totals row, no "N/A", no em dashes, no trailing "source: screenshot" annotations. The ONLY allowed non-data lines are the "Paste this TSV into cell …" paste-target label(s) that sit OUTSIDE the fence(s) immediately above the opening backticks, as described above.`,
+    `  3. No column header row, no totals row, no "N/A", no em dashes, no trailing "source: screenshot" annotations. The ONLY allowed non-data lines are the fence delimiters${multiBlock ? ' and the "=== <SECTION> ===" label(s) that sit OUTSIDE the fences immediately above the opening backticks' : ''}, as described above.`,
     `  4. Numbers with no thousands separators: "1234" not "1,234".`,
     `  5. Decimals use a period and match the decimal precision specified per-column (e.g. "5.8" not "5.80" not "5,8").`,
     `  6. Tab character (U+0009) between fields when producing TSV — not multiple spaces, not a pipe, not a semicolon. ASCII only inside data: no smart quotes (" "), no en/em dashes (– —), no non-breaking spaces (U+00A0), no zero-width characters (U+200B/U+FEFF).`,
@@ -305,7 +301,7 @@ export function buildAIPrompt({
     `  Pick TWO data rows at random. For each, walk left-to-right through the columns named in the structure and confirm the value at that position matches the spec for that column (integer vs decimal vs blank, sensible magnitude, correct stat). Watch for column-order traps: if the structure flags an inverted-order tab (e.g. "TD vs Long order is swapped"), re-read those tab specs character-by-character before signing off. FIX any swap.`,
     ``,
     `CHECK 4 — Stray text scan.`,
-    `  Re-read your draft top-to-bottom. The ONLY allowed non-data lines are: (a) the "Paste this TSV into cell <CELL> of the \"<Tab>\" tab" line(s) that sit directly above each fence, (b) the fence delimiters themselves, and (c) an optional one-line "PRE-NOTE:" if you genuinely must flag an ambiguity. Anything else is contraband: greetings, "Here is the output:", "Let me know if you need changes", "Note:", "I left X blank because…", bullet points, follow-up questions, em dashes used as connector punctuation, summaries of what you did. DELETE.`,
+    `  Re-read your draft top-to-bottom. The ONLY allowed non-data lines are: (a) the fence delimiters themselves,${multiBlock ? ' (b) the "=== <SECTION> ===" label line(s) that sit directly above each fence,' : ''} and (c) an optional one-line "PRE-NOTE:" if you genuinely must flag an ambiguity. Anything else is contraband: greetings, "Here is the output:", "Let me know if you need changes", "Note:", "I left X blank because…", bullet points, follow-up questions, em dashes used as connector punctuation, summaries of what you did. DELETE. Do NOT add a "paste this into cell/tab" line — the user pastes straight into the app.`,
     ``,
     `CHECK 5 — Number/character format scan.`,
     `  Search your data rows for: commas inside numbers ("1,234" → "1234"), percent signs, units ("yds", "%"), placeholder strings ("N/A", "—", "-"), parenthetical asides, smart quotes, em dashes, non-breaking spaces. DELETE or BLANK per the rules.`,
@@ -367,8 +363,8 @@ export function buildAIPrompt({
     sections.push('', `Additional notes:`, notes.trim())
   }
   // Roster blocks — the AI uses these to expand abbreviated names (e.g.
-  // EA CFB menus display "A. Guess" but Google Sheets dropdowns reject
-  // that form; the roster map lets the AI write "Alex Guess" instead.
+  // EA CFB menus display "A. Guess" but the app matches on full names;
+  // the roster map lets the AI write "Alex Guess" instead.
   const rosterBlock = buildRosterBlock(roster, [
     '═══════════════════════════════════════════════════════════',
     rosterLabel,
@@ -377,7 +373,7 @@ export function buildAIPrompt({
     '',
     'When the screenshot shows an abbreviated form (e.g. "A. Guess", "J. Smith",',
     '"D.Hixon"), MATCH it to the full name below by last name + first-initial,',
-    'and output the FULL name (Google Sheets dropdowns reject abbreviated forms).',
+    'and output the FULL name (the app may not resolve abbreviated forms).',
     'If two players share the same last initial, use jersey number + position to',
     'disambiguate.',
     '',

@@ -147,11 +147,10 @@ CRITICAL RULES — read before anything else
 5. BLANK LINE (empty, no tabs) if you do not know the CC result for a conference. Never guess. Never invent scores. The blank still counts as that conference's line — keep position so all later lines stay aligned.
 6. Team 1 and Team 2 must BOTH be members of the conference for that row, ACCORDING TO THE CONFERENCE MEMBERSHIP BLOCK BELOW — not according to real-world conferences. Users realign teams (e.g. Missouri and Georgia could be in the Pac-12 in this dynasty). Look every team up in the membership block before you write it.
 7. Both teams must use team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
-8. ONE TSV block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
+8. ONE TSV block.
 
 ═══════════════════════════════════════════════════════════
-TAB "Conference Championships" — ${totalRows} rows × 6 output columns
-Paste at cell B2 of the "Conference Championships" tab
+SECTION: "Conference Championships" — ${totalRows} rows × 6 output columns
 ═══════════════════════════════════════════════════════════
 
 Column A is pre-filled with these ${totalRows} conferences in this EXACT order (this is NOT alphabetical — it is the literal order the sheet uses, hard-coded). Match this order line-for-line:
@@ -185,7 +184,7 @@ Field formats:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== CONFERENCE CHAMPIONSHIPS — paste at cell B2 of "Conference Championships" tab ===
+=== CONFERENCE CHAMPIONSHIPS ===
 ${outputTemplateLines}
 
 ═══════════════════════════════════════════════════════════
@@ -201,7 +200,7 @@ FINAL CHECK before you send
 [ ] All scores are integers with no commas and no decimals
 [ ] Ranks are integers 1–25 or blank — never 0, never a word
 [ ] Blank entire lines for unknown results — nothing invented (still keeps the line position)
-[ ] No Conference name, no header row, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
+[ ] No Conference name, no header row, no commentary INSIDE the data.`,
       includeTeamMap: true,
       dynastyTeams: currentDynasty?.teams,
     })

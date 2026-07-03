@@ -106,12 +106,11 @@ CRITICAL RULES — read before anything else
 5. INTEGERS have no decimal point: "42" not "42.0".
 6. BLANK LINE when unknown. Never guess. Blank ≠ zero.
 7. ZERO only if the screenshot clearly shows zero.
-8. No header row, no totals, no commentary INSIDE the data, no "N/A", no dashes. The paste-target label(s) above each fence are required (see TSV delivery rules above).
-9. TWO separate blocks — one per tab — each preceded by the required paste-target label line above its fence (see TSV delivery rules above).
+8. No header row, no totals, no commentary INSIDE the data, no "N/A", no dashes.
+9. TWO separate blocks — one per tab — each preceded by its "=== ... ===" section label above the fence.
 
 ═══════════════════════════════════════════════════════════
-TAB 1: "Offense" — 8 rows
-Paste your block at cell B1 of the "Offense" tab
+SECTION 1: "Offense" — 8 rows
 ═══════════════════════════════════════════════════════════
 Output EXACTLY 8 lines, one value per line, in this row order:
 
@@ -127,8 +126,7 @@ Row | Column A (protected) | Your column B value                    | Format
   8 | First Downs          | First downs                            | integer
 
 ═══════════════════════════════════════════════════════════
-TAB 2: "Defense" — 7 rows
-Paste your block at cell B1 of the "Defense" tab
+SECTION 2: "Defense" — 7 rows
 ═══════════════════════════════════════════════════════════
 Output EXACTLY 7 lines, one value per line, in this row order:
 
@@ -145,7 +143,7 @@ Row | Column A (protected)    | Your column B value                      | Forma
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== OFFENSE — paste at cell B1 of "Offense" tab ===
+=== OFFENSE ===
 <row 1 value>
 <row 2 value>
 <row 3 value>
@@ -155,7 +153,7 @@ REQUIRED OUTPUT FORMAT
 <row 7 value>
 <row 8 value>
 
-=== DEFENSE — paste at cell B1 of "Defense" tab ===
+=== DEFENSE ===
 <row 1 value>
 <row 2 value>
 <row 3 value>
@@ -171,7 +169,7 @@ FINAL CHECK before you send the answer
 [ ] Defense block = exactly 7 lines
 [ ] No commas in any number
 [ ] No column A / stat names anywhere
-[ ] No header row, no total row, no explanation text INSIDE the data blocks (the paste-target label above each fence is required, see TSV delivery rules above)
+[ ] No header row, no total row, no explanation text INSIDE the data blocks
 [ ] Blank lines for unknowns — did not invent any values`,
   }), [currentYear, teamName])
 

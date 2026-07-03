@@ -124,8 +124,6 @@ This screen is the end-of-season "Staff Moves" / coaching carousel board from
 College Football 26 (${year} offseason). Each visible row is ONE coach who changed
 jobs or left coaching. Read EVERY row top to bottom.
 
-Paste target: cell A2 of the "Staff Moves" tab.
-
 Output ONE TSV row per coach, columns in THIS EXACT order (6 columns, 5 tabs each row):
 
   Name<TAB>Prev Pos<TAB>Prev School<TAB>New Pos<TAB>New School<TAB>Reason

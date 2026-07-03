@@ -1746,7 +1746,7 @@ export function buildPreseasonTop25Prompt(dynasty, year) {
     `   1. ONE team abbreviation per line. No rank numbers, no full names, no mascots, no city names, no "Tied with…" notes.`,
     `   2. Abbreviations MUST come from the TEAM ABBREVIATIONS list at the bottom of this prompt — these are the only abbrs the user's strict-dropdown sheet will accept. Anything else is rejected on paste.`,
     `   3. EXACTLY 25 lines (or 24 lines + 1 blank line, etc., if the screenshot only had partial data — leave the missing slot blank, don't pad with a guess).`,
-    `   4. No header row, no commentary, no closing remarks. The user pastes your output starting at cell B2 of the sheet (or copies into the tracker's row form). Anything other than 25 lines of team abbreviations breaks both flows.`,
+    `   4. No header row, no commentary, no closing remarks. The user pastes your output straight into the app. Anything other than 25 lines of team abbreviations breaks the import.`,
     `   5. Wrap your output in a single \`\`\`tsv ... \`\`\` fenced block so the user can copy-paste cleanly without selecting any prose.`,
     ``,
     `If you generated a PRE-NOTE (Mode B only, no prior data), put it on a single line ABOVE the fenced block — never inside it.`,

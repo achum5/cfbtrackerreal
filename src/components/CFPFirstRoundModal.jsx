@@ -67,12 +67,11 @@ CRITICAL RULES — read before anything else
 7. BLANK CELL if unknown. Never guess, never use "N/A", "TBD", dash, or zero (0 is a real score).
    - If an entire game hasn't been played yet: leave all 4 cells blank (empty tab-separated fields).
    - If only the teams are known but not scores: fill Higher Seed + Lower Seed, leave score cells blank.
-8. No header row, no column labels, no pre-filled Game text, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
-9. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
+8. No header row, no column labels, no pre-filled Game text, no commentary or explanation INSIDE the data.
+9. ONE TSV block — output ONLY the fenced block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB: "CFP First Round" — 4 rows × 4 editable columns
-Paste your block at cell B2 of the "CFP First Round" tab
+SECTION: "CFP First Round" — 4 rows × 4 editable columns
 ═══════════════════════════════════════════════════════════
 
 Each row is one game. Column A (Game) is pre-filled/protected. You output columns B through E in order: Higher Seed, Lower Seed, Higher Score, Lower Score.
@@ -90,7 +89,7 @@ Column D and Column E: INTEGER scores (0 or higher), no commas, no decimal point
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== CFP FIRST ROUND — paste at cell B2 of "CFP First Round" tab ===
+=== CFP FIRST ROUND ===
 <row1 HigherSeed>\\t<row1 LowerSeed>\\t<row1 HigherScore>\\t<row1 LowerScore>
 <row2 HigherSeed>\\t<row2 LowerSeed>\\t<row2 HigherScore>\\t<row2 LowerScore>
 <row3 HigherSeed>\\t<row3 LowerSeed>\\t<row3 HigherScore>\\t<row3 LowerScore>

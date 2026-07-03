@@ -141,10 +141,10 @@ CRITICAL RULES — read before anything else
 6. BLANK CELL for unknowns — leave the cell empty (two tabs in a row). NEVER guess, NEVER use "N/A", "-", "0", or "unknown".
 7. Use ONLY the exact literal values listed for each dropdown column below. Wrong casing, extra spaces, or aliases (e.g. "FR" instead of "Fr") will be rejected by the dropdown.
 8. Full Name: split into First Name (column A) and Last Name (column B). Hyphens and apostrophes stay intact. Suffixes like "Jr." or "II" go on the Last Name with a space (e.g. Last Name = "Smith Jr.").
-9. No header row, no totals, no commentary INSIDE the data, no blank separator rows. The paste-target label above the fence is required (see TSV delivery rules above).
+9. No header row, no totals, no commentary INSIDE the data, no blank separator rows.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Roster" — paste at cell A2 of the "Roster" tab
+SECTION: "Roster"
 ═══════════════════════════════════════════════════════════
 
 Column layout (${attrColRange}), one player per line, tab-separated:
@@ -208,7 +208,7 @@ ${attrSection}
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== ROSTER — paste at cell A2 of "Roster" tab ===
+=== ROSTER ===
 <FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
 <FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
 …one line per player, up to 85 total
@@ -217,7 +217,7 @@ REQUIRED OUTPUT FORMAT
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every line has exactly ${attrColCount} tab-separated columns (${attrTabChars} tab characters)
-[ ] No header row, no totals row, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
+[ ] No header row, no totals row, no commentary INSIDE the data
 [ ] No commas in any number (Jersey, Overall, Weight)
 [ ] No decimals on integers (Jersey / Overall / Weight)
 [ ] Position is one of the 21 listed codes (NOT "LE" / "RE" / "EDGE" / "LB" / "OLB" / "OT" / "OG" / "S")

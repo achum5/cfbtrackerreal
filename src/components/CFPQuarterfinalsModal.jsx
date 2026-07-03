@@ -95,12 +95,11 @@ CRITICAL RULES — read before anything else
    - If an entire game hasn't been played: leave all 5 cells blank.
    - If teams are known but scores aren't: fill columns B and C only; leave D, E, F blank.
 9. Team 1 (column B) is always the bye seed (1, 2, 3, or 4). Team 2 (column C) is always the First Round winner that advanced into that bowl. Do not swap them.
-10. No header row, no Bowl Game text, no commentary or explanation INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).
-11. ONE TSV block — preceded by the paste-target label line as required by the TSV delivery rules above.
+10. No header row, no Bowl Game text, no commentary or explanation INSIDE the data.
+11. ONE TSV block — preceded by its "=== CFP QUARTERFINALS ===" label above the fence.
 
 ═══════════════════════════════════════════════════════════
-TAB: "CFP Quarterfinals" — 4 rows × 5 editable columns
-Paste your block at cell B2 of the "CFP Quarterfinals" tab
+SECTION: "CFP Quarterfinals" — 4 rows × 5 editable columns
 ═══════════════════════════════════════════════════════════
 
 Column A (Bowl Game) shows which CFP bowl game hosts that matchup — the specific bowl names (Sugar, Cotton, Rose, Orange, or whatever the user configured) are already pre-filled and must not be changed. Focus on the 5 editable columns below.
@@ -119,7 +118,7 @@ Column F (Winner) rule: Winner === (Team 1 Score > Team 2 Score) ? Team 1 name :
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== CFP QUARTERFINALS — paste at cell B2 of "CFP Quarterfinals" tab ===
+=== CFP QUARTERFINALS ===
 <row1 Team1>\\t<row1 Team2>\\t<row1 T1Score>\\t<row1 T2Score>\\t<row1 Winner>
 <row2 Team1>\\t<row2 Team2>\\t<row2 T1Score>\\t<row2 T2Score>\\t<row2 Winner>
 <row3 Team1>\\t<row3 Team2>\\t<row3 T1Score>\\t<row3 T2Score>\\t<row3 Winner>

@@ -101,11 +101,10 @@ CRITICAL RULES — read before anything else
 5. INTEGERS only. No decimals, no quotes, no units.
 6. BLANK for unknown values — never guess, never use 0, "-", or "N/A". For a line where Overall is known but Jersey # is not, output: 85\\t (tab then nothing).
 7. Overall range: 40–99. Jersey # range: 0–99.
-8. No header row, no commentary INSIDE the data. ONE TSV block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
+8. No header row, no commentary INSIDE the data. Output ONLY the fenced tsv block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Recruit Overalls"
-Paste at cell E2 of the "Recruit Overalls" tab
+SECTION: "Recruit Overalls"
 ═══════════════════════════════════════════════════════════
 
 Col | Header (protected)  | Your output                                | Format
@@ -120,7 +119,7 @@ Col | Header (protected)  | Your output                                | Format
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== RECRUIT OVERALLS — paste at cell E2 of "Recruit Overalls" tab ===
+=== RECRUIT OVERALLS ===
 <Overall>\\t<Jersey #>
 <Overall>\\t<Jersey #>
 ...
@@ -176,7 +175,7 @@ row order does NOT matter)
 3. Overall: integer 40–99. Jersey #: integer 0–99, or BLANK if not visible
    (output the name and overall, then a trailing tab with nothing after it).
 4. NO header row, NO commentary inside the data, NO commas, NO decimals,
-   NO units. The paste-target label above the fence is required.
+   NO units.
 5. NEVER guess. Omit a recruit entirely if you cannot see their overall.
 
 ═══════════════════════════════════════════════════════════

@@ -115,7 +115,7 @@ CRITICAL RULES — read before anything else
 2. Rank is an integer 1–25, in ascending order (1 first). Output at most 25 lines.
 3. Team is an team name from the list at the bottom — NEVER a full name or nickname.
 4. Each team name appears AT MOST ONCE. Omit any rank you cannot see — never guess.
-5. NO header row, NO commentary inside the data, NO commas. The paste-target label above the fence is required (see TSV delivery rules above).
+5. NO header row, NO commentary inside the data, NO commas.
 
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT

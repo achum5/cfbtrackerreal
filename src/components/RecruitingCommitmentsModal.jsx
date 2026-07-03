@@ -151,7 +151,7 @@ CRITICAL RULES
 8. Do NOT output the hidden "pid" column, nor the trailing "NIL" column after it — the app fills pid, and NIL is the recruiting-offer column the user enters by hand.
 
 ═══════════════════════════════════════════════════════════
-COLUMNS A–P  — paste at cell A${startRow} of the "Commitments" tab (first empty row below the ${prefillRecruits.length} already entered)
+COLUMNS A–P
 ═══════════════════════════════════════════════════════════
  A Player     | Full name (text)
  B Class      | Dropdown: HS, JUCO Fr, JUCO So, JUCO Jr, Fr, RS Fr, So, RS So, Jr, RS Jr
@@ -189,9 +189,9 @@ Rules for the Q cell:
   - One Q cell per scouted player. Leave it blank for un-scouted recruits.
 
 ═══════════════════════════════════════════════════════════
-OUTPUT FORMAT (TSV, paste at A${startRow})
+OUTPUT FORMAT (TSV)
 ═══════════════════════════════════════════════════════════
-=== TARGETS — paste at cell A${startRow} of "Commitments" tab ===
+=== TARGETS ===
 Board row (16 fields, A→P):
 <Player>\\t<Class>\\t<Position>\\t<Archetype>\\t<Stars>\\t<Nat>\\t<StateRank>\\t<PosRank>\\t<Height>\\t<Weight>\\t<Hometown>\\t<State>\\t<Gem/Bust>\\t<Dev>\\t<PrevTeam>\\t<Commitment>
 Scouted row (17 fields — the 16 A→P fields, then the single Attributes cell Q):

@@ -102,6 +102,50 @@ ${ATTRIBUTE_PROMPT_LEGEND}
     : ''
   const attrOutputCol = attributesEnabled ? '\t<Attributes>' : ''
 
+  // Known-data block: when a roster already exists, embed it (same column
+  // order as the output) so the AI can complete players it sees in the
+  // screenshots without every one having to be highlighted. Reference data
+  // only — output stays driven by the screenshots.
+  const knownDataSection = rosterPlayers.length > 0
+    ? `\n═══════════════════════════════════════════════════════════
+KNOWN ROSTER DATA — a gap-filler applied AFTER screenshot extraction
+═══════════════════════════════════════════════════════════
+Do this in TWO ordered steps. Do NOT skip or shortcut step 1.
+
+STEP 1 — EXTRACT EVERYTHING FROM THE SCREENSHOTS, FOR EVERY PLAYER.
+Read every screenshot and pull EVERY field and EVERY attribute you can see for
+EVERY player shown — the same exhaustive effort for all of them. A player is NOT
+lower priority just because they appear in the KNOWN DATA list below, and a
+player is NOT lower priority just because they DON'T. If a player is highlighted
+/ selected and their full rating set is on screen, capture ALL of those ratings
+into column O, whether or not we already have data on file for them. The known
+data below must NEVER cause you to record fewer attributes for anyone — your job
+is to read the screenshots to the fullest for the entire roster.
+
+STEP 2 — FILL REMAINING GAPS FROM KNOWN DATA.
+Only after step 1, for each player, take any field STILL blank (not visible in
+any screenshot) and fill it from that player's row in the KNOWN DATA below, so a
+player who wasn't highlighted still comes out as complete as possible. Match by
+name (or initial + position + jersey).
+
+RULES:
+- Output stays driven by the SCREENSHOTS: one row per player VISIBLE in a
+  screenshot. Do NOT add a row for a known-data player who is not in the
+  screenshots. The known data is reference only, not rows to emit.
+- Produce ONE unified TSV — never a second table.
+- The SCREENSHOT always wins on any field it shows; known data only fills the
+  blanks the screenshots leave. This applies per-attribute inside column O too:
+  a rating visible in a screenshot overrides the known-data value.
+- A player with no match in the known data is still output in full from the
+  screenshots — extract everything visible for them.
+- Never invent: if a field is blank in the screenshots AND blank/absent in the
+  known data, leave it blank.
+
+KNOWN DATA (tab-separated, same ${attrColCount} columns as the output, no header):
+${initialRosterText}
+`
+    : ''
+
   const aiPrompt = useMemo(() => buildAIPrompt({
     title: `${currentYear} Roster Entry`,
     structure: `This sheet has ONE tab: "Roster". It has ${attrColCount} columns (${attrColRange}) and up to 85 data rows (rows 2–86). Row 1 is the protected header row.
@@ -117,10 +161,10 @@ CRITICAL RULES — read before anything else
 6. BLANK CELL for unknowns — leave the cell empty (two tabs in a row). NEVER guess, NEVER use "N/A", "-", "0", or "unknown".
 7. Use ONLY the exact literal values listed for each dropdown column below. Wrong casing, extra spaces, or aliases (e.g. "FR" instead of "Fr") will be rejected by the dropdown.
 8. Full Name: split into First Name (column A) and Last Name (column B). Hyphens and apostrophes stay intact. Suffixes like "Jr." or "II" go on the Last Name with a space (e.g. Last Name = "Smith Jr."). EA's roster screen often abbreviates the first name to an initial ("B. Hubbard"); output the player's FULL first name when you can see it anywhere (a player card, another screenshot). If only the initial is visible, output just that initial for First Name rather than guessing the full name — the app will reconcile it with your existing roster.
-9. No header row, no totals, no commentary INSIDE the data, no blank separator rows. The paste-target label above the fence is required (see TSV delivery rules above).
+9. No header row, no totals, no commentary INSIDE the data, no blank separator rows.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Roster" — paste at cell A2 of the "Roster" tab
+SECTION: "Roster"
 ═══════════════════════════════════════════════════════════
 
 Column layout (${attrColRange}), one player per line, tab-separated:
@@ -180,11 +224,11 @@ COLUMN I — Height — MUST be one of these 20 values EXACTLY (straight apostro
 COLUMN L — State — MUST be one of these 51 2-letter codes EXACTLY (uppercase):
 AL | AK | AZ | AR | CA | CO | CT | DE | FL | GA | HI | ID | IL | IN | IA | KS | KY | LA | ME | MD | MA | MI | MN | MS | MO | MT | NE | NV | NH | NJ | NM | NY | NC | ND | OH | OK | OR | PA | RI | SC | SD | TN | TX | UT | VT | VA | WA | WV | WI | WY | DC
 (No country codes. No full state names. Blank if unknown — never guess.)
-${attrSection}
+${attrSection}${knownDataSection}
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== ROSTER — paste at cell A2 of "Roster" tab ===
+=== ROSTER ===
 <FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
 <FirstName>\t<LastName>\t<Position>\t<Class>\t<DevTrait>\t<Jersey#>\t<Archetype>\t<Overall>\t<Height>\t<Weight>\t<Hometown>\t<State>\t<ImageURL>\t<NIL>${attrOutputCol}
 …one line per player, up to 85 total
@@ -193,7 +237,7 @@ REQUIRED OUTPUT FORMAT
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Every line has exactly ${attrColCount} tab-separated columns (${attrTabChars} tab characters)
-[ ] No header row, no totals row, no commentary INSIDE the data (the paste-target label above the fence is required, see TSV delivery rules above)
+[ ] No header row, no totals row, no commentary INSIDE the data
 [ ] No commas in any number (Jersey, Overall, Weight)
 [ ] No decimals on integers (Jersey / Overall / Weight)
 [ ] Position is one of the 21 listed codes (NOT "LE" / "RE" / "EDGE" / "LB" / "OLB" / "OT" / "OG" / "S")
@@ -205,7 +249,7 @@ FINAL CHECK before you send
 [ ] Blank cells used for every unknown — nothing was invented
 [ ] At most 85 data lines`,
     includeTeamMap: false,
-  }), [currentYear, attributesEnabled, attrColRange, attrColCount, attrTabChars, attrColListSuffix, attrTableRow, attrSection, attrOutputCol])
+  }), [currentYear, attributesEnabled, attrColRange, attrColCount, attrTabChars, attrColListSuffix, attrTableRow, attrSection, attrOutputCol, knownDataSection])
 
   // Ref to prevent concurrent sheet creation (state updates are async, refs are immediate)
   const creatingSheetRef = useRef(false)

@@ -77,19 +77,19 @@ CRITICAL RULES — read before anything else
 9. Spacer rows between conferences in the sheet are NOT part of your output — each block starts fresh at the rank-1 cell of its conference.
 
 ═══════════════════════════════════════════════════════════
-LAYOUT — 11 conferences in this EXACT order with exact paste cells
+LAYOUT — 11 conferences in this EXACT order
 ═══════════════════════════════════════════════════════════
-  1. ACC         → paste at cell C2   of "Standings" tab
-  2. American    → paste at cell C23  of "Standings" tab
-  3. Big 12      → paste at cell C44  of "Standings" tab
-  4. Big Ten     → paste at cell C65  of "Standings" tab
-  5. C-USA       → paste at cell C86  of "Standings" tab
-  6. Independent → paste at cell C107 of "Standings" tab
-  7. MAC         → paste at cell C128 of "Standings" tab
-  8. MWC         → paste at cell C149 of "Standings" tab
-  9. Pac-12      → paste at cell C170 of "Standings" tab
- 10. SEC         → paste at cell C191 of "Standings" tab
- 11. Sun Belt    → paste at cell C212 of "Standings" tab
+  1. ACC
+  2. American
+  3. Big 12
+  4. Big Ten
+  5. C-USA
+  6. Independent
+  7. MAC
+  8. MWC
+  9. Pac-12
+ 10. SEC
+ 11. Sun Belt
 
 (Each conference occupies exactly 20 team rows starting at its rank-1 row, followed by 1 blank spacer row, then the next conference's rank-1 row.)
 
@@ -110,47 +110,46 @@ Field formats:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== ACC — paste at cell C2 of "Standings" tab ===
+=== ACC ===
 <rank-1 team line>
 <rank-2 team line>
 ...
 <rank-N team line>
 
-=== American — paste at cell C23 of "Standings" tab ===
+=== American ===
 <up to 20 team lines in rank order>
 
-=== Big 12 — paste at cell C44 of "Standings" tab ===
+=== Big 12 ===
 <up to 20 team lines in rank order>
 
-=== Big Ten — paste at cell C65 of "Standings" tab ===
+=== Big Ten ===
 <up to 20 team lines in rank order>
 
-=== C-USA — paste at cell C86 of "Standings" tab ===
+=== C-USA ===
 <up to 20 team lines in rank order>
 
-=== Independent — paste at cell C107 of "Standings" tab ===
+=== Independent ===
 <up to 20 team lines in rank order (usually 1-3)>
 
-=== MAC — paste at cell C128 of "Standings" tab ===
+=== MAC ===
 <up to 20 team lines in rank order>
 
-=== MWC — paste at cell C149 of "Standings" tab ===
+=== MWC ===
 <up to 20 team lines in rank order>
 
-=== Pac-12 — paste at cell C170 of "Standings" tab ===
+=== Pac-12 ===
 <up to 20 team lines in rank order>
 
-=== SEC — paste at cell C191 of "Standings" tab ===
+=== SEC ===
 <up to 20 team lines in rank order>
 
-=== Sun Belt — paste at cell C212 of "Standings" tab ===
+=== Sun Belt ===
 <up to 20 team lines in rank order>
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send
 ═══════════════════════════════════════════════════════════
 [ ] Exactly 11 labeled blocks, in the order: ACC, American, Big 12, Big Ten, C-USA, Independent, MAC, MWC, Pac-12, SEC, Sun Belt
-[ ] Each block labeled with the exact paste cell (C2, C23, C44, C65, C86, C107, C128, C149, C170, C191, C212)
 [ ] Every line has exactly 5 tab-separated fields (4 tabs)
 [ ] No commas in any number
 [ ] No decimals (all values are integers)
@@ -158,7 +157,7 @@ FINAL CHECK before you send
 [ ] Every team is a valid member of its block's conference
 [ ] Teams within a block are in rank order (rank 1 first)
 [ ] Did not invent teams to fill to 20 — shorter blocks allowed
-[ ] No Conference column, no Rank column, no header row, no commentary INSIDE the data. The paste-target label(s) above each fence are required (see TSV delivery rules above).`,
+[ ] No Conference column, no Rank column, no header row, no commentary INSIDE the data. The only non-data lines are the === <SECTION> === labels above each fence.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])

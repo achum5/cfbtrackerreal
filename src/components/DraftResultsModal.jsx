@@ -103,8 +103,7 @@ CRITICAL RULES — read before anything else
 5. No header row, no totals, no commentary INSIDE the data block.
 
 ═══════════════════════════════════════════════════════════
-TAB: "Draft Results"
-Paste at cell A2 of the "Draft Results" tab
+SECTION: "Draft Results"
 ═══════════════════════════════════════════════════════════
 
 Col | Header (protected)  | Your output                              | Format
@@ -129,7 +128,7 @@ NOT allowed: "Round 1", "R1", "1st round", "1", "1st", "1st-round", "first round
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== DRAFT RESULTS — paste at cell A2 of "Draft Results" tab ===
+=== DRAFT RESULTS ===
 <Player Name>\t<Draft Round>
 <Player Name>\t<Draft Round>
 ...

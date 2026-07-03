@@ -70,14 +70,13 @@ CRITICAL RULES — read before anything else
 2. Row order is FIXED: rank 1 first, rank 25 last. EXACTLY 25 lines of output.
 3. Each line has EXACTLY 1 field: <Team name>
 4. Team values must be team names from the list at the bottom — NEVER an abbreviation, nickname, or mascot.
-5. NO COMMAS. No commentary INSIDE the data. No rank numbers. No header row. No tabs. The paste-target label above the fence is required (see TSV delivery rules above).
+5. NO COMMAS. No commentary INSIDE the data. No rank numbers. No header row. No tabs.
 6. Each team name must appear AT MOST ONCE across all 25 ranks — no duplicates in the poll.
 7. BLANK line for unknown ranks (just an empty line between two filled ranks). Never guess.
-8. ONE block, preceded by the required paste-target label line above the fence (see TSV delivery rules above).
+8. ONE block — output ONLY the fenced block, nothing before or after it.
 
 ═══════════════════════════════════════════════════════════
-TAB "Polls" — 25 rows × 1 output column
-Paste at cell B2 of the "Polls" tab
+SECTION "Polls" — 25 rows × 1 output column
 ═══════════════════════════════════════════════════════════
 
 Row-by-row mapping:
@@ -119,7 +118,7 @@ Field format:
 ═══════════════════════════════════════════════════════════
 REQUIRED OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════
-=== FINAL POLL — paste at cell B2 of "Polls" tab ===
+=== FINAL POLL ===
 <rank 1 name>
 <rank 2 name>
 <rank 3 name>
@@ -154,7 +153,7 @@ FINAL CHECK before you send
 [ ] All team values are uppercase names from the list — no full names
 [ ] No team duplicated across the 25 ranks
 [ ] Blank lines for unknowns — nothing invented
-[ ] No rank numbers, no header row, no commentary INSIDE the data. The paste-target label above the fence is required (see TSV delivery rules above).`,
+[ ] No rank numbers, no header row, no commentary INSIDE the data.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
   }), [currentYear, currentDynasty?.teams])
