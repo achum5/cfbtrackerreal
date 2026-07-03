@@ -394,9 +394,6 @@ export default function LeaguePreferences() {
         <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-txt-primary">Hide Dynasty Blueprint</div>
-            <p className="text-xs text-txt-tertiary mt-1 leading-relaxed m-0">
-              Removes <span className="text-txt-secondary font-medium">Dynasty Points</span>, support staff, facilities, budget/allocations, and the Blueprint page from the nav, dashboard to-dos, and coach salaries. Nothing you've entered is deleted — flip this back anytime to restore it all.
-            </p>
           </div>
           <button
             type="button"
