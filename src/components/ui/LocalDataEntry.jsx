@@ -332,6 +332,38 @@ export default function LocalDataEntry({
     }
   }
 
+  // "Add below current data": parse the clipboard and APPEND its rows beneath
+  // the rows already in the grid, instead of replacing everything. This is how
+  // you add one (or a few) players without re-pasting the whole roster — copy
+  // the new line(s), then pick this from the Paste arrow menu. Blank filler rows
+  // are dropped first so the new rows land flush against the real data.
+  const pasteAppendFromClipboard = async () => {
+    if (!navigator.clipboard?.readText) {
+      setShowText(true)
+      toast.error('Your browser blocks clipboard reads. Tap the arrow and paste into the text box.')
+      return
+    }
+    try {
+      const clip = await navigator.clipboard.readText()
+      if (!clip || !clip.trim()) {
+        toast.error('Clipboard is empty. Copy the row(s) you want to add first.')
+        return
+      }
+      const incoming = normalizeGrid(parseIncoming(clip))
+      if (incoming.length === 0) {
+        toast.error('No rows found in the clipboard.')
+        return
+      }
+      const isBlankRow = (r) => !r.some((c) => (c ?? '').toString().trim() !== '')
+      const base = grid.filter((r) => !isBlankRow(r))
+      applyGrid([...base, ...incoming])
+      toast.success(`Added ${incoming.length} row${incoming.length === 1 ? '' : 's'} below.`)
+    } catch {
+      setShowText(true)
+      toast.error('Could not read the clipboard. Tap the arrow and paste into the text box.')
+    }
+  }
+
   const handleImport = async () => {
     if (!text.trim()) {
       setShowText(true)
@@ -364,6 +396,7 @@ export default function LocalDataEntry({
         <PasteEntrySteps
           aiPrompt={aiPrompt}
           onPaste={pasteFromClipboard}
+          onPasteAppend={isLabeled ? undefined : pasteAppendFromClipboard}
           showText={showText}
           onToggleText={() => setShowText((v) => !v)}
           disabled={disabled}

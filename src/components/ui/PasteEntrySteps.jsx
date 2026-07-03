@@ -52,6 +52,10 @@ const Chevron = () => (
 export default function PasteEntrySteps({
   aiPrompt,
   onPaste,
+  // Optional "append" paste. When provided, the Paste button's arrow opens a
+  // menu with an "Add below current data" choice that appends the clipboard's
+  // rows beneath what's already in the grid instead of replacing everything.
+  onPasteAppend = null,
   showText = false,
   onToggleText,
   disabled = false,
@@ -83,9 +87,27 @@ export default function PasteEntrySteps({
   const [aiMenuOpen, setAiMenuOpen] = useState(false)
   const [menuRect, setMenuRect] = useState(null)
   const aiWrapRef = useRef(null)
+  const [pasteMenuOpen, setPasteMenuOpen] = useState(false)
+  const [pasteMenuRect, setPasteMenuRect] = useState(null)
+  const pasteWrapRef = useRef(null)
+
+  // The Paste arrow becomes a MENU only when an append action is offered
+  // (roster-style grids). Without it, the arrow keeps its original single job of
+  // toggling the raw text box — so every other modal is unchanged.
+  const hasPasteMenu = onPasteAppend != null
+  const pasteMenuItems = [
+    { key: 'replace', label: 'Replace current data', onSelect: onPaste },
+    ...(onPasteAppend ? [{ key: 'append', label: 'Add below current data', onSelect: onPasteAppend }] : []),
+    ...(onToggleText ? [{ key: 'text', label: showText ? 'Hide text box' : 'Show text box', onSelect: onToggleText }] : []),
+  ]
 
   const ai = resolveTool(aiKey)
   const hint = { ...STEP_HINTS, ...hints }
+  // When the Paste arrow is a menu (append available), explain both choices —
+  // unless the caller supplied its own paste hint.
+  if (hasPasteMenu && hints.paste == null) {
+    hint.paste = 'Copy the reply, then tap Paste to fill the grid. Use the arrow for more options: add the copied row(s) below what\'s already there (instead of replacing it), or open a text box if the normal paste doesn\'t work.'
+  }
   const toggleInfo = (k) => setOpenInfo((cur) => (cur === k ? null : k))
 
   const copyPrompt = async () => {
@@ -132,6 +154,26 @@ export default function PasteEntrySteps({
     writePref(key)
     setAiMenuOpen(false)
   }
+
+  const repositionPasteMenu = useCallback(() => {
+    const el = pasteWrapRef.current
+    if (el) setPasteMenuRect(el.getBoundingClientRect())
+  }, [])
+
+  useEffect(() => {
+    if (!pasteMenuOpen) return
+    repositionPasteMenu()
+    const onDoc = (e) => { if (pasteWrapRef.current && !pasteWrapRef.current.contains(e.target)) setPasteMenuOpen(false) }
+    const onScroll = () => repositionPasteMenu()
+    document.addEventListener('mousedown', onDoc)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', repositionPasteMenu)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', repositionPasteMenu)
+    }
+  }, [pasteMenuOpen, repositionPasteMenu])
 
   return (
     <div className="flex-shrink-0">
@@ -184,11 +226,26 @@ export default function PasteEntrySteps({
         {/* Step 3 — paste it back */}
         <div className="flex flex-col gap-2">
           <Caption num="3" title={label.paste} active={openInfo === 'paste'} onToggle={() => toggleInfo('paste')} />
-          <div className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
+          <div ref={pasteWrapRef} className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
             <button type="button" onClick={onPaste} disabled={disabled} className={WHITE_BTN} style={WHITE_STYLE}>
               Paste
             </button>
-            {onToggleText && (
+            {hasPasteMenu ? (
+              <button
+                type="button"
+                onClick={() => setPasteMenuOpen((v) => !v)}
+                title="More paste options"
+                aria-label="More paste options"
+                aria-expanded={pasteMenuOpen}
+                disabled={disabled}
+                className="px-1.5 sm:px-2 flex items-center justify-center transition-colors hover:opacity-90"
+                style={{ ...WHITE_STYLE, borderLeft: '1px solid var(--surface-1)' }}
+              >
+                <svg className={`w-4 h-4 transition-transform ${pasteMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            ) : onToggleText && (
               <button
                 type="button"
                 onClick={onToggleText}
@@ -231,6 +288,27 @@ export default function PasteEntrySteps({
             >
               {t.name}
               {t.key === aiKey && <span className="text-[10px] uppercase tracking-wider text-txt-tertiary">Chosen</span>}
+            </li>
+          ))}
+        </ul>,
+        document.body,
+      )}
+
+      {/* Paste-mode menu — portaled so the modal's overflow can't clip it */}
+      {pasteMenuOpen && pasteMenuRect && createPortal(
+        <ul
+          className="fixed z-[10001] max-h-72 overflow-y-auto rounded-md border border-surface-5 bg-surface-2 shadow-xl text-sm py-1"
+          style={{ top: pasteMenuRect.bottom + 2, left: pasteMenuRect.left, minWidth: Math.max(pasteMenuRect.width, 180) }}
+          role="menu"
+        >
+          {pasteMenuItems.map((item) => (
+            <li
+              key={item.key}
+              role="menuitem"
+              onMouseDown={(e) => { e.preventDefault(); setPasteMenuOpen(false); item.onSelect?.() }}
+              className="px-3 py-1.5 cursor-pointer whitespace-nowrap text-txt-secondary hover:text-txt-primary hover:bg-surface-3"
+            >
+              {item.label}
             </li>
           ))}
         </ul>,
