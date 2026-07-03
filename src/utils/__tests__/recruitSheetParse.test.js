@@ -17,7 +17,7 @@ describe('parseRecruitingRow — legacy A–O parity', () => {
       gemBust: '', devTrait: 'Elite', previousTeam: '',
       isPortal: false,
       // new fields default harmlessly on a legacy sheet:
-      commitment: '', attributes: null, pid: undefined, nil: null,
+      commitment: '', attributes: null, pid: undefined, nil: null, updatedAt: null,
     })
   })
 
@@ -59,6 +59,84 @@ describe('parseRecruitingRow — recovers AI paste that drops empty Dev Trait / 
     expect(r.devTrait).toBe('Normal')
     expect(r.previousTeam).toBe('OHIO')
     expect(r.commitment).toBe('')
+  })
+
+  // The exact screenshot failure: an HS recruit with a blank Dev Trait had that
+  // ONE empty cell dropped, sliding Commitment + Attributes each one column left
+  // (Uncommitted → Prev Team slot, attributes → Commitment slot). The old
+  // positional heuristic missed this because the vacated Dev slot stayed a
+  // valid-looking blank.
+  it('realigns a SINGLE dropped empty Dev Trait (Uncommitted + attributes slid one left)', () => {
+    const shifted = [
+      'Kenton Recruit', 'HS', 'RG', 'Raw Strength', '☆☆☆', '1700', '', '',
+      "6'3\"", '330', 'Tuscaloosa', 'AL', '',
+      'Uncommitted',                       // 13 — actually the Commitment
+      'Awareness 88, Strength 93',         // 14 — actually the Attributes
+    ]
+    const r = parseRecruitingRow(shifted)
+    expect(r.commitment).toBe('Uncommitted')
+    expect(r.attributes).toEqual({ Awareness: 88, Strength: 93 })
+    expect(r.devTrait).toBe('')
+    expect(r.previousTeam).toBe('')
+    expect(r.gemBust).toBe('')
+  })
+
+  // A single dropped empty cell on an UNSCOUTED recruit: only Commitment exists
+  // (no attributes), so it slid from slot 15 into slot 14 with nothing to its
+  // right to signal a problem. Content re-placement still recovers it.
+  it('realigns an unscouted recruit whose Commitment slid left with no attributes', () => {
+    const shifted = [
+      'No Attrs', 'HS', 'CB', 'Field', '☆☆☆', '1800', '', '',
+      "5'10\"", '175', 'Nashville', 'TN', '',
+      'Uncommitted',   // 13 — the Commitment, slid one left
+    ]
+    const r = parseRecruitingRow(shifted)
+    expect(r.commitment).toBe('Uncommitted')
+    expect(r.attributes).toBeNull()
+    expect(r.previousTeam).toBe('')
+    expect(r.devTrait).toBe('')
+  })
+
+  it('keeps Gem/Bust when it survives a shift', () => {
+    // Gem present, Dev + Prev Team blank & dropped → commitment slid one left.
+    const shifted = [
+      'Gem Guy', 'HS', 'WR', 'Speedster', '☆☆☆☆', '900', '', '',
+      "6'0\"", '190', 'Miami', 'FL', 'Gem',
+      'Uncommitted',                 // 13 — Commitment
+      'Speed 91, Acceleration 88',   // 14 — Attributes
+    ]
+    const r = parseRecruitingRow(shifted)
+    expect(r.gemBust).toBe('Gem')
+    expect(r.commitment).toBe('Uncommitted')
+    expect(r.attributes).toEqual({ Speed: 91, Acceleration: 88 })
+    expect(r.devTrait).toBe('')
+  })
+
+  it('merges attributes split across cells and still recovers the Commitment', () => {
+    // A stray tab split one recruit's attributes into two cells; Commitment slid
+    // left. Both attribute fragments must merge into the Attributes slot (not be
+    // mistaken for a Prev Team), and Commitment must still parse.
+    const shifted = [
+      'Split Attrs', 'HS', 'WR', 'Speedster', '☆☆☆', '1200', '', '',
+      "6'0\"", '185', 'Marietta', 'GA', '',
+      'Uncommitted',              // 13 — Commitment
+      'Awareness 76, Speed 86',   // 14 — Attributes part 1
+      'Release 72, Agility 80',   // 15 — Attributes part 2
+    ]
+    const r = parseRecruitingRow(shifted)
+    expect(r.commitment).toBe('Uncommitted')
+    expect(r.previousTeam).toBe('')
+    expect(r.attributes).toEqual({ Awareness: 76, Speed: 86, Release: 72, Agility: 80 })
+  })
+
+  it('keeps a transfer with BOTH Prev Team and a real Commitment aligned', () => {
+    const r = parseRecruitingRow([
+      'Two Team', 'Jr', 'WR', '', '☆☆☆☆', '', '', '',
+      "6'1\"", '200', 'Austin', 'TX', '', 'Normal', 'OHIO', 'Michigan',
+    ])
+    expect(r.previousTeam).toBe('OHIO')
+    expect(r.commitment).toBe('Michigan')
+    expect(r.devTrait).toBe('Normal')
   })
 })
 
