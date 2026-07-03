@@ -56,7 +56,12 @@ export default function PasteEntrySteps({
   onToggleText,
   disabled = false,
   hints = {},
+  // Caption/label overrides so non-screenshot flows (e.g. AI recaps, which have
+  // no screenshot step) can read correctly. Defaults keep the screenshot wording.
+  labels = {},
+  copyEmoji = '📸',
 }) {
+  const label = { copy: 'Screenshot & copy', ai: 'Send to your AI', paste: 'Paste it back', copyButton: 'Copy Prompt', ...labels }
   const [copied, setCopied] = useState(false)
   const [openInfo, setOpenInfo] = useState(null) // 'screenshot' | 'ai' | 'paste' | null
   const [aiKey, setAiKey] = useState(() => getPreferredAiKey())
@@ -114,10 +119,10 @@ export default function PasteEntrySteps({
       <div className="flex flex-row items-end justify-center gap-1.5 sm:gap-3">
         {/* Step 1 — screenshot & copy */}
         <div className="flex flex-col gap-2">
-          <Caption num="1" title="Screenshot & copy" active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
+          <Caption num="1" title={label.copy} active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
           <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
-            <span className="text-base leading-none" role="img" aria-label="Screenshot">📸</span>
-            {copied ? 'Copied!' : 'Copy Prompt'}
+            {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
+            {copied ? 'Copied!' : label.copyButton}
           </button>
         </div>
 
@@ -125,7 +130,7 @@ export default function PasteEntrySteps({
 
         {/* Step 2 — send to your AI */}
         <div className="flex flex-col gap-2">
-          <Caption num="2" title="Send to your AI" active={openInfo === 'ai'} onToggle={() => toggleInfo('ai')} />
+          <Caption num="2" title={label.ai} active={openInfo === 'ai'} onToggle={() => toggleInfo('ai')} />
           <div ref={aiWrapRef} className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
             <a href={ai.url} target="_blank" rel="noopener noreferrer" className={WHITE_BTN} style={WHITE_STYLE}>
               Open {ai.name}
@@ -149,7 +154,7 @@ export default function PasteEntrySteps({
 
         {/* Step 3 — paste it back */}
         <div className="flex flex-col gap-2">
-          <Caption num="3" title="Paste it back" active={openInfo === 'paste'} onToggle={() => toggleInfo('paste')} />
+          <Caption num="3" title={label.paste} active={openInfo === 'paste'} onToggle={() => toggleInfo('paste')} />
           <div className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
             <button type="button" onClick={onPaste} disabled={disabled} className={WHITE_BTN} style={WHITE_STYLE}>
               Paste
