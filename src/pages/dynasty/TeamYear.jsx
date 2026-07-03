@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { getEditionConfig } from '../../editions'
+import { getEditionConfig, isDynastyBlueprintEnabled } from '../../editions'
 import DynastyBlueprintPanel from '../../components/DynastyBlueprintPanel'
 import { getCoachByRole } from '../../data/coachModel'
 import { useDynasty, getLockedCoachingStaff, detectGameType, GAME_TYPES, getCustomConferencesForYear, getGamesByType, isPlayerOnRoster, getUserGamePerspective, getTeamConferenceForDynasty, getTeamConferenceLabel, calculateTeamRecordFromGames, getTeamRanking, getRecruitingCommitments, getPlayerPositionForYear, getPlayerOverallForYear, lookupByTeamYear, getPlayersLeaving, getTeamRatingsForYear } from '../../context/DynastyContext'
@@ -1308,7 +1308,13 @@ export default function TeamYear() {
   // Default tab: 'home' normally, but 'roster' when no games are on the
   // books yet for this team/year — the Home tab has nothing useful to
   // show pre-season, so skip straight to the Roster.
-  const activeTab = explicitTab || (teamYearGames.length === 0 ? 'roster' : 'home')
+  const defaultTab = teamYearGames.length === 0 ? 'roster' : 'home'
+  // A stale ?tab=blueprint (bookmark, or hiding Blueprint while on the tab)
+  // would otherwise land on an empty tab — fall back to the default instead.
+  const effectiveTab = (explicitTab === 'blueprint' && !isDynastyBlueprintEnabled(currentDynasty))
+    ? defaultTab
+    : explicitTab
+  const activeTab = effectiveTab || defaultTab
 
   // Check for both 'win'/'loss' and 'W'/'L' formats
   // Use _displayResult for flipped perspective games (opponent team pages)
@@ -3226,9 +3232,10 @@ export default function TeamYear() {
           <div className="flex overflow-x-auto no-scrollbar">
             {[
               { key: 'home', label: 'Home' },
-              // Blueprint (Program Overview) — only on the user's own team and
-              // only for editions with the Dynasty Points economy (CFB 27+).
-              ...(isUserTeam && getEditionConfig(currentDynasty)?.features?.dynastyPoints
+              // Blueprint (Program Overview) — only on the user's own team, only
+              // for editions with the Dynasty Points economy (CFB 27+), and only
+              // when the user hasn't hidden Blueprint in league preferences.
+              ...(isUserTeam && isDynastyBlueprintEnabled(currentDynasty)
                 ? [{ key: 'blueprint', label: 'Blueprint' }]
                 : []),
               { key: 'schedule', label: 'Schedule' },

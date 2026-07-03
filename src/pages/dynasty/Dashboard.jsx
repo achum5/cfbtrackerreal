@@ -15,7 +15,7 @@ import { getTeamLogo } from '../../data/teams'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
-import { getEditionConfig } from '../../editions'
+import { getEditionConfig, isDynastyBlueprintEnabled } from '../../editions'
 import { getSeasonBudget, setSeasonBudget, getSupportStaff, isSupportStaffSet, setSupportStaff, parseDp, getFacilities, getCarriedFacilityTier } from '../../data/dynastyPointsModel'
 import { getPlayerNil, sumPlayerNil } from '../../data/playerNilModel'
 import SearchableSelect from '../../components/SearchableSelect'
@@ -3707,11 +3707,11 @@ export default function Dashboard() {
             const preseasonUserTid = getUserTeamTid(currentDynasty)
             const preseasonYear = Number(currentDynasty.currentYear)
 
-            // Dynasty Points budget (CFB 27+ only). One preseason prompt to
-            // record the season's total budget; deep-links to the always-
-            // editable Dynasty Blueprint page. Gated by the edition feature
-            // flag so CFB 26 dynasties never see this row.
-            if (getEditionConfig(currentDynasty)?.features?.dynastyPoints) {
+            // Dynasty Points budget + Support Staff (CFB 27+ only). Preseason
+            // prompts that deep-link to the always-editable Dynasty Blueprint
+            // page. Hidden on CFB 26 and whenever the user has turned Blueprint
+            // off in league preferences.
+            if (isDynastyBlueprintEnabled(currentDynasty)) {
               const dpBudget = getSeasonBudget(currentDynasty, preseasonYear, preseasonUserTid)
               const dpDone = dpBudget != null
               const saveDpBudget = async () => {
@@ -5985,10 +5985,11 @@ export default function Dashboard() {
               const w5Tid = currentDynasty.currentTid
               const w5TeamStats = w5Tid != null ? `${pathPrefix}/team/${w5Tid}/${w5Year}?tab=stats` : null
 
-              // Next season's Dynasty Points budget refreshes HERE (End of Season
-              // Recap), so this is where you record it. Year 1 has no prior recap,
-              // so that budget is entered in the preseason instead. CFB 27 only.
-              if (getEditionConfig(currentDynasty)?.features?.dynastyPoints && w5Tid != null) {
+              // Next season's Dynasty Points budget / facilities / roster NIL
+              // refresh HERE (End of Season Recap). Year 1 has no prior recap, so
+              // the budget is entered in the preseason instead. CFB 27 only, and
+              // hidden when the user has turned Blueprint off in preferences.
+              if (isDynastyBlueprintEnabled(currentDynasty) && w5Tid != null) {
                 const nextYear = Number(w5Year) + 1
                 const nextBudget = getSeasonBudget(currentDynasty, nextYear, w5Tid)
                 const nbDone = nextBudget != null

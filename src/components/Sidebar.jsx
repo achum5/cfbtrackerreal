@@ -9,7 +9,7 @@ import ShareDynastyModal from './ShareDynastyModal'
 import { useToast } from './ui'
 import { preloadByNavName } from '../routes/lazyPages'
 import { useAuth } from '../context/AuthContext'
-import { getEditionConfig } from '../editions'
+import { isDynastyBlueprintEnabled } from '../editions'
 import {
   DndContext, MouseSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, closestCenter,
@@ -190,10 +190,10 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const showCoachesLink = controlledCoachCount > 1
 
   // Edition-gated nav: the Dynasty Blueprint hub only exists for editions
-  // that enable the Dynasty Points economy (CFB 27+). CFB 26 dynasties
-  // never see the link. Reads the resolved edition config off the dynasty.
-  const editionConfig = getEditionConfig(currentDynasty)
-  const showBlueprint = Boolean(editionConfig?.features?.dynastyPoints) && !isViewOnly
+  // that enable the Dynasty Points economy (CFB 27+), and is hidden when the
+  // user has turned Blueprint off in league preferences. CFB 26 dynasties
+  // never see the link either.
+  const showBlueprint = isDynastyBlueprintEnabled(currentDynasty) && !isViewOnly
 
   const navItems = [
     { name: 'Dashboard', path: pathPrefix },

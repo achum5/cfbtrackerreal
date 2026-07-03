@@ -106,6 +106,21 @@ export function editionHasFeature(dynastyOrKey, feature) {
   return Boolean(getEditionConfig(dynastyOrKey)?.features?.[feature])
 }
 
+// The ONE gate every Dynasty Blueprint surface must use — nav link, the
+// Blueprint panel/tab, the dashboard budget/support-staff/facility/roster-NIL
+// to-dos, the budget donut, and the Dynasty Points framing on coach salaries.
+// It is true only when BOTH the dynasty's edition enables the Dynasty Points
+// economy (CFB 27+) AND the user has not hidden it via the league preference
+// (`dynasty.hideDynastyBlueprint`). Requires the full dynasty object (not an
+// edition key) so it can read the per-dynasty preference.
+//
+// Hiding is purely presentational: it never deletes `dynasty.dynastyPoints`,
+// support staff, facilities, or coach salaries — flip the preference back and
+// everything returns exactly as it was.
+export function isDynastyBlueprintEnabled(dynasty) {
+  return editionHasFeature(dynasty, 'dynastyPoints') && dynasty?.hideDynastyBlueprint !== true
+}
+
 // True when a dynasty (or edition key) resolves to CFB 27. Gate CFB 27-only
 // features on this — e.g. Scout Staff, which doesn't work correctly against
 // CFB 26 data — so they never surface on CFB 26 / untagged saves.
