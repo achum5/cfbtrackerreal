@@ -832,6 +832,45 @@ function ShrinkToFit({ children, className = '', onZoom }) {
   )
 }
 
+// Shrinks a single inline cluster (e.g. "#jersey  class") to fit its available
+// width instead of letting CSS truncate it. On the mobile depth chart the tile
+// columns are a fixed 7.5rem, so a 2-digit jersey + a long class like "RS Jr"
+// overflowed and the class got ellipsized ("RS …") — losing information the
+// user needs. This scales the cluster down (CSS zoom, shrink-only) just enough
+// that every character stays visible. Loop-safe measurement mirrors ShrinkToFit:
+// the applied zoom is tracked in a ref so we recover the natural width instead
+// of feeding the shrunk width back in.
+function FitRow({ children, className = '', minZoom = 0.5 }) {
+  const outerRef = useRef(null)
+  const innerRef = useRef(null)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
+  useLayoutEffect(() => {
+    const outer = outerRef.current, inner = innerRef.current
+    if (!outer || !inner) return
+    const measure = () => {
+      const avail = outer.clientWidth
+      const applied = zoomRef.current || 1
+      const natural = inner.getBoundingClientRect().width / applied
+      const next = natural > avail && natural > 0 ? Math.max(minZoom, (avail / natural) * 0.99) : 1
+      if (Math.abs(next - zoomRef.current) > 0.005) {
+        zoomRef.current = next
+        setZoom(next)
+      }
+    }
+    measure()
+    const raf = requestAnimationFrame(measure)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(outer)
+    return () => { cancelAnimationFrame(raf); ro?.disconnect() }
+  })
+  return (
+    <div ref={outerRef} className={`min-w-0 ${className}`}>
+      <div ref={innerRef} className="w-fit" style={{ zoom }}>{children}</div>
+    </div>
+  )
+}
+
 // ── Sortable wrapper around a tile ────────────────────────────────────────────
 function SortableTile({ tile, isStarter, canEdit, teamLogo, leaveSet, markMode, highlightKey, onTileClick, compareActive, compareSet }) {
   // Drag is disabled while the compare picker is active so a tap selects
@@ -897,11 +936,18 @@ function TileView({ tile, isStarter, grab, dragging, teamLogo, leaving, markMode
           )}
         </div>
         <div className="flex items-center gap-1 mt-0.5 text-[8px] text-txt-tertiary min-w-0">
-          {hasJersey && (
-            <span className="shrink-0 font-bold tabular-nums text-txt-secondary">#{tile.jerseyNumber}</span>
-          )}
-          <span className="truncate">{tile.projectedClass}</span>
-          <span className="ml-auto tabular-nums font-bold text-[11px] shrink-0" style={{ color: ovrColor(tile.projectedOvr) }}>{tile.projectedOvr ?? '—'}</span>
+          {/* Jersey + class shrink together to stay fully visible rather than
+              ellipsizing the class (e.g. a 2-digit # next to "RS Jr"). flex-1
+              keeps the OVR pinned right. */}
+          <FitRow className="flex-1">
+            <div className="flex items-center gap-1 whitespace-nowrap">
+              {hasJersey && (
+                <span className="font-bold tabular-nums text-txt-secondary">#{tile.jerseyNumber}</span>
+              )}
+              {tile.projectedClass && <span>{tile.projectedClass}</span>}
+            </div>
+          </FitRow>
+          <span className="tabular-nums font-bold text-[11px] shrink-0" style={{ color: ovrColor(tile.projectedOvr) }}>{tile.projectedOvr ?? '—'}</span>
           {marker && <span className="font-bold uppercase tracking-wide shrink-0" style={{ color: markerColor }}>{marker}</span>}
         </div>
       </div>

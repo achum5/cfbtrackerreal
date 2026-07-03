@@ -61,6 +61,43 @@ function CompareCheck({ active, selected, accent, accentText }) {
   )
 }
 
+// Shrinks its children (CSS zoom, shrink-only) to fit the bounded width they're
+// given, instead of ellipsizing. Content-aware: on displays where the content
+// already fits, zoom stays 1 and nothing changes; it only kicks in when the
+// text would otherwise be cut off (e.g. a long school name like "South Alabama"
+// on a narrow phone). Loop-safe measurement: the applied zoom is tracked in a
+// ref so we recover the natural width rather than feeding the shrunk width back.
+function FitText({ children, className = '', minZoom = 0.5 }) {
+  const outerRef = useRef(null)
+  const innerRef = useRef(null)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
+  useLayoutEffect(() => {
+    const outer = outerRef.current, inner = innerRef.current
+    if (!outer || !inner) return
+    const measure = () => {
+      const avail = outer.clientWidth
+      const applied = zoomRef.current || 1
+      const natural = inner.getBoundingClientRect().width / applied
+      const next = natural > avail && natural > 0 ? Math.max(minZoom, (avail / natural) * 0.99) : 1
+      if (Math.abs(next - zoomRef.current) > 0.005) {
+        zoomRef.current = next
+        setZoom(next)
+      }
+    }
+    measure()
+    const raf = requestAnimationFrame(measure)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(outer)
+    return () => { cancelAnimationFrame(raf); ro?.disconnect() }
+  })
+  return (
+    <div ref={outerRef} className={`min-w-0 overflow-hidden ${className}`}>
+      <div ref={innerRef} className="w-fit" style={{ zoom, transformOrigin: 'left center' }}>{children}</div>
+    </div>
+  )
+}
+
 // Map abbreviation to mascot name for logo lookup
 // Accepts optional teamsData for tid-based teambuilder support
 const getMascotName = (abbr, teamsData = null) => {
@@ -2772,13 +2809,13 @@ export default function TeamYear() {
                   invisible native <select> is overlaid so the OS dropdown still
                   changes teams. */}
               <div className="relative inline-flex items-center gap-1.5 min-w-0">
-                <div className="leading-[0.92] min-w-0">
-                  {/* Full school name at every breakpoint. The clamp font +
-                      truncate handle the rare too-long name gracefully; there's
-                      ample room for the school name even on mobile, so don't
-                      force the abbreviation. */}
+                {/* Full school name at every breakpoint. FitText shrinks it just
+                    enough to stay whole on the displays where it would otherwise
+                    be cut off (long names on narrow phones); everywhere it fits,
+                    it renders at the natural clamp size unchanged. */}
+                <FitText className="leading-[0.92]">
                   <div
-                    className="font-display font-extrabold uppercase tracking-tight truncate"
+                    className="font-display font-extrabold uppercase tracking-tight whitespace-nowrap"
                     style={{ color: teamBgText, fontSize: 'clamp(1.125rem, 2.6vw, 2.125rem)' }}
                   >
                     {getSchoolName(mascotName) || teamInfo.name}
@@ -2787,12 +2824,12 @@ export default function TeamYear() {
                     const sch = getSchoolName(mascotName) || ''
                     const masc = (mascotName || '').slice(sch.length).trim()
                     return masc ? (
-                      <div className="font-display font-semibold uppercase tracking-[0.06em] truncate" style={{ color: teamBgText, opacity: 0.82, fontSize: 'clamp(0.75rem, 1.2vw, 0.95rem)' }}>
+                      <div className="font-display font-semibold uppercase tracking-[0.06em] whitespace-nowrap" style={{ color: teamBgText, opacity: 0.82, fontSize: 'clamp(0.75rem, 1.2vw, 0.95rem)' }}>
                         {masc}
                       </div>
                     ) : null
                   })()}
-                </div>
+                </FitText>
                 <svg className="w-5 h-5 flex-shrink-0 pointer-events-none" style={{ color: teamBgText, opacity: 0.7 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
