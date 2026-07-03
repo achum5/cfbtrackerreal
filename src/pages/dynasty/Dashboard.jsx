@@ -4172,25 +4172,20 @@ export default function Dashboard() {
               // Row 2: Recruiting — owns the "this week's commits"
               // decision the user makes most often.
               {
-                let title, subtitle
+                let subtitle
                 if (hasCommitmentsData) {
-                  title = commitmentsCount > 0
-                    ? `${commitmentsCount} Commit${commitmentsCount === 1 ? '' : 's'} Logged`
-                    : `Recruiting Week ${currentDynasty.currentWeek} Complete`
                   subtitle = classScore > 0
                     ? `${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(classScore)}`
                     : `${currentDynasty.currentYear} class`
                 } else if (classScore > 0) {
-                  title = `${currentDynasty.currentYear} Class Score: ${formatRecruitingClassScore(classScore)}`
                   subtitle = hasCurWeek ? `Recruiting Week ${currentDynasty.currentWeek}` : `${currentDynasty.currentYear} class`
                 } else {
-                  title = hasCurWeek ? `Week ${currentDynasty.currentWeek} Commits` : 'Commits'
                   subtitle = null
                 }
                 todos.push({
                   key: 'recruiting',
                   done: hasCommitmentsData,
-                  title,
+                  title: 'New Targets/Commits?',
                   subtitle,
                   viewTo: `${pathPrefix}/recruiting/${userTidForCommitments}/${currentDynasty.currentYear}`,
                   onAction: () => setShowRecruitingModal(true),
@@ -4515,7 +4510,7 @@ export default function Dashboard() {
               todos.push({
                 key: 'cc-recruiting',
                 done: recruitingDone,
-                title: 'New targets/commitments?',
+                title: 'New Targets/Commits?',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
@@ -5389,7 +5384,7 @@ export default function Dashboard() {
               bw1Todos.push({
                 key: 'recruiting-bw1',
                 done: bw1HasCommitmentsData,
-                title: bw1HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
+                title: 'New Targets/Commits?',
                 subtitle: bw1HasCommitmentsData
                   ? bw1CommitmentsCount > 0
                     ? `${bw1CommitmentsCount} commitment${bw1CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -5739,7 +5734,7 @@ export default function Dashboard() {
               bw2Todos.push({
                 key: 'recruiting-bw2',
                 done: bw2HasCommitmentsData,
-                title: bw2HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
+                title: 'New Targets/Commits?',
                 subtitle: bw2HasCommitmentsData
                   ? bw2CommitmentsCount > 0
                     ? `${bw2CommitmentsCount} commitment${bw2CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6521,7 +6516,7 @@ export default function Dashboard() {
             w34Todos.push({
               key: 'recruiting-bw34',
               done: w34HasCommitmentsData,
-              title: w34HasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
+              title: 'New Targets/Commits?',
               subtitle: w34HasCommitmentsData
                 ? w34CommitmentsCount > 0
                   ? `${w34CommitmentsCount} commitment${w34CommitmentsCount !== 1 ? 's' : ''} recorded`
@@ -6809,7 +6804,7 @@ export default function Dashboard() {
                 o26Todos.push({
                   key: 'recruiting-week',
                   done: hasCommitmentsData,
-                  title: hasCommitmentsData ? 'Targets & Commitments' : 'New targets/commitments?',
+                  title: 'New Targets/Commits?',
                   subtitle: hasCommitmentsData
                     ? commitmentsCount > 0
                       ? `${commitmentsCount} commitment${commitmentsCount !== 1 ? 's' : ''} recorded`
