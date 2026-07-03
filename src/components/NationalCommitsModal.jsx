@@ -12,7 +12,9 @@ import { useToast } from './ui/Toast'
 
 const STARS = ['', '5', '4', '3', '2', '1']
 
-const emptyRow = () => ({ name: '', position: '', stars: '', committedTo: '' })
+// pid links a row to the real recruit player created for it, so re-saving
+// updates that player instead of making a duplicate. null = not created yet.
+const emptyRow = () => ({ pid: null, name: '', position: '', stars: '', committedTo: '' })
 
 export default function NationalCommitsModal({
   isOpen,
@@ -31,6 +33,7 @@ export default function NationalCommitsModal({
   useEffect(() => {
     if (isOpen) {
       const mapped = (existingCommits || []).map(c => ({
+        pid: c.pid ?? null,
         name: c.name || '',
         position: c.position || '',
         stars: c.stars != null ? String(c.stars) : '',
@@ -64,6 +67,7 @@ export default function NationalCommitsModal({
   const validRows = rows
     .filter(r => r.name.trim())
     .map(r => ({
+      pid: r.pid ?? null,
       name: r.name.trim(),
       position: r.position.trim(),
       stars: r.stars ? Number(r.stars) : null,

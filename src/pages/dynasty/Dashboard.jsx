@@ -1948,17 +1948,131 @@ export default function Dashboard() {
     await updateDynasty(currentDynasty.id, updates)
   }
 
-  // Handle national commits save (National Signing Day). League-wide watch
-  // list, not tied to a team — stored in nationalCommitsByYear[year].
+  // Handle national commits save (National Signing Day).
+  //
+  // Each national commit becomes a REAL recruit player committed to the named
+  // school — same shape as any recruit from the normal commitments flow, so it
+  // enrolls as a freshman the following year and ages normally. We keep a light
+  // ledger in nationalCommitsByYear[year] that carries each row's created pid,
+  // so re-opening the modal edits the SAME players (no duplicates) and removing
+  // a row deletes its player.
   const handleNationalCommitsSave = async (commits) => {
     const isAfterYearFlip = currentDynasty.currentPhase === 'offseason' && currentDynasty.currentWeek >= 5
     const year = isAfterYearFlip ? currentDynasty.currentYear - 1 : currentDynasty.currentYear
+    const enrollmentYear = year + 1
+
+    const existingPlayers = currentDynasty.players || []
+    const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
+    let nextPID = Math.max(maxExistingPID + 1, currentDynasty.nextPID || 1)
+
+    const priorLedger = currentDynasty.nationalCommitsByYear?.[year] || []
+    const priorPids = new Set(priorLedger.map(c => c.pid).filter(v => v != null))
+
+    const resolveTeam = (nameText) => {
+      const t = (nameText || '').trim()
+      if (!t) return null
+      return getTidFromTeamName(t, currentDynasty?.teams)
+        || getTidFromAbbr(t, currentDynasty)
+        || resolveTid(t, currentDynasty?.teams || TEAMS)
+        || null
+    }
+
+    // A brand-new HS recruit committed to `committedTid`. Mirrors the recruit
+    // shape built by handleRecruitingCommitmentsSave (canonical v2 per-year
+    // maps); they play NEXT year (enrollmentYear) as a freshman.
+    const makeRecruit = (pid, row, committedTid) => ({
+      pid,
+      id: `player-${pid}`,
+      name: row.name,
+      position: row.position || '',
+      year: 'Fr',
+      jerseyNumber: '',
+      devTrait: '',
+      archetype: '',
+      overall: null,
+      height: '',
+      weight: 0,
+      hometown: '',
+      state: '',
+      team: committedTid,
+      isRecruit: true,
+      recruitYear: year,
+      teamsByYear: { [enrollmentYear]: committedTid },
+      classByYear: { [enrollmentYear]: 'Fr' },
+      devTraitByYear: {},
+      movementByYear: { [year]: { type: 'arrival', arrival: 'recruit' } },
+      stars: row.stars || 0,
+      nationalRank: null,
+      stateRank: null,
+      positionRank: null,
+      gemBust: '',
+      previousTeam: '',
+      isPortal: false,
+    })
+
+    const ledger = []
+    const updatesByPid = new Map()
+    const newPlayers = []
+    const keptPids = new Set()
+    let unresolved = 0
+
+    for (const row of commits) {
+      const committedTid = resolveTeam(row.committedTo)
+      if (committedTid == null) unresolved++
+
+      if (row.pid != null && priorPids.has(row.pid)) {
+        // Edit of an existing national-commit player — update it in place.
+        keptPids.add(row.pid)
+        const existing = existingPlayers.find(p => p.pid === row.pid)
+        if (existing) {
+          updatesByPid.set(row.pid, {
+            ...existing,
+            name: row.name,
+            position: row.position || '',
+            stars: row.stars || 0,
+            team: committedTid ?? existing.team ?? null,
+            teamsByYear: {
+              ...(existing.teamsByYear || {}),
+              [enrollmentYear]: committedTid ?? existing.teamsByYear?.[enrollmentYear] ?? null,
+            },
+          })
+        }
+        ledger.push({ pid: row.pid, name: row.name, position: row.position || '', stars: row.stars ?? null, committedTo: row.committedTo || '' })
+      } else if (committedTid != null) {
+        // New row with a recognized school → create a real recruit player.
+        const pid = nextPID++
+        newPlayers.push(makeRecruit(pid, row, committedTid))
+        ledger.push({ pid, name: row.name, position: row.position || '', stars: row.stars ?? null, committedTo: row.committedTo || '' })
+      } else {
+        // New row whose school we couldn't match to a team — keep the note so
+        // it isn't lost, but don't create a rosterless player. Fixing the
+        // school name on a later save will create the player.
+        ledger.push({ pid: null, name: row.name, position: row.position || '', stars: row.stars ?? null, committedTo: row.committedTo || '' })
+      }
+    }
+
+    // Prior national-commit players no longer in the list → delete them.
+    const removedPids = new Set([...priorPids].filter(pid => !keptPids.has(pid)))
+
+    const finalPlayers = existingPlayers
+      .filter(p => !removedPids.has(p.pid))
+      .map(p => updatesByPid.get(p.pid) || p)
+      .concat(newPlayers)
+
     await updateDynasty(currentDynasty.id, {
+      players: finalPlayers,
+      nextPID,
       nationalCommitsByYear: {
         ...(currentDynasty.nationalCommitsByYear || {}),
-        [year]: commits,
+        [year]: ledger,
       },
     })
+
+    if (unresolved > 0) {
+      try {
+        toast.info(`${unresolved} commit${unresolved !== 1 ? "s weren't" : " wasn't"} matched to a team and ${unresolved !== 1 ? 'were' : 'was'} saved as a note. Check the school name to turn ${unresolved !== 1 ? 'them' : 'it'} into a tracked recruit.`)
+      } catch { /* toast optional */ }
+    }
   }
 
   // Handle position changes save (National Signing Day)
