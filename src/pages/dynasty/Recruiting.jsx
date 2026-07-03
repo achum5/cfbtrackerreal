@@ -614,18 +614,31 @@ export default function Recruiting() {
     // passes mode:'replace' because its sheet is prefilled with the full class,
     // so the sheet IS authoritative and a removed row should delete.
     const incomingCommits = [...commitRows, ...committedToUs]
-    let mergedEdit
+    // The commitments store is an object of MULTIPLE buckets: our `edit` bucket
+    // (Recruiting-page paste/import) PLUS the per-week buckets the Dashboard
+    // signing-day flow writes (preseason, regular_N, signing_N, bowl_N,
+    // conf_champ). getRecruitingCommitments returns that whole object.
+    const existingCommitObj = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear) || {}
+    let commitmentData
     if (mode === 'replace') {
-      mergedEdit = incomingCommits
+      // Google-Sheet flow: the sheet is prefilled with the FULL flattened class
+      // (every bucket), so it's authoritative — consolidate everything into
+      // `edit` and drop the now-duplicated per-week buckets.
+      commitmentData = { edit: incomingCommits }
     } else {
-      const prevEdit = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear)?.edit || []
+      // Paste flow: the AI sends ONLY the new rows. Merge them into `edit`
+      // (keyed by name) AND preserve the sibling per-week buckets. Previously
+      // this wrote `{ edit: mergedEdit }`, replacing the whole object — which
+      // deleted every Dashboard-recorded commitment off the board each time a
+      // user pasted a new batch (the reported "it took away every other recruit"
+      // data loss). The board dedupes across buckets, so keeping them is safe.
+      const prevEdit = existingCommitObj.edit || []
       const normName = (n) => String(n || '').toLowerCase().trim()
       const byName = new Map()
       for (const c of prevEdit) { const k = normName(c?.name); if (k) byName.set(k, c) }
       for (const c of incomingCommits) { const k = normName(c?.name); if (k) byName.set(k, c) }
-      mergedEdit = Array.from(byName.values())
+      commitmentData = { ...existingCommitObj, edit: Array.from(byName.values()) }
     }
-    const commitmentData = { edit: mergedEdit }
 
     // Persist only the players that actually changed (new signees + updated
     // records), not the whole roster. handleRecruitingSave never removes a
@@ -715,7 +728,10 @@ export default function Recruiting() {
       const prevEdit = existingYearData.recruitingCommitments?.edit || []
       const prevPids = new Set(prevEdit.map((c) => c.pid))
       const merged = [...prevEdit, ...committedToUs.filter((c) => !prevPids.has(c.pid))]
-      const commitmentData = { edit: merged }
+      // Preserve the sibling per-week buckets (preseason / regular_N /
+      // signing_N / ...) — only overwrite `edit`. Writing a bare `{ edit }`
+      // here would wipe every Dashboard-recorded commitment off the board.
+      const commitmentData = { ...(existingYearData.recruitingCommitments || {}), edit: merged }
 
       updates.teams = {
         ...existingTeams,

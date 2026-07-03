@@ -5783,16 +5783,24 @@ export function getRecruitingCommitments(dynasty, tidOrAbbr, year) {
   // Resolve tid - handle both numeric tid and string abbreviation
   let tid = typeof tidOrAbbr === 'number' ? tidOrAbbr : getTidFromAbbr(tidOrAbbr, dynasty)
 
-  // Try NEW tid-based byYear structure first
-  if (tid && dynasty.teams?.[tid]?.byYear?.[year]?.recruitingCommitments) {
-    return dynasty.teams[tid].byYear[year].recruitingCommitments
-  }
+  // The commitments object is a map of BUCKETS: `edit` (Recruiting-page
+  // paste/import) plus per-week buckets from the Dashboard signing-day flow
+  // (preseason, regular_N, signing_N, bowl_N, conf_champ). It lives in TWO
+  // dual-keyed stores that are supposed to match: the tid-based teams.byYear
+  // store and the recruitingCommitmentsByTeamYear store.
+  //
+  // They can DRIFT: the teams store is replace-persisted while byTeamYear is
+  // merge-persisted, so a past bare "{ edit: ... }" write (the recruiting
+  // data-loss bug) could strip the per-week buckets from teams while byTeamYear
+  // still holds them. Union both so no bucket is lost — teams wins on shared
+  // keys (its `edit` is the most-recently-written), byTeamYear fills in any
+  // bucket the teams store is missing. When they're in sync this is a no-op;
+  // when teams was clobbered it transparently restores the hidden commits.
+  const fromTeams = (tid && dynasty.teams?.[tid]?.byYear?.[year]?.recruitingCommitments) || null
+  const fromByTeamYear = lookupByTeamYear(dynasty.recruitingCommitmentsByTeamYear, dynasty, tid ?? tidOrAbbr, year) || null
 
-  // Fall back to abbr-based structure (drift-aware via tid)
-  const teamYear = lookupByTeamYear(dynasty.recruitingCommitmentsByTeamYear, dynasty, tid ?? tidOrAbbr, year)
-  if (teamYear) return teamYear
-
-  return {}
+  if (fromTeams && fromByTeamYear) return { ...fromByTeamYear, ...fromTeams }
+  return fromTeams || fromByTeamYear || {}
 }
 
 /**
