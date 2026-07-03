@@ -21,7 +21,7 @@ import {
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import { buildAttributesStructure } from '../utils/attributeEntry'
-import { getEditionConfig } from '../editions'
+import { arePlayerAttributesEnabled } from '../editions'
 import AttributePasteGrid from './AttributePasteGrid'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
@@ -36,7 +36,9 @@ export default function RecruitOverallsModal({ isOpen, onClose, onSave, onImport
   const { currentDynasty, updateDynasty } = useDynasty()
   // CFB 27: "Full attributes" local-paste mode alongside the Overalls Google
   // sheet. Gated on the edition attributes feature; defaults to Overalls.
-  const attributesEnabled = !!getEditionConfig(currentDynasty)?.features?.attributes
+  // Full-attribute entry: edition supports it AND ratings aren't hidden via the
+  // "Hide all ratings" league preference. When hidden, this flow is Overalls-only.
+  const attributesEnabled = arePlayerAttributesEnabled(currentDynasty)
   const [mode, setMode] = useState('overalls') // 'overalls' | 'attributes'
   // Within Overalls mode, local paste is the DEFAULT; Google is the fallback.
   const [useLocal, setUseLocal] = useState(true)

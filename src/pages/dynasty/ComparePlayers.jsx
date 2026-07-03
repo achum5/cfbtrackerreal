@@ -494,14 +494,16 @@ export default function ComparePlayers() {
   // Attribute sections (CFB 27 ratings) — grouped like the in-game player card.
   // Only groups/rows with at least one non-empty value across the selected
   // players are shown.
+  const ratingsHidden = currentDynasty?.hideAllRatings === true
   const attrSections = useMemo(() => {
+    if (ratingsHidden) return [] // "Hide all ratings" league preference
     const has = (c, a) => c.attrs?.[a] != null && c.attrs[a] !== ''
     const groups = displayGroups()
       .map(g => ({ label: g.label, rows: g.attrs.filter(a => filledCols.some(c => has(c, a))) }))
       .filter(g => g.rows.length)
     const positions = filledCols.map(c => c.position).filter(Boolean)
     return orderAttrGroupsByPositions(groups, positions)
-  }, [filledCols])
+  }, [filledCols, ratingsHidden])
 
   if (!currentDynasty) return null
 

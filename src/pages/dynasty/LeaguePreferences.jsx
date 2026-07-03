@@ -338,6 +338,29 @@ export default function LeaguePreferences() {
     }
   }
 
+  // Hide all ratings — turn off full per-player attribute (rating) tracking.
+  // When on: the Training Results / Recruit Overalls entry flows capture Overall
+  // only, and the player Attributes tab + Compare Players ratings are hidden.
+  // Recruit scouting (the 10 attributes from the recruiting flow / ScoutScore)
+  // is untouched. Never deletes stored ratings — flip back to see them again.
+  const ratingsHidden = !!currentDynasty?.hideAllRatings
+  const [savingRatings, setSavingRatings] = useState(false)
+  const toggleRatings = async () => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    if (savingRatings) return
+    const next = !ratingsHidden
+    setSavingRatings(true)
+    try {
+      await updateDynasty(currentDynasty.id, { hideAllRatings: next })
+      toast.success(next ? 'Ratings hidden — players track Overall only.' : 'Ratings shown.')
+    } catch (err) {
+      console.error('[LeaguePreferences] hide ratings toggle failed:', err)
+      toast.error(`Could not update: ${err?.message || 'Unknown error'}`)
+    } finally {
+      setSavingRatings(false)
+    }
+  }
+
   if (!currentDynasty) return null
 
   return (
@@ -416,6 +439,45 @@ export default function LeaguePreferences() {
                 height: 20,
                 background: 'var(--surface-1)',
                 transform: blueprintHidden ? 'translateX(23px)' : 'translateX(3px)',
+              }}
+            />
+          </button>
+        </div>
+      </section>
+      )}
+
+      {/* Hide all ratings — CFB 27+ only (that's where full attribute tracking
+          exists). Overalls, recruit scouting, and everything else stay. */}
+      {editionHasFeature(currentDynasty, 'attributes') && (
+      <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
+        <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-txt-primary">Hide all ratings</div>
+            <p className="text-xs text-txt-tertiary mt-1 leading-relaxed m-0">
+              Track Overall only for players — skips the full attribute set in Training Results / Recruit Overalls and hides the player Attributes tab. Recruit scouting is unaffected. Nothing entered is deleted.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={ratingsHidden}
+            onClick={toggleRatings}
+            disabled={isViewOnly || savingRatings}
+            className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
+            style={{
+              width: 46,
+              height: 26,
+              backgroundColor: ratingsHidden ? 'var(--text-primary)' : 'var(--surface-4)',
+            }}
+            title={ratingsHidden ? 'Show ratings' : 'Hide all ratings'}
+          >
+            <span
+              className="inline-block rounded-full transition-transform"
+              style={{
+                width: 20,
+                height: 20,
+                background: 'var(--surface-1)',
+                transform: ratingsHidden ? 'translateX(23px)' : 'translateX(3px)',
               }}
             />
           </button>

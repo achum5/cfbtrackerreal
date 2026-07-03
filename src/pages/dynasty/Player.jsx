@@ -501,7 +501,11 @@ function PlayerInner() {
   // otherwise fall back to the auto default (e.g. after switching players).
   const attrDisplayYear = (attrViewYear != null && attrSeasons[attrViewYear]) ? Number(attrViewYear) : attrAutoYear
   const displayAttributes = (attrDisplayYear != null ? attrSeasons[attrDisplayYear] : null) || player?.attributes || null
-  const hasAttributes = !!(displayAttributes && Object.keys(displayAttributes).length)
+  // "Hide all ratings" league preference removes the Attributes tab entirely
+  // (ScoutScore still surfaces a recruit's scouted profile separately). Gated on
+  // the raw flag, not the edition, so it's a no-op on editions without ratings.
+  const ratingsHidden = dynasty?.hideAllRatings === true
+  const hasAttributes = !ratingsHidden && !!(displayAttributes && Object.keys(displayAttributes).length)
   // NIL (CFB 27+) — current-season earnings for the hero + per-year for timelines.
   const nilEnabled = !!getEditionConfig(dynasty)?.features?.nil
   const currentNil = nilEnabled ? getPlayerNil(player, currentYear) : null

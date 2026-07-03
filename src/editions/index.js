@@ -121,6 +121,17 @@ export function isDynastyBlueprintEnabled(dynasty) {
   return editionHasFeature(dynasty, 'dynastyPoints') && dynasty?.hideDynastyBlueprint !== true
 }
 
+// Whether FULL per-player attribute (rating) ENTRY is on: the edition supports
+// it AND the user hasn't turned ratings off via the "Hide all ratings" league
+// preference (`dynasty.hideAllRatings`). Gate the Training Results / Recruit
+// Overalls full-attribute entry sections on this so, when hidden, those flows
+// capture Overall only. Displays (the player Attributes tab, Compare Players)
+// gate on the raw `hideAllRatings` flag instead — they must still show scouted
+// data on editions without the full-attribute feature.
+export function arePlayerAttributesEnabled(dynasty) {
+  return editionHasFeature(dynasty, 'attributes') && dynasty?.hideAllRatings !== true
+}
+
 // True when a dynasty (or edition key) resolves to CFB 27. Gate CFB 27-only
 // features on this — e.g. Scout Staff, which doesn't work correctly against
 // CFB 26 data — so they never surface on CFB 26 / untagged saves.
