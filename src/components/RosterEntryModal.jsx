@@ -91,8 +91,10 @@ export default function RosterEntryModal({ isOpen, onClose, onSave, currentYear,
     ? `\n───────────────────────────────────────────────────────────
 COLUMN O — Attributes (CFB 27) — the player's ENTIRE rating set as ONE cell:
 comma-separated "CODE value" pairs using the codes below, IN THIS ORDER. Include
-every rating you can see for the player; leave the WHOLE cell blank if you have no
-ratings for them. The cell uses COMMAS between pairs (never tabs) so it stays one
+every rating you can see for the player ACROSS ALL screenshots — merge the list
+view, the attribute table, and any highlighted card into one combined set, so a
+player captured in more than one view gets the UNION of every rating shown. Leave
+the WHOLE cell blank only if you have no ratings for them anywhere. The cell uses COMMAS between pairs (never tabs) so it stays one
 cell. Ratings are integers 0–99, no "+/-" gain deltas — if a screenshot shows
 "84 (+1)", record 84. Example cell: "AWR 84, SPD 91, ACC 92, STR 70, AGI 90, COD 88".
 
@@ -112,21 +114,36 @@ KNOWN ROSTER DATA — a gap-filler applied AFTER screenshot extraction
 ═══════════════════════════════════════════════════════════
 Do this in TWO ordered steps. Do NOT skip or shortcut step 1.
 
-STEP 1 — EXTRACT EVERYTHING FROM THE SCREENSHOTS, FOR EVERY PLAYER.
-Read every screenshot and pull EVERY field and EVERY attribute you can see for
-EVERY player shown — the same exhaustive effort for all of them. A player is NOT
-lower priority just because they appear in the KNOWN DATA list below, and a
-player is NOT lower priority just because they DON'T. If a player is highlighted
-/ selected and their full rating set is on screen, capture ALL of those ratings
-into column O, whether or not we already have data on file for them. The known
-data below must NEVER cause you to record fewer attributes for anyone — your job
-is to read the screenshots to the fullest for the entire roster.
+STEP 1 — EXTRACT EVERYTHING FROM EVERY SCREENSHOT, FOR EVERY PLAYER.
+Read EVERY uploaded screenshot, start to finish — do not skip any, do not sample,
+do not stop early. Pull EVERY field and EVERY attribute you can see for EVERY
+player shown, the same exhaustive effort for all of them. Screenshots come in
+different views: the roster LIST view shows ~6 attributes per row (SPD, ACC, AGI,
+COD, STR, AWR); the ATTRIBUTE-TABLE view shows 16+ per row; a highlighted/selected
+player shows their FULL card. Capture everything visible in every one of them.
+
+MERGE THE SAME PLAYER ACROSS SCREENSHOTS. The same player usually appears in more
+than one screenshot (list view in one, attribute table in another, a highlighted
+card in a third). Combine all of those into that player's ONE row: take the UNION
+of every attribute seen for them in ANY screenshot. If one shot shows 6 attributes
+and another shows 16 for the same player, their row MUST contain all 16 — never
+just the 6 from the first place you noticed them. Do the same for every non-
+attribute field (height, weight, hometown, archetype, dev trait, jersey, etc.):
+if it's visible in any screenshot, it goes in the row.
+
+A player is NOT lower priority because they appear in the KNOWN DATA list below,
+and NOT lower priority because they don't. The known data below must NEVER cause
+you to record fewer attributes for anyone — your job is to read the screenshots to
+the fullest for the entire roster.
 
 STEP 2 — FILL REMAINING GAPS FROM KNOWN DATA.
-Only after step 1, for each player, take any field STILL blank (not visible in
-any screenshot) and fill it from that player's row in the KNOWN DATA below, so a
-player who wasn't highlighted still comes out as complete as possible. Match by
-name (or initial + position + jersey).
+Only after step 1, for each player, take EVERY field STILL blank (not visible in
+any screenshot) and fill it from that player's row in the KNOWN DATA below — every
+missing attribute in column O, plus hometown, height/weight, archetype, dev trait,
+and any other empty field — so a player who wasn't highlighted still comes out as
+complete as possible. Match by name (or initial + position + jersey). Fill every
+gap you have known data for; only leave a field blank when it's missing from BOTH
+the screenshots and the known data.
 
 RULES:
 - Output stays driven by the SCREENSHOTS: one row per player VISIBLE in a
