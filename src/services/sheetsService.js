@@ -12320,6 +12320,84 @@ export async function createRecruitingSheet(dynastyName, year, dynastyTeams = nu
   }
 }
 
+// Re-push the current app recruits into an existing recruiting sheet's
+// Commitments body (rows 2..N+1), using the SAME column layout createRecruitingSheet
+// prefills with. A recruiting sheet is created once and cached per phase/week
+// (dynasty.recruitingSheet_<year>_<key>); recruits added afterward through the
+// local/in-app entry paths never touch that sheet, so on reopen it would show a
+// stale subset (e.g. app has 3 targets, the cached sheet still shows the 1 that
+// existed when it was first created). Calling this on reuse keeps the sheet in
+// sync with the app.
+//
+// Intentionally does NOT clear rows beyond the current set, so recruits a user
+// typed straight into the sheet (below the prefill) are preserved. Best-effort:
+// a failure is logged and swallowed so the user still gets their sheet.
+export async function refreshRecruitingSheetPrefill(spreadsheetId, recruits, dynastyTeams = null, year = null) {
+  if (!spreadsheetId || !Array.isArray(recruits) || recruits.length === 0) return
+  try {
+    const accessToken = await getAccessToken()
+    const teams = getTeamsWithCustom(dynastyTeams)
+    const previousTeamAsAbbr = (v) => {
+      if (v === null || v === undefined || v === '') return ''
+      const s = String(v)
+      if (Number.isNaN(Number(s))) return s
+      const tid = Number(s)
+      for (const [abbr, t] of Object.entries(teams)) {
+        if (Number(t?.tid) === tid) return abbr
+      }
+      return ''
+    }
+    const attrsToLabeledCell = (recruit) => {
+      const attrs = recruit.attributes
+      if (!attrs || typeof attrs !== 'object') return ''
+      const order = attributeNamesFor(recruit.position, recruit.archetype) || Object.keys(attrs)
+      return order
+        .filter(n => attrs[n] != null && attrs[n] !== '')
+        .map(n => `${ATTRIBUTE_ABBR[n] || n} ${attrs[n]}`)
+        .join(', ')
+    }
+    const values = recruits.map(r => ([
+      r.name ?? '',
+      r.class || 'HS',
+      r.position ?? '',
+      r.archetype ?? '',
+      starsNumberToSymbol(r.stars),
+      r.nationalRank || '',
+      r.stateRank || '',
+      r.positionRank || '',
+      r.height ?? '',
+      r.weight || '',
+      r.hometown ?? '',
+      r.state ?? '',
+      r.gemBust ?? '',
+      r.devTrait || '',
+      previousTeamAsAbbr(r.previousTeam),
+      r.commitment ?? '',
+      attrsToLabeledCell(r),
+      ...ATTRIBUTE_COLUMNS.slice(1).map(() => ''),
+      r.pid ?? '',
+      r.nilByYear?.[year] ?? r.nilByYear?.[String(year)] ?? '',
+      r.updatedAt ?? '',
+    ]))
+    const range = `Commitments!A2:${colLetter(UPDATED_AT_COL)}${values.length + 1}`
+    const response = await fetchWithTimeout(
+      `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+      {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    )
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error?.message || `HTTP ${response.status}`)
+    }
+  } catch (error) {
+    if (error?.isAuthError) throw error
+    console.warn('refreshRecruitingSheetPrefill failed (non-blocking):', error?.message || error)
+  }
+}
+
 // Convert star symbols to number
 function starsSymbolToNumber(starsStr) {
   if (!starsStr) return 0

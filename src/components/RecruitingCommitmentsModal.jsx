@@ -16,7 +16,8 @@ import {
   readRecruitingFromSheet,
   deleteGoogleSheet,
   getSheetEmbedUrl,
-  sheetExists
+  sheetExists,
+  refreshRecruitingSheetPrefill
 } from '../services/sheetsService'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
@@ -272,6 +273,11 @@ FINAL CHECK
           if (existingSheetId) {
             const stillExists = await sheetExists(existingSheetId)
             if (stillExists) {
+              // The sheet was created (and prefilled) once for this phase/week.
+              // Recruits added since through the local/in-app entry paths never
+              // touched it, so re-push the current set before showing it — else
+              // it displays a stale subset (the classic "app has 3, sheet shows 1").
+              await refreshRecruitingSheetPrefill(existingSheetId, prefillRecruits, currentDynasty?.teams || null, currentYear)
               setSheetId(existingSheetId)
               return
             }
