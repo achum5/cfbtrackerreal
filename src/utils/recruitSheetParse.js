@@ -94,9 +94,11 @@ export function parseAttributes(cell) {
 
 // The five tail fields (M–Q: Gem/Bust, Dev Trait, Prev Team, Commitment,
 // Attributes) each have a near-disjoint content signature, which is what lets
-// realignTail below re-place them by CONTENT instead of by position.
-const GEM_BUST_VALUES = new Set(['Gem', 'Bust'])
-const DEV_TRAIT_VALUES = new Set(['Elite', 'Star', 'Impact', 'Normal', 'Hidden'])
+// realignTail below re-place them by CONTENT instead of by position. Matched
+// case-INSENSITIVELY and canonicalized on the way out, so a pasted "gem",
+// "HIDDEN", etc. is recognized (not dropped as unknown) and normalized.
+const GEM_BUST_CANON = { gem: 'Gem', bust: 'Bust' }
+const DEV_TRAIT_CANON = { elite: 'Elite', star: 'Star', impact: 'Impact', normal: 'Normal', hidden: 'Hidden' }
 const hasLetter = (s) => /[A-Za-z]/.test(s)
 const isUncommitted = (s) => /^uncommitted$/i.test(s)
 // An Attributes cell holds recognized "<name> <rating>" pairs — parseAttributes
@@ -137,8 +139,9 @@ function realignTail(r, isPortal) {
   const attrParts = []
   const rest = []
   for (const v of vals) {
-    if (!gemBust && GEM_BUST_VALUES.has(v)) { gemBust = v; continue }
-    if (!dev && DEV_TRAIT_VALUES.has(v)) { dev = v; continue }
+    const low = v.toLowerCase()
+    if (!gemBust && GEM_BUST_CANON[low]) { gemBust = GEM_BUST_CANON[low]; continue }
+    if (!dev && DEV_TRAIT_CANON[low]) { dev = DEV_TRAIT_CANON[low]; continue }
     // Collect EVERY attribute-looking cell, not just the first — a stray tab
     // can split one recruit's attributes across cells; merge them back into the
     // single Attributes slot so the fragments don't get mistaken for teams.

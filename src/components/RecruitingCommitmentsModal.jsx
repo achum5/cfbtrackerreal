@@ -42,6 +42,15 @@ const RECRUIT_PASTE_COLUMNS = [
   'Commit', 'Attributes',
 ]
 
+// Dropdown options for the paste grid's enumerated columns. Rendered as a
+// <select> so the value can only be a valid one (and a pasted "gem"/"hidden"
+// snaps onto the canonical casing on the way in). 'Dev' leads with "Hidden" —
+// the correct state for a target whose dev trait hasn't been revealed yet.
+const RECRUIT_COLUMN_OPTIONS = {
+  'Gem/Bust': ['Gem', 'Bust'],
+  'Dev': ['Hidden', 'Normal', 'Impact', 'Star', 'Elite'],
+}
+
 export default function RecruitingCommitmentsModal({
   isOpen,
   onClose,
@@ -557,6 +566,7 @@ FINAL CHECK
             onCancel={handleClose}
             importLabel="Import Recruits"
             columns={RECRUIT_PASTE_COLUMNS}
+            columnOptions={RECRUIT_COLUMN_OPTIONS}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

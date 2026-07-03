@@ -129,6 +129,18 @@ describe('parseRecruitingRow — recovers AI paste that drops empty Dev Trait / 
     expect(r.attributes).toEqual({ Awareness: 76, Speed: 86, Release: 72, Agility: 80 })
   })
 
+  it('recognizes Gem/Bust and Dev case-insensitively and canonicalizes them', () => {
+    // A paste with lowercase "gem" / "hidden" must still land in the right slots
+    // (not get dropped as unknown), normalized to canonical casing.
+    const r = parseRecruitingRow([
+      'Case Guy', 'HS', 'WR', 'Speedster', '☆☆☆', '900', '', '',
+      "6'0\"", '190', 'Miami', 'FL', 'gem', 'hidden', '', 'Uncommitted', '',
+    ])
+    expect(r.gemBust).toBe('Gem')
+    expect(r.devTrait).toBe('Hidden')
+    expect(r.commitment).toBe('Uncommitted')
+  })
+
   it('keeps a transfer with BOTH Prev Team and a real Commitment aligned', () => {
     const r = parseRecruitingRow([
       'Two Team', 'Jr', 'WR', '', '☆☆☆☆', '', '', '',

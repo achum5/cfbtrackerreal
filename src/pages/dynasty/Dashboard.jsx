@@ -3088,6 +3088,13 @@ export default function Dashboard() {
       }
 
       await updateDynasty(currentDynasty.id, updates)
+
+      // Confirm the save visibly — the entry modal closes right after this, so
+      // without a toast the user has no signal the paste actually landed.
+      const savedCount = (targetRows?.length || 0) + committedRecruitsWithTargets.length
+      toast.success(savedCount > 0
+        ? `Saved ${savedCount} recruit${savedCount === 1 ? '' : 's'}`
+        : 'Recruiting saved')
     }
   }
 
