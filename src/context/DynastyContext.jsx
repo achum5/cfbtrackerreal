@@ -106,6 +106,7 @@ import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapsho
 import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches } from '../data/coachModel'
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
+import { settleOrProceed } from '../utils/firestoreWriteGuard'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
 const DynastyContext = createContext()
@@ -8292,7 +8293,12 @@ export function DynastyProvider({ children }) {
         writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
       }
 
-      await Promise.all(writePromises)
+      // Don't block the save UI forever if the server ack never arrives (wedged
+      // WebChannel connection). persistentLocalCache has already durably stored
+      // these writes and will sync them in the background, so after a grace
+      // period we proceed to the optimistic local-state update below instead of
+      // leaving every "Saving…"/"Importing…" spinner stuck until a refresh.
+      await settleOrProceed(Promise.all(writePromises), 10000, `updateDynasty(${dynastyId})`)
 
       // WORKAROUND: Also update local state immediately after Firestore update
       // This ensures the UI reflects the changes without waiting for the listener
@@ -8453,7 +8459,7 @@ export function DynastyProvider({ children }) {
       // fresh subcollection write with the stale value. Migration
       // belongs in one place: the listener, on next load, with the
       // subcollection-wins guard now baked into the helper.
-      await saveWeekRecapToSubcollection(dynastyId, yearN, weekN, entry)
+      await settleOrProceed(saveWeekRecapToSubcollection(dynastyId, yearN, weekN, entry), 10000, 'saveWeekRecap')
     } else {
       // Local-only dynasty — the embedded map in IndexedDB has no size
       // ceiling, so just keep using updateDynasty.

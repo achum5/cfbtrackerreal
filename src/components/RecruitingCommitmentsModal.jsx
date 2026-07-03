@@ -31,6 +31,16 @@ const isMobileDevice = () => {
   return window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 }
 
+// Header labels for the local-paste grid, in the exact column order the AI
+// prompt emits and parseRecruitingRow (utils/recruitSheetParse.js) reads:
+// A→P are the commitment fields, Q is the single labeled attributes cell.
+// Without these the grid renders a headerless, cramped strip of unlabeled cells.
+const RECRUIT_PASTE_COLUMNS = [
+  'Name', 'Class', 'Pos', 'Arch', 'Stars', 'Natl Rk', 'St Rk', 'Pos Rk',
+  'Height', 'Weight', 'Hometown', 'State', 'Gem/Bust', 'Dev', 'Prev Team',
+  'Commit', 'Attributes',
+]
+
 export default function RecruitingCommitmentsModal({
   isOpen,
   onClose,
@@ -487,6 +497,7 @@ FINAL CHECK
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}
             importLabel="Import Recruits"
+            columns={RECRUIT_PASTE_COLUMNS}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">
