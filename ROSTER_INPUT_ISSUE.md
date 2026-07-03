@@ -57,8 +57,15 @@ To fully fill a partial player, make sure their **full** ratings are on screen
 in at least one screenshot, then re-run the import:
 
 - **Attribute-table view (best for bulk):** open the ratings table (the
-  `DAC / RUN / TUP / BSK / PAC / …` grid) and scroll so each player you want has
-  a visible row. This exposes ~16+ attributes for several players at once.
+  `DAC / RUN / TUP / BSK / PAC / …` grid) and **scroll sideways**, taking a
+  screenshot at each scroll position so every attribute column is captured. This
+  exposes the full ~20-25 attributes for EVERY player in the list at once (not
+  just the highlighted one). The later scroll screenshots don't repeat the name
+  column — they're just grids of numbers — so keep the rows in the SAME ORDER and
+  make each scroll OVERLAP the previous one by a column or two. The importer's
+  prompt now stitches those scrolled shots together: it matches each nameless
+  number row back to its player by row position, the highlighted row, and the
+  overlapping columns, then concatenates every column into that player's ratings.
 - **Highlight the player:** select the player so their full card/rating set
   renders, and capture that.
 

@@ -122,14 +122,33 @@ different views: the roster LIST view shows ~6 attributes per row (SPD, ACC, AGI
 COD, STR, AWR); the ATTRIBUTE-TABLE view shows 16+ per row; a highlighted/selected
 player shows their FULL card. Capture everything visible in every one of them.
 
-MERGE THE SAME PLAYER ACROSS SCREENSHOTS. The same player usually appears in more
-than one screenshot (list view in one, attribute table in another, a highlighted
-card in a third). Combine all of those into that player's ONE row: take the UNION
-of every attribute seen for them in ANY screenshot. If one shot shows 6 attributes
-and another shows 16 for the same player, their row MUST contain all 16 — never
-just the 6 from the first place you noticed them. Do the same for every non-
-attribute field (height, weight, hometown, archetype, dev trait, jersey, etc.):
-if it's visible in any screenshot, it goes in the row.
+MERGE EACH PLAYER ACROSS SCREENSHOTS — ESPECIALLY HORIZONTALLY-SCROLLED TABLES.
+The attribute table is WIDER than the screen, so it is almost always captured as
+SEVERAL screenshots scrolled sideways. The FIRST shows the NAME column plus the
+first few attributes (SPD, ACC, AGI, COD, STR, AWR, ...). Each LATER screenshot is
+the SAME list scrolled RIGHT to reveal MORE attribute columns (THP, SAC, MAC, DAC,
+RUN, TUP, BSK, PAC, CAR, BCV, JKM, SPM, BTK, SFA, TRK, IBL, STA, TGH, INJ, ...) —
+and those later shots usually DO NOT repeat the name column; they are just grids
+of numbers. You MUST still tie every one of those number rows back to the right
+player.
+
+Match a nameless number row to its player BY ROW POSITION: the rows stay in the
+SAME ORDER in every screenshot (same sort, e.g. OVR descending), so the Nth row is
+the SAME player in every shot. Verify the alignment two ways before trusting it:
+  (a) the HIGHLIGHTED row — the lighter/selected row, which is the same player as
+      the right-side detail card — is the same player in each screenshot; and
+  (b) consecutive scrolled shots share OVERLAPPING columns (e.g. THP sits at the
+      right edge of one shot and the left edge of the next; DAC/RUN/TUP/BSK repeat
+      between shots). Line those overlapping columns up — the values must match for
+      the same row. That confirms the rows are aligned.
+
+Then ASSEMBLE each player's FULL attribute set by concatenating that row's columns
+from EVERY scrolled screenshot, left to right, into column O (list them once, no
+duplicates from the overlap). A starter captured across three scrolls should come
+out with ~20-25+ attributes, NOT 6. Take the UNION — never stop at the six from the
+first shot. Do the same for non-attribute fields (height, weight, hometown,
+archetype, dev trait, jersey): if it's visible in ANY screenshot, it goes in the
+row.
 
 A player is NOT lower priority because they appear in the KNOWN DATA list below,
 and NOT lower priority because they don't. The known data below must NEVER cause
