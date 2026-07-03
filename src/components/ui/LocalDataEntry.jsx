@@ -69,6 +69,7 @@ export default function LocalDataEntry({
   comboboxColumns = null,
   rowLabels = null,
   rowLabelHeader = '',
+  normalizeRows = null,
   children = null,
 }) {
   // Fixed-row mode (e.g. the schedule's weeks 0–15): the grid is exactly
@@ -77,7 +78,11 @@ export default function LocalDataEntry({
   // lines, which would otherwise shift every later row).
   const isLabeled = Array.isArray(rowLabels) && rowLabels.length > 0
   const parseIncoming = (t) => {
-    const parsed = splitTsv(t)
+    let parsed = splitTsv(t)
+    // Optional per-modal row fixup applied on the way IN, so the GRID shows the
+    // corrected shape (e.g. weekly scores recovering a column-shifted AI paste)
+    // and the serialized import text is already canonical.
+    if (typeof normalizeRows === 'function') parsed = normalizeRows(parsed) || parsed
     if (!isLabeled) return parsed
     // Fixed-row grid (e.g. the schedule's weeks 0–15). Accept BOTH shapes:
     //   • index-led   <idx>\t<col1>\t<col2>  — how serialize() round-trips and

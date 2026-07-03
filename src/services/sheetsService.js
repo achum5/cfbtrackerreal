@@ -4711,6 +4711,30 @@ async function initializeWeeklyScoresSheet(spreadsheetId, accessToken, sheetId, 
   }
 }
 
+// Some AI pastes insert an extra blank column between each team's Rank and
+// Score, producing a 9-wide row
+//   [Home, HomeRank, '', HomeScore, Away, AwayRank, '', AwayScore, Neutral]
+// instead of the canonical 7. Detect that shape by its signature — col D
+// (index 3) holds a bare score integer while the real away team sits in col E
+// (index 4) — and remap to the canonical 7-column layout. In a correct row
+// col D is always a team NAME (never a bare integer) and col E is a rank or
+// blank, so this can't misfire on well-formed data. Exported so the local
+// paste GRID (LocalDataEntry) can normalize on the way IN — otherwise the
+// preview shows the away score/team in the wrong columns and the user edits a
+// shifted table (fainez's "Standard method looks shifted" report).
+const _wsBareInt = (v) => v != null && /^\d+$/.test(String(v).trim())
+const _wsTeamText = (v) => v != null && String(v).trim() !== '' && !/^\d+$/.test(String(v).trim())
+export function normalizeWeeklyScoreRow(row) {
+  if (!Array.isArray(row)) return row
+  if (_wsBareInt(row[3]) && _wsTeamText(row[4])) {
+    return [row[0], row[1], row[3], row[4], row[5], row[7], row[8]]
+  }
+  return row
+}
+export function normalizeWeeklyScoreRows(rows) {
+  return Array.isArray(rows) ? rows.map(normalizeWeeklyScoreRow) : rows
+}
+
 export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynastyTeams = null, opts = {}) {
   try {
     let rows
@@ -4779,25 +4803,8 @@ export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynas
     // Track rows the parser dropped so the caller can surface them
     // in the save-confirmation modal (instead of silent loss).
     const droppedRows = []
-    // Some AI pastes insert an extra blank column between each team's
-    // Rank and Score, producing a 9-wide row
-    //   [Home, HomeRank, '', HomeScore, Away, AwayRank, '', AwayScore, Neutral]
-    // instead of the canonical 7. Detect that shape by its signature —
-    // col D (index 3) holds a bare score integer while the real away team
-    // sits in col E (index 4) — and remap to the canonical layout so the
-    // rest of the parser is unchanged. In a correct row col D is always a
-    // team name (never a bare integer) and col E is a rank or blank (never
-    // free text), so this can't misfire on well-formed data.
-    const isBareInt = (v) => v != null && /^\d+$/.test(String(v).trim())
-    const isTeamText = (v) => v != null && String(v).trim() !== '' && !/^\d+$/.test(String(v).trim())
-    const normalizeShiftedRow = (row) => {
-      if (!Array.isArray(row)) return row
-      if (isBareInt(row[3]) && isTeamText(row[4])) {
-        // [Home, HomeRank, HomeScore, Away, AwayRank, AwayScore, Neutral]
-        return [row[0], row[1], row[3], row[4], row[5], row[7], row[8]]
-      }
-      return row
-    }
+    // Recover the extra-blank-column shift (see normalizeWeeklyScoreRow above).
+    const normalizeShiftedRow = normalizeWeeklyScoreRow
 
     // Content-based classification — works regardless of where the
     // AI's paste lands the rows. A row is a game when both team

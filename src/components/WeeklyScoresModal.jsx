@@ -13,6 +13,7 @@ import SheetModalFooter from './ui/SheetModalFooter'
 import {
   createWeeklyScoresSheet,
   readWeeklyScoresFromSheet,
+  normalizeWeeklyScoreRows,
   deleteGoogleSheet,
   getSheetEmbedUrl,
   WEEKLY_SCORES_MAX_ROWS,
@@ -1147,6 +1148,7 @@ Don't just glance at this list. Physically execute each check on your draft.
                 initialText={initialWeeklyText}
                 columns={WEEKLY_SCORES_COLUMNS}
                 comboboxColumns={weeklyComboboxColumns}
+                normalizeRows={normalizeWeeklyScoreRows}
                 instructions={"Screenshot this week's full scoreboard — every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
               >
                 <div className="flex flex-wrap items-center gap-2 pt-1">
