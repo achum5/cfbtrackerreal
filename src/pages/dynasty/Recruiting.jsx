@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useDynasty, getRecruitingCommitments, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
+import { useDynasty, getRecruitingCommitments, buildRecruitingCommitmentUpdate, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
 import { inferPlayStyle } from '../../utils/scoutGrade'
 import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -614,30 +614,22 @@ export default function Recruiting() {
     // passes mode:'replace' because its sheet is prefilled with the full class,
     // so the sheet IS authoritative and a removed row should delete.
     const incomingCommits = [...commitRows, ...committedToUs]
-    // The commitments store is an object of MULTIPLE buckets: our `edit` bucket
-    // (Recruiting-page paste/import) PLUS the per-week buckets the Dashboard
-    // signing-day flow writes (preseason, regular_N, signing_N, bowl_N,
-    // conf_champ). getRecruitingCommitments returns that whole object.
-    const existingCommitObj = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear) || {}
-    let commitmentData
+    // Compute the new `edit` bucket, then let buildRecruitingCommitmentUpdate do
+    // the store writing — it reads the current union, preserves every sibling
+    // bucket, and writes both stores so they can't drift or clobber. Replace
+    // mode (Google Sheet = authoritative full class) consolidates to edit.
+    let editRecords
     if (mode === 'replace') {
-      // Google-Sheet flow: the sheet is prefilled with the FULL flattened class
-      // (every bucket), so it's authoritative — consolidate everything into
-      // `edit` and drop the now-duplicated per-week buckets.
-      commitmentData = { edit: incomingCommits }
+      editRecords = incomingCommits
     } else {
-      // Paste flow: the AI sends ONLY the new rows. Merge them into `edit`
-      // (keyed by name) AND preserve the sibling per-week buckets. Previously
-      // this wrote `{ edit: mergedEdit }`, replacing the whole object — which
-      // deleted every Dashboard-recorded commitment off the board each time a
-      // user pasted a new batch (the reported "it took away every other recruit"
-      // data loss). The board dedupes across buckets, so keeping them is safe.
-      const prevEdit = existingCommitObj.edit || []
+      // Paste flow: the AI sends ONLY the new rows. Merge them into `edit`,
+      // keyed by name, on top of the existing edit bucket.
+      const prevEdit = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear)?.edit || []
       const normName = (n) => String(n || '').toLowerCase().trim()
       const byName = new Map()
       for (const c of prevEdit) { const k = normName(c?.name); if (k) byName.set(k, c) }
       for (const c of incomingCommits) { const k = normName(c?.name); if (k) byName.set(k, c) }
-      commitmentData = { ...existingCommitObj, edit: Array.from(byName.values()) }
+      editRecords = Array.from(byName.values())
     }
 
     // Persist only the players that actually changed (new signees + updated
@@ -653,39 +645,11 @@ export default function Recruiting() {
 
     const updates = {
       players: finalPlayers,
-      nextPID: nextPID
-    }
-
-    if (selectedTid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[selectedTid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[selectedYear] || {}
-
-      updates.teams = {
-        ...existingTeams,
-        [selectedTid]: {
-          ...existingTeamData,
-          byYear: {
-            ...existingByYear,
-            [selectedYear]: {
-              ...existingYearData,
-              recruitingCommitments: commitmentData
-            }
-          }
-        }
-      }
-    }
-
-    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
-    // dual-keyed (rename-safe)
-    updates.recruitingCommitmentsByTeamYear = {
-      ...existingByTeamYear,
-      [teamAbbr]: {
-        ...(existingByTeamYear[teamAbbr] || {}),
-        [selectedYear]: commitmentData
-      },
-      ...(selectedTid ? { [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData } } : {})
+      nextPID: nextPID,
+      ...buildRecruitingCommitmentUpdate(currentDynasty, {
+        tid: selectedTid, teamAbbr, year: selectedYear,
+        bucket: 'edit', records: editRecords, replaceAllBuckets: mode === 'replace',
+      }),
     }
 
     await updateDynasty(currentDynasty.id, updates, { changedPlayerPids })
@@ -721,31 +685,14 @@ export default function Recruiting() {
     const updates = { players: newPlayers }
 
     if (committedToUs.length && selectedTid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[selectedTid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[selectedYear] || {}
-      const prevEdit = existingYearData.recruitingCommitments?.edit || []
+      // Append the newly committed-to-you records into `edit` (dedup by pid) on
+      // top of the current union, then write both stores via the shared helper.
+      const prevEdit = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear)?.edit || []
       const prevPids = new Set(prevEdit.map((c) => c.pid))
       const merged = [...prevEdit, ...committedToUs.filter((c) => !prevPids.has(c.pid))]
-      // Preserve the sibling per-week buckets (preseason / regular_N /
-      // signing_N / ...) — only overwrite `edit`. Writing a bare `{ edit }`
-      // here would wipe every Dashboard-recorded commitment off the board.
-      const commitmentData = { ...(existingYearData.recruitingCommitments || {}), edit: merged }
-
-      updates.teams = {
-        ...existingTeams,
-        [selectedTid]: {
-          ...existingTeamData,
-          byYear: { ...existingByYear, [selectedYear]: { ...existingYearData, recruitingCommitments: commitmentData } },
-        },
-      }
-      const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
-      updates.recruitingCommitmentsByTeamYear = {
-        ...existingByTeamYear,
-        [teamAbbr]: { ...(existingByTeamYear[teamAbbr] || {}), [selectedYear]: commitmentData },
-        [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData },
-      }
+      Object.assign(updates, buildRecruitingCommitmentUpdate(currentDynasty, {
+        tid: selectedTid, teamAbbr, year: selectedYear, bucket: 'edit', records: merged,
+      }))
     }
 
     // Only the resolved players changed — persist just those (not the whole

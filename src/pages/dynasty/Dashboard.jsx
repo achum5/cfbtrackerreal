@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { saveWeeklyGamesChanges } from '../../services/dynastyService'
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
-import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement, getUserGamePerspective, isTeamInGame, getTeamGamePerspective, isFirstYearOnTeam, getCurrentTeamRecord, getCurrentTeamRanking, getEncourageTransfers, getRecruitingCommitments, getConferenceChampionshipData, createOrUpdateCFPGameShells, createOrUpdateBowlGameShell, getUserCFPGameStatus, getCFPRoundDisplayName, propagateCFPWinner, findUserCFPGameShell, isPlayerOnRoster, getPlayerClassForYear, lookupByTeamYear, getTeamConferenceForDynasty, CLASS_PROGRESSION } from '../../context/DynastyContext'
+import { useDynasty, getCurrentSchedule, getScheduleWithGameData, getCurrentRoster, getCurrentPreseasonSetup, getCurrentTeamRatings, getCurrentCoachingStaff, getCurrentGoogleSheet, findCurrentTeamGame, getCurrentTeamGames, GAME_TYPES, getGamesByType, getCurrentCustomConferences, MOVEMENT_TYPES, createMovement, getUserGamePerspective, isTeamInGame, getTeamGamePerspective, isFirstYearOnTeam, getCurrentTeamRecord, getCurrentTeamRanking, getEncourageTransfers, getRecruitingCommitments, buildRecruitingCommitmentUpdate, getConferenceChampionshipData, createOrUpdateCFPGameShells, createOrUpdateBowlGameShell, getUserCFPGameStatus, getCFPRoundDisplayName, propagateCFPWinner, findUserCFPGameShell, isPlayerOnRoster, getPlayerClassForYear, lookupByTeamYear, getTeamConferenceForDynasty, CLASS_PROGRESSION } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
@@ -2633,11 +2633,6 @@ export default function Dashboard() {
     // teamsByYear MUST store tid (number), never abbreviation
     const teamsByYearValue = teamTid
 
-    // Use TEAM-CENTRIC structure: recruitingCommitmentsByTeamYear[teamAbbr][year][commitmentKey]
-    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
-    const existingForTeam = existingByTeamYear[teamAbbr] || {}
-    const existingForYear = existingForTeam[year] || {}
-
     // Get existing players and recruits to find max PID
     const existingPlayers = currentDynasty.players || []
     const maxExistingPID = existingPlayers.reduce((max, p) => Math.max(max, p.pid || 0), 0)
@@ -3045,47 +3040,15 @@ export default function Dashboard() {
     // Save if there are any recruits to record OR if player data changed
     const hasPlayerChanges = returningPlayerRecruits.length > 0 || newPlayers.length > 0 || (targetRows && targetRows.length > 0)
     if (committedRecruitsWithTargets.length > 0 || hasPlayerChanges) {
-      const tid = getTidFromAbbr(teamAbbr, currentDynasty)
-      const commitmentData = {
-        ...existingForYear,
-        [commitmentKey]: committedRecruitsWithTargets
-      }
-
-      // Store in TEAM-CENTRIC structure - store all commits for this commitment key
+      // Write this week's bucket via the shared helper — it preserves every
+      // other bucket (union base) and writes both stores so they can't drift.
       const updates = {
-        // dual-keyed (rename-safe)
-        recruitingCommitmentsByTeamYear: {
-          ...existingByTeamYear,
-          [teamAbbr]: {
-            ...(existingByTeamYear[teamAbbr] || {}),
-            [year]: commitmentData
-          },
-          ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: commitmentData } } : {})
-        },
         players: finalPlayers,
-        nextPID: nextPID
-      }
-
-      // Also write to NEW tid-based byYear structure
-      if (tid && currentDynasty.teams) {
-        const existingTeams = currentDynasty.teams
-        const existingTeamData = existingTeams[tid] || {}
-        const existingByYear = existingTeamData.byYear || {}
-        const existingYearData = existingByYear[year] || {}
-
-        updates.teams = {
-          ...existingTeams,
-          [tid]: {
-            ...existingTeamData,
-            byYear: {
-              ...existingByYear,
-              [year]: {
-                ...existingYearData,
-                recruitingCommitments: commitmentData
-              }
-            }
-          }
-        }
+        nextPID: nextPID,
+        ...buildRecruitingCommitmentUpdate(currentDynasty, {
+          tid: teamTid, teamAbbr, year,
+          bucket: commitmentKey, records: committedRecruitsWithTargets,
+        }),
       }
 
       await updateDynasty(currentDynasty.id, updates)
@@ -3168,49 +3131,11 @@ export default function Dashboard() {
     const teamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty.teamName
     const tid = getTidFromAbbr(teamAbbr, currentDynasty)
 
-    // Use TEAM-CENTRIC structure
-    const existingByTeamYear = currentDynasty.recruitingCommitmentsByTeamYear || {}
-    const existingForTeam = existingByTeamYear[teamAbbr] || {}
-    const existingForYear = existingForTeam[year] || {}
-
-    const commitmentData = {
-      ...existingForYear,
-      [commitmentKey]: []
-    }
-
-    // Store empty array to mark as completed — dual-keyed (rename-safe)
-    const updates = {
-      recruitingCommitmentsByTeamYear: {
-        ...existingByTeamYear,
-        [teamAbbr]: {
-          ...(existingByTeamYear[teamAbbr] || {}),
-          [year]: commitmentData
-        },
-        ...(tid ? { [tid]: { ...(existingByTeamYear[tid] || {}), [year]: commitmentData } } : {})
-      }
-    }
-
-    // Also write to NEW tid-based byYear structure
-    if (tid && currentDynasty.teams) {
-      const existingTeams = currentDynasty.teams
-      const existingTeamData = existingTeams[tid] || {}
-      const existingByYear = existingTeamData.byYear || {}
-      const existingYearData = existingByYear[year] || {}
-
-      updates.teams = {
-        ...existingTeams,
-        [tid]: {
-          ...existingTeamData,
-          byYear: {
-            ...existingByYear,
-            [year]: {
-              ...existingYearData,
-              recruitingCommitments: commitmentData
-            }
-          }
-        }
-      }
-    }
+    // Mark this week's bucket as an empty array (= "no commits this week"),
+    // preserving every other bucket, via the shared helper.
+    const updates = buildRecruitingCommitmentUpdate(currentDynasty, {
+      tid, teamAbbr, year, bucket: commitmentKey, records: [],
+    })
 
     await updateDynasty(currentDynasty.id, updates)
   }

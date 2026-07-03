@@ -5804,6 +5804,66 @@ export function getRecruitingCommitments(dynasty, tidOrAbbr, year) {
 }
 
 /**
+ * THE single sanctioned way to WRITE recruiting commitments.
+ *
+ * Every commitment writer (Recruiting-page paste, in-app target resolution,
+ * the Dashboard signing-day/weekly flow, "no commitments this week") must go
+ * through this so the two stores can never clobber a bucket or drift apart:
+ *
+ *   • It reads the CURRENT commitments via getRecruitingCommitments — the UNION
+ *     of both stores — so the write always starts from the complete, most
+ *     recent bucket set. A writer can never accidentally drop a sibling bucket
+ *     by spreading from an incomplete base (the recruiting data-loss bug).
+ *   • It sets exactly ONE bucket (`bucket` → `records`) and leaves every other
+ *     bucket intact. Pass `replaceAllBuckets: true` for the deliberate
+ *     Google-Sheet consolidation, where the sheet is the authoritative full
+ *     class and every recruit lands back in `edit`.
+ *   • It writes BOTH stores with the SAME object — the tid-based teams store
+ *     AND recruitingCommitmentsByTeamYear, dual-keyed under abbr + tid — so the
+ *     two are re-synced on every write and any prior drift self-heals.
+ *
+ * Returns an updates fragment ({ teams, recruitingCommitmentsByTeamYear }) for
+ * the caller to spread into its updateDynasty() payload alongside players/etc.
+ * Does NOT persist — the caller owns the single updateDynasty() call.
+ */
+export function buildRecruitingCommitmentUpdate(dynasty, { tid, teamAbbr, year, bucket, records, replaceAllBuckets = false }) {
+  const resolvedTid = tid != null ? tid : getTidFromAbbr(teamAbbr, dynasty)
+  const resolvedAbbr = teamAbbr || (resolvedTid != null ? getAbbrFromTid(dynasty?.teams, resolvedTid) : null)
+
+  const current = getRecruitingCommitments(dynasty, resolvedTid ?? resolvedAbbr, year) || {}
+  const nextCommitments = replaceAllBuckets
+    ? { [bucket]: records }
+    : { ...current, [bucket]: records }
+
+  const fragment = {}
+
+  // Teams store (tid-based) — preserve every other team / year / field.
+  if (resolvedTid != null && dynasty?.teams) {
+    const teams = dynasty.teams
+    const teamData = teams[resolvedTid] || {}
+    const byYear = teamData.byYear || {}
+    const yearData = byYear[year] || {}
+    fragment.teams = {
+      ...teams,
+      [resolvedTid]: {
+        ...teamData,
+        byYear: { ...byYear, [year]: { ...yearData, recruitingCommitments: nextCommitments } },
+      },
+    }
+  }
+
+  // byTeamYear store — dual-keyed under abbr AND tid (rename-safe).
+  const existingByTeamYear = dynasty?.recruitingCommitmentsByTeamYear || {}
+  fragment.recruitingCommitmentsByTeamYear = {
+    ...existingByTeamYear,
+    ...(resolvedAbbr ? { [resolvedAbbr]: { ...(existingByTeamYear[resolvedAbbr] || {}), [year]: nextCommitments } } : {}),
+    ...(resolvedTid != null ? { [resolvedTid]: { ...(existingByTeamYear[resolvedTid] || {}), [year]: nextCommitments } } : {}),
+  }
+
+  return fragment
+}
+
+/**
  * Migrate dynasty to new movements system
  * Converts legacy fields to movements[] and pendingDeparture
  */

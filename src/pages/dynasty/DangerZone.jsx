@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useDynasty, propagateCFPWinner, GAME_TYPES, isPlayerOnRoster, rebuildRankByWeekFromCurrentState, syncGameRanksFromRankByWeek, getCustomConferencesForYear, getPlayerClassForYear } from '../../context/DynastyContext'
+import { useDynasty, propagateCFPWinner, GAME_TYPES, isPlayerOnRoster, rebuildRankByWeekFromCurrentState, syncGameRanksFromRankByWeek, getCustomConferencesForYear, getPlayerClassForYear, getRecruitingCommitments } from '../../context/DynastyContext'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../components/ui/Toast'
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { useTeamColors } from '../../hooks/useTeamColors'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getTeamName } from '../../data/teamAbbreviations'
-import { TEAMS, getOriginalTeamAbbr, getTidFromAbbr, resolveTid, getUserTeamTid, addCareerEntry } from '../../data/teamRegistry'
+import { TEAMS, getOriginalTeamAbbr, getTidFromAbbr, getAbbrFromTid, resolveTid, getUserTeamTid, addCareerEntry } from '../../data/teamRegistry'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { storageService, STORAGE_TIER, indexedDBStorage } from '../../services/storage'
 import { swapBoxScoreTeams, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
@@ -193,6 +193,9 @@ export default function DangerZone() {
   // Schedule link fix state
   const [storageAnalysisStatus, setStorageAnalysisStatus] = useState(null)
   const [storageAnalysisDetail, setStorageAnalysisDetail] = useState(null)
+  const [commitCheckStatus, setCommitCheckStatus] = useState(null)
+  const [commitCheckDetail, setCommitCheckDetail] = useState(null)
+  const [commitDrifted, setCommitDrifted] = useState(null) // array of {tid, year, abbr} pending re-sync
 
   if (!currentDynasty) {
     return <LoadingState message="Loading..." />
@@ -443,7 +446,151 @@ export default function DangerZone() {
     }
   }
 
+  // Recruiting-commitment consistency check (read-only). Commitments live in two
+  // dual-keyed stores that are supposed to mirror each other: the tid-based
+  // teams.byYear store and recruitingCommitmentsByTeamYear. They can drift
+  // because teams is replace-persisted while byTeamYear is merge-persisted. The
+  // app reads the UNION so nothing is ever lost, but this flags any team-year
+  // where the two disagree and offers a one-click re-sync (writes the per-record
+  // union of both back to both — strictly additive, never removes a commit).
+  const commitStoresForTid = (tid) => {
+    const teams = currentDynasty?.teams || {}
+    const bty = currentDynasty?.recruitingCommitmentsByTeamYear || {}
+    const abbr = getAbbrFromTid(teams, tid)
+    return {
+      abbr,
+      fromTeams: (y) => teams?.[tid]?.byYear?.[y]?.recruitingCommitments || {},
+      fromBTY: (y) => (bty?.[tid]?.[y]) || (abbr && bty?.[abbr]?.[y]) || {},
+    }
+  }
+  // Signature = each bucket's key + record count, sorted. Different signatures
+  // between the two stores means they've drifted (a missing bucket or a count
+  // mismatch — exactly what the clobber bug produced).
+  const commitSig = (obj) => Object.entries(obj || {})
+    .filter(([, v]) => Array.isArray(v))
+    .map(([k, v]) => `${k}:${v.length}`)
+    .sort()
+    .join(', ')
 
+  const handleCheckCommitments = () => {
+    setCommitCheckStatus('running')
+    setCommitCheckDetail(null)
+    setCommitDrifted(null)
+    try {
+      const teams = currentDynasty?.teams || {}
+      const bty = currentDynasty?.recruitingCommitmentsByTeamYear || {}
+
+      // Collect every (tid, year) that has commitments in either store.
+      const pairs = new Map() // `${tid}|${year}` -> { tid, year }
+      const addPair = (tid, year) => {
+        if (tid == null || !Number.isFinite(Number(tid))) return
+        pairs.set(`${Number(tid)}|${year}`, { tid: Number(tid), year: Number(year) })
+      }
+      for (const [tidStr, td] of Object.entries(teams)) {
+        for (const [year, yd] of Object.entries(td?.byYear || {})) {
+          if (yd?.recruitingCommitments && Object.keys(yd.recruitingCommitments).length) addPair(tidStr, year)
+        }
+      }
+      for (const [key, years] of Object.entries(bty)) {
+        const tid = /^\d+$/.test(key) ? Number(key) : getTidFromAbbr(key, currentDynasty)
+        for (const [year, obj] of Object.entries(years || {})) {
+          if (obj && typeof obj === 'object' && Object.keys(obj).length) addPair(tid, year)
+        }
+      }
+
+      const drifted = []
+      for (const { tid, year } of pairs.values()) {
+        const { abbr, fromTeams, fromBTY } = commitStoresForTid(tid)
+        const sT = commitSig(fromTeams(year))
+        const sB = commitSig(fromBTY(year))
+        if (sT !== sB) drifted.push({ tid, year, abbr, sigTeams: sT, sigBTY: sB })
+      }
+      drifted.sort((a, b) => (a.abbr || '').localeCompare(b.abbr || '') || a.year - b.year)
+
+      const lines = []
+      lines.push(`Scanned ${pairs.size} team-year commitment record${pairs.size === 1 ? '' : 's'}.`)
+      lines.push(`In sync: ${pairs.size - drifted.length}`)
+      lines.push(`Drifted: ${drifted.length}`)
+      if (drifted.length) {
+        lines.push('')
+        for (const d of drifted) {
+          lines.push(`${d.abbr || `tid ${d.tid}`} ${d.year}`)
+          lines.push(`   teams store:      ${d.sigTeams || '(none)'}`)
+          lines.push(`   byTeamYear store: ${d.sigBTY || '(none)'}`)
+        }
+        lines.push('')
+        lines.push('No data is lost — the app reads the union of both, so every commit still shows. Re-sync rewrites the union to both stores so they match.')
+      } else {
+        lines.push('')
+        lines.push('Both stores agree everywhere. Nothing to fix.')
+      }
+
+      setCommitCheckDetail(lines.join('\n'))
+      setCommitDrifted(drifted.length ? drifted : null)
+      setCommitCheckStatus({ success: true, message: drifted.length ? `${drifted.length} season${drifted.length === 1 ? '' : 's'} drifted — see below` : 'All stores in sync' })
+    } catch (err) {
+      console.error('[CommitCheck] failed:', err)
+      setCommitCheckDetail(`Check failed: ${err?.message || 'unknown error'}`)
+      setCommitCheckStatus({ success: false, message: 'Check failed' })
+    }
+  }
+
+  // Per-bucket, per-record union of two commitment objects — dedup by pid then
+  // name so NO commit is ever dropped (the repair is strictly additive).
+  const unionCommitmentObjects = (a, b) => {
+    const out = {}
+    const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})])
+    for (const k of keys) {
+      const arrA = Array.isArray(a?.[k]) ? a[k] : []
+      const arrB = Array.isArray(b?.[k]) ? b[k] : []
+      const seen = new Set()
+      const merged = []
+      for (const rec of [...arrA, ...arrB]) {
+        const id = rec?.pid != null ? `p${rec.pid}` : `n${String(rec?.name || '').toLowerCase().trim()}`
+        if (id === 'n' || seen.has(id)) { if (id === 'n') merged.push(rec); continue }
+        seen.add(id)
+        merged.push(rec)
+      }
+      out[k] = merged
+    }
+    return out
+  }
+
+  const handleResyncCommitments = async () => {
+    if (isViewOnly || !commitDrifted?.length) return
+    const ok = await confirm({
+      title: 'Re-sync recruiting commitments?',
+      message: `This rewrites the per-record union of both stores back to both for ${commitDrifted.length} team-year${commitDrifted.length === 1 ? '' : 's'}. It only adds/heals — it never removes a commit.`,
+      confirmLabel: 'Re-sync',
+    })
+    if (!ok) return
+    setCommitCheckStatus('running')
+    try {
+      let teamsUpdate = { ...(currentDynasty.teams || {}) }
+      let btyUpdate = { ...(currentDynasty.recruitingCommitmentsByTeamYear || {}) }
+      for (const { tid, year, abbr } of commitDrifted) {
+        const { fromTeams, fromBTY } = commitStoresForTid(tid)
+        const union = unionCommitmentObjects(fromTeams(year), fromBTY(year))
+        const td = teamsUpdate[tid] || {}
+        const by = td.byYear || {}
+        const yd = by[year] || {}
+        teamsUpdate = { ...teamsUpdate, [tid]: { ...td, byYear: { ...by, [year]: { ...yd, recruitingCommitments: union } } } }
+        if (abbr) btyUpdate = { ...btyUpdate, [abbr]: { ...(btyUpdate[abbr] || {}), [year]: union } }
+        btyUpdate = { ...btyUpdate, [tid]: { ...(btyUpdate[tid] || {}), [year]: union } }
+      }
+      await updateDynasty(currentDynasty.id, {
+        teams: teamsUpdate,
+        recruitingCommitmentsByTeamYear: btyUpdate,
+      })
+      toast.success(`Re-synced ${commitDrifted.length} team-year${commitDrifted.length === 1 ? '' : 's'}.`)
+      setCommitDrifted(null)
+      handleCheckCommitments()
+    } catch (err) {
+      console.error('[CommitResync] failed:', err)
+      toast.error(`Re-sync failed: ${err?.message || 'unknown error'}`)
+      setCommitCheckStatus({ success: false, message: 'Re-sync failed' })
+    }
+  }
 
   // Backfill blank TRANSFER/ARRIVAL years. Older transfers only wrote
   // teamsByYear[arrivalYear] without the companion class/OVR/dev maps, so the
@@ -2160,6 +2307,53 @@ export default function DangerZone() {
                   }}
                 >
                   {storageAnalysisDetail}
+                </pre>
+              )}
+            </div>
+          </Card>
+          {/* Recruiting-commitment consistency check + re-sync. Read-only scan
+              that flags any team-year where the two dual-keyed commitment stores
+              disagree; re-sync rewrites the per-record union to both. */}
+          <Card className="flex flex-col h-full sm:col-span-2 md:col-span-2">
+            <div className="mb-3">
+              <h3 className="label-sm text-txt-primary m-0">Check Recruiting Commitments</h3>
+              <p className="text-xs mt-1 text-txt-tertiary leading-relaxed m-0">
+                Recruiting commitments are stored in two places that should mirror each other. This flags any season where they disagree. No data is ever lost (the board reads both), but re-syncing keeps them tidy. Run this if commitments ever look off after entering recruits.
+              </p>
+            </div>
+            <div className="mt-auto space-y-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleCheckCommitments}
+                disabled={commitCheckStatus === 'running'}
+                className="w-full"
+              >
+                {commitCheckStatus === 'running' ? 'Working...' : 'Check Commitments'}
+              </Button>
+              {!isViewOnly && commitDrifted?.length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleResyncCommitments}
+                  disabled={commitCheckStatus === 'running'}
+                  className="w-full"
+                >
+                  Re-sync {commitDrifted.length} season{commitDrifted.length === 1 ? '' : 's'}
+                </Button>
+              )}
+              <StatusLine status={commitCheckStatus} />
+              {commitCheckDetail && (
+                <pre
+                  className="text-[11px] mt-2 p-3 rounded-md overflow-auto whitespace-pre font-mono"
+                  style={{
+                    backgroundColor: 'var(--surface-3)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--surface-4)',
+                    maxHeight: '320px',
+                  }}
+                >
+                  {commitCheckDetail}
                 </pre>
               )}
             </div>
