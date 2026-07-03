@@ -322,6 +322,76 @@ export function applyCoachingStaffNames(teams, tid, year, names) {
   }
 }
 
+const normName = (n) => (n || '').trim().toLowerCase()
+
+// Forward-sync the OC/DC names a user just entered on a team-year's coaching
+// staff into cid coach entities (NPC coordinators, controlledBy = null), so a
+// freshly recorded coordinator becomes a real, linkable coach IMMEDIATELY —
+// the same end state migrateLegacyCoachesToCids produces, but scoped to this
+// one team-year and run at SAVE time instead of only via the admin migration.
+// Without this, saveCoachingStaff wrote the names into coachingStaff but never
+// minted the cid coaches, so coordinators stayed unlinkable until an admin ran
+// the migration. HC is intentionally excluded: on the user's team the head
+// coach is the user (a controlled uid coach), never an NPC cid.
+// Pure — returns the next coaches map; the caller persists it.
+export function syncCoordinatorCoachesForTeamYear(coaches, tid, year, staff) {
+  if (tid == null) return coaches || {}
+  const next = { ...(coaches || {}) }
+  const tidNum = Number(tid)
+  const yearKey = String(year)
+  const byName = new Map()
+  for (const c of Object.values(next)) {
+    if (c?.name) byName.set(normName(c.name), c.cid)
+  }
+  const roleFields = [['OC', 'ocName'], ['DC', 'dcName']]
+  for (const [role, field] of roleFields) {
+    const name = (staff?.[field] || '').trim()
+    // The cid coach (if any) currently filling this role on this team-year.
+    const existing = Object.values(next).find((c) => {
+      const r = c?.byYear?.[yearKey]
+      return r && Number(r.teamTid) === tidNum && r.role === role
+    })
+
+    // Drop the old coach's record for this team-year (used on both a cleared
+    // coordinator and a replacement). Deletes the entity if that empties it —
+    // but never a controlled coach.
+    const vacateExisting = () => {
+      if (!existing) return
+      const trimmed = removeCoachSeason(existing, year)
+      next[existing.cid] = trimmed
+      if (existing.controlledBy == null && Object.keys(trimmed.byYear || {}).length === 0) {
+        delete next[existing.cid]
+      }
+    }
+
+    if (!name) {
+      // Coordinator cleared — vacate the slot.
+      vacateExisting()
+      continue
+    }
+    if (existing && normName(existing.name) === normName(name)) {
+      continue // Already tracked under the same name — nothing to do.
+    }
+    if (existing) {
+      // A DIFFERENT name now fills the slot: treat as a replacement, not a
+      // rename (a rename would rewrite the old coordinator's whole career).
+      vacateExisting()
+    }
+
+    // Reuse an existing coach entity with this name (a coordinator who moved
+    // here), else mint a new NPC coach.
+    const reuseCid = byName.get(normName(name))
+    if (reuseCid && next[reuseCid]) {
+      next[reuseCid] = setCoachSeason(next[reuseCid], year, { teamTid: tidNum, role, level: null, salary: null })
+    } else {
+      const coach = makeCoach({ name, year, teamTid: tidNum, role, level: null, salary: null })
+      next[coach.cid] = coach
+      byName.set(normName(name), coach.cid)
+    }
+  }
+  return next
+}
+
 // ── migration ────────────────────────────────────────────────────────
 //
 // Turn legacy name-only coordinators (teams[tid].byYear[year].coachingStaff
@@ -330,8 +400,6 @@ export function applyCoachingStaffNames(teams, tid, year, names) {
 // the user's team that's the user (uid), not an NPC cid. Salaries were never
 // recorded historically, so they start null. Idempotent: a role already
 // filled by a cid coach for a team-year is left alone, so re-running is safe.
-
-const normName = (n) => (n || '').trim().toLowerCase()
 
 function roleFilledByCid(coaches, tid, year, role) {
   const tidNum = Number(tid)

@@ -103,7 +103,7 @@ import { CFB27_NIL_BUDGETS } from '../data/cfb27NilBudgets'
 import { normalizeAwardName } from '../utils/playerHeal'
 import { getFirstRoundSlotId, getSlotIdFromBowlName, getCFPGameId, CFP_BRACKET_SLOTS, DEFAULT_BOWL_CONFIG, getBowlForSlot, CFP_BRACKET_FLOW, getBracketFlowConfig } from '../data/cfpConstants'
 import { migrateDynastyToEditors, needsEditorsMigration, getMemberTeams, snapshotAllMembersForYear, getCoachNameForUid, canManageMembers } from '../data/leagueModel'
-import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches } from '../data/coachModel'
+import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches, getCoachesControlledBy, getCurrentTeamsForControlledCoaches, getActiveCoachForTeam, setCoachSeason, carryForwardControlledCoaches, applyStaffMovesToCoaches, syncCoordinatorCoachesForTeamYear } from '../data/coachModel'
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { settleOrProceed } from '../utils/firestoreWriteGuard'
@@ -15134,8 +15134,14 @@ export function DynastyProvider({ children }) {
     const existingYearData = existingByYear[year] || {}
     const existingYearSetup = existingYearData.preseasonSetup || {}
 
+    // Mint/refresh cid coach entities for the OC/DC just entered, so they
+    // become real, linkable coaches (not just name strings). HC stays the
+    // user's controlled coach — syncCoordinatorCoachesForTeamYear skips it.
+    const nextCoaches = syncCoordinatorCoachesForTeamYear(dynasty.coaches, tid, year, staff)
+
     const coachingStaffUpdates = useLocalStorage
       ? {
+          coaches: nextCoaches,
           // Store in NEW tid-based byYear structure
           teams: {
             ...existingTeams,
@@ -15190,7 +15196,9 @@ export function DynastyProvider({ children }) {
           }
         }
       : {
-          // Firestore: use dot notation for nested updates
+          // Firestore: full coaches map (matches every other coach write path)
+          coaches: nextCoaches,
+          // use dot notation for nested updates
           // NEW tid-based byYear structure
           [`teams.${tid}.byYear.${year}.coachingStaff`]: staff,
           [`teams.${tid}.byYear.${year}.preseasonSetup.coachingStaffEntered`]: true,
