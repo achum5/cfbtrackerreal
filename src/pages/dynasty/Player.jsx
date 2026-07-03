@@ -1871,22 +1871,33 @@ function PlayerInner() {
                 Without it, the name starts at the edge and the Edit button moves
                 inline to the right of the name (below) instead of pushing
                 everything over from the left. */}
-            {player.pictureUrl && (
+            {(player.pictureUrl || heroLogo) && (
               <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                <img
-                  src={proxyImageUrl(player.pictureUrl, 300)}
-                  alt={player.name}
-                  className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl"
-                  style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
-                  onError={(e) => {
-                    // wsrv hiccup (e.g. a cached error from an imgbb outage) →
-                    // fall back to the original URL, which often still loads.
-                    // Only hide if the original fails too. Same resilience
-                    // pattern used by the photo thumbnails + Game pages.
-                    if (e.currentTarget.src !== player.pictureUrl) e.currentTarget.src = player.pictureUrl
-                    else e.currentTarget.style.display = 'none'
-                  }}
-                />
+                {player.pictureUrl ? (
+                  <img
+                    src={proxyImageUrl(player.pictureUrl, 300)}
+                    alt={player.name}
+                    className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl"
+                    style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }}
+                    onError={(e) => {
+                      // wsrv hiccup (e.g. a cached error from an imgbb outage) →
+                      // fall back to the original URL, which often still loads.
+                      // Only hide if the original fails too. Same resilience
+                      // pattern used by the photo thumbnails + Game pages.
+                      if (e.currentTarget.src !== player.pictureUrl) e.currentTarget.src = player.pictureUrl
+                      else e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  // No photo → fall back to the player's team logo, keeping the
+                  // same square header frame so the layout doesn't shift.
+                  <div
+                    className="relative z-[1] w-20 h-20 sm:w-24 sm:h-24 rounded-xl flex items-center justify-center"
+                    style={{ border: `2px solid ${teamBgText}66`, boxShadow: '0 2px 10px rgba(0,0,0,0.35)', backgroundColor: `${teamBgText}14` }}
+                  >
+                    <img src={heroLogo} alt={player.name} className="w-3/5 h-3/5 object-contain" />
+                  </div>
+                )}
                 {/* Mobile Edit — tucked into the empty space under the photo. */}
                 {!isViewOnly && (
                   <button

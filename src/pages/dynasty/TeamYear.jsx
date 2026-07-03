@@ -18,6 +18,7 @@ import { conferenceTeams as DEFAULT_CONFERENCE_TEAMS } from '../../data/conferen
 import { bowlLogos } from '../../data/bowlLogos'
 import { getCFPGameId, getSlotIdFromBowlName, getCFPSlotDisplayName, getFirstRoundSlotId } from '../../data/cfpConstants'
 // GameDetailModal and GameEntryModal removed - now using game pages
+import PlayerAvatar from '../../components/PlayerAvatar'
 import RosterEditModal from '../../components/RosterEditModal'
 import ScheduleEntryModal from '../../components/ScheduleEntryModal'
 import StatsEntryModal from '../../components/StatsEntryModal'
@@ -4434,17 +4435,7 @@ export default function TeamYear() {
                                 className={`relative group flex-shrink-0 ${compare.active ? 'pointer-events-none' : ''}`}
                                 title="Click to add/change photo"
                               >
-                                {player.pictureUrl ? (
-                                  <div className="w-9 h-9 rounded-full overflow-hidden border border-surface-5">
-                                    <img src={proxyImageUrl(player.pictureUrl, 300)} alt={player.name} className="w-full h-full object-cover" />
-                                  </div>
-                                ) : (
-                                  <div className="w-9 h-9 rounded-full flex items-center justify-center bg-surface-3 text-txt-muted border border-surface-5">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                                    </svg>
-                                  </div>
-                                )}
+                                <PlayerAvatar photoUrl={realPhoto(player.pictureUrl)} teamLogo={teamLogo} name={player.name} size={36} />
                                 {!player.pictureUrl && (
                                   <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--surface-4)' }}>
                                     <svg className="w-2 h-2" fill="none" stroke="white" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -4454,20 +4445,14 @@ export default function TeamYear() {
                                   </div>
                                 )}
                               </button>
-                            ) : player.pictureUrl ? (
+                            ) : (
                               <Link
                                 to={`${pathPrefix}/player/${player.pid}`}
-                                className={`w-9 h-9 rounded-full flex-shrink-0 overflow-hidden block border border-surface-5 ${compare.active ? 'pointer-events-none' : ''}`}
+                                className={`flex-shrink-0 block ${compare.active ? 'pointer-events-none' : ''}`}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <img src={proxyImageUrl(player.pictureUrl, 300)} alt={player.name} className="w-full h-full object-cover" />
+                                <PlayerAvatar photoUrl={realPhoto(player.pictureUrl)} teamLogo={teamLogo} name={player.name} size={36} />
                               </Link>
-                            ) : (
-                              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-surface-3 text-txt-muted border border-surface-5">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                                </svg>
-                              </div>
                             )}
                             <Link
                               to={`${pathPrefix}/player/${player.pid}`}
@@ -4627,6 +4612,7 @@ export default function TeamYear() {
               {playerStats.passing.length > 0 && (
                 <SortableStatsTable
                   title="Passing"
+                  teamLogo={teamLogo}
                   rows={playerStats.passing}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4635,7 +4621,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'cmpAtt', label: 'CMP/ATT', tabular: true,
                       sortValue: p => (p.cmp ?? p.comp ?? 0),
                       render: p => `${p.cmp ?? p.comp ?? 0}/${p.att ?? p.attempts ?? 0}` },
@@ -4673,6 +4659,7 @@ export default function TeamYear() {
               {playerStats.rushing.length > 0 && (
                 <SortableStatsTable
                   title="Rushing"
+                  teamLogo={teamLogo}
                   rows={playerStats.rushing}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4681,7 +4668,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'car', label: 'CAR', tabular: true,
                       sortValue: p => p.car || 0, render: p => p.car || 0 },
                     { key: 'yds', label: 'YDS', tabular: true, bold: true,
@@ -4714,6 +4701,7 @@ export default function TeamYear() {
               {playerStats.receiving.length > 0 && (
                 <SortableStatsTable
                   title="Receiving"
+                  teamLogo={teamLogo}
                   rows={playerStats.receiving}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4722,7 +4710,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'rec', label: 'REC', tabular: true,
                       sortValue: p => p.rec || 0, render: p => p.rec || 0 },
                     { key: 'yds', label: 'YDS', tabular: true, bold: true,
@@ -4749,6 +4737,7 @@ export default function TeamYear() {
               {playerStats.blocking.length > 0 && (
                 <SortableStatsTable
                   title="Blocking"
+                  teamLogo={teamLogo}
                   rows={playerStats.blocking}
                   defaultSortKey="pancakes"
                   accentColor={accentColor}
@@ -4757,7 +4746,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'pancakes', label: 'Pancakes', tabular: true, bold: true,
                       sortValue: p => p.pancakes || 0, render: p => p.pancakes || 0 },
                     { key: 'sacksAllowed', label: 'Sacks Allowed', tabular: true, defaultDir: 'asc',
@@ -4772,6 +4761,7 @@ export default function TeamYear() {
               {playerStats.defense.length > 0 && (
                 <SortableStatsTable
                   title="Defense"
+                  teamLogo={teamLogo}
                   rows={playerStats.defense}
                   defaultSortKey="tot"
                   accentColor={accentColor}
@@ -4780,7 +4770,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'soloTkl', label: 'SOLO', tabular: true,
                       sortValue: p => p.soloTkl || 0, render: p => p.soloTkl || 0 },
                     { key: 'astTkl', label: 'AST', tabular: true,
@@ -4815,6 +4805,7 @@ export default function TeamYear() {
               {playerStats.kicking.length > 0 && (
                 <SortableStatsTable
                   title="Kicking"
+                  teamLogo={teamLogo}
                   rows={playerStats.kicking}
                   defaultSortKey="fgm"
                   accentColor={accentColor}
@@ -4823,7 +4814,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'fgm', label: 'FGM', tabular: true,
                       sortValue: p => p.fgm || 0, render: p => p.fgm || 0 },
                     { key: 'fga', label: 'FGA', tabular: true,
@@ -4847,6 +4838,7 @@ export default function TeamYear() {
               {playerStats.punting.length > 0 && (
                 <SortableStatsTable
                   title="Punting"
+                  teamLogo={teamLogo}
                   rows={playerStats.punting}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4855,7 +4847,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'punts', label: 'PUNTS', tabular: true,
                       sortValue: p => p.punts || 0, render: p => p.punts || 0 },
                     { key: 'yds', label: 'YDS', tabular: true,
@@ -4880,6 +4872,7 @@ export default function TeamYear() {
               {playerStats.kickReturn && playerStats.kickReturn.length > 0 && (
                 <SortableStatsTable
                   title="Kick Return"
+                  teamLogo={teamLogo}
                   rows={playerStats.kickReturn}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4888,7 +4881,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'ret', label: 'RET', tabular: true,
                       sortValue: p => p.ret || 0, render: p => p.ret || 0 },
                     { key: 'yds', label: 'YDS', tabular: true, bold: true,
@@ -4911,6 +4904,7 @@ export default function TeamYear() {
               {playerStats.puntReturn && playerStats.puntReturn.length > 0 && (
                 <SortableStatsTable
                   title="Punt Return"
+                  teamLogo={teamLogo}
                   rows={playerStats.puntReturn}
                   defaultSortKey="yds"
                   accentColor={accentColor}
@@ -4919,7 +4913,7 @@ export default function TeamYear() {
                   teamBgText={teamBgText}
                   columns={[
                     { key: 'name', label: 'Player', align: 'left',
-                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} /> },
+                      render: p => <PlayerCell player={p} accentColor={accentColor} pathPrefix={pathPrefix} teamLogo={teamLogo} /> },
                     { key: 'ret', label: 'RET', tabular: true,
                       sortValue: p => p.ret || 0, render: p => p.ret || 0 },
                     { key: 'yds', label: 'YDS', tabular: true, bold: true,
@@ -5517,13 +5511,7 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topPasser && statLeaders.topPasser.yards > 0 ? (
                             <>
-                              {statLeaders.topPasser.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topPasser.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.charAt(0)}</span>
-                                </div>
-                              )}
+                              <PlayerAvatar photoUrl={realPhoto(statLeaders.topPasser.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topPasser.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topPasser.name.split(' ').pop()}</span>
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topPasser.yards}</span>
                             </>
@@ -5539,13 +5527,7 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topRusher && statLeaders.topRusher.yards > 0 ? (
                             <>
-                              {statLeaders.topRusher.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topRusher.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.charAt(0)}</span>
-                                </div>
-                              )}
+                              <PlayerAvatar photoUrl={realPhoto(statLeaders.topRusher.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topRusher.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topRusher.name.split(' ').pop()}</span>
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topRusher.yards}</span>
                             </>
@@ -5561,13 +5543,7 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topReceiver && statLeaders.topReceiver.yards > 0 ? (
                             <>
-                              {statLeaders.topReceiver.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topReceiver.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.charAt(0)}</span>
-                                </div>
-                              )}
+                              <PlayerAvatar photoUrl={realPhoto(statLeaders.topReceiver.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topReceiver.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topReceiver.name.split(' ').pop()}</span>
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topReceiver.yards}</span>
                             </>
@@ -5583,13 +5559,7 @@ export default function TeamYear() {
                         >
                           {statLeaders?.topTackler && statLeaders.topTackler.tackles > 0 ? (
                             <>
-                              {statLeaders.topTackler.player?.pictureUrl ? (
-                                <img src={proxyImageUrl(statLeaders.topTackler.player.pictureUrl, 300)} alt="" className="w-7 h-7 rounded-full object-cover border flex-shrink-0 hidden xl:block" style={{ borderColor: `${rowText}20` }} />
-                              ) : (
-                                <div className="w-7 h-7 rounded-full items-center justify-center flex-shrink-0 hidden xl:flex" style={{ backgroundColor: `${rowText}20` }}>
-                                  <span className="text-xs font-bold" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.charAt(0)}</span>
-                                </div>
-                              )}
+                              <PlayerAvatar photoUrl={realPhoto(statLeaders.topTackler.player?.pictureUrl)} teamLogo={teamLogo} name={statLeaders.topTackler.player?.name} size={28} className="hidden xl:flex" />
                               <span className="text-[10px] lg:text-xs truncate min-w-0" style={{ color: rowTextMuted }}>{statLeaders.topTackler.name.split(' ').pop()}</span>
                               <span className="text-xs lg:text-sm font-bold flex-shrink-0" style={{ color: rowText }}>{statLeaders.topTackler.tackles}</span>
                             </>
@@ -6387,23 +6357,7 @@ export default function TeamYear() {
                         className="grid grid-cols-[40px_1fr] sm:grid-cols-[44px_minmax(140px,1.5fr)_56px_64px_minmax(180px,2fr)_minmax(140px,auto)] gap-x-3 sm:gap-x-5 items-center px-4 py-2.5 border-b border-surface-4 last:border-b-0 hover:bg-surface-3 transition-colors"
                       >
                         {/* Photo */}
-                        {player.pictureUrl ? (
-                          <img
-                            src={proxyImageUrl(player.pictureUrl, 300)}
-                            alt={player.name}
-                            className="w-9 h-9 sm:w-10 sm:h-10 object-cover rounded-md flex-shrink-0"
-                            style={{ border: '1px solid var(--surface-4)' }}
-                          />
-                        ) : (
-                          <div
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-md flex items-center justify-center flex-shrink-0"
-                            style={{ backgroundColor: 'var(--surface-3)', border: '1px solid var(--surface-4)' }}
-                          >
-                            <span className="text-[10px] font-black uppercase text-txt-secondary tabular-nums" style={{ letterSpacing: '0.05em' }}>
-                              {(player.position || 'ATH').slice(0, 3)}
-                            </span>
-                          </div>
-                        )}
+                        <PlayerAvatar photoUrl={realPhoto(player.pictureUrl)} teamLogo={teamLogo} name={player.name} size={40} />
 
                         {/* Name + class. On mobile we cram pos/ovr/career
                             into the second cell as a compact stack. */}
@@ -7166,11 +7120,7 @@ export default function TeamYear() {
                                     }}
                                   >
                                     <span className="text-right tabular flex-shrink-0" style={{ fontFamily: "var(--font-display)", fontSize: isFirst ? '1.4rem' : '1rem', letterSpacing: '0.5px', lineHeight: 1, width: isFirst ? '1.6rem' : '1.25rem', color: rankColor, fontWeight: isFirst ? 700 : 600 }}>{rank}</span>
-                                    {player.pictureUrl ? (
-                                      <img src={proxyImageUrl(player.pictureUrl, 300)} alt="" className={`${isFirst ? 'w-10 h-10' : 'w-8 h-8'} rounded-full object-cover flex-shrink-0`} style={{ border: isFirst ? '1.5px solid var(--accent-warning)' : '1px solid var(--surface-4)' }} />
-                                    ) : (
-                                      <div className={`${isFirst ? 'w-10 h-10' : 'w-8 h-8'} rounded-full bg-surface-4 flex-shrink-0`} />
-                                    )}
+                                    <PlayerAvatar photoUrl={realPhoto(player.pictureUrl)} teamLogo={teamLogo} name={player.name} size={isFirst ? 40 : 32} />
                                     <div className="flex-1 min-w-0">
                                       <span className={`${isFirst ? 'text-[15px]' : 'text-sm'} font-semibold text-txt-primary hover:underline truncate block`}>{player.name}</span>
                                       <p className="text-[11px] text-txt-tertiary truncate m-0">{player.position && `${player.position} · `}{yearsLabel}</p>
@@ -7658,9 +7608,7 @@ export default function TeamYear() {
                 >
                   <span className="w-5 text-center text-xs font-bold tabular-nums flex-shrink-0 text-txt-tertiary">{i + 1}</span>
                   <span className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: `${accentColor}1f` }}>
-                    {p.pictureUrl
-                      ? <img src={proxyImageUrl(p.pictureUrl, 120)} alt="" className="w-full h-full object-cover" />
-                      : <span className="text-xs font-bold" style={{ color: accentColor }}>{(p.name || '?').charAt(0)}</span>}
+                    <PlayerAvatar photoUrl={realPhoto(p.pictureUrl)} teamLogo={teamLogo} name={p.name} size={32} />
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-txt-primary truncate group-hover:underline">{p.name}</div>

@@ -11,7 +11,8 @@ import { StatRings } from '../../components/CfbUI'
 import { getPlayerStatsForTid, getTeamStatsForTid, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, getFBSTeamTids, resolveTid, getTeamByAbbr, getTidFromAbbr, getTidFromTeamName, setTeamYearField, getCurrentTeamTid, getCurrentTeamAbbr, getOriginalTeamAbbr, getGameTeamInfo, getGameOpponentInfo, getAbbrFromTeamName, getNameByAbbr, setPendingUserTeam, clearPendingUserTeam, getPendingUserTeamTid, getUserTeamTid } from '../../data/teamRegistry'
-import { getTeamLogo } from '../../data/teams'
+import { getTeamLogo, getTeamLogoByTid } from '../../data/teams'
+import PlayerAvatar from '../../components/PlayerAvatar'
 import { getTeamColors } from '../../data/teamColors'
 import { getTeamConference } from '../../data/conferenceTeams'
 import { getConferenceLogo } from '../../data/conferenceLogos'
@@ -7278,18 +7279,14 @@ export default function Dashboard() {
                         {/* Jersey Number */}
                         <span className="text-sm font-bold text-txt-secondary w-6 text-right">{player.jerseyNumber || '--'}</span>
 
-                        {/* Player Image */}
-                        <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-surface-4 group-hover:ring-surface-5 transition-all" style={{ backgroundColor: 'var(--surface-4)' }}>
-                          {player.pictureUrl ? (
-                            <img src={proxyImageUrl(player.pictureUrl, 300)} alt={player.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <svg className="w-5 h-5 text-txt-muted" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
+                        {/* Player Image — photo → team logo → silhouette */}
+                        <PlayerAvatar
+                          photoUrl={player.pictureUrl}
+                          teamLogo={getTeamLogoByTid(player.teamsByYear?.[currentDynasty.currentYear] ?? (typeof player.team === 'number' ? player.team : getTidFromAbbr(player.team, currentDynasty)), currentDynasty.teams)}
+                          name={player.name}
+                          size={36}
+                          className="ring-2 ring-surface-4 group-hover:ring-surface-5 transition-all"
+                        />
 
                         {/* Name & Position */}
                         <div className="flex-1 min-w-0">
@@ -8373,18 +8370,14 @@ export default function Dashboard() {
                       {/* Jersey Number */}
                       <span className="text-sm font-bold text-txt-secondary w-6 text-right">{player.jerseyNumber || '--'}</span>
 
-                      {/* Player Image */}
-                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-surface-4" style={{ backgroundColor: 'var(--surface-4)' }}>
-                        {player.pictureUrl ? (
-                          <img src={proxyImageUrl(player.pictureUrl, 300)} alt={player.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-txt-muted" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                            </svg>
-                          </div>
-                        )}
-                      </div>
+                      {/* Player Image — photo → team logo → silhouette */}
+                      <PlayerAvatar
+                        photoUrl={player.pictureUrl}
+                        teamLogo={getTeamLogoByTid(player.teamsByYear?.[currentDynasty.currentYear] ?? (typeof player.team === 'number' ? player.team : getTidFromAbbr(player.team, currentDynasty)), currentDynasty.teams)}
+                        name={player.name}
+                        size={32}
+                        className="ring-2 ring-surface-4"
+                      />
 
                       {/* Name & Position */}
                       <div className="flex-1 min-w-0">
