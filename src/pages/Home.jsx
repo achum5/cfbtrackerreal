@@ -76,7 +76,7 @@ function getRelativeTime(timestamp) {
 
 function formatPhase(phase) {
   switch (phase) {
-    case 'preseason': return 'Pre-Season'
+    case 'preseason': return 'Preseason'
     case 'regular_season': return 'Regular Season'
     case 'conference_championship': return 'Conference Championships'
     case 'postseason': return 'Playoffs'

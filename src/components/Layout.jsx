@@ -290,7 +290,7 @@ export default function Layout({ children }) {
       return 'Off-Season'
     }
     const phases = {
-      preseason: 'Pre-Season',
+      preseason: 'Preseason',
       regular_season: 'Regular Season',
       conference_championship: 'Conference Championships'
     }
@@ -744,7 +744,7 @@ export default function Layout({ children }) {
                         {currentDynasty.currentPhase === 'conference_championship' ? 'CC' :
                          currentDynasty.currentPhase === 'regular_season' ? `Wk ${currentDynasty.currentWeek}` :
                          currentDynasty.currentPhase === 'postseason' ? (currentDynasty.currentWeek === 5 ? 'Recap' : (currentDynasty.currentWeek === 4 ? 'Champ' : `Bowl ${currentDynasty.currentWeek}`)) :
-                         currentDynasty.currentPhase === 'preseason' ? `Pre ${currentDynasty.currentWeek}` :
+                         currentDynasty.currentPhase === 'preseason' ? 'Preseason' :
                          currentDynasty.currentPhase === 'offseason' ? (
                            currentDynasty.currentWeek === 1 ? 'Leaving' :
                            currentDynasty.currentWeek === 5 ? 'Signing' :
@@ -756,7 +756,7 @@ export default function Layout({ children }) {
                       </span>
                       <span className="hidden sm:inline">
                         {getPhaseDisplay(currentDynasty.currentPhase, currentDynasty.currentWeek)}
-                        {currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && currentDynasty.currentPhase !== 'conference_championship' && ` Wk ${currentDynasty.currentWeek}`}
+                        {currentDynasty.currentPhase !== 'postseason' && currentDynasty.currentPhase !== 'offseason' && currentDynasty.currentPhase !== 'conference_championship' && currentDynasty.currentPhase !== 'preseason' && ` Wk ${currentDynasty.currentWeek}`}
                       </span>
                     </span>
                   </div>

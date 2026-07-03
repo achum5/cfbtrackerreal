@@ -3714,18 +3714,18 @@ export default function Dashboard() {
               todos.push({
                 key: 'preseason-recruiting',
                 done: recruitingDone,
-                title: 'New targets/commitments?',
+                title: 'Scout players & Big Board',
                 subtitle: recruitingDone
                   ? (cnt > 0
-                      ? `${cnt} commit${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
-                      : 'No commitments this week')
-                  : 'Record any early recruiting commitments',
+                      ? `${cnt} target${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
+                      : 'No targets recorded')
+                  : 'Scout players and build your Big Board — no commitments in the preseason',
                 viewTo: cs > 0 ? `${pathPrefix}/recruiting/${userTid}/${currentDynasty.currentYear}` : null,
                 onAction: () => setShowRecruitingModal(true),
-                actionLabel: recruitingDone ? 'Edit' : 'Yes',
+                actionLabel: recruitingDone ? 'Edit' : 'Enter',
                 extraTools: recruitingExtraTools,
                 inlineAction: !recruitingDone && !isViewOnly ? {
-                  label: 'No commits',
+                  label: 'None yet',
                   onClick: handleNoCommitments,
                 } : null,
               })
