@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { copyTextToClipboard } from '../../utils/copyText'
 
 /**
  * SheetModalAIHero — the "AI is the primary path" panel that sits
@@ -30,24 +31,11 @@ export default function SheetModalAIHero({
 
   const handleClick = async (btn, idx) => {
     if (btn.prompt) {
-      try {
-        await navigator.clipboard.writeText(btn.prompt)
-        setCopiedIdx(idx)
-        setTimeout(() => {
-          setCopiedIdx((current) => (current === idx ? null : current))
-        }, 2000)
-      } catch (err) {
-        // Clipboard API can fail in iframes, http://, or with denied
-        // permissions. Fall back to textarea-select.
-        console.error('Copy failed:', err)
-        const ta = document.createElement('textarea')
-        ta.value = btn.prompt
-        ta.style.position = 'fixed'
-        ta.style.opacity = '0'
-        document.body.appendChild(ta)
-        ta.select()
-        try { document.execCommand('copy') } catch { /* noop */ }
-        document.body.removeChild(ta)
+      // copyTextToClipboard handles the in-app-browser / iOS cases where the
+      // async Clipboard API is missing or rejects. Only flash "Copied!" when
+      // the text actually landed on the clipboard.
+      const ok = await copyTextToClipboard(btn.prompt)
+      if (ok) {
         setCopiedIdx(idx)
         setTimeout(() => {
           setCopiedIdx((current) => (current === idx ? null : current))

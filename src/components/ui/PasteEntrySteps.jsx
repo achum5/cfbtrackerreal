@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AI_TOOLS } from '../../data/aiTools'
+import { copyTextToClipboard } from '../../utils/copyText'
 
 // The unified header for every data-entry modal. A genuine 3-step sequence
 // (screenshot & copy -> send to your AI -> paste it back), kept deliberately
@@ -78,6 +79,8 @@ export default function PasteEntrySteps({
   const writePref = (k) => { try { localStorage.setItem(preferenceKey, k) } catch { /* noop */ } }
   const resolveTool = (k) => tools.find((t) => t.key === k) || tools[0]
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const [failedText, setFailedText] = useState('')
   const [openInfo, setOpenInfo] = useState(null) // 'screenshot' | 'ai' | 'paste' | null
   const [aiKey, setAiKey] = useState(readPref)
   const [aiMenuOpen, setAiMenuOpen] = useState(false)
@@ -93,18 +96,22 @@ export default function PasteEntrySteps({
     // until the user actually copies (e.g. the week-recap prompt, which
     // scans every team + game and is wasteful to rebuild on every render).
     const text = (typeof aiPrompt === 'function' ? aiPrompt() : aiPrompt) || ''
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'; ta.style.opacity = '0'
-      document.body.appendChild(ta); ta.select()
-      try { document.execCommand('copy') } catch { /* noop */ }
-      document.body.removeChild(ta)
+    // copyTextToClipboard handles the in-app-browser / iOS cases where the
+    // async Clipboard API is missing or rejects; it returns a real success
+    // boolean so we never flash "Copied!" on an empty clipboard.
+    const ok = await copyTextToClipboard(text)
+    if (ok) {
+      setCopyFailed(false)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } else {
+      // Honest failure state: reveal the prompt in a selectable box so the
+      // user can long-press → Select All → Copy by hand. Beats flashing
+      // "Copied!" on an empty clipboard.
+      setCopied(false)
+      setCopyFailed(true)
+      setFailedText(text)
     }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   const repositionMenu = useCallback(() => {
@@ -144,13 +151,13 @@ export default function PasteEntrySteps({
               {copyLeading}
               <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={WHITE_BTN} style={WHITE_STYLE}>
                 {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-                {copied ? 'Copied!' : label.copyButton}
+                {copied ? 'Copied!' : copyFailed ? 'Copy failed' : label.copyButton}
               </button>
             </div>
           ) : (
             <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
               {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-              {copied ? 'Copied!' : label.copyButton}
+              {copied ? 'Copied!' : copyFailed ? 'Copy failed' : label.copyButton}
             </button>
           )}
         </div>
@@ -212,6 +219,23 @@ export default function PasteEntrySteps({
         <p className="mt-3 text-xs text-txt-tertiary leading-relaxed max-w-2xl mx-auto text-center">
           {hint[openInfo]}
         </p>
+      )}
+
+      {/* Copy-failed escape hatch: some in-app browsers block clipboard
+          writes entirely. Show the prompt so the user can copy it manually. */}
+      {copyFailed && (
+        <div className="mt-3 max-w-2xl mx-auto">
+          <p className="text-xs text-txt-secondary leading-relaxed mb-1.5 text-center">
+            Couldn&apos;t reach your clipboard automatically (common in in-app browsers).
+            Tap the box, Select All, and Copy — or open the site in Safari/Chrome.
+          </p>
+          <textarea
+            readOnly
+            value={failedText}
+            onFocus={(e) => e.target.select()}
+            className="w-full h-28 text-xs p-2 rounded-md border border-surface-5 bg-surface-2 text-txt-secondary"
+          />
+        </div>
       )}
 
       {/* AI picker menu — portaled so the modal's overflow can't clip it */}
