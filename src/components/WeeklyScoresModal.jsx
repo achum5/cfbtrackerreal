@@ -247,7 +247,7 @@ Treat every visible matchup as in-scope. Specifically:
 
 3. EXPECT A LONG OUTPUT. 50–70 rows for a full week is normal. The sheet supports up to ${WEEKLY_SCORES_MAX_ROWS} rows. A 5-row or 10-row output for a Week with a full slate is almost always wrong. Length is REQUIRED, not laziness.
 
-4. NO SHORTCUTS. Never end with "...", "and so on", "[truncated for brevity]", "etc.". Never summarize. Never say "the rest of the games follow the same pattern." Output every row in full.
+4. LIST EVERY GAME. Please don't abbreviate the list with "...", "and so on", "[truncated for brevity]", "etc.", or "the rest follow the same pattern" — the app needs each game as its own row, so include them all even when the slate is long.
 
 5. ASYMMETRIC COST. Missing a game is a SERIOUS failure (corrupts the user's data). Including a borderline/duplicate row is a MINOR issue (the sheet's importer collapses duplicates by team pair). When in doubt about whether something is a game in scope, INCLUDE it.
 
@@ -451,7 +451,7 @@ CRITICAL RULES — output format
 3. TEAM NAMES ONLY (columns A and D). Use ONLY values from the TEAM NAMES list at the bottom of this prompt. Columns A and D are STRICT dropdowns — wrong text is rejected by the sheet.
 4. INTEGERS ONLY for scores — no decimals, no "pts", no commas. "24" never "1,234" never "24.0".
 5. RANKS FOR PLAYED TEAMS — transcribe, do not reason.
-   For every team that appears in a game row (Col A or Col D), the rank is EXACTLY what the screenshot shows — the integer prefix next to the team name, or blank if there is no prefix. That's it. You are a transcription machine for these ranks.
+   For every team that appears in a game row (Col A or Col D), the rank is EXACTLY what the screenshot shows — the integer prefix next to the team name, or blank if there is no prefix. Copy the number you see; don't compute or adjust it.
 
    DO NOT adjust a game-row rank because you think a team "should" be higher or lower.
    DO NOT infer or estimate a rank that isn't explicitly shown.
@@ -724,7 +724,7 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] SCORE-FOLLOWS-TEAM (per-row, rule 6.5). Pick THREE rows from your draft at random. For each, mentally re-read the screenshot at that exact row position. Confirm that the value in Col C is the score that was visually next to the team you put in Col A — and the value in Col F is the score next to the team in Col D. If your home/away decision swapped which side of the screen Col A came from, the score MUST have swapped with it. Any row that fails this check has the WINNER WRONG — fix it before sending. This is the most common source of "wrong team won" bug reports.
 [ ] WORKSHEET vs TSV (winner consistency). For every TSV row, find the matching WS line. The team with the higher score in the worksheet's middle block (the screen-order summary) MUST equal WINNER on that worksheet line, AND must equal whichever team has the higher score in the TSV row (whether that's Col C or Col F). If any row's TSV winner disagrees with the worksheet's WINNER, you introduced a score-swap during the worksheet→TSV derivation. Fix the TSV row.
 [ ] TEAM COVERAGE (rule F in PRE-EXTRACTION COUNT). Every team you saw in the screenshots is now either (a) in a row of your output, or (b) confirmed on bye. No team silently disappeared. If you can name a team you remember seeing that doesn't appear in EITHER place, you have a missing game — go find it.
-[ ] No header row, no commentary INSIDE the data, no follow-up text (except the optional "X games dropped" note ONLY if N > ${WEEKLY_SCORES_MAX_ROWS}). The upstream worksheet fence is permitted as described above.
+[ ] Inside the TSV block: data rows only — no header row, no commentary. Notes outside the block are fine (e.g. an "X games dropped" note if N > ${WEEKLY_SCORES_MAX_ROWS}). The worksheet fence above is expected.
 [ ] BYE BLOCK PRESENT + COMPLETE: IF the PRIOR-WEEK TOP 25 block above has data — count the teams listed there (P). Count how many of them appear in your games block with a rank (G). Your bye block must have EXACTLY P − G rows. Every team in the prior-week top 25 must be accounted for in EXACTLY ONE place: either (a) in a game row with their new rank, or (b) in the bye block with a derived new rank. NO ranked team silently drops out. The total ranked teams across both blocks must equal P (typically 25). If your count is off, go back and find the missing team before sending. IF the PRIOR-WEEK TOP 25 block above is EMPTY ("(no prior-week Top 25 stored)"), emit an EMPTY bye block — do NOT invent bye entries from real-world poll knowledge or memory. The dynasty's stored picture is the only source of truth here.
 [ ] BYE BLOCK COL D EMPTY: every bye row's column D (4th tab-separated cell) is BLANK. If you accidentally put a team abbr in col D of a bye row, the importer treats it as a game with that abbr.
 [ ] BYE RANKS UNIQUE + IN RANGE: every rank in the bye block is 1-25, no rank repeats, and no rank in the bye block matches a rank already shown for a played team in the games block. The new poll has 25 unique ranks total.`,

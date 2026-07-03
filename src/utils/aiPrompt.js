@@ -237,12 +237,12 @@ export function buildAIPrompt({
   multiBlock = false,
 }) {
   const sections = [
-    `Your single deliverable is a TSV (tab-separated values) data file for "${title}". Not CSV, not a markdown table, not JSON, not a chat-formatted explanation — TSV. Read this whole instruction block before you start.`,
+    `You're helping a user fill in "${title}" for their college-football dynasty tracker app. The task is simple data entry: read the data they give you (usually a screenshot of an in-game screen) and hand it back as a tab-separated (TSV) code block they can paste straight into the app. This block spells out the exact columns and layout — have a read through, then reply with the data.`,
     ``,
     `═══════════════════════════════════════════════════════════`,
-    `OUTPUT DELIVERY FORMAT — READ THIS FIRST, OBEY EXACTLY`,
+    `HOW TO HAND THE DATA BACK`,
     `═══════════════════════════════════════════════════════════`,
-    `Do NOT generate a downloadable file attachment. Do NOT use code execution, artifacts, or a file builder to create a file. Your ONLY delivery method is an inline fenced TSV code block in your chat response${multiBlock ? ' (one per section)' : ''}, so the user can copy and paste it directly from the chat window into the app's import box. ".tsv" = tab-separated values, the format that pastes cleanly into the app without any post-processing on the user's end.`,
+    `Please put the data in an inline fenced TSV code block right in your reply${multiBlock ? ' (one per section)' : ''} — an ordinary code block in the chat, not a downloadable file, artifact, or code-execution output. The user copies the block out of the chat and pastes it into the app's import box, and tab-separated values are what paste cleanly there with no cleanup on their end.`,
     ``,
     `WHY TSV (NOT CSV, NOT MARKDOWN): the user is going to paste your output directly into the app. Tabs split fields into cells in one keystroke. CSV requires escape rules for commas inside numbers; markdown tables don't paste at all. The user has confirmed empirically that pasting TSV works every time. Anything else creates work for the user. Default to TSV unless you literally cannot.`,
     ``,
@@ -266,14 +266,12 @@ export function buildAIPrompt({
       : `  • The fenced tsv block is your ENTIRE deliverable. Do NOT add a paste-target line, a cell reference, or a tab name — the user pastes the block straight into the app's import box.`,
     multiBlock ? `  • Each fence contains ONLY tab-separated data rows. No column header row, no commentary, no totals.` : `  • The fence contains ONLY tab-separated data rows. No column header row, no commentary, no totals.`,
     multiBlock
-      ? `  • Before the FIRST label line: NOTHING. Between blocks: ONE blank line, nothing else. After the LAST closing fence: NOTHING.`
-      : `  • Before the opening fence: NOTHING — no greeting, no "Here is the output:", no "Sure, ", no preamble. After the closing fence: NOTHING — no "Let me know if you need changes", no summary, no follow-up questions.`,
-    multiBlock
-      ? `  • If you must flag an ambiguity, do it ONCE at the very top before the first block, on a single line prefixed with "PRE-NOTE:".`
-      : `  • If you must flag an ambiguity, do it ONCE on a single line prefixed with "PRE-NOTE:" placed BEFORE the opening fence — never after it.`,
+      ? `  • Keep the inside of each fence pure data — the app reads only what's between the backticks, so a stray sentence in there would get pasted in as if it were data. Separate blocks with a single blank line.`
+      : `  • Keep the inside of the fence pure data — the app reads only what's between the backticks, so a stray sentence in there would get pasted in as if it were data.`,
+    `  • Anything you want to say — notes, caveats, an ambiguity you had to judge, a question — is welcome OUTSIDE the fence (before or after the block). The importer ignores everything outside the code block, so feel free to add whatever context is helpful; it won't interfere with the paste.`,
     ``,
-    `Hard rules:`,
-    `  1. 100% accuracy or blank. If you are not certain about a cell, leave it blank. Never guess, never invent a plausible value.`,
+    `Formatting requirements (these keep the paste clean):`,
+    `  1. Accuracy over completeness. If you're not certain about a cell, leave it blank rather than guessing — a blank is easy for the user to fill in, a wrong value is hard to catch.`,
     `  2. Preserve the exact column order, row order, and row count described below.`,
     `  3. No column header row, no totals row, no "N/A", no em dashes, no trailing "source: screenshot" annotations. The ONLY allowed non-data lines are the fence delimiters${multiBlock ? ' and the "=== <SECTION> ===" label(s) that sit OUTSIDE the fences immediately above the opening backticks' : ''}, as described above.`,
     `  4. Numbers with no thousands separators: "1234" not "1,234".`,
@@ -283,9 +281,9 @@ export function buildAIPrompt({
     `  8. Row count: follow the structure's instructions exactly. If the structure specifies a fixed total line count or a fixed row capacity per section, emit EXACTLY that many lines — using truly empty lines (just \\n, no spaces or tabs) for unused slots so every fixed-position element lands on its correct row. If the structure doesn't specify a fixed count, output only the rows you have data for.`,
     ``,
     `═══════════════════════════════════════════════════════════`,
-    `SELF-VERIFICATION PROTOCOL — RUN THIS BEFORE SENDING`,
+    `QUICK CHECKS BEFORE YOU SEND`,
     `═══════════════════════════════════════════════════════════`,
-    `After you draft your output but BEFORE you send your reply, you MUST execute the following checks against YOUR OWN draft. Do not just read them — actually run them on the text you are about to send. If ANY check fails, fix the output and re-run the checks. Do not send output that has not passed every check.`,
+    `Once you've drafted the block, it's worth running these checks against it — they catch the small mistakes that make a paste fail. If one turns up a problem, fix it and re-check before you reply.`,
     ``,
     `CHECK 1 — Delimiter count per row.`,
     multiBlock
@@ -300,8 +298,8 @@ export function buildAIPrompt({
     `CHECK 3 — Column-to-value walk.`,
     `  Pick TWO data rows at random. For each, walk left-to-right through the columns named in the structure and confirm the value at that position matches the spec for that column (integer vs decimal vs blank, sensible magnitude, correct stat). Watch for column-order traps: if the structure flags an inverted-order tab (e.g. "TD vs Long order is swapped"), re-read those tab specs character-by-character before signing off. FIX any swap.`,
     ``,
-    `CHECK 4 — Stray text scan.`,
-    `  Re-read your draft top-to-bottom. The ONLY allowed non-data lines are: (a) the fence delimiters themselves,${multiBlock ? ' (b) the "=== <SECTION> ===" label line(s) that sit directly above each fence,' : ''} and (c) an optional one-line "PRE-NOTE:" if you genuinely must flag an ambiguity. Anything else is contraband: greetings, "Here is the output:", "Let me know if you need changes", "Note:", "I left X blank because…", bullet points, follow-up questions, em dashes used as connector punctuation, summaries of what you did. DELETE. Do NOT add a "paste this into cell/tab" line — the user pastes straight into the app.`,
+    `CHECK 4 — Keep the data block clean.`,
+    `  Look INSIDE the fence: every line between the backticks should be a data row of tab-separated values${multiBlock ? ' (or a "=== <SECTION> ===" label sitting directly above a fence)' : ''} — nothing else. The app pastes everything between the backticks in as data, so if a greeting, a "Note:", an "I left X blank because…", a bullet, a totals line, or a summary ended up INSIDE the block, move it outside the fence or drop it. Prose OUTSIDE the block is fine — leave it be.`,
     ``,
     `CHECK 5 — Number/character format scan.`,
     `  Search your data rows for: commas inside numbers ("1,234" → "1234"), percent signs, units ("yds", "%"), placeholder strings ("N/A", "—", "-"), parenthetical asides, smart quotes, em dashes, non-breaking spaces. DELETE or BLANK per the rules.`,
