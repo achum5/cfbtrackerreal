@@ -23,7 +23,6 @@ import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { PageHero, Card, Button, Badge, EmptyState, TeamLogo } from '../../components/ui'
 import { getTeamLogoByTid } from '../../data/teams'
 import { getContrastTextColor } from '../../utils/colorUtils'
-import { editionHasFeature } from '../../editions'
 
 // Same broadcast sheen the team-page header uses: a diagonal highlight plus a
 // soft vertical darken, layered over the team's primary color.
@@ -130,7 +129,6 @@ export default function LeagueSettings() {
   // selection. 'never' is the safe default since hosts can revoke any
   // time from this same panel.
   const [inviteExpiry, setInviteExpiry] = useState('never')
-  const [savingBlueprintPref, setSavingBlueprintPref] = useState(false)
 
   // Live subscription to the invites subcollection. Only meaningful for
   // cloud dynasties — local dynasties don't have a Firestore subscription
@@ -171,28 +169,6 @@ export default function LeagueSettings() {
   const isCloudDynasty = currentDynasty.storageType === 'cloud'
   const canShareWithOthers = canManage && isCloudDynasty
   const teamsSource = currentDynasty?.teams || {}
-
-  // Dynasty Blueprint visibility preference. The toggle only makes sense for
-  // editions that HAVE the Blueprint economy (CFB 27+); on CFB 26 the card is
-  // hidden entirely. Hiding removes every Blueprint surface (nav, panel/tab,
-  // dashboard budget/support-staff/facility to-dos, Dynasty Points framing on
-  // coach salaries) WITHOUT deleting any recorded data — it comes back on unhide.
-  const blueprintFeatureAvailable = editionHasFeature(currentDynasty, 'dynastyPoints')
-  const blueprintHidden = currentDynasty.hideDynastyBlueprint === true
-  const handleToggleBlueprint = async () => {
-    if (!canManage || savingBlueprintPref) return
-    const next = !blueprintHidden
-    setSavingBlueprintPref(true)
-    try {
-      await updateDynasty(currentDynasty.id, { hideDynastyBlueprint: next })
-      toast.success(next ? 'Dynasty Blueprint hidden' : 'Dynasty Blueprint shown')
-    } catch (e) {
-      console.error('[LeagueSettings] toggle Dynasty Blueprint failed:', e)
-      toast.error('Could not update. Please try again.')
-    } finally {
-      setSavingBlueprintPref(false)
-    }
-  }
 
   // Order: commish first, co-commishes next, members last.
   const editors = getEditors(currentDynasty)
@@ -943,43 +919,6 @@ export default function LeagueSettings() {
           </p>
         )}
       </div>
-
-      {blueprintFeatureAvailable && (
-        <Card>
-          <header className="flex items-baseline justify-between mb-1">
-            <h3
-              className="label-sm text-txt-primary"
-              style={{ letterSpacing: '2px', fontSize: '11px', fontWeight: 700 }}
-            >
-              PREFERENCES
-            </h3>
-          </header>
-          <div className="flex items-center justify-between gap-4 py-1">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-txt-primary">Hide Dynasty Blueprint</div>
-              <p className="text-xs text-txt-tertiary mt-0.5 max-w-md">
-                Removes Dynasty Points, support staff, facilities, budget/allocations, and the Blueprint page from the nav, dashboard to-dos, and coach salaries. Nothing you've entered is deleted — flip this back anytime to restore it all.
-                {!canManage && ' Only the commish can change this.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={blueprintHidden}
-              aria-label="Hide Dynasty Blueprint"
-              disabled={!canManage || savingBlueprintPref}
-              onClick={handleToggleBlueprint}
-              className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: blueprintHidden ? 'var(--accent-primary, #3b82f6)' : 'var(--surface-4)' }}
-            >
-              <span
-                className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform"
-                style={{ transform: blueprintHidden ? 'translateX(1.375rem)' : 'translateX(0.125rem)' }}
-              />
-            </button>
-          </div>
-        </Card>
-      )}
 
       <Card>
         <header className="flex items-baseline justify-between mb-1">

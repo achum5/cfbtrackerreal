@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDynasty } from '../../context/DynastyContext'
-import { isCfb27 } from '../../editions'
+import { isCfb27, editionHasFeature } from '../../editions'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useToast } from '../../components/ui/Toast'
 import { getEffectiveCharacters, isRealAccount, SOCIAL_UNIVERSE_VERSION } from '../../data/socialModel'
@@ -315,6 +315,29 @@ export default function LeaguePreferences() {
     }
   }
 
+  // Hide Dynasty Blueprint — presentational only. When on, every Blueprint
+  // surface (nav, panel/tab, dashboard budget/support-staff/facility to-dos,
+  // Dynasty Points framing on coach salaries) is hidden. Never deletes any
+  // recorded data — flip it back and everything returns. CFB 27+ only (that's
+  // where Blueprint exists), so the toggle hides itself on CFB 26.
+  const blueprintHidden = !!currentDynasty?.hideDynastyBlueprint
+  const [savingBlueprint, setSavingBlueprint] = useState(false)
+  const toggleBlueprint = async () => {
+    if (isViewOnly) { toast.error('Read-only mode.'); return }
+    if (savingBlueprint) return
+    const next = !blueprintHidden
+    setSavingBlueprint(true)
+    try {
+      await updateDynasty(currentDynasty.id, { hideDynastyBlueprint: next })
+      toast.success(next ? 'Dynasty Blueprint hidden.' : 'Dynasty Blueprint shown.')
+    } catch (err) {
+      console.error('[LeaguePreferences] blueprint toggle failed:', err)
+      toast.error(`Could not update: ${err?.message || 'Unknown error'}`)
+    } finally {
+      setSavingBlueprint(false)
+    }
+  }
+
   if (!currentDynasty) return null
 
   return (
@@ -357,6 +380,45 @@ export default function LeaguePreferences() {
                 height: 20,
                 background: 'var(--surface-1)',
                 transform: scoutStaffEnabled ? 'translateX(23px)' : 'translateX(3px)',
+              }}
+            />
+          </button>
+        </div>
+      </section>
+      )}
+
+      {/* Hide Dynasty Blueprint — CFB 27+ only (Blueprint doesn't exist on CFB
+          26). Presentational; never deletes the recorded data. */}
+      {editionHasFeature(currentDynasty, 'dynastyPoints') && (
+      <section className="rounded-xl border border-surface-4 overflow-hidden" style={{ background: 'var(--surface-1)' }}>
+        <div className="px-4 py-4 flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-txt-primary">Hide Dynasty Blueprint</div>
+            <p className="text-xs text-txt-tertiary mt-1 leading-relaxed m-0">
+              Removes <span className="text-txt-secondary font-medium">Dynasty Points</span>, support staff, facilities, budget/allocations, and the Blueprint page from the nav, dashboard to-dos, and coach salaries. Nothing you've entered is deleted — flip this back anytime to restore it all.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={blueprintHidden}
+            onClick={toggleBlueprint}
+            disabled={isViewOnly || savingBlueprint}
+            className="relative inline-flex items-center rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
+            style={{
+              width: 46,
+              height: 26,
+              backgroundColor: blueprintHidden ? 'var(--text-primary)' : 'var(--surface-4)',
+            }}
+            title={blueprintHidden ? 'Show Dynasty Blueprint' : 'Hide Dynasty Blueprint'}
+          >
+            <span
+              className="inline-block rounded-full transition-transform"
+              style={{
+                width: 20,
+                height: 20,
+                background: 'var(--surface-1)',
+                transform: blueprintHidden ? 'translateX(23px)' : 'translateX(3px)',
               }}
             />
           </button>
