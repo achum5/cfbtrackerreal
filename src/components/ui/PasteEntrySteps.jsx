@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { AI_TOOLS, getPreferredAiKey, setPreferredAiKey, getAiTool } from '../../data/aiTools'
+import { AI_TOOLS } from '../../data/aiTools'
 
 // The unified header for every data-entry modal. A genuine 3-step sequence
 // (screenshot & copy -> send to your AI -> paste it back), kept deliberately
@@ -60,16 +60,31 @@ export default function PasteEntrySteps({
   // no screenshot step) can read correctly. Defaults keep the screenshot wording.
   labels = {},
   copyEmoji = '📸',
+  // The AI list for step 2. Defaults to the text-prompt tools; pass
+  // IMAGE_AI_TOOLS (+ a distinct preferenceKey) for the image-gen flow.
+  tools = AI_TOOLS,
+  preferenceKey = 'preferredAiTool',
+  // Optional element joined to the LEFT of the Copy button (e.g. a settings
+  // gear), rendered inside the same bordered group.
+  copyLeading = null,
 }) {
   const label = { copy: 'Screenshot & copy', ai: 'Send to your AI', paste: 'Paste it back', copyButton: 'Copy Prompt', ...labels }
+  // Per-device preferred AI, scoped to `preferenceKey` and validated against
+  // `tools` so the text and image pickers remember independent choices.
+  const readPref = () => {
+    try { const k = localStorage.getItem(preferenceKey); if (k && tools.some((t) => t.key === k)) return k } catch { /* blocked */ }
+    return tools[0].key
+  }
+  const writePref = (k) => { try { localStorage.setItem(preferenceKey, k) } catch { /* noop */ } }
+  const resolveTool = (k) => tools.find((t) => t.key === k) || tools[0]
   const [copied, setCopied] = useState(false)
   const [openInfo, setOpenInfo] = useState(null) // 'screenshot' | 'ai' | 'paste' | null
-  const [aiKey, setAiKey] = useState(() => getPreferredAiKey())
+  const [aiKey, setAiKey] = useState(readPref)
   const [aiMenuOpen, setAiMenuOpen] = useState(false)
   const [menuRect, setMenuRect] = useState(null)
   const aiWrapRef = useRef(null)
 
-  const ai = getAiTool(aiKey)
+  const ai = resolveTool(aiKey)
   const hint = { ...STEP_HINTS, ...hints }
   const toggleInfo = (k) => setOpenInfo((cur) => (cur === k ? null : k))
 
@@ -114,7 +129,7 @@ export default function PasteEntrySteps({
 
   const pickAi = (key) => {
     setAiKey(key)
-    setPreferredAiKey(key)
+    writePref(key)
     setAiMenuOpen(false)
   }
 
@@ -124,10 +139,20 @@ export default function PasteEntrySteps({
         {/* Step 1 — screenshot & copy */}
         <div className="flex flex-col gap-2">
           <Caption num="1" title={label.copy} active={openInfo === 'screenshot'} onToggle={() => toggleInfo('screenshot')} />
-          <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
-            {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
-            {copied ? 'Copied!' : label.copyButton}
-          </button>
+          {copyLeading ? (
+            <div className="inline-flex self-start rounded-md overflow-hidden border border-surface-5">
+              {copyLeading}
+              <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={WHITE_BTN} style={WHITE_STYLE}>
+                {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
+                {copied ? 'Copied!' : label.copyButton}
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={copyPrompt} disabled={!aiPrompt} className={`rounded-md ${WHITE_BTN}`} style={WHITE_STYLE}>
+              {copyEmoji && <span className="text-base leading-none" role="img" aria-label="Screenshot">{copyEmoji}</span>}
+              {copied ? 'Copied!' : label.copyButton}
+            </button>
+          )}
         </div>
 
         <Chevron />
@@ -196,7 +221,7 @@ export default function PasteEntrySteps({
           style={{ top: menuRect.bottom + 2, left: menuRect.left, minWidth: menuRect.width }}
           role="listbox"
         >
-          {AI_TOOLS.map((t) => (
+          {tools.map((t) => (
             <li
               key={t.key}
               role="option"

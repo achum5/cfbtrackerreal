@@ -27,6 +27,8 @@ import { uploadImagesToImgBB } from '../../utils/imgbb'
 import { readClipboardImageAsFile } from '../../utils/clipboardImage'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import ImageUpload from '../../components/ImageUpload'
+import PasteEntrySteps from '../../components/ui/PasteEntrySteps'
+import { IMAGE_AI_TOOLS } from '../../data/aiTools'
 import { buildScoreGraphicPrompt } from '../../utils/scoreGraphicPrompt'
 import { GRAPHIC_SIDES } from '../../utils/scoreGraphics'
 import { matchAndRankPlayers } from '../../utils/playerTagSearch'
@@ -346,6 +348,10 @@ export default function GameEdit() {
   const [graphicFeaturedSide, setGraphicFeaturedSide] = useState(null)
   // Brief "Copied!" flash on the score graphic prompt copy button.
   const [graphicPromptCopied, setGraphicPromptCopied] = useState(false)
+  // Ref to the active-side score-graphic ImageUpload so the 3-step "Paste
+  // image" button can drive its clipboard paste (the uploader remounts per
+  // side via key=, so this ref always points at the mounted instance).
+  const graphicImageUploadRef = useRef(null)
 
   // Tracks in-flight ImgBB uploads from the Photos section so the UI
   // can show a "Uploading X photo(s)…" indicator and disable the file
@@ -2009,50 +2015,29 @@ export default function GameEdit() {
     }
   }
 
-  // Copy full prompt to clipboard for use in external AI (ChatGPT/Claude/etc.)
-  const handleCopyPrompt = async () => {
-    try {
-      const gameForRecap = {
-        ...existingGame,
-        team1: team1Name,
-        team2: team2Name,
-        team1Score: parseInt(formData.team1Score) || 0,
-        team2Score: parseInt(formData.team2Score) || 0,
-        quarters: formData.quarters,
-        gameType,
-        bowlName,
-        year: gameYear,
-      }
-
-      let fullPrompt = getFullRecapPrompt(currentDynasty, gameForRecap, { perspective: recapPerspective, depth: recapDepth })
-
-      // Optionally bake social posts into the same prompt (two-in-one).
-      if (recapSocial && currentDynasty) {
-        const socialSection = buildGameSocialSection(currentDynasty, gameForRecap, Number(recapSocialCount) || 8)
-        fullPrompt = `${fullPrompt}\n\nIMPORTANT: After your recap, ALSO output the SOCIAL POSTS block described below as a SEPARATE \`\`\`cfb-social fence (two sibling fenced blocks, recap first).\n\n${socialSection}`
-      }
-
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(fullPrompt)
-      } else {
-        const textArea = document.createElement('textarea')
-        textArea.value = fullPrompt
-        textArea.style.position = 'fixed'
-        textArea.style.left = '-999999px'
-        textArea.style.top = '-999999px'
-        document.body.appendChild(textArea)
-        textArea.focus()
-        textArea.select()
-        document.execCommand('copy')
-        textArea.remove()
-      }
-
-      setPromptCopied(true)
-      setTimeout(() => setPromptCopied(false), 2000)
-    } catch (error) {
-      console.error('Failed to copy prompt:', error)
-      setRecapError('Failed to copy prompt to clipboard: ' + error.message)
+  // Build the full recap prompt (recap + optional social section) for the
+  // current game. Returns '' when scores are missing so the Copy button stays
+  // disabled. PasteEntrySteps performs the actual clipboard copy + feedback.
+  const buildRecapPromptText = () => {
+    if (!formData.team1Score || !formData.team2Score) return ''
+    const gameForRecap = {
+      ...existingGame,
+      team1: team1Name,
+      team2: team2Name,
+      team1Score: parseInt(formData.team1Score) || 0,
+      team2Score: parseInt(formData.team2Score) || 0,
+      quarters: formData.quarters,
+      gameType,
+      bowlName,
+      year: gameYear,
     }
+    let fullPrompt = getFullRecapPrompt(currentDynasty, gameForRecap, { perspective: recapPerspective, depth: recapDepth })
+    // Optionally bake social posts into the same prompt (two-in-one).
+    if (recapSocial && currentDynasty) {
+      const socialSection = buildGameSocialSection(currentDynasty, gameForRecap, Number(recapSocialCount) || 8)
+      fullPrompt = `${fullPrompt}\n\nIMPORTANT: After your recap, ALSO output the SOCIAL POSTS block described below as a SEPARATE \`\`\`cfb-social fence (two sibling fenced blocks, recap first).\n\n${socialSection}`
+    }
+    return fullPrompt
   }
 
   if (isViewOnly) {
@@ -2729,88 +2714,63 @@ export default function GameEdit() {
           }
           return (
             <>
-              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                <div className="min-w-0">
-                  <h3 className="label-sm text-txt-primary">Game Recap</h3>
-                  <p className="text-xs text-txt-tertiary mt-0.5 tabular-nums">
-                    {recapPasteFeedback
-                      ? recapPasteFeedback
-                      : wordCount > 0
-                      ? `${wordCount} ${wordCount === 1 ? 'word' : 'words'} saved`
-                      : 'No recap yet — Copy AI Prompt, run it, then Paste the result.'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* ⚙ | Copy AI Prompt — joined pair */}
-                  <div className="flex items-stretch rounded-lg overflow-hidden" style={{ border: '1px solid var(--surface-5)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowRecapSettings(true)}
-                      title="Recap perspective and length"
-                      className="px-2.5 flex items-center justify-center transition-colors text-txt-secondary hover:text-txt-primary hover:bg-surface-3"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                      </svg>
-                    </button>
-                    <div style={{ width: '1px', background: 'var(--surface-5)', flexShrink: 0 }} />
-                    <button
-                      type="button"
-                      onClick={handleCopyPrompt}
-                      disabled={!formData.team1Score || !formData.team2Score}
-                      title="Copy the full prompt to paste into ChatGPT, Claude, or another AI"
-                      className="px-3 py-1.5 text-sm font-semibold transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      {promptCopied ? 'Copied!' : 'Copy AI Prompt'}
-                    </button>
-                  </div>
-
-                  {/* Paste | ↗ — joined pair */}
-                  <div className="flex items-stretch rounded-lg overflow-hidden" style={{ border: '1px solid var(--surface-5)' }}>
-                    <button
-                      type="button"
-                      onClick={handlePasteRecap}
-                      title="Paste recap text from clipboard"
-                      className="px-3 py-1.5 text-sm font-semibold transition-colors text-txt-primary hover:bg-surface-3"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      Paste
-                    </button>
-                    <div style={{ width: '1px', background: 'var(--surface-5)', flexShrink: 0 }} />
-                    <button
-                      type="button"
-                      onClick={() => setShowRecapEditModal(true)}
-                      title="Open the recap in a larger editor"
-                      className="px-2.5 flex items-center justify-center transition-colors text-txt-secondary hover:text-txt-primary hover:bg-surface-3"
-                      style={{ background: 'var(--surface-2)' }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M7 17L17 7" />
-                        <path d="M8 7h9v9" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Edit socials — generate/edit in-character posts about this game.
-                      Lives here next to the recap since they're two outputs of the
-                      same game data (and can be generated together via settings). */}
-                  {existingGame?.id && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSocialModal(true)}
-                      disabled={!formData.team1Score || !formData.team2Score}
-                      title="Generate or edit social posts about this game"
-                      className="px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40"
-                      style={{ background: 'var(--surface-2)', borderColor: 'var(--surface-5)' }}
-                    >
-                      Edit socials
-                    </button>
-                  )}
-                </div>
+              <div className="mb-3">
+                <h3 className="label-sm text-txt-primary">Game Recap</h3>
+                <p className="text-xs text-txt-tertiary mt-0.5 tabular-nums">
+                  {recapPasteFeedback
+                    ? recapPasteFeedback
+                    : wordCount > 0
+                    ? `${wordCount} ${wordCount === 1 ? 'word' : 'words'} saved`
+                    : 'No recap yet — Copy the prompt, run it, then Paste the result.'}
+                </p>
               </div>
+
+              {/* Same 3-step flow the data-entry modals use: Copy → Open your AI
+                  → Paste. The recap settings gear stays joined to the Copy
+                  button via copyLeading. */}
+              <PasteEntrySteps
+                aiPrompt={buildRecapPromptText}
+                onPaste={handlePasteRecap}
+                onToggleText={() => setShowRecapEditModal(true)}
+                copyEmoji={null}
+                labels={{ copy: 'Copy prompt', ai: 'Open your AI', paste: 'Paste it back', copyButton: 'Copy AI Prompt' }}
+                hints={{
+                  screenshot: "Copy the recap prompt — it already carries this game's scores and context. No screenshot needed.",
+                  ai: 'Open your AI, paste the prompt, and it writes the recap.',
+                  paste: "Copy the AI's ENTIRE reply, then tap Paste. Tap the arrow to open the full recap editor.",
+                }}
+                copyLeading={
+                  <button
+                    type="button"
+                    onClick={() => setShowRecapSettings(true)}
+                    title="Recap perspective and length"
+                    aria-label="Recap settings"
+                    className="px-2.5 flex items-center justify-center transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: 'var(--text-primary)', color: 'var(--surface-1)', borderRight: '1px solid var(--surface-1)' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  </button>
+                }
+              />
+
+              {/* Edit socials — generate/edit in-character posts about this game. */}
+              {existingGame?.id && (
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowSocialModal(true)}
+                    disabled={!formData.team1Score || !formData.team2Score}
+                    title="Generate or edit social posts about this game"
+                    className="px-3 py-1.5 text-sm font-semibold rounded-lg border transition-colors text-txt-primary hover:bg-surface-3 disabled:opacity-40"
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--surface-5)' }}
+                  >
+                    Edit socials
+                  </button>
+                </div>
+              )}
               {recapError && (
                 <p className="text-sm mt-1" style={{ color: 'var(--accent-error)' }}>{recapError}</p>
               )}
@@ -2947,20 +2907,8 @@ export default function GameEdit() {
 
         return (
           <Card>
-            <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="mb-1">
               <h3 className="label-sm text-txt-primary">Score Graphic</h3>
-              <a
-                href="https://chatgpt.com/images/"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Generate in ChatGPT"
-                aria-label="Open ChatGPT image tools"
-                className="flex-shrink-0 text-txt-tertiary hover:text-txt-primary transition-colors"
-              >
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
-                  <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z" />
-                </svg>
-              </a>
             </div>
 
             {hasScores && (
@@ -3028,25 +2976,23 @@ export default function GameEdit() {
                   </div>
                 </div>
 
-                {/* Copy prompt button — prompt text is hidden from the user;
-                    they don't need to read it, just copy it into their image
-                    generator. Hold the actual text in the closure above. */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(prompt).catch(() => {})
-                    setGraphicPromptCopied(true)
-                    setTimeout(() => setGraphicPromptCopied(false), 1500)
+                {/* Same 3-step flow as the recap / data-entry modals, but for an
+                    IMAGE: Copy prompt → Open your image-gen AI (ChatGPT, Gemini,
+                    …; choice remembered) → Paste the generated image. The Paste
+                    step drives the active-side ImageUpload's clipboard paste. */}
+                <PasteEntrySteps
+                  aiPrompt={prompt}
+                  onPaste={() => graphicImageUploadRef.current?.pasteFromClipboard()}
+                  copyEmoji={null}
+                  tools={IMAGE_AI_TOOLS}
+                  preferenceKey="preferredImageAiTool"
+                  labels={{ copy: 'Copy prompt', ai: 'Open your AI', paste: 'Paste image', copyButton: 'Copy prompt' }}
+                  hints={{
+                    screenshot: "Copy the prompt — it describes this game's final-score graphic.",
+                    ai: 'Open your image AI, paste the prompt, and it generates the graphic.',
+                    paste: 'Copy the generated image, then tap Paste to drop it into the upload box below.',
                   }}
-                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150"
-                  style={{
-                    backgroundColor: graphicPromptCopied ? '#16a34a' : 'var(--text-primary)',
-                    color: graphicPromptCopied ? '#fff' : 'var(--surface-1)',
-                    transform: graphicPromptCopied ? 'scale(0.98)' : 'scale(1)',
-                  }}
-                >
-                  {graphicPromptCopied ? 'Copied!' : 'Copy prompt'}
-                </button>
+                />
 
                 {/* Upload result. When a graphic is set, the ImageUpload
                     component renders the image INSIDE the dropzone — click
@@ -3057,6 +3003,8 @@ export default function GameEdit() {
                   </p>
                   <ImageUpload
                     key={activeSide}
+                    ref={graphicImageUploadRef}
+                    hidePasteButton
                     value={sgMap[activeSide] || ''}
                     onChange={(url) => setFormData(prev => {
                       const next = { ...(prev.scoreGraphics || {}) }
