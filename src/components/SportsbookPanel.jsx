@@ -287,6 +287,23 @@ function teamOvr(dynasty, tid, year) {
   return Number.isFinite(o) && o > 0 ? o : null
 }
 
+// The effective overall for ONE side of a specific game. The per-game value the
+// user entered on the game record (game.teamNOverall / opponentOverall) takes
+// priority — it's what they typed for THIS matchup — falling back to the team's
+// season rating. Mirrors GamedayPicks (game.team1Overall ?? season) so the line
+// and the picks agree. Without this the line read ONLY season ratings, so an
+// overall entered on the game never reached it: with one side rated the calc
+// stayed pure on-field, and entering the second side's overall looked ignored.
+function gameSideOvr(dynasty, game, tid, year) {
+  const t1 = Number(game?.team1Tid)
+  const raw = Number(tid) === t1
+    ? game?.team1Overall
+    : (game?.team2Overall ?? game?.opponentOverall)
+  const n = Number(raw)
+  if (Number.isFinite(n) && n > 0) return n
+  return teamOvr(dynasty, tid, year)
+}
+
 // ~points of spread per point of overall difference. A 25-OVR gap (e.g. a 95
 // vs a 70) → ~22.5, which lands near a 25-point line once home field is added.
 const OVR_SPREAD_PER = 0.9
@@ -296,13 +313,13 @@ const OVR_SPREAD_PER = 0.9
 // carries it in the preseason and fades out as real games accumulate (by ~6
 // games it's purely on-field). Teams without both overalls keep the pure
 // on-field line (unchanged behavior). Positive → home favored.
-function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = false) {
+function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = false, game = null) {
   const onField = (normScore(calcPowerScore(dynasty, homeTid, year, week), normCtx)
                  - normScore(calcPowerScore(dynasty, awayTid, year, week), normCtx)) / 4
   const homeField = isNeutral ? 0 : 3
 
-  const hOvr = teamOvr(dynasty, homeTid, year)
-  const aOvr = teamOvr(dynasty, awayTid, year)
+  const hOvr = game ? gameSideOvr(dynasty, game, homeTid, year) : teamOvr(dynasty, homeTid, year)
+  const aOvr = game ? gameSideOvr(dynasty, game, awayTid, year) : teamOvr(dynasty, awayTid, year)
 
   let core = onField
   if (hOvr != null && aOvr != null) {
@@ -583,10 +600,10 @@ function buildDebugText(dynasty, game) {
   // Spread (mirrors calcSpread: overall-diff blended with on-field results,
   // +3 home edge, none at neutral sites).
   const hfa         = isNeutral ? 0 : 3
-  const hOvr        = teamOvr(dynasty, homeTid, year)
-  const aOvr        = teamOvr(dynasty, awayTid, year)
+  const hOvr        = gameSideOvr(dynasty, game, homeTid, year)
+  const aOvr        = gameSideOvr(dynasty, game, awayTid, year)
   const onFieldEdge = (home.norm - away.norm) / 4
-  const finalSpread = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral)
+  const finalSpread = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, game)
   const absSp       = Math.abs(finalSpread)
   const homeFav     = finalSpread > 0
   const { favML, dogML } = spreadToML(absSp)
@@ -649,7 +666,7 @@ function buildMatchup(dynasty, g, year, week, normCtx) {
   const homeTid   = g.homeTeamTid != null ? Number(g.homeTeamTid) : tid1
   const awayTid   = homeTid === tid1 ? tid2 : tid1
 
-  const spreadVal = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral)
+  const spreadVal = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, g)
   const absSp = Math.abs(spreadVal)
   const { favML, dogML } = spreadToML(absSp)
   const homeFav = spreadVal > 0
@@ -1092,7 +1109,7 @@ export function GameOdds({ dynasty, game }) {
     if (!dynasty || !game || week == null) return null
     const normCtx = buildNormSpreadContext(dynasty, year, week)
     return buildMatchup(dynasty, game, year, week, normCtx)
-  }, [dynasty, game?.id, game?.team1Tid, game?.team2Tid, game?.homeTeamTid, game?.team1Score, game?.team2Score, year, week])
+  }, [dynasty, game?.id, game?.team1Tid, game?.team2Tid, game?.homeTeamTid, game?.team1Score, game?.team2Score, game?.team1Overall, game?.team2Overall, game?.opponentOverall, year, week])
 
   if (!dynasty || !game) return null
   if (week == null || !m) {
