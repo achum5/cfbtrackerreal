@@ -90,7 +90,12 @@ function FitText({ children, className = '', minZoom = 0.5 }) {
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
     ro?.observe(outer)
     return () => { cancelAnimationFrame(raf); ro?.disconnect() }
-  })
+    // Run once + re-measure via the ResizeObserver only. WITHOUT this empty
+    // dep array the layout effect re-ran every render and setZoom looped until
+    // React aborted with "Maximum update depth exceeded" (#185). Matches the
+    // sibling ShrinkToFit pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return (
     <div ref={outerRef} className={`min-w-0 overflow-hidden ${className}`}>
       <div ref={innerRef} className="w-fit" style={{ zoom, transformOrigin: 'left center' }}>{children}</div>
