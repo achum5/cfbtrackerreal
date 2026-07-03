@@ -420,7 +420,7 @@ export default function Recruiting() {
     })
   }
 
-  const handleRecruitingSave = async (recruits) => {
+  const handleRecruitingSave = async (recruits, { mode = 'append' } = {}) => {
     if (!currentDynasty?.id) return
 
     const existingPlayers = currentDynasty.players || []
@@ -605,7 +605,38 @@ export default function Recruiting() {
     // recruitingCommitments holds ONLY commitments to this team (M1): plain
     // commit rows plus any tracked target that resolved to us. Open / elsewhere
     // targets are excluded so they never inflate the class score.
-    const commitmentData = { edit: [...commitRows, ...committedToUs] }
+    //
+    // MERGE, don't replace. The TSV-paste flow sends ONLY the new rows (the
+    // prompt tells the AI "output ONLY the NEW rows"), so replacing the store
+    // with just this batch wiped every previously-added recruit off the board.
+    // We merge the incoming rows onto the existing commitments, keyed by name
+    // (a re-paste of the same recruit updates in place). The Google-Sheet flow
+    // passes mode:'replace' because its sheet is prefilled with the full class,
+    // so the sheet IS authoritative and a removed row should delete.
+    const incomingCommits = [...commitRows, ...committedToUs]
+    let mergedEdit
+    if (mode === 'replace') {
+      mergedEdit = incomingCommits
+    } else {
+      const prevEdit = getRecruitingCommitments(currentDynasty, selectedTid ?? teamAbbr, selectedYear)?.edit || []
+      const normName = (n) => String(n || '').toLowerCase().trim()
+      const byName = new Map()
+      for (const c of prevEdit) { const k = normName(c?.name); if (k) byName.set(k, c) }
+      for (const c of incomingCommits) { const k = normName(c?.name); if (k) byName.set(k, c) }
+      mergedEdit = Array.from(byName.values())
+    }
+    const commitmentData = { edit: mergedEdit }
+
+    // Persist only the players that actually changed (new signees + updated
+    // records), not the whole roster. handleRecruitingSave never removes a
+    // player, so a full deleteOrphans rewrite is unnecessary — and, per the
+    // handleResolveTargets note, a full rewrite races the stale-snapshot guard
+    // and can revert the commitments/teams fields written alongside it (the
+    // "I refresh and they're all gone" symptom).
+    const existingByPid = new Map(existingPlayers.map((p) => [String(p.pid), p]))
+    const changedPlayerPids = finalPlayers
+      .filter((p) => existingByPid.get(String(p.pid)) !== p)
+      .map((p) => p.pid)
 
     const updates = {
       players: finalPlayers,
@@ -644,7 +675,7 @@ export default function Recruiting() {
       ...(selectedTid ? { [selectedTid]: { ...(existingByTeamYear[selectedTid] || {}), [selectedYear]: commitmentData } } : {})
     }
 
-    await updateDynasty(currentDynasty.id, updates)
+    await updateDynasty(currentDynasty.id, updates, { changedPlayerPids })
   }
 
   // In-app target resolution (Phase 4). `resolutions` is { pid: commitmentTid }.

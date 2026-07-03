@@ -419,7 +419,8 @@ FINAL CHECK
   // no positional alignment, so no normalization.
   const handleLocalImport = async (text) => {
     const recruits = await readRecruitingFromSheet(null, (currentDynasty?.teams || currentDynasty?.customTeams), { rows: splitTsv(text) })
-    await onSave(recruits)
+    // Paste sends ONLY the new rows — merge them onto the existing class.
+    await onSave(recruits, { mode: 'append' })
     onClose()
   }
 
@@ -429,7 +430,8 @@ FINAL CHECK
     setSyncing(true)
     try {
       const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams))
-      await onSave(recruits)
+      // The sheet is prefilled with the full class, so it's authoritative.
+      await onSave(recruits, { mode: 'replace' })
       onClose()
     } catch (error) {
       console.error(error)
@@ -447,7 +449,8 @@ FINAL CHECK
     setDeletingSheet(true)
     try {
       const recruits = await readRecruitingFromSheet(sheetId, (currentDynasty?.teams || currentDynasty?.customTeams))
-      await onSave(recruits)
+      // The sheet is prefilled with the full class, so it's authoritative.
+      await onSave(recruits, { mode: 'replace' })
 
       // Move sheet to trash (keep sheet ID stored so user can restore if needed)
       await deleteGoogleSheet(sheetId)
