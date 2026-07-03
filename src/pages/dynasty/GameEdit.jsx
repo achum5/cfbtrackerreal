@@ -13,7 +13,7 @@ import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
 import BoxScoreSheetModal from '../../components/BoxScoreSheetModal'
-import { setPlayerStatsForTid, setTeamStatsForTid, setScoringSummary, getPlayerStatsSheetIdForTid, canonicalBoxScore, swapBoxScoreTeams, hasAnyPlayerStats, hasAnyTeamStats } from '../../utils/boxScoreHelpers'
+import { setPlayerStatsForTid, setTeamStatsForTid, setScoringSummary, getPlayerStatsSheetIdForTid, canonicalBoxScore, swapBoxScoreTeams, hasAnyPlayerStats, hasAnyTeamStats, hasPlayerStatsForTid } from '../../utils/boxScoreHelpers'
 import { parseCFPGameId, getCFPRoundInfo, getCFPSlotDisplayName } from '../../data/cfpConstants'
 import { isBowlInWeek1, isBowlInWeek2, getWeek1BowlGamesList, getWeek2BowlGamesList } from '../../services/sheetsService'
 import { PageHero, Card, Button, EmptyState, Input, Select, Textarea, SectionHeader, Modal } from '../../components/ui'
@@ -2580,32 +2580,36 @@ export default function GameEdit() {
 
             <div className="grid grid-cols-4 gap-2">
               {[
+                // Green = DATA has been saved (from local paste OR a Google
+                // sheet), not merely that a sheet was connected. Each check
+                // reads the actual saved box-score data on the game, so it's
+                // true regardless of which entry path produced it.
                 {
                   key: 'team-stats',
                   label: 'Team Stats',
                   onClick: () => openBoxScoreModal('teamStats'),
-                  connected: !!existingGame?.teamStatsSheetId,
+                  hasData: hasAnyTeamStats(existingGame, currentDynasty?.teams || currentDynasty?.customTeams),
                   logo: null
                 },
                 {
                   key: 'left-stats',
                   label: '',
                   onClick: () => openBoxScoreModal('playerStats', leftTeamTid),
-                  connected: !!getPlayerStatsSheetIdForTid(existingGame, leftTeamTid, currentDynasty?.teams || currentDynasty?.customTeams),
+                  hasData: hasPlayerStatsForTid(existingGame, leftTeamTid, currentDynasty?.teams || currentDynasty?.customTeams),
                   logo: leftTeamLogo
                 },
                 {
                   key: 'right-stats',
                   label: '',
                   onClick: () => openBoxScoreModal('playerStats', rightTeamTid),
-                  connected: !!getPlayerStatsSheetIdForTid(existingGame, rightTeamTid, currentDynasty?.teams || currentDynasty?.customTeams),
+                  hasData: hasPlayerStatsForTid(existingGame, rightTeamTid, currentDynasty?.teams || currentDynasty?.customTeams),
                   logo: rightTeamLogo
                 },
                 {
                   key: 'scoring-summary',
                   label: 'Plays',
                   onClick: () => openBoxScoreModal('scoring'),
-                  connected: !!existingGame?.scoringSummarySheetId,
+                  hasData: (existingGame?.boxScore?.scoringSummary?.length || 0) > 0,
                   logo: null
                 }
               ].map(tile => (
@@ -2615,7 +2619,7 @@ export default function GameEdit() {
                   className="p-2 rounded-sm text-center transition-colors hover:bg-surface-3"
                   style={{
                     backgroundColor: 'var(--surface-2)',
-                    border: tile.connected
+                    border: tile.hasData
                       ? '1px solid var(--accent-success)'
                       : '1px dashed var(--surface-5)'
                   }}
@@ -2624,8 +2628,8 @@ export default function GameEdit() {
                     <img src={tile.logo} alt="" className="h-5 w-5 object-contain mx-auto mb-1" />
                   )}
                   <div className="text-xs font-semibold text-txt-primary leading-tight">{tile.label}</div>
-                  {tile.connected && (
-                    <div className="text-[9px] mt-0.5 uppercase tracking-wide" style={{ color: 'var(--accent-success)' }}>Connected</div>
+                  {tile.hasData && (
+                    <div className="text-[9px] mt-0.5 uppercase tracking-wide" style={{ color: 'var(--accent-success)' }}>Saved</div>
                   )}
                 </button>
               ))}
