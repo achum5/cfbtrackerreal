@@ -15,10 +15,11 @@ import { getEditionKey } from '../editions'
 // MaxPlaysCFB scores against a per-game cohort selected by the `sourceGame`
 // field on the payload ("cfb26" | "cfb27"). The edition keys we already use
 // (getEditionKey) are the exact same strings, so a dynasty's edition maps 1:1.
-// Default to cfb26 (the legacy set) for any unknown value. NOTE: as of CFB 27
-// early-access launch the upstream's cfb27 cohorts aren't published yet, so a
-// cfb27 request transparently falls back to cfb26 data server-side — this
-// plumbing just flips automatically once MaxPlays publishes the cfb27 set.
+// Default to cfb26 (the legacy set) for any unknown value. The cfb27 cohorts
+// are LIVE upstream (as of 2026-07-03 MaxPlays switched their ScoutScore
+// display to the cfb27 numbers), so a cfb27 request now returns genuine
+// game:cfb27 cohorts — a CFB 27 dynasty is scored against CFB 27 recruits with
+// no extra work here. Older/untagged saves stay on cfb26.
 const VALID_SOURCE_GAMES = new Set(['cfb26', 'cfb27'])
 const normalizeSourceGame = (g) => (VALID_SOURCE_GAMES.has(g) ? g : 'cfb26')
 
