@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, startTransition } from 'react'
+import { useState, useEffect, useMemo, useCallback, startTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useDynasty } from '../context/DynastyContext'
 import { useToast } from './ui/Toast'
@@ -117,7 +117,13 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isRegularWeek, currentDynasty?.id])
 
-  const prompt = useMemo(() => {
+  // Built lazily — only when the user clicks "Copy prompt" (PasteEntrySteps
+  // calls this getter). buildWeekRecapPrompt scans every team + every game, so
+  // computing it eagerly on each render pegged the CPU (currentDynasty is a
+  // fresh reference every render, defeating memoization). PasteEntrySteps
+  // treats a function as "always copyable", which is what we want whenever a
+  // dynasty is loaded.
+  const buildPrompt = useCallback(() => {
     if (!currentDynasty) return ''
     // Strip saved recap text so the AI always generates fresh. weekRecapsByYear
     // holds previously generated recaps — including them would bias the output.
@@ -357,7 +363,7 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
                 Same system the data-entry modals use, tuned for recaps (no
                 screenshot; the prompt already carries this week's context). */}
             <PasteEntrySteps
-              aiPrompt={prompt}
+              aiPrompt={currentDynasty ? buildPrompt : ''}
               onPaste={handlePasteFill}
               showText={showManual}
               onToggleText={() => setShowManual(v => !v)}

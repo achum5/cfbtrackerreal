@@ -74,11 +74,15 @@ export default function PasteEntrySteps({
   const toggleInfo = (k) => setOpenInfo((cur) => (cur === k ? null : k))
 
   const copyPrompt = async () => {
+    // aiPrompt may be a function so callers can defer an expensive build
+    // until the user actually copies (e.g. the week-recap prompt, which
+    // scans every team + game and is wasteful to rebuild on every render).
+    const text = (typeof aiPrompt === 'function' ? aiPrompt() : aiPrompt) || ''
     try {
-      await navigator.clipboard.writeText(aiPrompt || '')
+      await navigator.clipboard.writeText(text)
     } catch {
       const ta = document.createElement('textarea')
-      ta.value = aiPrompt || ''
+      ta.value = text
       ta.style.position = 'fixed'; ta.style.opacity = '0'
       document.body.appendChild(ta); ta.select()
       try { document.execCommand('copy') } catch { /* noop */ }

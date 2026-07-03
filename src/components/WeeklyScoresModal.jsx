@@ -196,9 +196,31 @@ export default function WeeklyScoresModal({ isOpen, onClose, year, week, teamCol
         }
       }
     }
+    // Preseason fallback. Entering Week 0/1 scores, the "prior poll" IS the
+    // preseason Top 25 — but that poll lives in preseasonRankingsByYear and is
+    // only mirrored into rankByWeek[0] for dynasties entered through the current
+    // modal (legacy/first-week data often has the array only). Without this the
+    // block reads empty, the prompt tells the AI "no prior poll", and it skips
+    // ranked bye teams entirely. Mirrors getTeamRankForWeek's week<=1 fallback.
+    if (slotMap.size === 0 && weekNum <= 1) {
+      const pre = currentDynasty.preseasonRankingsByYear?.[yearNum]
+        ?? currentDynasty.preseasonRankingsByYear?.[String(yearNum)]
+      if (Array.isArray(pre)) {
+        const m = new Map()
+        for (const e of pre) {
+          const r = Number(e?.rank)
+          if (!Number.isFinite(r) || r < 1 || r > 25 || m.has(r)) continue
+          const label = (e?.tid != null && getTeamNameLabel(teams, e.tid)) || e?.team || ''
+          if (label) m.set(r, label)
+        }
+        if (m.size > 0) { slotMap = m; sourceWeek = 'preseason' }
+      }
+    }
     if (slotMap.size === 0) return ''
     const lines = []
-    if (sourceWeek !== weekNum) {
+    if (sourceWeek === 'preseason') {
+      lines.push('  (carried forward from the preseason Top 25)')
+    } else if (sourceWeek !== weekNum) {
       lines.push(`  (carried forward from Week ${sourceWeek}; entering-Week-${weekNum} poll not yet stored)`)
     }
     for (let r = 1; r <= 25; r++) {
@@ -623,10 +645,19 @@ REQUIRED OUTPUT FORMAT
 Output, in order:
   1. The pre-extraction WORKSHEET as a fenced \`\`\`worksheet block
      (one WS line per game, see "PRE-EXTRACTION WORKSHEET" above).
-  2. The TSV block — the "=== WEEK ... ===" label line, then game rows,
-     then bye-rank rows directly after them. NO padding,
-     NO separator row needed; the importer classifies each row by
-     content (col D filled = game, col D empty = bye rank).
+  2. The TSV, INSIDE ITS OWN fenced \`\`\`tsv code block — the
+     "=== WEEK ... ===" label line, then game rows, then bye-rank rows
+     directly after them. NO padding, NO separator row needed; the
+     importer classifies each row by content (col D filled = game,
+     col D empty = bye rank).
+
+CRITICAL — the scores MUST be a real fenced \`\`\`tsv code block, NOT a
+human-readable list ("North Carolina 45 TCU 42"), NOT a markdown table,
+NOT prose sentences. The code fence is the ONLY thing that preserves the
+LITERAL TAB characters between columns and the exact team ABBREVIATIONS —
+without it the tabs collapse to spaces and the paste is unusable. Use team
+abbreviations from the TEAM NAMES list (e.g. "UNC", "TCU" — never "North
+Carolina"), one tab between every column, one game per line.
 
 \`\`\`worksheet
 WS1 | img1 | <leftAbbr> <leftScore> [VS|@|NEUT] <rightAbbr> <rightScore> | HOME=<abbr> | WINNER=<abbr> | NEUTRAL=Y/N
@@ -634,6 +665,7 @@ WS2 | img1 | ...
 ...
 \`\`\`
 
+\`\`\`tsv
 === WEEK ${week} SCORES ===
 <game1 HomeTeam>\\t<game1 HomeRank>\\t<game1 HomeScore>\\t<game1 AwayTeam>\\t<game1 AwayRank>\\t<game1 AwayScore>\\t<game1 Neutral?>
 <game2 HomeTeam>\\t<game2 HomeRank>\\t<game2 HomeScore>\\t<game2 AwayTeam>\\t<game2 AwayRank>\\t<game2 AwayScore>\\t<game2 Neutral?>
@@ -641,8 +673,9 @@ WS2 | img1 | ...
 <bye1 TeamAbbr>\\t<bye1 Rank>\\t\\t\\t\\t\\t
 <bye2 TeamAbbr>\\t<bye2 Rank>\\t\\t\\t\\t\\t
 ... (one row per ranked bye team; can be empty if no ranked bye teams; up to 25)
+\`\`\`
 
-(Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t".)
+(Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t". Team names are ABBREVIATIONS from the TEAM NAMES list.)
 
 LAYOUT EXAMPLE (concrete shape — 3 games, 2 bye teams):
   GA\\t1\\t35\\tAUB\\t\\t14\\t            ← game
@@ -661,8 +694,8 @@ the importer will treat it as a game and silently drop the bye-rank
 information. Be careful.
 
 The WORKSHEET is for audit only — the user reads it but pastes only the
-TSV (everything from the "=== WEEK ..." marker through the last bye row)
-into the sheet.
+contents of the \`\`\`tsv block (everything from the "=== WEEK ..." marker
+through the last bye row) into the sheet.
 
 Example rows (for illustration only — your data should match the screenshots, and you should use ONLY team names that appear in the TEAM NAMES list at the bottom of this prompt):
 TEX\\t7\\t34\\tOU\\t\\t21\\t
@@ -680,6 +713,7 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] FCS GAMES INCLUDED: every FBS-vs-FCS game in the screenshots is a row in your output, mapped to the appropriate FCS placeholder (FCSE / FCSM / FCSN / FCSW or whatever appears in the team mapping below). Skipping a Week 0 FCS warm-up is a known failure mode — confirm you didn't.
 [ ] EVERY SCREENSHOT PROCESSED: if the user sent multiple images (look for "1 of 2", "2 of 2" etc., or simply more than one attachment), confirm you read every one of them, not just the first.
 [ ] NO TRUNCATION: your output does not end with "...", "[and the rest]", "etc.", or any phrase implying you stopped early. The full list goes through.
+[ ] FENCED TSV: the scores are inside a \`\`\`tsv code block — NOT a plain list, prose, or markdown table. If you wrote "North Carolina 45 TCU 42" style lines, you failed this: rewrite as tab-separated abbreviation rows inside the \`\`\`tsv fence.
 [ ] EXACTLY 7 tab-separated values per row (6 tab characters per line) — even when rank/neutral columns are blank, the surrounding tabs MUST still be present.
 [ ] Columns A and D are team NAMES only, from the TEAM NAMES list (re-check before omitting any unfamiliar one).
 [ ] Scores in columns C and F are INTEGERS only — no commas, no decimals, no "pts".
@@ -763,58 +797,18 @@ Don't just glance at this list. Physically execute each check on your draft.
     return out
   }, [isOpen, currentDynasty, year, week, userTid])
 
-  // Ranked teams on BYE this week, reconstructed from the stored poll so the
-  // grid pre-fills them the same way the Google Sheet flow recorded them: one
-  // row per ranked bye team (team in col A, rank in col B, no opponent). A team
-  // is "on bye" when it holds a 1-25 rank at the rank-week slot (the poll this
-  // week's scores feed) yet played no game this year+week. Seeded only when a
-  // poll actually exists at that slot (i.e. after the week was saved) — on a
-  // first-ever open there's nothing stored, so the AI fills the bye block on
-  // import. Keeping them filled lets the user edit a bye team's rank inline.
-  const byeRowsForPrefill = useMemo(() => {
-    if (!isOpen || !currentDynasty) return []
-    const yearNum = Number(year)
-    const weekNum = Number(week)
-    const rw = Number(rankWeek)
-    if (!Number.isFinite(rw)) return []
-    const teams = currentDynasty.teams || {}
-
-    // Every team that appears in a game this year+week (including the user's
-    // own game — otherwise the user's team could be mistaken for a bye).
-    const playedTids = new Set()
-    for (const g of (currentDynasty.games || [])) {
-      if (!g) continue
-      if (Number(g.year) !== yearNum || Number(g.week) !== weekNum) continue
-      if (g.team1Tid) playedTids.add(Number(g.team1Tid))
-      if (g.team2Tid) playedTids.add(Number(g.team2Tid))
-    }
-
-    const rows = []
-    for (const team of Object.values(teams)) {
-      const rbw = team?.byYear?.[yearNum]?.rankByWeek
-        ?? team?.byYear?.[String(yearNum)]?.rankByWeek
-      if (!rbw) continue
-      const v = rbw[rw] ?? rbw[String(rw)]
-      if (typeof v !== 'number' || v < 1 || v > 25) continue
-      if (playedTids.has(Number(team.tid))) continue
-      const abbr = getTeamNameLabel(teams, team.tid) || team.abbr || ''
-      if (!abbr) continue
-      rows.push({ rank: v, abbr })
-    }
-    rows.sort((a, b) => a.rank - b.rank)
-    return rows
-  }, [isOpen, currentDynasty, year, week, rankWeek])
-
   // Pre-fill the local grid with the week's existing CPU games so the modal
   // opens ready to edit instead of blank. The parser (readWeeklyScoresFromSheet)
   // is content-classified and reads a game row as
   // [HomeTeam, HomeRank, HomeScore, AwayTeam, AwayRank, AwayScore, Neutral].
   // existingForPrefill already resolves home/away orientation, scores, ranks,
   // and the neutral flag, so we serialize those seven columns per game (blank
-  // cell where a value is missing). Ranked bye teams (byeRowsForPrefill) are
-  // appended below the game rows as bye-rank rows (team + rank, col D empty) so
-  // the recorded rankings for teams on bye stay visible and editable — the same
-  // layout the sheet used and the same shape readWeeklyScoresFromSheet expects.
+  // cell where a value is missing).
+  //
+  // Ranked bye teams are intentionally NOT pre-seeded here — the grid opens
+  // with real games only, never auto-filled rank rows the user didn't enter or
+  // import. Bye ranks come in from the AI paste (the prompt emits a bye block),
+  // so the recorded Top 25 reflects the pasted output, not a pre-derived guess.
   const initialWeeklyText = useMemo(() => {
     const gameLines = existingForPrefill.map((g) => {
       const homeRank = g.homeRank != null ? String(g.homeRank) : ''
@@ -824,11 +818,8 @@ Don't just glance at this list. Physically execute each check on your draft.
       const neutral = g.neutral ? 'Y' : ''
       return [g.homeTeam || '', homeRank, homeScore, g.awayTeam || '', awayRank, awayScore, neutral].join('\t')
     })
-    const byeLines = byeRowsForPrefill.map((b) =>
-      [b.abbr, String(b.rank), '', '', '', '', ''].join('\t')
-    )
-    return [...gameLines, ...byeLines].join('\n')
-  }, [existingForPrefill, byeRowsForPrefill])
+    return gameLines.join('\n')
+  }, [existingForPrefill])
 
   // Team-name options for the Home/Away combobox cells. Same label builder the
   // prefill uses (getTeamNameLabel), so pre-filled cells like "Wyoming" match an
