@@ -350,10 +350,23 @@ REQUIRED OUTPUT FORMAT
         .filter(Number.isFinite)
       let preseasonPatch = null
       if (preseasonYears.length > 0) {
-        preseasonPatch = { ...(currentDynasty.preseasonRankingsByYear || {}) }
+        const base = { ...(currentDynasty.preseasonRankingsByYear || {}) }
+        let changed = false
         for (const yr of preseasonYears) {
-          preseasonPatch[yr] = derivePreseasonPollFromTeams(newTeams, yr)
+          const derived = derivePreseasonPollFromTeams(newTeams, yr)
+          const existing = base[yr] || base[String(yr)] || []
+          // DATA-LOSS GUARD: never let a week-0 edit that derives an EMPTY poll
+          // (e.g. teams.rankByWeek[0] stale/unloaded at save time) overwrite a
+          // preseason Top 25 that was already entered — that's how an entered
+          // poll silently vanished. A deliberate full clear goes through the
+          // dedicated Preseason Top 25 modal, which guards its own empties.
+          if (derived.length === 0 && existing.length > 0) continue
+          base[yr] = derived
+          changed = true
         }
+        // Only write when something actually changed — avoids re-writing the
+        // whole map (and touching every year's season doc) for a no-op.
+        if (changed) preseasonPatch = base
       }
 
       const isCloud = currentDynasty.storageType === 'cloud'

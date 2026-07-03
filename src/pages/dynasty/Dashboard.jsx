@@ -3846,8 +3846,15 @@ export default function Dashboard() {
               const userTid = getUserTeamTid(currentDynasty)
               const recruitingCommits = getRecruitingCommitments(currentDynasty, userTid, currentDynasty.currentYear)
               const preseasonCommitments = recruitingCommits?.['preseason']
-              const recruitingDone = preseasonCommitments !== undefined
-              const cnt = preseasonCommitments?.length || 0
+              // Targets are tracked player records (isTarget), NOT commitments —
+              // so mark this done the moment ANY target is on the board for this
+              // class year, not only when the preseason commitment key exists.
+              const recruitYearNum = Number(currentDynasty.currentYear)
+              const targetCount = (currentDynasty.players || []).filter(
+                (p) => p?.isTarget && Number(p.targetYear) === recruitYearNum
+              ).length
+              const recruitingDone = targetCount > 0 || preseasonCommitments !== undefined
+              const cnt = targetCount || (preseasonCommitments?.length || 0)
               const cs = calculateRecruitingClassScore(flattenClassCommitments(recruitingCommits))
               todos.push({
                 key: 'preseason-recruiting',
