@@ -3643,6 +3643,11 @@ export function getScheduleWithGameData(dynasty) {
  * @returns {boolean} True if player is on the team's roster
  */
 export function isPlayerOnRoster(player, tidOrAbbr, year, dynasty = null) {
+  // A null/undefined entry in the players array must not throw — the roster
+  // filters that call this (e.g. the Dynasty Blueprint panel) run in the
+  // render path with no error boundary of their own, so a single bad record
+  // would black out the whole page.
+  if (!player) return false
   // Honor-only players are never on active roster
   if (player.isHonorOnly) return false
 
@@ -8592,7 +8597,15 @@ export function DynastyProvider({ children }) {
     if (!socialIsCloud(dynasty, dynastyId)) {
       const characters = dynasty.socialCharacters || {}
       const feed = dynasty.socialFeedByYear || {}
-      setSocialByDynasty(prev => ({ ...prev, [dynastyId]: { characters, feed } }))
+      // Only update state when the underlying references actually changed.
+      // An unconditional setState here produces a new object every call, and
+      // any caller that runs loadSocial from an effect keyed on state would
+      // spin (see WeekRecapModal's social-load effect).
+      setSocialByDynasty(prev => {
+        const cur = prev[dynastyId]
+        if (cur && cur.characters === characters && cur.feed === feed) return prev
+        return { ...prev, [dynastyId]: { characters, feed } }
+      })
       return { socialCharacters: characters, socialFeedByYear: feed }
     }
 

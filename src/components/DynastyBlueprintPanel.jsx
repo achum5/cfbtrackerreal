@@ -30,6 +30,7 @@ import {
 } from '../data/dynastyPointsModel'
 import { sumPlayerNil, setPlayerNil, getPlayerNil } from '../data/playerNilModel'
 import { groupForPosition } from '../data/positionGroups'
+import PanelErrorBoundary from './PanelErrorBoundary'
 import SupportStaffEditor from './SupportStaffEditor'
 import FacilitiesEditor from './FacilitiesEditor'
 import NilSheet from './NilSheet'
@@ -139,7 +140,7 @@ function Donut({ segments, budget, unspent, size = 200, stroke = 24 }) {
   )
 }
 
-export default function DynastyBlueprintPanel({ year, tid }) {
+function DynastyBlueprintPanelInner({ year, tid }) {
   const { currentDynasty, updateDynasty, updatePlayer, isViewOnly } = useDynasty()
   const { config } = useEdition()
   const { toast } = useToast()
@@ -735,5 +736,17 @@ export default function DynastyBlueprintPanel({ year, tid }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Wrap the panel so a single malformed data record (a bad player/coach/NIL
+// entry) can't black out the whole team page. The dynasty routes are only
+// under <Suspense>, which does not catch render throws — without this a throw
+// here left the user on a blank screen until a full reload.
+export default function DynastyBlueprintPanel(props) {
+  return (
+    <PanelErrorBoundary name="DynastyBlueprintPanel" label="the Dynasty Blueprint">
+      <DynastyBlueprintPanelInner {...props} />
+    </PanelErrorBoundary>
   )
 }

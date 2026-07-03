@@ -109,7 +109,13 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
   useEffect(() => {
     if (!isOpen || !isRegularWeek || !currentDynasty?.id) return
     loadSocial(currentDynasty.id).catch(() => {})
-  }, [isOpen, isRegularWeek, currentDynasty?.id, loadSocial])
+    // loadSocial is intentionally omitted: it's rebuilt on every provider
+    // render (the context value object is a fresh literal each time), so
+    // depending on it re-ran this effect every render. For a local/free-tier
+    // dynasty loadSocial always setStates, which re-rendered → new loadSocial
+    // → effect re-ran → infinite loop that froze the whole recap modal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isRegularWeek, currentDynasty?.id])
 
   const prompt = useMemo(() => {
     if (!currentDynasty) return ''
