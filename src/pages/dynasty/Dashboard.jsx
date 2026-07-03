@@ -110,11 +110,14 @@ function renderTodoList({ todos, isViewOnly }) {
               />
               {todo.extraLeading}
               <div className="min-w-0">
-                <div
-                  className="font-display font-bold leading-tight text-txt-primary break-words"
-                  style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                >
-                  {todo.title}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div
+                    className="font-display font-bold leading-tight text-txt-primary break-words"
+                    style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                  >
+                    {todo.title}
+                  </div>
+                  {todo.extraTools}
                 </div>
                 {todo.inlineAction && (
                   <button
@@ -128,9 +131,8 @@ function renderTodoList({ todos, isViewOnly }) {
                 )}
               </div>
             </div>
-            {!isViewOnly && (todo.actionLabel || todo.viewTo || todo.extraTools) && (
+            {!isViewOnly && (todo.actionLabel || todo.viewTo) && (
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
-                {todo.extraTools}
                 {todo.viewTo && (
                   <Link to={todo.viewTo} className="btn-refined text-center">
                     View
@@ -532,9 +534,9 @@ export default function Dashboard() {
         rel="noopener noreferrer"
         title="Recruiting Insight Engine (external)"
         aria-label="Open Recruiting Insight Engine"
-        className="inline-flex items-center justify-center h-8 sm:h-9 w-8 sm:w-9 rounded-md bg-surface-2 border border-surface-4 text-txt-secondary hover:bg-surface-3 hover:text-txt-primary transition-colors flex-shrink-0"
+        className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-surface-2 border border-surface-4 text-txt-secondary hover:bg-surface-3 hover:text-txt-primary transition-colors flex-shrink-0"
       >
-        <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" strokeWidth="1.75">
+        <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" strokeWidth="1.75">
           <circle cx="12" cy="12" r="9" />
           <circle cx="12" cy="12" r="3" />
           <path strokeLinecap="round" d="M12 1.5v3M12 19.5v3M22.5 12h-3M4.5 12h-3" />
@@ -3843,13 +3845,13 @@ export default function Dashboard() {
               todos.push({
                 key: 'preseason-recruiting',
                 done: recruitingDone,
-                title: 'Scout players & Big Board',
+                title: 'Scout Players & Big Board',
                 subtitle: recruitingDone
                   ? (cnt > 0
                       ? `${cnt} target${cnt === 1 ? '' : 's'} recorded${cs > 0 ? ` ${currentDynasty.currentYear} class score: ${formatRecruitingClassScore(cs)}` : ''}`
                       : 'No targets recorded')
                   : 'Scout players and build your Big Board — no commitments in the preseason',
-                viewTo: cs > 0 ? `${pathPrefix}/recruiting/${userTid}/${currentDynasty.currentYear}` : null,
+                viewTo: `${pathPrefix}/recruiting/${userTid}/${currentDynasty.currentYear}?tab=targets`,
                 onAction: () => setShowRecruitingModal(true),
                 actionLabel: recruitingDone ? 'Edit' : 'Enter',
                 extraTools: recruitingExtraTools,
@@ -3931,11 +3933,14 @@ export default function Dashboard() {
                           />
                         ) : (
                           <>
-                            <div
-                              className="font-display font-bold leading-tight text-txt-primary break-words"
-                              style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                            >
-                              {todo.title}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div
+                                className="font-display font-bold leading-tight text-txt-primary break-words"
+                                style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                              >
+                                {todo.title}
+                              </div>
+                              {todo.extraTools}
                             </div>
                             {todo.subtitle && (
                               <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
@@ -3970,7 +3975,6 @@ export default function Dashboard() {
                           </button>
                         ) : (
                           <>
-                            {todo.extraTools}
                             {todo.viewTo && (
                               <Link to={todo.viewTo} className="btn-refined text-center">
                                 View
@@ -4288,11 +4292,14 @@ export default function Dashboard() {
                         />
                         {todo.extraLeading}
                         <div className="min-w-0">
-                          <div
-                            className="font-display font-bold leading-tight text-txt-primary break-words"
-                            style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                          >
-                            {todo.title}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <div
+                              className="font-display font-bold leading-tight text-txt-primary break-words"
+                              style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                            >
+                              {todo.title}
+                            </div>
+                            {todo.extraTools}
                           </div>
                           {todo.subtitle && (
                             <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
@@ -4313,7 +4320,6 @@ export default function Dashboard() {
                       </div>
                       {!isViewOnly && todo.actionLabel && (
                         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
-                          {todo.extraTools}
                           {todo.viewTo && (
                             <Link to={todo.viewTo} className="btn-refined text-center">
                               View
@@ -4616,11 +4622,14 @@ export default function Dashboard() {
                           />
                         ) : (
                           <>
-                            <div
-                              className="font-display font-bold leading-tight text-txt-primary break-words"
-                              style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
-                            >
-                              {todo.title}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div
+                                className="font-display font-bold leading-tight text-txt-primary break-words"
+                                style={{ fontSize: 'clamp(0.875rem, 1.4vw, 1.0625rem)', letterSpacing: '-0.015em' }}
+                              >
+                                {todo.title}
+                              </div>
+                              {todo.extraTools}
                             </div>
                             {todo.subtitle && (
                               <div className="hidden sm:block text-xs sm:text-[13px] mt-0.5 text-txt-tertiary">
@@ -4643,7 +4652,6 @@ export default function Dashboard() {
                     </div>
                     {todo.customActions ?? (!isViewOnly && todo.actionLabel ? (
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 [&_.btn-refined]:min-w-[4.5rem]">
-                        {todo.extraTools}
                         {todo.viewTo && (
                           <Link to={todo.viewTo} className="btn-refined text-center">
                             View
