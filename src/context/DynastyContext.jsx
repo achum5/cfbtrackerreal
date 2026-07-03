@@ -8115,9 +8115,37 @@ export function DynastyProvider({ children }) {
       // This prevents race conditions when multiple updates happen in quick succession
       const currentLocalDynasties = await indexedDBStorage.getDynasties() || []
 
+      // Apply the updates to one local dynasty. Plain keys shallow-replace
+      // (unchanged behavior); Firestore-style dot-notation keys (e.g.
+      // "teams.42") are written into their NESTED path instead — cloning each
+      // level so siblings are preserved and prior state isn't mutated. Without
+      // this, a shallow spread stored a literal "teams.42" field and left
+      // teams[42] untouched, so editing a team on a local (free-tier) dynasty
+      // looked like it "didn't save" and reverted to the original.
+      const applyLocalUpdates = (d) => {
+        const plain = {}
+        const dotted = []
+        for (const [key, value] of Object.entries(updatesWithTimestamp)) {
+          if (key.includes('.')) dotted.push([key, value])
+          else plain[key] = value
+        }
+        let next = { ...d, ...plain }
+        for (const [key, value] of dotted) {
+          const parts = key.split('.')
+          let cur = next
+          for (let i = 0; i < parts.length - 1; i++) {
+            const p = parts[i]
+            cur[p] = (cur[p] && typeof cur[p] === 'object' && !Array.isArray(cur[p])) ? { ...cur[p] } : {}
+            cur = cur[p]
+          }
+          cur[parts[parts.length - 1]] = value
+        }
+        return next
+      }
+
       // Update the specific dynasty in the local dynasties list
       const updatedLocalDynasties = currentLocalDynasties.map(d =>
-        String(d.id) === String(dynastyId) ? { ...d, ...updatesWithTimestamp } : d
+        String(d.id) === String(dynastyId) ? applyLocalUpdates(d) : d
       )
 
       // Immediately save to IndexedDB (only local dynasties)
