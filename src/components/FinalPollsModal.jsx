@@ -16,7 +16,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions, getTeamNameLabel, getTidFromAbbr } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel, getTidFromAbbr, getTeamNameAliases } from '../data/teamRegistry'
 import {
   createFinalPollsSheet,
   readFinalPollsFromSheet,
@@ -372,6 +372,7 @@ FINAL CHECK before you send
             importLabel="Import Final Polls"
             columns={['Team']}
             comboboxColumns={{ 'Team': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             initialText={initialText}
           />
         ) : isLoading ? (

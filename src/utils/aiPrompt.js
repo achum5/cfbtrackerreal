@@ -1,4 +1,4 @@
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 export const TEAM_ABBR_MAPPING = `AFA = Air Force
 AKR = Akron
@@ -401,15 +401,28 @@ export function buildAIPrompt({
   }
   if (includeTeamMap) {
     const nameList = getTeamNameOptions(dynastyTeams, { includeFCS: true })
+    // Some teams appear in EA CFB under a different name than the app's list
+    // label (e.g. EA shows the Ragin' Cajuns as "Louisiana"; the list has
+    // "Lafayette Ragin' Cajuns"). Annotate those so the AI can bridge the
+    // in-game name to the exact list entry it must output.
+    const aliasMap = getTeamNameAliases(dynastyTeams)
+    const annotatedList = nameList.map((name) => {
+      const al = aliasMap[name]
+      return al && al.length ? `${name}  (in-game name: ${al.join(', ')})` : name
+    })
+    const hasAliases = Object.keys(aliasMap).length > 0
     sections.push(
       '',
       `TEAM NAMES — whenever a team appears, output its EXACT name from the list below. Use the team NAME, never an abbreviation and never the mascot/nickname (write "Kentucky", not "UK" and not "Kentucky Wildcats"). EVERY team in this list — including any FCS placeholders or custom teams — is a VALID, in-scope team for this dynasty:`,
-      nameList.join('\n'),
+      annotatedList.join('\n'),
       '',
       `IMPORTANT — team name handling:`,
       `• This list is the SOURCE OF TRUTH. The chart's dropdown accepts EXACTLY these strings — anything else (an abbreviation, a nickname, a misspelling) is rejected.`,
       `• Copy the name character-for-character as written above. Match the team in the screenshot to this list by school; output that list entry verbatim.`,
       `• The two Miami schools are disambiguated: output "Miami (FL)" for the Hurricanes and "Miami (OH)" for the RedHawks. Use the logo/colors/conference in the screenshot to tell them apart.`,
+      ...(hasAliases ? [
+        `• Some teams show a DIFFERENT name in EA CFB, marked above as "(in-game name: …)". When a screenshot shows that in-game name, output the LIST NAME (the part BEFORE the parenthesis), never the in-game name. Example: a screenshot showing "Louisiana" → output "Lafayette Ragin' Cajuns" (NOT "Louisiana", and NOT the similarly-named "Louisiana Tech" or "LSU").`,
+      ] : []),
       `• Never invent a name that isn't in the list. If after a careful re-scan you still can't match a team, omit that row rather than guessing.`,
     )
   }

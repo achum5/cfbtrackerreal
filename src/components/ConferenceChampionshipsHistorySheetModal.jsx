@@ -23,7 +23,7 @@ import {
 import { buildAIPrompt } from '../utils/aiPrompt'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -666,6 +666,7 @@ FINAL CHECK before you send
               aiPrompt={localAiPrompt}
               columns={['Year', 'Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score']}
               comboboxColumns={{ 'Team 1': teamAbbrs, 'Team 2': teamAbbrs }}
+              comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
               initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}

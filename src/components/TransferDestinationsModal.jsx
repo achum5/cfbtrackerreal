@@ -22,7 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -571,6 +571,7 @@ FINAL CHECK before you send
             importLabel="Import Transfer Destinations"
             columns={['Player', 'New Team']}
             comboboxColumns={{ 'New Team': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             initialText={initialText}
           />
         ) : isLoading ? (

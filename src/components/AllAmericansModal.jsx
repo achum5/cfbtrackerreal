@@ -24,7 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -419,6 +419,7 @@ FINAL CHECK before you send
             aiPrompt={aiPrompt}
             columns={['Position', 'First Player', 'First Team', 'First Class', 'Position', 'Second Player', 'Second Team', 'Second Class', 'Position', 'Freshman Player', 'Freshman Team', 'Freshman Class']}
             comboboxColumns={{ 'First Team': teamAbbrs, 'Second Team': teamAbbrs, 'Freshman Team': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             initialText={initialAllAmericansText}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}

@@ -23,7 +23,7 @@ import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { getAbbrFromTid, getTeamNameLabel } from '../data/teamRegistry'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 // Simple mobile detection
 const isMobileDevice = () => {
@@ -449,6 +449,7 @@ FINAL CHECK before you send the answer
               aiPrompt={aiPrompt}
               columns={['Team']}
               comboboxColumns={{ 'Team': teamAbbrs }}
+              comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
               initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}

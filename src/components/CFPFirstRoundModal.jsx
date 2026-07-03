@@ -16,7 +16,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 import {
   createCFPFirstRoundSheet,
   readCFPFirstRoundFromSheet,
@@ -334,6 +334,7 @@ FINAL CHECK before you send the answer
             aiPrompt={aiPrompt}
             columns={['Higher Seed', 'Lower Seed', 'Higher Score', 'Lower Score']}
             comboboxColumns={{ 'Higher Seed': teamAbbrs, 'Lower Seed': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             onImport={handleLocalImport}
             onUseGoogle={() => setUseLocal(false)}
             onCancel={handleClose}

@@ -24,7 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -664,6 +664,7 @@ FINAL CHECK before you send
             importLabel="Import Conference Championships"
             columns={['Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score', 'Team 1 Rank', 'Team 2 Rank']}
             comboboxColumns={{ 'Team 1': teamAbbrs, 'Team 2': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

@@ -1490,6 +1490,16 @@ const TEAM_LABEL_ALIASES = {
 }
 const squashLabel = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
 
+// Clean, human-readable "also known as" names for teams whose IN-GAME (EA CFB)
+// label differs from the app's canonical label. Unlike TEAM_LABEL_ALIASES
+// (squashed forms used only by the resolver), these are display strings we
+// surface in the AI prompt's team list AND the team dropdown so both the AI
+// and manual entry can find e.g. "Louisiana" even though the app calls the
+// team "Lafayette Ragin' Cajuns". Keyed by tid.
+const TEAM_DISPLAY_ALIASES = {
+  110: ['Louisiana'], // EA CFB shows the Ragin' Cajuns as "Louisiana"
+}
+
 // The short name to label a team by: the split `teamName`, else the full name.
 function baseTeamLabel(team) {
   return team?.teamName || team?.name || null
@@ -1537,6 +1547,28 @@ export function getTeamNameOptions(teams, { includeFCS = true } = {}) {
     if (label) out.push(label)
   }
   return out.sort((a, b) => a.localeCompare(b))
+}
+
+// { [canonicalLabel]: [displayAlias, ...] } for teams whose in-game name
+// differs from the app label (see TEAM_DISPLAY_ALIASES). Guarded so a
+// teambuilder takeover of the slot isn't mislabeled. Consumed by the AI
+// prompt (annotates the team list) and the team dropdown (alias search).
+export function getTeamNameAliases(teams) {
+  const src = (teams && Object.keys(teams).length) ? teams : TEAMS
+  const labels = buildTeamNameLabels(src)
+  const out = {}
+  for (const [tid, aliases] of Object.entries(TEAM_DISPLAY_ALIASES)) {
+    const team = src[tid]
+    if (!team) continue
+    const label = labels[tid]
+    if (!label) continue
+    const guard = TEAM_LABEL_ALIASES[tid]?.guard
+    // Only apply when the slot's current occupant still matches the school —
+    // never mislabel a teambuilder team that took over the tid.
+    if (guard && !guard.test(`${team.name || ''} ${team.teamName || ''}`)) continue
+    out[label] = aliases
+  }
+  return out
 }
 
 // Resolve a user/AI-entered team label to a tid. Tolerant by design so pasted

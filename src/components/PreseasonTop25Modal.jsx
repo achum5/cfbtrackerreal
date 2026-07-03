@@ -21,7 +21,7 @@ import {
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -416,6 +416,7 @@ Sheet Row | Col A (PROTECTED, DO NOT OUTPUT) | Your output: Top 25 team
               importLabel="Import Top 25"
               columns={['Team']}
               comboboxColumns={{ 'Team': teamAbbrs }}
+              comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
               initialText={initialText}
             />
           ) : creatingSheet ? (

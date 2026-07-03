@@ -22,7 +22,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 // The QF bracket's fixed bye-seed display order. The reader keys slot
 // determination off this order (rowToByeSeed in
@@ -460,6 +460,7 @@ FINAL CHECK before you send
             importLabel="Import CFP Quarterfinals"
             columns={['Bye Seed', 'Bye Team', 'Opponent', 'Bye Score', 'Opponent Score', 'Winner']}
             comboboxColumns={{ 'Bye Team': teamAbbrs, 'Opponent': teamAbbrs, 'Winner': teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

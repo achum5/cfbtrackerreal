@@ -10,7 +10,7 @@ import {
   getSingleSheetEmbedUrl
 } from '../services/sheetsService'
 import { useDynasty, getCurrentSchedule, getScheduleForTeam, computeScheduleDiff } from '../context/DynastyContext'
-import { getAbbrFromTid, getTidFromAbbr, getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
+import { getAbbrFromTid, getTidFromAbbr, getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 import { getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
@@ -609,6 +609,7 @@ FINAL CHECK before you send the answer
             initialText={initialScheduleText}
             columns={['Opponent', 'Site']}
             comboboxColumns={{ Opponent: opponentOptions }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             columnOptions={{ Site: ['Home', 'Road', 'Neutral'] }}
             rowLabels={WEEK_LABELS}
             rowLabelHeader="Week"

@@ -13,7 +13,7 @@ import { saveGamesToSubcollection } from '../services/dynastyService'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
 import { buildAIPrompt } from '../utils/aiPrompt'
-import { getTeamNameOptions, getTeamNameLabel } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -543,6 +543,7 @@ REQUIRED OUTPUT FORMAT
                 initialText={initialTop25Text}
                 columns={['Rank', 'Team']}
                 comboboxColumns={{ 'Team': teamAbbrs }}
+                comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
               />
             </div>
           ) : creatingSheet ? (

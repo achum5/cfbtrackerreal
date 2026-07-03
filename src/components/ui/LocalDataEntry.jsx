@@ -67,6 +67,7 @@ export default function LocalDataEntry({
   imageColumn = null,
   columnOptions = null,
   comboboxColumns = null,
+  comboboxAliases = null,
   rowLabels = null,
   rowLabelHeader = '',
   normalizeRows = null,
@@ -422,6 +423,7 @@ export default function LocalDataEntry({
                           <ComboboxCell
                             value={val}
                             options={comboOpts}
+                            aliases={comboboxAliases}
                             onChange={(v) => editCell(ri, ci, v)}
                             onEnterDown={() => moveDown(ri, ci)}
                             inputRef={(el) => registerCell(ri, ci, el)}

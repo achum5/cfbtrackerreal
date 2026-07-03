@@ -15,6 +15,8 @@ export default function ComboboxCell({
   inputRef,      // ref callback so the grid can focus this cell for keyboard nav
   ariaLabel,
   placeholder,
+  aliases,       // optional { [option]: string[] } — extra searchable names so
+                 // e.g. typing "Louisiana" surfaces "Lafayette Ragin' Cajuns"
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(null) // null => showing `value`; string => actively typing
@@ -37,11 +39,15 @@ export default function ComboboxCell({
     const starts = [], contains = []
     for (const o of options) {
       const lo = o.toLowerCase()
-      if (lo.startsWith(q)) starts.push(o)
-      else if (lo.includes(q)) contains.push(o)
+      if (lo.startsWith(q)) { starts.push(o); continue }
+      if (lo.includes(q)) { contains.push(o); continue }
+      // Alias match — the option is displayed by its canonical label but is
+      // also findable by an in-game/alternate name (e.g. "Louisiana").
+      const al = aliases?.[o]
+      if (al && al.some((a) => String(a).toLowerCase().includes(q))) contains.push(o)
     }
     return [...starts, ...contains]
-  }, [options, query])
+  }, [options, query, aliases])
 
   const reposition = useCallback(() => {
     const el = localRef.current

@@ -18,7 +18,7 @@ import {
   getSheetEmbedUrl,
   WEEKLY_SCORES_MAX_ROWS,
 } from '../services/sheetsService'
-import { getCurrentTeamTid, getTeamNameLabel, getTeamNameOptions, getTidFromAbbr } from '../data/teamRegistry'
+import { getCurrentTeamTid, getTeamNameLabel, getTeamNameOptions, getTidFromAbbr, getTeamNameAliases } from '../data/teamRegistry'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
@@ -1139,6 +1139,7 @@ Don't just glance at this list. Physically execute each check on your draft.
                 initialText={initialWeeklyText}
                 columns={WEEKLY_SCORES_COLUMNS}
                 comboboxColumns={weeklyComboboxColumns}
+                comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
                 normalizeRows={normalizeWeeklyScoreRows}
                 instructions={"Screenshot this week's full scoreboard — every game and its final score. It doesn't have to be perfect, just clear and complete. The AI reads the scores AND derives the Top 25 from them, so there's no separate rankings screenshot."}
               >

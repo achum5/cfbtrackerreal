@@ -6,7 +6,7 @@ import LocalDataEntry from './ui/LocalDataEntry'
 import SheetManualEntry from './ui/SheetManualEntry'
 import SheetModalAIHero from './ui/SheetModalAIHero'
 import { splitTsv } from '../utils/tsvParse'
-import { getTeamNameOptions } from '../data/teamRegistry'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 import {
   STAFF_MOVE_COLUMNS,
   STAFF_MOVE_ROLES,
@@ -172,6 +172,7 @@ export default function StaffMovesModal({ isOpen, onClose, currentYear }) {
                 columns={STAFF_MOVE_COLUMNS}
                 columnOptions={columnOptions}
                 comboboxColumns={comboboxColumns}
+                comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
                 instructions={`Take a screenshot of the Staff Moves board (scroll to catch every row). Upload it with the copied prompt to your AI of choice — it returns a TSV of coach moves. Paste that below. Schools use team names; leave "New School" blank for coaches who retired or left for the NFL.`}
               />
             </div>
