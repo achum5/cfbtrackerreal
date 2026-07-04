@@ -9,6 +9,19 @@ import { useCloudSyncStatus } from '../hooks/useCloudSyncStatus'
 // decorative icons, per the project UI guidelines.
 export default function CloudSyncBanner() {
   const { stalled, stalledCount } = useCloudSyncStatus()
+
+  // DISABLED: this banner false-positives. With `persistentLocalCache` every
+  // write is durably saved to IndexedDB the instant it's issued and the SDK
+  // keeps retrying delivery on its own, so a stalled SERVER ACK (the only thing
+  // this banner detects) does NOT mean the data is lost or won't reach the
+  // cloud. When the WebChannel wedges (a second tab holding the single-tab
+  // lease, a proxy/VPN), acks stop arriving to THIS tab even though writes are
+  // safe and still syncing — surfacing a scary "951 changes haven't reached the
+  // cloud / could be lost" message that isn't true. Suppress it. The underlying
+  // cloudSyncStatus store is left intact so this is a one-line revert.
+  return null
+
+  // eslint-disable-next-line no-unreachable
   if (!stalled) return null
 
   const changes = stalledCount === 1 ? 'A recent change is' : `${stalledCount} recent changes are`

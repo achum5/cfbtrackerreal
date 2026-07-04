@@ -4,7 +4,7 @@ import { Card, EmptyState, Button } from '../../components/ui'
 import { useDynasty } from '../../context/DynastyContext'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { getTargetStatus } from '../../utils/recruitingTargets'
-import { getScoutScoresFor, headlinePercentile, predictRecruitOverall } from '../../utils/scoutScore'
+import { getScoutScoresFor, headlinePercentile, predictRecruitOverall, ordinal } from '../../utils/scoutScore'
 import { getEditionKey } from '../../editions'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import { GradeReportContent, getGradeTier, DevTraitPill } from '../../components/PlayerDatabase'
@@ -135,17 +135,33 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
           </div>
         </div>
 
-        {/* Always-visible: grade + composite score */}
+        {/* Always-visible headline. The metric must match the League
+            Preferences toggle: Scout Staff mode shows the archetype letter
+            grade + composite score; MaxPlays mode shows the ScoutScore
+            PERCENTILE as a percentile (e.g. "98th"), not a letter grade —
+            a letter grade there reads as a Scout Staff grade, which is the
+            wrong engine for MaxPlays dynasties. */}
         <div className="text-right flex-shrink-0 w-16">
           {hasComposite ? (
-            <div className="flex flex-col items-end gap-0" title={useLocalScores ? 'Scout grade' : 'ScoutScore percentile, shown as a grade'}>
-              <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 800, color: compositeTier.color }}>
-                {compositeTier.grade}
+            useLocalScores ? (
+              <div className="flex flex-col items-end gap-0" title="Scout grade">
+                <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 800, color: compositeTier.color }}>
+                  {compositeTier.grade}
+                </div>
+                <div className="tabular-nums text-txt-tertiary" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                  {compositeSource.toFixed(1)}
+                </div>
               </div>
-              <div className="tabular-nums text-txt-tertiary" style={{ fontSize: '0.7rem', fontWeight: 700 }}>
-                {compositeSource.toFixed(1)}
+            ) : (
+              <div className="flex flex-col items-end gap-0" title="ScoutScore percentile">
+                <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.2rem', fontWeight: 800, color: compositeTier.color }}>
+                  {ordinal(compositeSource)}
+                </div>
+                <div className="tabular-nums text-txt-tertiary" style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.5px' }}>
+                  PCTILE
+                </div>
               </div>
-            </div>
+            )
           ) : <span className="text-txt-muted" style={{ fontSize: '1.35rem' }}>—</span>}
         </div>
 
