@@ -11,7 +11,6 @@ import {
 } from '../services/sheetsService'
 import { useDynasty, getCurrentSchedule, getScheduleForTeam, computeScheduleDiff } from '../context/DynastyContext'
 import { getAbbrFromTid, getTidFromAbbr, getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
-import { getSchedulableTeamsList } from '../data/teamAbbreviations'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './ui/Toast'
 import { useConfirm } from './ui/ConfirmDialog'
@@ -76,8 +75,8 @@ export default function ScheduleEntryModal({ isOpen, onClose, onSave, currentYea
   const [pendingSave, setPendingSave] = useState(null)
 
   const aiPrompt = useMemo(() => buildAIPrompt({
-    title: `${displayTeamName} ${currentYear} Schedule`,
-    structure: `This sheet has ONE tab: "Schedule". It contains 16 rows, one per week for Week 0 through Week 15 of the ${currentYear} season for ${displayTeamName}. Conference championships are entered separately (they're not in the regular-season schedule).
+    title: `${targetTeamName} ${currentYear} Schedule`,
+    structure: `This sheet has ONE tab: "Schedule". It contains 16 rows, one per week for Week 0 through Week 15 of the ${currentYear} season for ${targetTeamName}. Conference championships are entered separately (they're not in the regular-season schedule).
 
 ═══════════════════════════════════════════════════════════
 CRITICAL RULES — read before anything else
@@ -596,7 +595,7 @@ FINAL CHECK before you send the answer
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <SheetModalHeader title={teamTid ? `${displayTeamName} ${currentYear}` : 'Schedule Entry'} onClose={handleClose} />
+        <SheetModalHeader title={teamTid ? `${targetTeamName} ${currentYear}` : 'Schedule Entry'} onClose={handleClose} />
 
         <div className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
         {useLocal && !showDeletedNote ? (

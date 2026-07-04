@@ -3339,7 +3339,14 @@ export default function TeamYear() {
           if (!game) return null
           const rawOpp = game._isFlippedPerspective ? game._displayOpponent : game.opponent
           const oppAbbr = getAbbrFromTeamName(rawOpp) || rawOpp
-          const oppTeam = getTeamByAbbr(teamsSource, oppAbbr)
+          // Prefer the opponent tid when the game carries team1Tid/team2Tid
+          // (unified format); resolve the opponent live from teams[tid] so a
+          // rename/TeamBuilder takeover reflects immediately. Abbr fallback
+          // covers legacy/converted games with no tid in scope.
+          const t1 = game.team1Tid != null ? Number(game.team1Tid) : null
+          const t2 = game.team2Tid != null ? Number(game.team2Tid) : null
+          const oppTid = t1 === tid ? t2 : (t2 === tid ? t1 : null)
+          const oppTeam = (oppTid != null ? teamsSource[oppTid] : null) || getTeamByAbbr(teamsSource, oppAbbr)
           const oppMascot = oppTeam?.name || getMascotName(oppAbbr, teamsSource)
           const oppLogo = oppTeam?.logo || (oppMascot ? getTeamLogo(oppMascot, teamsSource) : null)
           const result = game._isFlippedPerspective ? game._displayResult : game.result
@@ -5280,8 +5287,12 @@ export default function TeamYear() {
               const displayTeamScore = game._isFlippedPerspective ? game._displayTeamScore : game.teamScore
               const displayOpponentScore = game._isFlippedPerspective ? game._displayOpponentScore : game.opponentScore
 
-              // Use tid-based lookup for opponent data (supports teambuilder teams)
-              const oppTeam = getTeamByAbbr(teamsSource, displayOpponent)
+              // Prefer the opponent tid when the game carries team1Tid/team2Tid
+              // (unified format); resolve live from teams[tid], abbr fallback otherwise.
+              const t1 = game.team1Tid != null ? Number(game.team1Tid) : null
+              const t2 = game.team2Tid != null ? Number(game.team2Tid) : null
+              const oppTid = t1 === tid ? t2 : (t2 === tid ? t1 : null)
+              const oppTeam = (oppTid != null ? teamsSource[oppTid] : null) || getTeamByAbbr(teamsSource, displayOpponent)
               const oppMascot = oppTeam?.name || getMascotName(displayOpponent, teamsSource)
               const oppLogo = oppTeam?.logo || (oppMascot ? getTeamLogo(oppMascot, teamsSource) : null)
               const oppColors = oppTeam
@@ -5682,19 +5693,24 @@ export default function TeamYear() {
 
               // Get opponent from ccData or teamCCGame (tid-based). Prefer the
               // canonical opponentTid; fall back to a legacy abbr.
-              let ccOpponentAbbr = ccData?.opponentTid
-                ? (teamsSource?.[ccData.opponentTid]?.abbr || null)
+              let ccOppTid = ccData?.opponentTid != null ? Number(ccData.opponentTid) : null
+              let ccOpponentAbbr = ccOppTid != null
+                ? (teamsSource?.[ccOppTid]?.abbr || null)
                 : ccData?.opponent
               let ccIsTeam1 = false
               if (!ccOpponentAbbr && teamCCGame) {
                 const ccTeam1Tid = teamCCGame.team1Tid || resolveTid(teamCCGame.team1, teamsSource)
                 ccIsTeam1 = ccTeam1Tid === tid
                 ccOpponentAbbr = ccIsTeam1 ? teamCCGame.team2 : teamCCGame.team1
+                ccOppTid = ccIsTeam1
+                  ? (teamCCGame.team2Tid || resolveTid(teamCCGame.team2, teamsSource))
+                  : (teamCCGame.team1Tid || resolveTid(teamCCGame.team1, teamsSource))
               }
               if (!ccOpponentAbbr) return null
 
-              // Use tid-based lookup for CC opponent data (supports teambuilder teams)
-              const ccOppTeam = getTeamByAbbr(teamsSource, ccOpponentAbbr)
+              // Resolve CC opponent live from teams[tid] when a tid is in scope
+              // (ccData.opponentTid or the CC game's team tids); abbr fallback.
+              const ccOppTeam = (ccOppTid != null ? teamsSource[ccOppTid] : null) || getTeamByAbbr(teamsSource, ccOpponentAbbr)
               const ccOppLogo = ccOppTeam?.logo || (getMascotName(ccOpponentAbbr, teamsSource) ? getTeamLogo(getMascotName(ccOpponentAbbr, teamsSource), teamsSource) : null)
               const ccOppColors = ccOppTeam
                 ? { backgroundColor: ccOppTeam.primaryColor, textColor: ccOppTeam.secondaryColor }
@@ -5794,8 +5810,12 @@ export default function TeamYear() {
               if (!hasBowlScheduled || bowlGamePlayed || selectedYear !== currentDynasty.currentYear) return null
 
               const bowlOpponentValue = bowlData.opponent
-              // Use tid-based lookup for bowl opponent data (supports teambuilder teams)
-              const bowlOppTeam = getTeamByAbbr(teamsSource, bowlOpponentValue)
+              // Prefer the eligibility record's opponentTid when present so a
+              // renamed/TeamBuilder opponent resolves live from teams[tid]; this
+              // legacy path is gated on the stored .opponent abbr, which stays
+              // the fallback.
+              const bowlOppTid = bowlData.opponentTid != null ? Number(bowlData.opponentTid) : null
+              const bowlOppTeam = (bowlOppTid != null ? teamsSource[bowlOppTid] : null) || getTeamByAbbr(teamsSource, bowlOpponentValue)
               const oppLogo = bowlOppTeam?.logo || (getMascotName(bowlOpponentValue, teamsSource) ? getTeamLogo(getMascotName(bowlOpponentValue, teamsSource), teamsSource) : null)
               const oppColors = bowlOppTeam
                 ? { backgroundColor: bowlOppTeam.primaryColor, textColor: bowlOppTeam.secondaryColor }

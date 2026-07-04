@@ -1779,14 +1779,17 @@ export default function DangerZone() {
   const NON_CCG_RIVALRY_PAIRS = new Set(['ARMY|NAVY'])
 
   const resolveGameAbbr = (game, side) => {
+    // tid-first: a stored team1/team2 string can be stale after a rename or
+    // TeamBuilder takeover, so resolve the CURRENT abbr from teams[tid] when a
+    // tid is present. Keep the stored string + original-registry abbr as
+    // fallbacks so behavior is identical when no tid exists.
     const direct = side === 1 ? game.team1 : game.team2
-    if (direct) return direct
     const tid = side === 1 ? game.team1Tid : game.team2Tid
     if (tid != null) {
       const team = currentDynasty?.teams?.[tid] || TEAMS[tid]
-      return team?.abbr || getOriginalTeamAbbr(tid)
+      return team?.abbr || direct || getOriginalTeamAbbr(tid)
     }
-    return side === 1 ? game.userTeam : game.opponent
+    return direct || (side === 1 ? game.userTeam : game.opponent)
   }
 
 

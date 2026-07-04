@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../data/teams'
+import { getGameTeamInfo, getTeamByAbbr } from '../data/teamRegistry'
 import { useDynasty } from '../context/DynastyContext'
 
 // Award display names for proper formatting
@@ -148,12 +149,16 @@ export default function PlayerMatchConfirmModal({
   // Check if entry.team looks like a valid team abbreviation (2-4 uppercase letters) vs a category label
   const isValidTeamAbbr = (str) => str && /^[A-Z0-9-]{2,5}$/.test(str) && teamAbbreviations[str]
   const newTeamAbbr = isValidTeamAbbr(entry.team) ? entry.team : (entry.school || entry.team || '')
-  const newTeamInfo = teamAbbreviations[newTeamAbbr] || {}
+  // Resolve team info LIVE from dynasty.teams (reflects rename + recolor); static map only as final fallback.
+  const newTeamInfo = getGameTeamInfo(teamsData, newTeamAbbr) || getTeamByAbbr(teamsData, newTeamAbbr) || teamAbbreviations[newTeamAbbr] || {}
+  const newTeamColor = newTeamInfo.primaryColor || newTeamInfo.backgroundColor || '#6B7280'
   const newMascotName = getMascotName(newTeamAbbr, teamsData)
   const newTeamLogo = newMascotName ? getTeamLogo(newMascotName, teamsData) : null
 
   const oldTeamAbbr = existingTeams[existingTeams.length - 1] // Most recent team
-  const oldTeamInfo = teamAbbreviations[oldTeamAbbr] || {}
+  // Resolve team info LIVE from dynasty.teams (reflects rename + recolor); static map only as final fallback.
+  const oldTeamInfo = getGameTeamInfo(teamsData, oldTeamAbbr) || getTeamByAbbr(teamsData, oldTeamAbbr) || teamAbbreviations[oldTeamAbbr] || {}
+  const oldTeamColor = oldTeamInfo.primaryColor || oldTeamInfo.backgroundColor || '#6B7280'
   const oldMascotName = getMascotName(oldTeamAbbr, teamsData)
   const oldTeamLogo = oldMascotName ? getTeamLogo(oldMascotName, teamsData) : null
 
@@ -223,14 +228,14 @@ export default function PlayerMatchConfirmModal({
           {/* Comparison Cards */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             {/* Previous Record */}
-            <div className="rounded-lg overflow-hidden" style={{ border: `2px solid ${oldTeamInfo.backgroundColor || '#6B7280'}` }}>
+            <div className="rounded-lg overflow-hidden" style={{ border: `2px solid ${oldTeamColor}` }}>
               <div
                 className="px-3 py-2 text-xs font-bold uppercase tracking-wide"
-                style={{ backgroundColor: oldTeamInfo.backgroundColor || '#6B7280', color: getContrastTextColor(oldTeamInfo.backgroundColor || '#6B7280') }}
+                style={{ backgroundColor: oldTeamColor, color: getContrastTextColor(oldTeamColor) }}
               >
                 Previous Record
               </div>
-              <div className="p-3" style={{ backgroundColor: `${oldTeamInfo.backgroundColor || '#6B7280'}15` }}>
+              <div className="p-3" style={{ backgroundColor: `${oldTeamColor}15` }}>
                 <div className="flex items-center gap-2 mb-2">
                   {oldTeamLogo && (
                     <div className="w-8 h-8 rounded-full bg-white p-1 flex-shrink-0 shadow-sm">
@@ -238,13 +243,13 @@ export default function PlayerMatchConfirmModal({
                     </div>
                   )}
                   <span className="font-bold text-sm text-txt-primary">
-                    {oldTeamInfo.name || oldMascotName || oldTeamAbbr}
+                    {oldMascotName || oldTeamInfo?.name || oldTeamAbbr}
                   </span>
                 </div>
                 {lastHonor && (
                   <div
                     className="text-xs rounded px-2 py-1.5 mt-2 text-txt-secondary"
-                    style={{ backgroundColor: `${oldTeamInfo.backgroundColor || '#6B7280'}20` }}
+                    style={{ backgroundColor: `${oldTeamColor}20` }}
                   >
                     <div className="font-semibold">{lastHonor.year}</div>
                     <div style={{ opacity: 0.9 }}>{lastHonor.description}</div>
@@ -254,14 +259,14 @@ export default function PlayerMatchConfirmModal({
             </div>
 
             {/* New Record */}
-            <div className="rounded-lg overflow-hidden" style={{ border: `2px solid ${newTeamInfo.backgroundColor || '#6B7280'}` }}>
+            <div className="rounded-lg overflow-hidden" style={{ border: `2px solid ${newTeamColor}` }}>
               <div
                 className="px-3 py-2 text-xs font-bold uppercase tracking-wide"
-                style={{ backgroundColor: newTeamInfo.backgroundColor || '#6B7280', color: getContrastTextColor(newTeamInfo.backgroundColor || '#6B7280') }}
+                style={{ backgroundColor: newTeamColor, color: getContrastTextColor(newTeamColor) }}
               >
                 New Entry
               </div>
-              <div className="p-3" style={{ backgroundColor: `${newTeamInfo.backgroundColor || '#6B7280'}15` }}>
+              <div className="p-3" style={{ backgroundColor: `${newTeamColor}15` }}>
                 <div className="flex items-center gap-2 mb-2">
                   {newTeamLogo && (
                     <div className="w-8 h-8 rounded-full bg-white p-1 flex-shrink-0 shadow-sm">
@@ -269,12 +274,12 @@ export default function PlayerMatchConfirmModal({
                     </div>
                   )}
                   <span className="font-bold text-sm text-txt-primary">
-                    {newTeamInfo.name || newMascotName || newTeamAbbr || 'Unknown Team'}
+                    {newMascotName || newTeamInfo?.name || newTeamAbbr || 'Unknown Team'}
                   </span>
                 </div>
                 <div
                   className="text-xs rounded px-2 py-1.5 mt-2 text-txt-secondary"
-                  style={{ backgroundColor: `${newTeamInfo.backgroundColor || '#6B7280'}20` }}
+                  style={{ backgroundColor: `${newTeamColor}20` }}
                 >
                   <div className="font-semibold">{entry.year}{newEntryClass ? ` (${newEntryClass})` : ''}</div>
                   <div style={{ opacity: 0.9 }}>{formatHonorType(entry.honorType)}</div>

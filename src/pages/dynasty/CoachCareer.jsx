@@ -288,17 +288,25 @@ export default function CoachCareer() {
       })
       .filter(Boolean)
 
+    // Group games by the coach's team TID — the stable identity. Keying by
+    // tid (not an abbr string) means a teambuilder rename can't split one
+    // stint into two, nor merge two teams that happen to share an abbr.
+    // teamTidByKey carries the numeric tid alongside each bucket so the
+    // stint below can resolve its live abbr/name/logo/colors from it.
     const gamesByTeam = {}
+    const teamTidByKey = {}
     userGames.forEach(game => {
       let teamKey = null
-      if (game.perspective?.userTid) {
-        const teamData = currentDynasty.teams?.[game.perspective.userTid]
-        teamKey = teamData?.abbr || getAbbrFromTeamName(teamData?.name)
+      let teamTid = null
+      if (game.perspective?.userTid != null) {
+        teamTid = Number(game.perspective.userTid)
+        teamKey = String(teamTid)
       }
       // Owner-only legacy fallback — older dynasties may not have tids on
       // every game record. Gated on the coach having NO byYear data (a truly
       // un-migrated owner coach); a coach WITH byYear is authoritative, so we
       // never attribute the owner's legacy games to a second coach they run.
+      // This path has no tid, so the bucket stays keyed by abbr (teamTid null).
       const coachHasByYear = selectedCoach?.byYear && Object.keys(selectedCoach.byYear).length > 0
       const isOwnerOrOwnerless = !coachHasByYear &&
         (uid === currentDynasty.userId || currentDynasty.userId == null)
@@ -314,6 +322,7 @@ export default function CoachCareer() {
 
       if (!gamesByTeam[teamKey]) {
         gamesByTeam[teamKey] = []
+        teamTidByKey[teamKey] = teamTid
       }
       gamesByTeam[teamKey].push(game)
     })
@@ -324,7 +333,19 @@ export default function CoachCareer() {
       return abbr
     }
 
-    const teamStints = Object.entries(gamesByTeam).map(([teamAbbr, games]) => {
+    const teamStints = Object.entries(gamesByTeam).map(([teamKey, games]) => {
+      // teamTid is carried from the grouping key; null ONLY on the legacy
+      // owner-only abbr fallback path (those games have no tid). Abbr and
+      // name resolve LIVE from the tid so a teambuilder rename reflects
+      // immediately; the legacy path keeps its abbr key verbatim.
+      const teamTid = teamTidByKey[teamKey]
+      const teamAbbr = teamTid != null
+        ? (teamsData?.[teamTid]?.abbr || teamKey)
+        : teamKey
+      const teamName = teamTid != null
+        ? (teamsData?.[teamTid]?.name || teamAbbr)
+        : getTeamFullName(teamKey)
+
       const years = games.map(g => Number(g.year)).filter(y => !isNaN(y) && y > 1900 && y < 3000)
       const startYear = years.length > 0 ? Math.min(...years) : (currentDynasty.startYear || 2024)
       const endYear = years.length > 0 ? Math.max(...years) : (currentDynasty.currentYear || 2024)
@@ -363,16 +384,10 @@ export default function CoachCareer() {
 
       const cfpYears = new Set(cfpGames.map(g => g.year)).size
 
-      // Pass dynasty so TB abbrs (not in static FBS map) resolve via
-      // dynasty.teams[tid].abbr. Without this, tid for STONY/etc. is
-      // null, the stint is never flagged isCurrent, and the placeholder
-      // current-stint code path injects a duplicate "2030" card.
-      const teamTid = getTidFromAbbr(teamAbbr, currentDynasty)
-
       return {
         teamAbbr,
         teamTid,
-        teamName: getTeamFullName(teamAbbr),
+        teamName,
         startYear,
         endYear,
         wins,
@@ -560,7 +575,13 @@ export default function CoachCareer() {
       return coachingHistory.flatMap(s => s.games || [])
     }
     if (!selectedTeamForModal) return []
-    const stint = coachingHistory.find(s => s.teamName === selectedTeamForModal)
+    // selectedTeamForModal holds the stint's tid (or its name on the legacy
+    // no-tid path). Match by tid first so a rename can't break the lookup.
+    const stint = coachingHistory.find(s =>
+      s.teamTid != null
+        ? Number(s.teamTid) === Number(selectedTeamForModal)
+        : s.teamName === selectedTeamForModal
+    )
     if (!stint) return []
     if (gamesModalType === 'favorite') return stint.favoriteGames || []
     if (gamesModalType === 'underdog') return stint.underdogGames || []
@@ -831,13 +852,13 @@ export default function CoachCareer() {
                     const yearLabel = stint.startYear === stint.endYear
                       ? `${stint.startYear}`
                       : `${stint.startYear}–${stint.isCurrent ? 'NOW' : stint.endYear}`
-                    const stintAnchorId = `stint-${stint.teamAbbr}-${stint.startYear}`
+                    const stintAnchorId = `stint-${stint.teamTid ?? stint.teamAbbr}-${stint.startYear}`
                     const arcPrimary = teamsData?.[stint.teamTid]?.primaryColor || '#3a3d47'
                     const arcTxt = getContrastTextColor(arcPrimary)
                     return (
                       <button
                         type="button"
-                        key={`arc-${stint.teamAbbr}-${stint.startYear}`}
+                        key={`arc-${stint.teamTid ?? stint.teamAbbr}-${stint.startYear}`}
                         onClick={() => {
                           document.getElementById(stintAnchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         }}
@@ -1017,8 +1038,8 @@ export default function CoachCareer() {
 
         return (
           <div
-            key={`${stint.teamName}-${stint.startYear}`}
-            id={`stint-${stint.teamAbbr}-${stint.startYear}`}
+            key={`${stint.teamTid ?? stint.teamName}-${stint.startYear}`}
+            id={`stint-${stint.teamTid ?? stint.teamAbbr}-${stint.startYear}`}
             className={`media-card relative overflow-hidden ${stint.isCurrent ? '' : 'opacity-95'}`}
             style={{ scrollMarginTop: '88px' }}
           >
@@ -1040,7 +1061,7 @@ export default function CoachCareer() {
               )}
               <div className="min-w-0 flex-1 relative">
                 <Link
-                  to={`${pathPrefix}/team/${resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${stint.endYear}`}
+                  to={`${pathPrefix}/team/${stint.teamTid != null ? stint.teamTid : resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${stint.endYear}`}
                   className="hover:opacity-90 transition-opacity m-0 leading-[0.95] uppercase break-words block"
                   style={{
                     fontFamily: "'Bebas Neue', sans-serif",
@@ -1081,7 +1102,7 @@ export default function CoachCareer() {
                   key: 'record',
                   value: stint.overallRecord,
                   label: `RECORD ${winPct}%`,
-                  onClick: () => openGamesModal('all', stint.teamName),
+                  onClick: () => openGamesModal('all', stint.teamTid ?? stint.teamName),
                 })
                 if (stint.nationalChampionships > 0) {
                   cells.push({
@@ -1089,7 +1110,7 @@ export default function CoachCareer() {
                     value: stint.nationalChampionships,
                     label: stint.nationalChampionships === 1 ? 'NATL TITLE' : 'NATL TITLES',
                     accent: true,
-                    onClick: () => openGamesModal('cfp', stint.teamName),
+                    onClick: () => openGamesModal('cfp', stint.teamTid ?? stint.teamName),
                   })
                 }
                 if (stint.confChampionships > 0) {
@@ -1097,7 +1118,7 @@ export default function CoachCareer() {
                     key: 'conf',
                     value: stint.confChampionships,
                     label: stint.confChampionships === 1 ? 'CONF TITLE' : 'CONF TITLES',
-                    onClick: () => openGamesModal('confChamp', stint.teamName),
+                    onClick: () => openGamesModal('confChamp', stint.teamTid ?? stint.teamName),
                   })
                 }
                 if (stint.playoffAppearances > 0) {
@@ -1105,7 +1126,7 @@ export default function CoachCareer() {
                     key: 'cfp',
                     value: stint.playoffAppearances,
                     label: stint.playoffAppearances === 1 ? 'CFP APP' : 'CFP APPS',
-                    onClick: () => openGamesModal('cfp', stint.teamName),
+                    onClick: () => openGamesModal('cfp', stint.teamTid ?? stint.teamName),
                   })
                 }
                 if (showsBowls) {
@@ -1113,7 +1134,7 @@ export default function CoachCareer() {
                     key: 'bowls',
                     value: `${bowlWins}-${bowlLosses}`,
                     label: 'BOWLS',
-                    onClick: () => openGamesModal('bowl', stint.teamName),
+                    onClick: () => openGamesModal('bowl', stint.teamTid ?? stint.teamName),
                   })
                 }
                 return (
@@ -1492,7 +1513,7 @@ function YearByYearTable({ stint, currentDynasty, pathPrefix, navigate }) {
               return (
                 <tr
                   key={yr.year}
-                  onClick={() => navigate(`${pathPrefix}/team/${resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${yr.year}`)}
+                  onClick={() => navigate(`${pathPrefix}/team/${stint.teamTid != null ? stint.teamTid : resolveTid(stint.teamAbbr, currentDynasty?.teams || TEAMS)}/${yr.year}`)}
                   className="cursor-pointer hover:bg-surface-3 transition-colors"
                   style={{
                     borderBottom: idx < years.length - 1 ? '1px solid var(--surface-4)' : 'none',

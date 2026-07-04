@@ -4,7 +4,6 @@ import { useDynasty, getPlayersNeedingClassConfirmation, getUserGamePerspective,
 import { useAuth } from '../context/AuthContext'
 import { useCurrentTeamColors } from '../hooks/useTeamColors'
 import { getTeamLogoByTid } from '../data/teams'
-import { teamAbbreviations } from '../data/teamAbbreviations'
 import { TEAMS, getCurrentTeamAbbr, getCurrentTeamTid, getCurrentTeamName } from '../data/teamRegistry'
 import { isCfb27 } from '../editions'
 import { warmScoutScoresForDynasty } from '../utils/scoutScore'
@@ -244,20 +243,6 @@ export default function Layout({ children }) {
     name: viewedTeamData.name
   } : null
   const isTeamPage = !!viewedTeamInfo
-
-  // Check if we're on a player profile page and get the player's team colors
-  const playerPageMatch = location.pathname.match(/\/dynasty\/[^/]+\/player\/(\d+)/)
-  const viewedPlayerPid = playerPageMatch ? parseInt(playerPageMatch[1]) : null
-  const viewedPlayer = viewedPlayerPid && currentDynasty?.players
-    ? currentDynasty.players.find(p => p.pid === viewedPlayerPid)
-    : null
-  // For honor-only players or players with a different team, use their team
-  // Player's team field is always kept current (updated on transfer)
-  const playerTeamAbbr = viewedPlayer
-    ? (viewedPlayer.isHonorOnly ? (viewedPlayer.team || viewedPlayer.teams?.[0]) : viewedPlayer.team)
-    : null
-  const playerTeamInfo = playerTeamAbbr ? teamAbbreviations[playerTeamAbbr] : null
-  const isPlayerPageWithDifferentTeam = !!playerTeamInfo
 
   // Pages that should use neutral gray styling instead of team colors
   const isNeutralPage =
