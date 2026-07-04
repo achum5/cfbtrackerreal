@@ -6634,30 +6634,20 @@ export default function Dashboard() {
               const hasPlayersLeavingData = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length > 0
               const playersLeavingCount = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length || 0
 
-              if (switchedTeams) {
-                const skippedTodos = [{
-                  key: 'players-leaving-skipped',
-                  done: true,
-                  title: 'Skipped - New Team',
-                  subtitle: 'You switched teams, so there are no departing players to track',
-                }]
-                return (
-                  <>
-                    <h3 className="font-display font-bold uppercase leading-none text-txt-primary py-3 pl-3 pr-1 mb-3 sm:mb-4" style={{ fontSize: 'clamp(1.0625rem, 1.6vw, 1.375rem)', letterSpacing: '0.03em', ...sectionStripStyle }}>
-                      New Team: No Players Leaving
-                    </h3>
-                    {renderTodoList({ todos: skippedTodos, isViewOnly })}
-                  </>
-                )
-              }
-
+              // On a brand-new team the step is OPTIONAL (there may be no prior
+              // departures to track), but it must stay ACCESSIBLE — users who
+              // played a season with the team still need to record graduating
+              // seniors / transfers. Previously this hard-skipped with a dead
+              // "Skipped - New Team" card and no way in.
               const ow1Todos = [{
                 key: 'players-leaving',
                 done: hasPlayersLeavingData,
                 title: 'Players Leaving',
                 subtitle: hasPlayersLeavingData
                   ? `${playersLeavingCount} player${playersLeavingCount !== 1 ? 's' : ''} leaving`
-                  : 'Graduating seniors, transfers, early declarations',
+                  : (switchedTeams
+                      ? 'New team — optional. Add any graduating seniors, transfers, or early declarations.'
+                      : 'Graduating seniors, transfers, early declarations'),
                 onAction: () => setShowPlayersLeavingModal(true),
                 actionLabel: hasPlayersLeavingData ? 'Edit' : 'Enter',
                 viewTo: hasPlayersLeavingData && currentDynasty?.currentTid != null
