@@ -6714,6 +6714,29 @@ export function DynastyProvider({ children }) {
         migrated._offseasonRevertFlipExperimentV1 = true
       }
 
+      // Heal a corrupted offseason year-flip state. The year flip
+      // (advanceWeek wk4→5) sets classProgressionDoneForYear AND currentYear
+      // to the SAME new year, atomically — so once the flip has run the
+      // invariant is `classProgressionDoneForYear === currentYear`. A save
+      // where classProgressionDoneForYear is exactly currentYear + 1 means the
+      // flip's roster/class work committed but currentYear was left a year
+      // behind — the inconsistent state a revert or a model-flip migration
+      // produces when it rolls currentYear back without undoing the flip
+      // artifacts (rosters, coach career entries, classProgressionDoneForYear).
+      // Symptom: advancing the LAST offseason week lands on the same year's
+      // preseason instead of the next season, and next year's roster looks
+      // "already there" but the season never advances. Restore the invariant
+      // by advancing currentYear to match. Narrow + idempotent: only fires in
+      // the offseason on the exact off-by-one mismatch, so a healthy dynasty
+      // (classProgressionDoneForYear === currentYear) is never touched.
+      if (
+        migrated.currentPhase === 'offseason' &&
+        Number.isFinite(Number(migrated.classProgressionDoneForYear)) &&
+        Number(migrated.classProgressionDoneForYear) === Number(migrated.currentYear) + 1
+      ) {
+        migrated = { ...migrated, currentYear: Number(migrated.classProgressionDoneForYear) }
+      }
+
       // Heal movementByYear at LOAD time so the in-memory player has clean
       // canonical entries before any render. Two cases:
       //   1. { type: 'unknown', legacyType, raw } poison shapes from an
