@@ -32,7 +32,7 @@ import InlineScoringHighlights from '../../components/InlineScoringHighlights'
 import FormattedRecap from '../../components/FormattedRecap'
 import SocialFeed from '../../components/SocialFeed'
 import { DEFAULT_SOCIAL_PLATFORM, getEffectiveCharacters } from '../../data/socialModel'
-import { sortPlaysChronologically, collapsePatRowsIntoTDs } from '../../utils/scoringPlayOrder'
+import { sortPlaysChronologically, collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../../utils/scoringPlayOrder'
 import {
   PageHero,
   Card,
@@ -1051,6 +1051,10 @@ export default function Game() {
   let displayTeam, displayTeamAbbr, opponent, opponentAbbr
   let displayTeamLogo, displayTeamColors, opponentLogo, opponentColors
   let userScore, opponentScore, userWon
+  // Durable tids for the display (user) side and the opponent side, hoisted so
+  // downstream attribution (getTeamData) can match by tid instead of by abbr,
+  // which can collide between teambuilder teams and real FBS teams.
+  let displaySideTid = null, opponentSideTid = null
 
   if (isCPUGame) {
     // CPU game - pick a viewing team (winner or team1). Tid-based identity
@@ -1084,6 +1088,9 @@ export default function Game() {
       isDisplayTeam1 = viewingAbbr === team1Abbr
     }
 
+    displaySideTid = isDisplayTeam1 ? game.team1Tid : game.team2Tid
+    opponentSideTid = isDisplayTeam1 ? game.team2Tid : game.team1Tid
+
     displayTeamAbbr = isDisplayTeam1 ? team1Abbr : team2Abbr
     displayTeam = getMascotName(displayTeamAbbr, currentDynasty?.teams || currentDynasty?.customTeams) || displayTeamAbbr
 
@@ -1104,6 +1111,9 @@ export default function Game() {
     // User game - use perspective
     const userTeamInfo = getGameTeamInfo(teams, perspective.userTid)
     const oppTeamInfo = getGameTeamInfo(teams, perspective.opponentTid)
+
+    displaySideTid = perspective.userTid ?? game.team1Tid ?? null
+    opponentSideTid = perspective.opponentTid ?? game.team2Tid ?? null
 
     displayTeamAbbr = userTeamInfo?.abbr || getCurrentTeamAbbr(currentDynasty)
     displayTeam = userTeamInfo?.name || getMascotName(displayTeamAbbr, currentDynasty?.teams || currentDynasty?.customTeams) || displayTeamAbbr
@@ -1428,22 +1438,34 @@ export default function Game() {
       // Determine if this side corresponds to team1 or team2
       const team1Info = game.team1Tid ? getGameTeamInfo(teams, game.team1Tid) : null
       const team1Abbr = team1Info?.abbr || game.team1
-      const isTeam1 = isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr)
+      const sideTid = isDisplayTeam ? displaySideTid : opponentSideTid
+      const isTeam1 = (sideTid != null && game.team1Tid != null)
+        ? Number(sideTid) === Number(game.team1Tid)
+        : (isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr))
       overall = isTeam1 ? game.team1Overall : game.team2Overall
       offense = isTeam1 ? game.team1Offense : game.team2Offense
       defense = isTeam1 ? game.team1Defense : game.team2Defense
     } else {
-      // For unified format: user ratings in team1*, opponent ratings in team2*
-      // For legacy format: opponent ratings in opponent* fields
-      overall = isDisplayTeam
+      // User game. Ratings live in team1*/team2* (tid-aligned), with the
+      // legacy opponent* fields as a fallback for the opponent side. Map by
+      // tid — NOT by "isDisplayTeam ? team1 : team2". The user is not always
+      // team1: CFP / bowl / neutral games entered through the bracket store
+      // team1/team2 by matchup orientation, so a user stored as team2 would
+      // otherwise show the opponent's ratings on their own side (and vice
+      // versa). The legacy fallback assumes user=team1 only when no tid.
+      const sideTid = isDisplayTeam ? displaySideTid : opponentSideTid
+      const sideIsTeam1 = sideTid != null && game.team1Tid != null
+        ? Number(sideTid) === Number(game.team1Tid)
+        : isDisplayTeam
+      overall = sideIsTeam1
         ? (game.team1Overall ?? null)
-        : (game.team2Overall ?? game.opponentOverall ?? null)
-      offense = isDisplayTeam
+        : (game.team2Overall ?? (isDisplayTeam ? null : game.opponentOverall) ?? null)
+      offense = sideIsTeam1
         ? (game.team1Offense ?? null)
-        : (game.team2Offense ?? game.opponentOffense ?? null)
-      defense = isDisplayTeam
+        : (game.team2Offense ?? (isDisplayTeam ? null : game.opponentOffense) ?? null)
+      defense = sideIsTeam1
         ? (game.team1Defense ?? null)
-        : (game.team2Defense ?? game.opponentDefense ?? null)
+        : (game.team2Defense ?? (isDisplayTeam ? null : game.opponentDefense) ?? null)
     }
 
     // Resolve tid for this side so downstream comparisons (quarter scores,
@@ -1455,7 +1477,10 @@ export default function Game() {
       const team2Tid = game.team2Tid
       const team1Info = team1Tid ? getGameTeamInfo(teams, team1Tid) : null
       const team1Abbr = team1Info?.abbr || game.team1
-      const isTeam1 = isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr)
+      const sideTid = isDisplayTeam ? displaySideTid : opponentSideTid
+      const isTeam1 = (sideTid != null && team1Tid != null)
+        ? Number(sideTid) === Number(team1Tid)
+        : (isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr))
       tid = isTeam1 ? team1Tid : team2Tid
     } else {
       tid = isDisplayTeam ? (game.team1Tid ?? game.userTid ?? null) : (game.team2Tid ?? game.opponentTid ?? null)
@@ -1478,7 +1503,10 @@ export default function Game() {
       if (isCPUGame) {
         const team1Info = game.team1Tid ? getGameTeamInfo(teams, game.team1Tid) : null
         const team1Abbr = team1Info?.abbr || game.team1
-        const isTeam1 = isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr)
+        const sideTid = isDisplayTeam ? displaySideTid : opponentSideTid
+        const isTeam1 = (sideTid != null && game.team1Tid != null)
+          ? Number(sideTid) === Number(game.team1Tid)
+          : (isDisplayTeam ? (displayTeamAbbr === team1Abbr) : (opponentAbbr === team1Abbr))
         record = isTeam1 ? game.team1Record : game.team2Record
       } else if (isDisplayTeam && userRecord) {
         record = `${userRecord.overall} (${userRecord.conference})`
@@ -1933,8 +1961,23 @@ export default function Game() {
                   const isLeftTeam1 = leftData.tid != null && game.team1Tid != null
                     ? Number(leftData.tid) === Number(game.team1Tid)
                     : leftData.abbr === (game.team1Tid ? (currentDynasty?.teams?.[game.team1Tid]?.abbr || TEAMS[game.team1Tid]?.abbr) : game.team1)
-                  const leftQuarterKey = isNewFormat ? (isLeftTeam1 ? 'team1' : 'team2') : (leftTeam === 'user' ? 'team' : 'opponent')
-                  const rightQuarterKey = isNewFormat ? (isLeftTeam1 ? 'team2' : 'team1') : (leftTeam === 'user' ? 'opponent' : 'team')
+                  // Legacy {team,opponent} quarters (written by GameEntryModal,
+                  // e.g. the CFP bracket entry) are tid-ordered: team = team1's
+                  // line, opponent = team2's — its swap-back always stores
+                  // team=team1. So when the game carries tids, map the legacy
+                  // keys by tid too. Mapping them by leftTeam ('user'/display)
+                  // mis-assigns the linescore whenever the displayed team is
+                  // team2 (e.g. a CFP game viewed from the winner's side),
+                  // flipping the quarters relative to the tid-based totals.
+                  // Only truly-old games with no team1Tid keep the display-
+                  // relative mapping (there, team = the user's line).
+                  const hasTeamTids = game.team1Tid != null && game.team2Tid != null
+                  const leftQuarterKey = isNewFormat
+                    ? (isLeftTeam1 ? 'team1' : 'team2')
+                    : hasTeamTids ? (isLeftTeam1 ? 'team' : 'opponent') : (leftTeam === 'user' ? 'team' : 'opponent')
+                  const rightQuarterKey = isNewFormat
+                    ? (isLeftTeam1 ? 'team2' : 'team1')
+                    : hasTeamTids ? (isLeftTeam1 ? 'opponent' : 'team') : (leftTeam === 'user' ? 'opponent' : 'team')
                   const leftQuarters = game.quarters[leftQuarterKey] || {}
                   const rightQuarters = game.quarters[rightQuarterKey] || {}
 
@@ -2109,8 +2152,17 @@ export default function Game() {
                   const isLeftTeam1 = leftData.tid != null && game.team1Tid != null
                     ? Number(leftData.tid) === Number(game.team1Tid)
                     : leftData.abbr === (game.team1Tid ? (currentDynasty?.teams?.[game.team1Tid]?.abbr || TEAMS[game.team1Tid]?.abbr) : game.team1)
-                  const leftKey = isNewFormat ? (isLeftTeam1 ? 'team1' : 'team2') : (leftTeam === 'user' ? 'team' : 'opponent')
-                  const rightKey = isNewFormat ? (isLeftTeam1 ? 'team2' : 'team1') : (leftTeam === 'user' ? 'opponent' : 'team')
+                  // Legacy {team,opponent} quarters are tid-ordered (team=team1);
+                  // map by tid when the game has tids so the displayed-from-team2
+                  // case (CFP viewed from the winner) doesn't flip the linescore.
+                  // See the matching block in the hero quarter table above.
+                  const hasTeamTids = game.team1Tid != null && game.team2Tid != null
+                  const leftKey = isNewFormat
+                    ? (isLeftTeam1 ? 'team1' : 'team2')
+                    : hasTeamTids ? (isLeftTeam1 ? 'team' : 'opponent') : (leftTeam === 'user' ? 'team' : 'opponent')
+                  const rightKey = isNewFormat
+                    ? (isLeftTeam1 ? 'team2' : 'team1')
+                    : hasTeamTids ? (isLeftTeam1 ? 'opponent' : 'team') : (leftTeam === 'user' ? 'opponent' : 'team')
                   const lq = game.quarters[leftKey] || {}
                   const rq = game.quarters[rightKey] || {}
                   const cell = (v) => (v === '' || v === null || v === undefined ? 0 : v)
@@ -2821,32 +2873,27 @@ export default function Game() {
               collapsePatRowsIntoTDs(game.boxScore.scoringSummary)
             )
 
-            // Tid-based "is this play on the left side?" check. Each play's
-            // team is stored as an abbr; we resolve via the game's two team
-            // tids (and current registry abbrs) and compare tids instead of
-            // strings — survives teambuilder abbr drift. Falls back to abbr
-            // compare for legacy games missing a tid.
+            // Attribute every scoring play to one of the game's two tids,
+            // rooted entirely in the user's file (dynasty.teams[tid].abbr +
+            // the scorers' tid-based roster membership), never the base
+            // registry. play.team is stored as whatever abbr the AI paste
+            // transcribed off the game screen (e.g. "UMD"), which need not
+            // match the file's abbr for that tid (cfb27 "TERPS"); resolving
+            // by tid is what keeps the whole game from piling onto one side.
             const lTid = leftData.tid != null ? Number(leftData.tid) : null
             const rTid = rightData.tid != null ? Number(rightData.tid) : null
-            const lAbbrU = leftData.abbr?.toUpperCase()
-            const rAbbrU = rightData.abbr?.toUpperCase()
-            const isPlayOnLeftSide = (play) => {
-              const playU = play.team?.toUpperCase()
-              if (lTid != null && rTid != null && lAbbrU && rAbbrU) {
-                const playTid = playU === lAbbrU ? lTid : (playU === rAbbrU ? rTid : null)
-                if (playTid != null) return playTid === lTid
-              }
-              return playU === lAbbrU
-            }
+            const teamTidMap = resolveScoringTeamTids(chronoPlays, {
+              team1Tid: lTid,
+              team2Tid: rTid,
+              teams: currentDynasty?.teams,
+              getScorerTid: buildScorerTidResolver(currentDynasty?.players, game?.year),
+            })
+            const playTidOf = (play) => teamTidMap.get(play.team?.toUpperCase())
+            const isPlayOnLeftSide = (play) => playTidOf(play) === lTid
 
-            // Resolve a play's team to current-registry data (abbr, logo, colors).
-            // play.team is the abbr stored at game time; if a teambuilder team
-            // was renamed since, that stale abbr won't resolve via the registry
-            // helpers. Map play.team → tid via the game's two teams, then look
-            // up by tid for stable colors / logos.
+            // Resolve a play's team to file data (abbr, logo, colors) by tid.
             const resolvePlayTeamData = (play) => {
-              const playU = play.team?.toUpperCase()
-              const tid = playU === lAbbrU ? lTid : playU === rAbbrU ? rTid : null
+              const tid = playTidOf(play)
               const sideData = tid === lTid ? leftData : tid === rTid ? rightData : null
               return {
                 abbr: sideData?.abbr || play.team,

@@ -216,7 +216,7 @@ export function getEarnedTrophies(dynasty, stints) {
       const key = normalizeAwardName(rawKey)
       const trophyId = AWARD_TROPHY[key] || AWARD_TROPHY[rawKey]
       if (!trophyId) continue
-      const awardTid = getTidFromAbbr(data.team, dynasty?.teams || dynasty)
+      const awardTid = data.tid != null ? Number(data.tid) : getTidFromAbbr(data.team, dynasty?.teams || dynasty)
       if (awardTid != null && coachTids.has(Number(awardTid))) {
         const pid = findAwardPlayerPid(dynasty, data.player, year, Number(awardTid))
         add(trophyId, year, { player: data.player, position: data.position, team: data.team, awardTid: Number(awardTid), pid })

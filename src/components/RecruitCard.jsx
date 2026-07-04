@@ -83,7 +83,12 @@ export default function RecruitCard({ recruit, player, bg, text, teamsData, isAl
     ? `${recruit.height || ''}${recruit.height && recruit.weight ? ', ' : ''}${recruit.weight ? `${recruit.weight} lbs` : ''}`
     : null
 
-  const previousTeamTid = recruit.previousTeam ? getTidFromAbbr(recruit.previousTeam, teamsSource) : null
+  // Prefer the durable origin-school tid (movementByYear[year].fromTid, threaded
+  // onto the commit) so the FROM-chip logo/name resolve LIVE from dynasty.teams
+  // even after that school is renamed. Only round-trip the stored abbr string
+  // when no fromTid is available (legacy commits).
+  const previousTeamTid = (recruit.previousTeamTid != null ? Number(recruit.previousTeamTid) : null)
+    ?? (recruit.previousTeam ? getTidFromAbbr(recruit.previousTeam, teamsSource) : null)
   const transferLogo = previousTeamTid ? getTeamLogoByTid(previousTeamTid, teamsSource) : null
   const rawPreviousTeamName = previousTeamTid && teamsSource[previousTeamTid]?.name
     ? teamsSource[previousTeamTid].name

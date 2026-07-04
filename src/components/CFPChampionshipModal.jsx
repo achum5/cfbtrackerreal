@@ -93,7 +93,7 @@ export default function CFPChampionshipModal({ isOpen, onClose, onSave, currentY
     const teamData = getGameTeamInfo(teams, tid)
     if (!teamData) return null
     const abbr = teamData.abbr
-    const mascotName = mascotMap[abbr] || teamData.name
+    const mascotName = teamData.name || mascotMap[abbr]
     const logo = teamData.logo || (mascotName ? getTeamLogo(mascotName, teams) : null)
     return {
       abbr,

@@ -11,6 +11,7 @@ import { flattenClassCommitments } from '../utils/recruitingScore';
 import { positionBucket } from '../utils/recruitAttributes';
 import { useTeamColors } from '../hooks/useTeamColors';
 import { getSiblingScoutedPlayers } from '../utils/sharedRecruitingDb';
+import { getMascotName } from '../data/teams';
 import { useToast } from './ui';
 
 // Shapes a raw dynasty.players record into the grading-ready recruit shape Scout Staff uses.
@@ -63,7 +64,11 @@ const SECTION_TO_VIEW = { staff: 'home', database: 'database', outlook: 'analysi
 export default function ScoutStaff({ year, section = 'staff', onNavigate } = {}) {
   const { currentDynasty, dynasties, getDynastyPlayers, updateDynasty, updatePlayer, isViewOnly } = useDynasty();
   const { toast } = useToast();
-  const teamColors = useTeamColors(currentDynasty?.teamName, currentDynasty?.teams);
+  // Resolve the team's display name LIVE from currentTid so a mid-dynasty rename
+  // flows into the color theming AND the AI scouting brief. Fall back to the
+  // stored teamName snapshot only when no tid is in scope (legacy dynasties).
+  const currentTeamName = getMascotName(currentDynasty?.currentTid, currentDynasty?.teams) || currentDynasty?.teamName;
+  const teamColors = useTeamColors(currentTeamName, currentDynasty?.teams);
   const teamLogo   = currentDynasty?.teams?.[currentDynasty?.currentTid]?.logo || '';
 
   // One-time cloud migration: earlier builds stored Scout Staff config only in
@@ -485,7 +490,7 @@ export default function ScoutStaff({ year, section = 'staff', onNavigate } = {})
 
   return (
     <div className="w-full space-y-4">
-      {subView === 'home' && <FrontPage onViewDatabase={openDatabase} onJumpToPosition={goToAnalysisPosition} onGoToAnalysisOverview={goToAnalysisOverview} onRemoveFromBoard={isViewOnly ? null : handleToggleBoardRemoved} onAdjustTarget={isViewOnly ? null : adjustExtraTargetsFromBrief} currentTeamName={currentDynasty?.teamName || 'college football team'} currentYear={currentDynasty?.currentYear || new Date().getFullYear()} coachName={currentDynasty?.coachName || ''} recruits={recruits} databaseRecruits={freshmanRecruits} rosterWarnings={rosterWarnings} rosterSummary={rosterSummary} outlookSummary={outlookSummary || cachedOutlookSummary} committedRecruits={committedRecruits} dynastyId={dynastyId} {...teamTheme} />}
+      {subView === 'home' && <FrontPage onViewDatabase={openDatabase} onJumpToPosition={goToAnalysisPosition} onGoToAnalysisOverview={goToAnalysisOverview} onRemoveFromBoard={isViewOnly ? null : handleToggleBoardRemoved} onAdjustTarget={isViewOnly ? null : adjustExtraTargetsFromBrief} currentTeamName={currentTeamName || 'college football team'} currentYear={currentDynasty?.currentYear || new Date().getFullYear()} coachName={currentDynasty?.coachName || ''} recruits={recruits} databaseRecruits={freshmanRecruits} rosterWarnings={rosterWarnings} rosterSummary={rosterSummary} outlookSummary={outlookSummary || cachedOutlookSummary} committedRecruits={committedRecruits} dynastyId={dynastyId} {...teamTheme} />}
 
       {/* Read-only: mirrors the recruiting Targets sheet. Freshmen and portal targets are split.
           Uses the unfiltered list so a target removed from the board still shows up here. */}

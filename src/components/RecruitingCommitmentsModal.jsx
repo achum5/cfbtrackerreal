@@ -214,11 +214,12 @@ CRITICAL RULES
 6. Dropdown columns (B, C, D, E, I, L, M, N, O, P) MUST be EXACTLY one of the listed values.
 7. Column E (Stars) uses ☆ symbols, NOT digits.
 8. Do NOT output the hidden "pid" column, nor the trailing "NIL" column after it — the app fills pid, and NIL is the recruiting-offer column the user enters by hand.
+9. NAMES IN NORMAL CASE. Column A (Player) and Column K (Hometown) are Title Case, never ALL CAPS — the screenshots use an all-caps font, but output "Jaylen Carter" / "Baton Rouge", not "JAYLEN CARTER" / "BATON ROUGE". Preserve real internal capitals (McDaniel, O'Brien, DeShawn).
 
 ═══════════════════════════════════════════════════════════
 COLUMNS A–P
 ═══════════════════════════════════════════════════════════
- A Player     | Full name (text)
+ A Player     | Full player name in NORMAL Title Case — "Jaylen Carter", never "JAYLEN CARTER". The in-game screenshots print names in an ALL-CAPS font; do NOT copy that casing. Capitalize only the first letter of each name part, and preserve genuine internal capitals (e.g. McDaniel, O'Brien, DeShawn, TJ).
  B Class      | Dropdown: HS, JUCO Fr, JUCO So, JUCO Jr, Fr, RS Fr, So, RS So, Jr, RS Jr
  C Position   | Dropdown: QB, HB, FB, WR, TE, LT, LG, C, RG, RT, LEDG, REDG, DT, SAM, MIKE, WILL, CB, FS, SS, K, P, ATH
  D Archetype  | Dropdown — exact archetype name (e.g. Pocket Passer, Speedster, Raw Strength, Power Rusher, Man Coverage…)

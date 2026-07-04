@@ -9558,9 +9558,15 @@ export async function readAwardsFromSheet(spreadsheetId, year, dynastyTeams = nu
           .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
           .replace(/^./, str => str.toLowerCase())
 
-        // Resolve abbr → tid so downstream consumers (CoachCareer stint
-        // attribution, Awards player lookup) survive teambuilder renames.
-        const tid = team ? getTidFromAbbr(team, dynastyTeams) : null
+        // Resolve the team text → tid so downstream consumers (Awards card
+        // display, CoachCareer stint attribution, player lookup) survive
+        // teambuilder/edition renames. Use getTidFromTeamText (abbr OR name OR
+        // alias OR tolerant name scan) — the same robust resolver the
+        // All-American/All-Conference readers use — so a team entered by name
+        // or a non-registry abbr still lands on the right tid (getTidFromAbbr
+        // alone missed these, which is why some award cards showed no
+        // logo/wrong school).
+        const tid = team ? getTidFromTeamText(team, dynastyTeams) : null
         awards[key] = {
           player,
           position,
@@ -10176,10 +10182,12 @@ export async function readAllAmericansFromSheet(spreadsheetId, year, dynastyTeam
     const data = await response.json()
     const rows = data.values || []
 
-    // Helper to extract team data from rows. Resolve school abbr → tid at
-    // read time so post-rename teambuilder teams keep their honor links.
+    // Helper to extract team data from rows. Resolve the school text → tid at
+    // read time so post-rename teambuilder teams keep their honor links. Use
+    // getTidFromTeamText (abbr OR name OR alias OR tolerant name scan) so a
+    // school entered by name or a non-registry abbr still resolves.
     const tidFor = (abbr) => {
-      const t = abbr ? getTidFromAbbr(abbr, dynastyTeams) : null
+      const t = abbr ? getTidFromTeamText(abbr, dynastyTeams) : null
       return t != null ? Number(t) : null
     }
     const extractTeamData = (startRow, teamLabel) => {

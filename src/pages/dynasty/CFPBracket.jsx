@@ -4,7 +4,7 @@ import { buildCFPProjection } from '../../utils/cfpProjection'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { useTeamColors } from '../../hooks/useTeamColors'
-import { getTeamLogo } from '../../data/teams'
+import { getTeamLogo, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo } from '../../data/teamRegistry'
 import { getBowlLogo } from '../../data/bowlGames'
@@ -720,6 +720,14 @@ export default function CFPBracket() {
     const mascotName = customEntry?.name || (resolvedAbbr ? mascotMap[resolvedAbbr] : null)
     const logo = customEntry?.logo || (mascotName ? getTeamLogo(mascotName, dynastyTeams) : null)
 
+    // Display name (school, no mascot). When a live team resolves — either by
+    // tid or by matching the dynasty.teams entry — derive the name from the
+    // live entry so a user-renamed/teambuilder team shows its current name.
+    // Fall back to the static shortNameMap only when no live team is found.
+    const displayName = customEntry?.name
+      ? (stripMascotFromName(customEntry.name) || customEntry.name)
+      : getShortName(resolvedAbbr)
+
     // Team name should always link to the team page. When the parent
     // Matchup is itself a Link, we render via a button + programmatic
     // navigation (avoids nested anchors, which break HTML semantics and
@@ -742,7 +750,7 @@ export default function CFPBracket() {
         return <span className={nameClass} style={{ ...nameStyle, opacity: 0.8 }}>TBD</span>
       }
       if (linkTid == null) {
-        return <span className={nameClass} style={nameStyle}>{getShortName(resolvedAbbr)}</span>
+        return <span className={nameClass} style={nameStyle}>{displayName}</span>
       }
       const teamHref = `${pathPrefix}/team/${linkTid}/${displayYear}`
       if (isParentClickable) {
@@ -753,13 +761,13 @@ export default function CFPBracket() {
             className={`${nameClass} hover:underline text-left bg-transparent border-0 p-0 cursor-pointer max-w-full`}
             style={nameStyle}
           >
-            {getShortName(resolvedAbbr)}
+            {displayName}
           </button>
         )
       }
       return (
         <Link to={teamHref} onClick={(e) => e.stopPropagation()} className={`${nameClass} hover:underline max-w-full`} style={nameStyle}>
-          {getShortName(resolvedAbbr)}
+          {displayName}
         </Link>
       )
     }
@@ -1075,7 +1083,7 @@ export default function CFPBracket() {
   // Matchup component - two team slots stacked
   // Now uses Link to game page instead of onClick modal
   // slotId is the CFP slot ID (e.g., cfpfr1, cfpqf1, cfpsf1, cfpnc)
-  const Matchup = ({ team1, team2, seed1, seed2, style, round, bowl, gameData, slotId }) => {
+  const Matchup = ({ team1, team2, seed1, seed2, teamTid1, teamTid2, style, round, bowl, gameData, slotId }) => {
     // In edit mode the editable slots are drawn by a separate module-scope
     // <EditMatchup> overlay (stable identity keeps input focus), so the view
     // matchup renders nothing here.
@@ -1133,10 +1141,16 @@ export default function CFPBracket() {
 
     // Pass tid through when available so TeamSlot can resolve registry
     // data without depending on the (possibly stale) abbr string.
+    // When there's no gameData (projected / TBD matchups), tid1/tid2 are
+    // undefined — fall back to the tid passed alongside the seed/winner so
+    // TeamSlot resolves identity (name/logo/colors) from tid, not a fragile
+    // abbr scan. Behavior is identical when gameData supplies the tids.
+    const resolvedTid1 = tid1 != null ? tid1 : teamTid1
+    const resolvedTid2 = tid2 != null ? tid2 : teamTid2
     const matchupContent = (
       <>
-        <TeamSlot team={team1} teamTid={tid1} seed={seed1} score={score1} isWinner={winner === team1} isParentClickable={isClickable} />
-        <TeamSlot team={team2} teamTid={tid2} seed={seed2} score={score2} isWinner={winner === team2} isParentClickable={isClickable} />
+        <TeamSlot team={team1} teamTid={resolvedTid1} seed={seed1} score={score1} isWinner={winner === team1} isParentClickable={isClickable} />
+        <TeamSlot team={team2} teamTid={resolvedTid2} seed={seed2} score={score2} isWinner={winner === team2} isParentClickable={isClickable} />
       </>
     )
 
@@ -1574,10 +1588,10 @@ export default function CFPBracket() {
           <div className="relative" style={{ height: `${BRACKET_HEIGHT}px`, width: `${BRACKET_WIDTH}px` }}>
 
             {/* ===== FIRST ROUND ===== */}
-            <Matchup team1={s12} team2={s5} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} round="First Round" gameData={getFirstRoundGame(5, 12)} slotId="cfpfr1" />
-            <Matchup team1={s9} team2={s8} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} round="First Round" gameData={getFirstRoundGame(8, 9)} slotId="cfpfr2" />
-            <Matchup team1={s11} team2={s6} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} round="First Round" gameData={getFirstRoundGame(6, 11)} slotId="cfpfr3" />
-            <Matchup team1={s10} team2={s7} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} round="First Round" gameData={getFirstRoundGame(7, 10)} slotId="cfpfr4" />
+            <Matchup team1={s12} team2={s5} teamTid1={getTidBySeed(12)} teamTid2={getTidBySeed(5)} seed1={12} seed2={5} style={{ top: R1_M1, left: COL1 }} round="First Round" gameData={getFirstRoundGame(5, 12)} slotId="cfpfr1" />
+            <Matchup team1={s9} team2={s8} teamTid1={getTidBySeed(9)} teamTid2={getTidBySeed(8)} seed1={9} seed2={8} style={{ top: R1_M2, left: COL1 }} round="First Round" gameData={getFirstRoundGame(8, 9)} slotId="cfpfr2" />
+            <Matchup team1={s11} team2={s6} teamTid1={getTidBySeed(11)} teamTid2={getTidBySeed(6)} seed1={11} seed2={6} style={{ top: R1_M3, left: COL1 }} round="First Round" gameData={getFirstRoundGame(6, 11)} slotId="cfpfr3" />
+            <Matchup team1={s10} team2={s7} teamTid1={getTidBySeed(10)} teamTid2={getTidBySeed(7)} seed1={10} seed2={7} style={{ top: R1_M4, left: COL1 }} round="First Round" gameData={getFirstRoundGame(7, 10)} slotId="cfpfr4" />
 
             {/* First Round → QF connectors (bracket from 2 teams to 1 output) */}
             {/* R1_M1: 12 vs 5 → QF top slot */}
@@ -1606,13 +1620,13 @@ export default function CFPBracket() {
 
             {/* ===== QUARTERFINALS ===== */}
             {/* Position 1: #4 seed vs 5/12 winner */}
-            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(4)} gameData={getQFGameBySlot('cfpqf2')} slotId="cfpqf2" />
+            <Matchup team1={getFirstRoundWinner(5, 12)} team2={s4} teamTid1={getFirstRoundWinnerTid(5, 12)} teamTid2={getTidBySeed(4)} seed1={getWinnerSeed(5, 12)} seed2={4} style={{ top: QF_M1, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(4)} gameData={getQFGameBySlot('cfpqf2')} slotId="cfpqf2" />
             {/* Position 2: #1 seed vs 8/9 winner */}
-            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(1)} gameData={getQFGameBySlot('cfpqf1')} slotId="cfpqf1" />
+            <Matchup team1={getFirstRoundWinner(8, 9)} team2={s1} teamTid1={getFirstRoundWinnerTid(8, 9)} teamTid2={getTidBySeed(1)} seed1={getWinnerSeed(8, 9)} seed2={1} style={{ top: QF_M2, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(1)} gameData={getQFGameBySlot('cfpqf1')} slotId="cfpqf1" />
             {/* Position 3: #3 seed vs 6/11 winner */}
-            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(3)} gameData={getQFGameBySlot('cfpqf3')} slotId="cfpqf3" />
+            <Matchup team1={getFirstRoundWinner(6, 11)} team2={s3} teamTid1={getFirstRoundWinnerTid(6, 11)} teamTid2={getTidBySeed(3)} seed1={getWinnerSeed(6, 11)} seed2={3} style={{ top: QF_M3, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(3)} gameData={getQFGameBySlot('cfpqf3')} slotId="cfpqf3" />
             {/* Position 4: #2 seed vs 7/10 winner */}
-            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(2)} gameData={getQFGameBySlot('cfpqf4')} slotId="cfpqf4" />
+            <Matchup team1={getFirstRoundWinner(7, 10)} team2={s2} teamTid1={getFirstRoundWinnerTid(7, 10)} teamTid2={getTidBySeed(2)} seed1={getWinnerSeed(7, 10)} seed2={2} style={{ top: QF_M4, left: COL2 }} round="Quarterfinal" bowl={getQFBowlName(2)} gameData={getQFGameBySlot('cfpqf4')} slotId="cfpqf4" />
 
             {/* QF Bowl Logos - positioned on right side, centered between both
                 team slots. In edit mode each becomes a bowl-assignment dropdown
@@ -1660,6 +1674,8 @@ export default function CFPBracket() {
             <Matchup
               team1={getQFWinnerBySlot('cfpqf2')}
               team2={getQFWinnerBySlot('cfpqf1')}
+              teamTid1={getQFWinnerTidBySlot('cfpqf2')}
+              teamTid2={getQFWinnerTidBySlot('cfpqf1')}
               seed1={getSeedForWinner(getQFWinnerTidBySlot('cfpqf2'), getQFWinnerBySlot('cfpqf2'))}
               seed2={getSeedForWinner(getQFWinnerTidBySlot('cfpqf1'), getQFWinnerBySlot('cfpqf1'))}
               style={{ top: SF_M1, left: COL3 }}
@@ -1672,6 +1688,8 @@ export default function CFPBracket() {
             <Matchup
               team1={getQFWinnerBySlot('cfpqf3')}
               team2={getQFWinnerBySlot('cfpqf4')}
+              teamTid1={getQFWinnerTidBySlot('cfpqf3')}
+              teamTid2={getQFWinnerTidBySlot('cfpqf4')}
               seed1={getSeedForWinner(getQFWinnerTidBySlot('cfpqf3'), getQFWinnerBySlot('cfpqf3'))}
               seed2={getSeedForWinner(getQFWinnerTidBySlot('cfpqf4'), getQFWinnerBySlot('cfpqf4'))}
               style={{ top: SF_M2, left: COL3 }}
@@ -1715,6 +1733,8 @@ export default function CFPBracket() {
             <Matchup
               team1={getSFWinnerBySlot('cfpsf1')}
               team2={getSFWinnerBySlot('cfpsf2')}
+              teamTid1={getSFWinnerTidBySlot('cfpsf1')}
+              teamTid2={getSFWinnerTidBySlot('cfpsf2')}
               seed1={getSeedForWinner(getSFWinnerTidBySlot('cfpsf1'), getSFWinnerBySlot('cfpsf1'))}
               seed2={getSeedForWinner(getSFWinnerTidBySlot('cfpsf2'), getSFWinnerBySlot('cfpsf2'))}
               style={{ top: CHAMP, left: COL4 }}

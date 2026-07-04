@@ -7,7 +7,7 @@ import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
-import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getOriginalTeamAbbr, getColorsFromTid } from '../../data/teamRegistry'
+import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../../data/teams'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { PageHero, Card, Badge, Button, Select, EmptyState, TeamLogo } from '../../components/ui'
@@ -543,7 +543,11 @@ export default function Recruiting() {
             isPortal: true,
             isRecruit: true,
             recruitYear: selectedYear,
-            previousTeam: recruit.previousTeam || getOriginalTeamAbbr(previousTeamTid) || existingPlayer.previousTeam,
+            // Durable identity of the origin school is fromTid (written above);
+            // this string is back-compat only. Resolve it LIVE from the origin
+            // tid rather than snapshotting a static base abbr, so a later rename
+            // of that school doesn't leave a stale label. No static registry.
+            previousTeam: recruit.previousTeam || currentDynasty?.teams?.[previousTeamTid]?.abbr || existingPlayer.previousTeam,
             devTrait: recruit.devTrait ?? existingPlayer.devTrait,
             stars: recruit.stars ?? existingPlayer.stars,
             nationalRank: recruit.nationalRank ?? existingPlayer.nationalRank,
@@ -894,6 +898,9 @@ export default function Recruiting() {
                     stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
                     positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
                     previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+                    // Durable origin-school identity for portal transfers, so the
+                    // FROM-chip resolves the school's live logo/name off tid.
+                    previousTeamTid: currentPlayer.movementByYear?.[Number(year)]?.fromTid ?? currentPlayer.movementByYear?.[year]?.fromTid ?? null,
                     isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
                   }),
                   commitmentWeek: key, recruitYear: Number(year)
@@ -927,6 +934,7 @@ export default function Recruiting() {
                   stars: currentPlayer.stars, nationalRank: currentPlayer.nationalRank, stateRank: currentPlayer.stateRank,
                   positionRank: currentPlayer.positionRank, gemBust: currentPlayer.gemBust,
                   previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+                  previousTeamTid: currentPlayer.movementByYear?.[Number(year)]?.fromTid ?? currentPlayer.movementByYear?.[year]?.fromTid ?? null,
                   isPortal: currentPlayer.isPortal ?? commit.isPortal, pid: currentPlayer.pid
                 }),
                 commitmentWeek: key, recruitYear: Number(year)
@@ -961,6 +969,7 @@ export default function Recruiting() {
                 positionRank: currentPlayer.positionRank,
                 gemBust: currentPlayer.gemBust,
                 previousTeam: currentPlayer.previousTeam || commit.previousTeam,
+                previousTeamTid: currentPlayer.movementByYear?.[Number(selectedYear)]?.fromTid ?? currentPlayer.movementByYear?.[selectedYear]?.fromTid ?? null,
                 isPortal: currentPlayer.isPortal ?? commit.isPortal,
                 pid: currentPlayer.pid
               }),

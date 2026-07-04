@@ -13,7 +13,7 @@ import { getTeamConference } from '../data/conferenceTeams'
 import { getUserGamePerspective, getLockedCoachingStaff, getCustomConferencesForYear, getTeamRankForWeek } from '../context/DynastyContext'
 import { buildCFPProjection } from '../utils/cfpProjection'
 import { canonicalBoxScore, getPlayerStatsForTid, getTeamStatsForTid } from '../utils/boxScoreHelpers'
-import { collapsePatRowsIntoTDs } from '../utils/scoringPlayOrder'
+import { collapsePatRowsIntoTDs, resolveScoringTeamTids, buildScorerTidResolver } from '../utils/scoringPlayOrder'
 
 // ============================================
 // HELPER FUNCTIONS FOR DATA EXTRACTION
@@ -1100,7 +1100,9 @@ export function getPriorYearPostseason(allGames, teamAbbr, currentYear, dynasty 
     const isTeam1 = (teamTid && g.team1Tid === teamTid) || g.team1 === teamAbbr
     won = isTeam1 ? g.team1Score > g.team2Score : g.team2Score > g.team1Score
     const opponentTid = isTeam1 ? g.team2Tid : g.team1Tid
-    const opponentInfo = getGameTeamInfo(TEAMS, opponentTid)
+    // Prefer the live dynasty.teams slot (picks up teambuilder-renamed teams)
+    // over the static TEAMS table so the recap prompt uses the current abbr.
+    const opponentInfo = dynasty?.teams?.[opponentTid] || dynasty?.customTeams?.[opponentTid] || getGameTeamInfo(TEAMS, opponentTid)
     opponent = opponentInfo?.abbr || (isTeam1 ? g.team2 : g.team1) || opponentTid
     score = `${isTeam1 ? g.team1Score : g.team2Score}-${isTeam1 ? g.team2Score : g.team1Score}`
   } else if (g.team1 && g.team2) {
@@ -1113,7 +1115,7 @@ export function getPriorYearPostseason(allGames, teamAbbr, currentYear, dynasty 
     if (g.opponent) {
       opponent = g.opponent
     } else if (g.opponentTid) {
-      const oppInfo = getGameTeamInfo(TEAMS, g.opponentTid)
+      const oppInfo = dynasty?.teams?.[g.opponentTid] || dynasty?.customTeams?.[g.opponentTid] || getGameTeamInfo(TEAMS, g.opponentTid)
       opponent = oppInfo?.abbr || g.opponentTid
     }
     score = `${g.teamScore}-${g.opponentScore}`
@@ -3265,9 +3267,26 @@ export function buildGameRecapContext(dynasty, game) {
     }
   }
 
+  // Attribute each scoring play's team-string to one of the game's two tids,
+  // rooted in the user's file (team abbr per tid + scorers' tid-based roster),
+  // never the base registry. The SCORING SUMMARY running-score math consumes
+  // this so it can't pile the whole game onto one team when play.team is an
+  // abbr that doesn't match the file's abbr for that tid.
+  const scoringTeamTids = Object.fromEntries(
+    resolveScoringTeamTids(game.boxScore?.scoringSummary || [], {
+      team1Tid,
+      team2Tid,
+      teams,
+      getScorerTid: buildScorerTidResolver(players, year),
+    })
+  )
+
   return {
     // Game type flag
     isCPUGame,
+
+    // Map (UPPERCASED play.team string -> tid) for scoring attribution.
+    scoringTeamTids,
 
     // User team detection - helps AI focus on the user's perspective
     isUserGame: isCurrentGameUserGame,
@@ -4415,13 +4434,12 @@ SCORING SUMMARY (in chronological order)
     // current registry abbrs, then compare tids. Falls back to abbr
     // compare for legacy games where neither tid is available.
     const ctxT1U = ctx.team1?.toUpperCase()
-    const ctxT2U = ctx.team2?.toUpperCase()
     const isPlayTeam1 = (play) => {
+      // Attribution rooted in tid via ctx.scoringTeamTids (file-only). Falls
+      // back to abbr compare for legacy contexts without the resolved map.
       const u = play.team?.toUpperCase()
-      if (ctx.team1Tid != null && ctx.team2Tid != null && ctxT1U && ctxT2U) {
-        const tid = u === ctxT1U ? ctx.team1Tid : (u === ctxT2U ? ctx.team2Tid : null)
-        if (tid != null) return tid === ctx.team1Tid
-      }
+      const tid = ctx.scoringTeamTids?.[u]
+      if (tid != null && ctx.team1Tid != null) return Number(tid) === Number(ctx.team1Tid)
       return u === ctxT1U
     }
     let team1Running = 0
@@ -4568,9 +4586,11 @@ ${flowLines.join('\n')}`
     const ctxT2Upbp = ctx.team2?.toUpperCase()
     const playTeamLabel = (play) => {
       const u = play.team?.toUpperCase()
-      if (ctx.team1Tid != null && ctx.team2Tid != null && ctxT1Upbp && ctxT2Upbp) {
-        const tid = u === ctxT1Upbp ? ctx.team1Tid : (u === ctxT2Upbp ? ctx.team2Tid : null)
-        if (tid != null) return tid === ctx.team1Tid ? ctx.team1FullName : ctx.team2FullName
+      // Label by tid via ctx.scoringTeamTids (file-only), reading the display
+      // name from the resolved side. Falls back to abbr compare when unmapped.
+      const tid = ctx.scoringTeamTids?.[u]
+      if (tid != null && ctx.team1Tid != null) {
+        return Number(tid) === Number(ctx.team1Tid) ? ctx.team1FullName : ctx.team2FullName
       }
       return u === ctxT1Upbp ? ctx.team1FullName : (u === ctxT2Upbp ? ctx.team2FullName : (play.team || ''))
     }

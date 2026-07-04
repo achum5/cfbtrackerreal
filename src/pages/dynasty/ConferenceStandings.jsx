@@ -264,8 +264,32 @@ export default function ConferenceStandings() {
     const src = currentDynasty?.teams || currentDynasty?.customTeams || {}
     return new Set(Object.values(src).map(t => t?.abbr).filter(Boolean))
   }, [currentDynasty?.teams, currentDynasty?.customTeams])
+  // tid is the stable team identity — a user-edited abbr must not drop a
+  // team from its conference card or collide row keys. Membership is decided
+  // by tid via this live-tid set. The alignment maps (customConfsForYear /
+  // DEFAULT_CONFERENCE_TEAMS) are abbr-keyed, so each alignment abbr is
+  // resolved to a tid ONCE against the live teams and compared here; we keep
+  // the abbr path only when a tid can't be resolved (unknown team) so a
+  // genuinely-unknown alignment entry never silently disappears.
+  const liveTeamTids = useMemo(() => {
+    const src = currentDynasty?.teams || currentDynasty?.customTeams || {}
+    const set = new Set()
+    for (const [key, t] of Object.entries(src)) {
+      const tid = t?.tid != null ? Number(t.tid) : Number(key)
+      if (Number.isFinite(tid)) set.add(tid)
+    }
+    return set
+  }, [currentDynasty?.teams, currentDynasty?.customTeams])
+  const abbrIsLive = (abbr) => {
+    if (abbr == null) return false
+    const src = currentDynasty?.teams || currentDynasty?.customTeams || TEAMS
+    const tid = resolveTid(abbr, src)
+    if (tid != null) return liveTeamTids.has(Number(tid))
+    // tid unresolvable (unknown team) — keep the abbr path so nothing vanishes
+    return liveTeamAbbrs.has(abbr)
+  }
   const conferenceHasLiveTeams = (abbrs) =>
-    Array.isArray(abbrs) && abbrs.some(a => liveTeamAbbrs.has(a))
+    Array.isArray(abbrs) && abbrs.some(a => abbrIsLive(a))
 
   const orderIndex = (name) => {
     const i = CONFERENCE_ORDER.indexOf(name)
@@ -535,8 +559,15 @@ export default function ConferenceStandings() {
   const buildConferenceRoster = (conferenceName) => {
     // Only show teams that exist in the dynasty (source of truth), so removed
     // teams never appear even if saved standings / alignment still reference them.
+    // Membership by tid (stable identity). Saved rows carry tid on modern
+    // writes — prefer it; fall back to abbr membership only for legacy rows
+    // that predate tid stamping (or degenerate null-team rows).
     const saved = getConferenceData(yearStandings, conferenceName)
-      .filter(row => row?.team == null || liveTeamAbbrs.has(row.team))
+      .filter(row =>
+        row?.tid != null
+          ? liveTeamTids.has(Number(row.tid))
+          : (row?.team == null || abbrIsLive(row.team))
+      )
     if (saved.length > 0) return saved
 
     const confMap = customConfsForYear || DEFAULT_CONFERENCE_TEAMS
@@ -548,12 +579,24 @@ export default function ConferenceStandings() {
         break
       }
     }
-    return teamAbbrs
-      .filter(abbr => liveTeamAbbrs.has(abbr))
-      .map(abbr => {
-        const tid = resolveTid(abbr, teamsSource || TEAMS)
-        return { team: abbr, tid: tid != null ? Number(tid) : null, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }
-      })
+    // Resolve each alignment abbr to a tid ONCE and dedup by tid, so a
+    // renamed team (or two alignment abbrs collapsing to one tid) yields a
+    // single stub row. Unknown teams (tid unresolvable) keep the abbr path
+    // so they don't vanish.
+    const seenTids = new Set()
+    const rows = []
+    for (const abbr of teamAbbrs) {
+      const rawTid = resolveTid(abbr, teamsSource || TEAMS)
+      const liveTid = rawTid != null && liveTeamTids.has(Number(rawTid)) ? Number(rawTid) : null
+      if (liveTid != null) {
+        if (seenTids.has(liveTid)) continue
+        seenTids.add(liveTid)
+        rows.push({ team: abbr, tid: liveTid, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 })
+      } else if (liveTeamAbbrs.has(abbr)) {
+        rows.push({ team: abbr, tid: null, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 })
+      }
+    }
+    return rows
   }
 
   // Conference card component
@@ -727,7 +770,7 @@ export default function ConferenceStandings() {
                 : (a, b) => (a.rank || 0) - (b.rank || 0)
               return enriched.sort(sortFn).map((team, idx) => (
                 <TeamRow
-                  key={`${team.team}-${idx}`}
+                  key={team.tid ?? `${team.team}-${idx}`}
                   team={team}
                   rank={anyLive ? idx + 1 : (team.rank || idx + 1)}
                 />

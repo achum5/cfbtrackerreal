@@ -141,8 +141,12 @@ export default function BoxScoreSheetModal({
   // Resolve team abbreviations from game data
   // Try direct abbreviation fields first, then resolve from tids
   // Use explicit undefined checks to ensure we get strings, not undefined
-  const resolvedTeam1 = game?.team1 || (game?.team1Tid ? getOriginalTeamAbbr(game.team1Tid) : null) || ''
-  const resolvedTeam2 = game?.team2 || (game?.team2Tid ? getOriginalTeamAbbr(game.team2Tid) : null) || ''
+  // tid-first: resolve the live abbr from dynasty.teams[tid]; fall back to the
+  // stored string, then the static registry, only when no tid is in scope.
+  const resolvedTeam1 = (game?.team1Tid != null ? currentDynasty?.teams?.[game.team1Tid]?.abbr : null)
+    || game?.team1 || (game?.team1Tid ? getOriginalTeamAbbr(game.team1Tid) : null) || ''
+  const resolvedTeam2 = (game?.team2Tid != null ? currentDynasty?.teams?.[game.team2Tid]?.abbr : null)
+    || game?.team2 || (game?.team2Tid ? getOriginalTeamAbbr(game.team2Tid) : null) || ''
 
   // Determine teams based on game data
   // Use homeTeamTid as the source of truth for determining home/away

@@ -24,6 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return false
@@ -36,6 +37,10 @@ export default function AwardsModal({ isOpen, onClose, onSave, currentYear, team
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const modalColors = useMemo(() => getModalColors(teamColors), [teamColors])
+  // Team-name options for the local grid's Team column combobox, sourced from
+  // the user's own dynasty.teams (tid-rooted, same as the All-American /
+  // All-Conference inputs) so picks always match a team in their file.
+  const teamAbbrs = useMemo(() => getTeamNameOptions(currentDynasty?.teams, { includeFCS: false }), [currentDynasty?.teams])
   const [syncing, setSyncing] = useState(false)
   const [deletingSheet, setDeletingSheet] = useState(false)
   const [creatingSheet, setCreatingSheet] = useState(false)
@@ -417,6 +422,9 @@ FINAL CHECK before you send
             importLabel="Import Awards"
             rowLabels={AWARDS_LIST}
             rowLabelHeader="Award"
+            columns={['Player', 'Position', 'Team', 'Class']}
+            comboboxColumns={{ Team: teamAbbrs }}
+            comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
           />
         ) : isLoading ? (
           <div className="flex-1 flex items-center justify-center">

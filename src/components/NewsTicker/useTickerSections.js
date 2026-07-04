@@ -81,8 +81,12 @@ export function useTickerSections(dynasty) {
       .filter(g => {
         if (!g) return false
         const info = getGameInfo(g)
-        // Check if this game is for the current team, has a result, and has been played
-        return info?.userTeamAbbr === teamAbbr && g.perspective && isGamePlayed(g)
+        // Check if this game is for the current team, has a result, and has been played.
+        // Prefer tid equality (drift-safe) and fall back to abbr only when a tid is absent.
+        const isCurrentTeam = (g.perspective?.userTid != null && currentTeamTid != null)
+          ? Number(g.perspective.userTid) === Number(currentTeamTid)
+          : info?.userTeamAbbr === teamAbbr
+        return isCurrentTeam && g.perspective && isGamePlayed(g)
       })
       .sort((a, b) => Number(b.year) - Number(a.year))
 
@@ -146,7 +150,7 @@ export function useTickerSections(dynasty) {
       sections.push({
         type: 'season',
         label: `${displayYear} SEASON`,
-        teamLogo: teamAbbr,
+        teamLogo: currentTeamTid || teamAbbr,
         teamRecord: record,
         items
       })
@@ -162,7 +166,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'upcoming',
           label: `WEEK ${dynasty.currentWeek}`,
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           teamRecord: record,
           items: [{ id: 'bye', label: 'BYE', labelColor: '#9ca3af', text: 'No game this week' }]
         })
@@ -180,9 +184,9 @@ export function useTickerSections(dynasty) {
           sections.push({
             type: 'upcoming',
             label: `WEEK ${dynasty.currentWeek}`,
-            teamLogo: teamAbbr,
+            teamLogo: currentTeamTid || teamAbbr,
             teamRecord: record,
-            opponentLogo: oppAbbr,
+            opponentLogo: upcoming.opponentTid || oppAbbr,
             items: [{ id: 'next', label: 'NEXT', labelColor: '#fcd34d', text: `${loc} ${oppAbbr}` }]
           })
         }
@@ -198,7 +202,7 @@ export function useTickerSections(dynasty) {
         const isWin = info?.isWin ?? (g.result === 'win')
         return {
           id: `g${i}`,
-          team: opp,
+          team: g.perspective?.opponentTid || opp,
           label: loc,
           text: formatScoreHighLow(info?.userScore ?? g.teamScore, info?.opponentScore ?? g.opponentScore),
           trailing: isWin ? 'W' : 'L',
@@ -209,7 +213,7 @@ export function useTickerSections(dynasty) {
       sections.push({
         type: 'games',
         label: 'GAME LOG',
-        teamLogo: teamAbbr,
+        teamLogo: currentTeamTid || teamAbbr,
         teamRecord: record,
         items
       })
@@ -229,7 +233,8 @@ export function useTickerSections(dynasty) {
       const opp = info?.opponentAbbr || getTeamAbbr(game.opponent, teams)
       const isWin = info?.isWin ?? (game.result === 'win')
       const loc = info?.location || game.location
-      const ownTid = ownTeamAbbr ? getTidFromAbbr(ownTeamAbbr, teams) : null
+      // Prefer the perspective's live userTid; only round-trip the abbr when absent (legacy).
+      const ownTid = game.perspective?.userTid ?? (ownTeamAbbr ? getTidFromAbbr(ownTeamAbbr, teams) : null)
       const stats = ownTid != null ? getPlayerStatsForTid(game, ownTid, teams) : null
 
       const hasStats = (stats?.passing?.length > 0)
@@ -316,8 +321,8 @@ export function useTickerSections(dynasty) {
       return {
         type: 'gamerecap',
         label: `WK ${game.week || '?'}`,
-        teamLogo: ownTeamAbbr,
-        opponentLogo: opp,
+        teamLogo: ownTid || ownTeamAbbr,
+        opponentLogo: game.perspective?.opponentTid || opp,
         items
       }
     }
@@ -430,7 +435,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'leaders',
           label: `${displayYear} LEADERS`,
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           teamRecord: record,
           items
         })
@@ -488,7 +493,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'milestones',
           label: 'MILESTONE WATCH',
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           teamRecord: record,
           items: milestoneItems
         })
@@ -571,7 +576,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'hotstreaks',
           label: 'ON FIRE',
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           teamRecord: record,
           items: hotStreakItems.slice(0, 5) // Limit to top 5 streaks
         })
@@ -595,7 +600,9 @@ export function useTickerSections(dynasty) {
         .filter(g => {
           if (!g || !isSameWeek(g.week, currentWeekNum)) return false
           const info = getGameInfo(g)
-          return info?.userTeamAbbr === teamAbbr
+          return (g.perspective?.userTid != null && currentTeamTid != null)
+            ? Number(g.perspective.userTid) === Number(currentTeamTid)
+            : info?.userTeamAbbr === teamAbbr
         })
         .sort((a, b) => Number(b.year) - Number(a.year))
         .slice(0, 5)
@@ -610,7 +617,7 @@ export function useTickerSections(dynasty) {
 
         historyItems.push({
           id: `hist${i}`,
-          team: oppAbbr,
+          team: g.perspective?.opponentTid || oppAbbr,
           label: `'${String(g.year).slice(-2)}`,
           labelColor: isWin ? '#22c55e' : '#ef4444',
           text: `${isWin ? 'W' : 'L'} ${loc} ${userScore}-${oppScore}`,
@@ -622,7 +629,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'history',
           label: `WEEK ${currentWeekNum} HISTORY`,
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           items: historyItems
         })
       }
@@ -665,7 +672,7 @@ export function useTickerSections(dynasty) {
           const isWin = info?.isWin ?? (g.result === 'win')
           return {
             id: `g${i}`,
-            team: opp,
+            team: g.perspective?.opponentTid || opp,
             label: loc,
             text: formatScoreHighLow(info?.userScore ?? g.teamScore, info?.opponentScore ?? g.opponentScore),
             trailing: isWin ? 'W' : 'L',
@@ -677,7 +684,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'pastseason',
           label: `${pastYear} SEASON`,
-          teamLogo: pastTeamAbbr,
+          teamLogo: pastTid || pastTeamAbbr,
           teamRecord: `${wins}-${losses}`,
           headerLink: `/team/${pastTid}/${pastYear}`,
           items
@@ -773,7 +780,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'achievements',
           label: 'DYNASTY',
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           items: achievementItems
         })
       }
@@ -824,14 +831,14 @@ export function useTickerSections(dynasty) {
         const info = getGameInfo(g)
         const userScore = Number(info?.userScore) || 0
         if (userScore > highScore.score) {
-          highScore = { score: userScore, game: g, oppAbbr: info?.opponentAbbr }
+          highScore = { score: userScore, game: g, oppAbbr: info?.opponentAbbr, oppTid: g.perspective?.opponentTid }
         }
       })
 
       if (highScore.score >= 35) {
         recordItems.push({
           id: 'highscore',
-          team: highScore.oppAbbr,
+          team: highScore.oppTid || highScore.oppAbbr,
           label: 'HIGH SCORE',
           text: `${highScore.score} pts`,
           link: highScore.game?.id ? `/game/${highScore.game.id}` : null
@@ -847,14 +854,14 @@ export function useTickerSections(dynasty) {
         const oppScore = Number(info?.opponentScore) || 0
         const margin = userScore - oppScore
         if (margin > biggestBlowout.margin) {
-          biggestBlowout = { margin, game: g, oppAbbr: info?.opponentAbbr, userScore, oppScore }
+          biggestBlowout = { margin, game: g, oppAbbr: info?.opponentAbbr, oppTid: g.perspective?.opponentTid, userScore, oppScore }
         }
       })
 
       if (biggestBlowout.margin >= 21) {
         recordItems.push({
           id: 'blowout',
-          team: biggestBlowout.oppAbbr,
+          team: biggestBlowout.oppTid || biggestBlowout.oppAbbr,
           label: 'BLOWOUT',
           text: `${biggestBlowout.userScore}-${biggestBlowout.oppScore}`,
           link: biggestBlowout.game?.id ? `/game/${biggestBlowout.game.id}` : null
@@ -907,7 +914,7 @@ export function useTickerSections(dynasty) {
         sections.push({
           type: 'records',
           label: 'ALL-TIME',
-          teamLogo: teamAbbr,
+          teamLogo: currentTeamTid || teamAbbr,
           items: recordItems
         })
       }
@@ -926,7 +933,9 @@ export function useTickerSections(dynasty) {
       .filter(g => {
         if (!g) return false
         const info = getGameInfo(g)
-        return info?.userTeamAbbr === teamAbbr
+        return (g.perspective?.userTid != null && currentTeamTid != null)
+          ? Number(g.perspective.userTid) === Number(currentTeamTid)
+          : info?.userTeamAbbr === teamAbbr
       })
       .sort((a, b) => Number(b.year) - Number(a.year))
       .slice(0, 8)
@@ -949,17 +958,20 @@ export function useTickerSections(dynasty) {
         const oppAbbr = info?.opponentAbbr || getTeamAbbr(g.opponent, teams)
         const isWin = info?.isWin ?? (g.result === 'win')
         const loc = info?.location || g.location
+        const userTid = g.perspective?.userTid
+        const oppTid = g.perspective?.opponentTid
 
-        // Determine team order based on location
+        // Determine team order based on location. Prefer tids (drift-safe) for
+        // logo + winner equality, falling back to the abbr when a tid is absent.
         let t1, t2, s1, s2
         if (loc === 'away') {
-          t1 = oppAbbr
-          t2 = userTeamAbbr
+          t1 = oppTid || oppAbbr
+          t2 = userTid || userTeamAbbr
           s1 = info?.opponentScore ?? g.opponentScore
           s2 = info?.userScore ?? g.teamScore
         } else {
-          t1 = userTeamAbbr
-          t2 = oppAbbr
+          t1 = userTid || userTeamAbbr
+          t2 = oppTid || oppAbbr
           s1 = info?.userScore ?? g.teamScore
           s2 = info?.opponentScore ?? g.opponentScore
         }
@@ -971,7 +983,7 @@ export function useTickerSections(dynasty) {
           team2: t2,
           score1: s1,
           score2: s2,
-          winner: isWin ? userTeamAbbr : oppAbbr,
+          winner: isWin ? (userTid || userTeamAbbr) : (oppTid || oppAbbr),
           link: g.id ? `/game/${g.id}` : null
         }
       })
@@ -979,7 +991,7 @@ export function useTickerSections(dynasty) {
       sections.push({
         type: 'postseason',
         label: `POSTSEASON (${psWins}-${psLosses})`,
-        teamLogo: teamAbbr,
+        teamLogo: currentTeamTid || teamAbbr,
         headerLink: '/bowl-history',
         items
       })
@@ -1016,9 +1028,11 @@ export function useTickerSections(dynasty) {
       return s1 > s2 ? game.team1 : game.team2
     }
 
-    // Helper to get teams and scores from a CFP game (handles user, CPU, and unified format)
+    // Helper to get teams and scores from a CFP game (handles user, CPU, and unified format).
+    // Returns tid-preferring team identifiers so the renderer resolves live logos and
+    // the winner-bold comparison stays tid-vs-tid; abbr is used only where no tid exists.
     const normalizeCfpGame = (g) => {
-      let t1, t2, s1, s2
+      let t1, t2, s1, s2, t1Tid = null, t2Tid = null, winnerTid = null
 
       // Check for unified format with tids
       if (g.team1Tid && g.team2Tid) {
@@ -1026,33 +1040,50 @@ export function useTickerSections(dynasty) {
         const t2Info = getGameTeamInfo(teams, g.team2Tid)
         t1 = t1Info?.abbr || g.team1
         t2 = t2Info?.abbr || g.team2
+        t1Tid = g.team1Tid
+        t2Tid = g.team2Tid
         s1 = g.team1Score
         s2 = g.team2Score
+        winnerTid = Number(s1) === Number(s2) ? null : (Number(s1) > Number(s2) ? g.team1Tid : g.team2Tid)
       } else if (g.opponent) {
         // User game with opponent format
         const info = getGameInfo(g)
         const userTeamAbbr = info?.userTeamAbbr || g.userTeam
         const oppAbbr = info?.opponentAbbr || getTeamAbbr(g.opponent, teams)
+        const userTid = g.perspective?.userTid
+        const oppTid = g.perspective?.opponentTid
         const loc = info?.location || g.location
         if (loc === 'away') {
           t1 = oppAbbr
           t2 = userTeamAbbr
+          t1Tid = oppTid || null
+          t2Tid = userTid || null
           s1 = info?.opponentScore ?? g.opponentScore
           s2 = info?.userScore ?? g.teamScore
         } else {
           t1 = userTeamAbbr
           t2 = oppAbbr
+          t1Tid = userTid || null
+          t2Tid = oppTid || null
           s1 = info?.userScore ?? g.teamScore
           s2 = info?.opponentScore ?? g.opponentScore
         }
+        const isWin = info?.isWin ?? (g.result === 'win')
+        winnerTid = isWin ? (userTid || null) : (oppTid || null)
       } else {
-        // CPU game
+        // CPU-vs-CPU legacy game — no tids, keep stored abbr snapshots
         t1 = g.team1
         t2 = g.team2
         s1 = g.team1Score
         s2 = g.team2Score
       }
-      return { t1, t2, s1, s2, winner: getCfpWinner(g) }
+      return {
+        t1: t1Tid || t1,
+        t2: t2Tid || t2,
+        s1,
+        s2,
+        winner: winnerTid || getCfpWinner(g)
+      }
     }
 
     const cfpRoundLabel = (gameType) => {
@@ -1122,40 +1153,45 @@ export function useTickerSections(dynasty) {
 
       if (yearBowls.length > 0) {
         const items = yearBowls.map((g, i) => {
-          // Determine team1, team2, and winner
+          // Determine team1, team2, and winner. Prefer tids (drift-safe) for logo
+          // + winner equality; abbr fallback only where no tid exists (CPU legacy).
           let t1, t2, s1, s2, winner
 
           // Check for unified format first
           if (g.team1Tid && g.team2Tid) {
             const t1Info = getGameTeamInfo(teams, g.team1Tid)
             const t2Info = getGameTeamInfo(teams, g.team2Tid)
-            t1 = t1Info?.abbr || g.team1
-            t2 = t2Info?.abbr || g.team2
+            t1 = g.team1Tid
+            t2 = g.team2Tid
             s1 = g.team1Score
             s2 = g.team2Score
-            winner = g.winner || (Number(s1) > Number(s2) ? t1 : t2)
+            winner = Number(s1) === Number(s2)
+              ? (g.winner || t1Info?.abbr || g.team1)
+              : (Number(s1) > Number(s2) ? t1 : t2)
           } else if (g.opponent) {
             // User game with perspective
             const perspective = getUserGamePerspective(g, dynasty)
             const info = perspective ? getGameInfo({ ...g, perspective }) : null
             const userTeamAbbr = info?.userTeamAbbr || g.userTeam
             const oppAbbr = info?.opponentAbbr || getTeamAbbr(g.opponent, teams)
+            const userTid = perspective?.userTid
+            const oppTid = perspective?.opponentTid
             const loc = info?.location || g.location
             if (loc === 'away') {
-              t1 = oppAbbr
-              t2 = userTeamAbbr
+              t1 = oppTid || oppAbbr
+              t2 = userTid || userTeamAbbr
               s1 = info?.opponentScore ?? g.opponentScore
               s2 = info?.userScore ?? g.teamScore
             } else {
-              t1 = userTeamAbbr
-              t2 = oppAbbr
+              t1 = userTid || userTeamAbbr
+              t2 = oppTid || oppAbbr
               s1 = info?.userScore ?? g.teamScore
               s2 = info?.opponentScore ?? g.opponentScore
             }
             const isWin = info?.isWin ?? (g.result === 'win')
-            winner = isWin ? userTeamAbbr : oppAbbr
+            winner = isWin ? (userTid || userTeamAbbr) : (oppTid || oppAbbr)
           } else {
-            // CPU vs CPU game
+            // CPU vs CPU legacy game — no tids, keep stored abbr snapshots
             t1 = g.team1
             t2 = g.team2
             s1 = g.team1Score
@@ -1296,9 +1332,12 @@ export function useTickerSections(dynasty) {
       allUserGames.forEach(g => {
         const info = getGameInfo(g)
         const userTeamAbbr = info?.userTeamAbbr || g.userTeam
-        const key = `${g.year}-${userTeamAbbr}`
+        // Key + store the team by tid (drift-safe) so a mid-dynasty rename
+        // groups correctly and the logo/link resolve live; fall back to abbr.
+        const teamKey = g.perspective?.userTid ?? userTeamAbbr
+        const key = `${g.year}-${teamKey}`
         if (!seasonMap[key]) {
-          seasonMap[key] = { year: g.year, team: userTeamAbbr, wins: 0, losses: 0 }
+          seasonMap[key] = { year: g.year, team: teamKey, wins: 0, losses: 0 }
         }
         if (g.perspective?.userWon === true) seasonMap[key].wins++
         else if (g.perspective?.userWon === false) seasonMap[key].losses++

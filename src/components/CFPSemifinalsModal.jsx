@@ -121,7 +121,7 @@ export default function CFPSemifinalsModal({ isOpen, onClose, onSave, currentYea
     if (!teamData) return null
 
     const abbr = teamData.abbr
-    const mascotName = mascotMap[abbr] || teamData.name
+    const mascotName = teamData.name || mascotMap[abbr]
     const logo = teamData.logo || (mascotName ? getTeamLogo(mascotName, teams) : null)
 
     // Extract just the school name (remove mascot suffix). Delegates

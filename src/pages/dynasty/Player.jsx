@@ -19,7 +19,6 @@ import { useTeamColors } from '../../hooks/useTeamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { isOpenTarget } from '../../utils/recruitingTargets'
 import { getTeamLogo, getTeamLogoByTid, getMascotName as getMascotNameFromTeams, getSchoolName as getSchoolNameFromTeams, stripMascotFromName } from '../../data/teams'
-import { teamAbbreviations } from '../../data/teamAbbreviations'
 import { TEAMS, resolveTid, getCurrentTeamAbbr, getAbbrFromTeamName, getOriginalTeamAbbr, getTidFromAbbr, getColorsFromTid, getGameTeamInfo } from '../../data/teamRegistry'
 import { sideOfPosition } from '../../utils/outlookBoard'
 import { displayGroups, displayLabel } from '../../utils/recruitAttributes'
@@ -30,7 +29,7 @@ import ScoringHighlightsModal from '../../components/ScoringHighlightsModal'
 import InlineScoringHighlights from '../../components/InlineScoringHighlights'
 import { getPlayerGameLog } from '../../utils/boxScoreAggregator'
 import { canonicalBoxScore } from '../../utils/boxScoreHelpers'
-import { sortPlaysChronologically } from '../../utils/scoringPlayOrder'
+import { sortPlaysChronologically, resolveScoringTeamTids, buildScorerTidResolver } from '../../utils/scoringPlayOrder'
 import { healPlayer, PLAYER_HEAL_VERSION, normalizeAwardName } from '../../utils/playerHeal'
 import { buildTimelineEvents, eventsForYear, labelForEventKind } from '../../utils/playerTimeline'
 import { computeSeasonAV } from '../../utils/approximateValue'
@@ -986,16 +985,16 @@ function PlayerInner() {
           ? getTeamLogoByTid(game.opponentTid, dynasty.teams)
           : null
 
-        // Resolve a play's team-string to a tid via the game's two teams.
-        // Returns null for legacy games missing tids or for plays whose
-        // abbr matches neither side (abbr drift / bad data).
-        const resolvePlayTid = (playTeamStr) => {
-          const u = playTeamStr?.toUpperCase()
-          if (!u) return null
-          if (t1Abbr && u === t1Abbr) return t1Tid
-          if (t2Abbr && u === t2Abbr) return t2Tid
-          return null
-        }
+        // Attribute each play to one of the game's two tids, rooted in the
+        // user's file (team abbr per tid + scorers' tid-based roster), never
+        // the base registry. Returns undefined for plays we can't place.
+        const teamTidMap = resolveScoringTeamTids(scoringSummary, {
+          team1Tid: t1Tid,
+          team2Tid: t2Tid,
+          teams: dynasty.teams,
+          getScorerTid: buildScorerTidResolver(dynasty.players, game.year),
+        })
+        const resolvePlayTid = (playTeamStr) => teamTidMap.get(playTeamStr?.toUpperCase())
 
         let playerTeamScore = 0
         let opponentScore = 0
@@ -5443,10 +5442,10 @@ function PlayerInner() {
               return 0
             }
 
-            // Tid-based "is this play from the player's team?" — same
-            // pattern as allPlayerScoringPlays (above) and the per-game
-            // path. Falls back to abbr compare for legacy games without
-            // team1Tid/team2Tid.
+            // Tid-based "is this play from the player's team?" — attribute
+            // each play to one of the game's two tids from the user's file
+            // (team abbr per tid + scorers' tid-based roster), never the base
+            // registry. Falls back to abbr compare for legacy no-tid games.
             const inT1Tid = game.team1Tid != null ? Number(game.team1Tid) : null
             const inT2Tid = game.team2Tid != null ? Number(game.team2Tid) : null
             const inT1Abbr = inT1Tid != null ? dynasty.teams?.[inT1Tid]?.abbr?.toUpperCase() : null
@@ -5459,6 +5458,12 @@ function PlayerInner() {
               inPlayerTid != null && inPlayerTid === inT2Tid ? inT2Abbr :
               (dynasty.teams?.[inPlayerTid]?.abbr || getCurrentTeamAbbr(dynasty))?.toUpperCase()
             )
+            const inTeamTidMap = resolveScoringTeamTids(scoringSummary, {
+              team1Tid: inT1Tid,
+              team2Tid: inT2Tid,
+              teams: dynasty.teams,
+              getScorerTid: buildScorerTidResolver(dynasty.players, game.year),
+            })
 
             // Calculate running scores for all plays
             let playerTeamScore = 0
@@ -5467,9 +5472,9 @@ function PlayerInner() {
               const points = getPlayPoints(play)
               const playU = play.team?.toUpperCase()
               let isPlayerTeam
-              if (inT1Tid != null && inT2Tid != null && inPlayerTid != null && inT1Abbr && inT2Abbr) {
-                const playTid = playU === inT1Abbr ? inT1Tid : (playU === inT2Abbr ? inT2Tid : null)
-                isPlayerTeam = playTid != null ? playTid === inPlayerTid : (playU === inPlayerAbbr)
+              const playSideTid = inTeamTidMap.get(playU)
+              if (playSideTid != null && inPlayerTid != null) {
+                isPlayerTeam = playSideTid === inPlayerTid
               } else {
                 isPlayerTeam = playU === inPlayerAbbr
               }
@@ -5656,13 +5661,16 @@ function PlayerInner() {
                           ? getTeamLogoByTid(gamePlayerTeamTid, dynasty.teams)
                           : null
 
-                        const resolveGamePlayTid = (playTeamStr) => {
-                          const u = playTeamStr?.toUpperCase()
-                          if (!u) return null
-                          if (gT1Abbr && u === gT1Abbr) return gT1Tid
-                          if (gT2Abbr && u === gT2Abbr) return gT2Tid
-                          return null
-                        }
+                        // Attribute each play to one of the game's two tids
+                        // from the user's file (team abbr per tid + scorers'
+                        // tid-based roster), never the base registry.
+                        const gTeamTidMap = resolveScoringTeamTids(scoringSummary, {
+                          team1Tid: gT1Tid,
+                          team2Tid: gT2Tid,
+                          teams: dynasty.teams,
+                          getScorerTid: buildScorerTidResolver(dynasty.players, game.year),
+                        })
+                        const resolveGamePlayTid = (playTeamStr) => gTeamTidMap.get(playTeamStr?.toUpperCase())
 
                         let playerTeamScore = 0
                         let opponentScore = 0
@@ -6083,7 +6091,7 @@ function PlayerInner() {
           }}
           scoringPlays={selectedGameScoringPlays.plays}
           team1Abbr={dynasty.teams?.[player.teamsByYear?.[currentYear]]?.abbr || getCurrentTeamAbbr(dynasty)}
-          team2Abbr={selectedGameScoringPlays.opponent === 'All Games' ? null : selectedGameScoringPlays.opponent}
+          team2Abbr={selectedGameScoringPlays.opponent === 'All Games' ? null : (dynasty.teams?.[selectedGameScoringPlays.game?.opponentTid]?.abbr || selectedGameScoringPlays.opponent)}
           team1Tid={player.teamsByYear?.[currentYear] != null ? Number(player.teamsByYear[currentYear]) : null}
           team2Tid={selectedGameScoringPlays.game?.opponentTid != null ? Number(selectedGameScoringPlays.game.opponentTid) : null}
           team1Logo={getTeamLogoByTid(player.teamsByYear?.[currentYear], dynasty.teams)}
