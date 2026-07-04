@@ -7,7 +7,7 @@ import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
 import RecruitingCommitmentsModal from '../../components/RecruitingCommitmentsModal'
 import RecruitingClassRankModal from '../../components/RecruitingClassRankModal'
-import { TEAMS, resolveTid, getCurrentTeamAbbr, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
+import { TEAMS, resolveTid, getCurrentTeamAbbr, getCurrentTeamTid, getTidFromAbbr, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamLogoByTid, stripMascotFromName } from '../../data/teams'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { PageHero, Card, Badge, Button, Select, EmptyState, TeamLogo } from '../../components/ui'
@@ -117,7 +117,14 @@ export default function Recruiting() {
   // Targets are a "my team" planning tool — they only belong to the user's own
   // team, so they're scoped to it (never shown on another team's class).
   const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty) || currentDynasty?.teamName
-  const currentTeamTid = resolveTid(currentTeamAbbr, TEAMS)
+  // Resolve the user's team by TID (the source of truth), not by round-tripping
+  // the abbr through the STATIC registry. getCurrentTeamTid reads
+  // userId/currentTid against dynasty.teams, so it matches the URL's selectedTid
+  // (also a dynasty tid) even for teambuilder teams. The old abbr→static-TEAMS
+  // path resolved to a DIFFERENT tid for teambuilder/renamed teams, making the
+  // user's OWN recruiting page read as "another team's class."
+  const currentTeamTid = getCurrentTeamTid(currentDynasty)
+    ?? resolveTid(currentTeamAbbr, currentDynasty?.teams || TEAMS)
   const selectedTid = tidParam ? parseInt(tidParam, 10) : currentTeamTid
   const isOwnTeam = Number(selectedTid) === Number(currentTeamTid)
 
