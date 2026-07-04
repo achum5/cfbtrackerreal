@@ -1803,7 +1803,9 @@ export default function TeamYear() {
   const allPlayers = currentDynasty.players || []
 
   const teamPlayers = allPlayers.filter(p =>
-    isPlayerOnRoster(p, tid, selectedYear)
+    // Pass currentDynasty so teambuilder-renamed teams and legacy abbr-string
+    // teamsByYear resolve correctly — without it this roster renders empty.
+    isPlayerOnRoster(p, tid, selectedYear, currentDynasty)
   )
 
   // Placeholder images: imported rosters often set every player's pictureUrl to

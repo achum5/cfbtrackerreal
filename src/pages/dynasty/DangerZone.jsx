@@ -178,6 +178,7 @@ export default function DangerZone() {
 
   // Class data fix state
   const [transferYearFixStatus, setTransferYearFixStatus] = useState(null)
+  const [rebuildCarryoverStatus, setRebuildCarryoverStatus] = useState(null)
   const [clearRosterStatus, setClearRosterStatus] = useState(null)
   const [ncaa11Status, setNcaa11Status] = useState(null)
   const [playAsIdaho, setPlayAsIdaho] = useState(false)
@@ -649,6 +650,103 @@ export default function DangerZone() {
       setTransferYearFixStatus({ success: true, message: `Backfilled ${fixedYears} year(s) across ${fixedPlayers} player(s).` })
     } catch (error) {
       setTransferYearFixStatus({ success: false, message: 'Fix failed: ' + error.message })
+    }
+  }
+
+  // Rebuild missing season-to-season roster carryover. When a year flip didn't
+  // write teamsByYear[Y] for returning players (skipped/interrupted advance,
+  // the old memberTeamOf mis-route, or a migration that trimmed a year), that
+  // season's roster shows empty. This re-derives the gap: for every member-
+  // controlled team, whenever a player was on that team in year Y-1, hasn't
+  // graduated, and hasn't departed-without-returning by Y-1, it fills
+  // teamsByYear[Y] with the same team and ages the class. Conservative — it
+  // only ADDS missing years (never overwrites), respects departures/graduation
+  // so it can't resurrect players who truly left, and skips recruits.
+  const handleRebuildCarryover = async () => {
+    setRebuildCarryoverStatus('running')
+    try {
+      const CLASS_PROGRESSION = {
+        'HS': 'Fr', 'JUCO Fr': 'Fr', 'JUCO So': 'So', 'JUCO Jr': 'Jr', 'JUCO Sr': 'Sr',
+        'Fr': 'So', 'RS Fr': 'RS So', 'So': 'Jr', 'RS So': 'RS Jr', 'Jr': 'Sr', 'RS Jr': 'RS Sr',
+      }
+      const TERMINAL_CLASS = new Set(['Sr', 'RS Sr'])
+      const currentYear = Number(currentDynasty.currentYear)
+      const startYear = Number(currentDynasty.startYear) || (currentYear - 30)
+
+      // Member-controlled tids (own team + every member's teams).
+      const memberTids = new Set()
+      const ownTid = currentDynasty.currentTid ?? getUserTeamTid(currentDynasty)
+      if (ownTid != null) { const n = Number(ownTid); if (Number.isFinite(n)) memberTids.add(n) }
+      for (const tids of Object.values(currentDynasty.memberTeams || {})) {
+        for (const t of (Array.isArray(tids) ? tids : [])) {
+          const n = Number(t); if (Number.isFinite(n)) memberTids.add(n)
+        }
+      }
+      if (memberTids.size === 0) {
+        setRebuildCarryoverStatus({ success: false, message: 'No member-controlled team found — cannot rebuild.' })
+        return
+      }
+
+      const num = (m, y) => (m?.[y] ?? m?.[String(y)])
+      const toTid = (v) => v == null ? null : (typeof v === 'number' ? v : getTidFromAbbr(v, currentDynasty))
+
+      // Did the player depart this team on/before `throughYear` and NOT return?
+      // Reads both v2 movementByYear and legacy movements[]. A later arrival /
+      // recommit, or a surviving teamsByYear year back on this team, counts as
+      // a return.
+      const DEP_TYPES = new Set(['departure', 'entered_portal', 'transferred_out', 'graduated', 'declared_for_draft', 'encouraged_to_transfer'])
+      const ARR_TYPES = new Set(['arrival', 'recommit', 'recommitted', 'recruited', 'transfer', 'portal_in', 'added'])
+      const departedBy = (player, homeTid, throughYear) => {
+        const entries = []
+        for (const [y, m] of Object.entries(player.movementByYear || {})) entries.push([Number(y), m])
+        for (const m of (Array.isArray(player.movements) ? player.movements : [])) entries.push([Number(m?.year), m])
+        let earliestDep = null
+        for (const [y, m] of entries) {
+          if (!Number.isFinite(y) || y > throughYear) continue
+          if (m?.type && DEP_TYPES.has(m.type)) { if (earliestDep == null || y < earliestDep) earliestDep = y }
+        }
+        if (earliestDep == null) return false
+        const returnedViaMovement = entries.some(([y, m]) =>
+          Number.isFinite(y) && y > earliestDep && m?.type && ARR_TYPES.has(m.type)
+        )
+        const returnedViaTby = Object.entries(player.teamsByYear || {}).some(([yStr, v]) => {
+          const y = Number(yStr)
+          return Number.isFinite(y) && y > earliestDep && toTid(v) === homeTid
+        })
+        return !(returnedViaMovement || returnedViaTby)
+      }
+
+      let filledPlayers = 0, filledYears = 0
+      const updated = (currentDynasty.players || []).map(player => {
+        if (player.isHonorOnly || player.isRecruit) return player
+        const tby = { ...(player.teamsByYear || {}) }
+        const cls = { ...(player.classByYear || {}) }
+        let changed = false
+        for (let y = startYear + 1; y <= currentYear; y++) {
+          if (num(tby, y) != null) continue
+          const prevTid = toTid(num(tby, y - 1))
+          if (prevTid == null || !memberTids.has(prevTid)) continue
+          if (departedBy(player, prevTid, y - 1)) continue
+          const priorClass = getPlayerClassForYear(player, y - 1)
+          if (priorClass == null || TERMINAL_CLASS.has(priorClass)) continue // graduated
+          tby[String(y)] = prevTid
+          if (num(cls, y) == null) cls[String(y)] = CLASS_PROGRESSION[priorClass] || priorClass
+          changed = true
+          filledYears++
+        }
+        if (!changed) return player
+        filledPlayers++
+        return { ...player, teamsByYear: tby, classByYear: cls }
+      })
+
+      if (filledPlayers === 0) {
+        setRebuildCarryoverStatus({ success: true, message: 'No missing carryover years found — every returning player already has their roster years.' })
+        return
+      }
+      await updateDynasty(currentDynasty.id, { players: updated })
+      setRebuildCarryoverStatus({ success: true, message: `Rebuilt ${filledYears} roster year(s) across ${filledPlayers} player(s). Reload to see the restored roster.` })
+    } catch (error) {
+      setRebuildCarryoverStatus({ success: false, message: 'Rebuild failed: ' + (error?.message || 'unknown error') })
     }
   }
 
@@ -2783,6 +2881,14 @@ export default function DangerZone() {
             buttonText="Repair CFP"
             onClick={handleRepairCFPGames}
             status={cfpRepairStatus}
+          />
+          <ActionCard
+            danger
+            title="Rebuild Roster Carryover"
+            description="Fixes a season whose roster came up empty after advancing. Re-derives missing season-to-season carryover: for each of your (and members') teams, any player who was on the roster the prior year, hasn't graduated, and hasn't transferred/left is carried forward into the missing year with their class aged. Only adds missing years — never overwrites, and won't bring back players who truly departed. Reload after running."
+            buttonText="Rebuild Carryover"
+            onClick={handleRebuildCarryover}
+            status={rebuildCarryoverStatus}
           />
           <ActionCard
             danger

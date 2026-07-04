@@ -3834,8 +3834,10 @@ export function getCurrentRoster(dynasty) {
   const currentYear = dynasty.currentYear
   const allPlayers = dynasty.players || []
 
-  // Use unified isPlayerOnRoster for consistent filtering across all components
-  return allPlayers.filter(p => isPlayerOnRoster(p, tid, currentYear))
+  // Use unified isPlayerOnRoster for consistent filtering across all components.
+  // Pass `dynasty` so teambuilder-renamed teams and legacy abbr-string
+  // teamsByYear resolve — omitting it silently emptied such rosters.
+  return allPlayers.filter(p => isPlayerOnRoster(p, tid, currentYear, dynasty))
 }
 
 /**
@@ -8272,7 +8274,13 @@ export function DynastyProvider({ children }) {
         // player.year / .team / .overall / .devTrait fields are always a
         // consistent mirror of the canonical per-year maps. Drops legacy
         // movements[] / teamHistory / leftTeam / etc. Keeps v2 canonical.
-        const currentYearForSync = dynasty?.currentYear
+        // Prefer the currentYear being written in THIS update over the stale
+        // in-memory dynasty. During a season flip the update carries
+        // currentYear: nextYear while `dynasty` still holds the old year — using
+        // the old year derives every player's top-level .team/.year/.overall
+        // mirror from LAST season, leaving the new-season convenience fields
+        // pointing at the wrong team (and skewing the name+team+year dedup key).
+        const currentYearForSync = updates?.currentYear ?? dynasty?.currentYear
         const normalizedPlayers = mainDocUpdates.players.map(p =>
           syncDerivedFieldsFromV2(p, currentYearForSync)
         )
@@ -12053,7 +12061,15 @@ export function DynastyProvider({ children }) {
       // Get Players Leaving list - these players should NOT be carried over
       const playersLeavingList = getPlayersLeaving(dynasty, teamTid, previousSeasonYear)
       const leavingPids = new Set(playersLeavingList.map(p => p.pid).filter(Boolean))
-      const leavingNames = new Set(playersLeavingList.map(p => p.name?.toLowerCase().trim()).filter(Boolean))
+      // Only fall back to NAME matching for leaving entries that have NO pid.
+      // Every leaving entry from the modal already carries a pid, so the pid
+      // check below is authoritative; matching by name too dropped unrelated
+      // returning players who merely shared a name with a departing player
+      // (common across a full league's CPU rosters — a graduating "Chris
+      // Jackson" would drop a returning freshman "Chris Jackson").
+      const leavingNames = new Set(
+        playersLeavingList.filter(p => !p.pid).map(p => p.name?.toLowerCase().trim()).filter(Boolean)
+      )
       console.log('[advanceWeek] Players Leaving count:', playersLeavingList.length)
 
       // Every team a member controls is a first-class roster that must
@@ -12071,7 +12087,13 @@ export function DynastyProvider({ children }) {
       // (null ⇒ a CPU team, which keeps the lighter simple-aging path).
       const memberTeamOf = (player) => {
         for (const t of memberTidSet) {
-          if (isPlayerOnRoster(player, t, previousSeasonYear)) return t
+          // MUST pass `dynasty` — otherwise a teambuilder-renamed slot or a
+          // legacy roster that stored teamsByYear as an abbr STRING fails to
+          // resolve (isPlayerOnRoster falls back to the static registry abbr),
+          // returns false for every player, and the ENTIRE roster is misrouted
+          // to the lossy CPU "simple aging" path (which drops all seniors). That
+          // emptied next-year rosters on imported/teambuilder dynasties.
+          if (isPlayerOnRoster(player, t, previousSeasonYear, dynasty)) return t
         }
         return null
       }
@@ -12117,9 +12139,14 @@ export function DynastyProvider({ children }) {
         if (leavingPids.has(player.pid)) return true
         if (player.name && leavingNames.has(player.name.toLowerCase().trim())) return true
 
-        // Legacy movements[] departure check.
+        // Legacy movements[] departure check. NOTE: bare 'transfer' is
+        // deliberately NOT a departure — legacyMovementToCanonical maps
+        // 'transfer' → an ARRIVAL (transfer_in), so treating it as a departure
+        // here contradicted the rest of the system and dropped incoming
+        // transfers on the year flip. Transfer-OUTs use 'transferred_out' /
+        // 'entered_portal' / the canonical departure shape.
         const hasLegacyDeparture = legacyMovements.some(m =>
-          (m.type === 'departure' || m.type === 'entered_portal' || m.type === 'transfer' ||
+          (m.type === 'departure' || m.type === 'entered_portal' ||
            m.type === 'transferred_out' || m.type === 'graduated' || m.type === 'declared_for_draft' ||
            m.type === 'encouraged_to_transfer') &&
           Number(m.year) === previousSeasonYear
@@ -12128,9 +12155,9 @@ export function DynastyProvider({ children }) {
 
         // v2 movementByYear departure check. Any departure on the previous
         // season year means they're leaving — irrespective of which team
-        // they departed from.
+        // they departed from. ('transfer' excluded — it's an arrival type.)
         const byYearDepartureTypes = new Set([
-          'departure', 'entered_portal', 'transfer', 'transferred_out',
+          'departure', 'entered_portal', 'transferred_out',
           'graduated', 'declared_for_draft', 'encouraged_to_transfer',
         ])
         const v2DepartureShapes = new Set(['transfer_out', 'graduated', 'pro_draft'])
@@ -12162,7 +12189,12 @@ export function DynastyProvider({ children }) {
           // dynasty had imported portal transfers with arrival events
           // mis-stored as transfer_out+toTid=2, which caused this loop to
           // flag the player as "still gone" on every year flip.)
-          if (isDep && m?.departure === 'transfer_out' && m?.toTid === homeTid) continue
+          // Normalize toTid (it can be a string abbr) before comparing — an
+          // arrival mis-stored as transfer_out+toTid=home is really an arrival
+          // to us, not a departure. Strict === missed string-abbr destinations.
+          const toTidNorm = m?.toTid == null ? null
+            : (typeof m.toTid === 'number' ? m.toTid : getTidFromAbbr(m.toTid, dynasty))
+          if (isDep && m?.departure === 'transfer_out' && toTidNorm === homeTid) continue
           if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
             earliestDeparture = y
           }

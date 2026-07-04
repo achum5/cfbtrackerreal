@@ -330,6 +330,31 @@ export function syncDerivedFieldsFromV2(player, currentYear) {
     const asNum = Number(v)
     normalizedTeamsByYear[n] = Number.isFinite(asNum) ? asNum : v
   }
+  // Preserve stint-based teamHistory before it's dropped at the end of this
+  // function. Only when the player has NO teamsByYear at all — i.e. teamHistory
+  // was their sole roster source (imports, the stint editor). isPlayerOnRoster
+  // reads teamsByYear ONLY, so without this port those players would silently
+  // vanish from every roster the moment they're saved. Scoped to the empty case
+  // so it can never contradict existing teamsByYear or resurrect a departed
+  // player who already has (correct) teamsByYear data.
+  if (Array.isArray(player.teamHistory) && Object.keys(normalizedTeamsByYear).length === 0) {
+    const cyNum = Number(currentYear)
+    for (const stint of player.teamHistory) {
+      const stintTid = Number(stint?.teamTid ?? stint?.tid)
+      const from = Number(stint?.fromYear)
+      if (!Number.isFinite(stintTid) || !Number.isFinite(from)) continue
+      // An open stint (toYear null/'' → still on the team) runs through the
+      // current year. Guard against Number(null)===0 collapsing the range.
+      const toNum = Number(stint?.toYear)
+      const to = (stint?.toYear != null && stint?.toYear !== '' && Number.isFinite(toNum))
+        ? toNum
+        : (Number.isFinite(cyNum) ? cyNum : from)
+      for (let y = from; y <= to && y - from < 60; y++) {
+        if (normalizedTeamsByYear[y] == null) normalizedTeamsByYear[y] = stintTid
+      }
+    }
+  }
+
   const normalizedOverallByYear = {}
   for (const [k, v] of Object.entries(player.overallByYear || {})) {
     const n = Number(k)
