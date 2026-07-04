@@ -25,7 +25,8 @@ import ScoutBoard from './ScoutBoard'
 const ScoutStaff = lazy(() => import('../../components/ScoutStaff'))
 import TargetResolutionModal from '../../components/TargetResolutionModal'
 import RecruitCard from '../../components/RecruitCard'
-import { buildRevealedPool, buildWeightsMap } from '../../utils/devTraitLearning'
+import { buildRevealedPool } from '../../utils/devTraitLearning'
+import { buildAttributeQualityMap } from '../../utils/devPrediction'
 import { isCfb27 } from '../../editions'
 import CommitGraphicModal from '../../components/CommitGraphicModal'
 import CommitGraphicViewer from '../../components/CommitGraphicViewer'
@@ -135,12 +136,26 @@ export default function Recruiting() {
     && (currentDynasty?.players || []).some((p) => p?.isTarget && Number(p.targetYear) === viewingYear)
   const defaultTab = scoutStaffEnabled ? 'staff' : hasTargetsThisYear ? 'targets' : 'commitments'
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam === 'targets' ? 'targets' : tabParam === 'commitments' ? 'commitments' : tabParam === 'staff' ? 'staff' : defaultTab
+  // 'database'/'outlook'/'thresholds'/'counts' are Scout Staff's own Recruiting
+  // Database / Program Outlook / Threshold Lookup / Player Count sections,
+  // promoted to top-level tabs here instead of nav tiles nested inside the
+  // Scout Staff tab — see ScoutStaff.jsx's SECTION_TO_VIEW mapping.
+  const KNOWN_TABS = ['targets', 'commitments', 'staff', 'database', 'outlook', 'thresholds', 'counts']
+  const activeTab = KNOWN_TABS.includes(tabParam) ? tabParam : defaultTab
   const setActiveTab = (t) => setParam('tab', t === defaultTab ? null : t, null)
   // When Scout Staff is off the tab is hidden entirely, so the Recruiting page
   // is byte-identical to before the feature (Commitments / Targets only).
   const tabOrder = scoutStaffEnabled
-    ? [{ k: 'staff', l: 'Scout Staff' }, { k: 'targets', l: 'Targets' }, { k: 'commitments', l: 'Commitments' }]
+    ? [
+        { k: 'staff', l: 'Staff' },
+        { k: 'targets', l: 'Targets' },
+        { k: 'commitments', l: 'Commitments' },
+        { k: 'database', l: 'Database' },
+        { k: 'outlook', l: 'Outlook' },
+        { k: 'thresholds', l: 'Thresholds' },
+        { k: 'counts', l: 'History' },
+      ]
+    // Scout Staff off → tab hidden entirely (page identical to pre-feature).
     : [{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }]
 
   // Tab switches only touch the URL's query string, not its pathname, so the
@@ -233,7 +248,7 @@ export default function Recruiting() {
   // Revealed-devTrait HS recruit pool — nudges Scout Staff archetype grading
   // once enough real data exists.
   const revealedPool = useMemo(() => buildRevealedPool(currentDynasty?.players || []), [currentDynasty?.players])
-  const weightsMap = useMemo(() => buildWeightsMap(revealedPool, currentDynasty?.players || []), [revealedPool, currentDynasty?.players])
+  const weightsMap = useMemo(() => buildAttributeQualityMap(revealedPool, currentDynasty?.players || []), [revealedPool, currentDynasty?.players])
 
   const teamFullName = team?.name || baseTeam?.name || teamAbbr
 
@@ -1382,6 +1397,7 @@ export default function Recruiting() {
                 model={scoutModel}
                 scoutStaffEnabled={scoutStaffEnabled}
                 weightsMap={weightsMap}
+                pool={revealedPool}
                 graphicUrl={linkPid ? (currentDynasty.commitGraphics?.[linkPid] || null) : null}
                 onOpenGraphic={linkPid ? () => {
                   const target = { recruit, pid: linkPid, headshot: player?.pictureUrl || recruit.pictureUrl || '' }
@@ -1412,10 +1428,10 @@ export default function Recruiting() {
           />
         </Card>
         )
-      ) : activeTab === 'staff' ? (
+      ) : ['staff', 'database', 'outlook', 'thresholds', 'counts'].includes(activeTab) ? (
         scoutStaffEnabled ? (
           <Suspense fallback={<div className="py-12 text-center text-sm text-txt-tertiary">Loading Scout Staff…</div>}>
-            <ScoutStaff year={selectedYear} />
+            <ScoutStaff year={selectedYear} section={activeTab} onNavigate={setActiveTab} />
           </Suspense>
         ) : (
           <Card>
