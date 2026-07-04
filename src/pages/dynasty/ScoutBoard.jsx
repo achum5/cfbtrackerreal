@@ -8,6 +8,7 @@ import { getScoutScoresFor, headlinePercentile, predictRecruitOverall } from '..
 import { getEditionKey } from '../../editions'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import { GradeReportContent, getGradeTier, DevTraitPill } from '../../components/PlayerDatabase'
+import ScoutScorePanel from '../../components/ScoutScorePanel'
 import { computeScore } from '../../components/archetypeWeights'
 import { buildRevealedPool } from '../../utils/devTraitLearning'
 import { buildAttributeQualityMap } from '../../utils/devPrediction'
@@ -188,9 +189,20 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
               </span>
             )}
           </div>
-          <div className="bg-surface-2 border border-surface-4 rounded-2xl overflow-hidden">
-            <GradeReportContent player={p} allPlayers={allPlayers} weightsMap={weightsMap} pool={pool} wide />
-          </div>
+          {/* The detailed breakdown MUST match the League Preferences toggle:
+              Scout Staff mode → the archetype GradeReportContent; MaxPlays mode
+              → MaxPlaysCFB's own ScoutScore (self-fetches from his API). Before,
+              this always showed the Scout Staff report, so MaxPlays dynasties saw
+              a Scout Staff grade where Max's ScoutScore belonged. */}
+          {useLocalScores ? (
+            <div className="bg-surface-2 border border-surface-4 rounded-2xl overflow-hidden">
+              <GradeReportContent player={p} allPlayers={allPlayers} weightsMap={weightsMap} pool={pool} wide />
+            </div>
+          ) : (
+            <div className="bg-surface-2 border border-surface-4 rounded-2xl overflow-hidden p-4">
+              <ScoutScorePanel recruit={p} />
+            </div>
+          )}
         </div>
       )}
     </div>
