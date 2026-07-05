@@ -7036,24 +7036,40 @@ export function DynastyProvider({ children }) {
     // Track local dynasties separately (they don't have real-time updates)
     let localDynastiesRef = []
 
-    // Load local dynasties (IndexedDB) - always available
+    // Load local dynasties (IndexedDB). Normally instant, but on an iOS
+    // home-screen (standalone) PWA the shared IndexedDB subsystem can hang the
+    // localforage open with NO success/error event, so these awaits would never
+    // settle — freezing the app forever on "Loading dynasties...". Race a
+    // timeout so boot always proceeds; if the read ever lands, merge it in.
+    const LOCAL_LOAD_TIMEOUT_MS = 4000
     const loadLocalDynasties = async () => {
-      try {
-        // First, migrate any existing localStorage data to IndexedDB
+      const read = (async () => {
+        // First, migrate any existing localStorage data to IndexedDB, then load.
         await indexedDBStorage.migrateFromLocalStorage()
-
-        // Load from IndexedDB
         const saved = await indexedDBStorage.getDynasties()
-        // Tag each with storageType: 'local'
-        localDynastiesRef = (saved || []).map(d => ({
-          ...d,
-          storageType: 'local'
-        }))
-        return localDynastiesRef
-      } catch (error) {
+        return (saved || []).map(d => ({ ...d, storageType: 'local' }))
+      })().catch((error) => {
         console.error('Error loading local dynasties:', error)
         return []
+      })
+      const result = await Promise.race([
+        read,
+        new Promise((resolve) => setTimeout(() => resolve(null), LOCAL_LOAD_TIMEOUT_MS)),
+      ])
+      if (result == null) {
+        console.warn('[DynastyContext] Local IndexedDB did not respond in time — proceeding without local data (likely iOS standalone PWA). Cloud sync continues.')
+        // If the read eventually resolves with data, merge it — but only if
+        // nothing else (cloud) has populated the list in the meantime.
+        read.then((late) => {
+          if (Array.isArray(late) && late.length > 0) {
+            localDynastiesRef = late
+            setDynasties((prev) => (prev.length === 0 ? applyMigrations(late) : prev))
+          }
+        }).catch(() => {})
+        return []
       }
+      localDynastiesRef = result
+      return result
     }
 
     // Clear lazy loading cache when user changes (logout or login as different user)
@@ -7097,6 +7113,18 @@ export function DynastyProvider({ children }) {
     // snapshot lands. Code that needs to know "has cloud data been
     // confirmed?" reads this flag instead of `loading`.
     setCloudSyncing(true)
+
+    // Boot watchdog. Firestore uses persistentLocalCache (IndexedDB), so if the
+    // iOS standalone IndexedDB subsystem hangs, the first snapshot may NEVER
+    // arrive and cloudSyncing would stay true forever — the app freezes on
+    // "Loading dynasties..." even after the local-load timeout above clears
+    // `loading`. As a last resort, force both flags off after a longer delay so
+    // the user always reaches the app; real cloud data still merges in later if
+    // the snapshot eventually lands. Cleared on unmount.
+    const bootWatchdog = setTimeout(() => {
+      setLoading(false)
+      setCloudSyncing(false)
+    }, 12000)
 
     // User is signed in - load BOTH local and cloud dynasties
     // NOTE: Automatic migration is DISABLED. Users must manually migrate dynasties
@@ -7560,7 +7588,7 @@ export function DynastyProvider({ children }) {
       processMigrationPersistence()
     })
 
-    return () => unsubscribe()
+    return () => { clearTimeout(bootWatchdog); unsubscribe() }
     // Intentionally omitting currentDynasty?.id: the listener uses
     // currentDynastyIdRef internally, so navigating between dynasties
     // doesn't tear down and re-establish the Firestore subscription.

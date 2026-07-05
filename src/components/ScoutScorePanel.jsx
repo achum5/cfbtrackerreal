@@ -3,14 +3,24 @@ import { getScoutScore, ordinal, defaultLensKey } from '../utils/scoutScore'
 import { useDynasty } from '../context/DynastyContext'
 import { getEditionKey } from '../editions'
 
-// A percentile's accent color: strong (green) high, muted mid, weak (red) low.
+// Percentile → accent color. A smooth red → amber → green ramp aligned to the
+// tier thresholds below, so the ring, chips, and heat tiles all read one scale.
 function pctColor(pct) {
   if (pct == null) return 'var(--text-muted)'
-  if (pct >= 80) return '#34d399'
-  if (pct >= 60) return '#a3e635'
-  if (pct >= 40) return 'var(--text-secondary)'
-  if (pct >= 20) return '#fbbf24'
-  return '#f87171'
+  if (pct >= 90) return '#34d399' // Elite
+  if (pct >= 75) return '#86d472' // Excellent
+  if (pct >= 60) return '#c3d24a' // Above average
+  if (pct >= 40) return '#f2c14e' // Average
+  if (pct >= 25) return '#ef9a5b' // Below average
+  return '#ec6a6a'                 // Poor
+}
+
+// Same color at a given alpha, for glows and tints. Non-hex (the null/no-data
+// case) fades to transparent so a missing value never paints a solid fill.
+function withAlpha(color, a) {
+  if (typeof color !== 'string' || !color.startsWith('#')) return 'transparent'
+  const n = parseInt(color.slice(1), 16)
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
 }
 
 // Qualitative tier for the headline percentile.
@@ -24,39 +34,29 @@ function tierLabel(pct) {
   return 'Poor'
 }
 
-// Circular percentile gauge.
+// Compact circular percentile gauge — crisp tier-colored arc over a track, the
+// ordinal in the display face, a soft glow from a whole-SVG drop-shadow.
 function Gauge({ pct }) {
-  const r = 33
+  const r = 30, c = 40
   const circ = 2 * Math.PI * r
   const p = Math.max(0, Math.min(100, pct ?? 0))
   const dash = (p / 100) * circ
   const color = pctColor(pct)
   return (
-    <svg width="84" height="84" viewBox="0 0 84 84" className="shrink-0">
-      <circle cx="42" cy="42" r={r} fill="none" stroke="var(--surface-4)" strokeWidth="7" />
+    <svg width="80" height="80" viewBox="0 0 80 80" className="shrink-0" style={{ filter: `drop-shadow(0 0 4px ${withAlpha(color, 0.45)})` }}>
+      <circle cx={c} cy={c} r={r} fill="none" stroke="var(--surface-4)" strokeWidth="6.5" />
       <circle
-        cx="42" cy="42" r={r} fill="none" stroke={color} strokeWidth="7" strokeLinecap="round"
-        strokeDasharray={`${dash} ${circ}`} transform="rotate(-90 42 42)"
-        style={{ transition: 'stroke-dasharray 500ms ease' }}
+        cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth="6.5" strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ}`} transform={`rotate(-90 ${c} ${c})`}
+        style={{ transition: 'stroke-dasharray 600ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
       />
-      <text x="42" y="40" textAnchor="middle" style={{ fontSize: '19px', fontWeight: 800, fill: 'var(--text-primary)' }}>
+      <text x={c} y={c - 1} textAnchor="middle" style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: 800, fill: 'var(--text-primary)' }}>
         {pct == null ? '—' : ordinal(pct)}
       </text>
-      <text x="42" y="54" textAnchor="middle" style={{ fontSize: '7.5px', letterSpacing: '1.5px', fill: 'var(--text-muted)' }}>
+      <text x={c} y={c + 12} textAnchor="middle" style={{ fontSize: '6.5px', letterSpacing: '1.5px', fill: 'var(--text-muted)' }}>
         PCTILE
       </text>
     </svg>
-  )
-}
-
-function Bar({ pct }) {
-  return (
-    <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-4)' }}>
-      <div
-        className="h-full rounded-full"
-        style={{ width: `${Math.max(2, Math.min(100, Math.round(pct ?? 0)))}%`, backgroundColor: pctColor(pct), transition: 'width 400ms ease' }}
-      />
-    </div>
   )
 }
 
@@ -114,7 +114,7 @@ export default function ScoutScorePanel({ recruit }) {
   const overallPct = overall?.percentile
 
   return (
-    <div>
+    <div className="max-w-3xl mx-auto">
       {state.status === 'loading' && (
         <p className="text-sm text-txt-secondary py-6 text-center animate-pulse">Benchmarking against the ScoutScore database…</p>
       )}
@@ -123,15 +123,15 @@ export default function ScoutScorePanel({ recruit }) {
       )}
 
       {state.status === 'done' && (<>
-      {/* Lens selector — segmented */}
+      {/* Lens selector — segmented pills */}
       {lenses.length > 1 && (
-        <div className="inline-flex flex-wrap gap-1 p-1 rounded-lg mb-4" style={{ backgroundColor: 'var(--surface-2)' }}>
+        <div className="inline-flex flex-wrap gap-1 p-1 rounded-xl mb-3" style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--surface-4)' }}>
           {lenses.map((l) => (
             <button
               key={l.key}
               onClick={() => setLens(l.key)}
               title={l.scopeLabel}
-              className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
+              className={`text-[11px] px-3 py-1.5 rounded-lg transition-colors ${
                 l.key === activeLens ? 'bg-surface-4 text-txt-primary font-semibold' : 'text-txt-tertiary hover:text-txt-primary'
               }`}
             >
@@ -141,49 +141,70 @@ export default function ScoutScorePanel({ recruit }) {
         </div>
       )}
 
-      {/* Headline — gauge + tier */}
-      <div className="flex items-center justify-center gap-4 rounded-xl border border-surface-4 p-4 mb-4" style={{ background: 'linear-gradient(180deg, var(--surface-2), var(--surface-1))' }}>
-        <Gauge pct={overallPct} />
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-wider text-txt-muted">Overall percentile</div>
-          <div className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: pctColor(overallPct) }}>{tierLabel(overallPct)}</div>
-          {lensMeta && (
-            <div className="text-[11px] text-txt-tertiary mt-0.5 truncate">
-              vs {lensMeta.recruitCount?.toLocaleString()} {lensMeta.scopeLabel}
+      {/* Hero — ring + tier verdict on the left, per-group percentile chips
+          filling the right so the row never reads empty. */}
+      <div
+        className="relative overflow-hidden rounded-xl border border-surface-4 px-4 py-3 mb-4"
+        style={{ background: `radial-gradient(120% 140% at 12% -30%, ${withAlpha(pctColor(overallPct), 0.16)}, transparent 55%), linear-gradient(180deg, var(--surface-2), var(--surface-1))` }}
+      >
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <Gauge pct={overallPct} />
+            <div className="min-w-0">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-txt-muted">Overall Percentile</div>
+              <div className="font-display font-black leading-none mt-1" style={{ fontSize: 'clamp(1.4rem, 3.5vw, 1.9rem)', color: pctColor(overallPct) }}>{tierLabel(overallPct)}</div>
+              {lensMeta && (
+                <div className="text-[10px] text-txt-tertiary mt-1.5 truncate">
+                  vs {lensMeta.recruitCount?.toLocaleString()} {lensMeta.scopeLabel}
+                </div>
+              )}
+            </div>
+          </div>
+          {groups.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 flex-1 justify-end min-w-0">
+              {groups.map((g) => {
+                const gc = pctColor(g.percentile)
+                return (
+                  <div
+                    key={g.groupKey}
+                    className="rounded-lg px-2.5 py-1.5 flex items-center gap-2 min-w-[6.5rem]"
+                    style={{ backgroundColor: withAlpha(gc, 0.1), border: `1px solid ${withAlpha(gc, 0.28)}` }}
+                  >
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-txt-tertiary truncate">{g.label}</span>
+                    <span className="font-display font-black tabular-nums leading-none ml-auto" style={{ fontSize: '0.95rem', color: gc }}>{ordinal(g.percentile)}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Group summaries — centered so a 3-group profile doesn't hug the left */}
-      {groups.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5 mb-5">
-          {groups.map((g) => (
-            <div key={g.groupKey} className="rounded-lg border border-surface-4 p-2 sm:p-2.5 grow shrink basis-[30%] min-w-0 sm:grow-0 sm:basis-40">
-              <div className="flex items-baseline justify-between gap-1 mb-1.5">
-                <span className="text-[9px] uppercase tracking-wide text-txt-muted truncate">{g.label}</span>
-                <span className="text-xs sm:text-sm font-bold tabular-nums leading-none flex-shrink-0" style={{ color: pctColor(g.percentile) }}>{ordinal(g.percentile)}</span>
-              </div>
-              <Bar pct={g.percentile} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Per-attribute, grouped by category */}
-      <div className="space-y-3.5">
+      {/* Attributes — a dense heat grid per category. Each tile is tinted by its
+          own percentile so strengths and weaknesses read at a glance, with the
+          raw value and percentile stacked. No full-width bars. */}
+      <div className="space-y-4">
         {groupedStats.map(([groupLabel, stats]) => (
           <div key={groupLabel}>
-            <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-txt-muted mb-1.5">{groupLabel}</div>
-            <div className="space-y-1.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-txt-muted">{groupLabel}</span>
+              <span className="h-px flex-1" style={{ backgroundColor: 'var(--surface-4)' }} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {stats.map((s) => {
                 const p = s.lenses?.[activeLens]?.percentile
+                const c = pctColor(p)
                 return (
-                  <div key={s.statKey} className="flex items-center gap-3">
-                    <span className="text-xs text-txt-secondary w-28 shrink-0 truncate" title={s.label}>{s.label}</span>
-                    <span className="text-xs tabular-nums font-bold text-txt-primary w-7 text-right shrink-0">{s.value}</span>
-                    <div className="flex-1"><Bar pct={p} /></div>
-                    <span className="text-[11px] tabular-nums font-semibold w-9 text-right shrink-0" style={{ color: pctColor(p) }}>{ordinal(p) || '—'}</span>
+                  <div
+                    key={s.statKey}
+                    className="rounded-lg px-2.5 py-2"
+                    style={{ backgroundColor: withAlpha(c, 0.09), border: `1px solid ${withAlpha(c, 0.22)}` }}
+                  >
+                    <div className="text-[10px] text-txt-secondary truncate" title={s.label}>{s.label}</div>
+                    <div className="flex items-baseline justify-between gap-2 mt-1.5">
+                      <span className="font-display font-black tabular-nums text-txt-primary leading-none" style={{ fontSize: '1.15rem' }}>{s.value}</span>
+                      <span className="font-display font-bold tabular-nums leading-none" style={{ fontSize: '0.92rem', color: c }}>{ordinal(p) || '—'}</span>
+                    </div>
                   </div>
                 )
               })}

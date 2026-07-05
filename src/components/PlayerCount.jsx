@@ -45,7 +45,7 @@ ARCHETYPE_REGISTRY.forEach(({ position, archetype }) => {
 });
 
 export default function PlayerCount({ onSelectBucket = null } = {}) {
-  const { currentDynasty, dynasties, getDynastyPlayers } = useDynasty();
+  const { currentDynasty, updateDynasty, dynasties, getDynastyPlayers } = useDynasty();
   const [selectedPos, setSelectedPos] = useState(null);
   const [selectedStar, setSelectedStar] = useState('5');
   const [siblingPlayers, setSiblingPlayers] = useState([]);
