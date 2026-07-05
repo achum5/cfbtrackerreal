@@ -64,6 +64,40 @@ export function getCoach(dynasty, cid) {
   return dynasty?.coaches?.[cid] || null
 }
 
+// Synthesize the OWNER's coach from the durable per-year team record
+// (coachTeamByYear) when NO real coach entity is linked to them. This is the
+// safety net for two states that otherwise leave the owner with no selectable
+// coach — so their Career page AND Trophy Room come up blank:
+//   1. Coaching-carousel dynasties, where every generated coach carries
+//      controlledBy:null and the owner's own team-HC is fragmented into separate
+//      per-year entries (none linked to the user).
+//   2. Any save whose owner→coach linkage was lost or never set.
+// coachTeamByYear is the authoritative, strictly-tid-based record of the team
+// the user coached each season, so the owner's whole career reconstructs from it
+// (spanning every year) and every completed-season trophy flows through.
+export function synthOwnerCoachFromCoachTeamByYear(dynasty) {
+  const ownerUid = dynasty?.userId
+  const ctby = dynasty?.coachTeamByYear
+  if (!ownerUid || !ctby || typeof ctby !== 'object') return null
+  const byYear = {}
+  for (const [y, e] of Object.entries(ctby)) {
+    if (!Number.isFinite(Number(y))) continue
+    const tid = Number(e?.tid ?? e?.teamTid ?? (typeof e === 'number' ? e : NaN))
+    if (!Number.isFinite(tid)) continue
+    byYear[String(y)] = { teamTid: tid, role: e?.position || 'HC' }
+  }
+  if (!Object.keys(byYear).length) return null
+  return {
+    cid: `owner-${ownerUid}`,
+    name: dynasty.memberLabels?.[ownerUid] || '',
+    controlledBy: ownerUid,
+    status: 'active',
+    departedYear: null,
+    byYear,
+    _synthesized: true,
+  }
+}
+
 // Every coach with a record on a given team in a given year, as
 // { coach, record }. Useful for a team's staff list.
 export function getStaffForTeamYear(dynasty, tid, year) {

@@ -21,7 +21,7 @@ import {
   ROLE_COMMISH,
   ROLE_COCOMMISH,
 } from '../../data/leagueModel'
-import { getCoaches, getCoachesControlledBy } from '../../data/coachModel'
+import { getCoaches, getCoachesControlledBy, synthOwnerCoachFromCoachTeamByYear } from '../../data/coachModel'
 import ImageUpload from '../../components/ImageUpload'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import {
@@ -106,7 +106,7 @@ export default function CoachCareer() {
       return r === ROLE_COCOMMISH ? 1 : 2
     }
     coaches.sort((a, b) => rank(a) - rank(b) || (a.name || '').localeCompare(b.name || ''))
-    return coaches.map(c => ({
+    const options = coaches.map(c => ({
       cid: c.cid,
       uid: c.controlledBy,
       coach: c,
@@ -114,6 +114,24 @@ export default function CoachCareer() {
       label: c.name || getCoachNameForUid(currentDynasty, c.controlledBy) || 'Coach',
       isYou: !!user?.uid && c.controlledBy === user.uid,
     }))
+    // If the OWNER has no linked coach entity (carousel dynasties where every
+    // coach is controlledBy:null, or a lost owner→coach linkage), synthesize
+    // their coach from coachTeamByYear so the Career page + Trophy Room always
+    // populate. Only fires when the owner isn't already represented.
+    if (ownerUid && !options.some(o => o.uid === ownerUid)) {
+      const synth = synthOwnerCoachFromCoachTeamByYear(currentDynasty)
+      if (synth) {
+        options.unshift({
+          cid: synth.cid,
+          uid: ownerUid,
+          coach: synth,
+          role: getRole(currentDynasty, ownerUid),
+          label: synth.name || getCoachNameForUid(currentDynasty, ownerUid) || 'Coach',
+          isYou: !!user?.uid && ownerUid === user.uid,
+        })
+      }
+    }
+    return options
   })()
 
   // Resolve which coach is being viewed: explicit ?coach=, else legacy
@@ -147,16 +165,32 @@ export default function CoachCareer() {
     if (!Number.isFinite(yearNum) || !coach) return []
     const tid = Number(coach.byYear?.[yearNum]?.teamTid ?? coach.byYear?.[String(yearNum)]?.teamTid)
     if (Number.isFinite(tid)) return [tid]
+
+    // No byYear entry for THIS year. The owner's durable per-year record
+    // (coachTeamByYear) still knows the team they coached that season, so consult
+    // it as a fallback. This previously only fired when byYear was ENTIRELY empty
+    // — but a coach migrated AFTER the offseason year-flip has byYear anchored to
+    // the current (post-flip) year and MISSING the just-finished season, so that
+    // season's games (and its bowl/conf/national trophies) were dropped and the
+    // Trophy Room came up blank. Resolve strictly by tid.
+    const isOwnerCoach = coach.controlledBy === currentDynasty.userId || currentDynasty.userId == null
+    if (!isOwnerCoach) return []
+    const cty = currentDynasty.coachTeamByYear?.[yearNum] || currentDynasty.coachTeamByYear?.[String(yearNum)]
+    let ctyTid = null
+    if (cty?.tid != null) ctyTid = Number(cty.tid)
+    else if (cty?.team) { const t = getTidFromAbbr(cty.team, currentDynasty); if (t != null) ctyTid = Number(t) }
+    if (ctyTid == null || !Number.isFinite(ctyTid)) return []
+
+    // Guard: don't attribute the owner's PRIMARY-career team to a SECONDARY coach
+    // the owner also controls. Accept the coachTeamByYear team only when this
+    // coach has NO byYear at all (un-migrated owner), OR actually coached that
+    // same tid in a year it DOES have — i.e. it's this coach's own team.
     const hasByYear = coach.byYear && Object.keys(coach.byYear).length > 0
-    if (!hasByYear && (coach.controlledBy === currentDynasty.userId || currentDynasty.userId == null)) {
-      const cty = currentDynasty.coachTeamByYear?.[yearNum] || currentDynasty.coachTeamByYear?.[String(yearNum)]
-      if (cty?.tid != null) return [Number(cty.tid)]
-      if (cty?.team) {
-        const t = getTidFromAbbr(cty.team, currentDynasty)
-        if (t) return [t]
-      }
-    }
-    return []
+    if (!hasByYear) return [ctyTid]
+    const coachTids = new Set(
+      Object.values(coach.byYear).map(e => Number(e?.teamTid)).filter(Number.isFinite)
+    )
+    return coachTids.has(ctyTid) ? [ctyTid] : []
   }
 
   // Project a game into the existing perspective shape from the angle of
