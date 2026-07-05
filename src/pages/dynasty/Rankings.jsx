@@ -331,8 +331,7 @@ export default function Rankings() {
 
   // One uniform rank row — every team reads at the same weight so the poll is a
   // clean ladder, not an escalating hero. The team's own primary color IS the row
-  // (broadcast box-score treatment); a hairline in the team's secondary color caps
-  // the left edge so each program's two-color identity shows without noise.
+  // (broadcast box-score treatment).
   const RankingRow = ({ rank, teamAbbr, teamTid, year, last }) => {
     const teamsSource = currentDynasty?.teams || currentDynasty?.customTeams
     const teamFromTid = teamTid != null ? teamsSource?.[teamTid] : null
@@ -344,7 +343,6 @@ export default function Rankings() {
     const linkTid = teamTid != null ? Number(teamTid) : resolveTid(resolvedAbbr, teamsSource || TEAMS)
 
     const primary = colors.primary || '#3a3d47'
-    const secondary = colors.secondary || '#ffffff'
     const txt = getContrastTextColor(primary)
 
     return (
@@ -353,7 +351,6 @@ export default function Rankings() {
         className="ranking-row group relative flex items-center gap-3 pl-3 pr-4 py-2 cfb-texture overflow-hidden transition-all duration-150 hover:brightness-[1.12]"
         style={{
           borderBottom: last ? 'none' : '1px solid rgba(0,0,0,0.28)',
-          boxShadow: `inset 3px 0 0 ${secondary}`,
           backgroundColor: primary,
           backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 44%), linear-gradient(180deg, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0.30) 100%)',
         }}
@@ -429,7 +426,7 @@ export default function Rankings() {
 
     return (
       <Card padding="none" className="overflow-hidden reveal">
-        <div className={`grid grid-cols-1 ${twoCol ? 'lg:grid-cols-2 lg:divide-x lg:divide-black/40' : ''}`}>
+        <div className={`grid grid-cols-1 ${twoCol ? 'lg:grid-cols-2 lg:divide-x-2 lg:divide-black' : ''}`}>
           {columns.map((col, ci) => (
             <div key={ci} className="flex flex-col">{renderColumn(col)}</div>
           ))}
