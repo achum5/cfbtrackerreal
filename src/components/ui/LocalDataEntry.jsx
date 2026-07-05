@@ -72,6 +72,13 @@ export default function LocalDataEntry({
   rowLabelHeader = '',
   normalizeRows = null,
   children = null,
+  // Optional "Upload file" alternative to pasting — reads a local .tsv file's
+  // text and feeds it through the exact same applyText() path a clipboard
+  // paste already uses. Off by default so no existing caller's UI changes;
+  // callers that export/produce their own TSV files (e.g. the Recruiting
+  // Database's backup) opt in explicitly.
+  allowFileUpload = false,
+  fileUploadAccept = '.tsv,.txt',
 }) {
   // Fixed-row mode (e.g. the schedule's weeks 0–15): the grid is exactly
   // rowLabels.length rows, each with a read-only leading label. The label's
@@ -356,6 +363,24 @@ export default function LocalDataEntry({
   })
 
 
+  const fileInputRef = useRef(null)
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const fileText = await file.text()
+      if (!fileText.trim()) {
+        toast.error('That file is empty.')
+        return
+      }
+      applyText(fileText)
+      toast.success('File loaded into the grid.')
+    } catch {
+      toast.error('Could not read that file.')
+    }
+  }
+
   const pasteFromClipboard = async () => {
     if (!navigator.clipboard?.readText) {
       setShowText(true)
@@ -445,6 +470,26 @@ export default function LocalDataEntry({
           disabled={disabled}
           hints={{ screenshot: instructions }}
         />
+
+        {allowFileUpload && (
+          <div className="flex-shrink-0 text-center">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={fileUploadAccept}
+              onChange={handleFileSelected}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+              className="text-xs text-txt-tertiary hover:text-txt-secondary transition disabled:opacity-60"
+            >
+              …or upload a file instead of pasting
+            </button>
+          </div>
+        )}
 
         {showText && (
           <textarea

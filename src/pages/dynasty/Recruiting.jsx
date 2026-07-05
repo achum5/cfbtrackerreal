@@ -160,7 +160,7 @@ export default function Recruiting() {
         { k: 'database', l: 'Database' },
         { k: 'outlook', l: 'Outlook' },
         { k: 'thresholds', l: 'Thresholds' },
-        { k: 'counts', l: 'History' },
+        { k: 'counts', l: 'Scouting Needs' },
       ]
     // Scout Staff off → tab hidden entirely (page identical to pre-feature).
     : [{ k: 'commitments', l: 'Commitments' }, { k: 'targets', l: 'Targets' }]
