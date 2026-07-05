@@ -638,6 +638,31 @@ export default function WeeklyScores() {
       if (!map.has(wk)) map.set(wk, [])
       map.get(wk).push(g)
     }
+    // Collapse duplicate matchups within a week. A schedule saved twice can leave
+    // two placeholder records for the same (week, tid-pair) where only one later
+    // received the real score, so the same game would render twice (a FINAL tile
+    // AND a 0-0 SCHEDULED tile). Two FBS teams never play twice in one week, so
+    // keep only the "most played" copy per tid-pair (a real score / isPlayed beats
+    // a 0-0 placeholder).
+    const pairKey = (g) => {
+      const a = Number(g.team1Tid), b = Number(g.team2Tid)
+      return `${Math.min(a, b)}-${Math.max(a, b)}`
+    }
+    const playedRank = (g) => {
+      const t1 = Number(g.team1Score), t2 = Number(g.team2Score)
+      const scored = (Number.isFinite(t1) && t1 > 0) || (Number.isFinite(t2) && t2 > 0)
+      return (g.isPlayed ? 2 : 0) + (scored ? 1 : 0)
+    }
+    for (const [wk, list] of map) {
+      if (list.length < 2) continue
+      const byPair = new Map()
+      for (const g of list) {
+        const k = pairKey(g)
+        const prev = byPair.get(k)
+        if (!prev || playedRank(g) > playedRank(prev)) byPair.set(k, g)
+      }
+      if (byPair.size !== list.length) map.set(wk, Array.from(byPair.values()))
+    }
     return map
   }, [allGames, displayYear])
 

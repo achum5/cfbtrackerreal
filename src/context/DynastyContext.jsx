@@ -3553,8 +3553,30 @@ export function applyScheduleDiff(games, diff) {
     return update ? { ...g, ...update.patch } : g
   })
 
-  // 3. Append new games
-  const newRecords = diff.toAdd.map(a => a.gameRecord)
+  // 3. Append new games — but NEVER append a game whose (year, week, tid-pair)
+  // already exists. If a schedule is re-saved against a stale snapshot,
+  // computeScheduleDiff can fail to match the existing slate and emit the whole
+  // schedule as adds, duplicating every game (two placeholder records for one
+  // matchup, only one of which ever gets the real score, so the game renders
+  // twice). Two teams never play twice in one week, so a matching (year, week,
+  // sorted tid-pair) is always the same game — skip the duplicate add.
+  const pairKey = (g) => {
+    const a = Number(g.team1Tid), b = Number(g.team2Tid)
+    return `${Number(g.year)}-${Number(g.week)}-${Math.min(a, b)}-${Math.max(a, b)}`
+  }
+  const existingKeys = new Set(
+    patched.filter(g => g?.team1Tid && g?.team2Tid).map(pairKey)
+  )
+  const newRecords = []
+  for (const a of diff.toAdd) {
+    const rec = a.gameRecord
+    if (rec?.team1Tid && rec?.team2Tid) {
+      const k = pairKey(rec)
+      if (existingKeys.has(k)) continue // same matchup already present — skip
+      existingKeys.add(k)
+    }
+    newRecords.push(rec)
+  }
   return [...patched, ...newRecords]
 }
 
