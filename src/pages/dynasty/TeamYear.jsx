@@ -78,9 +78,15 @@ function FitText({ children, className = '', minZoom = 0.5 }) {
     if (!outer || !inner) return
     const measure = () => {
       const avail = outer.clientWidth
+      // Skip measurements taken before the element has been laid out — a
+      // transient 0/tiny width would compute a dramatic shrink that then sticks.
+      // The observers below re-fire once real layout arrives.
+      if (avail <= 0) return
       const applied = zoomRef.current || 1
       const natural = inner.getBoundingClientRect().width / applied
-      const next = natural > avail && natural > 0 ? Math.max(minZoom, (avail / natural) * 0.99) : 1
+      // +1px tolerance so a sub-pixel overshoot doesn't nudge an unwanted shrink.
+      // Reset to 1 whenever the text fits, so any earlier bad shrink self-heals.
+      const next = natural > avail + 1 && natural > 0 ? Math.max(minZoom, (avail / natural) * 0.995) : 1
       if (Math.abs(next - zoomRef.current) > 0.005) {
         zoomRef.current = next
         setZoom(next)
@@ -90,11 +96,21 @@ function FitText({ children, className = '', minZoom = 0.5 }) {
     const raf = requestAnimationFrame(measure)
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
     ro?.observe(outer)
-    return () => { cancelAnimationFrame(raf); ro?.disconnect() }
-    // Run once + re-measure via the ResizeObserver only. WITHOUT this empty
-    // dep array the layout effect re-ran every render and setZoom looped until
-    // React aborted with "Maximum update depth exceeded" (#185). Matches the
-    // sibling ShrinkToFit pattern.
+    // Observe the INNER too: the display font swaps in after mount with different
+    // metrics, changing the natural width without resizing the outer — without
+    // this the zoom sticks at whatever the fallback font measured (the bug where
+    // some team names render shrunk and others don't).
+    ro?.observe(inner)
+    // Belt-and-suspenders: re-measure once web fonts finish loading.
+    let cancelled = false
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      document.fonts.ready.then(() => { if (!cancelled) measure() })
+    }
+    return () => { cancelled = true; cancelAnimationFrame(raf); ro?.disconnect() }
+    // Run once + re-measure via the observers / fonts.ready only. WITHOUT this
+    // empty dep array the layout effect re-ran every render and setZoom looped
+    // until React aborted with "Maximum update depth exceeded" (#185). The
+    // >0.005 convergence guard keeps the inner-observer feedback loop stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
