@@ -6466,22 +6466,15 @@ export default function TeamYear() {
             })
           }
 
-          // Fallback to games if no standings
+          // Fallback to games if no standings. Use the canonical record helper
+          // so unplayed 0-0 schedule placeholders (and any duplicate placeholder
+          // records) are filtered/deduped and a 0-0 tie is never miscounted as a
+          // loss — the hand-rolled count here previously did `won ? wins : losses`,
+          // so every 0-0 placeholder for an UPCOMING game inflated the loss column.
           if (yearWins === 0 && yearLosses === 0) {
-            const yearGames = (currentDynasty.games || []).filter(g => {
-              if (!isSameYear(g.year, year)) return false
-              const g1Tid = g.team1Tid || resolveTid(g.team1, teamsSource)
-              const g2Tid = g.team2Tid || resolveTid(g.team2, teamsSource)
-              return g1Tid === tid || g2Tid === tid
-            })
-            yearGames.forEach(g => {
-              const isTeam1 = (g.team1Tid || resolveTid(g.team1, teamsSource)) === tid
-              const won = isTeam1 ? g.team1Score > g.team2Score : g.team2Score > g.team1Score
-              if (g.team1Score != null && g.team2Score != null) {
-                if (won) yearWins++
-                else yearLosses++
-              }
-            })
+            const rec = calculateTeamRecordFromGames(currentDynasty, tid, year)
+            yearWins = rec?.wins || 0
+            yearLosses = rec?.losses || 0
           }
 
           // Get bowl game for this team/year
@@ -6660,18 +6653,24 @@ export default function TeamYear() {
           if (!userTidInYear) return
           const g1Tid = g.team1Tid || resolveTid(g.team1, teamsSource)
           const g2Tid = g.team2Tid || resolveTid(g.team2, teamsSource)
-          const hasScores = g.team1Score != null && g.team2Score != null
+          // Require a PLAYED (or non-zero-score) game — an unplayed 0-0 schedule
+          // placeholder for an upcoming matchup must not count. Previously the
+          // catch-all `else` also bucketed a 0-0 tie into the loss column, so
+          // upcoming games showed up as phantom losses (e.g. "Vs UK 0-2").
+          const played = g.isPlayed === true ||
+            (g.team1Score != null && g.team2Score != null && (g.team1Score > 0 || g.team2Score > 0))
           if (userTidInYear === tid) {
             // User WAS coaching this team that year — an "As Coach" game.
-            if ((g1Tid === tid || g2Tid === tid) && hasScores) userAsTeamGames.push({ game: g, userTid: tid })
+            if ((g1Tid === tid || g2Tid === tid) && played) userAsTeamGames.push({ game: g, userTid: tid })
             return
           }
           const userInGame = g1Tid === userTidInYear || g2Tid === userTidInYear
-          if (userInGame && hasScores) {
+          if (userInGame && played) {
             const userIsTeam1 = g1Tid === userTidInYear
-            const userWon = userIsTeam1 ? g.team1Score > g.team2Score : g.team2Score > g.team1Score
-            if (userWon) userVsTeamWins++
-            else userVsTeamLosses++
+            const userScore = userIsTeam1 ? g.team1Score : g.team2Score
+            const oppScore = userIsTeam1 ? g.team2Score : g.team1Score
+            if (userScore > oppScore) userVsTeamWins++
+            else if (userScore < oppScore) userVsTeamLosses++
             userVsTeamGames.push({ game: g, userTid: userTidInYear })
           }
         })
