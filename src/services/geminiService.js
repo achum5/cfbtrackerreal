@@ -3062,14 +3062,14 @@ export function buildGameRecapContext(dynasty, game) {
     boxScoreContext = {
       team1: buildEnhancedPlayerHighlights(getPlayerStatsForTid(game, team1Tid, teams), players, allGames, year, thisGameOrder, team1),
       team2: buildEnhancedPlayerHighlights(getPlayerStatsForTid(game, team2Tid, teams), players, allGames, year, thisGameOrder, team2),
-      team1Name: getNameByAbbr(teams, team1) || getTeamName(team1) || team1,
-      team2Name: getNameByAbbr(teams, team2) || getTeamName(team2) || team2
+      team1Name: teams?.[team1Tid]?.name || getNameByAbbr(teams, team1) || getTeamName(team1) || team1,
+      team2Name: teams?.[team2Tid]?.name || getNameByAbbr(teams, team2) || getTeamName(team2) || team2
     }
   }
 
-  // Get full team names for clarity in the prompt (use tid-based lookup first, then fallback)
-  const team1FullName = getNameByAbbr(teams, team1) || getTeamName(team1) || team1
-  const team2FullName = getNameByAbbr(teams, team2) || getTeamName(team2) || team2
+  // Get full team names for clarity in the prompt (resolve live from the in-scope tid first, then fallback)
+  const team1FullName = teams?.[team1Tid]?.name || getNameByAbbr(teams, team1) || getTeamName(team1) || team1
+  const team2FullName = teams?.[team2Tid]?.name || getNameByAbbr(teams, team2) || getTeamName(team2) || team2
 
   // NEW: Get past season history for both teams
   const team1SeasonHistory = getTeamSeasonHistory(allGames, team1, year, 3, dynasty)

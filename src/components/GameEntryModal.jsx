@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDynasty, getCurrentTeamRatings, getCurrentRoster, GAME_TYPES, getCurrentCustomConferences, getCurrentSchedule } from '../context/DynastyContext'
 import { useAuth } from '../context/AuthContext'
-import { getTeamLogo, getMascotName } from '../data/teams'
+import { getTeamLogo, getMascotName, getTeamLogoByTid } from '../data/teams'
 import { getModalColors } from '../utils/colorUtils'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getCurrentTeamAbbr, getCurrentTeamTid, getTidFromAbbr, getGameTeamInfo, TEAMS, getAbbrFromTeamName } from '../data/teamRegistry'
@@ -1775,9 +1775,10 @@ export default function GameEntryModal({
                   const team1DisplayName = team1MascotName || (isCPUGame ? getOpponentTeamName(team1Abbr) : effectiveTeamName) || 'Team 1'
                   const team2DisplayName = team2MascotName || (team2Abbr ? getOpponentTeamName(team2Abbr) : 'Team 2')
 
-                  // Get team logos
-                  const team1Logo = team1MascotName ? getTeamLogo(team1MascotName, teamsData) : (isCPUGame ? null : getTeamLogo(effectiveTeamName, teamsData))
-                  const team2Logo = team2MascotName ? getTeamLogo(team2MascotName, teamsData) : null
+                  // Get team logos — resolve live from the same tid the colors use
+                  // (getGameTeamInfo(...team1Tid) below), fall back to the mascot/abbr path.
+                  const team1Logo = getTeamLogoByTid(effectiveGame?.team1Tid, teamsData) || (team1MascotName ? getTeamLogo(team1MascotName, teamsData) : (isCPUGame ? null : getTeamLogo(effectiveTeamName, teamsData)))
+                  const team2Logo = getTeamLogoByTid(effectiveGame?.team2Tid, teamsData) || (team2MascotName ? getTeamLogo(team2MascotName, teamsData) : null)
 
                   // Get team colors (resolve live from tid first, fall back to abbr only when no tid)
                   const team1Info = effectiveGame?.team1Tid
@@ -2735,7 +2736,7 @@ export default function GameEntryModal({
                   const team1Abbr = team1AbbrFromTid || effectiveGame?.team1 || passedTeam1
                   const team1MascotName = team1Abbr ? getMascotName(team1Abbr, teamsData) : null
                   const team1DisplayName = team1MascotName || (team1Abbr ? getOpponentTeamName(team1Abbr) : 'Team 1')
-                  const team1Logo = team1MascotName ? getTeamLogo(team1MascotName, teamsData) : null
+                  const team1Logo = getTeamLogoByTid(effectiveGame?.team1Tid, teamsData) || (team1MascotName ? getTeamLogo(team1MascotName, teamsData) : null)
                   const team1Info = effectiveGame?.team1Tid
                     ? getGameTeamInfo(teamsData || TEAMS, effectiveGame.team1Tid)
                     : (team1Abbr ? getGameTeamInfo(teamsData || TEAMS, team1Abbr) : null)
@@ -2862,7 +2863,7 @@ export default function GameEntryModal({
                   const team2Abbr = team2AbbrFromTid || effectiveGame?.team2 || passedTeam2
                   const team2MascotName = team2Abbr ? getMascotName(team2Abbr, teamsData) : null
                   const team2DisplayName = team2MascotName || (team2Abbr ? getOpponentTeamName(team2Abbr) : 'Team 2')
-                  const team2Logo = team2MascotName ? getTeamLogo(team2MascotName, teamsData) : null
+                  const team2Logo = getTeamLogoByTid(effectiveGame?.team2Tid, teamsData) || (team2MascotName ? getTeamLogo(team2MascotName, teamsData) : null)
                   const team2Info = effectiveGame?.team2Tid
                     ? getGameTeamInfo(teamsData || TEAMS, effectiveGame.team2Tid)
                     : (team2Abbr ? getGameTeamInfo(teamsData || TEAMS, team2Abbr) : null)

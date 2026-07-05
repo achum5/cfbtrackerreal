@@ -8,6 +8,7 @@ import { STAT_TABS, STAT_TAB_ORDER, SCORING_SUMMARY, SCORE_TYPES, PAT_RESULTS, Q
 import { isPlayerOnRoster, getPlayerClassForYear } from '../context/DynastyContext'
 import { OAuthError, RateLimitError } from '../utils/authErrors'
 import { parseRecruitingRows, parseAttributes, RECRUITING_READ_RANGE, TOTAL_COLS, PID_COL, NIL_COL, UPDATED_AT_COL, colLetter } from '../utils/recruitSheetParse'
+import { normalizeWeeklyScoreRow, normalizeWeeklyScoreRows } from '../utils/weeklyScoreRealign'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR, attributeNamesFor, serializeAttributes } from '../utils/recruitAttributes'
 import {
   RECRUITING_DATABASE_SHEET_TAB, TOTAL_COLS as RECRUITING_DATABASE_TOTAL_COLS,
@@ -4745,29 +4746,10 @@ async function initializeWeeklyScoresSheet(spreadsheetId, accessToken, sheetId, 
   }
 }
 
-// Some AI pastes insert an extra blank column between each team's Rank and
-// Score, producing a 9-wide row
-//   [Home, HomeRank, '', HomeScore, Away, AwayRank, '', AwayScore, Neutral]
-// instead of the canonical 7. Detect that shape by its signature — col D
-// (index 3) holds a bare score integer while the real away team sits in col E
-// (index 4) — and remap to the canonical 7-column layout. In a correct row
-// col D is always a team NAME (never a bare integer) and col E is a rank or
-// blank, so this can't misfire on well-formed data. Exported so the local
-// paste GRID (LocalDataEntry) can normalize on the way IN — otherwise the
-// preview shows the away score/team in the wrong columns and the user edits a
-// shifted table (fainez's "Standard method looks shifted" report).
-const _wsBareInt = (v) => v != null && /^\d+$/.test(String(v).trim())
-const _wsTeamText = (v) => v != null && String(v).trim() !== '' && !/^\d+$/.test(String(v).trim())
-export function normalizeWeeklyScoreRow(row) {
-  if (!Array.isArray(row)) return row
-  if (_wsBareInt(row[3]) && _wsTeamText(row[4])) {
-    return [row[0], row[1], row[3], row[4], row[5], row[7], row[8]]
-  }
-  return row
-}
-export function normalizeWeeklyScoreRows(rows) {
-  return Array.isArray(rows) ? rows.map(normalizeWeeklyScoreRow) : rows
-}
+// Weekly-score paste self-heal lives in its own util so it can be unit-tested
+// without pulling in this module's Firebase/context dependencies. Re-exported
+// here so existing importers (WeeklyScoresModal) keep their import path.
+export { normalizeWeeklyScoreRow, normalizeWeeklyScoreRows }
 
 export async function readWeeklyScoresFromSheet(spreadsheetId, sheetTitle, dynastyTeams = null, opts = {}) {
   try {

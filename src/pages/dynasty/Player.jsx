@@ -1985,7 +1985,7 @@ function PlayerInner() {
                   })()
                 ) : (
                 <Link
-                  to={`${pathPrefix}/team/${resolveTid(teamAbbr, currentDynasty?.teams || TEAMS)}/${currentYear}?tab=depthchart&player=${pid}&side=${sideOfPosition(player.position) || 'offense'}`}
+                  to={`${pathPrefix}/team/${playerTeam?.tid ?? playerTeamRaw}/${currentYear}?tab=depthchart&player=${pid}&side=${sideOfPosition(player.position) || 'offense'}`}
                   className="inline-flex items-center gap-2 font-display font-bold hover:opacity-80 transition-opacity"
                   style={{ color: teamBgText, fontSize: 'clamp(0.95rem, 1.5vw, 1.1rem)' }}
                 >
@@ -3661,7 +3661,7 @@ function PlayerInner() {
                 const prevOverall = idx > 0 ? yearData[idx - 1].overall : null
                 const ovrChange = (yd.overall && prevOverall) ? yd.overall - prevOverall : null
                 const quickStats = getQuickStatChips(yd.stats, player.position)
-                const teamTid = resolveTid(yd.team, teamsData || TEAMS)
+                const teamTid = player.teamsByYear?.[yd.year] ?? resolveTid(yd.team, teamsData || TEAMS)
                 const ydTeamColors = teamName ? getTeamColors(teamName, teamsData) : null
                 const seasonColor = ydTeamColors?.primary || teamInfo.backgroundColor
 
@@ -3969,6 +3969,7 @@ function PlayerInner() {
                         {passingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 15 + (primaryStat === 'passing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -3985,7 +3986,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-1.5 py-2 truncate" style={{ color: 'var(--text-secondary)' }}>{y.class}</td>
                                 <td className="px-1.5 py-2 text-center">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4081,6 +4082,7 @@ function PlayerInner() {
                         {rushingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 14 + (primaryStat === 'rushing' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4097,7 +4099,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-1.5 py-2 truncate" style={{ color: 'var(--text-secondary)' }}>{y.class}</td>
                                 <td className="px-1.5 py-2 text-center">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4190,6 +4192,7 @@ function PlayerInner() {
                         {receivingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 12 + (primaryStat === 'receiving' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4206,7 +4209,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-1.5 py-2 truncate" style={{ color: 'var(--text-secondary)' }}>{y.class}</td>
                                 <td className="px-1.5 py-2 text-center">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4285,6 +4288,7 @@ function PlayerInner() {
                         {blockingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 5 + (primaryStat === 'blocking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4301,7 +4305,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4378,6 +4382,7 @@ function PlayerInner() {
                         {defenseYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 15 + (primaryStat === 'defense' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4394,7 +4399,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4488,6 +4493,7 @@ function PlayerInner() {
                         {kickingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 11 + (primaryStat === 'kicking' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4504,7 +4510,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4588,6 +4594,7 @@ function PlayerInner() {
                         {puntingYears.map((y, idx) => {
                           const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                           const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                           const colSpan = 10 + (primaryStat === 'punting' ? 1 : 0) + (showSnapsCol ? 1 : 0)
                           return (
@@ -4604,7 +4611,7 @@ function PlayerInner() {
                                 </td>
                                 <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                                 <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4681,6 +4688,7 @@ function PlayerInner() {
                     {kickReturnYears.map((y, idx) => {
                       const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                       const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                       const colSpan = 9
                       return (
@@ -4697,7 +4705,7 @@ function PlayerInner() {
                             </td>
                             <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>
@@ -4768,6 +4776,7 @@ function PlayerInner() {
                     {puntReturnYears.map((y, idx) => {
                       const rowTeam = y.team || teamAbbr
                           const mascot = getMascotName(rowTeam, dynasty?.teams || dynasty?.customTeams)
+                          const rowTid = player.teamsByYear?.[y.year] ?? resolveTid(rowTeam, currentDynasty?.teams)
                       const logo = mascot ? getTeamLogo(mascot, dynasty?.teams || dynasty?.customTeams) : null
                       const colSpan = 9
                       return (
@@ -4784,7 +4793,7 @@ function PlayerInner() {
                             </td>
                             <td className="px-2 py-2.5 w-16" style={{ color: secondaryText, opacity: 0.8 }}>{y.class}</td>
                             <td className="px-2 py-2 text-center w-12">
-                                  <Link to={`${pathPrefix}/team/${resolveTid(rowTeam, currentDynasty?.teams || TEAMS)}/${y.year}`} className="hover:opacity-70 transition-opacity">
+                                  <Link to={`${pathPrefix}/team/${rowTid}/${y.year}`} className="hover:opacity-70 transition-opacity">
                                     {logo ? <img src={logo} alt={rowTeam} className="w-5 h-5 object-contain inline-block" /> : rowTeam}
                                   </Link>
                                 </td>

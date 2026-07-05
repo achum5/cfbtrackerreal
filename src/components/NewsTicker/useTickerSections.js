@@ -1232,10 +1232,17 @@ export function useTickerSections(dynasty) {
         const pid = player.pid
 
         if (!careerStats[pid]) {
+          // Seed the row with the player's tid (drift-safe) from their most
+          // recent teamsByYear season so getLogoUrl resolves the live logo;
+          // fall back to the stored team string only when no tid is present.
+          const tbyYears = player.teamsByYear
+            ? Object.keys(player.teamsByYear).map(Number).filter(y => !Number.isNaN(y)).sort((a, b) => b - a)
+            : []
+          const playerTid = tbyYears.length ? player.teamsByYear[tbyYears[0]] : null
           careerStats[pid] = {
             pid,
             name: player.name,
-            team: player.team,
+            team: playerTid != null ? playerTid : player.team,
             passing: { yds: 0, td: 0 },
             rushing: { yds: 0, td: 0 },
             receiving: { yds: 0, td: 0 },

@@ -19,7 +19,6 @@ import {
   sheetExists,
   refreshRecruitingSheetPrefill
 } from '../services/sheetsService'
-import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getModalColors } from '../utils/colorUtils'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'

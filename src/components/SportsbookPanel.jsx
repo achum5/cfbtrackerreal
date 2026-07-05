@@ -235,7 +235,7 @@ function calcConfStats(dynasty, tid, year, upToWeek = 99) {
 // A 10-0 team will never rank below 8-2 unless power gap is huge.
 function calcChampScore(dynasty, tid, year, week) {
   const stats = calcTeamStats(dynasty, tid, year, week ?? 99)
-  const ps    = calcPowerScore(dynasty, tid, year, week ?? 99)
+  const ps    = calcSeededPower(dynasty, tid, year, week ?? 99)
   return ps * 0.6 + (stats.winPct * 100) * 0.4
 }
 
@@ -302,6 +302,53 @@ function gameSideOvr(dynasty, game, tid, year) {
   const n = Number(raw)
   if (Number.isFinite(n) && n > 0) return n
   return teamOvr(dynasty, tid, year)
+}
+
+// Preseason poll rank (week 0) for a team, 1-25, or null if unranked/absent.
+function preseasonRank(dynasty, tid, year) {
+  const t = dynasty?.teams?.[tid]
+  const rbw = t?.byYear?.[Number(year)]?.rankByWeek ?? t?.byYear?.[String(year)]?.rankByWeek
+  const r = Number(rbw?.[0] ?? rbw?.['0'])
+  return Number.isFinite(r) && r >= 1 && r <= 25 ? r : null
+}
+
+// Preseason strength SEED for the futures boards. On-field power (calcPowerScore)
+// is the flat neutral 20 for every team until games are played, which makes the
+// futures (natl champ / conf champ / win totals) collapse to an even split at
+// week 0 — every team the same +13000. Seed that preseason gap from the two
+// signals a user actually enters BEFORE kickoff: team OVR and the preseason Top
+// 25, mapped onto the same power scale (neutral = 20). The seed carries the
+// number in the preseason and fades out as real games accumulate (pure on-field
+// by ~6 games), exactly like the OVR blend in calcSpread. Game Lines are
+// unaffected — they blend OVR separately via calcSpread.
+const AVG_OVR = 76          // ~average FBS overall → maps to the neutral baseline
+const OVR_POWER_PER = 3.5   // power points per OVR point above/below average
+const RANK_POWER_PER = 2.2  // power points per spot above #26 (a #1 ≈ +55)
+
+function ovrToPower(ovr) {
+  return 20 + (ovr - AVG_OVR) * OVR_POWER_PER
+}
+function rankToPower(rank) {
+  if (!(rank >= 1 && rank <= 25)) return null
+  return 20 + (26 - rank) * RANK_POWER_PER
+}
+
+// Power score seeded by preseason OVR + poll rank, blended into on-field results
+// by games played. Used by the three futures boards so they differentiate teams
+// before any games are played instead of splitting evenly. When neither signal
+// is entered for a team it falls back to the pure on-field power (unchanged).
+function calcSeededPower(dynasty, tid, year, week = 99) {
+  const onField = calcPowerScore(dynasty, tid, year, week)
+  const seeds = []
+  const ovr = teamOvr(dynasty, tid, year)
+  if (ovr != null) seeds.push(ovrToPower(ovr))
+  const rp = rankToPower(preseasonRank(dynasty, tid, year))
+  if (rp != null) seeds.push(rp)
+  if (seeds.length === 0) return onField
+  const seed = seeds.reduce((a, b) => a + b, 0) / seeds.length
+  const played = calcScoringProfile(dynasty, tid, year, week).sampleGames
+  const w = Math.min(1, played / 6) // preseason → pure seed; ~6 games → pure on-field
+  return seed * (1 - w) + onField * w
 }
 
 // ~points of spread per point of overall difference. A 25-OVR gap (e.g. a 95
@@ -492,7 +539,7 @@ function buildConfChampBoard(dynasty, year, week, confTeamAbbrs) {
   const rows = tids.map(tid => {
     const overall = calcTeamStats(dynasty, tid, year, week ?? 99)
     const conf    = calcConfStats(dynasty, tid, year, week ?? 99)
-    const ps      = calcPowerScore(dynasty, tid, year, week ?? 99)
+    const ps      = calcSeededPower(dynasty, tid, year, week ?? 99)
     // Power-dominant. Conference record nudges it, but its weight ramps up with
     // conference games played — so one early conf win can't give a team a +25
     // head start and run away with the whole board (the old winPct*50 term did
@@ -516,7 +563,7 @@ function calcWinTotal(dynasty, tid, year) {
   // 20 ≈ a .500 / 6-win team). The old `(ps-20)/12` mapping was too steep and
   // pegged every strong team at the 12 cap; this lands even elite teams around
   // 10–11 with a realistic spread underneath.
-  const ps        = calcPowerScore(dynasty, tid, year)
+  const ps        = calcSeededPower(dynasty, tid, year)
   const expWinPct = Math.max(0.05, Math.min(0.95, 0.5 + (ps - 20) / 210))
   let baseTotal   = expWinPct * SEASON_GAMES
   baseTotal       = Math.max(2, Math.min(12, baseTotal))

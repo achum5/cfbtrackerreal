@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { getContrastTextColor } from '../utils/colorUtils'
 import { teamAbbreviations } from '../data/teamAbbreviations'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../data/teams'
-import { getGameTeamInfo, getTeamByAbbr } from '../data/teamRegistry'
+import { getGameTeamInfo, getTeamByAbbr, getTidFromAbbr } from '../data/teamRegistry'
 import { useDynasty } from '../context/DynastyContext'
 
 // Award display names for proper formatting
@@ -147,7 +147,9 @@ export default function PlayerMatchConfirmModal({
   // Get team info for display
   // For allConference/allAmericans, 'school' is the team abbr; 'team' might be a category label
   // Check if entry.team looks like a valid team abbreviation (2-4 uppercase letters) vs a category label
-  const isValidTeamAbbr = (str) => str && /^[A-Z0-9-]{2,5}$/.test(str) && teamAbbreviations[str]
+  // Dynasty-aware: a teambuilder abbr that isn't in the static FBS map is still
+  // valid if it resolves to a live tid in dynasty.teams; fall back to the static map.
+  const isValidTeamAbbr = (str) => str && /^[A-Z0-9-]{2,5}$/.test(str) && (getTidFromAbbr(str, currentDynasty) != null || !!teamAbbreviations[str])
   const newTeamAbbr = isValidTeamAbbr(entry.team) ? entry.team : (entry.school || entry.team || '')
   // Resolve team info LIVE from dynasty.teams (reflects rename + recolor); static map only as final fallback.
   const newTeamInfo = getGameTeamInfo(teamsData, newTeamAbbr) || getTeamByAbbr(teamsData, newTeamAbbr) || teamAbbreviations[newTeamAbbr] || {}
@@ -169,8 +171,10 @@ export default function PlayerMatchConfirmModal({
   const newEntryClass = entry.class || ''
   const existingPlayerPosition = player.position || ''
 
-  // Check if teams are actually different (for determining if this is really a transfer)
-  const teamsAreDifferent = newTeamAbbr && oldTeamAbbr && newTeamAbbr !== oldTeamAbbr
+  // Check if teams are actually different (for determining if this is really a
+  // transfer). existingTeams entries are now numeric tids, so compare by the
+  // resolved tid on each side rather than a tid-vs-abbr string compare.
+  const teamsAreDifferent = newTeamInfo?.tid != null && oldTeamInfo?.tid != null && newTeamInfo.tid !== oldTeamInfo.tid
 
   return (
     <div

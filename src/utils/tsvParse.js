@@ -16,9 +16,20 @@
 //   dropped by the split (a line "420\t" yields ["420"]); callers read cells
 //   positionally with `row[i] ?? ''`, so a short row reads as blanks — the
 //   same behavior the Sheets API gives (it omits trailing empty cells too).
+// Some prompts ask the AI for a human-readable preamble (or a ```worksheet
+// audit block) BEFORE the actual data, with the data itself wrapped in a ```tsv
+// fenced block. When a user pastes the WHOLE reply ("Claude output two things"),
+// those prose lines would otherwise leak in as bogus rows. If a ```tsv block is
+// present, parse ONLY its contents. An unclosed fence (truncated paste) still
+// yields its data. No ```tsv fence → unchanged behavior (backward compatible).
+function extractTsvBlock(text) {
+  const m = String(text).match(/```tsv[^\n]*\n([\s\S]*?)(?:\n```|$)/i)
+  return m ? m[1] : text
+}
+
 export function splitTsv(text) {
   if (!text) return []
-  return String(text)
+  return String(extractTsvBlock(text))
     .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => line.replace(/[ \t]+$/, '')) // drop trailing spaces/tabs only

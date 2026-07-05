@@ -12084,9 +12084,9 @@ export function DynastyProvider({ children }) {
         additionalUpdates.newJobData = null
       }
     } else if (dynasty.currentPhase === 'offseason' && dynasty.currentWeek === 4 && nextWeek === 5) {
-      console.log('[advanceWeek] *** ENTERING WEEK 5→6 TRANSITION (SIGNING DAY / YEAR FLIP) ***')
+      console.log('[advanceWeek] *** ENTERING WEEK 4→5 TRANSITION (SIGNING DAY / YEAR FLIP) ***')
 
-      // YEAR FLIP - Happens when entering Signing Day (week 6)
+      // YEAR FLIP - Happens when entering Signing Day (week 5)
       // The year changes here so that team pages for the new year become available
       // CRITICAL: Use Number() to ensure proper arithmetic (currentYear could be string from Firestore)
       nextYear = Number(dynasty.currentYear) + 1
@@ -12396,9 +12396,16 @@ export function DynastyProvider({ children }) {
           const newOtherClass = CLASS_PROGRESSION[otherTeamClass] || otherTeamClass
 
           // Get their current team tid from teamsByYear
-          const otherTeamTid = player.teamsByYear?.[previousSeasonYear] ||
+          let otherTeamTid = player.teamsByYear?.[previousSeasonYear] ||
                          player.teamsByYear?.[String(previousSeasonYear)] ||
                          player.team
+          // Keep teamsByYear tid-pure: if the only source was a legacy abbr
+          // string on player.team, resolve it to a tid so we don't leak an abbr
+          // into the new season (readers still normalize, but membership by tid
+          // is the invariant).
+          if (typeof otherTeamTid === 'string' && !/^\d+$/.test(otherTeamTid)) {
+            otherTeamTid = getTidFromAbbr(otherTeamTid, dynasty) ?? otherTeamTid
+          }
 
           return {
             ...player,

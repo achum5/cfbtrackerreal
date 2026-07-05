@@ -71,7 +71,7 @@ export function ViewDynastyProvider({ shareCode, children }) {
     loadingDynastyId: null,
     phaseOverride: null,
     setPhaseOverride: () => {},
-    userTeams: dynasty ? [{ tid: dynasty.currentTid, abbr: dynasty.teamName }] : [],
+    userTeams: dynasty ? [{ tid: dynasty.currentTid, abbr: dynasty.teams?.[dynasty.currentTid]?.abbr || dynasty.teamName }] : [],
     activeUserTid: dynasty?.currentTid ?? null,
     setActiveTeam: () => {},
     customTeams: dynasty?.customTeams || {},

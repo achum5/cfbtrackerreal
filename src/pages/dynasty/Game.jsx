@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { getTeamLogo, getMascotName as getMascotNameFromTeams, stripMascotFromName } from '../../data/teams'
 import { teamAbbreviations } from '../../data/teamAbbreviations'
-import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getAbbrFromTeamName, getColorsFromTid } from '../../data/teamRegistry'
+import { TEAMS, resolveTid, getCurrentTeamAbbr, getGameTeamInfo, getColorsFromTid } from '../../data/teamRegistry'
 import { getTeamColors } from '../../data/teamColors'
 import { useDynasty, getUserGamePerspective, GAME_TYPES, getRecordAsOfGame, getTeamRatingsForYear, getCustomConferencesForYear, getTeamRankForWeek, isPlayerOnRoster } from '../../context/DynastyContext'
 import { saveGamesToSubcollection } from '../../services/dynastyService'
@@ -1278,7 +1278,7 @@ export default function Game() {
       location = game.location
     } else if (game.homeTeamTid) {
       // Get displayTeam's tid and check if it matches homeTeamTid
-      const displayTid = resolveTid(displayTeamAbbr, teams)
+      const displayTid = displaySideTid
       location = game.homeTeamTid === displayTid ? 'home' : 'away'
     } else {
       location = 'neutral' // Default for postseason
@@ -1299,8 +1299,8 @@ export default function Game() {
   }
 
   // Get user and opponent tids
-  const userTid = perspective?.userTid || resolveTid(displayTeamAbbr, teams)
-  const oppTid = perspective?.opponentTid || resolveTid(opponentAbbr, teams)
+  const userTid = perspective?.userTid || displaySideTid
+  const oppTid = perspective?.opponentTid || opponentSideTid
 
   // Get seeds for user/opponent. We CANNOT trust game.seed1 → user,
   // game.seed2 → opp, because seed1/seed2 align with team1/team2 in
@@ -1900,7 +1900,7 @@ export default function Game() {
                   the open space between this cluster, the quarter table,
                   and the right cluster. */}
               <div className={`flex items-center gap-6 ${!leftData.isWinner ? 'opacity-75' : ''}`}>
-                <Link to={`${pathPrefix}/team/${resolveTid(leftData.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-4">
+                <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex items-center gap-4">
                   <div className="relative flex-shrink-0">
                     <div
                       className="w-16 h-16 rounded-full flex items-center justify-center p-2  shadow-xl bg-white"
@@ -2058,7 +2058,7 @@ export default function Game() {
                     {rightData.score}
                   </div>
                 </div>
-                <Link to={`${pathPrefix}/team/${resolveTid(rightData.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-4">
+                <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className="group flex items-center gap-4">
                   <div className="text-right">
                     {rightData.rank && !isCFPGame && (
                       <div className="text-amber-400 text-xs font-bold">#{rightData.rank}</div>
@@ -2100,7 +2100,7 @@ export default function Game() {
         <div className="px-1 py-3 sm:px-8 sm:py-8 md:py-10">
           <div className="flex items-center justify-between gap-1 sm:gap-6 md:gap-10 max-w-full">
             {/* Left Team */}
-            <Link to={`${pathPrefix}/team/${resolveTid(leftData.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex-1 min-w-0">
+            <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex-1 min-w-0">
               <div className="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-4">
                 {/* Logo - larger for hero effect */}
                 <div className="relative flex-shrink-0">
@@ -2251,7 +2251,7 @@ export default function Game() {
             </div>
 
             {/* Right Team */}
-            <Link to={`${pathPrefix}/team/${resolveTid(rightData.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex-1 min-w-0">
+            <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className="group flex-1 min-w-0">
               <div className="flex flex-col items-center sm:flex-row-reverse sm:items-center gap-1 sm:gap-4">
                 {/* Logo - larger for hero effect */}
                 <div className="relative flex-shrink-0">
@@ -2578,7 +2578,7 @@ export default function Game() {
             }
 
             // ---- Ratings block (compact) ----
-            const userTid = game.userTid || resolveTid(displayTeamAbbr, currentDynasty?.teams || TEAMS)
+            const userTid = game.userTid || (perspective?.userTid ?? displaySideTid)
             const storedUserRatings = getTeamRatingsForYear(currentDynasty, userTid, game.year)
             const userRatings = {
               ovr: game.team1Overall ?? storedUserRatings?.overall,
@@ -2757,7 +2757,7 @@ export default function Game() {
                           return (
                             <Link
                               key={idx}
-                              to={`${pathPrefix}/team/${resolveTid(team.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`}
+                              to={`${pathPrefix}/team/${team.tid}/${game.year}`}
                               className="cfb-texture group flex items-center gap-3 py-2 pl-2 pr-3 overflow-hidden hover:brightness-110 transition-all"
                               style={{ backgroundColor: color, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
@@ -3670,10 +3670,10 @@ export default function Game() {
                               className="cfb-texture flex items-center gap-2 px-3 py-2.5 overflow-hidden"
                               style={{ backgroundColor: leftTeamData_bs.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
-                              <Link to={`${pathPrefix}/team/${resolveTid(leftTeamData_bs.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-2 min-w-0">
+                              <Link to={`${pathPrefix}/team/${leftData.tid}/${game.year}`} className="group flex items-center gap-2 min-w-0">
                                 <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-0.5 shadow-sm">
                                   <img
-                                    src={getTeamLogo(getMascotName(leftTeamData_bs.abbr, currentDynasty?.teams || currentDynasty?.customTeams) || leftTeamData_bs.abbr)}
+                                    src={leftData.logo}
                                     alt={leftTeamData_bs.name}
                                     className="w-full h-full object-contain"
                                   />
@@ -3694,10 +3694,10 @@ export default function Game() {
                               className="cfb-texture flex items-center gap-2 px-3 py-2.5 overflow-hidden"
                               style={{ backgroundColor: rightTeamData_bs.colors.primary, backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 42%), linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.34) 100%)' }}
                             >
-                              <Link to={`${pathPrefix}/team/${resolveTid(rightTeamData_bs.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-2 min-w-0">
+                              <Link to={`${pathPrefix}/team/${rightData.tid}/${game.year}`} className="group flex items-center gap-2 min-w-0">
                                 <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0 p-0.5 shadow-sm">
                                   <img
-                                    src={getTeamLogo(getMascotName(rightTeamData_bs.abbr, currentDynasty?.teams || currentDynasty?.customTeams) || rightTeamData_bs.abbr)}
+                                    src={rightData.logo}
                                     alt={rightTeamData_bs.name}
                                     className="w-full h-full object-contain"
                                   />
@@ -3726,12 +3726,10 @@ export default function Game() {
         // Team stats are stored byTid; pull each side's slot directly.
         const leftTeamStats  = getTeamStatsForTid(game, leftData.tid,  teams) || {}
         const rightTeamStats = getTeamStatsForTid(game, rightData.tid, teams) || {}
-        const leftTeamAbbr   = getAbbrFromTeamName(leftTeamStats.teamAbbr)  || leftTeamStats.teamAbbr  || leftData.abbr
-        const rightTeamAbbr  = getAbbrFromTeamName(rightTeamStats.teamAbbr) || rightTeamStats.teamAbbr || rightData.abbr
 
-        // Get team colors
-        const leftTeamColors = getTeamColorsRobust(leftTeamAbbr) || leftData.colors
-        const rightTeamColors = getTeamColorsRobust(rightTeamAbbr) || rightData.colors
+        // Team identity/colors come straight from the tid-resolved leftData/rightData.
+        const leftTeamColors = leftData.colors
+        const rightTeamColors = rightData.colors
 
         // Helper to format possession time
         const formatPossession = (mins, secs) => {
@@ -3844,18 +3842,18 @@ export default function Game() {
             >
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-white p-1 shadow-sm">
-                  <img src={getTeamLogoRobust(leftTeamAbbr)} alt="" className="w-full h-full object-contain" />
+                  <img src={leftData.logo} alt="" className="w-full h-full object-contain" />
                 </div>
                 <span className="text-sm font-bold text-white hidden sm:inline" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                  {getMascotName(leftTeamAbbr, currentDynasty?.teams) || leftTeamAbbr}
+                  {leftData.name}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white hidden sm:inline" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                  {getMascotName(rightTeamAbbr, currentDynasty?.teams) || rightTeamAbbr}
+                  {rightData.name}
                 </span>
                 <div className="w-8 h-8 rounded-full bg-white p-1 shadow-sm">
-                  <img src={getTeamLogoRobust(rightTeamAbbr)} alt="" className="w-full h-full object-contain" />
+                  <img src={rightData.logo} alt="" className="w-full h-full object-contain" />
                 </div>
               </div>
             </div>
@@ -3870,7 +3868,7 @@ export default function Game() {
 
           {/* Ratings Tab */}
           {activeTab === 'ratings' && (() => {
-            const userTid = game.userTid || resolveTid(displayTeamAbbr, currentDynasty?.teams || TEAMS)
+            const userTid = game.userTid || (perspective?.userTid ?? displaySideTid)
             const storedUserRatings = getTeamRatingsForYear(currentDynasty, userTid, game.year)
             const userRatings = {
               ovr: game.team1Overall ?? storedUserRatings?.overall,
@@ -3897,7 +3895,7 @@ export default function Game() {
                   const defBetter = (ratings.def || 0) > ((idx === 0 ? rightRatings : leftRatings).def || 0)
 
                   return (
-                    <Link key={idx} to={`${pathPrefix}/team/${resolveTid(team.abbr, currentDynasty?.teams || TEAMS)}/${game.year}`} className="group flex items-center gap-3 p-3 rounded-xl bg-surface-2/50 hover:bg-surface-2 transition-colors">
+                    <Link key={idx} to={`${pathPrefix}/team/${team.tid}/${game.year}`} className="group flex items-center gap-3 p-3 rounded-xl bg-surface-2/50 hover:bg-surface-2 transition-colors">
                       <div className="w-12 h-12 rounded-xl flex items-center justify-center p-1.5 shadow-md flex-shrink-0 bg-white ">
                         {team.logo && <img src={team.logo} alt="" className="w-full h-full object-contain" />}
                       </div>

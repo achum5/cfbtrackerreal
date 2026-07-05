@@ -1970,19 +1970,13 @@ export function resolveTid(tidOrAbbr, dynastyTeams = null) {
     return parseInt(tidOrAbbr, 10)
   }
 
-  // Otherwise treat as abbreviation and convert
-  // First try the static lookup
-  const tid = getTidFromAbbr(tidOrAbbr)
+  // Otherwise treat as abbreviation and convert. Forward dynastyTeams so the
+  // DYNASTY file wins over the static registry — getTidFromAbbr scans dynasty
+  // first, so a teambuilder/renamed/collided abbr resolves to the current team,
+  // not the static FBS team that happens to share the abbr. When no dynastyTeams
+  // is passed this is null and resolution stays static (backward compatible).
+  const tid = getTidFromAbbr(tidOrAbbr, dynastyTeams)
   if (tid) return tid
-
-  // If not found in static map, check dynasty teams for custom abbreviations
-  if (dynastyTeams) {
-    for (const [teamTid, team] of Object.entries(dynastyTeams)) {
-      if (team.abbr?.toUpperCase() === tidOrAbbr.toUpperCase()) {
-        return parseInt(teamTid, 10)
-      }
-    }
-  }
 
   return null
 }
@@ -2080,11 +2074,16 @@ export function getColorsFromTid(teams, tid) {
  */
 export function getTeamByAbbr(teams, abbr) {
   if (!teams || !abbr) return null
-  // First try direct ABBR_TO_TID lookup for efficiency
-  const tid = ABBR_TO_TID[abbr]
+  // Scan the DYNASTY file FIRST (case-insensitive) so a teambuilder/renamed/
+  // collided abbr resolves to the CURRENT team, not the static FBS team that
+  // shares the abbr. Only if the abbr isn't present in the file do we fall
+  // back to the static ABBR_TO_TID slot (for abbrs pruned from the file).
+  const upper = String(abbr).toUpperCase()
+  const dynastyMatch = Object.values(teams).find(t => t?.abbr?.toUpperCase() === upper)
+  if (dynastyMatch) return dynastyMatch
+  const tid = ABBR_TO_TID[upper]
   if (tid && teams[tid]) return teams[tid]
-  // Fall back to scanning (handles teambuilder teams with custom abbrs)
-  return Object.values(teams).find(t => t.abbr === abbr) || null
+  return null
 }
 
 /**
@@ -2228,9 +2227,11 @@ export function getGameTeamInfo(teams, tidOrAbbr) {
     tid = parseInt(tidOrAbbr, 10)
   }
 
-  // If not a number, try as abbreviation
+  // If not a number, try as abbreviation. Forward `teams` so a teambuilder/
+  // renamed/collided abbr resolves against the DYNASTY file first, not the
+  // static registry (getTidFromAbbr is dynasty-first when given the teams map).
   if (!tid) {
-    tid = getTidFromAbbr(tidOrAbbr)
+    tid = getTidFromAbbr(tidOrAbbr, teams)
   }
 
   if (!tid) return null

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { getTeamLogo, getMascotName as getMascotNameFromTeams } from '../data/teams'
+import { getTeamLogo, getMascotName as getMascotNameFromTeams, getTeamLogoByTid } from '../data/teams'
 import { getTeamColors } from '../data/teamColors'
 import { getModalColors } from '../utils/colorUtils'
 import { useDynasty, getUserGamePerspective, getRecordAsOfGame, getTeamConferenceForDynasty } from '../context/DynastyContext'
@@ -81,7 +81,9 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   const opponentAbbrResolved = getOpponentAbbr()
   // First try to get mascot from abbreviation, if that fails check if opponent IS a mascot name
   let opponentMascot = getMascotName(opponentAbbrResolved)
-  let opponentLogo = opponentMascot ? getTeamLogo(opponentMascot, teams) : null
+  // Resolve the opponent logo live from the in-scope tid (reflects rename + custom
+  // logo); fall back to the abbr/mascot path for legacy games without a tid.
+  let opponentLogo = getTeamLogoByTid(opponentTid, teams) || (opponentMascot ? getTeamLogo(opponentMascot, teams) : null)
 
   // If no mascot found by abbreviation, try using opponent directly as mascot name
   if (!opponentLogo) {
@@ -93,7 +95,11 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
 
   // Also try getting abbreviation from display name for colors
   const opponentAbbr = opponentMascot ? getAbbrFromTeamName(opponentMascot) : opponentAbbrResolved
-  const opponentColors = opponentMascot ? getTeamColors(opponentMascot, teams) : { primary: '#666', secondary: '#fff' }
+  // Colors resolve live from dynasty.teams[opponentTid]; fall back to the
+  // mascot-name lookup for legacy games without a tid.
+  const opponentColors = (opponentTid != null && teams?.[opponentTid])
+    ? { primary: teams[opponentTid].primaryColor || '#666', secondary: teams[opponentTid].secondaryColor || '#fff' }
+    : (opponentMascot ? getTeamColors(opponentMascot, teams) : { primary: '#666', secondary: '#fff' })
 
   // Live tid-first opponent display name (fall back to stored strings for legacy games w/o tid)
   const opponentTeamName = getMascotName(opponentTid, teams) || opponentMascot || game.opponent
@@ -101,7 +107,9 @@ export default function GameDetailModal({ isOpen, onClose, game, userTeam, teamC
   // Get display team info (user's team or viewing team for CPU games)
   const displayTeamLogo = getTeamLogo(displayTeam, teams)
   const displayTeamColors = isCPUGame
-    ? (getMascotName(displayTeamAbbr) ? getTeamColors(getMascotName(displayTeamAbbr), teams) : teamColors)
+    ? ((displayTid != null && teams?.[displayTid])
+        ? { primary: teams[displayTid].primaryColor || '#374151', secondary: teams[displayTid].secondaryColor || '#FFFFFF' }
+        : (getMascotName(displayTeamAbbr) ? getTeamColors(getMascotName(displayTeamAbbr), teams) : teamColors))
     : teamColors
 
   // Get user team ratings

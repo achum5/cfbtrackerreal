@@ -328,20 +328,6 @@ export default function ScoringHighlightsModal({
     return players.find(p => p.name === name)
   }, [players])
 
-  // Get team logo for a team abbreviation
-  const getTeamLogoForAbbr = useCallback((abbr) => {
-    if (!abbr) return null
-    // Check if it matches team1 or team2
-    if (abbr.toUpperCase() === team1Abbr?.toUpperCase()) return team1Logo
-    if (abbr.toUpperCase() === team2Abbr?.toUpperCase()) return team2Logo
-    // Try to get from getTeamLogo function if provided
-    if (getTeamLogo && getMascotName) {
-      const mascot = getMascotName(abbr, teamsData)
-      return getTeamLogo(mascot || abbr, teamsData)
-    }
-    return null
-  }, [team1Abbr, team2Abbr, team1Logo, team2Logo, getTeamLogo, getMascotName, teamsData])
-
   // Get running score from the play data (already calculated from full game scoring summary)
   const getRunningScore = useCallback((upToIndex) => {
     const currentPlay = playsWithVideo[upToIndex]

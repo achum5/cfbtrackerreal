@@ -138,15 +138,11 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
   const teamsSource = currentDynasty?.teams || TEAMS
   const teamTid = currentDynasty?.currentTid || getTidFromTeamName(currentDynasty?.teamName, teamsSource)
 
-  // Get team abbreviation from tid - this will be the custom abbr for teambuilder teams
-  const team = teamsSource[teamTid]
-  const teamAbbr = team?.abbr || ''
-
-  // For conference lookup, use the ORIGINAL team's abbreviation (from static TEAMS)
-  const originalTeamAbbr = TEAMS[teamTid]?.abbr || teamAbbr
-
+  // Conference lookup resolves live from the tid against dynasty.teams so a
+  // renamed/realigned (teambuilder) team's conference override is honored,
+  // instead of a stale static-abbr hop.
   const customConferences = getCurrentCustomConferences(currentDynasty)
-  const userConference = getTeamConference(originalTeamAbbr, customConferences) || 'SEC'
+  const userConference = getTeamConference(teamTid, customConferences, teamsSource) || 'SEC'
   const conferenceUrlParam = encodeURIComponent(userConference.replace(/\s+/g, '-'))
 
   const handleExport = () => {

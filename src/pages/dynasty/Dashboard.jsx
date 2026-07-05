@@ -352,11 +352,11 @@ export default function Dashboard() {
   const confWins = scheduleRecord?.confWins || 0
   const confLosses = scheduleRecord?.confLosses || 0
 
-  // IMPORTANT: the year flips on the wk5→6 advance, so on Training Results (week 6)
-  // and Conferences (week 7) the year has ALREADY flipped. offseasonDataYear pins
-  // the ending-season year S for data tied to the season just played (playersLeaving,
-  // recruiting, signing-day tasks) — it equals S at every offseason week (1–5 = currentYear,
-  // 6–7 = currentYear-1).
+  // IMPORTANT: the year flips on the wk4→5 advance, so on Signing Day (week 5),
+  // Training Results (week 6) and Conferences (week 7) the year has ALREADY flipped.
+  // offseasonDataYear pins the ending-season year S for data tied to the season just
+  // played (playersLeaving, recruiting, signing-day tasks) — it equals S at every
+  // offseason week (1–4 = currentYear, 5–7 = currentYear-1), matching the >= 5 test below.
   const isAfterYearFlip = currentDynasty?.currentPhase === 'offseason' && currentDynasty?.currentWeek >= 5
   const offseasonDataYear = isAfterYearFlip
     ? currentDynasty?.currentYear - 1
@@ -4427,7 +4427,7 @@ export default function Dashboard() {
                 ? getGameTeamInfo(currentDynasty?.teams || TEAMS, ccGame.perspective?.opponentTid)
                 : null
               const oppName = oppInfo
-                ? (getMascotName(oppInfo?.abbr) || oppInfo?.name || 'Unknown')
+                ? (oppInfo.name || 'Unknown')
                 : (ccOpponent ? (getMascotName(ccOpponent) || ccOpponent) : null)
               const ccSubtitle = ccGame
                 ? `${ccGame.perspective?.userWon ? 'W' : 'L'} ${Math.max(ccGame.perspective?.userScore || 0, ccGame.perspective?.opponentScore || 0)}–${Math.min(ccGame.perspective?.userScore || 0, ccGame.perspective?.opponentScore || 0)} vs ${oppName}`
@@ -6733,9 +6733,10 @@ export default function Dashboard() {
 
             // Offseason Week 1: Players Leaving. Unified via renderTodoList.
             if (week === 1) {
-              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]?.team
-              const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty)
-              const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+              const prevEntry = currentDynasty.coachTeamByYear?.[currentDynasty.currentYear]
+              const previousTeamTid = prevEntry?.tid ?? getTidFromAbbr(prevEntry?.team, currentDynasty)
+              const currentTeamTid = getUserTeamTid(currentDynasty)
+              const switchedTeams = previousTeamTid && currentTeamTid && previousTeamTid !== currentTeamTid
 
               const hasPlayersLeavingData = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length > 0
               const playersLeavingCount = currentDynasty?.playersLeavingByYear?.[currentDynasty.currentYear]?.length || 0
@@ -7090,9 +7091,10 @@ export default function Dashboard() {
             // Offseason Week 6: Training Results (post-flip). Unified via renderTodoList.
             if (week === 6) {
               const offseasonDataYear = currentDynasty.currentYear - 1
-              const previousTeamAbbr = currentDynasty.coachTeamByYear?.[offseasonDataYear]?.team
-              const currentTeamAbbr = getCurrentTeamAbbr(currentDynasty)
-              const switchedTeams = previousTeamAbbr && currentTeamAbbr && previousTeamAbbr !== currentTeamAbbr
+              const prevEntry = currentDynasty.coachTeamByYear?.[offseasonDataYear]
+              const previousTeamTid = prevEntry?.tid ?? getTidFromAbbr(prevEntry?.team, currentDynasty)
+              const currentTeamTid = getUserTeamTid(currentDynasty)
+              const switchedTeams = previousTeamTid && currentTeamTid && previousTeamTid !== currentTeamTid
 
               if (switchedTeams) {
                 const skippedTodos = [{
@@ -7621,14 +7623,15 @@ export default function Dashboard() {
               // pre-game pick (ccOpponentTid / stored opponentTid), then a
               // legacy abbr only as a last resort.
               const ccOppTid = ccGame?.perspective?.opponentTid ?? ccOpponentTid ?? ccDataForYear.opponentTid ?? null
-              const ccOpponentInfo = ccOppTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, ccOppTid) : null
+              // Resolve the opponent once (tid first, legacy abbr only as a last
+              // resort) and source every display value from that object.
+              const ccOpponentInfo = getGameTeamInfo(currentDynasty?.teams || TEAMS, ccOppTid ?? ccDataForYear.opponent)
               const ccOpponentAbbr = ccOpponentInfo?.abbr || ccDataForYear.opponent
-              const hasOpponent = !!ccOpponentAbbr
-              const ccOpponentColors = hasOpponent ? getOpponentColors(ccOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              const ccMascotFromAbbr = hasOpponent ? getMascotName(ccOpponentAbbr) : null
-              const ccMascotName = ccMascotFromAbbr || (hasOpponent && getTeamLogo(ccOpponentAbbr, currentDynasty?.teams || currentDynasty?.customTeams) ? ccOpponentAbbr : null)
-              const ccOpponentName = ccMascotName || (hasOpponent ? getTeamNameFromAbbr(ccOpponentAbbr) : 'TBD')
-              const ccOpponentLogo = ccMascotName ? getTeamLogo(ccMascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const ccOpponentColors = ccOpponentInfo
+                ? { backgroundColor: ccOpponentInfo.primaryColor || '#6b7280', textColor: ccOpponentInfo.secondaryColor || '#ffffff' }
+                : { backgroundColor: '#6b7280', textColor: '#ffffff' }
+              const ccOpponentName = ccOpponentInfo?.name || 'TBD'
+              const ccOpponentLogo = ccOpponentInfo?.logo || (ccOppTid ? getTeamLogoByTid(ccOppTid, currentDynasty?.teams || TEAMS) : null)
               const isCurrentCCWeek = currentDynasty.currentPhase === 'conference_championship' && !ccGame
               const isWin = ccGame?.perspective?.userWon
               const userScore = ccGame?.perspective?.userScore ?? ccGame?.teamScore
@@ -7687,15 +7690,17 @@ export default function Dashboard() {
               if (hasBowlEligibility && bowlData?.bowlGame?.startsWith('CFP')) return null
               if (!userBowlGameData && !hasBowlEligibility) return null
 
-              const bowlOpponentInfo = userBowlGameData?.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, userBowlGameData.perspective.opponentTid) : null
+              const bowlOppTid = userBowlGameData?.perspective?.opponentTid ?? null
+              // Resolve the opponent once (tid first, legacy abbr only as a last
+              // resort) and source every display value from that object.
+              const bowlOpponentInfo = getGameTeamInfo(currentDynasty?.teams || TEAMS, bowlOppTid ?? bowlData?.opponent)
               const bowlOpponentAbbr = bowlOpponentInfo?.abbr || bowlData?.opponent
               const bowlGameName = userBowlGameData?.bowlName || bowlData?.bowlGame
-              const hasOpponent = !!bowlOpponentAbbr
-              const bowlOpponentColors = hasOpponent ? getOpponentColors(bowlOpponentAbbr) : { backgroundColor: '#6b7280', textColor: '#ffffff' }
-              const mascotFromAbbr = hasOpponent ? getMascotName(bowlOpponentAbbr) : null
-              const bowlMascotName = mascotFromAbbr || (hasOpponent && getTeamLogo(bowlOpponentAbbr, currentDynasty?.teams || currentDynasty?.customTeams) ? bowlOpponentAbbr : null)
-              const bowlOpponentName = bowlMascotName || (hasOpponent ? getTeamNameFromAbbr(bowlOpponentAbbr) : 'TBD')
-              const bowlOpponentLogo = bowlMascotName ? getTeamLogo(bowlMascotName, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const bowlOpponentColors = bowlOpponentInfo
+                ? { backgroundColor: bowlOpponentInfo.primaryColor || '#6b7280', textColor: bowlOpponentInfo.secondaryColor || '#ffffff' }
+                : { backgroundColor: '#6b7280', textColor: '#ffffff' }
+              const bowlOpponentName = bowlOpponentInfo?.name || 'TBD'
+              const bowlOpponentLogo = bowlOpponentInfo?.logo || (bowlOppTid ? getTeamLogoByTid(bowlOppTid, currentDynasty?.teams || TEAMS) : null)
               const isWin = userBowlGameData?.perspective?.userWon
               const userScore = userBowlGameData?.perspective?.userScore ?? userBowlGameData?.teamScore
               const opponentScore = userBowlGameData?.perspective?.opponentScore ?? userBowlGameData?.opponentScore
@@ -7744,10 +7749,11 @@ export default function Dashboard() {
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
-              const oppColors = oppAbbr ? getOpponentColors(oppAbbr) : { backgroundColor: '#6b7280', textColor: '#fff' }
-              const oppMascot = oppAbbr ? getMascotName(oppAbbr) : null
-              const oppName = oppMascot || (oppAbbr ? getTeamNameFromAbbr(oppAbbr) : 'TBD')
-              const oppLogo = oppMascot ? getTeamLogo(oppMascot, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const oppColors = oppInfo
+                ? { backgroundColor: oppInfo.primaryColor || '#6b7280', textColor: oppInfo.secondaryColor || '#fff' }
+                : { backgroundColor: '#6b7280', textColor: '#fff' }
+              const oppName = oppInfo?.name || 'TBD'
+              const oppLogo = oppInfo?.logo || (cfpGame.perspective?.opponentTid ? getTeamLogoByTid(cfpGame.perspective.opponentTid, currentDynasty?.teams || TEAMS) : null)
               const isWin = cfpGame.perspective?.userWon
               const userScore = cfpGame.perspective?.userScore ?? cfpGame.teamScore
               const oppScore = cfpGame.perspective?.opponentScore ?? cfpGame.opponentScore
@@ -7785,10 +7791,11 @@ export default function Dashboard() {
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
-              const oppColors = oppAbbr ? getOpponentColors(oppAbbr) : { backgroundColor: '#6b7280', textColor: '#fff' }
-              const oppMascot = oppAbbr ? getMascotName(oppAbbr) : null
-              const oppName = oppMascot || (oppAbbr ? getTeamNameFromAbbr(oppAbbr) : 'TBD')
-              const oppLogo = oppMascot ? getTeamLogo(oppMascot, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const oppColors = oppInfo
+                ? { backgroundColor: oppInfo.primaryColor || '#6b7280', textColor: oppInfo.secondaryColor || '#fff' }
+                : { backgroundColor: '#6b7280', textColor: '#fff' }
+              const oppName = oppInfo?.name || 'TBD'
+              const oppLogo = oppInfo?.logo || (cfpGame.perspective?.opponentTid ? getTeamLogoByTid(cfpGame.perspective.opponentTid, currentDynasty?.teams || TEAMS) : null)
               const bowlName = cfpGame.bowlName || 'CFP Quarterfinal'
               const isWin = cfpGame.perspective?.userWon
               const userScore = cfpGame.perspective?.userScore ?? cfpGame.teamScore
@@ -7827,10 +7834,11 @@ export default function Dashboard() {
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
-              const oppColors = oppAbbr ? getOpponentColors(oppAbbr) : { backgroundColor: '#6b7280', textColor: '#fff' }
-              const oppMascot = oppAbbr ? getMascotName(oppAbbr) : null
-              const oppName = oppMascot || (oppAbbr ? getTeamNameFromAbbr(oppAbbr) : 'TBD')
-              const oppLogo = oppMascot ? getTeamLogo(oppMascot, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const oppColors = oppInfo
+                ? { backgroundColor: oppInfo.primaryColor || '#6b7280', textColor: oppInfo.secondaryColor || '#fff' }
+                : { backgroundColor: '#6b7280', textColor: '#fff' }
+              const oppName = oppInfo?.name || 'TBD'
+              const oppLogo = oppInfo?.logo || (cfpGame.perspective?.opponentTid ? getTeamLogoByTid(cfpGame.perspective.opponentTid, currentDynasty?.teams || TEAMS) : null)
               const bowlName = cfpGame.bowlName || 'CFP Semifinal'
               const isWin = cfpGame.perspective?.userWon
               const userScore = cfpGame.perspective?.userScore ?? cfpGame.teamScore
@@ -7869,10 +7877,11 @@ export default function Dashboard() {
               if (!cfpGame) return null
               const oppInfo = cfpGame.perspective?.opponentTid ? getGameTeamInfo(currentDynasty?.teams || TEAMS, cfpGame.perspective.opponentTid) : null
               const oppAbbr = oppInfo?.abbr
-              const oppColors = oppAbbr ? getOpponentColors(oppAbbr) : { backgroundColor: '#6b7280', textColor: '#fff' }
-              const oppMascot = oppAbbr ? getMascotName(oppAbbr) : null
-              const oppName = oppMascot || (oppAbbr ? getTeamNameFromAbbr(oppAbbr) : 'TBD')
-              const oppLogo = oppMascot ? getTeamLogo(oppMascot, currentDynasty?.teams || currentDynasty?.customTeams) : null
+              const oppColors = oppInfo
+                ? { backgroundColor: oppInfo.primaryColor || '#6b7280', textColor: oppInfo.secondaryColor || '#fff' }
+                : { backgroundColor: '#6b7280', textColor: '#fff' }
+              const oppName = oppInfo?.name || 'TBD'
+              const oppLogo = oppInfo?.logo || (cfpGame.perspective?.opponentTid ? getTeamLogoByTid(cfpGame.perspective.opponentTid, currentDynasty?.teams || TEAMS) : null)
               const isWin = cfpGame.perspective?.userWon
               const userScore = cfpGame.perspective?.userScore ?? cfpGame.teamScore
               const oppScore = cfpGame.perspective?.opponentScore ?? cfpGame.opponentScore
