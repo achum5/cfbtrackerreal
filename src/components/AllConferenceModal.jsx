@@ -24,6 +24,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { normalizeAllConferenceRows } from '../utils/allConferenceRealign'
 import { getTeamNameOptions, getTeamNameAliases } from '../data/teamRegistry'
 
 const isMobileDevice = () => {
@@ -519,6 +520,7 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import All-Conference"
             columns={['Conference', 'Designation', 'Position', 'Player', 'Team', 'Class']}
+            normalizeRows={normalizeAllConferenceRows}
             comboboxColumns={{ Team: teamAbbrs }}
             comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
             initialText={initialText}

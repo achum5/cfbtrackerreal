@@ -14,6 +14,7 @@ import { buildAIPrompt } from '../utils/aiPrompt'
 import { ATTRIBUTE_COLUMNS, ATTRIBUTE_ABBR } from '../utils/recruitAttributes'
 import { splitTsv } from '../utils/tsvParse'
 import { parseRecruitingDatabaseRows } from '../utils/recruitingDatabaseSheetFormat'
+import { normalizeRecruitDatabaseRows } from '../utils/recruitDatabaseRealign'
 import { mergeRecruitingDatabaseRows } from '../utils/recruitingDatabaseSync'
 import { findDuplicateClusters, applyDuplicateResolution } from '../utils/recruitingDatabasePool'
 import DuplicateReviewModal from './DuplicateReviewModal'
@@ -268,6 +269,7 @@ FINAL CHECK
               importLabel="Import Recruits"
               columns={RECRUITING_DB_PASTE_COLUMNS}
               columnOptions={RECRUITING_DB_COLUMN_OPTIONS}
+              normalizeRows={normalizeRecruitDatabaseRows}
               allowFileUpload
               fileUploadAccept=".tsv,.txt"
             />

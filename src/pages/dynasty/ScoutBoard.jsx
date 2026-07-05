@@ -9,7 +9,7 @@ import { getEditionKey } from '../../editions'
 import { POSITION_FILTER_OPTIONS, matchesPositionFilter } from '../../utils/recruitFilters'
 import { GradeReportContent, getGradeTier, DevTraitPill } from '../../components/PlayerDatabase'
 import ScoutScorePanel from '../../components/ScoutScorePanel'
-import { computeScore } from '../../components/archetypeWeights'
+import { computeScore, isHiddenDev } from '../../components/archetypeWeights'
 import { buildRevealedPool } from '../../utils/devTraitLearning'
 import { buildAttributeQualityMap } from '../../utils/devPrediction'
 import GemBustIcon from '../../components/GemBustIcon'
@@ -131,7 +131,11 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
                 <span className="text-txt-tertiary uppercase">{rk.l}</span>
               </span>
             ))}
-            {p.devTrait && <DevTraitPill devTrait={p.devTrait} />}
+            {/* Dev trait is a Scout Staff concept; in MaxPlays mode the reveal
+                mechanic doesn't apply, so a "HIDDEN" pill is just noise. Show it
+                in Scout Staff mode, or in MaxPlays mode only when the trait is
+                actually known. */}
+            {p.devTrait && (useLocalScores || !isHiddenDev(p.devTrait)) && <DevTraitPill devTrait={p.devTrait} />}
           </div>
         </div>
 
@@ -142,7 +146,10 @@ function Row({ r, rank, pathPrefix, scoutResult, scoring, localScore, useLocalSc
             a letter grade there reads as a Scout Staff grade, which is the
             wrong engine for MaxPlays dynasties. */}
         <div className="text-right flex-shrink-0 w-16">
-          {hasComposite ? (
+          {/* When expanded in MaxPlays mode the ScoutScore panel's ring already
+              shows this percentile, so drop the duplicate here (keep the w-16
+              slot for alignment). Scout Staff mode keeps its grade. */}
+          {(open && !useLocalScores) ? null : hasComposite ? (
             useLocalScores ? (
               <div className="flex flex-col items-end gap-0" title="Scout grade">
                 <div className="font-display leading-none tabular-nums" style={{ fontSize: '1.35rem', fontWeight: 800, color: compositeTier.color }}>

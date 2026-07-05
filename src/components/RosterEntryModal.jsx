@@ -27,6 +27,7 @@ import { POSITIONS, CLASSES, DEV_TRAITS, archetypesForPosition } from '../data/r
 import SheetLoadingHint from './SheetLoadingHint'
 import LocalDataEntry from './ui/LocalDataEntry'
 import { splitTsv } from '../utils/tsvParse'
+import { normalizeRosterRows } from '../utils/rosterRealign'
 
 // Dropdown values for the roster grid's constrained columns. Archetype depends
 // on the row's Position, so it's a function of the row.
@@ -573,6 +574,7 @@ FINAL CHECK before you send
             importLabel="Import Roster"
             initialText={initialRosterText}
             imageColumn="Image"
+            normalizeRows={normalizeRosterRows}
             columnOptions={ROSTER_COLUMN_OPTIONS}
             columns={attributesEnabled
               ? ['First Name', 'Last Name', 'Position', 'Class', 'Dev Trait', 'Jersey #', 'Archetype', 'Overall', 'Height', 'Weight', 'Hometown', 'State', 'Image', 'NIL', 'Attributes']

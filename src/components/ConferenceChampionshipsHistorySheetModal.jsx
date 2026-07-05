@@ -22,6 +22,7 @@ import {
 } from '../services/sheetsService'
 import { buildAIPrompt } from '../utils/aiPrompt'
 import LocalDataEntry from './ui/LocalDataEntry'
+import { normalizeConfChampHistoryRows } from '../utils/confChampHistoryRealign'
 import { splitTsv } from '../utils/tsvParse'
 import { getTeamNameOptions, getTeamNameLabel, getTeamNameAliases } from '../data/teamRegistry'
 
@@ -667,6 +668,7 @@ FINAL CHECK before you send
               columns={['Year', 'Conference', 'Team 1', 'Team 2', 'Team 1 Score', 'Team 2 Score']}
               comboboxColumns={{ 'Team 1': teamAbbrs, 'Team 2': teamAbbrs }}
               comboboxAliases={getTeamNameAliases(currentDynasty?.teams)}
+              normalizeRows={normalizeConfChampHistoryRows}
               initialText={initialText}
               onImport={handleLocalImport}
               onUseGoogle={() => setUseLocal(false)}
