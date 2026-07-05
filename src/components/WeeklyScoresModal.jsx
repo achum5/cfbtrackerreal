@@ -766,7 +766,31 @@ Don't just glance at this list. Physically execute each check on your draft.
     const yearNum = Number(year)
     const weekNum = Number(week)
     const teams = currentDynasty.teams || {}
+    // The poll ranks (played AND bye) are saved to the RANKINGS WEEK slot
+    // (effectiveCurrentRankWeek by default). Read the grid's rank columns from
+    // that SAME slot so the grid is WYSIWYG with what will be saved. Reading
+    // them from each game's stored team1Rank/team2Rank (a DIFFERENT slot — the
+    // entering-week rank) is what made hand-edited ranks look like they reverted
+    // on re-open, since edits landed in the rank-week slot but the prefill kept
+    // showing the entering-week slot.
+    const rankSlot = Number.isFinite(effectiveCurrentRankWeek) && effectiveCurrentRankWeek >= 0
+      ? effectiveCurrentRankWeek : weekNum
+    const rankOf = (tid) => {
+      const t = teams[tid] || teams[String(tid)]
+      const rbw = t?.byYear?.[String(yearNum)]?.rankByWeek ?? t?.byYear?.[yearNum]?.rankByWeek
+      const v = rbw?.[rankSlot] ?? rbw?.[String(rankSlot)]
+      return (typeof v === 'number' && v >= 1 && v <= 25) ? v : null
+    }
     const out = []
+    // Every tid playing this week (incl. the user's game) — so a team that plays
+    // is never also emitted as a bye row.
+    const playingTids = new Set()
+    for (const g of (currentDynasty.games || [])) {
+      if (!g) continue
+      if (Number(g.year) !== yearNum || Number(g.week) !== weekNum) continue
+      if (g.team1Tid != null) playingTids.add(Number(g.team1Tid))
+      if (g.team2Tid != null) playingTids.add(Number(g.team2Tid))
+    }
     for (const g of (currentDynasty.games || [])) {
       if (!g) continue
       if (Number(g.year) !== yearNum || Number(g.week) !== weekNum) continue
@@ -776,26 +800,48 @@ Don't just glance at this list. Physically execute each check on your draft.
       const homeTid = g.homeTeamTid ?? Number(g.team1Tid)
       const isNeutral = g.homeTeamTid == null
       const homeIsTeam1 = !isNeutral && homeTid === Number(g.team1Tid)
-      const homeAbbr = getTeamNameLabel(teams, homeIsTeam1 ? g.team1Tid : g.team2Tid) || teams[homeIsTeam1 ? g.team1Tid : g.team2Tid]?.abbr || ''
-      const awayAbbr = getTeamNameLabel(teams, homeIsTeam1 ? g.team2Tid : g.team1Tid) || teams[homeIsTeam1 ? g.team2Tid : g.team1Tid]?.abbr || ''
+      const hTid = homeIsTeam1 ? g.team1Tid : g.team2Tid
+      const aTid = homeIsTeam1 ? g.team2Tid : g.team1Tid
+      const homeAbbr = getTeamNameLabel(teams, hTid) || teams[hTid]?.abbr || ''
+      const awayAbbr = getTeamNameLabel(teams, aTid) || teams[aTid]?.abbr || ''
       const homeScore = homeIsTeam1 ? g.team1Score : g.team2Score
       const awayScore = homeIsTeam1 ? g.team2Score : g.team1Score
-      const homeRankRaw = homeIsTeam1 ? g.team1Rank : g.team2Rank
-      const awayRankRaw = homeIsTeam1 ? g.team2Rank : g.team1Rank
-      const homeRank = typeof homeRankRaw === 'number' ? homeRankRaw : (homeRankRaw ? parseInt(homeRankRaw, 10) : null)
-      const awayRank = typeof awayRankRaw === 'number' ? awayRankRaw : (awayRankRaw ? parseInt(awayRankRaw, 10) : null)
       out.push({
         homeTeam: homeAbbr,
         awayTeam: awayAbbr,
         homeScore: typeof homeScore === 'number' ? homeScore : null,
         awayScore: typeof awayScore === 'number' ? awayScore : null,
-        homeRank: typeof homeRank === 'number' && !isNaN(homeRank) && homeRank >= 1 && homeRank <= 25 ? homeRank : null,
-        awayRank: typeof awayRank === 'number' && !isNaN(awayRank) && awayRank >= 1 && awayRank <= 25 ? awayRank : null,
+        homeRank: rankOf(Number(hTid)),
+        awayRank: rankOf(Number(aTid)),
         neutral: isNeutral,
+        isBye: false,
       })
     }
-    return out
-  }, [isOpen, currentDynasty, year, week, userTid])
+    // Seed bye rows for ranked teams NOT playing this week (e.g. TCU #25 on a
+    // week-1 bye) so they stay visible and editable and survive an edit
+    // round-trip, instead of silently dropping out of the Top 25 on re-save.
+    const byeRows = []
+    for (const [tidKey, t] of Object.entries(teams)) {
+      const tid = Number(tidKey)
+      if (!Number.isFinite(tid)) continue
+      if (playingTids.has(tid)) continue
+      if (tid === userTid) continue
+      const r = rankOf(tid)
+      if (r == null) continue
+      byeRows.push({
+        homeTeam: getTeamNameLabel(teams, tid) || t?.abbr || '',
+        awayTeam: '',
+        homeScore: null,
+        awayScore: null,
+        homeRank: r,
+        awayRank: null,
+        neutral: false,
+        isBye: true,
+      })
+    }
+    byeRows.sort((a, b) => (a.homeRank || 99) - (b.homeRank || 99))
+    return [...out, ...byeRows]
+  }, [isOpen, currentDynasty, year, week, userTid, effectiveCurrentRankWeek])
 
   // Pre-fill the local grid with the week's existing CPU games so the modal
   // opens ready to edit instead of blank. The parser (readWeeklyScoresFromSheet)
@@ -805,10 +851,10 @@ Don't just glance at this list. Physically execute each check on your draft.
   // and the neutral flag, so we serialize those seven columns per game (blank
   // cell where a value is missing).
   //
-  // Ranked bye teams are intentionally NOT pre-seeded here — the grid opens
-  // with real games only, never auto-filled rank rows the user didn't enter or
-  // import. Bye ranks come in from the AI paste (the prompt emits a bye block),
-  // so the recorded Top 25 reflects the pasted output, not a pre-derived guess.
+  // Ranked bye teams ARE pre-seeded now (as bye rows: team + rank, no opponent),
+  // read back from the saved poll (rankByWeek[rankSlot]) so a ranked team on a
+  // bye stays visible/editable and survives an edit round-trip instead of
+  // silently dropping out of the Top 25 when the user re-opens and re-saves.
   const initialWeeklyText = useMemo(() => {
     const gameLines = existingForPrefill.map((g) => {
       const homeRank = g.homeRank != null ? String(g.homeRank) : ''
