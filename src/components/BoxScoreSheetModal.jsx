@@ -1931,6 +1931,7 @@ FINAL CHECK before you send
             onImport={onSave}
             onClose={handleClose}
             onUseGoogle={() => setPasteMode(false)}
+            rosterNames={targetRoster}
           />
         ) : pasteMode && sheetType === 'scoring' ? (
           <LocalDataEntry

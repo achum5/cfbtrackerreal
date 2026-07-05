@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Button from './ui/Button'
+import ComboboxCell from './ui/ComboboxCell'
 import PasteEntrySteps from './ui/PasteEntrySteps'
 import { useToast } from './ui/Toast'
 import { splitTsv } from '../utils/tsvParse'
@@ -34,9 +35,30 @@ export default function PlayerStatsPasteGrid({
   onImport,
   onClose,
   onUseGoogle,
+  rosterNames = null,   // string[] of the target team's roster, for name typeahead
 }) {
   const { toast } = useToast()
   const sections = useMemo(() => getUnifiedBoxScoreSections(), [])
+
+  // Name typeahead is only useful when we actually track this team's roster
+  // (opponents/FCS teams are often untracked — those cells stay free-text).
+  const nameOptions = useMemo(
+    () => (Array.isArray(rosterNames) ? rosterNames.filter(Boolean) : []),
+    [rosterNames]
+  )
+  // Alias map so an EA-style "A. Guess" or a bare last name still surfaces the
+  // full roster name as you type.
+  const nameAliases = useMemo(() => {
+    const out = {}
+    for (const name of nameOptions) {
+      const parts = String(name).trim().split(/\s+/)
+      if (parts.length < 2) continue
+      const first = parts[0]
+      const last = parts.slice(1).join(' ')
+      out[name] = [`${first[0]}. ${last}`, `${first[0]}.${last}`, last]
+    }
+    return out
+  }, [nameOptions])
 
   // grid: { [sectionKey]: [ { playerName, [fieldKey]: value } ] }
   const emptyGrid = () => sections.reduce((acc, s) => { acc[s.key] = []; return acc }, {})
@@ -196,14 +218,25 @@ export default function PlayerStatsPasteGrid({
                     <tr key={rowIdx}>
                       {s.fieldKeys.map((fk, idx) => (
                         <td key={fk} className={`border border-surface-5 ${idx === 0 ? 'min-w-[7rem]' : 'w-14'}`}>
-                          <input
-                            type="text"
-                            inputMode={idx === 0 ? 'text' : 'decimal'}
-                            value={row[fk] ?? ''}
-                            onChange={(e) => editCell(s.key, rowIdx, fk, e.target.value)}
-                            aria-label={`${s.title} ${s.headers[idx]} row ${rowIdx + 1}`}
-                            className={`w-full bg-transparent tabular text-txt-primary px-1.5 py-0.5 focus:outline-none focus:bg-surface-3 ${idx === 0 ? 'text-left' : 'text-right'}`}
-                          />
+                          {idx === 0 && nameOptions.length > 0 ? (
+                            <ComboboxCell
+                              value={row[fk] ?? ''}
+                              options={nameOptions}
+                              aliases={nameAliases}
+                              onChange={(v) => editCell(s.key, rowIdx, fk, v)}
+                              ariaLabel={`${s.title} ${s.headers[idx]} row ${rowIdx + 1}`}
+                              placeholder="type to search…"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode={idx === 0 ? 'text' : 'decimal'}
+                              value={row[fk] ?? ''}
+                              onChange={(e) => editCell(s.key, rowIdx, fk, e.target.value)}
+                              aria-label={`${s.title} ${s.headers[idx]} row ${rowIdx + 1}`}
+                              className={`w-full bg-transparent tabular text-txt-primary px-1.5 py-0.5 focus:outline-none focus:bg-surface-3 ${idx === 0 ? 'text-left' : 'text-right'}`}
+                            />
+                          )}
                         </td>
                       ))}
                       <td className="w-6 text-center border border-surface-5">

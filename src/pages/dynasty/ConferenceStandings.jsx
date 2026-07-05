@@ -8,7 +8,6 @@ import { getTeamColors } from '../../data/teamColors'
 import { getContrastTextColor } from '../../utils/colorUtils'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import ConferencesModal from '../../components/ConferencesModal'
-import { TEAMS, resolveTid } from '../../data/teamRegistry'
 import { conferenceTeams as DEFAULT_CONFERENCE_TEAMS } from '../../data/conferenceTeams'
 import { getConferenceTrophy } from '../../utils/trophyEngine'
 import {
@@ -280,10 +279,32 @@ export default function ConferenceStandings() {
     }
     return set
   }, [currentDynasty?.teams, currentDynasty?.customTeams])
+  // Resolve an alignment abbr to a tid STRICTLY from the league file
+  // (dynasty.teams). The static team registry only spawns NEW dynasties; once a
+  // dynasty exists, its teams map is the sole source of truth. A user-edited
+  // abbr must never be re-resolved through the registry, where the same string
+  // can point at a different team (e.g. this dynasty's "UL" is Louisville, but
+  // the registry's "UL" is Louisiana — that collision was rendering Louisville
+  // as the Ragin' Cajuns). tid is the stable identity; abbrs are just labels.
+  const abbrToTidLive = useMemo(() => {
+    const src = currentDynasty?.teams || currentDynasty?.customTeams || {}
+    const map = new Map()
+    for (const [key, t] of Object.entries(src)) {
+      const tid = t?.tid != null ? Number(t.tid) : Number(key)
+      if (!Number.isFinite(tid)) continue
+      const abbr = t?.abbr ? String(t.abbr).trim().toUpperCase() : null
+      if (abbr && !map.has(abbr)) map.set(abbr, tid)
+    }
+    return map
+  }, [currentDynasty?.teams, currentDynasty?.customTeams])
+  const resolveTidLive = (abbr) => {
+    if (abbr == null) return null
+    const tid = abbrToTidLive.get(String(abbr).trim().toUpperCase())
+    return tid != null ? tid : null
+  }
   const abbrIsLive = (abbr) => {
     if (abbr == null) return false
-    const src = currentDynasty?.teams || currentDynasty?.customTeams || TEAMS
-    const tid = resolveTid(abbr, src)
+    const tid = resolveTidLive(abbr)
     if (tid != null) return liveTeamTids.has(Number(tid))
     // tid unresolvable (unknown team) — keep the abbr path so nothing vanishes
     return liveTeamAbbrs.has(abbr)
@@ -386,7 +407,7 @@ export default function ConferenceStandings() {
     const mascotName = teamFromTid?.name || getMascotName(teamAbbr, teamsSource)
     const logo = mascotName ? getTeamLogo(mascotName, teamsSource) : null
     const colors = mascotName ? getTeamColors(mascotName, teamsSource) : { primary: '#666', secondary: '#fff' }
-    const linkTid = team.tid != null ? Number(team.tid) : resolveTid(teamAbbr, teamsSource || TEAMS)
+    const linkTid = team.tid != null ? Number(team.tid) : resolveTidLive(teamAbbr)
     // Coverage-aware source-of-truth: pick whichever record covers more
     // games — calc-from-games or the saved standings row. Same rule the
     // team page uses (TeamYear.jsx ~1402). Without this, a single
@@ -586,7 +607,7 @@ export default function ConferenceStandings() {
     const seenTids = new Set()
     const rows = []
     for (const abbr of teamAbbrs) {
-      const rawTid = resolveTid(abbr, teamsSource || TEAMS)
+      const rawTid = resolveTidLive(abbr)
       const liveTid = rawTid != null && liveTeamTids.has(Number(rawTid)) ? Number(rawTid) : null
       if (liveTid != null) {
         if (seenTids.has(liveTid)) continue
@@ -710,7 +731,7 @@ export default function ConferenceStandings() {
               }
               const renderRows = (list) => {
               const enriched = list.map(t => {
-                const tid = t.tid != null ? Number(t.tid) : resolveTid(t.team, teamsSrc || TEAMS)
+                const tid = t.tid != null ? Number(t.tid) : resolveTidLive(t.team)
                 // Use the same coverage-aware helper as the row render
                 // above. Without it the sort would happily reorder a
                 // 9-4 stored team behind a 1-0 sparse-calc team, which

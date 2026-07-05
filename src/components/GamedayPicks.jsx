@@ -96,9 +96,14 @@ const ANALYSTS = [
     id: 'desmond',
     name: 'Desmond',
     title: 'The Enthusiastic Wildcard',
-    // Loves the disrespected team — flips contrarian toward the underdog.
+    // Loves the disrespected team — leans hard toward the underdog on close
+    // games, but the lean fades as the mismatch grows so he won't hand a
+    // three-touchdown favorite the loss.
     skew(p) {
-      return sharpen(p, -0.45)
+      const compressed = sharpen(p, 0.8)         // soften the gap toward a coin flip
+      const closeness = 1 - Math.abs(p - 0.5) * 2 // 1 at a pick'em, 0 at a lock
+      const dogNudge = 0.22 * closeness
+      return clamp01(p >= 0.5 ? compressed - dogNudge : compressed + dogNudge)
     },
     quip({ side, userName, oppName, gameKey }) {
       const m  = mascot(side === 'user' ? userName : oppName)

@@ -91,6 +91,29 @@ export default function StatsEntryModal({
       }))
   }, [currentDynasty?.players, currentDynasty?.teams, currentDynasty?.currentTid, currentDynasty?.teamName, overrideTeamAbbr, currentYear, currentDynasty])
 
+  // Roster names for the Player column's typeahead. Constraining the typed value
+  // to an exact roster name is what actually connects the stat row to the right
+  // player — the save path resolves rows to players by case-insensitive name.
+  const rosterNames = useMemo(
+    () => userRoster.map(p => p.name).filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    [userRoster]
+  )
+
+  // Alias map so EA-CFB's initial-abbreviated names ("A. Guess") and a bare last
+  // name still surface the full roster name in the dropdown as you type.
+  const rosterAliases = useMemo(() => {
+    const out = {}
+    for (const p of userRoster) {
+      if (!p.name) continue
+      const parts = p.name.trim().split(/\s+/)
+      if (parts.length < 2) continue
+      const first = parts[0]
+      const last = parts.slice(1).join(' ')
+      out[p.name] = [`${first[0]}. ${last}`, `${first[0]}.${last}`, last]
+    }
+    return out
+  }, [userRoster])
+
   // Pre-fill the local grid with the roster's EXISTING GP/Snaps so the modal
   // opens ready to edit. parseGpSnapsLocal reads each row as
   // <Player>\t<Games Played>\t<Snaps Played> (row[0], row[1], row[2]); a blank
@@ -539,6 +562,8 @@ FINAL CHECK before you send
             onCancel={handleClose}
             importLabel="Import GP / Snaps"
             columns={['Player', 'Games Played', 'Snaps Played']}
+            comboboxColumns={{ Player: rosterNames }}
+            comboboxAliases={rosterAliases}
             initialText={initialGpSnapsText}
           />
         ) : isLoading ? (
