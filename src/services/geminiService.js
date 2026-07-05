@@ -4480,14 +4480,26 @@ SCORING SUMMARY (in chronological order)
     // The scoring summary is chronological, but LLMs still occasionally
     // confuse WHICH team was trailing and WHICH team rallied. Spell it out
     // explicitly so the recap headline can't invert the narrative.
+    // Rank a quarter for flow math. Returns 0 when genuinely unknown/unparseable
+    // — callers MUST treat 0 as "unknown", never as a real quarter, or an
+    // unlabeled 2nd-half play would be mis-counted into the halftime score.
+    // Tolerant of the many quarter formats that reach here: bare digit ("2"),
+    // Q-prefixed ("Q2"), ordinals ("2nd"), and OT variants ("OT", "2OT", "OT2").
     const quarterRankForFlow = (q) => {
       if (q == null) return 0
       if (typeof q === 'number' && Number.isFinite(q)) return q
       const s = String(q).trim().toUpperCase()
       if (!s) return 0
-      if (/^\d+$/.test(s)) return parseInt(s, 10)
-      const otMatch = s.match(/^(\d*)OT$/)
+      // Overtime first, so "2OT"/"OT2" don't get read as quarter 2 by the
+      // digit extraction below.
+      const otMatch = s.match(/^(\d*)\s*OT$/) || s.match(/^OT\s*(\d*)$/)
       if (otMatch) return 4 + (otMatch[1] ? parseInt(otMatch[1], 10) : 1)
+      // First run of digits: "2" / "Q2" / "2nd" / "2Q" all → 2.
+      const digits = s.match(/\d+/)
+      if (digits) {
+        const n = parseInt(digits[0], 10)
+        if (Number.isFinite(n) && n >= 1) return n
+      }
       return 0
     }
     let t1 = 0, t2 = 0
@@ -4495,6 +4507,7 @@ SCORING SUMMARY (in chronological order)
     let halftimeT1 = 0, halftimeT2 = 0
     let regT1 = 0, regT2 = 0
     let otT1 = 0, otT2 = 0
+    let anyKnownQuarter = false
     let leadChanges = 0
     let lastLeader = 0 // -1 = team2, 0 = tied, 1 = team1
     // Use normalizedPlays (PAT results already collapsed onto preceding
@@ -4515,9 +4528,13 @@ SCORING SUMMARY (in chronological order)
       if (isTeam1) t1 += pts
       else t2 += pts
       const qr = quarterRankForFlow(play.quarter)
-      // Track halftime (through Q2) and end-of-regulation (through Q4)
-      if (qr <= 2) { halftimeT1 = t1; halftimeT2 = t2 }
-      if (qr <= 4) { regT1 = t1; regT2 = t2 }
+      if (qr >= 1) anyKnownQuarter = true
+      // Track halftime (through Q2) and end-of-regulation (through Q4). A play
+      // whose quarter is UNKNOWN (qr === 0) must NOT count as first-half — else
+      // a game whose plays carry no parseable quarter would roll the FINAL
+      // score into the halftime line (the "final duplicated as halftime" bug).
+      if (qr >= 1 && qr <= 2) { halftimeT1 = t1; halftimeT2 = t2 }
+      if (qr >= 1 && qr <= 4) { regT1 = t1; regT2 = t2 }
       if (qr > 4) { otT1 = t1 - regT1; otT2 = t2 - regT2 }
       // Running deficit tracking (positive = they trailed by this much)
       if (t1 < t2) t1MaxDeficit = Math.max(t1MaxDeficit, t2 - t1)
@@ -4538,12 +4555,17 @@ SCORING SUMMARY (in chronological order)
     const describeLead = (a, b, nameA, nameB) =>
       a > b ? `${nameA} led ${a}-${b}` : a < b ? `${nameB} led ${b}-${a}` : `tied ${a}-${a}`
 
-    const flowLines = [
-      `Halftime: ${describeLead(halftimeT1, halftimeT2, name1, name2)}.`,
-      `End of regulation: ${describeLead(regT1, regT2, name1, name2)}${regT1 === regT2 ? ' (went to overtime)' : ''}.`,
-    ]
-    if (regT1 === regT2) {
-      flowLines.push(`Overtime scoring: ${name1} ${otT1}, ${name2} ${otT2}.`)
+    // Only claim a halftime / end-of-regulation score when the plays actually
+    // carry quarter data. Without it we can't know when halftime was, so
+    // emitting a line would fabricate one (and, pre-fix, duplicate the final) —
+    // which contradicts the chronological scoring summary and confuses the AI.
+    const flowLines = []
+    if (anyKnownQuarter) {
+      flowLines.push(`Halftime: ${describeLead(halftimeT1, halftimeT2, name1, name2)}.`)
+      flowLines.push(`End of regulation: ${describeLead(regT1, regT2, name1, name2)}${regT1 === regT2 ? ' (went to overtime)' : ''}.`)
+      if (regT1 === regT2) {
+        flowLines.push(`Overtime scoring: ${name1} ${otT1}, ${name2} ${otT2}.`)
+      }
     }
     flowLines.push(`Final: ${describeLead(finalT1, finalT2, name1, name2)}.`)
     flowLines.push(`Largest deficit overcome by ${name1}: ${t1MaxDeficit === 0 ? 'never trailed' : `${t1MaxDeficit} point${t1MaxDeficit === 1 ? '' : 's'}`}.`)
