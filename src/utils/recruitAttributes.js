@@ -324,4 +324,8 @@ export const SHEET_HEADER_TO_ATTRIBUTE = {
   'Throw Acc Short': 'Short Accuracy',
   'Throw On The Run': 'Throw On Run',
   'Throw Under Pressure': 'Under Pressure',
+  // 'RUN' is the canonical short code now (matches the in-game attribute
+  // abbreviation) — 'TOR' kept recognized too in case an AI reply or
+  // already-exported backup still uses the old code.
+  'TOR': 'Throw On Run',
 }

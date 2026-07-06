@@ -9123,7 +9123,13 @@ export function DynastyProvider({ children }) {
       const extras = result.dynasty.recruitingDatabasePlayers || []
       const seen = new Set(targets.map(p => String(p.pid)))
       const merged = [...targets, ...extras.filter(p => !seen.has(String(p.pid)))]
-      downloadRecruitingDatabaseJson(merged)
+      // NOTE: `result` is already bound above (handleDynastyLeavingPool) — use a
+      // distinct name here to avoid shadowing/redeclaration.
+      const backupResult = await downloadRecruitingDatabaseJson(merged)
+      if (backupResult === 'cancelled') {
+        toast.error('Backup cancelled — not proceeding, to keep your database safe.')
+        return false
+      }
       toast.success('Recruiting Database backed up to a JSON file.')
       return true
     } catch (err) {
