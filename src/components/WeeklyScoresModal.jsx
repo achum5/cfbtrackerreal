@@ -288,23 +288,27 @@ Field reports show this catches both bug classes:
 For every game in the screenshots, write ONE worksheet line, in this
 exact pipe-separated order:
 
-  WS<n> | <img> | <leftAbbr> <leftScore> [VS|@|NEUT] <rightAbbr> <rightScore> | HOME=<abbr> | WINNER=<abbr> | NEUTRAL=Y/N
+  WS<n> | <img> | <leftTeam> <leftScore> [VS|@|NEUT] <rightTeam> <rightScore> | HOME=<team> | WINNER=<team> | NEUTRAL=Y/N
+
+Every team you name here is the FULL NAME from the TEAM NAMES list (resolve
+the on-screen logo/code to that list name), the same value you'll output in
+the TSV — so the worksheet and the TSV always agree.
 
 Field by field:
   • WS<n>            sequential — WS1, WS2, WS3 …
   • <img>            which screenshot you read this game from (img1, img2…)
-  • The middle block is what you SAW: which team's logo/abbr was on which
-    side of the screen, and which score sat next to which logo. The
+  • The middle block is what you SAW: which team was on which side of the
+    screen (identified by logo/name), and which score sat next to it. The
     [VS|@|NEUT] marker is the orientation cue you used (vs / @ / neutral
     site). Keep left and right in the order they appeared on screen.
-  • HOME=<abbr>      apply rule 6 (HOME / AWAY ORIENTATION). Cite mentally
+  • HOME=<team>      apply rule 6 (HOME / AWAY ORIENTATION). Cite mentally
                      which evidence drove the decision: "@", "vs", left/
                      right convention, explicit Home/Away tag, neutral
-  • WINNER=<abbr>    the team with the higher score. CRITICAL: the higher
+  • WINNER=<team>    the team with the higher score. CRITICAL: the higher
                      score in the middle block must belong to the team you
                      write here. If your worksheet line says
-                     "AUB 31 @ UGA 21 ... WINNER=UGA" you have a bug —
-                     31 is paired with AUB on screen, AUB won.
+                     "Auburn 31 @ Georgia 21 ... WINNER=Georgia" you have a
+                     bug — 31 is paired with Auburn on screen, Auburn won.
   • NEUTRAL=Y/N      Y if you couldn't determine HOME and the game was at
                      a neutral site; otherwise N.
 
@@ -374,8 +378,9 @@ Pull the rank from the integer prefix. No prefix → unranked → leave the rank
 ═══ SCORES: the result column is winner-first ═══
 
 The TIME(ET)/RESULT column, after a game is played, reads:
-        "WINNER_ABBR  WINNER_SCORE,  LOSER_ABBR  LOSER_SCORE"
-THE WINNER COMES FIRST. The loser comes after the comma.
+        "WINNER_CODE  WINNER_SCORE,  LOSER_CODE  LOSER_SCORE"
+THE WINNER COMES FIRST. The loser comes after the comma. (These codes are for
+reading scores only — you output the full team NAME, not the code.)
 
 Real examples taken straight from CFB26 screenshots:
   • "UK 17, UGA 14"     →  UK won 17, UGA lost 14    (Kentucky beat Georgia)
@@ -387,48 +392,52 @@ Real examples taken straight from CFB26 screenshots:
 
 This is the score-swap defense: you do NOT have to look at logos and try to pair scores visually. The result text directly tells you who won and who lost. If you read the comma-separated string correctly, score-swap cannot happen.
 
-═══ ABBREVIATION MISMATCH: result text ≠ dropdown ═══
+═══ THE RESULT-SCREEN CODES ARE FOR SCORES ONLY — NEVER OUTPUT THEM ═══
 
-CFB26's result-column abbreviations are the game's internal short codes. They MAY NOT match the dropdown abbreviations in your TEAM NAMES list. Examples I've personally seen:
+The result column uses short codes (PSU, BUFF, MIST, CUSE). Their ONLY job is
+to tell you which team scored what. You NEVER put these codes in your output.
+What you OUTPUT is the team's FULL NAME, read from the MATCHUP column and copied
+exactly from the TEAM NAMES list.
 
-  Result-text abbr → Dropdown abbr
+The codes often differ from the team's name/abbreviation anyway, so trying to
+use them as identity would break the import. A few you'll see:
+
+  Result-screen code → the team it means
   ────────────────────────────────────
-    CUSE          →  SYR    (Syracuse / 'Cuse)
-    MIST          →  MZST   (Missouri State)
-    JXST          →  JKST   (Jacksonville State)
-    M-OH          →  M-OH   (Miami OH — same)
-    UF            →  UF     (Florida — same)
-    OKLA          →  OU     (Oklahoma — sometimes either form is used)
-    TAMU          →  TAMU   (Texas A&M — same)
-    MASS          →  MASS   (UMass — same)
-    CONN          →  CONN   (UConn — same)
-    BAMA          →  BAMA   (Alabama — same)
-    GASO          →  GASO   (Georgia Southern — same)
-    SCAR          →  SCAR   (South Carolina — same)
-    KENN          →  KENN   (Kennesaw State — same)
+    CUSE  → Syracuse
+    MIST  → Missouri State
+    JXST  → Jacksonville State
+    OKLA  → Oklahoma
+    M-OH  → Miami (OH)
 
-When the result-text abbr doesn't match a dropdown entry, **do NOT use the result-text abbr in the TSV**. Match the team's FULL NAME from the matchup column to the dropdown instead. This is critical — using "CUSE" or "MIST" verbatim breaks the import.
+Identity always comes from the MATCHUP column's full name, never the code.
 
 ═══ THE STEP-BY-STEP STRATEGY (use this for every row) ═══
 
-1. Read the FULL TEAM NAMES from the matchup column. Examples:
+1. Read the two FULL TEAM NAMES from the matchup column. Examples:
    "Missouri State", "Kennesaw State", "Notre Dame", "Fresno State".
-2. Look up each full name in your TEAM NAMES list at the bottom of this prompt. Use the dropdown abbr you find there. The matchup column's text is the SOURCE OF TRUTH for team identity.
-3. Read the result text: "XXX score1, YYY score2".
-4. Match each result-text abbr (XXX, YYY) back to one of the two team names in the matchup column. There are only two teams in the row — one of them is XXX, the other is YYY. Use abbr similarity + position-in-the-row as the matching cue.
-5. Pair each team with its score: the team matched to XXX scored score1, the team matched to YYY scored score2.
-6. Apply the "at" rule: LEFT team = AWAY/visitor, RIGHT team = HOME/host. Both team's scores are now known from step 5; just put them in the right columns.
+2. Find each full name in your TEAM NAMES list at the bottom of this prompt and
+   copy the EXACT list name — that is what you output for that team. The matchup
+   column is the SOURCE OF TRUTH for team identity.
+3. Read the result text: "CODE1 score1, CODE2 score2".
+4. Match each result code (CODE1, CODE2) to one of the two teams in the matchup
+   column. There are only two teams — one is CODE1, the other CODE2. Use code
+   similarity + position-in-the-row as the cue.
+5. Pair each team with its score: the team matched to CODE1 scored score1, the
+   team matched to CODE2 scored score2.
+6. Apply the "at" rule: LEFT team = AWAY/visitor, RIGHT team = HOME/host. Both
+   scores are known from step 5; just put them in the right columns.
 
 Example, end-to-end on the "Missouri State at Kennesaw State | MIST 38, KENN 17" row:
   Step 1: Left full name = "Missouri State". Right full name = "Kennesaw State".
-  Step 2: Look up "Missouri State" in dropdown → MZST. Look up "Kennesaw State" → KENN.
+  Step 2: Both are in the TEAM NAMES list verbatim — output "Missouri State" and "Kennesaw State".
   Step 3: Result text = "MIST 38, KENN 17". Winner is MIST with 38; loser is KENN with 17.
-  Step 4: MIST result-abbr corresponds to "Missouri State" (left, the visitor). KENN result-abbr corresponds to "Kennesaw State" (right, the host).
+  Step 4: MIST corresponds to "Missouri State" (left, the visitor). KENN corresponds to "Kennesaw State" (right, the host).
   Step 5: Missouri State scored 38. Kennesaw State scored 17.
-  Step 6: HOME = right team = Kennesaw State = KENN with score 17. AWAY = left team = Missouri State = MZST with score 38.
+  Step 6: HOME = right team = Kennesaw State (17). AWAY = left team = Missouri State (38).
 
-  Worksheet line: WSn | img1 | MZST 38 @ KENN 17 | HOME=KENN | WINNER=MZST | NEUTRAL=N
-  TSV row:        KENN  [blank]  17  MZST  [blank]  38  [blank]
+  Worksheet line: WSn | img1 | Missouri State 38 @ Kennesaw State 17 | HOME=Kennesaw State | WINNER=Missouri State | NEUTRAL=N
+  TSV row:        Kennesaw State  [blank]  17  Missouri State  [blank]  38  [blank]
 
 ═══ Other things on the screen — IGNORE these ═══
 
@@ -440,10 +449,10 @@ Example, end-to-end on the "Missouri State at Kennesaw State | MIST 38, KENN 17"
 CRITICAL RULES — output format
 ═══════════════════════════════════════════════════════════
 1. OUTPUT 7 COLUMNS PER ROW, in this exact order:
-   Col A — HOME TEAM (abbreviation)
+   Col A — HOME TEAM (full name from the TEAM NAMES list)
    Col B — HOME RANK (integer 1–25, or BLANK if unranked)
    Col C — HOME SCORE (integer)
-   Col D — AWAY TEAM (abbreviation)
+   Col D — AWAY TEAM (full name from the TEAM NAMES list)
    Col E — AWAY RANK (integer 1–25, or BLANK if unranked)
    Col F — AWAY SCORE (integer)
    Col G — NEUTRAL? ("Y" if neutral site, otherwise leave BLANK)
@@ -630,7 +639,7 @@ SECTION: "Week ${week} Scores" — up to ${WEEKLY_SCORES_MAX_ROWS} game rows + u
 
 Col A (Home Team) | Col B (Home Rank) | Col C (Home Score) | Col D (Away Team) | Col E (Away Rank) | Col F (Away Score) | Col G (Neutral?)
 ------------------+-------------------+--------------------+-------------------+-------------------+--------------------+-----------------
-team abbr         | 1–25 or BLANK     | integer            | team abbr         | 1–25 or BLANK     | integer            | "Y" or BLANK
+team name         | 1–25 or BLANK     | integer            | team name         | 1–25 or BLANK     | integer            | "Y" or BLANK
 
 ⚠ EXACTLY 7 columns (6 tabs) per row. The score comes DIRECTLY after the rank
 with NO blank column between them: Home Score is Col C (right after Home Rank in
@@ -652,15 +661,17 @@ Output, in order:
      col D empty = bye rank).
 
 CRITICAL — the scores MUST be a real fenced \`\`\`tsv code block, NOT a
-human-readable list ("North Carolina 45 TCU 42"), NOT a markdown table,
+human-readable list ("Buffalo 13 Penn State 30"), NOT a markdown table,
 NOT prose sentences. The code fence is the ONLY thing that preserves the
-LITERAL TAB characters between columns and the exact team ABBREVIATIONS —
-without it the tabs collapse to spaces and the paste is unusable. Use team
-abbreviations from the TEAM NAMES list (e.g. "UNC", "TCU" — never "North
-Carolina"), one tab between every column, one game per line.
+LITERAL TAB characters between columns and the exact team NAMES — without
+it the tabs collapse to spaces and the paste is unusable. Use the team
+NAMES from the TEAM NAMES list, spelled EXACTLY as they appear there (e.g.
+"Penn State", "TCU", "Miami (FL)"), one tab between every column, one game
+per line. Do NOT output abbreviations, nicknames, or the result-screen
+codes — the full list name only.
 
 \`\`\`worksheet
-WS1 | img1 | <leftAbbr> <leftScore> [VS|@|NEUT] <rightAbbr> <rightScore> | HOME=<abbr> | WINNER=<abbr> | NEUTRAL=Y/N
+WS1 | img1 | <leftTeam> <leftScore> [VS|@|NEUT] <rightTeam> <rightScore> | HOME=<team> | WINNER=<team> | NEUTRAL=Y/N
 WS2 | img1 | ...
 ...
 \`\`\`
@@ -670,26 +681,26 @@ WS2 | img1 | ...
 <game1 HomeTeam>\\t<game1 HomeRank>\\t<game1 HomeScore>\\t<game1 AwayTeam>\\t<game1 AwayRank>\\t<game1 AwayScore>\\t<game1 Neutral?>
 <game2 HomeTeam>\\t<game2 HomeRank>\\t<game2 HomeScore>\\t<game2 AwayTeam>\\t<game2 AwayRank>\\t<game2 AwayScore>\\t<game2 Neutral?>
 ... (one row per game — emit the FULL list, no "...")
-<bye1 TeamAbbr>\\t<bye1 Rank>\\t\\t\\t\\t\\t
-<bye2 TeamAbbr>\\t<bye2 Rank>\\t\\t\\t\\t\\t
+<bye1 TeamName>\\t<bye1 Rank>\\t\\t\\t\\t\\t
+<bye2 TeamName>\\t<bye2 Rank>\\t\\t\\t\\t\\t
 ... (one row per ranked bye team; can be empty if no ranked bye teams; up to 25)
 \`\`\`
 
-(Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t". Team names are ABBREVIATIONS from the TEAM NAMES list.)
+(Each \\t above represents a LITERAL TAB character — use actual tab characters in your output, not the text "\\t". Every team value is the FULL NAME exactly as written in the TEAM NAMES list.)
 
 LAYOUT EXAMPLE (concrete shape — 3 games, 2 bye teams):
-  GA\\t1\\t35\\tAUB\\t\\t14\\t            ← game
-  TEX\\t\\t28\\tOU\\t12\\t21\\t            ← game
-  BAMA\\t\\t52\\tTENN\\t8\\t10\\tY         ← game (neutral)
-  MIA\\t1\\t\\t\\t\\t\\t                       ← bye rank: Miami at #1
-  CLEM\\t3\\t\\t\\t\\t\\t                      ← bye rank: Clemson at #3
+  Georgia\\t1\\t35\\tAuburn\\t\\t14\\t            ← game
+  Texas\\t\\t28\\tOklahoma\\t12\\t21\\t          ← game
+  Alabama\\t\\t52\\tTennessee\\t8\\t10\\tY        ← game (neutral)
+  Miami (FL)\\t1\\t\\t\\t\\t\\t                      ← bye rank: Miami at #1
+  Clemson\\t3\\t\\t\\t\\t\\t                        ← bye rank: Clemson at #3
 
 The KEY DIFFERENCE between a game row and a bye row is column D:
   • Game row: column D is the away-team name. NEVER blank.
   • Bye row:  column D is BLANK. Only columns A (team) and B (rank)
               are filled. Columns C, E, F, G are all blank.
 
-If you put a team abbr in column D of a row meant to be a bye rank,
+If you put a team name in column D of a row meant to be a bye rank,
 the importer will treat it as a game and silently drop the bye-rank
 information. Be careful.
 
@@ -698,11 +709,11 @@ contents of the \`\`\`tsv block (everything from the "=== WEEK ..." marker
 through the last bye row) into the sheet.
 
 Example rows (for illustration only — your data should match the screenshots, and you should use ONLY team names that appear in the TEAM NAMES list at the bottom of this prompt):
-TEX\\t7\\t34\\tOU\\t\\t21\\t
-BAMA\\t\\t28\\tUGA\\t3\\t31\\tY
-LSU\\t\\t52\\tFCSE\\t\\t10\\t
+Texas\\t7\\t34\\tOklahoma\\t\\t21\\t
+Alabama\\t\\t28\\tGeorgia\\t3\\t31\\tY
+LSU\\t\\t52\\tFCS East\\t\\t10\\t
 
-(Row 1: Texas at home, ranked #7. Row 2: Alabama unranked, Georgia ranked #3, neutral site. Row 3: LSU hosts an FCS opponent — FCSE is the placeholder for FCS East in this dynasty's mapping. Use whichever FCS placeholder matches what the screenshot shows.)
+(Row 1: Texas at home, ranked #7. Row 2: Alabama unranked, Georgia ranked #3, neutral site. Row 3: LSU hosts an FCS opponent — "FCS East" is one of this dynasty's FCS placeholders. Use whichever FCS placeholder NAME matches what the screenshot shows, exactly as it appears in the TEAM NAMES list.)
 
 ═══════════════════════════════════════════════════════════
 FINAL CHECK before you send the answer — actually run these
@@ -713,7 +724,8 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] FCS GAMES INCLUDED: every FBS-vs-FCS game in the screenshots is a row in your output, mapped to the appropriate FCS placeholder (FCSE / FCSM / FCSN / FCSW or whatever appears in the team mapping below). Skipping a Week 0 FCS warm-up is a known failure mode — confirm you didn't.
 [ ] EVERY SCREENSHOT PROCESSED: if the user sent multiple images (look for "1 of 2", "2 of 2" etc., or simply more than one attachment), confirm you read every one of them, not just the first.
 [ ] NO TRUNCATION: your output does not end with "...", "[and the rest]", "etc.", or any phrase implying you stopped early. The full list goes through.
-[ ] FENCED TSV: the scores are inside a \`\`\`tsv code block — NOT a plain list, prose, or markdown table. If you wrote "North Carolina 45 TCU 42" style lines, you failed this: rewrite as tab-separated abbreviation rows inside the \`\`\`tsv fence.
+[ ] FENCED TSV: the scores are inside a \`\`\`tsv code block — NOT a plain list, prose, or markdown table. If you wrote "North Carolina 45 TCU 42" style lines, you failed this: rewrite as tab-separated team-NAME rows inside the \`\`\`tsv fence.
+[ ] TEAM NAMES, NOT ABBREVIATIONS: every value in columns A and D is a FULL NAME copied exactly from the TEAM NAMES list (e.g. "Penn State", not "PSU"; "Miami (FL)", not "MIA"). The result-screen codes (PSU, BUFF, …) are ONLY for matching scores to teams — never output them.
 [ ] EXACTLY 7 tab-separated values per row (6 tab characters per line) — even when rank/neutral columns are blank, the surrounding tabs MUST still be present.
 [ ] Columns A and D are team NAMES only, from the TEAM NAMES list (re-check before omitting any unfamiliar one).
 [ ] Scores in columns C and F are INTEGERS only — no commas, no decimals, no "pts".
@@ -726,7 +738,7 @@ Don't just glance at this list. Physically execute each check on your draft.
 [ ] TEAM COVERAGE (rule F in PRE-EXTRACTION COUNT). Every team you saw in the screenshots is now either (a) in a row of your output, or (b) confirmed on bye. No team silently disappeared. If you can name a team you remember seeing that doesn't appear in EITHER place, you have a missing game — go find it.
 [ ] Inside the TSV block: data rows only — no header row, no commentary. Notes outside the block are fine (e.g. an "X games dropped" note if N > ${WEEKLY_SCORES_MAX_ROWS}). The worksheet fence above is expected.
 [ ] BYE BLOCK PRESENT + COMPLETE: IF the PRIOR-WEEK TOP 25 block above has data — count the teams listed there (P). Count how many of them appear in your games block with a rank (G). Your bye block must have EXACTLY P − G rows. Every team in the prior-week top 25 must be accounted for in EXACTLY ONE place: either (a) in a game row with their new rank, or (b) in the bye block with a derived new rank. NO ranked team silently drops out. The total ranked teams across both blocks must equal P (typically 25). If your count is off, go back and find the missing team before sending. IF the PRIOR-WEEK TOP 25 block above is EMPTY ("(no prior-week Top 25 stored)"), emit an EMPTY bye block — do NOT invent bye entries from real-world poll knowledge or memory. The dynasty's stored picture is the only source of truth here.
-[ ] BYE BLOCK COL D EMPTY: every bye row's column D (4th tab-separated cell) is BLANK. If you accidentally put a team abbr in col D of a bye row, the importer treats it as a game with that abbr.
+[ ] BYE BLOCK COL D EMPTY: every bye row's column D (4th tab-separated cell) is BLANK. If you accidentally put a team name in col D of a bye row, the importer treats it as a game.
 [ ] BYE RANKS UNIQUE + IN RANGE: every rank in the bye block is 1-25, no rank repeats, and no rank in the bye block matches a rank already shown for a played team in the games block. The new poll has 25 unique ranks total.`,
     includeTeamMap: true,
     dynastyTeams: currentDynasty?.teams,
