@@ -109,6 +109,7 @@ import { migrateDynastyToCoaches, makeCoach, deriveMemberTeamsIndex, getCoaches,
 import { migrateTeamNameParts } from '../data/teams'
 import { isSameWeek, isSameYear } from '../utils/compareUtils'
 import { settleOrProceed } from '../utils/firestoreWriteGuard'
+import { withTimeout } from '../utils/withTimeout'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
 const DynastyContext = createContext()
@@ -8421,8 +8422,15 @@ export function DynastyProvider({ children }) {
       // Local storage: update IndexedDB
 
       // CRITICAL FIX: Read from IndexedDB to get the absolute latest local data
-      // This prevents race conditions when multiple updates happen in quick succession
-      const currentLocalDynasties = await indexedDBStorage.getDynasties() || []
+      // This prevents race conditions when multiple updates happen in quick succession.
+      // withTimeout guards against a wedged IndexedDB connection (e.g. a second tab
+      // holding the DB open) — without it, localforage's getItem/setItem can hang
+      // forever, leaving every "Saving…"/"Importing…" spinner stuck until refresh
+      // (and a refresh can't clear it while the other tab holds the lock). Rejecting
+      // surfaces a real error to the caller's catch instead of the endless hang.
+      const currentLocalDynasties = await withTimeout(
+        indexedDBStorage.getDynasties(), 10000, 'Reading local dynasties'
+      ) || []
 
       // Apply the updates to one local dynasty. Plain keys shallow-replace
       // (unchanged behavior); Firestore-style dot-notation keys (e.g.
@@ -8457,8 +8465,11 @@ export function DynastyProvider({ children }) {
         String(d.id) === String(dynastyId) ? applyLocalUpdates(d) : d
       )
 
-      // Immediately save to IndexedDB (only local dynasties)
-      await indexedDBStorage.saveDynasties(updatedLocalDynasties)
+      // Immediately save to IndexedDB (only local dynasties). Guarded so a wedged
+      // IndexedDB write can't hang the save UI forever (see the read above).
+      await withTimeout(
+        indexedDBStorage.saveDynasties(updatedLocalDynasties), 10000, 'Saving to local storage'
+      )
 
       // Update state: merge updated local dynasties with existing cloud dynasties
       // This preserves cloud dynasties in the state
