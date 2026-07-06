@@ -396,7 +396,7 @@ Wrap your ENTIRE response in a single fenced markdown block:
 # (your recap here, using markdown headings, **bold**, and paragraphs)
 \`\`\`
 
-The fence preserves markdown when the user copies the text on mobile. Do not include any text before the opening fence or after the closing fence — no preamble, no "Here's your recap:", no follow-up offer.
+The fence preserves markdown when the user copies the text on mobile. The only text allowed outside the fence is an optional short data-flag note ABOVE the opening fence — a sentence or two, used solely when the data genuinely needs explaining (a contradiction, an impossible or misattributed stat, an ambiguous result); it stays in the chat for the user and is stripped automatically on paste. Otherwise include no text before or after the fence — no "Here's your recap:", no follow-up offer.
 
 Inside the fence:
 - Open with your HEADLINE as the H1 (e.g., "# Tennessee falls to Missouri; Georgia drops from top five"). The headline IS the title — do NOT add a separate "# YEAR Week N Recap" line above it. For the Season Preview, the H1 is the headline (e.g., "# 2034 season preview: Georgia, Ohio State headline a wide-open field").
@@ -422,7 +422,7 @@ const OUTPUT_FORMAT_SOCIAL = `
 ═══════════════════════════════════════════════════════════
 OUTPUT FORMAT — TWO FENCED BLOCKS REQUIRED
 ═══════════════════════════════════════════════════════════
-Output EXACTLY two fenced blocks in the order below. No text before the first block, no text between the blocks, no text after the second block.
+Output the two fenced blocks below, in order. The ONLY text allowed outside them is an optional short DATA-FLAG NOTE ABOVE BLOCK 1 — a sentence or two, used solely when the data genuinely needs explaining (a self-contradiction, an impossible or misattributed stat, an ambiguous result you had to resolve). That note stays in the chat for the user to read and is stripped automatically when they paste, so it never pollutes the saved recap. No text BETWEEN the blocks, and no text AFTER the second block. When there's nothing to flag, output only the two blocks.
 
 BLOCK 1 — the weekly recap:
 \`\`\`markdown
@@ -1453,7 +1453,7 @@ export function buildWeekRecapPrompt(dynasty, year, week, opts = {}) {
     outputFormatStr,
     ...(socialBlock ? [
       ``,
-      `REMINDER: Your response = two fenced blocks. BLOCK 1: \`\`\`markdown recap\`\`\` — BLOCK 2: \`\`\`cfb-social posts\`\`\`. The social posts instructions are at the very end of this prompt, after the DATA section. Finish the recap block completely, close its fence, then immediately open the cfb-social fence.`,
+      `REMINDER: Your response = two fenced blocks. BLOCK 1: \`\`\`markdown recap\`\`\` — BLOCK 2: \`\`\`cfb-social posts\`\`\`. The social posts instructions are at the very end of this prompt, after the DATA section. Finish the recap block completely, close its fence, then immediately open the cfb-social fence. (The only text allowed OUTSIDE the two blocks is an optional short data-flag note above BLOCK 1, when the data genuinely needs explaining — it is stripped automatically on paste.)`,
     ] : []),
     ``,
     `═══════════════════════════════════════════════════════════`,

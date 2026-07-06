@@ -393,6 +393,7 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
     punting: [],
     kickReturn: [],
     puntReturn: [],
+    blocking: [],
   }
   if (!teamStats) return highlights
 
@@ -405,16 +406,20 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
       const seasonStats = player ? getPlayerSeasonStats(player, year) : null
       const recentGames = getPlayerRecentGames(p.playerName, allGames, year, currentGameOrder, teamAbbr)
 
-      // Handle both field name formats (sheets uses comp/attempts, aggregated uses cmp/att)
+      // Handle both field name formats (sheets uses comp/attempts, aggregated uses cmp/att).
+      // Give the AI every passing field we store, appended only when meaningful.
       const cmp = p.comp ?? p.cmp ?? 0
       const att = p.attempts ?? p.att ?? 0
       const yds = p.yards ?? p.yds ?? 0
       const td = p.tD ?? p.td ?? 0
       const int = p.iNT ?? p.int ?? 0
+      const sacked = p.sacks ?? p.sacked ?? 0
+      const long = p.long ?? p.lng ?? 0
+      const rating = p.qBRating ?? p.rating ?? null
 
       highlights.passing.push({
         player: p.playerName,
-        stats: `${cmp}/${att}, ${yds} yards, ${td} TD${td !== 1 ? 's' : ''}${int > 0 ? `, ${int} INT` : ''}`,
+        stats: `${cmp}/${att}, ${yds} yards, ${td} TD${td !== 1 ? 's' : ''}${int > 0 ? `, ${int} INT` : ''}${sacked > 0 ? `, sacked ${sacked}` : ''}${long > 0 ? `, long ${long}` : ''}${rating != null && rating !== '' && Number(rating) > 0 ? `, ${rating} rating` : ''}`,
         // Enhanced fields
         position: player?.position || 'QB',
         class: player?.classByYear?.[year] || player?.year || null,
@@ -445,14 +450,22 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
       const seasonStats = player ? getPlayerSeasonStats(player, year) : null
       const recentGames = getPlayerRecentGames(p.playerName, allGames, year, currentGameOrder, teamAbbr)
 
-      // Handle both field name formats
+      // Handle both field name formats. Surface every rushing field we store —
+      // fumbles let the AI weigh a costly-turnover game, and long / broken
+      // tackles / yards-after-contact / 20+ runs add texture. Each shows only
+      // when non-zero, so a plain line reads exactly as before.
       const car = p.carries ?? p.car ?? 0
       const yds = p.yards ?? p.yds ?? 0
       const td = p.tD ?? p.td ?? 0
+      const fum = p.fumbles ?? p.fum ?? 0
+      const long = p.long ?? p.lng ?? 0
+      const brk = p.brokenTackles ?? p.brkTkl ?? 0
+      const yac = p.yAC ?? 0
+      const twentyPlus = p['20+'] ?? p.twentyPlus ?? 0
 
       highlights.rushing.push({
         player: p.playerName,
-        stats: `${car} carries, ${yds} yards${td > 0 ? `, ${td} TD${td !== 1 ? 's' : ''}` : ''}`,
+        stats: `${car} carries, ${yds} yards${td > 0 ? `, ${td} TD${td !== 1 ? 's' : ''}` : ''}${fum > 0 ? `, ${fum} fumble${fum !== 1 ? 's' : ''}` : ''}${long > 0 ? `, long ${long}` : ''}${brk > 0 ? `, ${brk} broken tackle${brk !== 1 ? 's' : ''}` : ''}${yac > 0 ? `, ${yac} yds after contact` : ''}${twentyPlus > 0 ? `, ${twentyPlus} run${twentyPlus !== 1 ? 's' : ''} of 20+` : ''}`,
         position: player?.position || null,
         class: player?.classByYear?.[year] || player?.year || null,
         overall: player?.overall || null,
@@ -481,14 +494,18 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
       const seasonStats = player ? getPlayerSeasonStats(player, year) : null
       const recentGames = getPlayerRecentGames(p.playerName, allGames, year, currentGameOrder, teamAbbr)
 
-      // Handle both field name formats
+      // Handle both field name formats. Include longest catch, yards-after-catch,
+      // and drops (the receiving negative we track) so the AI has the full line.
       const rec = p.receptions ?? p.rec ?? 0
       const yds = p.yards ?? p.yds ?? 0
       const td = p.tD ?? p.td ?? 0
+      const long = p.long ?? p.lng ?? 0
+      const rac = p.rAC ?? 0
+      const drops = p.drops ?? 0
 
       highlights.receiving.push({
         player: p.playerName,
-        stats: `${rec} catches, ${yds} yards${td > 0 ? `, ${td} TD${td !== 1 ? 's' : ''}` : ''}`,
+        stats: `${rec} catches, ${yds} yards${td > 0 ? `, ${td} TD${td !== 1 ? 's' : ''}` : ''}${long > 0 ? `, long ${long}` : ''}${rac > 0 ? `, ${rac} yds after catch` : ''}${drops > 0 ? `, ${drops} drop${drops !== 1 ? 's' : ''}` : ''}`,
         position: player?.position || null,
         class: player?.classByYear?.[year] || player?.year || null,
         overall: player?.overall || null,
@@ -508,23 +525,54 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
     })
   }
 
-  // Extract defensive standouts with enhanced context
+  // Extract defensive standouts with enhanced context.
+  // Read EVERY defensive field we store, tolerating both the canonical
+  // camelCase names (sack / iNT / fF / fR / tFL / deflections) and any
+  // normalized lowercase. The old code only read p.sacks / p.int / p.ff,
+  // which silently missed those stats on canonical box scores.
   if (teamStats?.defense?.length > 0) {
     const defenders = teamStats.defense
-      .map(p => ({
-        ...p,
-        totalTackles: (parseFloat(p.solo) || 0) + (parseFloat(p.assists) || 0)
-      }))
-      .filter(p => p.totalTackles > 0 || p.sacks > 0 || p.int > 0 || p.ff > 0)
-      .sort((a, b) => b.totalTackles - a.totalTackles)
-      .slice(0, 3)
+      .map(p => {
+        const solo = parseFloat(p.solo) || 0
+        const ast = parseFloat(p.assists) || 0
+        return {
+          ...p,
+          _solo: solo,
+          _ast: ast,
+          totalTackles: solo + ast,
+          _tfl: p.tFL ?? p.tfl ?? 0,
+          _sack: p.sack ?? p.sacks ?? 0,
+          _int: p.iNT ?? p.int ?? 0,
+          _intYds: p.iNTYards ?? p.intYards ?? 0,
+          _pd: p.deflections ?? p.pd ?? p.passDeflections ?? 0,
+          _ff: p.fF ?? p.ff ?? 0,
+          _fr: p.fR ?? p.fr ?? 0,
+          _blocks: p.blocks ?? 0,
+          _safeties: p.safeties ?? 0,
+          _defTd: p.tD ?? p.td ?? 0,
+        }
+      })
+      // A takeaway-forcing player with few tackles still matters — keep anyone
+      // with any recordable defensive stat, not just tacklers.
+      .filter(p => p.totalTackles > 0 || p._sack > 0 || p._int > 0 || p._ff > 0 || p._fr > 0 || p._tfl > 0 || p._pd > 0 || p._blocks > 0 || p._safeties > 0 || p._defTd > 0)
+      // Rank by on-field impact (takeaways and TDs weighted above raw tackles)
+      // so a game-changing DB isn't buried under volume tacklers.
+      .map(p => ({ ...p, _impact: p.totalTackles + p._sack * 3 + p._tfl * 1.5 + p._int * 5 + p._ff * 4 + p._fr * 4 + p._pd + p._blocks * 4 + p._safeties * 4 + p._defTd * 6 }))
+      .sort((a, b) => b._impact - a._impact)
+      .slice(0, 4)
 
     defenders.forEach(p => {
       const parts = []
-      if (p.totalTackles > 0) parts.push(`${p.totalTackles} tackles`)
-      if (p.sacks > 0) parts.push(`${p.sacks} sack${p.sacks !== 1 ? 's' : ''}`)
-      if (p.int > 0) parts.push(`${p.int} INT`)
-      if (p.ff > 0) parts.push(`${p.ff} FF`)
+      if (p.totalTackles > 0) parts.push(`${p.totalTackles} tackles${p._ast > 0 ? ` (${p._solo} solo)` : ''}`)
+      if (p._tfl > 0) parts.push(`${p._tfl} TFL`)
+      if (p._sack > 0) parts.push(`${p._sack} sack${p._sack !== 1 ? 's' : ''}`)
+      if (p._int > 0) parts.push(`${p._int} INT${p._intYds > 0 ? ` (${p._intYds} yds)` : ''}`)
+      if (p._pd > 0) parts.push(`${p._pd} PD`)
+      if (p._ff > 0) parts.push(`${p._ff} FF`)
+      if (p._fr > 0) parts.push(`${p._fr} FR`)
+      if (p._blocks > 0) parts.push(`${p._blocks} blocked kick${p._blocks !== 1 ? 's' : ''}`)
+      if (p._safeties > 0) parts.push(`${p._safeties} safety`)
+      if (p._defTd > 0) parts.push(`${p._defTd} defensive TD`)
 
       if (parts.length > 0) {
         const player = getPlayerByName(players, p.playerName)
@@ -556,14 +604,22 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
       const fgm = p.fGM ?? p.fgm ?? 0
       const fga = p.fGA ?? p.fga ?? 0
       const lng = p.fGLong ?? p.lng ?? p.long ?? null
+      const xpm = p.xPM ?? p.xpm ?? 0
+      const xpa = p.xPA ?? p.xpa ?? 0
 
-      if (fgm > 0 || fga > 0) {
+      if (fgm > 0 || fga > 0 || xpa > 0) {
         const player = getPlayerByName(players, p.playerName)
         const seasonStats = player ? getPlayerSeasonStats(player, year) : null
 
+        // Only show the FG portion when a field goal was actually attempted, so a
+        // kicker who only handled extra points reads "2/2 XP", not "0/0 FG, 2/2 XP".
+        const kParts = []
+        if (fga > 0) kParts.push(`${fgm}/${fga} FG${lng ? `, long ${lng}` : ''}`)
+        if (xpa > 0) kParts.push(`${xpm}/${xpa} XP`)
+
         highlights.kicking.push({
           player: p.playerName,
-          stats: `${fgm}/${fga} FG${lng ? `, long ${lng}` : ''}`,
+          stats: kParts.join(', '),
           position: player?.position || 'K',
           class: player?.classByYear?.[year] || player?.year || null,
           overall: player?.overall || null,
@@ -587,10 +643,14 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
         const net = p.netYards ?? null
         const long = p.long ?? null
         const in20 = p.in20 ?? null
+        const tb = p.tB ?? p.touchbacks ?? 0
+        const blocked = p.block ?? p.blocked ?? 0
         let statStr = `${punts} punt${punts !== 1 ? 's' : ''}, ${yards} gross yds`
         if (net != null) statStr += `, ${net} net`
         if (long) statStr += `, long ${long}`
         if (in20) statStr += `, ${in20} inside 20`
+        if (tb > 0) statStr += `, ${tb} TB`
+        if (blocked > 0) statStr += `, ${blocked} blocked`
         const player = getPlayerByName(players, p.playerName)
         highlights.punting.push({
           player: p.playerName,
@@ -639,6 +699,29 @@ function buildEnhancedPlayerHighlights(teamStats, players, allGames, year, curre
         highlights.puntReturn.push({
           player: p.playerName,
           stats: statStr,
+          position: player?.position || null,
+          class: player?.classByYear?.[year] || player?.year || null,
+        })
+      })
+  }
+
+  // Blocking (offensive line) — pancakes and sacks allowed. Rarely entered, but
+  // when the data is there it's real and the AI should have it. Only surface a
+  // lineman who actually recorded one of the two.
+  if (teamStats?.blocking?.length > 0) {
+    teamStats.blocking
+      .map(p => ({ ...p, _pancakes: p.pancakes ?? 0, _sacksAllowed: p.sacksAllowed ?? 0 }))
+      .filter(p => p._pancakes > 0 || p._sacksAllowed > 0)
+      .sort((a, b) => b._pancakes - a._pancakes)
+      .slice(0, 3)
+      .forEach(p => {
+        const parts = []
+        if (p._pancakes > 0) parts.push(`${p._pancakes} pancake${p._pancakes !== 1 ? 's' : ''}`)
+        if (p._sacksAllowed > 0) parts.push(`${p._sacksAllowed} sack${p._sacksAllowed !== 1 ? 's' : ''} allowed`)
+        const player = getPlayerByName(players, p.playerName)
+        highlights.blocking.push({
+          player: p.playerName,
+          stats: parts.join(', '),
           position: player?.position || null,
           class: player?.classByYear?.[year] || player?.year || null,
         })
@@ -3562,9 +3645,10 @@ function extractHighlightsForSide(teamStats) {
   if (teamStats?.rushing?.length > 0) {
     const rushers = teamStats.rushing.filter(p => p.car > 0).slice(0, 3)
     rushers.forEach(p => {
+      const fum = p.fumbles ?? p.fum ?? 0
       highlights.rushing.push({
         player: p.playerName,
-        stats: `${p.car} carries, ${p.yds} yards${p.td > 0 ? `, ${p.td} TD${p.td !== 1 ? 's' : ''}` : ''}`
+        stats: `${p.car} carries, ${p.yds} yards${p.td > 0 ? `, ${p.td} TD${p.td !== 1 ? 's' : ''}` : ''}${fum > 0 ? `, ${fum} fumble${fum !== 1 ? 's' : ''}` : ''}`
       })
     })
   }
@@ -3573,9 +3657,10 @@ function extractHighlightsForSide(teamStats) {
   if (teamStats?.receiving?.length > 0) {
     const receivers = teamStats.receiving.filter(p => p.rec > 0).slice(0, 3)
     receivers.forEach(p => {
+      const fum = p.fumbles ?? p.fum ?? 0
       highlights.receiving.push({
         player: p.playerName,
-        stats: `${p.rec} catches, ${p.yds} yards${p.td > 0 ? `, ${p.td} TD${p.td !== 1 ? 's' : ''}` : ''}`
+        stats: `${p.rec} catches, ${p.yds} yards${p.td > 0 ? `, ${p.td} TD${p.td !== 1 ? 's' : ''}` : ''}${fum > 0 ? `, ${fum} fumble${fum !== 1 ? 's' : ''}` : ''}`
       })
     })
   }
@@ -4041,6 +4126,8 @@ A game recap is not a logbook. The data block may give you every scoring play wi
 
    • TURNOVER SWING: a defensive sequence (multiple takeaways or a pick-six clinching the game) — the player who delivered it gets a paragraph that surfaces ALL his takeaways from the data, not just the score.
 
+   • COSTLY GAME FROM A KEY PLAYER: the flip side of a standout line, and just as real a story. When the box score pins the result on one player's mistakes — a back who lost multiple fumbles, a quarterback with three-plus interceptions — name him and the turnovers plainly, the way ESPN does ("two Wells fumbles inside his own 30 flipped a one-score game"). This is the honest counterpart to STAR-IN-A-LOSS: surface a decisive bad game the same way you'd surface a decisive good one. Report it, don't pile on or moralize. Gate it hard so it never becomes a reflex: feature it ONLY when a single player has multiple turnovers AND the margin was close enough that they plausibly mattered. One fumble, or turnovers in a game that was already a blowout, is NOT this beat — leave it in the stat line and move on. Never assign blame the data doesn't show.
+
    • COMEBACK / FRONT-RUNNER: the GAME FLOW FACTS block tells you the biggest deficit overcome and whether the winner ever trailed. Use it in ONE sentence — and respect the size of the deficit. A one-drive 7-0 deficit early is NOT a "rally" or a "comeback"; do not call it one. A 17-point deficit overcome IS.
 
    • RIVALRY / STREAK: if the data flags a rivalry/trophy game or a multi-year series streak, treat it as SUPPORTING color — mention it at most once, in a BODY paragraph. Do NOT make it the headline or the lede angle unless it is the single biggest story of the game.
@@ -4069,6 +4156,7 @@ Read your draft top to bottom. Honest answers. If any answer is no, REWRITE befo
    6. FEATURABLE BEATS — when the data supports them, did I actually feature these (per RULE F)?
         • OUTGAINED-BUT-LOST: if the losing team outgained the winner in total yards, did I write a paragraph that frames the paradox? Not a "despite" clause at the end.
         • STAR-IN-A-LOSS: if a player on the losing side hit 400+ pass yards, 4+ TDs, or 150+ rush yards, did I give him a paragraph contrasting the line with the result?
+        • COSTLY GAME FROM A KEY PLAYER: if one player's multiple turnovers plausibly decided a close result, did I name it plainly (not moralize)? And did I NOT force it on a lone fumble or a blowout?
         • GUTSY ANSWERING DRIVE / TURNOVER SWING: surfaced if the data supports? (Rivalry/series streak, if present, kept to a single supporting body mention — NOT the headline or lede.)
    7. COMEBACK FRAMING: any "rally" / "comeback" / "came back from behind" language? It must match the GAME FLOW FACTS deficit data. A one-drive 7-0 deficit is NOT a rally — don't call it one.
    8. Did I avoid the COLUMNIST PHRASES? ("the numbers lied," "less dramatic than it sounds," "that says something about how X went," "the obituary started writing itself," "[Player] just made the case for [thing]," "in the most [Team] way imaginable," "watched a [stat] performance turn into a [result]," "[Team]'s season died in [City]")
@@ -4087,13 +4175,13 @@ Read your draft top to bottom. Honest answers. If any answer is no, REWRITE befo
 If any check fails, rewrite the offending paragraph. Do not send a draft that hasn't passed every check.
 
 OUTPUT WRAPPER — READ THIS FIRST:
-Your ENTIRE response must be wrapped in a single fenced code block so the user can copy the raw markdown out of the chat UI without losing the formatting markers. That means:
+The recap article is wrapped in a fenced code block so the user can copy the raw markdown out of the chat UI without losing the formatting markers. That means:
 
-- The very first line of your response is exactly: \`\`\`markdown
+- The article opens with a line exactly: \`\`\`markdown
 - Every line of the article goes between the fences
-- The very last line of your response is exactly: \`\`\`
-- Output NOTHING outside the fences — no preamble like "Here you go:", no notes, no follow-up offer to revise. Anything outside the fences ends up pasted into the user's tracker as garbage.
-- Do NOT add additional code fences inside the article. The outer fence is the only one.
+- The article closes with a line exactly: \`\`\`
+- Outside that fence, the ONLY thing permitted is the optional short DATA-FLAG NOTE described in the OUTPUT FORMAT rule at the very top — a sentence or two ABOVE the opening fence, used only when the data genuinely needs explaining (a contradiction, a misattributed or impossible stat, an ambiguous winner). It is stripped automatically on paste, so it informs the user without polluting the saved recap. Do NOT add any OTHER outside-the-fence text: no "Here you go:", no follow-up offer to revise, no sign-off.
+- Do NOT add additional code fences inside the article. The recap fence is the only one (the sibling cfb-social block, if requested, is its own separate fence).
 
 FORMAT (the markdown that goes INSIDE the fence):
 - HEADLINE on its own line as a level-1 heading (e.g., "# Kentucky beats Louisville 45-27 behind Dahl's three touchdowns"). Sentence case.
@@ -4313,7 +4401,7 @@ function buildGameRecapPrompt(ctx, customInstructions = null, perspective = null
 
   let prompt = `You are a college football writer for a major sports publication like ESPN or The Athletic. Write a comprehensive, professional game recap article.
 
-⚠️ OUTPUT FORMAT (NON-NEGOTIABLE): Your ENTIRE response must be a single fenced markdown code block. First line exactly \`\`\`markdown, the whole article between the fences, last line exactly \`\`\`. Nothing before or after the fences. This is how the user copies the raw markdown out of the chat without it rendering — if you don't fence it, the formatting breaks on their end. Full formatting rules are in the OUTPUT WRAPPER section below.
+⚠️ OUTPUT FORMAT (NON-NEGOTIABLE): The recap article goes in a fenced markdown code block — first line exactly \`\`\`markdown, the whole article between the fences, last line exactly \`\`\`. This is how the user copies the raw markdown out of the chat without it rendering. THE ONE THING ALLOWED OUTSIDE THE FENCE: if you spot something in the DATA the user genuinely needs to know — a self-contradiction, an impossible or misattributed stat, an ambiguous winner, data you had to work around — you MAY write a SHORT plain-text note ABOVE the opening fence flagging it (a sentence or two, no fences of its own). That note stays in the chat for the user to read and is automatically stripped out when they paste, so it never pollutes the saved recap. When there's nothing to flag, put nothing outside the fence — no greeting, no "here you go", no sign-off. Full formatting rules are in the OUTPUT WRAPPER section below.
 
 ===========================================
 FINAL SCORE
@@ -5017,6 +5105,7 @@ ${team1Name.toUpperCase()} INDIVIDUAL STATS
         { key: 'punting',    label: 'PUNTING' },
         { key: 'kickReturn', label: 'KICK RETURNS' },
         { key: 'puntReturn', label: 'PUNT RETURNS' },
+        { key: 'blocking',   label: 'OFFENSIVE LINE' },
       ]
       cats.forEach(({ key, label }) => {
         if (stats[key]?.length > 0) {
@@ -5039,12 +5128,13 @@ ${team2Name.toUpperCase()} INDIVIDUAL STATS
     // Retrofit team1 to also use the shared renderer for the new categories
     // (passing/rushing/receiving/defense/kicking were already output above;
     // punting and returns are new and only added via renderTeamStats)
-    const team1NewCats = ['punting', 'kickReturn', 'puntReturn']
+    const team1NewCats = ['punting', 'kickReturn', 'puntReturn', 'blocking']
+    const team1NewLabels = { punting: 'PUNTING', kickReturn: 'KICK RETURNS', puntReturn: 'PUNT RETURNS', blocking: 'OFFENSIVE LINE' }
     const team1Stats2 = ctx.boxScore.team1
     if (team1Stats2) {
       team1NewCats.forEach(key => {
         if (team1Stats2[key]?.length > 0) {
-          const label = key === 'punting' ? 'PUNTING' : key === 'kickReturn' ? 'KICK RETURNS' : 'PUNT RETURNS'
+          const label = team1NewLabels[key]
           prompt += `\n\n${team1Name.toUpperCase()} ${label}:`
           team1Stats2[key].forEach(p => { prompt += `\n${formatPlayerLine(p, team1Name)}` })
         }

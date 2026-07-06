@@ -5,6 +5,7 @@ import { useToast } from './ui/Toast'
 import PasteEntrySteps from './ui/PasteEntrySteps'
 import { buildWeekRecapPrompt, buildPreseasonRecapPrompt } from '../utils/recapPrompts'
 import { socialGameTagMap } from '../utils/socialPrompt'
+import { extractRecapBlock } from '../utils/recapText'
 import {
   extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex,
   getEffectiveCharacters, ensureUniverseLoaded, DEFAULT_SOCIAL_SETTINGS,
@@ -165,7 +166,9 @@ export default function WeekRecapModal({ isOpen, onClose, year, week, onSaved })
       // out of the saved recap text and parse the posts. The recap stores the
       // prose-only text; the posts go to the social feed.
       const { found: hasSocial, body: socialBody, recapWithoutBlock } = extractSocialBlock(trimmed)
-      const recapText = hasSocial ? recapWithoutBlock : trimmed
+      // Pull the recap out of its ```markdown fence and drop anything outside it
+      // (e.g. a leading heads-up note the AI added), so the saved recap is clean.
+      const recapText = extractRecapBlock(hasSocial ? recapWithoutBlock : trimmed)
 
       // Merge into the existing year/week map. Build the full nested object so
       // local-storage and Firestore both get a clean replace at the parent.

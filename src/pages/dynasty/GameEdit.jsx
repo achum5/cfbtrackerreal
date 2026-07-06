@@ -9,6 +9,7 @@ import { usePathPrefix } from '../../hooks/usePathPrefix'
 import { getFullRecapPrompt } from '../../services/geminiService'
 import { buildGameSocialSection, gameSocialTagMap } from '../../utils/socialPrompt'
 import { extractSocialBlock, parseSocialLines, resolveSocialPosts, buildHandleIndex, getEffectiveCharacters, ensureUniverseLoaded } from '../../data/socialModel'
+import { extractRecapBlock } from '../../utils/recapText'
 import { getBowlLogo } from '../../data/bowlLogos'
 import { getConferenceLogo } from '../../data/conferenceLogos'
 import { getTeamConference } from '../../data/conferenceTeams'
@@ -35,17 +36,14 @@ import { matchAndRankPlayers } from '../../utils/playerTagSearch'
 
 // Map abbreviations to mascot names for logo lookup
 // Clean a pasted AI recap. FormattedRecap renders markdown (# headings,
-// **bold**, *italic*) and unwraps a code fence itself, so we KEEP the
-// markdown formatting — only the wrapping ```markdown … ``` fence the AI
-// often adds is dropped so the stored text stays tidy.
+// **bold**, *italic*), so we KEEP the markdown formatting and only pull the
+// recap out of its ```markdown … ``` fence. extractRecapBlock EXTRACTS the
+// fenced block's contents (rather than merely stripping fence lines), so an
+// optional heads-up note the AI may add ABOVE the fence — flagging a data
+// problem, etc. — is discarded instead of getting glued to the top of the
+// saved recap. The sibling cfb-social block is split off separately upstream.
 function unwrapRecapFence(raw) {
-  if (!raw) return ''
-  let s = String(raw).replace(/\r\n/g, '\n')
-  // Drop a wrapping ```markdown … ``` (or any) code fence, anywhere.
-  s = s.replace(/^[ \t]*```[a-zA-Z]*[ \t]*$/gm, '')
-  // Collapse the blank lines a stripped fence can leave behind.
-  s = s.replace(/\n{3,}/g, '\n\n')
-  return s.trim()
+  return extractRecapBlock(raw)
 }
 
 // Keep photoTags ({ [url]: [pid] }) in sync with the photos array: drop
