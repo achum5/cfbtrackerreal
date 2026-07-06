@@ -4,7 +4,8 @@ import { useDynasty } from '../context/DynastyContext';
 import { archetypeBaseScore, computeScore, calcWeightedAvg, gemBustBonus, isHiddenDev, normalizeArch, STAR_BONUS, getScoreConfidence } from './archetypeWeights';
 import { buildRevealedPool, getFormAttrs } from '../utils/devTraitLearning';
 import { buildAttributeQualityMap, predictFloorCeiling, describeFloorCeilingPills } from '../utils/devPrediction';
-import { ATTRIBUTE_ABBR, positionBucket } from '../utils/recruitAttributes';
+import { ATTRIBUTE_ABBR, positionBucket, recruitingPosLabel } from '../utils/recruitAttributes';
+import { resolveRecruitGroup } from '../utils/recruitGroup';
 import { OPTIONS_REGISTRY } from './ScoutingReport';
 import GemBustIcon from './GemBustIcon';
 import { useAuthErrorHandler } from '../hooks/useAuthErrorHandler';
@@ -194,10 +195,21 @@ function getPoolStats(player, allPlayers, weightsMap, pool, filterFn) {
   return { rank, total: group.length, avg };
 }
 
+// True once at least one real attribute value has been entered — a fresh
+// import/manual add can have attributes: null (or an empty object) until
+// someone actually scouts the player. Combine/GPA/quote generation reads
+// this to skip fabricating numbers off of nothing but position defaults.
+function hasScoutedAttributes(player) {
+  return !!(player.attributes && Object.values(player.attributes).some(v => v != null));
+}
+
 // ── Combine projections ──────────────────────────────────────────────────────
 function generateCombine(player) {
   const h = nameHash(player.name);
-  const a = player.attributes;
+  // A recruit can genuinely have attributes: null (never scouted) — default
+  // to an empty object so an unscouted recruit doesn't crash every table
+  // render/sort that touches this, just falls back to the neutral defaults.
+  const a = player.attributes || {};
   const get = (k, def = 70) => a[k] ?? def;
 
   const speed = get('Speed');
@@ -239,7 +251,7 @@ const MAJORS = [
 
 function generateAcademic(player) {
   const h = nameHash(player.name);
-  const awareness = player.attributes['Awareness'] ?? 66;
+  const awareness = (player.attributes || {})['Awareness'] ?? 66;
   // Awareness 56 (low) → ~2.30 | Awareness 66 (avg) → ~3.05 | Awareness 76 (high) → ~3.80
   const base = 2.30 + (awareness - 56) * 0.075;
   const gpa = Math.min(4.0, Math.max(2.30, base + seeded(h + 99, -0.15, 0.15)));
@@ -249,7 +261,7 @@ function generateAcademic(player) {
 // ── Player quotes — dynamic, attribute-driven responses to scout's question ──
 function generateQuote(player) {
   const h = nameHash(player.name);
-  const a = player.attributes;
+  const a = player.attributes || {};
   const get = k => a[k] ?? 0;
   let pool = [];
 
@@ -531,6 +543,7 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
   // generateCombine, etc.) sees a plain object instead of crashing on
   // `player.attributes.Speed` against null.
   const player = { ...rawPlayer, attributes: rawPlayer.attributes || {} };
+  const scouted = hasScoutedAttributes(rawPlayer);
   // getPoolStats runs computeScore over every OTHER player in the pool too —
   // an unscouted Targets recruit elsewhere in allPlayers can have
   // attributes: null just like the current player did above, so the same
@@ -560,8 +573,8 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
   })() : null;
   const starBonus  = STAR_BONUS[String(player.stars)] ?? 0;
   const gemBonus   = gemBustBonus(player);
-  const combine  = generateCombine(player);
-  const { gpa, major } = generateAcademic(player);
+  const combine  = scouted ? generateCombine(player) : null;
+  const { gpa, major } = scouted ? generateAcademic(player) : { gpa: null, major: null };
   const quote    = generateQuote(player);
   const arch = normalizeArch(player.archetype || '');
   const rankAll      = getPoolStats(player, safeAllPlayers, weightsMap, pool, null);
@@ -593,7 +606,7 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
           <div className="p-5 border-b border-surface-4 flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
-                {player.rawPosition ?? player.position} · {player.archetype}
+                {recruitingPosLabel(player.rawPosition ?? player.position)} · {player.archetype}
               </p>
               <h2 className="text-xl font-black text-white">{player.name}</h2>
               <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5">
@@ -672,7 +685,7 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                   <div className="grid grid-cols-3 gap-2 mt-3">
                     {[
                       { label: 'All Prospects', stat: rankAll },
-                      { label: `${player.position} Prospects`, stat: rankPosition },
+                      { label: `${recruitingPosLabel(player.position)} Prospects`, stat: rankPosition },
                       { label: player.archetype || 'Archetype', stat: rankArchetype },
                     ].map(({ label, stat }) => stat.rank > 0 && (
                       <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg px-2.5 py-2.5 text-center">
@@ -721,30 +734,39 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
           // Combine projections. The non-wide (Recruiting Database) layout
           // shows Academic Profile (GPA) separately below via academicEl — the
           // wide Targets-board layout shows combine numbers only, no GPA
-          // anywhere in the report.
-          const combineStats = [
+          // anywhere in the report. Both are attribute-driven, so neither is
+          // generated at all until the player actually has scouted
+          // attributes — a "Not Scouted" cue takes their place instead of a
+          // fabricated projection built off nothing but position defaults.
+          const combineStats = scouted ? [
             { label: '40 Dash',  value: `${combine.forty}s` },
             { label: 'Bench',    value: `${combine.bench} reps` },
             { label: 'Vertical', value: `${combine.vert}"` },
             { label: '3-Cone',   value: `${combine.cone}s` },
             { label: 'Broad',    value: formatBroad(combine.broad) },
-          ];
+          ] : [];
 
           const combineEl = (
             <section>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Combine Projections</h3>
-              <div className="grid grid-cols-5 gap-2">
-                {combineStats.map(({ label, value }) => (
-                  <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg p-2.5 text-center">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
-                    <p className="text-xs font-black text-white">{value}</p>
-                  </div>
-                ))}
-              </div>
+              {scouted ? (
+                <div className="grid grid-cols-5 gap-2">
+                  {combineStats.map(({ label, value }) => (
+                    <div key={label} className="bg-surface-3 border border-surface-4 rounded-lg p-2.5 text-center">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">{label}</p>
+                      <p className="text-xs font-black text-white">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-surface-3 border border-surface-4 rounded-lg p-3 text-center">
+                  <p className="text-xs text-slate-500 italic">Not Scouted — enter attributes to generate a projection</p>
+                </div>
+              )}
             </section>
           );
 
-          const academicEl = (
+          const academicEl = scouted ? (
             <section className="flex items-center justify-between bg-surface-3 border border-surface-4 rounded-lg px-4 py-3">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Degree</p>
@@ -754,6 +776,10 @@ export function GradeReportContent({ player: rawPlayer, allPlayers, weightsMap, 
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">GPA</p>
                 <p className="text-xl font-black text-txt-secondary">{gpa}</p>
               </div>
+            </section>
+          ) : (
+            <section className="bg-surface-3 border border-surface-4 rounded-lg px-4 py-3 text-center">
+              <p className="text-xs text-slate-500 italic">Not Scouted — enter attributes to generate a GPA</p>
             </section>
           );
 
@@ -848,7 +874,7 @@ function GradeModal({ player, allPlayers, weightsMap, pool, onClose }) {
 const POSITIONS_LIST = ['QB','HB','FB','WR','TE','OT','OG','C','DE','DT','OLB','MIKE','CB','FS','SS','ATH','K','P'];
 const DEV_TRAITS = ['Hidden', 'Normal', 'Impact', 'Star', 'Elite'];
 
-function EditModal({ player, pool, weightsMap, onSave, onClose }) {
+function EditModal({ player, pool, weightsMap, onSave, onClose, onDelete = null }) {
   const [form, setForm] = useState({
     name: player.name,
     position: player.position,
@@ -920,6 +946,14 @@ function EditModal({ player, pool, weightsMap, onSave, onClose }) {
   const liveTier = useMemo(() => getGradeTier(liveScore), [liveScore]);
 
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const handleDeleteConfirmed = async () => {
+    setDeleting(true);
+    await onDelete(player);
+    setDeleting(false);
+    onClose();
+  };
   const handleSave = async () => {
     // The edit form's Position dropdown only offers bucketed positions (no
     // LT vs RT) — if the user actually changed it, the old raw sub-position
@@ -935,7 +969,7 @@ function EditModal({ player, pool, weightsMap, onSave, onClose }) {
       devTrait:  form.devTrait,
       gemBust:   form.gemBust,
       stars:     form.stars,
-      group:     form.position === 'ATH' ? 'Athlete Pipeline' : ['QB','HB','WR','TE','OT','OG','C'].includes(form.position) ? 'Offense' : 'Defense',
+      group:     resolveRecruitGroup(form.position, form.archetype.trim()),
       attributes: Object.fromEntries(Object.entries(visibleAttrs).map(([k, v]) => [k, parseInt(v, 10) || 0])),
     };
     setSaving(true);
@@ -998,7 +1032,7 @@ function EditModal({ player, pool, weightsMap, onSave, onClose }) {
                   onChange={e => setPosition(e.target.value)}
                   className="w-full bg-surface-3 border border-surface-4 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-surface-5 transition"
                 >
-                  {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                  {POSITIONS_LIST.map(pos => <option key={pos} value={pos}>{recruitingPosLabel(pos)}</option>)}
                 </select>
               </div>
               <div>
@@ -1095,21 +1129,53 @@ function EditModal({ player, pool, weightsMap, onSave, onClose }) {
           </section>
         </div>
 
-        <div className="px-5 pb-5 flex gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-2.5 bg-surface-4 hover:bg-surface-5 disabled:opacity-60 disabled:cursor-not-allowed border border-surface-5 rounded-lg text-xs font-black text-white transition"
-          >
-            {saving ? 'Saving…' : 'Save Changes'}
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition"
-          >
-            Cancel
-          </button>
-        </div>
+        {confirmingDelete ? (
+          <div className="px-5 pb-5 space-y-3">
+            <p className="text-xs font-bold text-red-400 text-center">Are you sure? This cannot be reversed.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteConfirmed}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-900 hover:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed border border-red-700 rounded-lg text-xs font-black text-white transition"
+              >
+                {deleting ? 'Deleting…' : 'Yes, Delete'}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition disabled:opacity-60"
+              >
+                No, Keep Editing
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="px-5 pb-5 space-y-3">
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-2.5 bg-surface-4 hover:bg-surface-5 disabled:opacity-60 disabled:cursor-not-allowed border border-surface-5 rounded-lg text-xs font-black text-white transition"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-300 transition"
+              >
+                Cancel
+              </button>
+            </div>
+            {onDelete && (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="w-full py-2 bg-transparent hover:bg-red-950/40 border border-red-900 rounded-lg text-xs font-black uppercase tracking-wide text-red-400 transition"
+              >
+                Delete Prospect
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1299,7 +1365,16 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
     // other surfaces (e.g. the Update Dev Traits dashboard task) show the
     // exact same number for a given recruit.
     const rankByKey = computeRecentRanks(merged);
-    return merged.map(r => ({ ...r, recentRank: rankByKey.get(`${r.sourceDynastyId ?? ''}:${r.pid}`) }));
+    // Backfills `group` for any recruit that predates auto-classification
+    // (recruitingDatabaseSheetFormat.js now stamps it at parse time for new
+    // imports) — computed fresh here rather than relying on a stored value,
+    // so already-existing blank/missing entries display correctly with no
+    // separate data migration needed.
+    return merged.map(r => ({
+      ...r,
+      group: r.group || resolveRecruitGroup(r.position, r.archetype),
+      recentRank: rankByKey.get(`${r.sourceDynastyId ?? ''}:${r.pid}`),
+    }));
   }, [players, recruitingDatabasePlayers, excludedPids]);
 
   // The actual sync engine — shared by the manual "Save" button and the
@@ -1497,7 +1572,11 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
       .map(({ _mergedFromDynastyId, _mergedFromDynastyName, ...p }) => p);
     await updateDynasty(hostDynasty.id, { recruitingDatabasePlayers: finalPlayers });
     toast.success(`Restored ${addedCount} recruit${addedCount === 1 ? '' : 's'} from backup.`);
-    syncNow({ silent: true });
+    // No manual syncNow() nudge here on purpose — see finalizeLocalImport's
+    // comment in RecruitingDatabaseSheetModal.jsx for why: this closure's
+    // own combinedPlayers is stale relative to the updateDynasty write just
+    // above, and the existing debounced auto-push effect already reconciles
+    // to the sheet reactively once combinedPlayers recomputes.
     setPendingJsonRestore(null);
   };
 
@@ -1669,7 +1748,17 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
       case 'archetype': av = a.archetype;                                  bv = b.archetype;                                  break;
       case 'stars':     av = parseInt(a.stars);                            bv = parseInt(b.stars);                            break;
       case 'dev':       av = DEV_ORDER[a.devTrait] ?? 1;                   bv = DEV_ORDER[b.devTrait] ?? 1;                   break;
-      case 'gpa':       av = parseFloat(generateAcademic(a).gpa);          bv = parseFloat(generateAcademic(b).gpa);          break;
+      case 'gpa': {
+        // Not-yet-scouted (no GPA at all) always sinks to the bottom,
+        // same convention as the 'score' sort above.
+        const aScouted = hasScoutedAttributes(a);
+        const bScouted = hasScoutedAttributes(b);
+        if (!aScouted && !bScouted) return 0;
+        if (!aScouted) return 1;
+        if (!bScouted) return -1;
+        av = parseFloat(generateAcademic(a).gpa); bv = parseFloat(generateAcademic(b).gpa);
+        break;
+      }
       default: return 0;
     }
     if (av < bv) return sortConfig.dir === 'asc' ? -1 : 1;
@@ -1700,7 +1789,14 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
         <GradeModal player={selectedPlayer} allPlayers={combinedPlayers} weightsMap={weightsMap} pool={pool} onClose={() => setSelectedPlayer(null)} />
       )}
       {editingPlayer && (
-        <EditModal player={editingPlayer} pool={pool} weightsMap={weightsMap} onSave={updated => handleEditSave(updated, editingPlayer)} onClose={() => setEditingPlayer(null)} />
+        <EditModal
+          player={editingPlayer}
+          pool={pool}
+          weightsMap={weightsMap}
+          onSave={updated => handleEditSave(updated, editingPlayer)}
+          onClose={() => setEditingPlayer(null)}
+          onDelete={(onDelete || isFromRecruitingDatabase(editingPlayer)) ? (() => handleDelete(editingPlayer)) : null}
+        />
       )}
       <AuthErrorModal isOpen={auth.showAuthError} onClose={auth.closeAuthError} onRefresh={auth.retry} />
       <RecruitingDatabaseSheetModal
@@ -1877,7 +1973,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                   className={`text-[9px] font-bold px-2 py-0.5 rounded transition uppercase tracking-wider ${filterPos === pos ? '' : 'text-txt-tertiary border border-surface-4 hover:bg-surface-3'}`}
                   style={filterPos === pos ? { background: p, color: '#fff' } : undefined}
                 >
-                  {pos}
+                  {recruitingPosLabel(pos)}
                 </button>
               ))}
             </div>
@@ -1938,15 +2034,17 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                 sortedPlayers.map((pl, i) => {
                   const score = computeScore(pl, weightsMap, pool);
                   const tier  = getGradeTier(score);
-                  const { gpa } = generateAcademic(pl);
+                  const scouted = hasScoutedAttributes(pl);
+                  const gpa = scouted ? generateAcademic(pl).gpa : null;
                   const hiddenDev = isHiddenDev(pl.devTrait);
                   const formOrder = getFormAttrs(pl.position, pl.archetype);
+                  const plAttributes = pl.attributes || {};
                   const orderedAttrs = formOrder.length
                     ? [
-                        ...formOrder.filter(k => pl.attributes[k] != null).map(k => [k, pl.attributes[k]]),
-                        ...Object.entries(pl.attributes).filter(([k, v]) => !formOrder.includes(k) && v != null),
+                        ...formOrder.filter(k => plAttributes[k] != null).map(k => [k, plAttributes[k]]),
+                        ...Object.entries(plAttributes).filter(([k, v]) => !formOrder.includes(k) && v != null),
                       ]
-                    : Object.entries(pl.attributes).filter(([, v]) => v != null);
+                    : Object.entries(plAttributes).filter(([, v]) => v != null);
                   return (
                     <tr
                       key={i}
@@ -1967,7 +2065,7 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                       <td className="px-2 py-3.5 uppercase font-semibold text-txt-tertiary text-[10px] tracking-wider overflow-hidden truncate">{pl.group}</td>
                       <td className="px-2 py-3.5 overflow-hidden">
                         <span className="px-2 py-0.5 rounded text-[10px] font-black text-txt-tertiary bg-surface-4 border border-surface-4">
-                          {pl.rawPosition ?? pl.position}
+                          {recruitingPosLabel(pl.rawPosition ?? pl.position)}
                         </span>
                       </td>
                       <td className="px-2 py-3.5 text-txt-secondary font-medium overflow-hidden">{pl.archetype}</td>
@@ -1999,31 +2097,37 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                         )}
                       </td>
                       <td className="px-2 py-3.5 text-center overflow-hidden">
-                        <span className={'text-xs font-bold text-txt-tertiary'}>{gpa}</span>
+                        {scouted
+                          ? <span className="text-xs font-bold text-txt-tertiary">{gpa}</span>
+                          : <span className="text-[9px] italic text-slate-600" title="No attributes entered yet">Not Scouted</span>}
                       </td>
                       <td className="px-2 py-3.5 tabular-nums text-[10px] text-txt-tertiary overflow-hidden">
                         {/* Same first-half/second-half column split as the Edit
                             modal — NOT a row-major grid (which would zigzag
                             attrs 1&2, 3&4, ... across the two columns instead
                             of grouping 1-5 and 6-10 together). */}
-                        <div className="grid grid-cols-2 gap-1">
-                          {(() => {
-                            const half = Math.ceil(orderedAttrs.length / 2);
-                            return [orderedAttrs.slice(0, half), orderedAttrs.slice(half)];
-                          })().map((col, colIdx) => (
-                            <div key={colIdx} className="space-y-1">
-                              {col.map(([key, val]) => (
-                                // If space ever runs out, the label (flex-1 min-w-0)
-                                // truncates first — the value (flex-shrink-0) is
-                                // never the part that gets cut off.
-                                <span key={key} title={key} className="flex items-baseline px-1 py-0.5 rounded text-txt-secondary bg-surface-3 border border-surface-4 overflow-hidden">
-                                  <strong className="text-txt-tertiary font-normal truncate min-w-0 flex-1">{ATTRIBUTE_ABBR[key] || key}:</strong>
-                                  <span className="flex-shrink-0">{val}</span>
-                                </span>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
+                        {orderedAttrs.length === 0 ? (
+                          <span className="text-[9px] italic text-slate-600">Not Scouted</span>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-1">
+                            {(() => {
+                              const half = Math.ceil(orderedAttrs.length / 2);
+                              return [orderedAttrs.slice(0, half), orderedAttrs.slice(half)];
+                            })().map((col, colIdx) => (
+                              <div key={colIdx} className="space-y-1">
+                                {col.map(([key, val]) => (
+                                  // If space ever runs out, the label (flex-1 min-w-0)
+                                  // truncates first — the value (flex-shrink-0) is
+                                  // never the part that gets cut off.
+                                  <span key={key} title={key} className="flex items-baseline px-1 py-0.5 rounded text-txt-secondary bg-surface-3 border border-surface-4 overflow-hidden">
+                                    <strong className="text-txt-tertiary font-normal truncate min-w-0 flex-1">{ATTRIBUTE_ABBR[key] || key}:</strong>
+                                    <span className="flex-shrink-0">{val}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3.5 px-1 text-center overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition">
@@ -2031,13 +2135,6 @@ export default function PlayerDatabase({ players, roleContext, teamColors, teamL
                             <button onClick={() => setEditingPlayer(pl)} className="p-1.5 rounded text-slate-600 hover:text-txt-primary hover:bg-surface-3 transition" title="Edit prospect">
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                              </svg>
-                            </button>
-                          )}
-                          {(onDelete || isFromRecruitingDatabase(pl)) && (
-                            <button onClick={() => handleDelete(pl)} className="p-1.5 rounded text-slate-600 hover:text-red-400 hover:bg-surface-3 transition" title="Delete prospect">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                               </svg>
                             </button>
                           )}

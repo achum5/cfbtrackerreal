@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createStaffAccessor } from './staffDB';
 import { useDynasty } from '../context/DynastyContext';
 import { normalizeArch } from './archetypeWeights';
+import { recruitingPosLabel } from '../utils/recruitAttributes';
 import {
   DEV_TRAITS, getFormAttrs, buildRevealedPool, getAllTierProfiles,
   countBoundaries, gapToStrong,
@@ -996,7 +997,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                     {keyGapRows.map(({ pos, arch, star, counts, boundaries, gap }) => (
                       <div key={`${pos}-${arch}-${star}`} className="flex items-center justify-between gap-3 bg-surface-3 border border-surface-4 rounded-lg px-3 py-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-txt-primary truncate">{pos} · {arch} · {star}★</p>
+                          <p className="text-xs font-bold text-txt-primary truncate">{recruitingPosLabel(pos)} · {arch} · {star}★</p>
                           <p className="text-[10px] text-txt-tertiary">
                             Have: {DEV_TRAITS.filter(dt => counts[dt] > 0).map(dt => `${dt} (${counts[dt]})`).join(', ') || 'none'}
                           </p>
@@ -1070,7 +1071,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                 learnedRows.map(({ pos, arch, star, boundariesUsed, weights }) => (
                   <div key={`${pos}-${arch}-${star}`} className="bg-surface-3 border border-surface-4 rounded-lg p-3">
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-xs font-bold text-txt-primary">{pos} · {arch} · {star}★</p>
+                      <p className="text-xs font-bold text-txt-primary">{recruitingPosLabel(pos)} · {arch} · {star}★</p>
                       <p className="text-[10px] text-txt-tertiary flex-shrink-0">{boundariesUsed} boundar{boundariesUsed !== 1 ? 'ies' : 'y'}</p>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
@@ -1105,7 +1106,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
                   : 'text-txt-tertiary hover:bg-surface-4 hover:text-txt-primary'
               }`}
             >
-              <span>{pos}</span>
+              <span>{recruitingPosLabel(pos)}</span>
               <span className="opacity-60">{posCounts[pos] || 0}</span>
             </button>
           ))}
@@ -1134,7 +1135,7 @@ export default function ThresholdLookup({ players = [], teamColors, teamLogo, on
           {/* Position + archetype label, star filter, weights indicator */}
           <div className="px-5 py-3 border-b border-surface-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <p className="text-[9px] font-semibold uppercase tracking-widest text-txt-tertiary">
-              {activePos} · {activeArch}
+              {recruitingPosLabel(activePos)} · {activeArch}
               <span className="ml-2 normal-case font-normal">
                 {weightsInfo.learned
                   ? `Attribute Weights: Learned · ${weightsInfo.boundariesUsed} boundar${weightsInfo.boundariesUsed !== 1 ? 'ies' : 'y'}`
