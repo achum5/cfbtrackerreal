@@ -489,7 +489,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
                   }}
                   title={isPremium ? 'Share this dynasty' : 'Premium required'}
                 >
-                  Generate View-Only Link
+                  View-Only Link
                   {!isPremium && (
                     <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--surface-4)', color: 'var(--accent-warning)' }}>
                       Premium

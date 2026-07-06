@@ -3541,21 +3541,28 @@ export function computeScheduleDiff(dynasty, newSchedule, userTid, year) {
   // Existing user-team regular-season games for this year, keyed by week.
   // Legacy game records sometimes omit gameType — treat missing as 'regular'
   // so older dynasties don't get bypassed by the diff and accumulate ghosts.
+  // Compare by Number() — a stored tid can be a number while `userTid` arrives
+  // as a string (or vice versa) depending on the caller. A raw === here would
+  // fail to match the existing slate, so every week looks "new" and the WHOLE
+  // schedule gets re-emitted as adds — doubling every one of the user's games
+  // on a re-save. Every other tid comparison in this file is Number()-normalized
+  // for exactly this reason.
+  const userTidN = Number(userTid)
   const existingByWeek = new Map()
   existingGames.forEach(g => {
     const gType = g.gameType || 'regular'
     if (gType !== 'regular') return
     if (Number(g.year) !== Number(year)) return
-    const matchesUser = g.team1Tid === userTid || g.team2Tid === userTid || g.userTid === userTid
+    const matchesUser = Number(g.team1Tid) === userTidN || Number(g.team2Tid) === userTidN || Number(g.userTid) === userTidN
     if (!matchesUser) return
     existingByWeek.set(Number(g.week), g)
   })
 
-  const opponentTidOf = (g) => (g.team1Tid === userTid ? g.team2Tid : g.team1Tid)
+  const opponentTidOf = (g) => (Number(g.team1Tid) === userTidN ? g.team2Tid : g.team1Tid)
   const locationOf = (g) => {
     const oppTid = opponentTidOf(g)
-    if (g.homeTeamTid === userTid) return 'home'
-    if (g.homeTeamTid === oppTid) return 'away'
+    if (Number(g.homeTeamTid) === userTidN) return 'home'
+    if (Number(g.homeTeamTid) === Number(oppTid)) return 'away'
     return 'neutral'
   }
   const teamsLookup = dynasty?.teams || TEAMS

@@ -58,12 +58,6 @@ function recordStr(stats, conf) {
   return conf ? `${o} (${conf.wins ?? 0}-${conf.losses ?? 0})` : o
 }
 
-function isFCSTeam(dynasty, tid) {
-  if (!tid) return false
-  const abbr = getTeamAbbr(dynasty, tid)
-  return isFCSPlaceholderAbbr(abbr)
-}
-
 // Gather a team's played games (with real scores) within a [minYear, maxYear]
 // range, as { year, my, their }. The in-progress week cap (upToWeek) only
 // applies to `year` itself — prior seasons are complete. Supports modern
@@ -847,16 +841,40 @@ function GameLinesPanel({ dynasty, game, pathPrefix, gameFilter }) {
   const matchups = useMemo(() => {
     if (!dynasty?.games || week == null) return []
     const normCtx = buildNormSpreadContext(dynasty, year, week)
-    return dynasty.games
-      .filter(g => {
-        if (Number(g.year) !== Number(year)) return false
-        if (g.week == null || Number(g.week) !== Number(week)) return false
-        if (isFCSTeam(dynasty, g.team1Tid) || isFCSTeam(dynasty, g.team2Tid)) return false
-        // Page-level filter (all / top25 / rivalries / conference) — same as Scores.
-        if (gameFilter && !gameFilter(g)) return false
-        return true
-      })
-      .map(g => buildMatchup(dynasty, g, year, week, normCtx))
+    const filtered = dynasty.games.filter(g => {
+      if (Number(g.year) !== Number(year)) return false
+      if (g.week == null || Number(g.week) !== Number(week)) return false
+      // FCS games are shown too (matching the Scores tab, which lists every
+      // game). The line for an FCS placeholder is rough — it's an anonymous
+      // regional bucket with no real rating — but the game itself, its score,
+      // and its result all display, so users see their full slate.
+      // Page-level filter (all / top25 / rivalries / conference) — same as Scores.
+      if (gameFilter && !gameFilter(g)) return false
+      return true
+    })
+
+    // Collapse duplicate matchups (same week + tid-pair). A schedule saved twice
+    // can leave two records for the same game, which rendered as two identical
+    // line cards. Two FBS teams never play twice in one week, so keep the
+    // "most played" copy (a real score / isPlayed beats a 0-0 placeholder).
+    // Mirrors the dedup WeeklyScores already applies to its gamesByWeek grouping.
+    const pairKey = (g) => {
+      const a = Number(g.team1Tid), b = Number(g.team2Tid)
+      return `${Math.min(a, b)}-${Math.max(a, b)}`
+    }
+    const playedRank = (g) => {
+      const t1 = Number(g.team1Score), t2 = Number(g.team2Score)
+      const scored = (Number.isFinite(t1) && t1 > 0) || (Number.isFinite(t2) && t2 > 0)
+      return (g.isPlayed ? 2 : 0) + (scored ? 1 : 0)
+    }
+    const byPair = new Map()
+    for (const g of filtered) {
+      const k = pairKey(g)
+      const prev = byPair.get(k)
+      if (!prev || playedRank(g) > playedRank(prev)) byPair.set(k, g)
+    }
+
+    return Array.from(byPair.values()).map(g => buildMatchup(dynasty, g, year, week, normCtx))
   }, [dynasty, year, week, gameFilter])
 
   if (week == null) {
