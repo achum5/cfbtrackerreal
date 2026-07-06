@@ -2891,15 +2891,103 @@ function extractBoxScoreContribution(boxScore) {
 }
 
 /**
+ * The numeric team tids that took part in a box score, read from its
+ * canonical `byTid` map. Legacy home/away-only box scores (pre-byTid) carry
+ * no tid, so this returns [] for them — callers then fall back to name-only
+ * attribution (no behavior change for that legacy shape).
+ */
+function boxScoreParticipantTids(boxScore) {
+  if (!boxScore || !boxScore.byTid || typeof boxScore.byTid !== 'object') return []
+  return Object.keys(boxScore.byTid)
+    .map(k => Number(k))
+    .filter(n => Number.isFinite(n))
+}
+
+/**
+ * Box-score stat rows identify a player only by NAME. When two tracked
+ * players share a normalized name (e.g. a QB on one team and a DT on
+ * another), attributing a game's stat line to BOTH — which the old
+ * name-only match did — duplicated that line onto a player who never
+ * appeared in the game. That was the "duplicate game" report: the same
+ * passing line showing up under a same-named player on an unrelated team.
+ *
+ * Given the box score's own participant tids, this returns a Set of the
+ * player objects that must NOT receive a contributed name, because a better
+ * owner (a same-named player who is actually on one of those teams that
+ * year) exists. It only ever fires on a genuine name collision, and only
+ * when a participant owner is identifiable — so a real, single-owner stat
+ * line is never dropped and the common no-collision case is untouched.
+ *
+ * @param {Array} players           - all players
+ * @param {Set<string>} names       - normalized names present in the contribution
+ * @param {number[]} participantTids - the game's team tids (empty = no scoping)
+ * @param {number} year             - stat year, for roster membership checks
+ * @returns {Set<Object>} player objects to exclude from name attribution
+ */
+function offTeamContributionOwners(players, names, participantTids, year) {
+  const excluded = new Set()
+  if (!participantTids || participantTids.length === 0 || !names || names.size === 0) {
+    return excluded
+  }
+  const byName = new Map()
+  for (const player of players) {
+    if (!player) continue
+    const n = normalizePlayerName(player.name)
+    if (!n || !names.has(n)) continue
+    if (!byName.has(n)) byName.set(n, [])
+    byName.get(n).push(player)
+  }
+  for (const matches of byName.values()) {
+    if (matches.length < 2) continue // no collision — nothing to disambiguate
+    const onTeam = matches.filter(p =>
+      participantTids.some(tid => isPlayerOnRoster(p, tid, year))
+    )
+    if (onTeam.length === 0) continue // can't tell who played — keep all (no data loss)
+    for (const p of matches) {
+      if (!onTeam.includes(p)) excluded.add(p)
+    }
+  }
+  return excluded
+}
+
+/**
+ * Re-key a stored stats contribution (from game.statsContributed) through the
+ * current name normalizer. A game saved before a normalizer change holds keys
+ * under the old scheme; re-normalizing lets the delta reversal line them up
+ * with today's player-name normalization. Returns the same object reference
+ * when nothing changed. Two old keys collapsing to one is rare enough that we
+ * keep the richer record rather than summing (summing would over-reverse).
+ */
+function renormalizeContributionKeys(contribution) {
+  if (!contribution || typeof contribution !== 'object') return contribution
+  let changed = false
+  const out = {}
+  for (const [key, value] of Object.entries(contribution)) {
+    const nk = normalizePlayerName(key)
+    if (!nk) { changed = true; continue }
+    if (nk !== key) changed = true
+    if (out[nk] === undefined) {
+      out[nk] = value
+    } else {
+      changed = true
+      if (Object.keys(value || {}).length > Object.keys(out[nk] || {}).length) out[nk] = value
+    }
+  }
+  return changed ? out : contribution
+}
+
+/**
  * Apply box score delta to player stats
  * Calculates difference between new and old contribution, applies to player.statsByYear
  * @param {Array} players - Array of player objects
  * @param {Object} newContribution - New stats contribution from box score
  * @param {Object} oldContribution - Previous stats contribution (null for new games)
  * @param {number} year - The year to update stats for
+ * @param {number[]} participantTids - the box score's team tids, to keep a stat
+ *   line off same-named players on other teams (empty/omitted = name-only, legacy)
  * @returns {Array} Updated players array
  */
-function applyBoxScoreDelta(players, newContribution, oldContribution, year) {
+function applyBoxScoreDelta(players, newContribution, oldContribution, year, participantTids = []) {
   const yearNum = Number(year)
 
   // Get all player names that appear in either contribution
@@ -2908,12 +2996,22 @@ function applyBoxScoreDelta(players, newContribution, oldContribution, year) {
     ...Object.keys(oldContribution || {})
   ])
 
+  // Same-named players on teams that didn't play in this game must not
+  // absorb its stats. They still reverse any previously (wrongly) applied
+  // contribution below via oldStats, so re-saving a game self-heals a
+  // duplicate that a prior buggy save created.
+  const offTeam = offTeamContributionOwners(players, allPlayerNames, participantTids, yearNum)
+
   return players.map(player => {
     const playerNameNormalized = normalizePlayerName(player.name)
     if (!allPlayerNames.has(playerNameNormalized)) return player
 
-    const newStats = newContribution?.[playerNameNormalized] || {}
+    const isOffTeam = offTeam.has(player)
     const oldStats = oldContribution?.[playerNameNormalized] || {}
+    // Off-team same-name player with nothing previously applied: leave them
+    // fully untouched (don't even materialize an empty year record).
+    if (isOffTeam && Object.keys(oldStats).length === 0) return player
+    const newStats = isOffTeam ? {} : (newContribution?.[playerNameNormalized] || {})
 
     const existingStatsByYear = player.statsByYear || {}
     const existingYearStats = { ...(existingStatsByYear[yearNum] || {}) }
@@ -3001,7 +3099,9 @@ function recomputeMaxFieldsFromGames(players, allGames, year) {
 
   // Collect: playerName -> category -> maxField -> max value across games
   const maxByPlayer = {}
+  const participantTidUnion = new Set()
   gamesWithBox.forEach(game => {
+    for (const tid of boxScoreParticipantTids(game.boxScore)) participantTidUnion.add(tid)
     const contribution = extractBoxScoreContribution(game.boxScore)
     Object.entries(contribution).forEach(([normalizedName, catStats]) => {
       if (!maxByPlayer[normalizedName]) maxByPlayer[normalizedName] = {}
@@ -3030,7 +3130,14 @@ function recomputeMaxFieldsFromGames(players, allGames, year) {
     if (maxFields.length > 0) categoriesWithMax.push({ category, maxFields })
   })
 
+  // Keep season-long/max fields off same-named players on teams that never
+  // played this year (mirrors applyBoxScoreDelta's attribution scoping).
+  const offTeam = offTeamContributionOwners(
+    players, new Set(Object.keys(maxByPlayer)), [...participantTidUnion], yearNum
+  )
+
   return players.map(player => {
+    if (offTeam.has(player)) return player
     const existingStatsByYear = player.statsByYear || {}
     const existingYearStats = existingStatsByYear[yearNum]
     if (!existingYearStats) return player // Player has no stats this year — nothing to do.
@@ -3086,7 +3193,15 @@ function recomputeMaxFieldsFromGames(players, allGames, year) {
  */
 export function processBoxScoreSave(players, newBoxScore, oldContribution, year, allGames = null) {
   const newContribution = extractBoxScoreContribution(newBoxScore)
-  let updatedPlayers = applyBoxScoreDelta(players, newContribution, oldContribution, year)
+  // Re-key the previously-stored contribution through the current name
+  // normalizer. Games saved before a normalizer change (e.g. "Jr." now
+  // strips its period) stored keys under the old scheme; without this the
+  // reversal below wouldn't find the player and the edit would double-count.
+  const oldContributionNorm = renormalizeContributionKeys(oldContribution)
+  // Scope attribution to this game's own teams so a same-named player on
+  // another team can't absorb a duplicate copy of the stat line.
+  const participantTids = boxScoreParticipantTids(newBoxScore)
+  let updatedPlayers = applyBoxScoreDelta(players, newContribution, oldContributionNorm, year, participantTids)
 
   // Max-field correction only needed when editing (oldContribution present).
   // For fresh adds, Math.max against the new game is already correct.
@@ -3125,8 +3240,10 @@ export function recalculateStatsFromBoxScores(players, games, year, options = {}
   // Build aggregated stats for each player from all box scores
   const aggregatedStats = {} // { normalizedPlayerName: { category: { field: value } } }
   const gamesPlayedCount = {} // { normalizedPlayerName: count }
+  const participantTidUnion = new Set()
 
   gamesWithBoxScores.forEach(game => {
+    for (const tid of boxScoreParticipantTids(game.boxScore)) participantTidUnion.add(tid)
     const contribution = extractBoxScoreContribution(game.boxScore)
 
     Object.keys(contribution).forEach(playerName => {
@@ -3171,10 +3288,34 @@ export function recalculateStatsFromBoxScores(players, games, year, options = {}
     })
   })
 
+  // A box-score row's stats belong to the player who actually played, not to
+  // every same-named player in the dynasty. Identify same-named players on
+  // teams that never played this year so we can strip (heal) any phantom
+  // box-score stats a prior name-only save wrote onto them.
+  const offTeam = offTeamContributionOwners(
+    players, new Set(Object.keys(aggregatedStats)), [...participantTidUnion], yearNum
+  )
+
   // Apply aggregated stats to players
   return players.map(player => {
     const playerNameNormalized = normalizePlayerName(player.name)
     const playerAggregated = aggregatedStats[playerNameNormalized]
+
+    // Same-named player on a team that didn't play: they own none of this
+    // name's box-score stats. Remove those categories if a prior bug copied
+    // them here, otherwise leave the player untouched.
+    if (offTeam.has(player)) {
+      const existingYear = player.statsByYear?.[yearNum]
+      if (!existingYear || !playerAggregated) return player
+      const phantomCategories = Object.keys(playerAggregated).filter(c => existingYear[c] != null)
+      if (phantomCategories.length === 0) return player
+      const cleaned = { ...existingYear }
+      for (const c of phantomCategories) delete cleaned[c]
+      return {
+        ...player,
+        statsByYear: { ...player.statsByYear, [yearNum]: cleaned }
+      }
+    }
 
     if (!playerAggregated) {
       // Player has no box score stats for this year - preserve existing stats

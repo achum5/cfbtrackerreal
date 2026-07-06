@@ -13,14 +13,23 @@
 import { getTidFromAbbr } from '../data/teamRegistry'
 
 // Normalize player name for comparison - handles whitespace, case, and special characters
+//
+// Comparison-only (always lowercased — never used for display), so it can be
+// aggressive about punctuation that varies between data sources. Periods and
+// commas are dropped so a suffix entered as "Jr." matches "Jr" (and "A.J."
+// matches "AJ"). Without this, a box-score row for "John Smith Jr" failed to
+// attach to a roster "John Smith Jr." — the stats silently didn't log — and,
+// conversely, inconsistent suffixes could split one player into two.
 export const normalizePlayerName = (name) => {
   if (!name) return ''
   return name
-    .trim()
     .toLowerCase()
-    .replace(/\s+/g, ' ')        // Collapse multiple spaces to single space
     .replace(/['']/g, "'")       // Normalize curly apostrophes to straight
     .replace(/[""]/g, '"')       // Normalize curly quotes to straight
+    .replace(/\./g, '')          // Drop periods so "Jr." == "Jr" and "A.J." == "AJ"
+    .replace(/,/g, ' ')          // Comma to space so "Smith, Jr" == "Smith Jr"
+    .replace(/\s+/g, ' ')        // Collapse whitespace (incl. gaps left above)
+    .trim()
 }
 
 // Normalize any team ref (tid number, tid-as-string, abbr, or full name) to a

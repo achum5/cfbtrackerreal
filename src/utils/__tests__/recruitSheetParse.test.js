@@ -239,9 +239,9 @@ describe('attribute name resolution', () => {
   it('applies the OL "Raw Strength (POS)" override via position alias', () => {
     expect(attributeNamesFor('LT', 'Raw Strength').at(-1)).toBe('Strength')
   })
-  it('returns null for positions with no profile (K/P)', () => {
-    expect(attributeNamesFor('K')).toBeNull()
-    expect(mapAttributeColumns(['10', '20'], 'P')).toBeNull()
+  it('maps K/P attribute columns (profiles added in Scout Staff v20/v21)', () => {
+    expect(attributeNamesFor('K')?.[0]).toBe('Awareness')
+    expect(mapAttributeColumns(['10', '20'], 'P')).toEqual({ Awareness: 10, 'Kick Power': 20 })
   })
   it('skips blank/non-numeric cells', () => {
     expect(mapAttributeColumns(['70', '', 'x', '88'], 'QB')).toEqual({ Awareness: 70, 'Medium Accuracy': 88 })
