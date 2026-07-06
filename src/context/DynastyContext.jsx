@@ -112,6 +112,14 @@ import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
 
 const DynastyContext = createContext()
 
+// Block a main-doc write once the projected JSON size reaches this many bytes.
+// Firestore's hard per-document cap is 1,048,576 bytes; a document's true size
+// (field-name overhead per nested entry) runs LARGER than its JSON string, so a
+// JSON projection at ~1 MB means the real doc is already over the cap. Guarding
+// here converts the silent over-size "save then vanish + wedge every later
+// write" failure into a loud, actionable error. See the guard in updateDynasty.
+const MAIN_DOC_BYTE_LIMIT = 1_000_000
+
 // ============================================================================
 // GAME TYPE CONSTANTS - Unified game classification system
 // ============================================================================
@@ -8693,6 +8701,44 @@ export function DynastyProvider({ children }) {
             `[updateDynasty] Seasonal field(s) leaked into main-doc update — should have been routed to seasons subcollection: ${leakedSeasonal.join(', ')}`
           )
         }
+
+        // Main-doc size guard. Large fields kept on the main doc — chiefly the
+        // Recruiting Database (recruitingDatabasePlayers stores its whole array
+        // here) — can push this document past Firestore's ~1 MB per-doc cap.
+        // Under persistentLocalCache an over-size write resolves LOCALLY first
+        // (the UI shows success), then the server rejects it and rolls it back
+        // ("saved then vanished"), AND the rejected mutation wedges the ordered
+        // write queue so every later save (players/games/scores/social — all
+        // bump this doc's lastModified) hangs too. Estimate the projected size
+        // and fail loudly with guidance instead of that silent global wedge.
+        // (Proper fix in progress: shard recruitingDatabasePlayers into its own
+        // subcollection like players/games.)
+        if (dynasty) {
+          try {
+            const projected = { ...dynasty }
+            delete projected.players
+            delete projected.games
+            for (const k of Object.keys(projected)) {
+              if (isSeasonalField(k)) delete projected[k]
+            }
+            for (const [k, v] of Object.entries(mainDocUpdates)) {
+              if (!k.includes('.')) projected[k] = v
+            }
+            const bytes = new TextEncoder().encode(JSON.stringify(projected)).length
+            if (bytes > MAIN_DOC_BYTE_LIMIT) {
+              const mb = (bytes / 1e6).toFixed(2)
+              throw new Error(
+                `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document ` +
+                `limit — almost always a large Recruiting Database. Open Scout Staff, go to the ` +
+                `Recruiting Database, use Export JSON to back it up, then trim it so your saves work again.`
+              )
+            }
+          } catch (err) {
+            if (err instanceof Error && err.message.includes('per-document')) throw err
+            // JSON.stringify can throw on a circular ref — never block a save on an estimation failure.
+          }
+        }
+
         writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
       }
 
