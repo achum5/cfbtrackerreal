@@ -9028,8 +9028,8 @@ export function DynastyProvider({ children }) {
     if (socialIsCloud(dynasty, dynastyId)) {
       // On a replace import the file is authoritative — wipe stale per-account
       // overrides first so they can't mask the freshly imported bios/avatars.
-      if (replace) await clearSocialCharacterOverrides(dynastyId)
-      await saveSocialCharacterShards(dynastyId, byId)
+      if (replace) await settleOrProceed(clearSocialCharacterOverrides(dynastyId), 10000, 'clearSocialOverrides')
+      await settleOrProceed(saveSocialCharacterShards(dynastyId, byId), 10000, 'saveSocialShards')
       if (replace) await updateDynasty(dynastyId, { socialUniverseReplaced: true, socialDeletedIds: [], socialUpdatedAt: Date.now(), socialUniverseVersion: SOCIAL_UNIVERSE_VERSION })
     } else {
       await updateDynasty(dynastyId, { socialCharacters: byId, socialUpdatedAt: Date.now(), ...(replace ? { socialUniverseReplaced: true, socialDeletedIds: [], socialUniverseVersion: SOCIAL_UNIVERSE_VERSION } : {}) })
@@ -9063,8 +9063,13 @@ export function DynastyProvider({ children }) {
     const nextChars = hasNewChars ? { ...cur.characters, ...newCharacters } : cur.characters
 
     if (socialIsCloud(dynasty, dynastyId)) {
-      await saveSocialFeedToSubcollection(dynastyId, yearN, weekN, mergedWeek)
-      if (hasNewChars) await saveSocialCharacterOverrides(dynastyId, newCharacters)
+      // Guarded so a wedged WebChannel ack can't spin the "Adding…"/"Saving…"
+      // UI forever (these subcollection writes are durable in
+      // persistentLocalCache and sync in the background). Mirrors updateDynasty.
+      await settleOrProceed(Promise.all([
+        saveSocialFeedToSubcollection(dynastyId, yearN, weekN, mergedWeek),
+        ...(hasNewChars ? [saveSocialCharacterOverrides(dynastyId, newCharacters)] : []),
+      ]), 10000, 'saveSocialPosts')
     } else {
       const update = { socialFeedByYear: nextFeed }
       if (hasNewChars) update.socialCharacters = nextChars
@@ -9087,8 +9092,11 @@ export function DynastyProvider({ children }) {
     const nextFeed = { ...cur.feed, [yearN]: { ...(cur.feed[yearN] || {}), [weekN]: posts } }
     const nextChars = hasNewChars ? { ...cur.characters, ...newCharacters } : cur.characters
     if (socialIsCloud(dynasty, dynastyId)) {
-      await saveSocialFeedToSubcollection(dynastyId, yearN, weekN, posts)
-      if (hasNewChars) await saveSocialCharacterOverrides(dynastyId, newCharacters)
+      // Guarded (see saveSocialPosts) so an un-acked write can't hang the UI.
+      await settleOrProceed(Promise.all([
+        saveSocialFeedToSubcollection(dynastyId, yearN, weekN, posts),
+        ...(hasNewChars ? [saveSocialCharacterOverrides(dynastyId, newCharacters)] : []),
+      ]), 10000, 'replaceSocialWeek')
     } else {
       const update = { socialFeedByYear: nextFeed }
       if (hasNewChars) update.socialCharacters = nextChars
@@ -9106,7 +9114,7 @@ export function DynastyProvider({ children }) {
     const cur = getSocialFor(dynastyId)
     const nextChars = { ...cur.characters, ...charsById }
     if (socialIsCloud(dynasty, dynastyId)) {
-      await saveSocialCharacterOverrides(dynastyId, charsById)
+      await settleOrProceed(saveSocialCharacterOverrides(dynastyId, charsById), 10000, 'saveSocialCharacters')
     } else {
       await updateDynasty(dynastyId, { socialCharacters: nextChars, socialUpdatedAt: Date.now() })
     }
