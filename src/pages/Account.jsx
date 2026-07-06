@@ -66,6 +66,7 @@ const BETA_GRANT_EMAILS = new Set([
   'ayopatterson1233@gmail.com',
   'smichaud1993@gmail.com',
   'cnewcome4@gmail.com',
+  'edoggy6699@gmail.com',
 ])
 
 
