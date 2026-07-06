@@ -3769,18 +3769,30 @@ export function getScheduleWithGameData(dynasty) {
       }
     }
 
-    // Find linked game by gameId (primary) or fallback to week match.
-    // The gameId fallback is necessary when a game was deleted and replaced
-    // (e.g. dedup removed a duplicate and the schedule entry still points to
-    // the old game's ID). Without the fallback, the schedule entry shows as
-    // unplayed even though the replacement game is in dynasty.games.
-    const byId = entry.gameId ? games.find(g => g.id === entry.gameId) : null
-    const game = byId ?? games.find(g =>
+    // Find the game record for this week's matchup. Start from the linked
+    // gameId (primary), then consider every regular-season record for this
+    // (week, user) — a schedule imported twice can leave a played copy AND a
+    // 0-0 placeholder for the same game, and entry.gameId often points at the
+    // placeholder. Prefer the "most played" copy so the row shows the real
+    // result and links to it, instead of the empty ghost. This mirrors the
+    // dedup the Scores tab and Sportsbook already apply. The gameId fallback
+    // also covers a deleted-and-replaced game whose entry still points at the
+    // old id.
+    const candidates = games.filter(g =>
       Number(g.week) === Number(entry.week) &&
       Number(g.year) === Number(year) &&
-      g.gameType === 'regular' &&
+      (g.gameType || 'regular') === 'regular' &&
       (Number(g.team1Tid) === Number(userTid) || Number(g.team2Tid) === Number(userTid))
     )
+    const playedRank = (g) => {
+      const t1 = Number(g.team1Score), t2 = Number(g.team2Score)
+      const scored = (Number.isFinite(t1) && t1 > 0) || (Number.isFinite(t2) && t2 > 0)
+      return (g.isPlayed ? 2 : 0) + (scored ? 1 : 0)
+    }
+    let game = entry.gameId ? games.find(g => g.id === entry.gameId) : null
+    for (const c of candidates) {
+      if (!game || playedRank(c) > playedRank(game)) game = c
+    }
 
     // Get user's perspective on the game
     const perspective = game ? getUserGamePerspective(game, dynasty) : null

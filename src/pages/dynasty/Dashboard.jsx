@@ -8139,12 +8139,13 @@ export default function Dashboard() {
                       const mascotFromAbbr = getMascotName(entry.opponentTid ?? entry.opponent)
                       const opponentName = mascotFromAbbr || getTeamNameFromAbbr(entry.opponent)
                       const opponentLogo = mascotFromAbbr ? getTeamLogo(mascotFromAbbr, currentDynasty?.teams || currentDynasty?.customTeams) : getTeamLogo(entry.opponent, currentDynasty?.teams || currentDynasty?.customTeams)
-                      const playedGame = (currentDynasty.games || []).find(g => {
-                        if (!isSameYear(g.year, currentDynasty.currentYear)) return false
-                        if (g.week !== entry.week) return false
-                        const isRegular = !g.isBowlGame && !g.isConferenceChampionship && !g.isCFPFirstRound && !g.isCFPQuarterfinal && !g.isCFPSemifinal && !g.isCFPChampionship
-                        return isRegular
-                      })
+                      // Use the game resolved by getScheduleWithGameData (entry.game),
+                      // which already prefers the most-played copy when a schedule
+                      // import left a duplicate. A local first-match .find() here
+                      // could grab the 0-0 placeholder, so the row would show the
+                      // result (from entry) but link to the empty ghost. Matches the
+                      // desktop block.
+                      const playedGame = entry.game
                       const isCurrentWeek = currentDynasty.currentWeek === entry.week && currentDynasty.currentPhase === 'regular_season'
                       const isWin = entry.perspective?.userWon
                       const teamPageUrl = `${pathPrefix}/team/${entry.opponentTid ?? resolveTid(entry.opponent, currentDynasty?.teams || TEAMS)}/${currentDynasty.currentYear}`
