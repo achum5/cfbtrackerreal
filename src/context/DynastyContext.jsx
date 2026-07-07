@@ -9952,8 +9952,10 @@ export function DynastyProvider({ children }) {
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
 
-        // Save single game to Firestore subcollection (1 write instead of N)
-        await saveGameToSubcollection(dynastyId, game)
+        // Save single game to Firestore subcollection (1 write instead of N).
+        // Capped: a wedged connection must not hang the caller's Saving… UI
+        // forever — the write is durable locally and syncs in the background.
+        await settleOrProceed(saveGameToSubcollection(dynastyId, game), 10000, `addGame(${dynastyId})`)
         lastGamesUpdateTimestampRef.current = Date.now()
         console.log(`[addGame] Single game saved successfully: ${game.id}`)
 
@@ -9997,7 +9999,7 @@ export function DynastyProvider({ children }) {
         lastPlayersUpdateTimestampRef.current = Date.now()
         lastPlayersUpdateDynastyIdRef.current = dynastyId
 
-        await saveChangedPlayersAndGame(dynastyId, changedPlayers, game)
+        await settleOrProceed(saveChangedPlayersAndGame(dynastyId, changedPlayers, game), 10000, `addGame:boxscore(${dynastyId})`)
         lastGamesUpdateTimestampRef.current = Date.now()
         lastPlayersUpdateTimestampRef.current = Date.now()
 
@@ -10364,7 +10366,7 @@ export function DynastyProvider({ children }) {
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
 
-        await saveWeeklyGamesChanges(dynastyId, newGames, [])
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, newGames, []), 10000, `saveCPUBowlGames(${dynastyId})`)
         lastGamesUpdateTimestampRef.current = Date.now()
 
         // Update local React state with the full updated games list
@@ -10502,7 +10504,7 @@ export function DynastyProvider({ children }) {
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
 
-        await saveGameToSubcollection(dynastyId, updatedGame)
+        await settleOrProceed(saveGameToSubcollection(dynastyId, updatedGame), 10000, `patchGameFields(${dynastyId})`)
 
         const updatedDynasty = { ...dynasty, games: updatedGames, lastModified: Date.now() }
         setDynasties(prev => prev.map(d => String(d.id) === String(dynastyId) ? updatedDynasty : d))
@@ -10563,7 +10565,7 @@ export function DynastyProvider({ children }) {
         lastPlayersUpdateTimestampRef.current = Date.now()
         lastPlayersUpdateDynastyIdRef.current = dynastyId
 
-        await saveChangedPlayers(dynastyId, changed)
+        await settleOrProceed(saveChangedPlayers(dynastyId, changed), 10000, `applyChangedPlayers(${dynastyId})`)
 
         const updatedDynasty = { ...dynasty, players: updatedPlayers, lastModified: Date.now() }
         setDynasties(prev => prev.map(d => String(d.id) === String(dynastyId) ? updatedDynasty : d))
@@ -10620,7 +10622,7 @@ export function DynastyProvider({ children }) {
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
 
-        await saveWeeklyGamesChanges(dynastyId, gamesToSet, gameIdsToDelete)
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, gamesToSet, gameIdsToDelete), 10000, `saveGameSetChanges(${dynastyId})`)
 
         if (extraUpdates && Object.keys(extraUpdates).length > 0) {
           await updateDynasty(dynastyId, extraUpdates, { skipGamesSubcollection: true })
@@ -11044,7 +11046,7 @@ export function DynastyProvider({ children }) {
         // Step 1: targeted batch write for the changed games.
         // newGamesArr = inserts/replaces this save produced.
         // droppedWeeklyIds = stale rows being replaced or removed.
-        await saveWeeklyGamesChanges(dynastyId, newGamesArr, droppedWeeklyIds)
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, newGamesArr, droppedWeeklyIds), 10000, `saveWeeklyScores(${dynastyId})`)
 
         // Step 2: persist non-games fields via updateDynasty with
         // skipGamesSubcollection=true so the slow full-rewrite is
@@ -11108,7 +11110,7 @@ export function DynastyProvider({ children }) {
         try {
           bumpSkipCount(3)
           skipListenerTimestampRef.current = Date.now()
-          await saveWeeklyGamesChanges(dynastyId, rankedGamesArr, droppedWeeklyIds)
+          await settleOrProceed(saveWeeklyGamesChanges(dynastyId, rankedGamesArr, droppedWeeklyIds), 10000, `saveWeeklyScores:ranked(${dynastyId})`)
           await updateDynasty(dynastyId, {
             teams: teamsCopy,
             weeklyScoresEntered: updatedTracker,
@@ -11439,7 +11441,7 @@ export function DynastyProvider({ children }) {
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
 
-        await saveWeeklyGamesChanges(dynastyId, changedGames, [])
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, changedGames, []), 10000, `saveCFPGames(${dynastyId})`)
         lastGamesUpdateTimestampRef.current = Date.now()
 
         // Update local React state with the full games list (cheap vs. the
@@ -13546,7 +13548,7 @@ export function DynastyProvider({ children }) {
           if (changedPlayers.length > 0) {
             const currentYearForSync = dynasty?.currentYear
             const normalizedChanged = changedPlayers.map(p => syncDerivedFieldsFromV2(p, currentYearForSync))
-            await saveChangedPlayers(dynastyId, normalizedChanged)
+            await settleOrProceed(saveChangedPlayers(dynastyId, normalizedChanged), 10000, `advanceToNewSeason(${dynastyId})`)
           }
 
           // Metadata write — full updatedPlayers passed for local state
@@ -16022,7 +16024,7 @@ export function DynastyProvider({ children }) {
           console.log(`[updatePlayer] Updating ${affectedGames.length} affected games (out of ${updatedGames.length} total)`)
 
           for (const game of affectedGames) {
-            await saveGameToSubcollection(dynastyId, game)
+            await settleOrProceed(saveGameToSubcollection(dynastyId, game), 10000, `updatePlayer(${dynastyId})`)
           }
 
           // Re-stamp now that writes are durable so the 10-second window
