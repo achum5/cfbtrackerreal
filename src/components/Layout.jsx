@@ -162,6 +162,15 @@ export default function Layout({ children }) {
   // IDLE time so it never competes with the initial load — the first few seconds
   // stay smooth. Runs once per dynasty; the shared cache dedupes the rest.
   const warmedDynastyRef = useRef(null)
+  // Dynasty ids we've already fired the silent v2 schema-stamp write for this
+  // session. Without this, a dynasty that's clean-but-unstamped whose stamp
+  // write doesn't stick (a wedged Firestore connection, so the write never
+  // persists server-side) re-triggers this effect on every real-time listener
+  // snapshot — the listener keeps re-delivering the still-unstamped dynasty, so
+  // the effect keeps firing updateDynasty. That produced thousands of duplicate
+  // "updateDynasty" writes (a self-inflicted write storm that also clogs the
+  // very connection it's waiting on). One attempt per dynasty per session.
+  const v2StampAttemptedRef = useRef(new Set())
   useEffect(() => {
     const dyn = currentDynasty
     if (!dyn?.id || !(dyn.players?.length > 0)) return
@@ -191,8 +200,12 @@ export default function Layout({ children }) {
       return
     }
     setShowV2Migration(false)
-    if (isCleanButUnstamped(currentDynasty)) {
+    if (isCleanButUnstamped(currentDynasty) && !v2StampAttemptedRef.current.has(currentDynasty.id)) {
       // Silent stamp — no modal, no forceOverwrite needed (no keys to delete).
+      // Guarded to ONE attempt per dynasty per session: if the write can't
+      // reach the server the dynasty stays unstamped and the listener would
+      // otherwise re-fire this effect into an unbounded write storm.
+      v2StampAttemptedRef.current.add(currentDynasty.id)
       updateDynasty(currentDynasty.id, {
         _schemaVersion: 2,
         _normalizedAt: new Date().toISOString(),
