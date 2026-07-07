@@ -13920,7 +13920,14 @@ async function prefillUnifiedAITab(spreadsheetId, accessToken, sheetId, existing
 // paste with the wrong line count or no blank padding (the #1 failure mode).
 export function parseUnifiedBoxScoreRows(rows) {
   const layout = computeUnifiedTabLayout()
-  const norm = (s) => String(s || '').replace(/═/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
+  // Strip banner decoration before matching so a banner survives however the AI
+  // dressed it up: box-drawing rules ("═══"/"───"/"━━━"), markdown bold/heading
+  // ("**PASSING**", "## Passing"), pipe-table borders, en/em dashes — all
+  // normalize to the bare title. Without this, a decorated-but-not-"═══" banner
+  // was unrecognized and the whole category silently dropped.
+  const norm = (s) => String(s || '')
+    .replace(/[═─━—–\-*#~`|]+/g, ' ')
+    .replace(/\s+/g, ' ').trim().toUpperCase()
   const titleToSection = {}
   for (const section of layout.sections) titleToSection[norm(section.title)] = section
   // Fuzzy banner resolver: exact normalized title, else a section whose every
@@ -13935,6 +13942,24 @@ export function parseUnifiedBoxScoreRows(rows) {
     for (const section of layout.sections) {
       const tWords = norm(section.title).split(' ').filter(Boolean)
       if (tWords.length && tWords.every((w) => words.has(w))) return section
+    }
+    return null
+  }
+
+  // A full header row ALSO identifies its section — each section's header list
+  // is distinctive ("Player Name, Carries, Yards, TD, Fumbles, …" is uniquely
+  // Rushing). This makes the banners OPTIONAL: a paste whose banners the AI
+  // dropped, merged, or mangled still attributes correctly as long as the
+  // header rows survive. Matches only when the row's leading cells equal a
+  // section's headers exactly (first cell "Player Name" required), so a real
+  // data row (first cell = a player's name) can never be mistaken for a header.
+  const normCell = (s) => String(s || '').trim().toLowerCase()
+  const resolveSectionHeader = (cells) => {
+    if (!cells || cells.length < 2) return null
+    const rowKeys = cells.map(normCell)
+    for (const section of layout.sections) {
+      const secKeys = section.headers.map(normCell)
+      if (secKeys.length <= rowKeys.length && secKeys.every((h, i) => h === rowKeys[i])) return section
     }
     return null
   }
@@ -13959,6 +13984,17 @@ export function parseUnifiedBoxScoreRows(rows) {
       // attribution so its rows can't be misread into a section.
       if (asTitle && !seen.has(asTitle.key)) { seen.add(asTitle.key); current = asTitle }
       else current = null
+      continue
+    }
+    // A recognizable header row opens its section when no banner did (banners
+    // optional); if a banner just opened the same section, this simply skips
+    // the header line. A header for an already-seen section is ignored.
+    const asHeader = resolveSectionHeader(row)
+    if (asHeader) {
+      if (current?.key !== asHeader.key && !seen.has(asHeader.key)) {
+        seen.add(asHeader.key)
+        current = asHeader
+      }
       continue
     }
     if (!current) continue

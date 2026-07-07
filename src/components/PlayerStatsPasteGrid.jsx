@@ -93,9 +93,13 @@ export default function PlayerStatsPasteGrid({
     setRawText(serializeUnifiedBoxScoreToTsv(g))
   }
 
+  const countRows = (g) => sections.reduce((n, s) => n + (g[s.key]?.length || 0), 0)
+
   const applyRawText = (text) => {
+    const g = toGrid(parseUnifiedBoxScoreRows(splitTsv(text)))
     setRawText(text)
-    setGrid(toGrid(parseUnifiedBoxScoreRows(splitTsv(text))))
+    setGrid(g)
+    return countRows(g)
   }
 
   const editCell = (sectionKey, rowIdx, fieldKey, value) => {
@@ -120,10 +124,19 @@ export default function PlayerStatsPasteGrid({
     try {
       const text = await navigator.clipboard.readText()
       if (!text || !text.trim()) {
-        toast.error('Clipboard is empty. Copy the AI reply first.')
+        // Some mobile/in-app browsers hand back an empty string even when the
+        // clipboard has content — open the text box so the user can paste by hand.
+        setShowRaw(true)
+        toast.error('Clipboard came back empty. Paste the AI reply into the text box below.')
         return
       }
-      applyRawText(text)
+      const rows = applyRawText(text)
+      if (rows === 0) {
+        // Clipboard had text but nothing parsed — don't fail silently (the grid
+        // would just look blank). Surface the raw text so the user can fix it.
+        setShowRaw(true)
+        toast.error("Couldn't read any players from that paste. Make sure each category keeps its header row (Player Name, …) and the columns are tab-separated.")
+      }
     } catch {
       setShowRaw(true)
       toast.error('Could not read the clipboard. Tap the arrow and paste into the text box.')
