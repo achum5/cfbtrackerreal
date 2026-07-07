@@ -10123,7 +10123,11 @@ export function DynastyProvider({ children }) {
           if (fullPropGame) gamesToSave.push(fullPropGame)
         }
         // Single batch commit + one waitForPendingWrites for all games.
-        await saveWeeklyGamesChanges(dynastyId, gamesToSave, [])
+        // Cap the server-ack wait: the batch is durable in the local cache and
+        // syncs in the background, so a wedged long-poll connection must not
+        // spin "Saving…" forever (same settleOrProceed treatment as updateDynasty
+        // / recap / social saves). Fast rejections still surface to the catch.
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, gamesToSave, []), 10000, `updateGame(${dynastyId})`)
 
         // Update dynasty document with ONLY record updates (not games array)
         // This is the key optimization - we don't rewrite all 261 games
@@ -10171,7 +10175,7 @@ export function DynastyProvider({ children }) {
           const fullPropGame = updatedGames.find(g => g.id === propagatedGame.id)
           if (fullPropGame) fallbackGames.push(fullPropGame)
         }
-        await saveWeeklyGamesChanges(dynastyId, fallbackGames, [])
+        await settleOrProceed(saveWeeklyGamesChanges(dynastyId, fallbackGames, []), 10000, `updateGame:fallback(${dynastyId})`)
         const cloudUpdates = { ...recordUpdates }
         if (teamsUpdate) cloudUpdates.teams = teamsUpdate
         if (Object.keys(cloudUpdates).length > 0) {
