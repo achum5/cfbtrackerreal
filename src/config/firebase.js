@@ -56,20 +56,24 @@ googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 // manager for exactly this multi-tab case.
 // If IndexedDB isn't available (Safari private browsing, blocked
 // storage), Firebase silently falls back to memory cache.
-// experimentalAutoDetectLongPolling: WebSocket-based Firestore connections
-// frequently get blocked or stuck on mobile carrier networks, captive
-// portals, and corporate proxies. When that happens, the SDK normally
-// waits ~30s for the WebSocket to time out before falling back to
-// long-polling — that's the dominant cause of the "sometimes the app
-// loads in milliseconds, sometimes it takes minutes" pattern users have
-// reported when swiping the app in/out of background. Auto-detect
-// triggers the fallback as soon as it sees the connection misbehaving,
-// so cold reopens stay snappy on misbehaving networks.
+// experimentalForceLongPolling: FORCE long-polling (plain XHR POSTs) instead of
+// the streaming WebChannel. We previously used experimentalAutoDetectLongPolling,
+// but auto-detect judges the connection healthy when READS work (served from the
+// local cache) while the streaming WRITE channel is silently dead — which is
+// exactly the Safari/iOS failure we hit: reads look fine, every write times out
+// and never reaches the server, so a user's edits pile up only in local cache
+// and never sync (data-loss risk). Safari's WebChannel handling (plus ITP,
+// carrier networks, captive portals, corporate proxies, and privacy extensions)
+// breaks the streaming channel far more often than the long-poll transport, and
+// auto-detect doesn't reliably rescue it. Forcing long-polling trades a small
+// latency bump for a connection that actually delivers writes across the board.
+// If IndexedDB isn't available (Safari private browsing, blocked storage),
+// Firebase silently falls back to memory cache.
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager(),
   }),
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
 });
 
 // Firebase Storage — used for player card art, profile pictures, and
