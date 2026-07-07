@@ -906,25 +906,53 @@ export async function getRecruitingDatabaseSubcollection(dynastyId, options = {}
   }
 }
 
+// Stable, key-order-independent serialization so an unchanged recruit compares
+// equal to its stored copy regardless of the key order Firestore hands back.
+function stableStringify(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v)
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']'
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}'
+}
+
 /**
- * Full-replace save for the Recruiting Database subcollection — every
- * current caller already treats recruitingDatabasePlayers as "here is the
- * complete, current list" (import, batch edit, delete, JSON restore all
- * rebuild the whole array), so unlike savePlayersToSubcollection this
- * always deletes orphans; there's no partial-update caller to protect
- * against. Batched the same way (BATCH_SIZE per commit, small delay
- * between batches) since a heavy Recruiting Database user could still have
- * enough recruits to need more than one Firestore batch.
+ * INCREMENTAL save for the Recruiting Database subcollection. Callers pass the
+ * complete current list (import, batch edit, delete, JSON restore all rebuild
+ * the whole array), but we only WRITE the docs that are new or actually changed
+ * and only DELETE the ones removed — computed by diffing against the stored
+ * copies. The previous version re-wrote every recruit on every save, which
+ * doesn't scale: a heavy user building a 10k-recruit database would issue 10k
+ * writes on every single add and blow past Firestore's queued-write ceiling
+ * ("resource-exhausted: Write stream exhausted maximum allowed queued writes").
+ * Now adding 19 recruits to 110 writes 19 docs, and editing one writes one.
+ * Batched with the same inter-batch delay savePlayersToSubcollection uses, for
+ * the rare case where the delta itself spans multiple Firestore batches.
  */
 export async function saveRecruitingDatabaseSubcollection(dynastyId, players) {
   const toSave = (players || []).filter(p => p?.pid != null)
   try {
     const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION)
     const existingSnapshot = await getDocs(ref)
-    const existingIds = new Set(existingSnapshot.docs.map(d => d.id))
+    const existingById = new Map(existingSnapshot.docs.map(d => [d.id, d.data()]))
     const nextIds = new Set(toSave.map(p => String(p.pid)))
-    const orphanedIds = [...existingIds].filter(id => !nextIds.has(id))
+    const orphanedIds = [...existingById.keys()].filter(id => !nextIds.has(id))
 
+    // Only new or content-changed recruits. _firestoreId is a client-only field
+    // that never lands in Firestore, so strip it before both comparing and
+    // writing (otherwise every recruit would look "changed").
+    const changed = []
+    for (const player of toSave) {
+      const { _firestoreId, ...raw } = player
+      const data = sanitizeForFirestore(raw)
+      const prev = existingById.get(String(player.pid))
+      if (!prev || stableStringify(data) !== stableStringify(prev)) {
+        changed.push({ pid: String(player.pid), data })
+      }
+    }
+
+    // Truly nothing to do — don't touch Firestore at all (no write, no bump).
+    if (changed.length === 0 && orphanedIds.length === 0) return
+
+    // Delete removed recruits (batched).
     for (let i = 0; i < orphanedIds.length; i += BATCH_SIZE) {
       const batch = writeBatch(db)
       orphanedIds.slice(i, i + BATCH_SIZE).forEach(id => {
@@ -933,26 +961,26 @@ export async function saveRecruitingDatabaseSubcollection(dynastyId, players) {
       await batch.commit()
     }
 
-    const totalBatches = Math.ceil(toSave.length / BATCH_SIZE)
-    for (let i = 0; i < toSave.length; i += BATCH_SIZE) {
+    // Write only the changed/new recruits (batched, small delay between batches
+    // to stay under the same write-stream ceiling savePlayersToSubcollection
+    // guards against).
+    const totalBatches = Math.ceil(changed.length / BATCH_SIZE)
+    for (let i = 0; i < changed.length; i += BATCH_SIZE) {
       const batch = writeBatch(db)
-      toSave.slice(i, i + BATCH_SIZE).forEach(player => {
-        const playerRef = doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION, String(player.pid))
-        batch.set(playerRef, sanitizeForFirestore(player))
+      changed.slice(i, i + BATCH_SIZE).forEach(({ pid, data }) => {
+        batch.set(doc(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION, pid), data)
       })
-      // Bump the main doc's lastModified in the SAME batch as the last
-      // chunk so other devices' dynasty listener notices the change —
-      // subcollection writes alone don't fire it (see
-      // bumpDynastyLastModifiedInBatch's other call sites).
-      if (i + BATCH_SIZE >= toSave.length) bumpDynastyLastModifiedInBatch(batch, dynastyId)
+      // Bump the main doc's lastModified in the SAME batch as the last chunk so
+      // other devices' dynasty listener notices the change.
+      if (i + BATCH_SIZE >= changed.length) bumpDynastyLastModifiedInBatch(batch, dynastyId)
       await batch.commit()
-      if (i + BATCH_SIZE < toSave.length) {
+      if (i + BATCH_SIZE < changed.length) {
         await new Promise(resolve => setTimeout(resolve, totalBatches > 3 ? 300 : 200))
       }
     }
-    // If there was nothing to save but orphans WERE deleted, still bump
-    // lastModified so the deletion itself propagates to other devices.
-    if (toSave.length === 0 && orphanedIds.length > 0) {
+    // Only orphans were deleted (no doc writes) — still bump lastModified so the
+    // deletion propagates to other devices.
+    if (changed.length === 0 && orphanedIds.length > 0) {
       const batch = writeBatch(db)
       bumpDynastyLastModifiedInBatch(batch, dynastyId)
       await batch.commit()

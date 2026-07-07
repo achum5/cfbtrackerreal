@@ -16079,7 +16079,10 @@ export function DynastyProvider({ children }) {
       return
     }
 
-    await saveRecruitingDatabaseSubcollection(dynastyId, players)
+    // Capped like the other cloud saves: a slow/marginal connection must not
+    // spin the Recruiting Database's Saving… UI forever (the delta is durable
+    // locally and syncs in the background). Fast rejections still surface.
+    await settleOrProceed(saveRecruitingDatabaseSubcollection(dynastyId, players), 10000, `updateRecruitingDatabasePlayers(${dynastyId})`)
 
     // Optimistic local update, same shape as updatePlayer's single-doc
     // cloud path — the subcollection write itself doesn't touch React
