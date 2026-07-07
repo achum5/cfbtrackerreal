@@ -1451,15 +1451,40 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
   const yearStr = String(year)
   const byYear = dynasty.teams?.[tid]?.byYear
   const entry = byYear?.[yearNum]?.rankByWeek ?? byYear?.[yearStr]?.rankByWeek
-  if (entry) {
-    const v = entry[week] ?? entry[String(week)] ?? entry[Number(week)]
+  const validRank = (v) => {
     if (v == null) return null
     const n = Number(v)
     return n >= 1 && n <= 25 ? n : null
   }
-  // Preseason fallback for week 0 / week 1 — pull from the dynasty's
-  // preseason poll if no rankByWeek data is stored yet.
-  if (Number(week) <= 1) {
+  if (entry) {
+    // Exact week first.
+    const exact = validRank(entry[week] ?? entry[String(week)] ?? entry[Number(week)])
+    if (exact != null) return exact
+    // CARRY-FORWARD: a poll stands until a newer one is entered. If this exact
+    // week has no ranking (e.g. the user entered a preseason / early Top 25 but
+    // hasn't entered a fresh poll for this week), fall back to the most recent
+    // EARLIER week that does — including preseason (week 0). Without this, the
+    // Scores page and Sportsbook showed no rank pips for teams that are clearly
+    // ranked on the Rankings page (which displays the latest populated week).
+    // Regular-season weeks (≤20) never inherit a postseason poll (101–105).
+    const wk = Number(week)
+    if (Number.isFinite(wk)) {
+      let best = null, bestWk = -Infinity
+      for (const k of Object.keys(entry)) {
+        const kw = Number(k)
+        if (!Number.isFinite(kw) || kw > wk) continue
+        if (wk <= 20 && kw > 20) continue
+        const r = validRank(entry[k])
+        if (r != null && kw > bestWk) { bestWk = kw; best = r }
+      }
+      if (best != null) return best
+    }
+  }
+  // Preseason-array fallback — a separate store some dynasties use before any
+  // rankByWeek is written. A preseason poll stands until a weekly one replaces
+  // it, so this now applies to ANY week (was week ≤ 1 only), matching the
+  // carry-forward semantic above.
+  {
     const presPolls = dynasty.preseasonRankingsByYear?.[yearNum]
       || dynasty.preseasonRankingsByYear?.[yearStr]
     if (Array.isArray(presPolls)) {
@@ -1469,7 +1494,7 @@ export function getTeamRankForWeek(dynasty, tidOrAbbr, year, week) {
           (p.team && getTidFromAbbr(p.team, dynasty) === tid)
         )
       )
-      if (entry2?.rank) return Number(entry2.rank)
+      if (entry2?.rank) return validRank(entry2.rank)
     }
   }
   return null
