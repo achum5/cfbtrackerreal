@@ -23,7 +23,9 @@ import {
   saveGamesToSubcollection,
   saveWeekRecapToSubcollection,
   saveSocialFeedToSubcollection,
-  saveSocialCharacterShards
+  saveSocialCharacterShards,
+  getRecruitingDatabaseSubcollection,
+  saveRecruitingDatabaseSubcollection
 } from '../dynastyService';
 import {
   isSeasonalField,
@@ -355,6 +357,9 @@ export const storageService = {
         weekRecapsByYear,
         socialFeedByYear,
         socialCharacters,
+        // Recruiting Database recruit list -> its own subcollection too, same
+        // 1MB-main-doc reasoning as players/games/weekRecaps.
+        recruitingDatabasePlayers,
         ...rest
       } = dynasty;
 
@@ -472,6 +477,17 @@ export const storageService = {
         }
       }
 
+      // Recruiting Database recruit list -> its own subcollection.
+      if (recruitingDatabasePlayers && recruitingDatabasePlayers.length > 0) {
+        try {
+          await saveRecruitingDatabaseSubcollection(cloudDynastyId, recruitingDatabasePlayers);
+          log(`Saved ${recruitingDatabasePlayers.length} Recruiting Database recruits to subcollection`);
+        } catch (rdErr) {
+          console.error('[Storage] Failed to save Recruiting Database subcollection:', rdErr);
+          subcollectionsOk = false;
+        }
+      }
+
       if (!subcollectionsOk) {
         // Keep the local copy intact so the user hasn't lost anything; the
         // cloud doc exists but is incomplete and will be reconciled on a
@@ -501,6 +517,7 @@ export const storageService = {
           weekRecapsByYear,
           socialFeedByYear,
           socialCharacters,
+          recruitingDatabasePlayers,
           ...seasonalUpdates,
         },
       };
@@ -541,10 +558,19 @@ export const storageService = {
       // step fails, we abort BEFORE deleting the cloud copy.
       let players = [];
       let games = [];
+      let recruitingDatabasePlayers = [];
       try {
         players = (await firebaseStorage.getPlayers(dynastyId)) || [];
         games = (await firebaseStorage.getGames(dynastyId)) || [];
-        log(`Pulled ${players.length} players + ${games.length} games from cloud subcollections for ${dynastyId}`);
+        // Recruiting Database recruits live in their own subcollection too
+        // (see migrateRecruitingDatabaseToSubcollection) — fall back to
+        // whatever's still on the main doc for a dynasty that hasn't been
+        // opened yet since that migration shipped.
+        recruitingDatabasePlayers = (await getRecruitingDatabaseSubcollection(dynastyId)) || [];
+        if (recruitingDatabasePlayers.length === 0 && dynasty.recruitingDatabasePlayers?.length > 0) {
+          recruitingDatabasePlayers = dynasty.recruitingDatabasePlayers;
+        }
+        log(`Pulled ${players.length} players + ${games.length} games + ${recruitingDatabasePlayers.length} Recruiting Database recruits from cloud subcollections for ${dynastyId}`);
       } catch (subErr) {
         console.error('[Storage] Failed to fetch subcollections during migrate-to-local:', subErr);
         return {
@@ -553,13 +579,14 @@ export const storageService = {
         };
       }
 
-      // Create locally with the full payload embedded — recruitingDatabasePlayers
-      // is carried over via the `...dynasty` spread, since the Recruiting
-      // Database is per-dynasty.
+      // Create locally with the full payload embedded. Local (IndexedDB)
+      // dynasties keep recruitingDatabasePlayers as a plain field — no
+      // per-document size ceiling to dodge there.
       const localDynasty = await indexedDBStorage.createDynasty({
         ...dynasty,
         players,
         games,
+        recruitingDatabasePlayers,
         storageType: STORAGE_TYPE.LOCAL,
         _subcollectionsMigrated: undefined, // local format doesn't use this flag
       });
