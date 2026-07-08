@@ -6405,6 +6405,37 @@ export function DynastyProvider({ children }) {
     currentDynastyIdRef.current = currentDynasty?.id || null
   }, [currentDynasty?.id])
 
+  // Change-detection for the dynasties listener (Firestore read cost). The
+  // listener otherwise re-reads ALL five subcollections for EVERY loaded
+  // dynasty on every fire — so editing one dynasty re-reads the subcollections
+  // of every other loaded dynasty too, and metadata-only fires re-read
+  // needlessly. dynastiesStateRef mirrors the merged state so the listener can
+  // reuse the freshest copy of an unchanged dynasty; listenerRevByIdRef records
+  // the main-doc revision at which each dynasty was last fully loaded.
+  const dynastiesStateRef = useRef([])
+  const listenerRevByIdRef = useRef({})
+  // Same idea for the shared-league refresh: only re-pull a shared dynasty's
+  // subcollections when ITS main doc changed, not when some other shared
+  // dynasty in the same snapshot did.
+  const sharedRefreshRevRef = useRef({})
+  useEffect(() => { dynastiesStateRef.current = dynasties }, [dynasties])
+  // Monotonic revision of a dynasty's MAIN doc. Any write bumps updatedAt or
+  // lastModified (the stale-snapshot guards rely on this), and this listener
+  // only fires on main-doc changes, so an unchanged rev means nothing to
+  // re-read. Returns 0 when no timestamp is present → callers must treat 0 as
+  // "unknown, do a full read" (never skip).
+  const dynastyDocRev = (d) => {
+    const toMs = (v) => {
+      if (v == null) return 0
+      if (typeof v === 'number') return v
+      if (typeof v?.toMillis === 'function') { try { return v.toMillis() } catch { return 0 } }
+      if (typeof v?.seconds === 'number') return v.seconds * 1000 + (v.nanoseconds || 0) / 1e6
+      const t = Date.parse(v)
+      return Number.isFinite(t) ? t : 0
+    }
+    return Math.max(toMs(d?.updatedAt), toMs(d?.lastModified))
+  }
+
   // Helper to find dynasty by ID - checks state first (both local + cloud), then IndexedDB as fallback
   // This ensures cloud dynasties work even if user's premium expired (read-only mode)
   // Also returns the dynasty's storage type for proper routing
@@ -7519,6 +7550,21 @@ export function DynastyProvider({ children }) {
               return taggedDynasty
             }
 
+            // Change-detection (Firestore read cost): if this dynasty's main doc
+            // hasn't changed since we last fully loaded it, reuse the freshest
+            // copy already in state instead of re-reading its five
+            // subcollections. Any real change bumps the rev (updatedAt/
+            // lastModified) and this listener only fires on main-doc changes, so
+            // an unchanged rev means there is nothing new to read. rev===0 (no
+            // timestamp) or no prior loaded copy → fall through to a full read.
+            const rev = dynastyDocRev(dynasty)
+            if (rev > 0 && listenerRevByIdRef.current[dynasty.id] === rev) {
+              const existing = dynastiesStateRef.current.find(d => String(d.id) === String(dynasty.id))
+              if (existing && Array.isArray(existing.players)) {
+                return existing
+              }
+            }
+
             // Load subcollections for this dynasty.
             //
             // onFresh callbacks: cache-first reads served instant data
@@ -7719,6 +7765,10 @@ export function DynastyProvider({ children }) {
 
             // Mark as loaded
             loadedDynastyIdsRef.current.add(dynasty.id)
+            // Record the main-doc rev we just fully loaded at, so the next fire
+            // can skip re-reading when nothing changed. Only set on success —
+            // the catch below leaves it unset so a failed load always retries.
+            if (rev > 0) listenerRevByIdRef.current[dynasty.id] = rev
 
             return {
               ...taggedDynasty,
@@ -18171,7 +18221,15 @@ export function DynastyProvider({ children }) {
           }
           return merged
         })
-        refreshSharedSubcollections(openId)
+        // Only re-pull subcollections when THIS shared dynasty's main doc
+        // advanced (a teammate wrote to it). When the fire was caused by a
+        // different shared dynasty, the open one's rev is unchanged → skip the
+        // 4-subcollection re-read. rev===0 (no timestamp) always refreshes.
+        const openRev = dynastyDocRev(openFresh)
+        if (openRev === 0 || sharedRefreshRevRef.current[openId] !== openRev) {
+          sharedRefreshRevRef.current[openId] = openRev
+          refreshSharedSubcollections(openId)
+        }
       } else if (openId
                  && !openFresh
                  && skipListenerUpdatesCountRef.current === 0
