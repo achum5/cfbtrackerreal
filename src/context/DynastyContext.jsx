@@ -6050,15 +6050,10 @@ export function getRecruitingCommitments(dynasty, tidOrAbbr, year) {
  * the caller to spread into its updateDynasty() payload alongside players/etc.
  * Does NOT persist — the caller owns the single updateDynasty() call.
  */
-export function buildRecruitingCommitmentUpdate(dynasty, { tid, teamAbbr, year, bucket, records, replaceAllBuckets = false }) {
-  const resolvedTid = tid != null ? tid : getTidFromAbbr(teamAbbr, dynasty)
-  const resolvedAbbr = teamAbbr || (resolvedTid != null ? getAbbrFromTid(dynasty?.teams, resolvedTid) : null)
-
-  const current = getRecruitingCommitments(dynasty, resolvedTid ?? resolvedAbbr, year) || {}
-  const nextCommitments = replaceAllBuckets
-    ? { [bucket]: records }
-    : { ...current, [bucket]: records }
-
+// Internal: turn a fully-formed commitments object (all buckets) into the
+// dual-store updates fragment. Shared by every commitment writer so the teams
+// store and recruitingCommitmentsByTeamYear can never drift.
+function buildCommitmentsFragment(dynasty, resolvedTid, resolvedAbbr, year, nextCommitments) {
   const fragment = {}
 
   // Teams store (tid-based) — preserve every other team / year / field.
@@ -6085,6 +6080,47 @@ export function buildRecruitingCommitmentUpdate(dynasty, { tid, teamAbbr, year, 
   }
 
   return fragment
+}
+
+export function buildRecruitingCommitmentUpdate(dynasty, { tid, teamAbbr, year, bucket, records, replaceAllBuckets = false }) {
+  const resolvedTid = tid != null ? tid : getTidFromAbbr(teamAbbr, dynasty)
+  const resolvedAbbr = teamAbbr || (resolvedTid != null ? getAbbrFromTid(dynasty?.teams, resolvedTid) : null)
+
+  const current = getRecruitingCommitments(dynasty, resolvedTid ?? resolvedAbbr, year) || {}
+  const nextCommitments = replaceAllBuckets
+    ? { [bucket]: records }
+    : { ...current, [bucket]: records }
+
+  return buildCommitmentsFragment(dynasty, resolvedTid, resolvedAbbr, year, nextCommitments)
+}
+
+/**
+ * Remove a single committed recruit from EVERY commitments bucket (edit plus
+ * per-week signing-day buckets), across both stores. A committed recruit can
+ * live in any bucket, so filtering just `edit` would leave them on the board —
+ * this filters them out of all of them by pid (preferred) or name. Returns an
+ * updates fragment for the caller to spread into its updateDynasty() payload.
+ */
+export function buildRecruitingCommitmentRemoval(dynasty, { tid, teamAbbr, year, pid, name }) {
+  const resolvedTid = tid != null ? tid : getTidFromAbbr(teamAbbr, dynasty)
+  const resolvedAbbr = teamAbbr || (resolvedTid != null ? getAbbrFromTid(dynasty?.teams, resolvedTid) : null)
+
+  const current = getRecruitingCommitments(dynasty, resolvedTid ?? resolvedAbbr, year) || {}
+  const normName = (n) => String(n || '').toLowerCase().trim()
+  const targetPid = pid != null ? String(pid) : null
+  const targetName = name ? normName(name) : null
+  const matches = (rec) => {
+    if (targetPid && rec?.pid != null && String(rec.pid) === targetPid) return true
+    if (targetName && normName(rec?.name) === targetName) return true
+    return false
+  }
+
+  const nextCommitments = {}
+  for (const [bucket, records] of Object.entries(current)) {
+    nextCommitments[bucket] = Array.isArray(records) ? records.filter(r => !matches(r)) : records
+  }
+
+  return buildCommitmentsFragment(dynasty, resolvedTid, resolvedAbbr, year, nextCommitments)
 }
 
 /**

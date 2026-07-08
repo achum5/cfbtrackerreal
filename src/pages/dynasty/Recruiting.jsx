@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { proxyImageUrl } from '../../utils/imageProxy'
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useDynasty, getRecruitingCommitments, buildRecruitingCommitmentUpdate, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
+import { useDynasty, getRecruitingCommitments, buildRecruitingCommitmentUpdate, buildRecruitingCommitmentRemoval, lookupByTeamYear, isPlayerOnRoster } from '../../context/DynastyContext'
 import { inferPlayStyle } from '../../utils/scoutGrade'
 import { scoutCalibration } from '../../utils/scoutLearning'
 import { usePathPrefix } from '../../hooks/usePathPrefix'
@@ -727,6 +727,35 @@ export default function Recruiting() {
     await updateDynasty(currentDynasty.id, updates, { changedPlayerPids: changedPids })
   }
 
+  // Remove a committed recruit that's stuck on the board (no decommit action
+  // existed before). Deletes the player from dynasty.players AND strips them
+  // from every commitments bucket in one write, so they leave both stores and
+  // the class score updates. `removeTarget` holds the pending recruit while the
+  // confirm dialog is open.
+  const [removeTarget, setRemoveTarget] = useState(null)
+  const [removing, setRemoving] = useState(false)
+  const handleRemoveCommit = async (recruit, resolvedPid) => {
+    if (isViewOnly || !currentDynasty || !recruit) return
+    setRemoving(true)
+    try {
+      const pid = resolvedPid || recruit.pid || null
+      const players = currentDynasty.players || []
+      const changedPlayerPids = []
+      const updates = {}
+      if (pid != null) {
+        updates.players = players.filter(p => String(p.pid) !== String(pid))
+        changedPlayerPids.push(pid)
+      }
+      Object.assign(updates, buildRecruitingCommitmentRemoval(currentDynasty, {
+        tid: selectedTid, teamAbbr, year: selectedYear, pid, name: recruit.name,
+      }))
+      await updateDynasty(currentDynasty.id, updates, { changedPlayerPids })
+    } finally {
+      setRemoving(false)
+      setRemoveTarget(null)
+    }
+  }
+
   const playersByName = useMemo(() => {
     const map = {}
     const players = currentDynasty?.players || []
@@ -1424,16 +1453,32 @@ export default function Recruiting() {
               />
             )
 
-            return linkPid ? (
-              <Link
-                key={`${recruit.name}-${index}`}
-                to={`${pathPrefix}/player/${linkPid}`}
-                className="block"
+            // Remove overlay — sibling of the Link (not inside it) so its own
+            // click never triggers navigation. Only on your own team's board
+            // when editable. Opens a confirm dialog before deleting.
+            const canRemove = isOwnTeam && !isViewOnly
+            const removeBtn = canRemove ? (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRemoveTarget({ recruit, pid: linkPid }) }}
+                title="Remove from your commitments"
+                aria-label={`Remove ${recruit.name} from your commitments`}
+                className="absolute top-1 right-1 z-20 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide leading-none transition-transform active:scale-95"
+                style={{ backgroundColor: 'rgba(0,0,0,0.45)', color: '#fff' }}
               >
-                {cardContent}
-              </Link>
-            ) : (
-              <div key={`${recruit.name}-${index}`}>{cardContent}</div>
+                Remove
+              </button>
+            ) : null
+
+            return (
+              <div key={`${recruit.name}-${index}`} className="relative">
+                {linkPid ? (
+                  <Link to={`${pathPrefix}/player/${linkPid}`} className="block">
+                    {cardContent}
+                  </Link>
+                ) : cardContent}
+                {removeBtn}
+              </div>
             )
           })}
         </div>
@@ -1518,6 +1563,28 @@ export default function Recruiting() {
         canEdit={!isViewOnly}
         accent={teamAccent}
       />
+
+      <Modal
+        isOpen={!!removeTarget}
+        onClose={() => { if (!removing) setRemoveTarget(null) }}
+        title="Remove commitment"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-txt-secondary">
+            Remove <span className="font-semibold text-txt-primary">{removeTarget?.recruit?.name}</span> from your commitments? This takes them off your board and out of your class score. This cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRemoveTarget(null)} disabled={removing}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => handleRemoveCommit(removeTarget.recruit, removeTarget.pid)}
+              disabled={removing}
+            >
+              {removing ? 'Removing…' : 'Remove'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={showHistoryModal}

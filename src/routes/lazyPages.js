@@ -36,6 +36,7 @@ export const ConferenceStandings = lazyWithPreload(() => import('../pages/dynast
 export const CFPBracket = lazyWithPreload(() => import('../pages/dynasty/CFPBracket'))
 export const WeeklyScores = lazyWithPreload(() => import('../pages/dynasty/WeeklyScores'))
 export const CardCollection = lazyWithPreload(() => import('../pages/dynasty/CardCollection'))
+export const ManageRivalries = lazyWithPreload(() => import('../pages/dynasty/ManageRivalries'))
 export const Game = lazyWithPreload(() => import('../pages/dynasty/Game'))
 export const GameEdit = lazyWithPreload(() => import('../pages/dynasty/GameEdit'))
 export const SocialCharacter = lazyWithPreload(() => import('../pages/dynasty/SocialCharacter'))

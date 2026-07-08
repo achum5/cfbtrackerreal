@@ -103,24 +103,44 @@ export default function CardStylePicker({ value, onChange, styles = CARD_STYLES 
     return Array.from(out.entries())
   }, [results, searching])
 
+  // Pick a random style from whatever's currently shown (the selected brand
+  // section, or the active search results). For users who don't know the card
+  // brands and just want the app to choose one from this section.
+  const pickRandom = () => {
+    if (!results.length) return
+    onChange(results[Math.floor(Math.random() * results.length)].id)
+  }
+
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-txt-tertiary pointer-events-none"
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+      {/* Search + Surprise me */}
+      <div className="flex items-stretch gap-2">
+        <div className="relative flex-1">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-txt-tertiary pointer-events-none"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search every brand, set, or year…"
+            className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-surface-2 border border-surface-4 text-txt-primary text-sm focus:border-surface-5 focus:outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={pickRandom}
+          disabled={results.length === 0}
+          title={searching ? 'Pick a random style from the search results' : `Pick a random ${brand} style`}
+          className="flex-shrink-0 px-4 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          style={{ backgroundColor: 'var(--surface-3)', color: 'var(--text-secondary)', border: '1px solid var(--surface-4)' }}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
-        </svg>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search every brand, set, or year…"
-          className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-surface-2 border border-surface-4 text-txt-primary text-sm focus:border-surface-5 focus:outline-none"
-        />
+          Surprise me
+        </button>
       </div>
 
       {/* Brand chips — hidden while searching (search is global) */}

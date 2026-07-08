@@ -207,6 +207,7 @@ export default function Sidebar({ isOpen, onClose, dynastyId, teamColors, curren
     { name: 'All-Americans', path: `${pathPrefix}/all-americans` },
     { name: 'All-Conference', path: `${pathPrefix}/all-conference/${currentYear}/${conferenceUrlParam}` },
     { name: 'All Teams', path: `${pathPrefix}/teams` },
+    ...(!isViewOnly ? [{ name: 'Manage Rivalries', path: `${pathPrefix}/rivalries` }] : []),
     { name: 'All Players', path: `${pathPrefix}/players` },
     { name: 'Compare Players', path: `${pathPrefix}/compare` },
     { name: 'Card Collection', path: `${pathPrefix}/cards` },

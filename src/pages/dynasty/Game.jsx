@@ -1585,7 +1585,7 @@ export default function Game() {
   // page (with a query param so it auto-scrolls to this game). For
   // championship / bowl / CFP rounds the whole cluster keeps its
   // single navigation target as before.
-  const eventIsRivalryTrophy = !!rivalryTrophy && eventLogo === rivalryTrophy.image
+  const eventIsRivalryTrophy = !!rivalryTrophy?.image && eventLogo === rivalryTrophy.image
   const eventLogoBlock = eventLogo ? (
     <div
       className="flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-md flex items-center justify-center p-1"
@@ -2233,7 +2233,7 @@ export default function Game() {
                 )
               })() : (
                 <div className="flex flex-col items-center py-2 sm:py-4">
-                  {rivalryTrophy ? (
+                  {rivalryTrophy?.image ? (
                     <img
                       src={rivalryTrophy.image}
                       alt={rivalryTrophy.gameName || rivalryTrophy.name}
@@ -2241,6 +2241,10 @@ export default function Game() {
                       className="h-16 sm:h-28 w-auto object-contain"
                       style={{ filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.55))' }}
                     />
+                  ) : rivalryTrophy ? (
+                    <div className="px-2 py-1 sm:px-4 sm:py-2 rounded-full bg-yellow-500/20 border border-yellow-500/30">
+                      <span className="text-xs sm:text-sm font-bold text-yellow-400">RIVALRY</span>
+                    </div>
                   ) : (
                     <div className="px-2 py-1 sm:px-4 sm:py-2 rounded-full bg-yellow-500/20 border border-yellow-500/30">
                       <span className="text-xs sm:text-sm font-bold text-yellow-400">UPCOMING</span>

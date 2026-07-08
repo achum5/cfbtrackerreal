@@ -89,17 +89,17 @@ function teamGamesInRange(dynasty, tid, year, minYear, maxYear, upToWeek = 99) {
     // The week cap only restricts the in-progress current season.
     if (gy === yearN && g.week != null && Number(g.week) >= Number(upToWeek)) continue
 
-    let my, their
-    if (Number(g.team1Tid) === tidNum) { my = Number(g.team1Score) || 0; their = Number(g.team2Score) || 0 }
-    else if (Number(g.team2Tid) === tidNum) { my = Number(g.team2Score) || 0; their = Number(g.team1Score) || 0 }
-    else if (Number(g.userTid) === tidNum || g.userTeam === abbr) { my = Number(g.teamScore) || 0; their = Number(g.opponentScore) || 0 }
-    else if (Number(g.opponentTid) === tidNum || g.opponent === abbr) { my = Number(g.opponentScore) || 0; their = Number(g.teamScore) || 0 }
+    let my, their, oppTid
+    if (Number(g.team1Tid) === tidNum) { my = Number(g.team1Score) || 0; their = Number(g.team2Score) || 0; oppTid = Number(g.team2Tid) }
+    else if (Number(g.team2Tid) === tidNum) { my = Number(g.team2Score) || 0; their = Number(g.team1Score) || 0; oppTid = Number(g.team1Tid) }
+    else if (Number(g.userTid) === tidNum || g.userTeam === abbr) { my = Number(g.teamScore) || 0; their = Number(g.opponentScore) || 0; oppTid = Number(g.opponentTid) }
+    else if (Number(g.opponentTid) === tidNum || g.opponent === abbr) { my = Number(g.opponentScore) || 0; their = Number(g.teamScore) || 0; oppTid = Number(g.userTid) }
     else continue
 
     const key = `${gy}-${g.week ?? 'post'}-${g.gameType || 'regular'}`
     if (seenKey.has(key)) continue
     seenKey.add(key)
-    out.push({ year: gy, my, their })
+    out.push({ year: gy, my, their, oppTid: Number.isFinite(oppTid) ? oppTid : null })
   }
   return out
 }
@@ -165,6 +165,63 @@ function calcPowerScore(dynasty, tid, year, upToWeek = 99) {
   const onField = (prof.winPct * 40) + (prof.avgDiff * 3)
   const trust = Math.min(1, prof.sampleGames / 3)
   return onField * trust + 20 * (1 - trust)
+}
+
+// Strength-of-schedule adjustment (SRS-style). calcPowerScore is
+// opponent-agnostic — beating a strong team and a weak team count identically,
+// so a team that ran up its record against a soft slate looks as good as one
+// that did it against ranked teams, and transitive results ("we beat a team
+// that beat Miss St") earn no credit. This layers an iterative opponent
+// adjustment on top: a team's rating shifts toward the strength of the teams it
+// actually played this season. rating = basePower + SOS_WEIGHT × (avg current
+// opponent rating − league mean), solved by a few fixed-point passes so credit
+// propagates transitively. Returns a Map<tid, adjustedPower>. Game Lines only —
+// futures/win-totals still call calcPowerScore directly.
+const SRS_ITERATIONS = 6
+const SRS_SOS_WEIGHT = 0.75
+
+function buildSrsPowerMap(dynasty, year, week) {
+  const teams = dynasty?.teams || {}
+  const tids = Object.keys(teams)
+    .map(Number)
+    .filter(tid => teams[tid]?.abbr && !isFCSPlaceholderAbbr(teams[tid].abbr))
+
+  const base = new Map()
+  for (const tid of tids) base.set(tid, calcPowerScore(dynasty, tid, year, week ?? 99))
+  if (tids.length < 2) return base
+
+  const leagueMean = [...base.values()].reduce((a, b) => a + b, 0) / tids.length
+
+  // Each team's CURRENT-season opponents (only those in the FBS base set — FCS
+  // placeholders and unknown-tid legacy games are skipped). Multi-season base
+  // power already smooths the sample; SOS is about who you played THIS year.
+  const sched = new Map()
+  for (const tid of tids) {
+    const gs = teamGamesInRange(dynasty, tid, year, Number(year), Number(year), week ?? 99)
+    sched.set(tid, gs.map(g => g.oppTid).filter(o => o != null && base.has(o)))
+  }
+
+  let rating = new Map(base)
+  for (let it = 0; it < SRS_ITERATIONS; it++) {
+    const next = new Map()
+    for (const tid of tids) {
+      const opps = sched.get(tid)
+      if (!opps.length) { next.set(tid, base.get(tid)); continue }
+      let sum = 0
+      for (const o of opps) sum += rating.get(o)
+      const avgOpp = sum / opps.length
+      next.set(tid, base.get(tid) + SRS_SOS_WEIGHT * (avgOpp - leagueMean))
+    }
+    rating = next
+  }
+  return rating
+}
+
+// Power for one team, preferring the SRS-adjusted map when the caller supplies
+// one (Game Lines path); otherwise the raw opponent-agnostic power.
+function powerFor(dynasty, tid, year, week, powerMap) {
+  const v = powerMap?.get(Number(tid))
+  return v != null ? v : calcPowerScore(dynasty, tid, year, week ?? 99)
 }
 
 // Conference games only — same logic as calcTeamStats but filtered to isConferenceGame.
@@ -239,7 +296,7 @@ function calcChampScore(dynasty, tid, year, week) {
 // 20-point normalized gap → 5-point spread, 60-point gap → 15-point spread.
 // Home field adds 3. Result is clamped to ±28.
 
-function buildNormSpreadContext(dynasty, year, week) {
+function buildNormSpreadContext(dynasty, year, week, powerMap = null) {
   const teams = dynasty?.teams || {}
   const scores = Object.keys(teams)
     .map(Number)
@@ -248,7 +305,7 @@ function buildNormSpreadContext(dynasty, year, week) {
       if (isFCSPlaceholderAbbr(teams[tid].abbr)) return false
       return true
     })
-    .map(tid => calcPowerScore(dynasty, tid, year, week ?? 99))
+    .map(tid => powerFor(dynasty, tid, year, week, powerMap))
 
   if (scores.length < 2) return { min: 0, max: 100, range: 100 }
   const min   = Math.min(...scores)
@@ -354,9 +411,9 @@ const OVR_SPREAD_PER = 0.9
 // carries it in the preseason and fades out as real games accumulate (by ~6
 // games it's purely on-field). Teams without both overalls keep the pure
 // on-field line (unchanged behavior). Positive → home favored.
-function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = false, game = null) {
-  const onField = (normScore(calcPowerScore(dynasty, homeTid, year, week), normCtx)
-                 - normScore(calcPowerScore(dynasty, awayTid, year, week), normCtx)) / 4
+function calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral = false, game = null, powerMap = null) {
+  const onField = (normScore(powerFor(dynasty, homeTid, year, week, powerMap), normCtx)
+                 - normScore(powerFor(dynasty, awayTid, year, week, powerMap), normCtx)) / 4
   const homeField = isNeutral ? 0 : 3
 
   const hOvr = game ? gameSideOvr(dynasty, game, homeTid, year) : teamOvr(dynasty, homeTid, year)
@@ -599,7 +656,8 @@ function buildDebugText(dynasty, game) {
   const homeTid = game.homeTeamTid != null ? Number(game.homeTeamTid) : tid1
   const awayTid = homeTid === tid1 ? tid2 : tid1
 
-  const normCtx = buildNormSpreadContext(dynasty, year, week)
+  const powerMap = buildSrsPowerMap(dynasty, year, week)
+  const normCtx = buildNormSpreadContext(dynasty, year, week, powerMap)
   const L = []
   const p = (s = '') => L.push(s)
   const sgn = (n) => (n >= 0 ? '+' : '') + n.toFixed(1)
@@ -617,7 +675,8 @@ function buildDebugText(dynasty, game) {
     const cur     = calcTeamStats(dynasty, tid, year, week)
     const prof    = calcScoringProfile(dynasty, tid, year, week)
     const onField = (prof.winPct * 40) + (prof.avgDiff * 3)
-    const ps      = calcPowerScore(dynasty, tid, year, week)
+    const basePs  = calcPowerScore(dynasty, tid, year, week)
+    const ps      = powerFor(dynasty, tid, year, week, powerMap)
     const norm    = normScore(ps, normCtx)
     const trust   = Math.min(1, prof.sampleGames / 3)
     p(`${role}: ${abbr}  (${cur.wins}-${cur.losses} this season)`)
@@ -626,10 +685,12 @@ function buildDebugText(dynasty, game) {
     p(`  on-field power = winPct*40 + avgDiff*3 = ${prof.winPct.toFixed(3)}*40 + ${prof.avgDiff.toFixed(1)}*3 = ${onField.toFixed(2)}`)
     if (trust < 1) {
       p(`  thin sample -> regress toward neutral 20 (trust = ${trust.toFixed(2)})`)
-      p(`    power = onField*${trust.toFixed(2)} + 20*${(1 - trust).toFixed(2)} = ${ps.toFixed(2)}`)
+      p(`    base power = onField*${trust.toFixed(2)} + 20*${(1 - trust).toFixed(2)} = ${basePs.toFixed(2)}`)
     } else {
-      p(`  power = ${ps.toFixed(2)}`)
+      p(`  base power = ${basePs.toFixed(2)}`)
     }
+    const sos = ps - basePs
+    p(`  strength-of-schedule adj = ${sgn(sos)}  ->  adjusted power = ${ps.toFixed(2)}`)
     p(`  normalized = (power - min) / range * 100 = ${norm.toFixed(2)}`)
     p('')
     return { abbr, cur, prof, ps, norm }
@@ -644,7 +705,7 @@ function buildDebugText(dynasty, game) {
   const hOvr        = gameSideOvr(dynasty, game, homeTid, year)
   const aOvr        = gameSideOvr(dynasty, game, awayTid, year)
   const onFieldEdge = (home.norm - away.norm) / 4
-  const finalSpread = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, game)
+  const finalSpread = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, game, powerMap)
   const absSp       = Math.abs(finalSpread)
   const homeFav     = finalSpread > 0
   const { favML, dogML } = spreadToML(absSp)
@@ -700,14 +761,14 @@ function buildDebugText(dynasty, game) {
 
 // Build the line + result for one game, deterministically from data through its
 // own week. `normCtx` is the league power normalization for that week.
-function buildMatchup(dynasty, g, year, week, normCtx) {
+function buildMatchup(dynasty, g, year, week, normCtx, powerMap = null) {
   const tid1      = Number(g.team1Tid)
   const tid2      = Number(g.team2Tid)
   const isNeutral = g.homeTeamTid == null
   const homeTid   = g.homeTeamTid != null ? Number(g.homeTeamTid) : tid1
   const awayTid   = homeTid === tid1 ? tid2 : tid1
 
-  const spreadVal = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, g)
+  const spreadVal = calcSpread(dynasty, homeTid, awayTid, year, week, normCtx, isNeutral, g, powerMap)
   const absSp = Math.abs(spreadVal)
   const { favML, dogML } = spreadToML(absSp)
   const homeFav = spreadVal > 0
@@ -840,7 +901,10 @@ function GameLinesPanel({ dynasty, game, pathPrefix, gameFilter }) {
 
   const matchups = useMemo(() => {
     if (!dynasty?.games || week == null) return []
-    const normCtx = buildNormSpreadContext(dynasty, year, week)
+    // SRS-adjusted power map (strength-of-schedule) built once for the week and
+    // fed into both the normalization context and every spread.
+    const powerMap = buildSrsPowerMap(dynasty, year, week)
+    const normCtx = buildNormSpreadContext(dynasty, year, week, powerMap)
     const filtered = dynasty.games.filter(g => {
       if (Number(g.year) !== Number(year)) return false
       if (g.week == null || Number(g.week) !== Number(week)) return false
@@ -874,7 +938,7 @@ function GameLinesPanel({ dynasty, game, pathPrefix, gameFilter }) {
       if (!prev || playedRank(g) > playedRank(prev)) byPair.set(k, g)
     }
 
-    return Array.from(byPair.values()).map(g => buildMatchup(dynasty, g, year, week, normCtx))
+    return Array.from(byPair.values()).map(g => buildMatchup(dynasty, g, year, week, normCtx, powerMap))
   }, [dynasty, year, week, gameFilter])
 
   if (week == null) {
@@ -1172,8 +1236,9 @@ export function GameOdds({ dynasty, game }) {
 
   const m = useMemo(() => {
     if (!dynasty || !game || week == null) return null
-    const normCtx = buildNormSpreadContext(dynasty, year, week)
-    return buildMatchup(dynasty, game, year, week, normCtx)
+    const powerMap = buildSrsPowerMap(dynasty, year, week)
+    const normCtx = buildNormSpreadContext(dynasty, year, week, powerMap)
+    return buildMatchup(dynasty, game, year, week, normCtx, powerMap)
   }, [dynasty, game?.id, game?.team1Tid, game?.team2Tid, game?.homeTeamTid, game?.team1Score, game?.team2Score, game?.team1Overall, game?.team2Overall, game?.opponentOverall, year, week])
 
   if (!dynasty || !game) return null

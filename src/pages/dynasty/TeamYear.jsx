@@ -3955,7 +3955,7 @@ export default function TeamYear() {
                       </span>
                     </div>
                     <div className="flex flex-col items-center justify-center px-2 flex-shrink-0 gap-0.5">
-                      {ngRivalryTrophy && (
+                      {ngRivalryTrophy?.image ? (
                         <img
                           src={ngRivalryTrophy.image}
                           alt={ngRivalryTrophy.gameName || ngRivalryTrophy.name}
@@ -3963,7 +3963,9 @@ export default function TeamYear() {
                           className="h-10 w-auto object-contain"
                           style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.5))' }}
                         />
-                      )}
+                      ) : ngRivalryTrophy ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-yellow-400" title={ngRivalryTrophy.name}>Rivalry</span>
+                      ) : null}
                       <span
                         className="text-[10px] font-bold uppercase"
                         style={{ letterSpacing: '2px', color: '#fff', opacity: 0.6 }}
