@@ -1368,6 +1368,14 @@ export default function ScoutAnalysis({ players = [], removedRecruits = [], onTo
   );
 
   useEffect(() => {
+    // dynasty starts out null/undefined on a hard refresh (currentDynasty
+    // hydrates asynchronously). With an empty deps array this effect used to
+    // run once on that first render and permanently close over getStaffData
+    // built from the not-yet-ready dynasty, so every override below read as
+    // empty despite being saved correctly (saves always happen after the
+    // dynasty is loaded). Bail until dynasty?.id is real and re-run when it
+    // becomes available (or the dynasty changes out from under us).
+    if (!dynasty?.id) return;
     async function load() {
       // Fire every staffDB read in parallel instead of chaining them one
       // after another — each is a separate IndexedDB round-trip, so awaiting
@@ -1414,7 +1422,7 @@ export default function ScoutAnalysis({ players = [], removedRecruits = [], onTo
       setStrategiesLoaded(true);
     }
     load();
-  }, []);
+  }, [dynasty?.id]);
 
   const toggleRecruitStrategy = async (pos, type) => {
     const hub = allHubs[pos];

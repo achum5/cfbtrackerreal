@@ -269,8 +269,15 @@ export default function ScoutStaffFrontPage({ onViewDatabase, onJumpToPosition, 
   const [scoutUrlText, setScoutUrlText] = useState('');
   const [analystUrlText, setAnalystUrlText] = useState('');
 
-  // Initial Boot-up: load names/images/bios immediately on mount
+  // Initial Boot-up: load names/images/bios immediately on mount.
+  // Gated on currentDynasty?.id: the accessor above is built from
+  // currentDynasty, which starts out null on a hard refresh until the dynasty
+  // finishes loading. With an empty deps array this effect ran once on that
+  // first render and permanently closed over getStaffData built from the
+  // not-yet-ready dynasty, so saved staff data silently failed to load back in.
+  // Depending on currentDynasty?.id re-fires this once it's actually available.
   useEffect(() => {
+    if (!currentDynasty?.id) return;
     async function loadBasicStaff() {
       const img1  = await getStaffData('scout_img');
       const img2  = await getStaffData('analyst_img');
@@ -324,11 +331,17 @@ export default function ScoutStaffFrontPage({ onViewDatabase, onJumpToPosition, 
       try { if (scenarioBag) bioBagsRef.current.scenarios = JSON.parse(scenarioBag); } catch {}
     }
     loadBasicStaff();
-  }, []);
+  }, [currentDynasty?.id]);
 
-  // Contract migration: run once when dynasty year becomes available
+  // Contract migration: run once when dynasty year becomes available.
+  // currentYear alone isn't a reliable readiness signal — the parent passes
+  // `currentDynasty?.currentYear || new Date().getFullYear()`, so currentYear
+  // is truthy (today's real calendar year) even before the dynasty has loaded,
+  // the same race as loadBasicStaff. Also gating on currentDynasty?.id prevents
+  // this from running once with a not-yet-ready accessor and marking the
+  // migration "done" against empty data.
   useEffect(() => {
-    if (!currentYear) return;
+    if (!currentYear || !currentDynasty?.id) return;
     async function migrateContracts() {
       const sy1 = await getStaffData('scout_contract_start_year');
       if (!sy1) {
@@ -352,7 +365,7 @@ export default function ScoutStaffFrontPage({ onViewDatabase, onJumpToPosition, 
       }
     }
     migrateContracts();
-  }, [currentYear]);
+  }, [currentYear, currentDynasty?.id]);
 
   // Automated write listeners saving content to Database clusters on mutations
   const handleNameChange = async (val, slot) => {
