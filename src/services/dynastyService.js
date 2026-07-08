@@ -597,11 +597,15 @@ export async function getPlayersSubcollection(dynastyId, options = {}) {
     const cachedSnap = await getDocsFromCache(playersRef)
     if (!cachedSnap.empty) {
       const cached = cachedSnap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-      getDocsFromServer(playersRef).then(snap => {
-        if (!onFresh) return
-        const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-        try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
-      }).catch(() => {})
+      // Only pay for the background server read when a caller actually wants the
+      // fresh result. Without onFresh the result was discarded anyway, so firing
+      // getDocsFromServer billed a full-collection read for nothing.
+      if (onFresh) {
+        getDocsFromServer(playersRef).then(snap => {
+          const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+        }).catch(() => {})
+      }
       return cached
     }
   } catch (_) {
@@ -647,11 +651,13 @@ export async function getGamesSubcollection(dynastyId, options = {}) {
     const cachedSnap = await getDocsFromCache(gamesRef)
     if (!cachedSnap.empty) {
       const cached = cachedSnap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-      getDocsFromServer(gamesRef).then(snap => {
-        if (!onFresh) return
-        const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
-        try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
-      }).catch(() => {})
+      // Only pay for the server read when a caller wants the fresh result.
+      if (onFresh) {
+        getDocsFromServer(gamesRef).then(snap => {
+          const fresh = snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+        }).catch(() => {})
+      }
       return cached
     }
   } catch (_) {
@@ -883,11 +889,13 @@ export async function getRecruitingDatabaseSubcollection(dynastyId, options = {}
     const cachedSnap = await getDocsFromCache(ref)
     if (!cachedSnap.empty) {
       const cached = cachedSnap.docs.map(d => d.data())
-      getDocsFromServer(ref).then(snap => {
-        if (!onFresh) return
-        const fresh = snap.docs.map(d => d.data())
-        try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
-      }).catch(() => {})
+      // Only pay for the server read when a caller wants the fresh result.
+      if (onFresh) {
+        getDocsFromServer(ref).then(snap => {
+          const fresh = snap.docs.map(d => d.data())
+          try { onFresh(fresh) } catch (e) { console.error('onFresh callback threw:', e) }
+        }).catch(() => {})
+      }
       return cached
     }
   } catch (_) {
@@ -1455,10 +1463,11 @@ export async function getWeekRecapsSubcollection(dynastyId, options = {}) {
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {
-      getDocsFromServer(ref).then(snap => {
-        if (!onFresh) return
-        try { onFresh(buildRecapsMap(snap.docs)) } catch (e) { console.error('onFresh callback threw:', e) }
-      }).catch(() => {})
+      if (onFresh) {
+        getDocsFromServer(ref).then(snap => {
+          try { onFresh(buildRecapsMap(snap.docs)) } catch (e) { console.error('onFresh callback threw:', e) }
+        }).catch(() => {})
+      }
       return buildRecapsMap(cached.docs)
     }
   } catch (_) { /* fall through to network */ }
@@ -1551,10 +1560,11 @@ export async function getSocialFeedSubcollection(dynastyId, options = {}) {
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {
-      getDocsFromServer(ref).then(snap => {
-        if (!onFresh) return
-        try { onFresh(buildSocialFeedMap(snap.docs)) } catch (e) { console.error('social onFresh threw:', e) }
-      }).catch(() => {})
+      if (onFresh) {
+        getDocsFromServer(ref).then(snap => {
+          try { onFresh(buildSocialFeedMap(snap.docs)) } catch (e) { console.error('social onFresh threw:', e) }
+        }).catch(() => {})
+      }
       return buildSocialFeedMap(cached.docs)
     }
   } catch (_) { /* fall through */ }
@@ -1652,10 +1662,11 @@ export async function getSocialCharactersSubcollection(dynastyId, options = {}) 
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {
-      getDocsFromServer(ref).then(snap => {
-        if (!onFresh) return
-        try { onFresh(mergeSocialCharacterDocs(snap.docs)) } catch (e) { console.error('social chars onFresh threw:', e) }
-      }).catch(() => {})
+      if (onFresh) {
+        getDocsFromServer(ref).then(snap => {
+          try { onFresh(mergeSocialCharacterDocs(snap.docs)) } catch (e) { console.error('social chars onFresh threw:', e) }
+        }).catch(() => {})
+      }
       return mergeSocialCharacterDocs(cached.docs)
     }
   } catch (_) { /* fall through */ }

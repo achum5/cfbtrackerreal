@@ -321,7 +321,20 @@ function DynastyBlueprintPanelInner({ year, tid }) {
   // cleanly in the next season's Roster NIL.
   const isOpenOrOurs = (p, y) => isTargetPlayer(p) && Number(p.targetYear) === y && getTargetStatus(p, tid) !== 'committed_elsewhere'
   const recruitTargets = tid == null ? [] : allPlayers.filter((p) => isOpenOrOurs(p, selectedYear))
-  const rosterPlayers = tid == null ? [] : allPlayers.filter((p) => isPlayerOnRoster(p, tid, selectedYear, currentDynasty))
+  // Roster NIL: normally the players on the roster in `selectedYear`. But at end
+  // of season the "Set {nextYear} Roster NIL" flow opens the blueprint for
+  // nextYear BEFORE the year is advanced — and returning players don't get
+  // teamsByYear[nextYear] until the advance-week carryover, so only committed
+  // recruits (who get it at commit time) would show. When selectedYear is that
+  // not-yet-advanced next year, also include the current (selectedYear-1) roster
+  // so you can set NIL for returning players before they carry over. Recruits
+  // already resolve via the nextYear membership, and returning players are never
+  // targets, so the two lanes still can't double-count.
+  const isProjectedNextYear = selectedYear === Number(currentDynasty?.currentYear) + 1
+  const rosterPlayers = tid == null ? [] : allPlayers.filter((p) =>
+    isPlayerOnRoster(p, tid, selectedYear, currentDynasty) ||
+    (isProjectedNextYear && isPlayerOnRoster(p, tid, selectedYear - 1, currentDynasty))
+  )
   const recruitingNilTotal = sumPlayerNil(recruitTargets, selectedYear)
   const rosterNilTotal = sumPlayerNil(rosterPlayers, selectedYear)
 
