@@ -21,11 +21,12 @@ import { PageHero, Card, Button, EmptyState, Input, Select, Textarea, SectionHea
 import { useConfirm } from '../../components/ui/ConfirmDialog'
 import { useToast } from '../../components/ui/Toast'
 import RecapSettingsModal from '../../components/RecapSettingsModal'
+import GraphicSettingsModal from '../../components/GraphicSettingsModal'
 import GameSocialModal from '../../components/GameSocialModal'
 import { getTeamLogoRobust } from '../../utils/teamLogo'
 import { getTeamColors } from '../../data/teamColors'
 import { uploadImagesToImgBB } from '../../utils/imgbb'
-import { readClipboardImageAsFile } from '../../utils/clipboardImage'
+import { readClipboardImageAsFile, extractImageUrlFromHtml, looksLikeUrl, isKnownAuthGatedUrl, urlToImageFile } from '../../utils/clipboardImage'
 import TeamPermissionBanner from '../../components/TeamPermissionBanner'
 import ImageUpload from '../../components/ImageUpload'
 import PasteEntrySteps from '../../components/ui/PasteEntrySteps'
@@ -293,6 +294,20 @@ export default function GameEdit() {
     try { return localStorage.getItem('gameRecapDepth') || 'standard' } catch { return 'standard' }
   })
   const [showRecapSettings, setShowRecapSettings] = useState(false)
+  // Score-graphic prompt settings (per-user, localStorage) — see GraphicSettingsModal.
+  const [showGraphicSettings, setShowGraphicSettings] = useState(false)
+  const [graphicStyle, setGraphicStyle] = useState(() => {
+    try { return localStorage.getItem('scoreGraphicStyle') || 'balanced' } catch { return 'balanced' }
+  })
+  const [graphicRankEmphasis, setGraphicRankEmphasis] = useState(() => {
+    try { return localStorage.getItem('scoreGraphicRankEmphasis') || 'standard' } catch { return 'standard' }
+  })
+  const [graphicRecordEmphasis, setGraphicRecordEmphasis] = useState(() => {
+    try { return localStorage.getItem('scoreGraphicRecordEmphasis') || 'standard' } catch { return 'standard' }
+  })
+  useEffect(() => { try { localStorage.setItem('scoreGraphicStyle', graphicStyle) } catch { /* ignored */ } }, [graphicStyle])
+  useEffect(() => { try { localStorage.setItem('scoreGraphicRankEmphasis', graphicRankEmphasis) } catch { /* ignored */ } }, [graphicRankEmphasis])
+  useEffect(() => { try { localStorage.setItem('scoreGraphicRecordEmphasis', graphicRecordEmphasis) } catch { /* ignored */ } }, [graphicRecordEmphasis])
   const [recapSocial, setRecapSocial] = useState(() => { try { return localStorage.getItem('gameRecapSocial') === '1' } catch { return false } })
   const [recapSocialCount, setRecapSocialCount] = useState(() => { try { return Number(localStorage.getItem('gameRecapSocialCount')) || 8 } catch { return 8 } })
   useEffect(() => {
@@ -430,6 +445,55 @@ export default function GameEdit() {
       return
     }
     await runPhotoUpload([result.file])
+  }
+
+  // Native DOM paste handler for the photo paste field. Unlike
+  // handlePastePhoto (which relies on navigator.clipboard.read — commonly
+  // blocked on mobile), this reads e.clipboardData off a real paste event
+  // fired by the browser, so it works from a phone's native "Paste" menu.
+  // Mirrors ImageUpload's three-shape logic: image blob → <img src> in
+  // text/html → plain-text URL. This is what makes phone paste work here,
+  // just like the score-graphic uploader.
+  const handlePhotoPasteEvent = async (e) => {
+    if (photoUploadCount > 0) return
+    const cd = e.clipboardData
+    if (!cd) return
+
+    // 1. Real image blob — screenshots, native "Copy image".
+    for (const item of cd.items || []) {
+      if (item.type && item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) { setPhotoPasteFeedback(null); await runPhotoUpload([file]) }
+        return
+      }
+    }
+
+    // 2. text/html <img src> (ChatGPT/Notion/Docs) or 3. plain-text URL.
+    const html = cd.getData?.('text/html')
+    const fromHtml = extractImageUrlFromHtml(html)
+    const text = cd.getData?.('text/plain') || cd.getData?.('text')
+    const url = (fromHtml && looksLikeUrl(fromHtml)) ? fromHtml
+      : (text && looksLikeUrl(text)) ? text
+      : null
+    if (url) {
+      e.preventDefault()
+      if (isKnownAuthGatedUrl(url)) {
+        setPhotoPasteFeedback('That image is behind a login — save it and use Click to select instead.')
+        setTimeout(() => setPhotoPasteFeedback(null), 3500)
+        return
+      }
+      try {
+        const file = await urlToImageFile(url)
+        setPhotoPasteFeedback(null)
+        await runPhotoUpload([file])
+      } catch {
+        setPhotoPasteFeedback('Could not fetch that image. Try copying the image itself.')
+        setTimeout(() => setPhotoPasteFeedback(null), 3500)
+      }
+      return
+    }
+    // Nothing usable on the clipboard — let default paste run.
   }
   // URL of the photo whose tag-detail panel is open inside the Photos
   // modal (null = showing the grid). Lets you click a photo, see it big,
@@ -2849,19 +2913,42 @@ export default function GameEdit() {
         const t1Colors = getTeamColors(team1Name)
         const t2Colors = getTeamColors(team2Name)
 
-        // Pull records for the graphic prompt using the same logic as the Cast
-        // view: getRecordAsOfGame counts all saved games up through this game's
-        // week (inclusive), giving the correct post-game record regardless of
-        // which week the user is currently on. For unsaved new games where
-        // existingGame doesn't exist yet, fall back to the live-calculated value.
+        // Pull records for the graphic prompt. Prefer live1/live2: they take a
+        // pre-game baseline (saved games before this one, via upToGameId) and
+        // fold in the score the user just typed into formData, so they reflect
+        // the CURRENT post-game record even before the game is re-saved. This
+        // fixes graphics that showed stale pre-game records (e.g. both teams
+        // "3-0" right after a 4-0 win). getRecordAsOfGame reads only SAVED
+        // dynasty.games, so it lags the live edit — keep it as a fallback for
+        // when auto-fill is off (live is null) or the game/team can't be
+        // matched, plus its postseason stored-record combine for CPU teams.
         const graphicRec1Obj = (existingGame && team1Tid)
           ? getRecordAsOfGame(currentDynasty, existingGame, team1Tid)
           : null
         const graphicRec2Obj = (existingGame && team2Tid)
           ? getRecordAsOfGame(currentDynasty, existingGame, team2Tid)
           : null
-        const rec1 = graphicRec1Obj?.overall || live1?.record || ''
-        const rec2 = graphicRec2Obj?.overall || live2?.record || ''
+        // Reconcile the two sources by picking whichever reflects MORE games.
+        // live folds in the just-entered score (so a fresh win shows 4-0 before
+        // save, fixing the "still 3-0" bug); getRecordAsOfGame keeps its
+        // postseason stored-record combine for CPU opponents whose full regular
+        // season isn't in dynasty.games (so a bowl opponent still reads 11-2,
+        // not a sparse 2-1). Ties favor live (fresher). Empty stays empty.
+        const gamesInRecord = (rec) => {
+          const m = /^(\d+)-(\d+)/.exec(rec || '')
+          return m ? (Number(m[1]) + Number(m[2])) : -1
+        }
+        const pickRecord = (liveObj, asOfObj) => {
+          const liveRec = liveObj?.record || ''
+          const asOfRec = asOfObj?.overall || ''
+          const liveG = gamesInRecord(liveRec)
+          const asOfG = gamesInRecord(asOfRec)
+          if (asOfG > liveG) return asOfRec
+          if (liveG >= 0) return liveRec
+          return asOfRec
+        }
+        const rec1 = pickRecord(live1, graphicRec1Obj)
+        const rec2 = pickRecord(live2, graphicRec2Obj)
 
         // Pass screenshot count so the prompt can tell the AI to expect attachments
         const uploadedScreenshots = Array.isArray(formData.photos) ? formData.photos.filter(Boolean).length : 0
@@ -2901,13 +2988,41 @@ export default function GameEdit() {
           gameType: promptGameType,
           bowlName: promptBowlName,
           conference: promptConference,
+          designStyle: graphicStyle,
+          rankEmphasis: graphicRankEmphasis,
+          recordEmphasis: graphicRecordEmphasis,
         }) : ''
 
         return (
           <Card>
-            <div className="mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <h3 className="label-sm text-txt-primary">Score Graphic</h3>
+              {hasScores && (
+                <button
+                  type="button"
+                  onClick={() => setShowGraphicSettings(true)}
+                  title="Graphic style, rankings, and records"
+                  aria-label="Graphic settings"
+                  className="flex items-center justify-center w-7 h-7 rounded-md transition-colors hover:bg-surface-3"
+                  style={{ color: 'var(--text-tertiary)' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                </button>
+              )}
             </div>
+            <GraphicSettingsModal
+              isOpen={showGraphicSettings}
+              onClose={() => setShowGraphicSettings(false)}
+              designStyle={graphicStyle}
+              onDesignStyleChange={setGraphicStyle}
+              rankEmphasis={graphicRankEmphasis}
+              onRankEmphasisChange={setGraphicRankEmphasis}
+              recordEmphasis={graphicRecordEmphasis}
+              onRecordEmphasisChange={setGraphicRecordEmphasis}
+            />
 
             {hasScores && (
               <label className="flex items-center gap-2 mb-2 min-w-0">
@@ -3338,20 +3453,24 @@ export default function GameEdit() {
             }}
           />
         </label>
-          <button
-            type="button"
+          <input
+            type="text"
+            value=""
+            readOnly={photoUploadCount > 0}
+            onChange={() => {}}
+            onPaste={handlePhotoPasteEvent}
             onClick={handlePastePhoto}
             disabled={photoUploadCount > 0}
-            title="Paste an image from your clipboard (Ctrl+V)"
-            className="flex-shrink-0 flex items-center justify-center px-5 rounded-lg transition-colors text-sm font-semibold disabled:opacity-50 hover:bg-surface-4"
+            placeholder="Paste image"
+            title="Tap here and paste an image (works on phone); on desktop, click then Ctrl+V"
+            aria-label="Paste image from clipboard"
+            className="flex-shrink-0 w-32 text-center px-5 rounded-lg transition-colors text-sm font-semibold placeholder:text-txt-secondary placeholder:opacity-100 disabled:opacity-50 hover:bg-surface-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent"
             style={{
               backgroundColor: 'var(--surface-3)',
               border: '1.5px dashed var(--surface-5)',
               color: 'var(--text-secondary)',
             }}
-          >
-            Paste image
-          </button>
+          />
         </div>
         {photoPasteFeedback && (
           <p className="text-xs text-txt-tertiary mb-3 mt-0">{photoPasteFeedback}</p>
