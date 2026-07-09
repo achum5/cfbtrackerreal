@@ -375,23 +375,45 @@ export const storageService = {
       }
 
       // Create the main dynasty document WITHOUT any of the heavy fields.
-      const cloudDynasty = await createDynastyInFirestore(this._userId, {
-        ...mainDynastyData,
-        storageType: STORAGE_TYPE.CLOUD,
-        _subcollectionsMigrated: true, // Mark as using subcollections
-        // Store counts for reference
-        _playerCount: players?.length || 0,
-        _gameCount: games?.length || 0,
-      });
+      // The main doc still carries `teams` (with per-team-year schedules,
+      // ratings, coaching staff embedded) and `dynastyPoints` (team NIL) —
+      // neither is season-routed. On a big dynasty these can push the main
+      // doc past Firestore's 1 MB cap, which throws here. When that happens
+      // we must fail loudly with an actionable message (not a generic one),
+      // and the local copy is untouched because we never reach deleteDynasty.
+      let cloudDynasty;
+      try {
+        cloudDynasty = await createDynastyInFirestore(this._userId, {
+          ...mainDynastyData,
+          storageType: STORAGE_TYPE.CLOUD,
+          _subcollectionsMigrated: true, // Mark as using subcollections
+          // Store counts for reference
+          _playerCount: players?.length || 0,
+          _gameCount: games?.length || 0,
+        });
+      } catch (createErr) {
+        console.error('[Storage] Main-doc create failed during migration:', createErr);
+        const tooBig = /maximum|exceeds|1048576|invalid-argument/i.test(
+          `${createErr?.code || ''} ${createErr?.message || ''}`
+        );
+        return {
+          success: false,
+          error: tooBig
+            ? 'This dynasty is too large to move to the cloud in one write (schedules + team data exceed Firestore\'s 1 MB document limit). Your local copy was kept — contact support to split it.'
+            : `Could not create the cloud copy: ${createErr?.message || 'unknown error'}. Your local copy was kept.`,
+          failedParts: ['main-document'],
+        };
+      }
 
       const cloudDynastyId = cloudDynasty.id;
       log(`Created main document ${cloudDynastyId}, now saving subcollections...`);
 
-      // Save all subcollections. Track whether EVERY write fully succeeded —
-      // we must not delete the local (only complete) copy if a save threw, or
-      // the dynasty is left gutted in the cloud with no recoverable source
-      // (audit C5).
-      let subcollectionsOk = true;
+      // Save all subcollections. Track EACH write's outcome by name — we must
+      // not delete the local (only complete) copy if a save threw, or the
+      // dynasty is left gutted in the cloud with no recoverable source (audit
+      // C5). Collecting the specific failed parts (instead of one boolean)
+      // lets us tell the user exactly what didn't upload.
+      const failedParts = [];
 
       if (players && players.length > 0) {
         try {
@@ -399,7 +421,7 @@ export const storageService = {
           log(`Saved ${players.length} players to subcollection`);
         } catch (playerErr) {
           console.error('[Storage] Failed to save players subcollection:', playerErr);
-          subcollectionsOk = false;
+          failedParts.push('roster');
         }
       }
 
@@ -409,7 +431,7 @@ export const storageService = {
           log(`Saved ${games.length} games to subcollection`);
         } catch (gameErr) {
           console.error('[Storage] Failed to save games subcollection:', gameErr);
-          subcollectionsOk = false;
+          failedParts.push('games');
         }
       }
 
@@ -420,10 +442,17 @@ export const storageService = {
         try {
           const byYear = splitSeasonalUpdateByYear(seasonalUpdates);
           const years = await writeSeasonalUpdate(cloudDynastyId, byYear);
-          log(`Saved seasonal fields for ${years.length} season(s) to subcollection`);
+          log(`Saved seasonal fields for ${years?.length || 0} season(s) to subcollection`);
+          // Silent no-op guard: we had season-scoped data (e.g. conference
+          // schedules in schedulesByTeamYear) but nothing was written. Treat
+          // that as a failure so it can't masquerade as a clean migration.
+          if (Object.keys(byYear).length > 0 && (!years || years.length === 0)) {
+            console.error('[Storage] Seasonal write produced no season docs despite pending data');
+            failedParts.push('schedules & season data');
+          }
         } catch (seasonErr) {
           console.error('[Storage] Failed to save seasons subcollection:', seasonErr);
-          subcollectionsOk = false;
+          failedParts.push('schedules & season data');
         }
       }
 
@@ -442,7 +471,7 @@ export const storageService = {
           if (recapCount) log(`Saved ${recapCount} week recap(s) to subcollection`);
         } catch (recapErr) {
           console.error('[Storage] Failed to save weekRecaps subcollection:', recapErr);
-          subcollectionsOk = false;
+          failedParts.push('week recaps');
         }
       }
 
@@ -461,7 +490,7 @@ export const storageService = {
           if (feedCount) log(`Saved ${feedCount} social feed week(s) to subcollection`);
         } catch (feedErr) {
           console.error('[Storage] Failed to save socialFeed subcollection:', feedErr);
-          subcollectionsOk = false;
+          failedParts.push('social feed');
         }
       }
 
@@ -473,7 +502,7 @@ export const storageService = {
           log(`Saved ${Object.keys(socialCharacters).length} social character(s) to subcollection`);
         } catch (charErr) {
           console.error('[Storage] Failed to save socialCharacters subcollection:', charErr);
-          subcollectionsOk = false;
+          failedParts.push('social characters');
         }
       }
 
@@ -484,18 +513,23 @@ export const storageService = {
           log(`Saved ${recruitingDatabasePlayers.length} Recruiting Database recruits to subcollection`);
         } catch (rdErr) {
           console.error('[Storage] Failed to save Recruiting Database subcollection:', rdErr);
-          subcollectionsOk = false;
+          failedParts.push('recruiting database');
         }
       }
 
-      if (!subcollectionsOk) {
+      if (failedParts.length > 0) {
         // Keep the local copy intact so the user hasn't lost anything; the
         // cloud doc exists but is incomplete and will be reconciled on a
-        // later retry. Surface the failure instead of reporting success.
-        console.error(`[Storage] Subcollection save failed for ${dynastyId}; keeping local copy.`);
+        // later retry (or via the Re-sync repair tool). Surface EXACTLY which
+        // parts failed instead of a vague "some game data" message — the old
+        // wording hid schedule/NIL loss behind "game data".
+        console.error(
+          `[Storage] Migration incomplete for ${dynastyId}; keeping local copy. Failed: ${failedParts.join(', ')}`
+        );
         return {
           success: false,
-          error: 'Some game data failed to upload. Your local copy was kept — please try again.',
+          error: `Migration incomplete — these did not upload: ${failedParts.join(', ')}. Your local copy was kept, so nothing is lost. Retry, or use Re-sync to Cloud in Account to finish the upload.`,
+          failedParts,
           cloudDynastyId,
         };
       }
@@ -525,6 +559,194 @@ export const storageService = {
       console.error('[Storage] Migration to cloud failed:', error);
       return { success: false, error: error.message };
     }
+  },
+
+  /**
+   * Repair an incomplete local -> cloud migration WITHOUT re-creating or
+   * deleting anything.
+   *
+   * Use case: a prior migrateDynastyToCloud() left a partial cloud copy
+   * (e.g. roster uploaded but conference schedules in `schedulesByTeamYear`
+   * and team NIL in `dynastyPoints` never landed), and the complete original
+   * is still sitting in local IndexedDB. This re-pushes EVERY field from the
+   * local source into the EXISTING cloud document, idempotently:
+   *   - main-doc fields (teams, dynastyPoints, settings, ...) -> updateDoc
+   *   - seasonal ByYear/ByTeamYear fields (schedulesByTeamYear, ...) -> seasons
+   *   - players / games / recaps / feed / characters / recruits -> subcollections
+   *
+   * The local copy is NEVER deleted, so this is safe to run repeatedly. Each
+   * part reports independently, so schedules + NIL can still be recovered even
+   * if the oversized `teams` main-doc write fails the 1 MB cap (schedules also
+   * live in the seasons subcollection, which has no such limit).
+   *
+   * @param {string} localDynastyId  - source dynasty in IndexedDB (complete)
+   * @param {string} cloudDynastyId  - existing target cloud dynasty document
+   * @returns {Promise<{success: boolean, written: string[], failed: string[], error?: string}>}
+   */
+  async resyncDynastyToCloud(localDynastyId, cloudDynastyId) {
+    if (!this._isPremium || !this._userId) {
+      return { success: false, error: 'Premium required for cloud storage', written: [], failed: [] };
+    }
+    if (!localDynastyId || !cloudDynastyId) {
+      return { success: false, error: 'Both a local and a cloud dynasty id are required', written: [], failed: [] };
+    }
+
+    let source;
+    try {
+      source = await indexedDBStorage.getDynasty(localDynastyId);
+    } catch (readErr) {
+      return { success: false, error: `Could not read local dynasty: ${readErr?.message || readErr}`, written: [], failed: [] };
+    }
+    if (!source) {
+      return { success: false, error: `No local dynasty found with id ${localDynastyId}`, written: [], failed: [] };
+    }
+
+    log(`Re-syncing local ${localDynastyId} into cloud ${cloudDynastyId}...`);
+
+    const written = [];
+    const failed = [];
+
+    // Extract heavy fields exactly like migrateDynastyToCloud does, so nothing
+    // is written to the main doc that belongs in a subcollection.
+    const {
+      players,
+      games,
+      id: _ignoredId,
+      storageType: _ignoredStorage,
+      userId: _ignoredUserId,
+      weekRecapsByYear,
+      socialFeedByYear,
+      socialCharacters,
+      recruitingDatabasePlayers,
+      ...rest
+    } = source;
+
+    const seasonalUpdates = {};
+    const mainDynastyData = {};
+    for (const [key, value] of Object.entries(rest)) {
+      if (isSeasonalField(key)) seasonalUpdates[key] = value;
+      else mainDynastyData[key] = value;
+    }
+
+    // 1) Main-doc fields (teams -> schedules, dynastyPoints -> NIL, settings).
+    //    Force cloud identity; never clobber storageType/userId with local's.
+    try {
+      await updateDynastyInFirestore(cloudDynastyId, {
+        ...mainDynastyData,
+        storageType: STORAGE_TYPE.CLOUD,
+        _subcollectionsMigrated: true,
+      });
+      written.push('team & NIL data');
+    } catch (mainErr) {
+      console.error('[Storage] Re-sync main-doc write failed:', mainErr);
+      const tooBig = /maximum|exceeds|1048576|invalid-argument/i.test(
+        `${mainErr?.code || ''} ${mainErr?.message || ''}`
+      );
+      failed.push(tooBig ? 'team & NIL data (too large for one write)' : 'team & NIL data');
+    }
+
+    // 2) Seasonal fields (conference schedules live here) -> seasons subcollection.
+    if (Object.keys(seasonalUpdates).length > 0) {
+      try {
+        const byYear = splitSeasonalUpdateByYear(seasonalUpdates);
+        const years = await writeSeasonalUpdate(cloudDynastyId, byYear);
+        if (Object.keys(byYear).length > 0 && (!years || years.length === 0)) {
+          failed.push('schedules & season data');
+        } else {
+          written.push('schedules & season data');
+        }
+      } catch (seasonErr) {
+        console.error('[Storage] Re-sync seasonal write failed:', seasonErr);
+        failed.push('schedules & season data');
+      }
+    }
+
+    // 3) Roster.
+    if (Array.isArray(players) && players.length > 0) {
+      try {
+        await savePlayersToSubcollection(cloudDynastyId, players);
+        written.push('roster');
+      } catch (e) {
+        console.error('[Storage] Re-sync players failed:', e);
+        failed.push('roster');
+      }
+    }
+
+    // 4) Games.
+    if (Array.isArray(games) && games.length > 0) {
+      try {
+        await saveGamesToSubcollection(cloudDynastyId, games);
+        written.push('games');
+      } catch (e) {
+        console.error('[Storage] Re-sync games failed:', e);
+        failed.push('games');
+      }
+    }
+
+    // 5) Week recaps.
+    if (weekRecapsByYear && typeof weekRecapsByYear === 'object') {
+      try {
+        for (const [year, byWeek] of Object.entries(weekRecapsByYear)) {
+          if (!byWeek || typeof byWeek !== 'object') continue;
+          for (const [week, recap] of Object.entries(byWeek)) {
+            if (!recap) continue;
+            await saveWeekRecapToSubcollection(cloudDynastyId, year, week, recap);
+          }
+        }
+        written.push('week recaps');
+      } catch (e) {
+        console.error('[Storage] Re-sync week recaps failed:', e);
+        failed.push('week recaps');
+      }
+    }
+
+    // 6) Social feed.
+    if (socialFeedByYear && typeof socialFeedByYear === 'object') {
+      try {
+        for (const [year, byWeek] of Object.entries(socialFeedByYear)) {
+          if (!byWeek || typeof byWeek !== 'object') continue;
+          for (const [week, posts] of Object.entries(byWeek)) {
+            if (!Array.isArray(posts) || posts.length === 0) continue;
+            await saveSocialFeedToSubcollection(cloudDynastyId, year, week, posts);
+          }
+        }
+        written.push('social feed');
+      } catch (e) {
+        console.error('[Storage] Re-sync social feed failed:', e);
+        failed.push('social feed');
+      }
+    }
+
+    // 7) Social characters.
+    if (socialCharacters && typeof socialCharacters === 'object'
+        && Object.keys(socialCharacters).length > 0) {
+      try {
+        await saveSocialCharacterShards(cloudDynastyId, socialCharacters);
+        written.push('social characters');
+      } catch (e) {
+        console.error('[Storage] Re-sync social characters failed:', e);
+        failed.push('social characters');
+      }
+    }
+
+    // 8) Recruiting database.
+    if (Array.isArray(recruitingDatabasePlayers) && recruitingDatabasePlayers.length > 0) {
+      try {
+        await saveRecruitingDatabaseSubcollection(cloudDynastyId, recruitingDatabasePlayers);
+        written.push('recruiting database');
+      } catch (e) {
+        console.error('[Storage] Re-sync recruiting database failed:', e);
+        failed.push('recruiting database');
+      }
+    }
+
+    log(`Re-sync complete. Wrote: [${written.join(', ')}]. Failed: [${failed.join(', ')}].`);
+    return {
+      success: failed.length === 0,
+      written,
+      failed,
+      error: failed.length ? `Some parts did not upload: ${failed.join(', ')}.` : undefined,
+    };
   },
 
   /**
