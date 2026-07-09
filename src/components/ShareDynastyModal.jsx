@@ -28,6 +28,13 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Share links resolve against Firestore, so only cloud-stored dynasties
+  // can be shared. A local (IndexedDB) dynasty would happily accept the
+  // isPublic/shareCode toggle — updateDynasty routes it to IndexedDB —
+  // and hand out a /view/<code> link that always shows "Dynasty Not
+  // Available" for everyone else. Gate on storageType, not premium.
+  const isCloudDynasty = dynasty?.storageType === 'cloud'
+
   useEffect(() => {
     if (dynasty) {
       setIsPublic(dynasty.isPublic || false)
@@ -37,6 +44,11 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
 
   const handleToggleSharing = async () => {
     if (!dynasty) return
+
+    if (!isCloudDynasty) {
+      toast.info('Switch this dynasty to Cloud storage before sharing it.')
+      return
+    }
 
     // Belt-and-suspenders gate: the Sidebar entry already blocks non-
     // premium users from opening the modal, but we re-check here so
@@ -115,7 +127,25 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
 
         {/* Content */}
         <div className="p-6">
+          {/* Local dynasties can't be shared — the link would resolve against
+              Firestore and come back "Dynasty Not Available" for every viewer.
+              Explain how to move to the cloud instead of offering a dead toggle. */}
+          {!isCloudDynasty && (
+            <div className="p-4 rounded-lg mb-6" style={{ backgroundColor: modalColors.inputBg }}>
+              <div className="font-semibold mb-1" style={{ color: modalColors.text }}>
+                Cloud Storage Required
+              </div>
+              <div className="text-sm" style={{ color: modalColors.textMuted }}>
+                This dynasty is stored locally on this device, so a share link
+                wouldn't work for anyone else. To share it, go to the Home page,
+                tap the &quot;Local&quot; badge on this dynasty's card, and switch it to
+                Cloud storage. Then come back here to turn on sharing.
+              </div>
+            </div>
+          )}
+
           {/* Toggle */}
+          {isCloudDynasty && (
           <div className="flex items-center justify-between p-4 rounded-lg mb-6" style={{ backgroundColor: modalColors.inputBg }}>
             <div>
               <div className="font-semibold" style={{ color: modalColors.text }}>
@@ -142,9 +172,10 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
               />
             </button>
           </div>
+          )}
 
           {/* Share Link */}
-          {isPublic && shareCode && (
+          {isCloudDynasty && isPublic && shareCode && (
             <div className="space-y-3">
               <label className="block text-sm font-medium" style={{ color: modalColors.text }}>
                 Share Link
