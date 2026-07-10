@@ -85,6 +85,52 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
     }
   }
 
+  // Regenerate the view-only link. Mints a fresh share code and (re)asserts
+  // isPublic so a stale/broken link — e.g. one shared before sharing was
+  // actually enabled, or a code that never got persisted to Firestore — can
+  // be replaced without hunting through settings. This ONLY writes the two
+  // sharing fields (isPublic, shareCode); it never touches players, games,
+  // rosters, or any other dynasty data, so the actual save file is untouched.
+  // The old code stops resolving immediately (anyone holding it gets the
+  // "Dynasty Not Available" page), which is the intended "reset the link"
+  // behavior.
+  const handleRegenerateLink = async () => {
+    if (!dynasty) return
+
+    if (!isCloudDynasty) {
+      toast.info('Switch this dynasty to Cloud storage before sharing it.')
+      return
+    }
+
+    if (!isPremium) {
+      toast.info('Sharing dynasties is a Premium feature.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const newShareCode = generateShareCode()
+
+      // Only the sharing fields — no players/games/seasonal payload, so
+      // updateDynasty writes just these keys to the main doc and leaves
+      // every subcollection alone.
+      await updateDynasty(dynasty.id, {
+        isPublic: true,
+        shareCode: newShareCode
+      })
+
+      setIsPublic(true)
+      setShareCode(newShareCode)
+      setCopied(false)
+      toast.success('New view-only link generated')
+    } catch (error) {
+      console.error('Error regenerating share link:', error)
+      toast.error('Failed to regenerate link')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const shareUrl = shareCode ? `${window.location.origin}/view/${shareCode}` : ''
 
   const handleCopyLink = () => {
@@ -201,6 +247,24 @@ export default function ShareDynastyModal({ isOpen, onClose, teamColors, dynasty
               <p className="text-sm" style={{ color: modalColors.textMuted }}>
                 Viewers will see your dynasty data but cannot make any changes.
               </p>
+
+              {/* Regenerate — replaces a stale/broken link with a fresh code.
+                  Only rewrites the sharing fields, never the dynasty save. */}
+              <div className="pt-1">
+                <button
+                  onClick={handleRegenerateLink}
+                  disabled={loading}
+                  className={`text-sm font-medium underline transition-opacity ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
+                  style={{ color: modalColors.accent }}
+                >
+                  {loading ? 'Regenerating…' : 'Regenerate link'}
+                </button>
+                <p className="text-xs mt-1" style={{ color: modalColors.textMuted }}>
+                  Not working for viewers? Generate a fresh link. The old link
+                  will stop working. This only changes the view-only link — your
+                  dynasty data is untouched.
+                </p>
+              </div>
             </div>
           )}
 
