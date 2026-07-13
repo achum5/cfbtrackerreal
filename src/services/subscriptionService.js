@@ -135,11 +135,11 @@ const isLocalDev = () =>
 // ─────────────────────────────────────────────────────────────────────
 
 export async function createCheckoutSession() {
-  if (isLocalDev()) {
-    throw new Error('Stripe checkout is only available in production. Deploy to Vercel to test payments.');
-  }
-  const { url } = await postAuthed('/api/create-checkout-session');
-  return url;
+  // Checkout is DISABLED app-wide: the Stripe flow was charging users
+  // without granting access. This is a hard safety net so no code path —
+  // even one that skips the PAYWALL_ENABLED UI gate — can ever open a
+  // Stripe checkout. Premium is free during beta (see Account page).
+  throw new Error('Premium is free during beta — checkout is disabled. Visit the Account page for access.');
 }
 
 export async function createPortalSession() {

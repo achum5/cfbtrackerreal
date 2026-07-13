@@ -364,14 +364,20 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Upgrade to premium subscription. The API now derives uid from the
-  // verified ID token, not from the request body, so no args are needed
-  // (and supplying them wouldn't change anything).
+  // Upgrade to premium. The Stripe checkout flow is DISABLED app-wide
+  // (billing.PAYWALL_ENABLED === false) because it was charging users
+  // without granting access. This is the single chokepoint every "upgrade"
+  // caller funnels through, so we hard-route any upgrade intent to the
+  // Account page (free beta access / self-grant lives there) and NEVER
+  // send anyone to Stripe checkout. Guarantees no UI path can trigger a
+  // charge, even the ones not gated by PAYWALL_ENABLED.
   const upgradeToPremium = async () => {
     if (!user) {
       throw new Error('Must be signed in to upgrade')
     }
-    await redirectToCheckout()
+    if (typeof window !== 'undefined') {
+      window.location.assign('/account')
+    }
   }
 
   // Open subscription management portal
