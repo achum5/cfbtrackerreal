@@ -1,11 +1,36 @@
 import { lazy } from 'react'
 
+// Retry a dynamic import a couple of times before giving up. React.lazy
+// memoizes the FIRST settled promise forever — a single transient network
+// blip (wifi flicker, backgrounded PWA waking up) used to permanently
+// poison that page for the rest of the session: every visit re-threw the
+// cached rejection and the page rendered blank ("the Coach Career page
+// just randomly disappears"). Retrying inside the factory means the
+// memoized promise only rejects after several genuine failures, and the
+// RouteErrorBoundary + stale-chunk reload handle that terminal case.
+function retryImport(factory, retries = 2, delayMs = 750) {
+  return new Promise((resolve, reject) => {
+    const attempt = (remaining) => {
+      factory().then(resolve).catch((err) => {
+        if (remaining <= 0) {
+          reject(err)
+          return
+        }
+        setTimeout(() => attempt(remaining - 1), delayMs)
+      })
+    }
+    attempt(retries)
+  })
+}
+
 // Wraps React.lazy with a `.preload()` method so we can warm chunks on hover
 // or during idle time. Vite dedupes concurrent dynamic imports, so calling
-// preload() multiple times is cheap.
+// preload() multiple times is cheap. Preload failures are swallowed — they
+// are an optimization, and the click-time lazy factory retries anyway; a
+// hover-time rejection must never surface as an unhandled error.
 function lazyWithPreload(factory) {
-  const Comp = lazy(factory)
-  Comp.preload = factory
+  const Comp = lazy(() => retryImport(factory))
+  Comp.preload = () => factory().catch(() => {})
   return Comp
 }
 

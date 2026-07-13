@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DynastyProvider } from './context/DynastyContext'
@@ -8,6 +8,7 @@ import Layout from './components/Layout'
 import { ToastProvider, ConfirmProvider } from './components/ui'
 import ScrollToTop from './components/ScrollToTop'
 import RouteFallback from './components/RouteFallback'
+import RouteErrorBoundary from './components/RouteErrorBoundary'
 
 // Eager: entry points, auth, and page wrappers (small + always-on-first-paint)
 import Login from './pages/Login'
@@ -54,6 +55,7 @@ function AppRoutes() {
   return (
     <Router>
       <ScrollToTop />
+      <RouteErrorBoundary>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* Public policy pages - no auth required */}
@@ -216,6 +218,7 @@ function AppRoutes() {
           } />
         </Routes>
       </Suspense>
+      </RouteErrorBoundary>
     </Router>
   )
 }

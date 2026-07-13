@@ -179,6 +179,7 @@ export default function DangerZone() {
   // Class data fix state
   const [transferYearFixStatus, setTransferYearFixStatus] = useState(null)
   const [rebuildCarryoverStatus, setRebuildCarryoverStatus] = useState(null)
+  const [removeResurrectedStatus, setRemoveResurrectedStatus] = useState(null)
   const [clearRosterStatus, setClearRosterStatus] = useState(null)
   const [ncaa11Status, setNcaa11Status] = useState(null)
   const [playAsIdaho, setPlayAsIdaho] = useState(false)
@@ -747,6 +748,115 @@ export default function DangerZone() {
       setRebuildCarryoverStatus({ success: true, message: `Rebuilt ${filledYears} roster year(s) across ${filledPlayers} player(s). Reload to see the restored roster.` })
     } catch (error) {
       setRebuildCarryoverStatus({ success: false, message: 'Rebuild failed: ' + (error?.message || 'unknown error') })
+    }
+  }
+
+  // Remove "ghost" roster years: seasons a player is still rostered AFTER a
+  // recorded departure they never returned from. Past builds of the season
+  // advance only consulted the Players Leaving list (not movementByYear), so
+  // players whose departure lived only in movement records — Draft Results
+  // rounds, player-editor transfers/graduations — got carried forward again
+  // ("my players who would have left ended up just coming back"). The
+  // advance is fixed; this repairs dynasties that already have the ghosts.
+  //
+  // Departure/return is judged by MOVEMENT records only — teamsByYear can't
+  // vouch for a return here because the ghost years ARE the false evidence.
+  // Only member-controlled teams are touched, and the class/OVR/dev-trait
+  // per-year entries written alongside a ghost year are cleaned with it.
+  const handleRemoveResurrected = async () => {
+    const ok = await confirm({
+      title: 'Remove returned departures?',
+      message: 'This removes roster years that a departed player (graduated, drafted, transferred out) wrongly got back after advancing the season. Players who truly returned via a recorded recommit or transfer-in are kept. Export a backup first if you want a safety net. Continue?',
+      confirmLabel: 'Remove Ghost Years',
+      variant: 'danger',
+    })
+    if (!ok) return
+
+    setRemoveResurrectedStatus('running')
+    try {
+      const memberTids = new Set()
+      const ownTid = currentDynasty.currentTid ?? getUserTeamTid(currentDynasty)
+      if (ownTid != null) { const n = Number(ownTid); if (Number.isFinite(n)) memberTids.add(n) }
+      for (const tids of Object.values(currentDynasty.memberTeams || {})) {
+        for (const t of (Array.isArray(tids) ? tids : [])) {
+          const n = Number(t); if (Number.isFinite(n)) memberTids.add(n)
+        }
+      }
+      if (memberTids.size === 0) {
+        setRemoveResurrectedStatus({ success: false, message: 'No member-controlled team found — nothing to repair.' })
+        return
+      }
+
+      const toTid = (v) => v == null ? null : (typeof v === 'number' ? v : getTidFromAbbr(v, currentDynasty))
+      const DEP_TYPES = new Set(['departure', 'entered_portal', 'transferred_out', 'graduated', 'declared_for_draft', 'encouraged_to_transfer'])
+      const ARR_TYPES = new Set(['arrival', 'recommit', 'recommitted', 'recruited', 'transfer', 'portal_in', 'added'])
+      const V2_DEP_SHAPES = new Set(['transfer_out', 'graduated', 'pro_draft'])
+      const V2_ARR_SHAPES = new Set(['recruit', 'transfer_in', 'walk_on', 'juco'])
+
+      // Earliest departure from homeTid with no later movement-recorded
+      // return. Returns null when the player never left or came back.
+      const unresolvedDepartureYear = (player, homeTid) => {
+        const entries = []
+        for (const [y, m] of Object.entries(player.movementByYear || {})) entries.push([Number(y), m])
+        for (const m of (Array.isArray(player.movements) ? player.movements : [])) entries.push([Number(m?.year), m])
+        let dep = null
+        for (const [y, m] of entries) {
+          if (!Number.isFinite(y)) continue
+          const isDep = (m?.type && DEP_TYPES.has(m.type)) || (m?.departure && V2_DEP_SHAPES.has(m.departure))
+          if (!isDep) continue
+          // A transfer_out whose destination is THIS team is an arrival
+          // mis-stored by an import, not a departure from us.
+          if (m?.departure === 'transfer_out' && toTid(m?.toTid) === homeTid) continue
+          if (dep == null || y < dep) dep = y
+        }
+        if (dep == null) return null
+        const returned = entries.some(([y, m]) => {
+          if (!Number.isFinite(y) || y <= dep) return false
+          if (m?.type && ARR_TYPES.has(m.type)) return true
+          if (m?.arrival && V2_ARR_SHAPES.has(m.arrival)) return true
+          return false
+        })
+        return returned ? null : dep
+      }
+
+      let strippedPlayers = 0, strippedYears = 0
+      const sampleNames = []
+      const updated = (currentDynasty.players || []).map(player => {
+        if (player.isHonorOnly || player.isRecruit) return player
+        const tby = { ...(player.teamsByYear || {}) }
+        const cls = { ...(player.classByYear || {}) }
+        const ovr = { ...(player.overallByYear || {}) }
+        const dev = { ...(player.devTraitByYear || {}) }
+        let changed = false
+        for (const [yStr, v] of Object.entries(player.teamsByYear || {})) {
+          const y = Number(yStr)
+          if (!Number.isFinite(y)) continue
+          const tid = toTid(v)
+          if (tid == null || !memberTids.has(tid)) continue
+          const dep = unresolvedDepartureYear(player, tid)
+          if (dep == null || y <= dep) continue
+          delete tby[yStr]
+          delete cls[yStr]
+          delete ovr[yStr]
+          delete dev[yStr]
+          changed = true
+          strippedYears++
+        }
+        if (!changed) return player
+        strippedPlayers++
+        if (sampleNames.length < 8 && player.name) sampleNames.push(player.name)
+        return { ...player, teamsByYear: tby, classByYear: cls, overallByYear: ovr, devTraitByYear: dev }
+      })
+
+      if (strippedPlayers === 0) {
+        setRemoveResurrectedStatus({ success: true, message: 'No ghost roster years found — no departed player is still on a later roster.' })
+        return
+      }
+      await updateDynasty(currentDynasty.id, { players: updated })
+      const names = sampleNames.length ? ` (${sampleNames.join(', ')}${strippedPlayers > sampleNames.length ? ', …' : ''})` : ''
+      setRemoveResurrectedStatus({ success: true, message: `Removed ${strippedYears} ghost roster year(s) from ${strippedPlayers} player(s)${names}. Reload to see the corrected roster.` })
+    } catch (error) {
+      setRemoveResurrectedStatus({ success: false, message: 'Repair failed: ' + (error?.message || 'unknown error') })
     }
   }
 
@@ -2892,6 +3002,14 @@ export default function DangerZone() {
             buttonText="Rebuild Carryover"
             onClick={handleRebuildCarryover}
             status={rebuildCarryoverStatus}
+          />
+          <ActionCard
+            danger
+            title="Remove Returned Departures"
+            description="Fixes rosters where graduated/drafted/transferred-out players came back after advancing to a new season. Removes the roster years a departed player wrongly regained (and the class/OVR entries added with them). Players who genuinely returned via a recorded recommit or transfer-in are kept. Reload after running."
+            buttonText="Remove Ghost Years"
+            onClick={handleRemoveResurrected}
+            status={removeResurrectedStatus}
           />
           <ActionCard
             danger

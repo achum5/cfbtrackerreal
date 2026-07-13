@@ -1196,6 +1196,165 @@ export function lookupByTeamYear(structure, dynasty, tidOrAbbr, year) {
 }
 
 /**
+ * Did this player recommit (after entering the portal) in the given year?
+ * Checks both the legacy movements[] array and the v2 movementByYear map.
+ * A recommit overrides any departure record for that year.
+ */
+function hasRecommitForYear(player, year) {
+  const legacyMovements = Array.isArray(player.movements) ? player.movements : []
+  const m = player.movementByYear?.[year] || player.movementByYear?.[String(year)]
+  if (m?.type === 'recommit' || m?.type === 'recommitted') return true
+  return legacyMovements.some(mm =>
+    (mm?.type === 'recommit' || mm?.type === 'recommitted') &&
+    Number(mm.year) === Number(year)
+  )
+}
+
+/**
+ * Movement-record departure check — the single source of truth for "this
+ * player left and never came back", shared by the Signing Day carryover
+ * (offseason week 5→6) and advanceToNewSeason (week 7).
+ *
+ * Extracted VERBATIM from the Signing Day carryover's isPlayerLeaving
+ * closure (minus its playersLeaving-list checks, which stay at the call
+ * site). Before the extraction, advanceToNewSeason detected departures
+ * ONLY from the Players Leaving list — so departures recorded exclusively
+ * in movement records (Draft Results rounds, player-editor edits,
+ * transfers marked outside the leaving sheet) were re-added to the new
+ * season's roster by its fall-through carry block. That was the
+ * "players who left came back after advancing the season" bug.
+ *
+ * Reads BOTH the legacy movements[] array AND the v2 movementByYear map,
+ * honors recommits/arrivals after a departure, and treats a
+ * transfer_out whose destination is THIS team as an arrival (imported
+ * data mis-stores those).
+ */
+function hasUnresolvedDeparture(player, homeTid, previousSeasonYear, dynasty, options = {}) {
+  // excludeTeamsByYearYear: a teamsByYear year the implicit-arrival safety
+  // net must IGNORE. advanceToNewSeason passes the new season year here —
+  // a pre-seeded new-season slot is the very artifact being validated, so
+  // it can't double as evidence that the player "came back".
+  const { excludeTeamsByYearYear } = options
+  const legacyMovements = Array.isArray(player.movements) ? player.movements : []
+
+  // Recommit override: if they recommitted after entering the portal
+  // that same year, they aren't leaving.
+  if (hasRecommitForYear(player, previousSeasonYear)) return false
+
+  const movementByYearForPrev =
+    player.movementByYear?.[previousSeasonYear] ||
+    player.movementByYear?.[String(previousSeasonYear)]
+
+  // Legacy movements[] departure check. NOTE: bare 'transfer' is
+  // deliberately NOT a departure — legacyMovementToCanonical maps
+  // 'transfer' → an ARRIVAL (transfer_in), so treating it as a departure
+  // here contradicted the rest of the system and dropped incoming
+  // transfers on the year flip. Transfer-OUTs use 'transferred_out' /
+  // 'entered_portal' / the canonical departure shape.
+  const hasLegacyDeparture = legacyMovements.some(m =>
+    (m.type === 'departure' || m.type === 'entered_portal' ||
+     m.type === 'transferred_out' || m.type === 'graduated' || m.type === 'declared_for_draft' ||
+     m.type === 'encouraged_to_transfer') &&
+    Number(m.year) === previousSeasonYear
+  )
+  if (hasLegacyDeparture) return true
+
+  // v2 movementByYear departure check. Any departure on the previous
+  // season year means they're leaving — irrespective of which team
+  // they departed from. ('transfer' excluded — it's an arrival type.)
+  const byYearDepartureTypes = new Set([
+    'departure', 'entered_portal', 'transferred_out',
+    'graduated', 'declared_for_draft', 'encouraged_to_transfer',
+  ])
+  const v2DepartureShapes = new Set(['transfer_out', 'graduated', 'pro_draft'])
+  const hasV2Departure = !!movementByYearForPrev && (
+    movementByYearForPrev.type === 'departure' ||
+    byYearDepartureTypes.has(movementByYearForPrev.type) ||
+    v2DepartureShapes.has(movementByYearForPrev.departure)
+  )
+  if (hasV2Departure) return true
+
+  // ALSO: a departure in ANY prior year (not just previousSeasonYear)
+  // should still stop carry-over. If Daevon transferred in 2032 and
+  // someone advances from 2033 to 2034, his previousSeasonYear-based
+  // check above misses him — but he should obviously stay gone.
+  // Only counts as "still gone" if there's no arrival / recommit in
+  // a year >= the departure year.
+  const allV2Entries = Object.entries(player.movementByYear || {})
+  let earliestDeparture = null
+  for (const [yStr, m] of allV2Entries) {
+    const y = Number(yStr)
+    if (!Number.isFinite(y)) continue
+    const isDep =
+      m?.type === 'departure' ||
+      byYearDepartureTypes.has(m?.type) ||
+      v2DepartureShapes.has(m?.departure)
+    // A transfer_out with toTid pointing AT this team is actually
+    // someone else's roster losing the player TO us — from our
+    // perspective it's an arrival, not a departure. (Jay's STONY
+    // dynasty had imported portal transfers with arrival events
+    // mis-stored as transfer_out+toTid=2, which caused this loop to
+    // flag the player as "still gone" on every year flip.)
+    // Normalize toTid (it can be a string abbr) before comparing — an
+    // arrival mis-stored as transfer_out+toTid=home is really an arrival
+    // to us, not a departure. Strict === missed string-abbr destinations.
+    const toTidNorm = m?.toTid == null ? null
+      : (typeof m.toTid === 'number' ? m.toTid : getTidFromAbbr(m.toTid, dynasty))
+    if (isDep && m?.departure === 'transfer_out' && toTidNorm === homeTid) continue
+    if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
+      earliestDeparture = y
+    }
+  }
+  for (const m of legacyMovements) {
+    if (!m) continue
+    const y = Number(m.year)
+    if (!Number.isFinite(y)) continue
+    const isDep =
+      m.type === 'departure' || m.type === 'entered_portal' || m.type === 'transfer' ||
+      m.type === 'transferred_out' || m.type === 'graduated' ||
+      m.type === 'declared_for_draft' || m.type === 'encouraged_to_transfer'
+    if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
+      earliestDeparture = y
+    }
+  }
+  if (earliestDeparture != null && earliestDeparture <= previousSeasonYear) {
+    // They departed at some point on or before the year that just
+    // ended. Did they ever come back (recommit or arrival AFTER the
+    // departure)?
+    const arrivalTypes = new Set(['recruited', 'transfer', 'portal_in', 'added', 'recommit', 'recommitted'])
+    const v2ArrivalShapes = new Set(['recruit', 'transfer_in', 'walk_on', 'juco'])
+    const cameBackAfter = (y) => y > earliestDeparture
+    const returnedViaLegacy = legacyMovements.some(m =>
+      (arrivalTypes.has(m?.type) || m?.type === 'recommit') && cameBackAfter(Number(m.year))
+    )
+    const returnedViaV2 = allV2Entries.some(([yStr, m]) => {
+      const y = Number(yStr)
+      if (!cameBackAfter(y)) return false
+      if (m?.type === 'recommit' || m?.type === 'recommitted') return true
+      if (m?.type === 'arrival') return true
+      if (v2ArrivalShapes.has(m?.arrival)) return true
+      return false
+    })
+    // Implicit-arrival safety net: if teamsByYear shows the player on
+    // THIS team in any year after the departure, they obviously came
+    // back even if no explicit arrival movement was written. Imported
+    // teambuilder data routinely lacks the arrival side of a transfer.
+    // Stored value can be tid (number) or legacy abbr (string), so
+    // normalize before comparing.
+    const returnedViaTeamsByYear = Object.entries(player.teamsByYear || {}).some(([yStr, t]) => {
+      const y = Number(yStr)
+      if (!Number.isFinite(y) || !cameBackAfter(y)) return false
+      if (excludeTeamsByYearYear != null && y === Number(excludeTeamsByYearYear)) return false
+      if (typeof t === 'number') return t === homeTid
+      return getTidFromAbbr(t, dynasty) === homeTid
+    })
+    if (!returnedViaLegacy && !returnedViaV2 && !returnedViaTeamsByYear) return true
+  }
+
+  return false
+}
+
+/**
  * Produce dot-notation Firestore-style updates that write a value to
  * BOTH the tid key and the current-abbr key of a `*ByTeamYear` structure.
  * Pair with `lookupByTeamYear` (drift-recovery on read) so a teambuilder
@@ -12625,137 +12784,23 @@ export function DynastyProvider({ children }) {
         return false
       }
 
-      // Helper to check if player is leaving. Reads BOTH the legacy
-      // movements[] array AND the v2 movementByYear map — after the v2
-      // migration, movements[] is removed and only movementByYear survives.
-      // This caused transferred/graduated players to get silently carried
-      // over on every year flip because the old check missed them.
+      // Helper to check if player is leaving. The leaving-list checks stay
+      // here; the movement-record checks (legacy movements[] + v2
+      // movementByYear, incl. prior-year departures with no later return)
+      // live in the module-scope hasUnresolvedDeparture so that
+      // advanceToNewSeason applies the exact same departure rule — it
+      // previously only consulted the leaving list, which is what let
+      // movement-recorded departures get carried back onto the roster.
       const isPlayerLeaving = (player, homeTid = teamTid) => {
-        const legacyMovements = Array.isArray(player.movements) ? player.movements : []
-
-        // Recommit override: if they recommitted after entering the portal
-        // that same year, they aren't leaving — check both formats.
-        const movementByYearForPrev =
-          player.movementByYear?.[previousSeasonYear] ||
-          player.movementByYear?.[String(previousSeasonYear)]
-        const hasRecommitInLegacy = legacyMovements.some(m =>
-          (m.type === 'recommit' || m.type === 'recommitted') &&
-          Number(m.year) === previousSeasonYear
-        )
-        const hasRecommitInV2 =
-          movementByYearForPrev?.type === 'recommit' ||
-          movementByYearForPrev?.type === 'recommitted'
-        if (hasRecommitInLegacy || hasRecommitInV2) return false
+        // Recommit override runs BEFORE the list checks — a player who
+        // recommitted after entering the portal isn't leaving even if a
+        // stale leaving-list entry still names them.
+        if (hasRecommitForYear(player, previousSeasonYear)) return false
 
         if (leavingPids.has(player.pid)) return true
         if (player.name && leavingNames.has(player.name.toLowerCase().trim())) return true
 
-        // Legacy movements[] departure check. NOTE: bare 'transfer' is
-        // deliberately NOT a departure — legacyMovementToCanonical maps
-        // 'transfer' → an ARRIVAL (transfer_in), so treating it as a departure
-        // here contradicted the rest of the system and dropped incoming
-        // transfers on the year flip. Transfer-OUTs use 'transferred_out' /
-        // 'entered_portal' / the canonical departure shape.
-        const hasLegacyDeparture = legacyMovements.some(m =>
-          (m.type === 'departure' || m.type === 'entered_portal' ||
-           m.type === 'transferred_out' || m.type === 'graduated' || m.type === 'declared_for_draft' ||
-           m.type === 'encouraged_to_transfer') &&
-          Number(m.year) === previousSeasonYear
-        )
-        if (hasLegacyDeparture) return true
-
-        // v2 movementByYear departure check. Any departure on the previous
-        // season year means they're leaving — irrespective of which team
-        // they departed from. ('transfer' excluded — it's an arrival type.)
-        const byYearDepartureTypes = new Set([
-          'departure', 'entered_portal', 'transferred_out',
-          'graduated', 'declared_for_draft', 'encouraged_to_transfer',
-        ])
-        const v2DepartureShapes = new Set(['transfer_out', 'graduated', 'pro_draft'])
-        const hasV2Departure = !!movementByYearForPrev && (
-          movementByYearForPrev.type === 'departure' ||
-          byYearDepartureTypes.has(movementByYearForPrev.type) ||
-          v2DepartureShapes.has(movementByYearForPrev.departure)
-        )
-        if (hasV2Departure) return true
-
-        // ALSO: a departure in ANY prior year (not just previousSeasonYear)
-        // should still stop carry-over. If Daevon transferred in 2032 and
-        // someone advances from 2033 to 2034, his previousSeasonYear-based
-        // check above misses him — but he should obviously stay gone.
-        // Only counts as "still gone" if there's no arrival / recommit in
-        // a year >= the departure year.
-        const allV2Entries = Object.entries(player.movementByYear || {})
-        let earliestDeparture = null
-        for (const [yStr, m] of allV2Entries) {
-          const y = Number(yStr)
-          if (!Number.isFinite(y)) continue
-          const isDep =
-            m?.type === 'departure' ||
-            byYearDepartureTypes.has(m?.type) ||
-            v2DepartureShapes.has(m?.departure)
-          // A transfer_out with toTid pointing AT this team is actually
-          // someone else's roster losing the player TO us — from our
-          // perspective it's an arrival, not a departure. (Jay's STONY
-          // dynasty had imported portal transfers with arrival events
-          // mis-stored as transfer_out+toTid=2, which caused this loop to
-          // flag the player as "still gone" on every year flip.)
-          // Normalize toTid (it can be a string abbr) before comparing — an
-          // arrival mis-stored as transfer_out+toTid=home is really an arrival
-          // to us, not a departure. Strict === missed string-abbr destinations.
-          const toTidNorm = m?.toTid == null ? null
-            : (typeof m.toTid === 'number' ? m.toTid : getTidFromAbbr(m.toTid, dynasty))
-          if (isDep && m?.departure === 'transfer_out' && toTidNorm === homeTid) continue
-          if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
-            earliestDeparture = y
-          }
-        }
-        for (const m of legacyMovements) {
-          if (!m) continue
-          const y = Number(m.year)
-          if (!Number.isFinite(y)) continue
-          const isDep =
-            m.type === 'departure' || m.type === 'entered_portal' || m.type === 'transfer' ||
-            m.type === 'transferred_out' || m.type === 'graduated' ||
-            m.type === 'declared_for_draft' || m.type === 'encouraged_to_transfer'
-          if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
-            earliestDeparture = y
-          }
-        }
-        if (earliestDeparture != null && earliestDeparture <= previousSeasonYear) {
-          // They departed at some point on or before the year that just
-          // ended. Did they ever come back (recommit or arrival AFTER the
-          // departure)?
-          const arrivalTypes = new Set(['recruited', 'transfer', 'portal_in', 'added', 'recommit', 'recommitted'])
-          const v2ArrivalShapes = new Set(['recruit', 'transfer_in', 'walk_on', 'juco'])
-          const cameBackAfter = (y) => y > earliestDeparture
-          const returnedViaLegacy = legacyMovements.some(m =>
-            (arrivalTypes.has(m?.type) || m?.type === 'recommit') && cameBackAfter(Number(m.year))
-          )
-          const returnedViaV2 = allV2Entries.some(([yStr, m]) => {
-            const y = Number(yStr)
-            if (!cameBackAfter(y)) return false
-            if (m?.type === 'recommit' || m?.type === 'recommitted') return true
-            if (m?.type === 'arrival') return true
-            if (v2ArrivalShapes.has(m?.arrival)) return true
-            return false
-          })
-          // Implicit-arrival safety net: if teamsByYear shows the player on
-          // THIS team in any year after the departure, they obviously came
-          // back even if no explicit arrival movement was written. Imported
-          // teambuilder data routinely lacks the arrival side of a transfer.
-          // Stored value can be tid (number) or legacy abbr (string), so
-          // normalize before comparing.
-          const returnedViaTeamsByYear = Object.entries(player.teamsByYear || {}).some(([yStr, t]) => {
-            const y = Number(yStr)
-            if (!Number.isFinite(y) || !cameBackAfter(y)) return false
-            if (typeof t === 'number') return t === homeTid
-            return getTidFromAbbr(t, dynasty) === homeTid
-          })
-          if (!returnedViaLegacy && !returnedViaV2 && !returnedViaTeamsByYear) return true
-        }
-
-        return false
+        return hasUnresolvedDeparture(player, homeTid, previousSeasonYear, dynasty)
       }
 
       let carriedOver = 0
@@ -13316,6 +13361,28 @@ export function DynastyProvider({ children }) {
       // Skip players who already have a team for the current season (already processed or transferred)
       const existingTeamForCurrentSeason = player.teamsByYear?.[currentSeasonYear] ?? player.teamsByYear?.[String(currentSeasonYear)]
       if (existingTeamForCurrentSeason) {
+        // …unless the slot points at OUR team and the player has an
+        // unresolved departure record. saveRoster/imports can seed the
+        // new-season slot before the advance runs, which used to make a
+        // departed player look "already processed" and keep them on the
+        // roster. Strip the seeded year instead — same treatment the
+        // encouraged-transfer branch above applies. (A slot pointing at a
+        // DIFFERENT team is a Transfer Destination and stays untouched;
+        // recommits return false from hasUnresolvedDeparture and are kept.)
+        if (isTeamMatch(existingTeamForCurrentSeason) &&
+            hasUnresolvedDeparture(player, teamTid, previousSeasonYear, dynasty,
+              { excludeTeamsByYearYear: currentSeasonYear })) {
+          const cleanedTeamsByYear = { ...(player.teamsByYear || {}) }
+          delete cleanedTeamsByYear[currentSeasonYear]
+          delete cleanedTeamsByYear[String(currentSeasonYear)]
+          const draftInfo = draftByPid[player.pid]
+          return {
+            ...player,
+            teamsByYear: cleanedTeamsByYear,
+            draftRound: draftInfo?.draftRound || player.draftRound || null,
+            draftPick: draftInfo?.draftPick || player.draftPick || null
+          }
+        }
         // Player already has a team for next season (set by Transfer Destinations or recommit)
         // Clear isRecruit if applicable (handles recommit players who have teamsByYear set but still have isRecruit: true)
         // Normalize to tid — teamsByYear can hold a legacy abbr string, but
@@ -13433,6 +13500,25 @@ export function DynastyProvider({ children }) {
         return Number.isFinite(y) && y <= previousSeasonYear
       })
       if (player.isRecruit && !hasPriorTeamYear) return player
+
+      // PRIMARY departure guard: honor movement-record departures before
+      // carrying anyone forward. Departures recorded ONLY in movement
+      // records — a Draft Results round for a player never pre-flagged
+      // "Pro Draft" on the leaving sheet, a transfer/graduation marked in
+      // the player editor, a prior-year departure — never make it into
+      // leavingPids above. The Signing Day carryover already withholds
+      // these players via its movementByYear check; without the SAME rule
+      // here, this fall-through carry re-added them to the new season
+      // ("players who would have left ended up just coming back").
+      if (hasUnresolvedDeparture(player, teamTid, previousSeasonYear, dynasty,
+            { excludeTeamsByYearYear: currentSeasonYear })) {
+        const draftInfo = draftByPid[player.pid]
+        return {
+          ...player,
+          draftRound: draftInfo?.draftRound || player.draftRound || null,
+          draftPick: draftInfo?.draftPick || player.draftPick || null
+        }
+      }
 
       // Class progression already happened at Signing Day (offseason week 6)
       // Here we just need to add teamsByYear and classByYear tracking for the new season
