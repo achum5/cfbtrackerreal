@@ -166,7 +166,7 @@ export async function getSeasonsSubcollection(dynastyId, options = {}) {
   return rehydrateSeasonalShapes(docs)
 }
 
-function rehydrateSeasonalShapes(docs) {
+export function rehydrateSeasonalShapes(docs) {
   // out shape:
   //   { allAmericansByYear: { 2034: ... },
   //     recruitingCommitmentsByTeamYear: { '10': { 2034: ... } },

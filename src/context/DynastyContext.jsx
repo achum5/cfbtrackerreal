@@ -115,6 +115,39 @@ import { shapeTargetForDatabase } from '../utils/recruitAttributes'
 import { settleOrProceed } from '../utils/firestoreWriteGuard'
 import { withTimeout } from '../utils/withTimeout'
 import { normalizeEditionKey, DEFAULT_EDITION } from '../editions'
+import { getSyncStamp, setSyncStamp } from '../utils/subcollectionSyncStamp'
+
+/**
+ * Gate a subcollection getter's billed background server re-read on the
+ * main doc's rev (max of updatedAt/lastModified — see dynastyDocRev).
+ *
+ * Every cloud write bumps the main doc's lastModified in the same batch as
+ * the subcollection write (bumpDynastyLastModifiedInBatch) — that is the
+ * app's existing cross-device sync trigger. So when the current rev equals
+ * the stamp recorded after our last COMPLETED server read of a collection,
+ * the server can't have anything newer: serve the Firestore local cache
+ * and skip the getDocsFromServer entirely (~500 billed reads saved per
+ * players load alone). Any remote or local write bumps the rev, the stamp
+ * stops matching, and the next load re-reads from the server as before —
+ * freshness behavior is unchanged.
+ *
+ * The stamp is written inside onFresh, i.e. only after a server read
+ * actually completed, so a failed background fetch never marks a
+ * collection as synced. rev<=0 (legacy docs with no timestamp) always
+ * re-reads.
+ */
+function gatedFreshOptions(dynastyId, collectionName, rev, onFresh) {
+  if (rev > 0 && getSyncStamp(dynastyId, collectionName) === rev) {
+    return {} // nothing changed since our last completed sync — cache only
+  }
+  if (!onFresh) return {}
+  return {
+    onFresh: (fresh) => {
+      if (rev > 0) setSyncStamp(dynastyId, collectionName, rev)
+      onFresh(fresh)
+    },
+  }
+}
 
 const DynastyContext = createContext()
 
@@ -6770,11 +6803,17 @@ export function DynastyProvider({ children }) {
         })
       }
 
+      // Firestore-read cost gate: skip each collection's billed background
+      // server re-read when the main doc's rev matches the stamp from our
+      // last completed sync — see gatedFreshOptions. This path previously
+      // had NO gate at all, so every page refresh / dynasty open re-read
+      // all five subcollections (~800-1500 billed reads) unconditionally.
+      const loadRev = dynastyDocRev(dynasty)
       const [subcollectionPlayers, subcollectionGames, subcollectionRecaps, subcollectionSeasons, subcollectionRecruitingDatabase] = await Promise.all([
-        getPlayersSubcollection(dynastyId, { onFresh: onFreshPlayers }),
-        getGamesSubcollection(dynastyId, { onFresh: onFreshGames }),
-        getWeekRecapsSubcollection(dynastyId, { onFresh: onFreshRecaps }),
-        getSeasonsSubcollection(dynastyId, { onFresh: onFreshSeasons }),
+        getPlayersSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'players', loadRev, onFreshPlayers)),
+        getGamesSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'games', loadRev, onFreshGames)),
+        getWeekRecapsSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'weekRecaps', loadRev, onFreshRecaps)),
+        getSeasonsSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'seasons', loadRev, onFreshSeasons)),
         // Isolated with its own catch: this is the newest of these five
         // subcollections, so it's the most likely to hit an environment
         // that hasn't picked up its security rule yet. A failure here
@@ -6783,7 +6822,7 @@ export function DynastyProvider({ children }) {
         // already succeeded, which is what caused the roster/score
         // flickering (this dynasty's data alternating between real and
         // blank on every listener snapshot).
-        getRecruitingDatabaseSubcollection(dynastyId, { onFresh: onFreshRecruitingDatabase }).catch(err => {
+        getRecruitingDatabaseSubcollection(dynastyId, gatedFreshOptions(dynastyId, 'recruitingDatabase', loadRev, onFreshRecruitingDatabase)).catch(err => {
           console.warn(`[recruiting database] fetch failed for ${dynastyId}, treating as empty:`, err?.code || err?.message || err)
           return []
         }),
@@ -7795,15 +7834,21 @@ export function DynastyProvider({ children }) {
               })
             }
 
+            // Firestore-read cost gate: even when the in-memory rev gate
+            // above misses (page refresh wiped it, or this is the active
+            // dynasty whose rev just bumped from our OWN save), the
+            // persisted per-collection stamps let each getter skip its
+            // billed server re-read when nothing actually changed since
+            // the last completed sync — see gatedFreshOptions.
             const [subcollectionPlayers, subcollectionGames, subcollectionRecaps, subcollectionSeasons, subcollectionRecruitingDatabase] = await Promise.all([
-              getPlayersSubcollection(dynasty.id, { onFresh: onFreshPlayers }),
-              getGamesSubcollection(dynasty.id, { onFresh: onFreshGames }),
-              getWeekRecapsSubcollection(dynasty.id, { onFresh: onFreshRecaps }),
-              getSeasonsSubcollection(dynasty.id, { onFresh: onFreshSeasons }),
+              getPlayersSubcollection(dynasty.id, gatedFreshOptions(dynasty.id, 'players', rev, onFreshPlayers)),
+              getGamesSubcollection(dynasty.id, gatedFreshOptions(dynasty.id, 'games', rev, onFreshGames)),
+              getWeekRecapsSubcollection(dynasty.id, gatedFreshOptions(dynasty.id, 'weekRecaps', rev, onFreshRecaps)),
+              getSeasonsSubcollection(dynasty.id, gatedFreshOptions(dynasty.id, 'seasons', rev, onFreshSeasons)),
               // Isolated with its own catch — see the matching comment in
               // selectDynasty's copy of this Promise.all. A failure here must
               // never reject the whole group and wipe out players/games.
-              getRecruitingDatabaseSubcollection(dynasty.id, { onFresh: onFreshRecruitingDatabase }).catch(err => {
+              getRecruitingDatabaseSubcollection(dynasty.id, gatedFreshOptions(dynasty.id, 'recruitingDatabase', rev, onFreshRecruitingDatabase)).catch(err => {
                 console.warn(`[recruiting database] fetch failed for ${dynasty.id}, treating as empty:`, err?.code || err?.message || err)
                 return []
               }),
@@ -8921,9 +8966,63 @@ export function DynastyProvider({ children }) {
             )
           }
         } else {
-          subcollectionPromises.push(
-            savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite })
-          )
+          // Diff-based save (Firestore cost): callers routinely pass the FULL
+          // roster when only a handful of players changed. The old path
+          // rewrote every player doc AND ran a full orphan-scan read —
+          // ~1000 billed ops for a one-player edit on a 500-player dynasty.
+          // Diff the incoming array against the in-state roster (which
+          // mirrors Firestore — it was hydrated from the subcollection and
+          // updated by every save) and write only changed/new docs, deleting
+          // exactly the removed pids with no scan.
+          //
+          // Falls back to the battle-tested full rewrite + orphan-scan path
+          // when the diff can't be trusted: dynasty not fully hydrated this
+          // session, pid-less rows, forceOverwrite repairs, or a mass
+          // removal (>25) that should face the orphan path's safety checks.
+          let diffApplied = false
+          const priorRoster = Array.isArray(dynasty?.players) ? dynasty.players : null
+          const fullyLoaded = loadedDynastyIdsRef.current.has(dynastyId)
+          if (fullyLoaded && priorRoster && priorRoster.length > 0 && !forceOverwrite) {
+            const priorByPid = new Map()
+            let comparable = true
+            for (const p of priorRoster) {
+              if (p?.pid == null) { comparable = false; break }
+              priorByPid.set(String(p.pid), p)
+            }
+            const changedPlayers = []
+            const newPids = new Set()
+            if (comparable) {
+              for (const p of normalizedPlayers) {
+                if (p?.pid == null) { comparable = false; break }
+                const key = String(p.pid)
+                newPids.add(key)
+                const before = priorByPid.get(key)
+                // Stringify compare is conservative: any structural difference
+                // (even key order) writes the doc; a skip requires an exact
+                // match, so it can never suppress a real change.
+                if (!before || JSON.stringify(before) !== JSON.stringify(p)) {
+                  changedPlayers.push(p)
+                }
+              }
+            }
+            const removedPids = comparable
+              ? [...priorByPid.keys()].filter(k => !newPids.has(k))
+              : []
+            if (comparable && removedPids.length <= 25) {
+              diffApplied = true
+              console.log(`[updateDynasty] players diff: ${changedPlayers.length} changed, ${removedPids.length} removed (of ${normalizedPlayers.length})`)
+              if (changedPlayers.length > 0 || removedPids.length > 0) {
+                subcollectionPromises.push(
+                  savePlayersToSubcollection(dynastyId, changedPlayers, { removePids: removedPids, forceOverwrite })
+                )
+              }
+            }
+          }
+          if (!diffApplied) {
+            subcollectionPromises.push(
+              savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite })
+            )
+          }
         }
         // Don't save players to main doc - they're in subcollection now
         delete mainDocUpdates.players
@@ -8940,13 +9039,55 @@ export function DynastyProvider({ children }) {
 
       // Route games to subcollection (unless skipGamesSubcollection is true - for optimized single-game updates)
       if (mainDocUpdates.games && Array.isArray(mainDocUpdates.games) && !skipGamesSubcollection) {
-        console.log(`Saving ${mainDocUpdates.games.length} games to subcollection (with orphan cleanup)`)
+        console.log(`Saving ${mainDocUpdates.games.length} games to subcollection`)
         // CRITICAL: Track this games update to prevent listener from overwriting with stale data
         lastGamesUpdateTimestampRef.current = Date.now()
         lastGamesUpdateDynastyIdRef.current = dynastyId
-        subcollectionPromises.push(
-          saveGamesToSubcollection(dynastyId, mainDocUpdates.games, { deleteOrphans: true })
-        )
+        // Diff-based save — same rationale and fallback conditions as the
+        // players diff above: write only changed/new games, delete exactly
+        // the removed ids, and fall back to the full rewrite + orphan-scan
+        // path whenever the diff can't be trusted.
+        let gamesDiffApplied = false
+        const priorGames = Array.isArray(dynasty?.games) ? dynasty.games : null
+        const gamesFullyLoaded = loadedDynastyIdsRef.current.has(dynastyId)
+        if (gamesFullyLoaded && priorGames && priorGames.length > 0 && !forceOverwrite) {
+          const priorById = new Map()
+          let comparable = true
+          for (const g of priorGames) {
+            if (g?.id == null) { comparable = false; break }
+            priorById.set(String(g.id), g)
+          }
+          const changedGames = []
+          const newIds = new Set()
+          if (comparable) {
+            for (const g of mainDocUpdates.games) {
+              if (g?.id == null) { comparable = false; break }
+              const key = String(g.id)
+              newIds.add(key)
+              const before = priorById.get(key)
+              if (!before || JSON.stringify(before) !== JSON.stringify(g)) {
+                changedGames.push(g)
+              }
+            }
+          }
+          const removedIds = comparable
+            ? [...priorById.keys()].filter(k => !newIds.has(k))
+            : []
+          if (comparable && removedIds.length <= 25) {
+            gamesDiffApplied = true
+            console.log(`[updateDynasty] games diff: ${changedGames.length} changed, ${removedIds.length} removed (of ${mainDocUpdates.games.length})`)
+            if (changedGames.length > 0 || removedIds.length > 0) {
+              subcollectionPromises.push(
+                saveGamesToSubcollection(dynastyId, changedGames, { removeIds: removedIds })
+              )
+            }
+          }
+        }
+        if (!gamesDiffApplied) {
+          subcollectionPromises.push(
+            saveGamesToSubcollection(dynastyId, mainDocUpdates.games, { deleteOrphans: true })
+          )
+        }
         // Don't save games to main doc - they're in subcollection now
         delete mainDocUpdates.games
         // Ensure subcollection flag is set

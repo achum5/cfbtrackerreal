@@ -24,6 +24,7 @@ import { db } from '../config/firebase'
 import { indexedDBStorage } from './storage'
 import {
   getSeasonsSubcollection,
+  rehydrateSeasonalShapes,
   PER_YEAR_FIELDS,
   PER_TEAM_YEAR_FIELDS,
 } from './seasonSubcollection'
@@ -750,20 +751,36 @@ export async function savePlayerToSubcollection(dynastyId, player) {
  * @param {boolean} options.forceOverwrite - If true, skips safety checks (for explicit user actions like migration)
  */
 export async function savePlayersToSubcollection(dynastyId, players, options = {}) {
-  const { deleteOrphans = false, forceOverwrite = false, onProgress = null } = options
+  const { deleteOrphans = false, forceOverwrite = false, onProgress = null, removePids = null } = options
 
   try {
     // Handle empty array case - do nothing, don't delete existing players
     const playersToSave = players || []
 
+    // Targeted removals (diff-based saves): the caller already knows exactly
+    // which pids were removed, so delete just those docs — no full-collection
+    // orphan scan (which billed a read per existing player on every save).
+    const pidsToRemove = Array.isArray(removePids) ? removePids.map(String).filter(Boolean) : []
+
     // SAFETY: Never save an empty array unless forceOverwrite is true
-    // Empty array usually indicates a bug, not intentional deletion
-    if (playersToSave.length === 0 && !forceOverwrite) {
+    // Empty array usually indicates a bug, not intentional deletion.
+    // (A pure-removal call — no upserts, only removePids — is legitimate.)
+    if (playersToSave.length === 0 && pidsToRemove.length === 0 && !forceOverwrite) {
       console.warn('[savePlayersToSubcollection] Received empty players array - skipping to prevent data loss. Use forceOverwrite=true to override.')
       return
     }
 
-    console.log(`[savePlayersToSubcollection] Saving ${playersToSave.length} players to dynasty ${dynastyId}`)
+    console.log(`[savePlayersToSubcollection] Saving ${playersToSave.length} players to dynasty ${dynastyId}${pidsToRemove.length ? ` (+${pidsToRemove.length} targeted removals)` : ''}`)
+
+    if (pidsToRemove.length > 0) {
+      for (let i = 0; i < pidsToRemove.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db)
+        pidsToRemove.slice(i, i + BATCH_SIZE).forEach(id => {
+          batch.delete(doc(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION, id))
+        })
+        await batch.commit()
+      }
+    }
 
     // Handle orphan cleanup if requested
     if (deleteOrphans) {
@@ -1285,11 +1302,25 @@ export async function saveChangedPlayersAndGame(dynastyId, changedPlayers, game)
  * @param {boolean} options.forceDeleteOrphans - If true, bypasses safety check (EXTREMELY DANGEROUS - only for explicit user actions)
  */
 export async function saveGamesToSubcollection(dynastyId, games, options = {}) {
-  const { deleteOrphans = false, forceDeleteOrphans = false } = options
+  const { deleteOrphans = false, forceDeleteOrphans = false, removeIds = null } = options
 
   try {
     // Handle empty array case
     const gamesToSave = games || []
+
+    // Targeted removals (diff-based saves): delete exactly the ids the
+    // caller knows were removed — no full-collection orphan scan.
+    const idsToRemove = Array.isArray(removeIds) ? removeIds.map(String).filter(Boolean) : []
+    if (idsToRemove.length > 0) {
+      console.log(`[saveGamesToSubcollection] Removing ${idsToRemove.length} games by id (targeted)`)
+      for (let i = 0; i < idsToRemove.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db)
+        idsToRemove.slice(i, i + BATCH_SIZE).forEach(id => {
+          batch.delete(doc(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION, id))
+        })
+        await batch.commit()
+      }
+    }
 
     // Only check for orphans if explicitly requested (full sync operations only)
     if (deleteOrphans) {
@@ -1809,6 +1840,21 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
       getSocialCharactersSubcollection(mainDoc.id),
     ])
 
+    return assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData })
+  } catch (error) {
+    console.error('Error fetching public dynasty with subcollections:', error)
+    throw error
+  }
+}
+
+/**
+ * Merge a public dynasty's main doc + already-shaped subcollection data into
+ * the single dynasty object viewers consume. Shared by the direct-Firestore
+ * path above and the edge-cached /api/view-dynasty path below — one merge
+ * implementation, two transports.
+ */
+function assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData }) {
+  {
     // Merge weekRecaps: legacy main-doc `weekRecapsByYear` UNION
     // subcollection, with subcollection winning per-(year, week) on
     // overlap. Same conflict resolution the owner-side path uses —
@@ -1869,9 +1915,54 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
       socialFeedByYear: socialFeedData || {},
       socialCharacters: socialCharData || {},
     }
+  }
+}
+
+/**
+ * Edge-cached public dynasty load (Firestore cost).
+ *
+ * The direct path above bills ~800-1500 reads PER ANONYMOUS VISIT of a
+ * shared link. This path bills exactly ONE read (the main-doc query — the
+ * same query the direct path starts with) to learn the dynasty's
+ * lastModified, then fetches everything else from /api/view-dynasty with
+ * that rev in the URL. The rev is part of the CDN cache key, so:
+ *   - all visitors on the same version share one cached response
+ *     (Firestore is hit once per version, not once per visitor), and
+ *   - any owner edit bumps lastModified → new URL → immediate fresh data.
+ * Freshness is identical to the direct path; only the read volume changes.
+ *
+ * Falls back to the direct-Firestore path on ANY api failure so a viewer
+ * never sees an error the old path would have survived.
+ */
+export async function getPublicDynastyCached(shareCode) {
+  const mainDoc = await getPublicDynastyByShareCode(shareCode)
+  if (!mainDoc) return null
+
+  const rev = Number(mainDoc.lastModified || 0) || 0
+  // Legacy docs with no lastModified can't be version-keyed — a cached
+  // response could go permanently stale. Use the direct path for those.
+  if (rev <= 0) return getPublicDynastyWithSubcollections(shareCode)
+
+  try {
+    const resp = await fetch(`/api/view-dynasty?code=${encodeURIComponent(shareCode)}&v=${rev}`)
+    if (resp.status === 404) return null
+    if (!resp.ok) throw new Error(`view-dynasty api returned ${resp.status}`)
+    const raw = await resp.json()
+
+    // Adapt raw {id, data} rows to the doc-like shape the map builders use.
+    const asDocs = (rows) => (rows || []).map(r => ({ id: r.id, data: () => r.data }))
+
+    return assemblePublicDynasty(raw.mainDoc, {
+      players: (raw.players || []).map(r => ({ ...r.data, _firestoreId: r.id })),
+      games: (raw.games || []).map(r => ({ ...r.data, _firestoreId: r.id })),
+      weekRecaps: buildRecapsMap(asDocs(raw.weekRecaps)),
+      seasonalRehydrated: rehydrateSeasonalShapes(asDocs(raw.seasons)),
+      socialFeedData: buildSocialFeedMap(asDocs(raw.socialFeed)),
+      socialCharData: mergeSocialCharacterDocs(asDocs(raw.socialCharacters)),
+    })
   } catch (error) {
-    console.error('Error fetching public dynasty with subcollections:', error)
-    throw error
+    console.warn('[view] cached api path failed, falling back to direct Firestore reads:', error?.message || error)
+    return getPublicDynastyWithSubcollections(shareCode)
   }
 }
 
@@ -2052,44 +2143,9 @@ export async function isDynastyMigrated(dynastyId) {
   }
 }
 
-/**
- * Subscribe to real-time updates for a dynasty's subcollections
- * Returns unsubscribe functions for both players and games
- * @param {string} dynastyId - The dynasty document ID
- * @param {Function} onPlayersUpdate - Callback for player updates
- * @param {Function} onGamesUpdate - Callback for game updates
- * @returns {Object} Object with unsubscribe functions
- */
-export function subscribeToSubcollections(dynastyId, onPlayersUpdate, onGamesUpdate) {
-  const playersRef = collection(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION)
-  const gamesRef = collection(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION)
-
-  const unsubscribePlayers = onSnapshot(playersRef, (snapshot) => {
-    const players = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      _firestoreId: doc.id
-    }))
-    onPlayersUpdate(players)
-  }, (error) => {
-    console.error('Error in players subscription:', error)
-  })
-
-  const unsubscribeGames = onSnapshot(gamesRef, (snapshot) => {
-    const games = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      _firestoreId: doc.id
-    }))
-    onGamesUpdate(games)
-  }, (error) => {
-    console.error('Error in games subscription:', error)
-  })
-
-  return {
-    unsubscribePlayers,
-    unsubscribeGames,
-    unsubscribeAll: () => {
-      unsubscribePlayers()
-      unsubscribeGames()
-    }
-  }
-}
+// NOTE: a `subscribeToSubcollections` helper used to live here — a live
+// onSnapshot over the ENTIRE players + games subcollections. It had zero
+// callers, and wiring it up would bill a read per doc on every change for
+// every connected client (a massive Firestore cost footgun). Removed
+// deliberately; cross-device sync uses the main-doc listener + the
+// rev-gated cache-first getters instead.
