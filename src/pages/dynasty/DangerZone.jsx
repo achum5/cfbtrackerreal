@@ -180,6 +180,8 @@ export default function DangerZone() {
   const [transferYearFixStatus, setTransferYearFixStatus] = useState(null)
   const [rebuildCarryoverStatus, setRebuildCarryoverStatus] = useState(null)
   const [removeResurrectedStatus, setRemoveResurrectedStatus] = useState(null)
+  const [localBackups, setLocalBackups] = useState(null) // null = not loaded yet
+  const [backupStatus, setBackupStatus] = useState(null)
   const [clearRosterStatus, setClearRosterStatus] = useState(null)
   const [ncaa11Status, setNcaa11Status] = useState(null)
   const [playAsIdaho, setPlayAsIdaho] = useState(false)
@@ -857,6 +859,38 @@ export default function DangerZone() {
       setRemoveResurrectedStatus({ success: true, message: `Removed ${strippedYears} ghost roster year(s) from ${strippedPlayers} player(s)${names}. Reload to see the corrected roster.` })
     } catch (error) {
       setRemoveResurrectedStatus({ success: false, message: 'Repair failed: ' + (error?.message || 'unknown error') })
+    }
+  }
+
+  // ─── Local backups (safeguard against a bad write / browser clear) ───
+  // The app keeps a rolling ring of the last few known-good local-dynasty
+  // snapshots in IndexedDB. Surface them here so a user can restore in-app
+  // instead of losing data. Restore MERGES by id (never deletes newer work).
+  const loadLocalBackups = async () => {
+    try {
+      const backups = await indexedDBStorage.getBackups()
+      setLocalBackups(backups.slice().reverse()) // newest first
+    } catch (err) {
+      console.error('[DangerZone] load backups failed:', err)
+      setLocalBackups([])
+    }
+  }
+
+  const handleRestoreBackup = async (ts, count) => {
+    const ok = await confirm({
+      title: 'Restore this backup?',
+      message: `This merges ${count} dynasty snapshot(s) from ${new Date(ts).toLocaleString()} back into your local dynasties. Existing dynasties with the same ID are replaced with the snapshot; anything created since is kept. Continue?`,
+      confirmLabel: 'Restore',
+      variant: 'primary',
+    })
+    if (!ok) return
+    setBackupStatus('running')
+    try {
+      const { restored } = await indexedDBStorage.restoreBackup(ts)
+      setBackupStatus({ success: true, message: `Restored ${restored} dynasty snapshot(s). Reload the page to see them.` })
+    } catch (err) {
+      console.error('[DangerZone] restore failed:', err)
+      setBackupStatus({ success: false, message: 'Restore failed: ' + (err?.message || 'unknown error') })
     }
   }
 
@@ -2347,6 +2381,47 @@ export default function DangerZone() {
           </Button>
         }
       />
+
+      {/* Local Backups — recover a local dynasty after a bad write or a
+          browser clearing its site data. Non-destructive (restore merges). */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="label-sm text-txt-primary m-0">Local Backups</h3>
+          <Button variant="outline" size="sm" onClick={loadLocalBackups}>
+            {localBackups === null ? 'Show Backups' : 'Refresh'}
+          </Button>
+        </div>
+        <p className="text-xs text-txt-secondary m-0 mb-3">
+          Automatic snapshots of your locally-stored dynasties, kept in this browser.
+          If a dynasty disappeared, restore the most recent snapshot. Restoring only
+          adds/repairs dynasties — it never deletes ones you made since.
+        </p>
+        {localBackups !== null && (
+          localBackups.length === 0 ? (
+            <p className="text-xs text-txt-tertiary m-0">No local backups found in this browser.</p>
+          ) : (
+            <div className="space-y-2">
+              {localBackups.map((b) => (
+                <div key={b.ts} className="flex items-center justify-between gap-3 p-2 rounded-lg" style={{ backgroundColor: 'var(--surface-3)' }}>
+                  <div className="text-xs text-txt-secondary min-w-0">
+                    <span className="text-txt-primary">{new Date(b.ts).toLocaleString()}</span>
+                    <span className="text-txt-tertiary"> · {(b.dynasties?.length || 0)} dynasty(ies): </span>
+                    <span className="truncate">{(b.dynasties || []).map(d => d.name).filter(Boolean).join(', ') || '—'}</span>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => handleRestoreBackup(b.ts, b.dynasties?.length || 0)} disabled={backupStatus === 'running'}>
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+        {backupStatus && backupStatus !== 'running' && (
+          <p className="text-xs mt-3 m-0" style={{ color: backupStatus.success ? 'var(--accent-success)' : 'var(--accent-danger, #f87171)' }}>
+            {backupStatus.message}
+          </p>
+        )}
+      </Card>
 
       {/* Help Section (Collapsible) */}
       {showHelp && (

@@ -114,6 +114,32 @@ export default function Home() {
   const [upgrading, setUpgrading] = useState(false)
   const [storageSwitchDynasty, setStorageSwitchDynasty] = useState(null)
 
+  // Local-data safety nudge: local (browser-only) dynasties are lost if the
+  // browser clears its site data. Warn once (dismissible), and warn harder
+  // when the browser has NOT granted persistent storage (eviction-eligible).
+  const [storagePersisted, setStoragePersisted] = useState(null) // null = unknown
+  const [backupNudgeDismissed, setBackupNudgeDismissed] = useState(
+    () => { try { return localStorage.getItem('backupNudgeDismissed') === '1' } catch { return false } }
+  )
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (navigator.storage?.persisted) {
+          const p = await navigator.storage.persisted()
+          if (!cancelled) setStoragePersisted(p)
+        }
+      } catch { /* unsupported — leave unknown */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
+  const dismissBackupNudge = () => {
+    setBackupNudgeDismissed(true)
+    try { localStorage.setItem('backupNudgeDismissed', '1') } catch { /* ignore */ }
+  }
+  const localDynasties = dynasties.filter(d => d.storageType !== 'cloud')
+  const showBackupNudge = !backupNudgeDismissed && localDynasties.length > 0
+
   const sortedDynasties = [...dynasties].sort((a, b) => {
     const aTime = a.lastModified || 0
     const bTime = b.lastModified || 0
@@ -681,6 +707,37 @@ export default function Home() {
               onChange={handleFileChange}
               className="hidden"
             />
+
+            {showBackupNudge && (
+              <div
+                className="mb-4 rounded-lg border p-4 flex items-start justify-between gap-4"
+                style={{
+                  backgroundColor: storagePersisted === false ? 'rgba(245,158,11,0.10)' : 'var(--surface-2)',
+                  borderColor: storagePersisted === false ? 'rgba(245,158,11,0.35)' : 'var(--surface-4)',
+                }}
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm text-txt-primary mb-1">
+                    {storagePersisted === false ? 'Your dynasties may not be safe in this browser' : 'Back up your dynasties'}
+                  </div>
+                  <p className="text-xs text-txt-secondary m-0">
+                    {localDynasties.length === 1 ? 'Your dynasty is' : `Your ${localDynasties.length} local dynasties are`} saved
+                    only in this browser. Clearing your browser data — or a setting that clears it when you close the
+                    window — will erase {localDynasties.length === 1 ? 'it' : 'them'}.
+                    {storagePersisted === false && ' This browser has not granted this site persistent storage, so the data is especially at risk.'}
+                    {' '}Use the export button on a dynasty to download a backup file, or switch it to Cloud storage to keep it safe across devices.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissBackupNudge}
+                  aria-label="Dismiss"
+                  className="flex-shrink-0 text-txt-tertiary hover:text-txt-primary text-lg leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <div className="stagger-reveal space-y-3">
               {sortedDynasties.map((dynasty) => {

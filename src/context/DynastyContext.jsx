@@ -8878,6 +8878,18 @@ export function DynastyProvider({ children }) {
         String(d.id) === String(dynastyId) ? applyLocalUpdates(d) : d
       )
 
+      // DATA-LOSS GUARD: if the dynasty we're updating isn't in what we just
+      // read, the read almost certainly failed transiently (getDynasties()
+      // swallows errors and returns [], or returned a partial list). Persisting
+      // this result would drop the dynasty being edited — and if the read came
+      // back empty, wipe every local dynasty. Abort loudly instead; the caller's
+      // catch surfaces a retryable save error rather than silent loss. The
+      // in-memory state is untouched, so nothing is lost.
+      const targetPresent = updatedLocalDynasties.some(d => String(d.id) === String(dynastyId))
+      if (!targetPresent) {
+        throw new Error('Local save aborted: dynasty not found in stored data (likely a transient read failure). Your changes were not lost — please try again.')
+      }
+
       // Immediately save to IndexedDB (only local dynasties). Guarded so a wedged
       // IndexedDB write can't hang the save UI forever (see the read above).
       await withTimeout(
