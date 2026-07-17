@@ -594,8 +594,17 @@ export async function getSubcollectionServerCount(dynastyId, subcollectionName) 
 }
 
 export async function getPlayersSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const playersRef = collection(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION)
+
+  // serverFirst: destructive one-shot flows (cloud→local migration) must read
+  // SERVER truth, never a possibly-stale cache — a stale cache here would get
+  // persisted locally and the fresher cloud copy deleted. Throws on failure so
+  // the caller aborts instead of proceeding with partial data.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(playersRef)
+    return snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+  }
 
   // Cache-first read: try the local IndexedDB cache before going to the
   // network. Default getDocs() is server-priority and blocks on slow
@@ -656,8 +665,14 @@ export async function getPlayersSubcollection(dynastyId, options = {}) {
  * @returns {Promise<Array>} Array of game objects
  */
 export async function getGamesSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const gamesRef = collection(db, DYNASTIES_COLLECTION, dynastyId, GAMES_SUBCOLLECTION)
+
+  // serverFirst — see comment in getPlayersSubcollection.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(gamesRef)
+    return snap.docs.map(d => ({ ...d.data(), _firestoreId: d.id }))
+  }
 
   // Cache-first — see comment in getPlayersSubcollection. The onFresh
   // callback is how cross-device updates (recap saved on Device A,
@@ -841,6 +856,19 @@ export async function savePlayersToSubcollection(dynastyId, players, options = {
       }
     }
 
+    // Dedupe by pid before batching: two entries sharing a pid would both
+    // batch.set() the SAME doc — the second silently wins and the roster
+    // shrinks by one on next load with no error anywhere. Last entry wins
+    // (identical to Firestore's in-batch ordering) but now it's logged.
+    {
+      const pidCount = playersToSave.filter(p => p && p.pid).length
+      const byPid = new Map()
+      for (const p of playersToSave) { if (p && p.pid) byPid.set(String(p.pid), p) }
+      if (byPid.size < pidCount) {
+        console.warn(`[savePlayersToSubcollection] ${pidCount - byPid.size} duplicate pid(s) in save array — collapsed to one doc each (last entry wins)`)
+      }
+    }
+
     // Process in batches of BATCH_SIZE
     const totalBatches = Math.ceil(playersToSave.length / BATCH_SIZE)
     for (let i = 0; i < playersToSave.length; i += BATCH_SIZE) {
@@ -915,8 +943,14 @@ export async function savePlayersToSubcollection(dynastyId, players, options = {
  */
 export async function getRecruitingDatabaseSubcollection(dynastyId, options = {}) {
   if (!dynastyId) return []
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, RECRUITING_DATABASE_SUBCOLLECTION)
+
+  // serverFirst — see comment in getPlayersSubcollection.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(ref)
+    return snap.docs.map(d => d.data())
+  }
 
   try {
     const cachedSnap = await getDocsFromCache(ref)
@@ -1384,6 +1418,16 @@ export async function saveGamesToSubcollection(dynastyId, games, options = {}) {
     // Save games (skip if empty)
     if (gamesToSave.length === 0) return
 
+    // Surface duplicate ids — see the matching check in
+    // savePlayersToSubcollection (same silent last-wins collapse).
+    {
+      const idCount = gamesToSave.filter(g => g && g.id).length
+      const uniqueIds = new Set(gamesToSave.filter(g => g && g.id).map(g => String(g.id)))
+      if (uniqueIds.size < idCount) {
+        console.warn(`[saveGamesToSubcollection] ${idCount - uniqueIds.size} duplicate game id(s) in save array — collapsed to one doc each (last entry wins)`)
+      }
+    }
+
     // Process in batches of BATCH_SIZE
     for (let i = 0; i < gamesToSave.length; i += BATCH_SIZE) {
       const batch = writeBatch(db)
@@ -1505,8 +1549,13 @@ export async function deleteWeekRecapFromSubcollection(dynastyId, year, week) {
  * expect. Cache-first like other subcollection reads.
  */
 export async function getWeekRecapsSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, WEEK_RECAPS_SUBCOLLECTION)
+  // serverFirst — see comment in getPlayersSubcollection.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(ref)
+    return buildRecapsMap(snap.docs)
+  }
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {
@@ -1602,8 +1651,13 @@ function buildSocialFeedMap(docs) {
 }
 
 export async function getSocialFeedSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_FEED_SUBCOLLECTION)
+  // serverFirst — see comment in getPlayersSubcollection.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(ref)
+    return buildSocialFeedMap(snap.docs)
+  }
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {
@@ -1704,8 +1758,13 @@ function mergeSocialCharacterDocs(docs) {
 }
 
 export async function getSocialCharactersSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, SOCIAL_CHARACTERS_SUBCOLLECTION)
+  // serverFirst — see comment in getPlayersSubcollection.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(ref)
+    return mergeSocialCharacterDocs(snap.docs)
+  }
   try {
     const cached = await getDocsFromCache(ref)
     if (!cached.empty) {

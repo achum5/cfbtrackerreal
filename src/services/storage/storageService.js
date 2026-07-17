@@ -14,11 +14,15 @@
  * - Provides migration between local and cloud
  */
 
+import { waitForPendingWrites } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { indexedDBStorage } from './indexedDBStorage';
 import { firebaseStorage } from './firebaseStorage';
 import {
   createDynasty as createDynastyInFirestore,
   updateDynasty as updateDynastyInFirestore,
+  getPlayersSubcollection,
+  getGamesSubcollection,
   savePlayersToSubcollection,
   saveGamesToSubcollection,
   saveWeekRecapToSubcollection,
@@ -549,18 +553,43 @@ export const storageService = {
       // Aggregate count is billed as one read each, so this is negligible for a
       // one-time migration.
       const verifyMismatch = [];
+      // The seasons / weekRecaps / socialFeed writers commit to the SDK's
+      // local cache and (unlike players/games/recruits) don't individually
+      // await server acknowledgment. Force a full server sync here so
+      // "everything uploaded" means uploaded to the SERVER, not queued in a
+      // cache that dies with the tab. Timeout-raced so a dead connection
+      // surfaces as a kept-local failure instead of hanging forever.
       try {
-        if (players && players.length > 0) {
+        await Promise.race([
+          waitForPendingWrites(db),
+          new Promise((_, reject) => setTimeout(
+            () => reject(new Error('Timed out waiting for uploads to reach the server')), 60000)),
+        ]);
+      } catch (syncErr) {
+        console.error('[Storage] Migration server-sync wait failed:', syncErr);
+        verifyMismatch.push('server sync not confirmed');
+      }
+      // Compare server counts against the number of docs the save functions
+      // actually WRITE — they skip entries with a missing pid/id and collapse
+      // duplicates onto one doc — not the raw array length, or a single
+      // pid-less legacy player would fail verification forever.
+      const uniqueKeyCount = (arr, keyField) =>
+        new Set((arr || []).filter(x => x && x[keyField]).map(x => String(x[keyField]))).size;
+      try {
+        const expectedPlayers = uniqueKeyCount(players, 'pid');
+        if (expectedPlayers > 0) {
           const n = await getSubcollectionServerCount(cloudDynastyId, 'players');
-          if (n < players.length) verifyMismatch.push(`roster (${n}/${players.length} uploaded)`);
+          if (n < expectedPlayers) verifyMismatch.push(`roster (${n}/${expectedPlayers} uploaded)`);
         }
-        if (games && games.length > 0) {
+        const expectedGames = uniqueKeyCount(games, 'id');
+        if (expectedGames > 0) {
           const n = await getSubcollectionServerCount(cloudDynastyId, 'games');
-          if (n < games.length) verifyMismatch.push(`games (${n}/${games.length} uploaded)`);
+          if (n < expectedGames) verifyMismatch.push(`games (${n}/${expectedGames} uploaded)`);
         }
-        if (recruitingDatabasePlayers && recruitingDatabasePlayers.length > 0) {
+        const expectedRecruits = uniqueKeyCount(recruitingDatabasePlayers, 'pid');
+        if (expectedRecruits > 0) {
           const n = await getSubcollectionServerCount(cloudDynastyId, 'recruitingDatabase');
-          if (n < recruitingDatabasePlayers.length) verifyMismatch.push(`recruiting database (${n}/${recruitingDatabasePlayers.length} uploaded)`);
+          if (n < expectedRecruits) verifyMismatch.push(`recruiting database (${n}/${expectedRecruits} uploaded)`);
         }
       } catch (verifyErr) {
         // If we can't even read the counts back, do NOT delete local — err
@@ -847,24 +876,33 @@ export const storageService = {
       let socialFeedByYear = {};
       let socialCharacters = {};
       try {
-        players = (await firebaseStorage.getPlayers(dynastyId)) || [];
-        games = (await firebaseStorage.getGames(dynastyId)) || [];
+        // serverFirst on EVERY read: this is a destructive one-shot (when
+        // deleteFromCloud, the cloud main doc is deleted after the pull), so
+        // it must copy SERVER truth. The default cache-first getters can
+        // return a stale snapshot from this device's SDK cache — migrating
+        // that and deleting cloud would silently discard every edit made on
+        // another device since this one last synced. serverFirst also THROWS
+        // on failure (unlike the firebaseStorage wrappers, which swallow
+        // errors into an empty array that would migrate as "no players"), so
+        // any read problem aborts the migration before anything is deleted.
+        players = (await getPlayersSubcollection(dynastyId, { serverFirst: true })) || [];
+        games = (await getGamesSubcollection(dynastyId, { serverFirst: true })) || [];
         // Recruiting Database recruits live in their own subcollection too
         // (see migrateRecruitingDatabaseToSubcollection) — fall back to
         // whatever's still on the main doc for a dynasty that hasn't been
         // opened yet since that migration shipped.
-        recruitingDatabasePlayers = (await getRecruitingDatabaseSubcollection(dynastyId)) || [];
+        recruitingDatabasePlayers = (await getRecruitingDatabaseSubcollection(dynastyId, { serverFirst: true })) || [];
         if (recruitingDatabasePlayers.length === 0 && dynasty.recruitingDatabasePlayers?.length > 0) {
           recruitingDatabasePlayers = dynasty.recruitingDatabasePlayers;
         }
         // Seasons subcollection rehydrates back into the legacy ByYear /
         // ByTeamYear field names (recruitsByTeamYear, schedulesByTeamYear,
         // awardsByYear, etc.) — spread straight onto the local dynasty.
-        seasonalFields = (await getSeasonsSubcollection(dynastyId)) || {};
-        weekRecapsByYear = (await getWeekRecapsSubcollection(dynastyId)) || {};
-        socialFeedByYear = (await getSocialFeedSubcollection(dynastyId)) || {};
-        socialCharacters = (await getSocialCharactersSubcollection(dynastyId)) || {};
-        log(`Pulled ${players.length} players + ${games.length} games + ${recruitingDatabasePlayers.length} Recruiting Database recruits + ${Object.keys(seasonalFields).length} seasonal fields from cloud subcollections for ${dynastyId}`);
+        seasonalFields = (await getSeasonsSubcollection(dynastyId, { serverFirst: true })) || {};
+        weekRecapsByYear = (await getWeekRecapsSubcollection(dynastyId, { serverFirst: true })) || {};
+        socialFeedByYear = (await getSocialFeedSubcollection(dynastyId, { serverFirst: true })) || {};
+        socialCharacters = (await getSocialCharactersSubcollection(dynastyId, { serverFirst: true })) || {};
+        log(`Pulled ${players.length} players + ${games.length} games + ${recruitingDatabasePlayers.length} Recruiting Database recruits + ${Object.keys(seasonalFields).length} seasonal fields from cloud subcollections (server-verified) for ${dynastyId}`);
       } catch (subErr) {
         console.error('[Storage] Failed to fetch subcollections during migrate-to-local:', subErr);
         return {
@@ -878,7 +916,7 @@ export const storageService = {
       // ceiling to dodge there. Seasonal fields are spread first so that any
       // same-named legacy field still on the main doc is superseded by the
       // authoritative subcollection value (subcollection wins on overlap).
-      const localDynasty = await indexedDBStorage.createDynasty({
+      const localPayload = {
         ...dynasty,
         ...seasonalFields,
         players,
@@ -890,7 +928,18 @@ export const storageService = {
         socialCharacters: { ...(dynasty.socialCharacters || {}), ...socialCharacters },
         storageType: STORAGE_TYPE.LOCAL,
         _subcollectionsMigrated: undefined, // local format doesn't use this flag
-      });
+      };
+      // UPSERT, not blind create: the local copy keeps the cloud id, and
+      // createDynasty just pushes onto the list with no id dedupe. A retried
+      // downgrade auto-export (partial failure → pendingDowngrade re-runs the
+      // whole loop next session) or a repeat manual switch would otherwise
+      // create a SECOND local record with the same id — after which every
+      // id-keyed read/update/delete silently operates on whichever copy
+      // happens to be first, leaving the other as a stale ghost.
+      const existingLocal = await indexedDBStorage.getDynasty(dynastyId);
+      const localDynasty = existingLocal
+        ? await indexedDBStorage.updateDynasty(dynastyId, localPayload)
+        : await indexedDBStorage.createDynasty(localPayload);
 
       // Only delete cloud copy after local save succeeded AND caller
       // explicitly opted in. NOTE: deleteDynasty currently deletes only

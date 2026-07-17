@@ -76,6 +76,10 @@ export const PER_YEAR_FIELDS = [
   'rankingsHistoryByYear',
   'recruitOverallsByYear',
   'seasonAwardsByYear',
+  // Coaching-carousel results, one entry per season — the same unbounded
+  // per-year growth as everything else here. Was previously unrouted, so it
+  // accumulated on the MAIN doc forever (1 MiB cap risk on old dynasties).
+  'staffMovesByYear',
   'teamStatsByYear',
   'trainingResultsByYear',
   'transferDestinationsByYear',
@@ -136,8 +140,15 @@ export function isSeasonalField(fieldName) {
  * cache warm for the next load.
  */
 export async function getSeasonsSubcollection(dynastyId, options = {}) {
-  const { onFresh = null } = options
+  const { onFresh = null, serverFirst = false } = options
   const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, SEASONS_SUBCOLLECTION)
+  // serverFirst: destructive one-shot flows (cloud→local migration) must read
+  // SERVER truth, never a possibly-stale cache. Throws on failure so the
+  // caller aborts instead of proceeding with partial data.
+  if (serverFirst) {
+    const snap = await getDocsFromServer(ref)
+    return rehydrateSeasonalShapes(snap.docs)
+  }
   let docs
   try {
     const cached = await getDocsFromCache(ref)

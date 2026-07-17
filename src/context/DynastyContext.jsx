@@ -8006,9 +8006,22 @@ export function DynastyProvider({ children }) {
 
       // Combine local and cloud dynasties with deduplication
       // dynastiesToUse is either: cloud dynasties (premium) or converted-to-local dynasties (non-premium)
-      const usedIds = new Set(dynastiesToUse.map(d => d.id))
+      //
+      // Id-collision rule: a local and a cloud copy share an id ONLY after a
+      // cloud→local export that kept the cloud copy (downgrade / beta-lapse
+      // auto-export, deleteFromCloud:false). For a PREMIUM user the cloud copy
+      // is the live one — cloud wins. For a NON-premium user the cloud copy is
+      // read-only; letting it shadow the freshly-exported LOCAL copy would
+      // defeat the entire point of the export (the user's editable copy
+      // becomes invisible). So on collision: premium → cloud wins, free →
+      // local wins.
+      const localIds = new Set(freshLocalDynasties.map(d => String(d.id)))
+      const cloudToUse = isPremium
+        ? dynastiesToUse
+        : dynastiesToUse.filter(d => !localIds.has(String(d.id)))
+      const usedIds = new Set(cloudToUse.map(d => d.id))
       const uniqueLocalDynasties = freshLocalDynasties.filter(d => !usedIds.has(d.id))
-      const allDynasties = [...uniqueLocalDynasties, ...dynastiesToUse]
+      const allDynasties = [...uniqueLocalDynasties, ...cloudToUse]
 
       // Apply all migrations
       const migratedDynasties = applyMigrations(allDynasties)
@@ -9146,8 +9159,21 @@ export function DynastyProvider({ children }) {
             }
           }
           if (!diffApplied) {
+            // forceOverwrite disables BOTH wipe guards inside
+            // savePlayersToSubcollection (the empty-array skip and the >50%
+            // mass-deletion refusal). If the in-memory roster is empty or was
+            // never fully hydrated this session (subcollection load failed →
+            // fell back to the bare main doc), a forced save would delete
+            // every player doc on the server with no recoverable source.
+            // Demote to a guarded save in that case — legit repairs always
+            // run against a hydrated, non-empty roster.
+            const forcedUnsafe = forceOverwrite
+              && (normalizedPlayers.length === 0 || !loadedDynastyIdsRef.current.has(dynastyId))
+            if (forcedUnsafe) {
+              console.error('[updateDynasty] Refusing forced roster overwrite: in-memory roster is empty or not fully hydrated — saving with safety guards instead')
+            }
             subcollectionPromises.push(
-              savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite })
+              savePlayersToSubcollection(dynastyId, normalizedPlayers, { deleteOrphans: true, forceOverwrite: forceOverwrite && !forcedUnsafe })
             )
           }
         }
@@ -17573,6 +17599,12 @@ export function DynastyProvider({ children }) {
       const result = await createDynastyInFirestore(user.uid, mainDocData)
       reportProgress('creating', 'Dynasty record created', 20)
 
+      // Track every non-fatal stage failure so the completion message can be
+      // honest. Previously recaps / social / recruiting DB failures were
+      // console.warn'd and the user still saw "Import complete!" — a silently
+      // incomplete cloud copy with no hint anything was missing.
+      const importFailedParts = []
+
       // Stage 2b: Fan seasonal fields out into the seasons subcollection.
       // splitSeasonalUpdateByYear turns { allAmericansByYear: { 2027: [...] } }
       // into { 2027: { allAmericans: [...] } }, then writeSeasonalUpdate
@@ -17582,7 +17614,12 @@ export function DynastyProvider({ children }) {
         reportProgress('seasonal', 'Importing seasonal data...', 22)
         const byYear = splitSeasonalUpdateByYear(seasonalForSplit)
         if (Object.keys(byYear).length > 0) {
-          await writeSeasonalUpdate(result.id, byYear)
+          try {
+            await writeSeasonalUpdate(result.id, byYear)
+          } catch (err) {
+            console.error('[import] seasonal data save failed:', err?.message)
+            importFailedParts.push('schedules & season data')
+          }
         }
       }
 
@@ -17602,10 +17639,12 @@ export function DynastyProvider({ children }) {
         }
         if (recapEntries.length > 0) {
           reportProgress('recaps', `Importing ${recapEntries.length} week recap${recapEntries.length === 1 ? '' : 's'}...`, 23)
+          let recapFailures = 0
           for (const { yearN, weekN, entry } of recapEntries) {
             try { await saveWeekRecapToSubcollection(result.id, yearN, weekN, entry) }
-            catch (err) { console.warn('[import] week recap save failed:', yearN, weekN, err?.message) }
+            catch (err) { recapFailures++; console.warn('[import] week recap save failed:', yearN, weekN, err?.message) }
           }
+          if (recapFailures > 0) importFailedParts.push(`week recaps (${recapFailures} failed)`)
         }
       }
 
@@ -17615,6 +17654,7 @@ export function DynastyProvider({ children }) {
       // This is what keeps a multi-MB social universe off the main doc.
       if (socialFeedByYear && typeof socialFeedByYear === 'object') {
         let feedWeeks = 0
+        let feedFailures = 0
         for (const [yearStr, byWeek] of Object.entries(socialFeedByYear)) {
           if (!byWeek || typeof byWeek !== 'object') continue
           for (const [weekStr, posts] of Object.entries(byWeek)) {
@@ -17622,9 +17662,10 @@ export function DynastyProvider({ children }) {
             const yearN = Number(yearStr); const weekN = Number(weekStr)
             if (!Number.isFinite(yearN) || !Number.isFinite(weekN)) continue
             try { await saveSocialFeedToSubcollection(result.id, yearN, weekN, posts); feedWeeks++ }
-            catch (err) { console.warn('[import] social feed save failed:', yearN, weekN, err?.message) }
+            catch (err) { feedFailures++; console.warn('[import] social feed save failed:', yearN, weekN, err?.message) }
           }
         }
+        if (feedFailures > 0) importFailedParts.push(`social feed (${feedFailures} week${feedFailures === 1 ? '' : 's'} failed)`)
         if (feedWeeks > 0) reportProgress('social', `Importing ${feedWeeks} social feed week${feedWeeks === 1 ? '' : 's'}...`, 24)
       }
 
@@ -17636,6 +17677,7 @@ export function DynastyProvider({ children }) {
           reportProgress('social', `Importing ${Object.keys(socialCharacters).length} social character${Object.keys(socialCharacters).length === 1 ? '' : 's'}...`, 24)
         } catch (err) {
           console.warn('[import] social characters save failed:', err?.message)
+          importFailedParts.push('social characters')
         }
       }
 
@@ -17651,6 +17693,7 @@ export function DynastyProvider({ children }) {
           await saveRecruitingDatabaseSubcollection(result.id, recruitingDatabasePlayers)
         } catch (err) {
           console.warn('[import] recruiting database save failed:', err?.message)
+          importFailedParts.push('recruiting database')
         }
       }
 
@@ -17702,7 +17745,14 @@ export function DynastyProvider({ children }) {
 
       // For local state, include players and games
       cleanDynastyData._subcollectionsMigrated = true
-      reportProgress('complete', 'Import complete!', 100)
+      if (importFailedParts.length > 0) {
+        // Honest completion: the dynasty imported, but these parts did not
+        // land in the cloud. The source file is untouched, so re-importing
+        // (or Re-sync to Cloud in Account) can fill the gaps.
+        reportProgress('complete', `Imported with issues — these did not upload: ${importFailedParts.join(', ')}. Your file is unchanged; re-import or use Re-sync to Cloud to finish.`, 100)
+      } else {
+        reportProgress('complete', 'Import complete!', 100)
+      }
     }
 
     return cleanDynastyData
@@ -18613,7 +18663,12 @@ export function DynastyProvider({ children }) {
         // local doc FIRST so the migration reads a complete record.
         try {
           const live = String(currentDynasty?.id) === String(dynastyId) ? currentDynasty : dynasty
-          const livePlayers = await getDynastyPlayers(live)
+          // Read React state DIRECTLY — getDynastyPlayers re-reads IndexedDB
+          // for local dynasties (disk wins), which made this flush a no-op for
+          // exactly the case it exists for: in-memory edits fresher than disk.
+          const livePlayers = (Array.isArray(live?.players) && live.players.length > 0)
+            ? live.players
+            : await getDynastyPlayers(live)
           const flush = {}
           if (Array.isArray(livePlayers) && livePlayers.length) flush.players = livePlayers
           if (Array.isArray(live?.recruitingDatabasePlayers) && live.recruitingDatabasePlayers.length) {
@@ -18633,18 +18688,21 @@ export function DynastyProvider({ children }) {
       }
 
       if (result.success) {
-        // Update local state with new storageType
-        const updatedDynasties = dynasties.map(d =>
+        // Functional setter: the Firestore listener can fire during the long
+        // awaited upload above — a closure-captured `dynasties` here would
+        // overwrite whatever it changed with a stale array.
+        setDynasties(prev => prev.map(d =>
           String(d.id) === String(dynastyId) || String(d.id) === String(result.dynasty?.id)
             ? { ...d, ...result.dynasty, storageType: targetStorageType }
             : d
-        )
-        setDynasties(updatedDynasties)
+        ))
 
         // Update currentDynasty if it's the one being migrated
-        if (String(currentDynasty?.id) === String(dynastyId)) {
-          setCurrentDynasty({ ...currentDynasty, ...result.dynasty, storageType: targetStorageType })
-        }
+        setCurrentDynasty(prev =>
+          (prev && String(prev.id) === String(dynastyId))
+            ? { ...prev, ...result.dynasty, storageType: targetStorageType }
+            : prev
+        )
       }
 
       return result
