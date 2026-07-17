@@ -1342,8 +1342,14 @@ function hasUnresolvedDeparture(player, homeTid, previousSeasonYear, dynasty, op
     if (!m) continue
     const y = Number(m.year)
     if (!Number.isFinite(y)) continue
+    // NOTE: bare 'transfer' is deliberately NOT a departure — everywhere else
+    // in the system (legacyMovementToCanonical, the previousSeasonYear check
+    // above, the arrival set below) treats it as an ARRIVAL (transfer_in).
+    // Listing it here made a transfer-IN look like a departure it could never
+    // clear (its own arrival year isn't > itself), silently dropping the
+    // player on the year flip.
     const isDep =
-      m.type === 'departure' || m.type === 'entered_portal' || m.type === 'transfer' ||
+      m.type === 'departure' || m.type === 'entered_portal' ||
       m.type === 'transferred_out' || m.type === 'graduated' ||
       m.type === 'declared_for_draft' || m.type === 'encouraged_to_transfer'
     if (isDep && (earliestDeparture == null || y < earliestDeparture)) {
@@ -13110,7 +13116,11 @@ export function DynastyProvider({ children }) {
 
           // Not graduating - advance their class
           const otherTeamClass = priorClass || player.year
-          const newOtherClass = CLASS_PROGRESSION[otherTeamClass] || otherTeamClass
+          // Defensive: if a CPU player has neither classByYear nor player.year,
+          // otherTeamClass is undefined and this would write year/classByYear
+          // as undefined. Keep whatever class already exists rather than
+          // stamping an undefined over it.
+          const newOtherClass = CLASS_PROGRESSION[otherTeamClass] || otherTeamClass || player.year || null
 
           // Get their current team tid from teamsByYear
           let otherTeamTid = player.teamsByYear?.[previousSeasonYear] ||
