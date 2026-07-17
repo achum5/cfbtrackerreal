@@ -16548,6 +16548,100 @@ export function DynastyProvider({ children }) {
     })
   }
 
+  // Recover recruit data (the Recruiting Database + committed recruits) from
+  // ANOTHER of the user's saves into `targetId`. Built for users whose
+  // recruits went missing from a cloud save after a storage round-trip: point
+  // it at a save that still has them (usually a local backup) and it copies
+  // them in. ADDITIVE ONLY — it unions the source's recruits into the target,
+  // never overwriting or deleting anything the target already has, so it can't
+  // make things worse. Reads the source straight from storage (subcollections
+  // for cloud, IndexedDB for local) so it works even for a source not opened
+  // this session.
+  const recoverRecruitData = async (sourceId, targetId) => {
+    if (blockIfReadOnly(targetId, 'recover recruits')) return { success: false, error: 'This dynasty is read-only.' }
+    if (String(sourceId) === String(targetId)) return { success: false, error: 'Pick a different source save.' }
+
+    const findAny = (id) =>
+      dynasties.find(d => String(d.id) === String(id)) ||
+      (String(currentDynasty?.id) === String(id) ? currentDynasty : null)
+    const source = findAny(sourceId)
+    const target = findAny(targetId)
+    if (!source) return { success: false, error: 'Source save not found.' }
+    if (!target) return { success: false, error: 'Target dynasty not found.' }
+
+    // ── Read recruit data from the source ────────────────────────────────
+    let srcDb = []
+    let srcRecruits = {}, srcCommitments = {}, srcClassRank = {}
+    try {
+      if (source.storageType === 'cloud') {
+        srcDb = (await getRecruitingDatabaseSubcollection(sourceId)) || []
+        if (srcDb.length === 0 && Array.isArray(source.recruitingDatabasePlayers)) srcDb = source.recruitingDatabasePlayers
+        const seasonal = (await getSeasonsSubcollection(sourceId)) || {}
+        srcRecruits = seasonal.recruitsByTeamYear || source.recruitsByTeamYear || {}
+        srcCommitments = seasonal.recruitingCommitmentsByTeamYear || source.recruitingCommitmentsByTeamYear || {}
+        srcClassRank = seasonal.recruitingClassRankByTeamYear || source.recruitingClassRankByTeamYear || {}
+      } else {
+        const fresh = (await indexedDBStorage.getDynasty(sourceId)) || source
+        srcDb = Array.isArray(fresh.recruitingDatabasePlayers) ? fresh.recruitingDatabasePlayers : []
+        srcRecruits = fresh.recruitsByTeamYear || {}
+        srcCommitments = fresh.recruitingCommitmentsByTeamYear || {}
+        srcClassRank = fresh.recruitingClassRankByTeamYear || {}
+      }
+    } catch (err) {
+      console.error('[recoverRecruitData] read failed:', err)
+      return { success: false, error: 'Could not read recruits from the source save.' }
+    }
+
+    // Deep union of a per-team → per-year map (target wins on overlap so we
+    // never overwrite existing target data — purely fills gaps).
+    const unionByTeamYear = (targetMap, srcMap) => {
+      const out = {}
+      for (const [teamKey, years] of Object.entries(targetMap || {})) out[teamKey] = { ...(years || {}) }
+      for (const [teamKey, years] of Object.entries(srcMap || {})) {
+        out[teamKey] = out[teamKey] || {}
+        for (const [y, v] of Object.entries(years || {})) {
+          if (out[teamKey][y] === undefined) out[teamKey][y] = v
+        }
+      }
+      return out
+    }
+    const countTeamYear = (m) => Object.values(m || {}).reduce((n, t) => n + Object.keys(t || {}).length, 0)
+
+    const srcCommittedCount = countTeamYear(srcRecruits) + countTeamYear(srcCommitments)
+    if (srcDb.length === 0 && srcCommittedCount === 0) {
+      return { success: false, error: 'The selected source save has no recruit data to copy.' }
+    }
+
+    // ── Write into the target (additive) ─────────────────────────────────
+    try {
+      // Recruiting Database: union by pid, keeping the target's copy on a
+      // pid clash so existing scouted data isn't clobbered.
+      if (srcDb.length > 0) {
+        const existingDb = Array.isArray(target.recruitingDatabasePlayers) ? target.recruitingDatabasePlayers : []
+        const byPid = new Map()
+        for (const r of srcDb) if (r && r.pid != null) byPid.set(String(r.pid), r)
+        for (const r of existingDb) if (r && r.pid != null) byPid.set(String(r.pid), r) // target wins
+        await updateRecruitingDatabasePlayers(targetId, [...byPid.values()])
+      }
+
+      const seasonalUpdate = {}
+      const mergedRecruits = unionByTeamYear(target.recruitsByTeamYear, srcRecruits)
+      const mergedCommit = unionByTeamYear(target.recruitingCommitmentsByTeamYear, srcCommitments)
+      const mergedClassRank = unionByTeamYear(target.recruitingClassRankByTeamYear, srcClassRank)
+      if (countTeamYear(mergedRecruits)) seasonalUpdate.recruitsByTeamYear = mergedRecruits
+      if (countTeamYear(mergedCommit)) seasonalUpdate.recruitingCommitmentsByTeamYear = mergedCommit
+      if (countTeamYear(mergedClassRank)) seasonalUpdate.recruitingClassRankByTeamYear = mergedClassRank
+      if (Object.keys(seasonalUpdate).length) {
+        await updateDynasty(targetId, seasonalUpdate)
+      }
+    } catch (err) {
+      console.error('[recoverRecruitData] write failed:', err)
+      return { success: false, error: 'Failed while writing recruits into this dynasty.' }
+    }
+
+    return { success: true, dbCount: srcDb.length, committedCount: srcCommittedCount }
+  }
+
   // Delete a player from the dynasty
   // Adds a 'removed' movement to track the deletion before removing
   const deletePlayer = async (dynastyId, playerPid) => {
@@ -18871,6 +18965,7 @@ export function DynastyProvider({ children }) {
     saveStaffMoves,
     updatePlayer,
     updateRecruitingDatabasePlayers,
+    recoverRecruitData,
     deletePlayer,
     getDynastyPlayers,
     syncAllPlayersStats,
