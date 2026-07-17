@@ -295,15 +295,32 @@ export default function Account() {
             unified into one card. */}
         <Card>
           <h2 className="label-sm text-txt-primary mb-3 text-center">Cloud Saves</h2>
-          <p className="text-sm text-txt-primary text-center font-semibold mb-2">
-            Everything on the site is completely free, forever.
-          </p>
-          <p className="text-sm text-txt-secondary text-center">
-            The only paid add-on is <span className="text-txt-primary font-medium">cloud saves</span>: sync your
-            dynasties live across all your devices, with automatic backups, instead of storing them only on this
-            device. It&apos;s free during beta; eventually it&apos;ll be about $1-2/month, just enough to cover server
-            costs (I&apos;m not looking to profit).
-          </p>
+          {isPremium && !subscription?._devGranted ? (
+            /* Paying subscriber */
+            <p className="text-sm text-txt-secondary text-center">
+              Thanks for supporting the app! Your <span className="text-txt-primary font-medium">cloud saves</span> keep
+              your dynasties synced live across all your devices, with automatic backups. Everything else on the site is
+              free, forever.
+            </p>
+          ) : subscription?._devGranted ? (
+            /* Comped / free-access account */
+            <p className="text-sm text-txt-secondary text-center">
+              Everything on the site is free, forever. Your <span className="text-txt-primary font-medium">cloud saves</span> —
+              live sync across devices with automatic backups — are enabled at no charge.
+            </p>
+          ) : (
+            /* Free tier — the pitch */
+            <>
+              <p className="text-sm text-txt-primary text-center font-semibold mb-2">
+                Everything on the site is free, forever.
+              </p>
+              <p className="text-sm text-txt-secondary text-center">
+                The only paid add-on is <span className="text-txt-primary font-medium">cloud saves</span>: sync your
+                dynasties live across all your devices, with automatic backups, instead of storing them only on this
+                device — {PREMIUM_PRICE_PER_MO}, just enough to cover server costs (I&apos;m not looking to profit).
+              </p>
+            </>
+          )}
 
           {isPremium ? (
             <div className="mt-4 p-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--surface-3)' }}>
@@ -319,7 +336,7 @@ export default function Account() {
                 <div className="space-y-1 text-txt-secondary">
                   <div className="flex justify-between">
                     <span>Status</span>
-                    <span className="font-medium" style={{ color: 'var(--accent-success)' }}>Enabled, free (beta)</span>
+                    <span className="font-medium" style={{ color: 'var(--accent-success)' }}>Enabled, free</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Expires</span>
