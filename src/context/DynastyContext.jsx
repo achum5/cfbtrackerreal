@@ -15578,30 +15578,41 @@ export function DynastyProvider({ children }) {
       // For existing players, START with existing data and only update SPECIFIC editable fields from sheet
       // This prevents accidentally overwriting critical metadata with undefined values
       if (existingPlayer) {
-        // CRITICAL: Set teamsByYear[year] = tid to record this player was on this team this year
-        // This is the IMMUTABLE record that determines roster membership for past seasons.
-        // Skip adding the year if player has a departure movement before this year.
-        // After v2 migration, movements[] is stripped on save, so we MUST also
-        // check movementByYear or every post-migration departure is invisible
-        // here — which would re-stamp departed players back onto the roster.
-        const v2DepartureTypes = new Set(['departure', 'transfer', 'entered_portal', 'transferred_out', 'graduated', 'declared_for_draft', 'encouraged_to_transfer'])
-        const v2DepartureShapes = new Set(['transfer_out', 'graduated', 'pro_draft'])
-        const hasDepartedBeforeThisYearLegacy = (existingPlayer.movements || []).some(m =>
-          (m.type === 'departure' || m.type === 'transfer') && m.year && Number(m.year) < Number(year)
-        )
-        const hasDepartedBeforeThisYearV2 = Object.entries(existingPlayer.movementByYear || {}).some(([yStr, m]) => {
-          const yNum = Number(yStr)
-          if (!Number.isFinite(yNum) || yNum >= Number(year)) return false
-          return m && (v2DepartureTypes.has(m.type) || v2DepartureShapes.has(m.departure))
-        })
-        const shouldAddToTeamsByYear = !(hasDepartedBeforeThisYearLegacy || hasDepartedBeforeThisYearV2)
+        // Set teamsByYear[year] = tid to record this player was on this team
+        // this year — the IMMUTABLE record that drives roster membership.
+        //
+        // The user is entering THIS roster for `year`, so a player listed here
+        // is one they're asserting is on the team this season. We therefore
+        // ALWAYS write teamsByYear[year], even if the player carries a stale
+        // prior-year departure marker. (Previously any departure in a year <
+        // `year` made this skip the write, so a player who was marked as
+        // leaving last season — correctly or by a carryover glitch — could
+        // never be re-added to a later season's roster. That's the exact
+        // "second season… won't let me add a player that's missing from my
+        // roster" bug. All three saveRoster callers are manual roster entry,
+        // so honoring the explicit entry is always correct here.)
+        const updatedTeamsByYear = {
+          ...(existingPlayer.teamsByYear || {}),
+          [year]: teamsByYearValue
+        }
 
-        const updatedTeamsByYear = shouldAddToTeamsByYear
-          ? {
-              ...(existingPlayer.teamsByYear || {}),
-              [year]: teamsByYearValue
-            }
-          : existingPlayer.teamsByYear || {}
+        // Drop now-contradicted departure markers from BEFORE this season so
+        // the Career Timeline is consistent, the season-advance carryover
+        // (hasUnresolvedDeparture) doesn't re-strip them next year, and a
+        // future roster re-save doesn't hide them again. Only departure-type
+        // entries for years < `year` are cleared; arrivals and this/later-year
+        // events are untouched. (Legacy movements[] gets stripped on save by
+        // syncDerivedFieldsFromV2, so movementByYear is the source of truth.)
+        const departureTypesToClear = new Set(['departure', 'transfer', 'entered_portal', 'transferred_out', 'graduated', 'declared_for_draft', 'encouraged_to_transfer'])
+        const departureShapesToClear = new Set(['transfer_out', 'graduated', 'pro_draft'])
+        const cleanedMovementByYear = { ...(existingPlayer.movementByYear || {}) }
+        for (const [yStr, m] of Object.entries(cleanedMovementByYear)) {
+          const yNum = Number(yStr)
+          if (!Number.isFinite(yNum) || yNum >= Number(year)) continue
+          if (m && (departureTypesToClear.has(m.type) || departureShapesToClear.has(m.departure))) {
+            delete cleanedMovementByYear[yStr]
+          }
+        }
 
         // Track player class for this season
         const playerClass = player.year || existingPlayer.year
@@ -15656,6 +15667,9 @@ export function DynastyProvider({ children }) {
           team: teamTid,
           // IMMUTABLE roster history - records which team player was on each year
           teamsByYear: updatedTeamsByYear,
+          // Prior-season departure markers cleared (see above) so re-adding a
+          // player to a later roster fully restores them.
+          movementByYear: cleanedMovementByYear,
           // IMMUTABLE class history - records what class player was each year
           classByYear: updatedClassByYear,
           // IMMUTABLE overall history - records what overall player had each year
