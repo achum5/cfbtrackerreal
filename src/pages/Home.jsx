@@ -16,6 +16,7 @@ import BouncingLogos from '../components/BouncingLogos'
 import { Button, Badge, Modal, Input, LoadingState } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { PAYWALL_ENABLED, PREMIUM_PRICE_PER_MO } from '../config/billing'
+import { confirmCheckout } from '../services/subscriptionService'
 import { getEditionConfig, getEditionKey } from '../editions'
 
 // Resolve the tid THIS viewer controls in a dynasty. In a shared/online
@@ -139,6 +140,53 @@ export default function Home() {
   }
   const localDynasties = dynasties.filter(d => d.storageType !== 'cloud')
   const showBackupNudge = !backupNudgeDismissed && localDynasties.length > 0
+
+  // Stripe checkout return (?payment=success|canceled). On success, confirm
+  // the subscription DIRECTLY against Stripe via /api/confirm-checkout and
+  // write premium — webhook-independent, so "paid but no premium" can't
+  // recur even if webhook delivery is broken. The user-doc listener in
+  // AuthContext flips isPremium live once the write lands. Params are
+  // cleared immediately so a refresh doesn't re-run the confirmation.
+  const paymentReturnRanRef = useRef(false)
+  useEffect(() => {
+    const payment = searchParams.get('payment')
+    if (!payment || paymentReturnRanRef.current) return
+    paymentReturnRanRef.current = true
+    const sessionId = searchParams.get('session_id')
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('payment')
+    next.delete('session_id')
+    setSearchParams(next, { replace: true })
+
+    if (payment === 'canceled') {
+      toast.info('Checkout canceled — you have not been charged.')
+      return
+    }
+    if (payment !== 'success') return
+
+    // The subscription can lag the redirect by a moment — retry briefly on
+    // "pending" before asking the user to check back.
+    const confirm = async (attempt = 0) => {
+      try {
+        const result = await confirmCheckout(sessionId)
+        if (result?.pending && attempt < 5) {
+          setTimeout(() => confirm(attempt + 1), 2000)
+          return
+        }
+        if (result?.ok) {
+          toast.success('Premium is active — cloud saves are enabled.')
+        } else {
+          toast.info('Payment received. If premium does not appear within a minute, reload the page.')
+        }
+      } catch (error) {
+        console.error('Checkout confirmation failed:', error)
+        toast.error('Payment went through but confirmation failed — reload the page, or contact support if premium is still missing.')
+      }
+    }
+    confirm()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const sortedDynasties = [...dynasties].sort((a, b) => {
     const aTime = a.lastModified || 0

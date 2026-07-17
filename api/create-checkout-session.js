@@ -33,6 +33,21 @@ async function getOrCreateCustomerId(userId, userEmail) {
   return customer.id;
 }
 
+// Statuses that mean "this customer is already paying (or in dunning)" —
+// creating ANOTHER checkout for them would double-charge. This is exactly
+// what happened during beta: a user whose webhook-driven premium never
+// applied kept re-running checkout and was charged three times for three
+// parallel subscriptions.
+const ALREADY_SUBSCRIBED_STATUSES = new Set(['active', 'trialing', 'past_due']);
+
+// current_period_end moved onto subscription items in recent Stripe API
+// versions (basil/clover + stripe SDK v20). Read top-level, fall back to
+// the first item. Mirrors subPeriodEndUnix in webhook.js.
+const subPeriodEnd = (sub) => {
+  const unix = sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null;
+  return unix ? new Date(unix * 1000) : null;
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -48,6 +63,37 @@ export default async function handler(req, res) {
 
   try {
     const customerId = await getOrCreateCustomerId(userId, userEmail);
+
+    // Double-charge guard + self-heal: if this customer ALREADY has a live
+    // subscription, do not open another checkout. Instead sync the
+    // subscription's state onto the user doc (the same fields the webhook
+    // writes) and tell the client — so an account whose payment went
+    // through but whose premium never applied gets FIXED here rather than
+    // charged again.
+    const existingSubs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 20,
+    });
+    const liveSub = existingSubs.data
+      .filter((s) => ALREADY_SUBSCRIBED_STATUSES.has(s.status))
+      .sort((a, b) => b.created - a.created)[0] || null;
+
+    if (liveSub) {
+      await db.collection('users').doc(userId).set({
+        tier: 'premium',
+        stripeCustomerId: customerId,
+        subscriptionId: liveSub.id,
+        subscriptionStatus: liveSub.status,
+        currentPeriodEnd: subPeriodEnd(liveSub),
+        cancelAtPeriodEnd: liveSub.cancel_at_period_end || false,
+        cancelAt: liveSub.cancel_at ? new Date(liveSub.cancel_at * 1000) : null,
+        pendingDowngrade: false,
+        updatedAt: new Date(),
+      }, { merge: true });
+      console.log(`[checkout] user ${userId} already subscribed (${liveSub.id}, ${liveSub.status}) — synced, no new checkout`);
+      return res.status(200).json({ alreadySubscribed: true });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -73,9 +119,12 @@ export default async function handler(req, res) {
           firebaseUserId: userId,
         },
       },
-      // Pass the uid through to the success URL so the client can poll for
-      // the webhook-applied premium status on return.
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://dynastytracker.app'}/?payment=success`,
+      // {CHECKOUT_SESSION_ID} is filled in by Stripe. The client passes it
+      // to /api/confirm-checkout on return, which applies premium directly
+      // from Stripe's subscription state — so activation does NOT depend on
+      // webhook delivery (the beta failure mode: users paid, the webhook
+      // never landed, premium never applied).
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://dynastytracker.app'}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://dynastytracker.app'}/?payment=canceled`,
     });
 

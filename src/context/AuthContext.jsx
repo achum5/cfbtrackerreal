@@ -16,6 +16,7 @@ import {
   deleteAccount as svcDeleteAccount
 } from '../services/subscriptionService'
 import { registerTokenRefresher } from '../services/sheetsService'
+import { PAYWALL_ENABLED } from '../config/billing'
 
 // The single Google account permitted to use the in-app dev/admin panel.
 // Server enforces this same allowlist on /api/admin/* endpoints — this
@@ -364,20 +365,22 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Upgrade to premium. The Stripe checkout flow is DISABLED app-wide
-  // (billing.PAYWALL_ENABLED === false) because it was charging users
-  // without granting access. This is the single chokepoint every "upgrade"
-  // caller funnels through, so we hard-route any upgrade intent to the
-  // Account page (free beta access / self-grant lives there) and NEVER
-  // send anyone to Stripe checkout. Guarantees no UI path can trigger a
-  // charge, even the ones not gated by PAYWALL_ENABLED.
+  // Upgrade to premium. This is the single chokepoint every "upgrade"
+  // caller funnels through (Account, Home, StorageSwitchModal). The
+  // PAYWALL_ENABLED gate lives HERE, not just in the buttons' render
+  // logic — during beta an ungated StorageSwitchModal button reached
+  // Stripe checkout directly and users were charged while the app was
+  // supposedly free. With the gate at the chokepoint, beta mode routes
+  // every upgrade intent to the Account page and no UI path can charge.
   const upgradeToPremium = async () => {
     if (!user) {
       throw new Error('Must be signed in to upgrade')
     }
-    if (typeof window !== 'undefined') {
-      window.location.assign('/account')
+    if (!PAYWALL_ENABLED) {
+      if (typeof window !== 'undefined') window.location.assign('/account')
+      return
     }
+    await redirectToCheckout()
   }
 
   // Open subscription management portal

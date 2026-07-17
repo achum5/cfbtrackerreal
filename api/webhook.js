@@ -28,6 +28,15 @@ const tierFromStatus = (status) => (PAID_STATUSES.has(status) ? 'premium' : 'fre
 
 const tsFromUnix = (unix) => (unix ? new Date(unix * 1000) : null);
 
+// current_period_end moved off the top-level subscription object and onto
+// each subscription ITEM in recent Stripe API versions (basil/clover, which
+// this account's webhook + the pinned stripe SDK v20 both use). Read the
+// top-level for older payloads and fall back to the first item's value so
+// the user doc always gets a real billing-period end (a null there breaks
+// the past_due grace window and the "next billing" display).
+const subPeriodEndUnix = (sub) =>
+  sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null;
+
 // When a payment fails the subscription goes past_due. We keep write
 // access for a bounded grace window (mirrored by firestore.rules, which
 // now requires past_due to have a future currentPeriodEnd). Without a
@@ -197,7 +206,7 @@ export default async function handler(req, res) {
           stripeCustomerId: customerId,
           subscriptionId,
           subscriptionStatus: subscription.status,
-          currentPeriodEnd: tsFromUnix(subscription.current_period_end),
+          currentPeriodEnd: tsFromUnix(subPeriodEndUnix(subscription)),
           cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
           cancelAt: tsFromUnix(subscription.cancel_at),
           pendingDowngrade: false, // re-subscribed
@@ -253,7 +262,7 @@ export default async function handler(req, res) {
           stripeCustomerId: customerId,
           subscriptionId: subscription.id,
           subscriptionStatus: subscription.status,
-          currentPeriodEnd: tsFromUnix(subscription.current_period_end),
+          currentPeriodEnd: tsFromUnix(subPeriodEndUnix(subscription)),
           cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
           cancelAt: tsFromUnix(subscription.cancel_at),
           // Clear pendingDowngrade if user is back to paid; set it if not.
@@ -355,7 +364,7 @@ export default async function handler(req, res) {
         await userRef.set({
           tier: tierFromStatus(subscription.status),
           subscriptionStatus: subscription.status,
-          currentPeriodEnd: tsFromUnix(subscription.current_period_end),
+          currentPeriodEnd: tsFromUnix(subPeriodEndUnix(subscription)),
           pendingDowngrade: false,
           lastStripeEventCreated: tsFromUnix(event.created),
           updatedAt: FieldValue.serverTimestamp(),

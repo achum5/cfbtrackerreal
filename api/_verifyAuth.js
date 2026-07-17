@@ -36,78 +36,13 @@ export async function verifyAuth(req, res) {
 // request body, so this can't be spoofed.
 export const ADMIN_EMAILS = new Set(['alex.guess1999@gmail.com']);
 
-// Emails permitted to self-grant a free 30-day premium pass. Used while
-// the app is in beta and Stripe checkout is disabled — users email the
-// dev, the dev adds them here, they self-grant from the Account page.
-// Includes ADMIN_EMAILS implicitly (admins can do everything beta can).
-// Keep alphabetised for easy auditing when the list grows.
+// Post-beta: the paid launch is live, so the self-grant allowlist is down
+// to the permanent free accounts (the owner is covered implicitly via
+// ADMIN_EMAILS). Everyone else subscribes through Stripe. Remaining beta
+// 30-day grants keep premium until they lapse on their own.
+// Grants for these emails are LIFETIME (~100y) — see api/admin/grant-premium.js.
 export const BETA_GRANT_EMAILS = new Set([
-  'alabamaprince@gmail.com',
-  'skater1932@gmail.com',
   'zekemuck@gmail.com',
-  'couchcoach16@gmail.com',
-  'paul.540909@gmail.com',
-  'john.prince1529@gmail.com',
-  'd.carasiti@gmail.com',
-  'boisestate2525@gmail.com',
-  'yepeza23@gmail.com',
-  'tylerhorn30@gmail.com',
-  'jpj1226@gmail.com',
-  'bryceth24@gmail.com',
-  'cwilsonsimons@gmail.com',
-  'abohannon1991@gmail.com',
-  'coreyethan114@gmail.com',
-  'jaredforestcmp@gmail.com',
-  'sjmaxham@gmail.com',
-  'superbackpgs@gmail.com',
-  'cwbobek2@gmail.com',
-  'dustydavis1511@gmail.com',
-  'dee.damboise@gmail.com',
-  'mphillips5426@gmail.com',
-  'colton.kemerly@gmail.com',
-  '15ztaylor1@gmail.com',
-  'lewish628@gmail.com',
-  'newtonbailey255@gmail.com',
-  'willley209@gmail.com',
-  'nathanmeyer6604@gmail.com',
-  'gamerguy98um@gmail.com',
-  'mattbosarge@yahoo.com',
-  'caputimichael2@gmail.com',
-  'baatarbold0001@gmail.com',
-  'coyoteartstash@gmail.com',
-  'dmcfadden1998@gmail.com',
-  'jlangrehr@gmail.com',
-  'hankcherry1@gmail.com',
-  'purdue576@gmail.com',
-  'troyc9418@gmail.com',
-  'ayopatterson1233@gmail.com',
-  'smichaud1993@gmail.com',
-  'cnewcome4@gmail.com',
-  'edoggy6699@gmail.com',
-  'dennan.seal@gmail.com',
-  'reprevolt123@gmail.com',
-  'drew.hales90@gmail.com',
-  'joeysayles@gmail.com',
-  'daniels.david02@gmail.com',
-  'senkusgreysen15@gmail.com',
-  'r.skelton2001@gmail.com',
-  'jedmorrow61@gmail.com',
-  'jaycoleyt23@gmail.com',
-  'peytonmaxwell1013@gmail.com',
-  'kane.nick4@gmail.com',
-  'dylan.january@outlook.com',
-  'vicessgaming@gmail.com',
-  'braedoncalhoun6@gmail.com',
-  '2yogiplayz16@gmail.com',
-  'higginbothamleland@gmail.com',
-  'justin1plotnicm@gmail.com',
-  'matthewfrigge23@yahoo.com',
-  'lukeob119@gmail.com',
-  'rdlucas8556@gmail.com',
-  'nicholasdeinken@gmail.com',
-  'dallin.newmaker2000@gmail.com',
-  'jconnormorgan8@gmail.com',
-  'nambrad4@gmail.com',
 ]);
 
 /**

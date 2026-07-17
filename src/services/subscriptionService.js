@@ -135,11 +135,22 @@ const isLocalDev = () =>
 // ─────────────────────────────────────────────────────────────────────
 
 export async function createCheckoutSession() {
-  // Checkout is DISABLED app-wide: the Stripe flow was charging users
-  // without granting access. This is a hard safety net so no code path —
-  // even one that skips the PAYWALL_ENABLED UI gate — can ever open a
-  // Stripe checkout. Premium is free during beta (see Account page).
-  throw new Error('Premium is free during beta — checkout is disabled. Visit the Account page for access.');
+  if (isLocalDev()) {
+    throw new Error('Stripe checkout is only available in production. Deploy to Vercel to test payments.');
+  }
+  // Returns { url } for a fresh checkout, or { alreadySubscribed: true }
+  // when the server found a live subscription and self-healed the account
+  // instead of double-charging it.
+  return postAuthed('/api/create-checkout-session');
+}
+
+/**
+ * Confirm a completed checkout directly against Stripe (webhook-independent
+ * activation). Returns { ok, status } on success, { pending } while the
+ * subscription hasn't materialized yet.
+ */
+export async function confirmCheckout(sessionId) {
+  return postAuthed('/api/confirm-checkout', sessionId ? { sessionId } : {});
 }
 
 export async function createPortalSession() {
@@ -151,8 +162,17 @@ export async function createPortalSession() {
 }
 
 export async function redirectToCheckout() {
-  const url = await createCheckoutSession();
-  window.location.href = url;
+  const result = await createCheckoutSession();
+  if (result?.alreadySubscribed) {
+    // The server found a live subscription and restored premium on the
+    // account instead of charging again. Route through the same success
+    // flow the normal checkout return uses so the user sees confirmation.
+    window.location.href = '/?payment=success';
+    return;
+  }
+  if (result?.url) {
+    window.location.href = result.url;
+  }
 }
 
 export async function redirectToPortal() {

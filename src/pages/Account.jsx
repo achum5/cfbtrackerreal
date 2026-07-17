@@ -20,77 +20,12 @@ import {
 // nicety — the panel's buttons are inert for non-admins.
 const ADMIN_EMAILS = new Set(['alex.guess1999@gmail.com'])
 
-// Emails permitted to self-grant a free beta premium pass while Stripe
-// checkout is disabled. Must mirror BETA_GRANT_EMAILS in
-// api/_verifyAuth.js — the server is the actual gate; this client list
-// only controls whether the "Beta Access" card is shown. Keep in sync.
+// Post-beta: self-grant is limited to the permanent free accounts (the
+// owner is covered implicitly via ADMIN_EMAILS). Must mirror
+// BETA_GRANT_EMAILS in api/_verifyAuth.js — the server is the actual
+// gate; this client list only controls whether the free-access card shows.
 const BETA_GRANT_EMAILS = new Set([
-  'alabamaprince@gmail.com',
-  'skater1932@gmail.com',
   'zekemuck@gmail.com',
-  'couchcoach16@gmail.com',
-  'paul.540909@gmail.com',
-  'john.prince1529@gmail.com',
-  'd.carasiti@gmail.com',
-  'boisestate2525@gmail.com',
-  'yepeza23@gmail.com',
-  'tylerhorn30@gmail.com',
-  'jpj1226@gmail.com',
-  'bryceth24@gmail.com',
-  'cwilsonsimons@gmail.com',
-  'abohannon1991@gmail.com',
-  'coreyethan114@gmail.com',
-  'jaredforestcmp@gmail.com',
-  'sjmaxham@gmail.com',
-  'superbackpgs@gmail.com',
-  'cwbobek2@gmail.com',
-  'dustydavis1511@gmail.com',
-  'dee.damboise@gmail.com',
-  'mphillips5426@gmail.com',
-  'colton.kemerly@gmail.com',
-  '15ztaylor1@gmail.com',
-  'lewish628@gmail.com',
-  'newtonbailey255@gmail.com',
-  'willley209@gmail.com',
-  'nathanmeyer6604@gmail.com',
-  'gamerguy98um@gmail.com',
-  'mattbosarge@yahoo.com',
-  'caputimichael2@gmail.com',
-  'baatarbold0001@gmail.com',
-  'coyoteartstash@gmail.com',
-  'dmcfadden1998@gmail.com',
-  'jlangrehr@gmail.com',
-  'hankcherry1@gmail.com',
-  'purdue576@gmail.com',
-  'troyc9418@gmail.com',
-  'ayopatterson1233@gmail.com',
-  'smichaud1993@gmail.com',
-  'cnewcome4@gmail.com',
-  'edoggy6699@gmail.com',
-  'dennan.seal@gmail.com',
-  'reprevolt123@gmail.com',
-  'drew.hales90@gmail.com',
-  'joeysayles@gmail.com',
-  'daniels.david02@gmail.com',
-  'senkusgreysen15@gmail.com',
-  'r.skelton2001@gmail.com',
-  'jedmorrow61@gmail.com',
-  'jaycoleyt23@gmail.com',
-  'peytonmaxwell1013@gmail.com',
-  'kane.nick4@gmail.com',
-  'dylan.january@outlook.com',
-  'vicessgaming@gmail.com',
-  'braedoncalhoun6@gmail.com',
-  '2yogiplayz16@gmail.com',
-  'higginbothamleland@gmail.com',
-  'justin1plotnicm@gmail.com',
-  'matthewfrigge23@yahoo.com',
-  'lukeob119@gmail.com',
-  'rdlucas8556@gmail.com',
-  'nicholasdeinken@gmail.com',
-  'dallin.newmaker2000@gmail.com',
-  'jconnormorgan8@gmail.com',
-  'nambrad4@gmail.com',
 ])
 
 
@@ -455,30 +390,31 @@ export default function Account() {
           )}
         </Card>
 
-        {/* Beta access — self-serve grant/revoke for the beta allowlist. */}
+        {/* Free access — self-serve grant/revoke for the permanent free
+            accounts (lifetime grants; see api/admin/grant-premium.js). */}
         {canBetaGrant && (
           <Card>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="label-sm text-txt-primary">Beta Access</h2>
+              <h2 className="label-sm text-txt-primary">Free Access</h2>
               <span className="label-xs text-txt-tertiary">{subscription?.subscriptionStatus || 'none'}</span>
             </div>
             <p className="text-sm text-txt-secondary mb-4">
               {isPremium
-                ? 'Your beta pass is active. When it expires, grant yourself another 30 days here, free during beta.'
-                : "You're on the beta allowlist. Grant yourself 30 days of cloud saves, free during beta."}
+                ? 'Your free premium access is active.'
+                : 'This account has permanent free premium. Grant yourself access — you will never be charged.'}
             </p>
             {!isPremium ? (
               <Button variant="primary" className="w-full" onClick={handleGrantPremium} disabled={devStatus === 'granting'}>
-                {devStatus === 'granting' ? 'Granting...' : 'Grant myself 30 days'}
+                {devStatus === 'granting' ? 'Granting...' : 'Activate free premium'}
               </Button>
             ) : (
               <Button variant="outline" className="w-full" onClick={handleRevokePremium} disabled={devStatus === 'revoking'}>
-                {devStatus === 'revoking' ? 'Revoking...' : 'Revoke my beta pass'}
+                {devStatus === 'revoking' ? 'Revoking...' : 'Revoke my access'}
               </Button>
             )}
             {devStatus === 'granted' && (
               <p className="text-sm text-center mt-3" style={{ color: 'var(--accent-success)' }}>
-                Granted for 30 days. Refresh to see it everywhere.
+                Granted. Refresh to see it everywhere.
               </p>
             )}
             {devStatus === 'revoked' && (
