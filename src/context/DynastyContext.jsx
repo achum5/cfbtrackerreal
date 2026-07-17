@@ -8258,6 +8258,61 @@ export function DynastyProvider({ children }) {
     return () => { cancelled = true }
   }, [user, subscription?.pendingDowngrade, toast])
 
+  // Beta-grant lapse → same cloud→local rescue as a real cancellation.
+  //
+  // A self-granted premium pass (_devGranted) has no Stripe subscription, so
+  // when it expires NO webhook fires and pendingDowngrade never gets set —
+  // the user just silently drops to free tier with their cloud dynasties
+  // stranded read-only. The webhook path above can't cover them. Detect the
+  // lapse client-side and run the identical migration.
+  //
+  // We can't set pendingDowngrade ourselves (Firestore rules only let the
+  // client clear it, never set it), so the once-only guard is a localStorage
+  // key scoped to uid + the grant's expiry. That's per-DEVICE, which is
+  // exactly right: each device needs its own local copy, and migrateToLocal
+  // keeps the cloud copies (deleteFromCloud:false) so other devices — and a
+  // future re-subscribe — still have the source data.
+  const migratingLapseRef = useRef(false)
+  useEffect(() => {
+    if (!user || !subscription) return
+    // Only beta/dev grants that have lapsed but were never downgraded.
+    if (!subscription._devGranted || subscription.tier !== 'premium') return
+    const cpe = subscription.currentPeriodEnd
+    if (!cpe) return // no expiry recorded → legacy active grant, don't touch
+    const endMs = cpe.toMillis ? cpe.toMillis() : (cpe.seconds ? cpe.seconds * 1000 : new Date(cpe).getTime())
+    if (!Number.isFinite(endMs) || endMs > Date.now()) return // still active
+    if (isPremium) return // belt-and-suspenders: don't migrate anyone still premium
+
+    const guardKey = `betaLapseMigrated:${user.uid}:${endMs}`
+    try { if (localStorage.getItem(guardKey) === '1') return } catch { /* ignore */ }
+    if (migratingLapseRef.current) return
+    migratingLapseRef.current = true
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Match the cancellation path exactly: keep cloud copies as a soft
+        // backup so a re-subscribe (or another device) still has the source.
+        const result = await storageService.migrateToLocal({ deleteFromCloud: false })
+        if (cancelled) return
+        const all = await storageService.getDynasties()
+        if (!cancelled) setDynasties(all)
+        if (result?.migratedCount > 0) {
+          toast.info(
+            `Your free premium ended — ${result.migratedCount} cloud ${result.migratedCount === 1 ? 'dynasty' : 'dynasties'} copied to this device.`
+          )
+        }
+        try { localStorage.setItem(guardKey, '1') } catch { /* ignore */ }
+      } catch (err) {
+        console.error('[DynastyContext] beta-lapse auto-export failed:', err)
+        // Leave the guard unset so we retry next session.
+        migratingLapseRef.current = false
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [user, subscription, isPremium, toast])
+
   // Defensive read-only guard for mutation functions. The Firestore
   // rules already reject writes from non-premium users on cloud
   // dynasties, but a rejection at the network layer surfaces as an
