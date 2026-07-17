@@ -108,7 +108,7 @@ function getWeekPhaseDisplay(dynasty) {
 
 export default function Home() {
   const { dynasties, deleteDynasty, importDynasty, importDynastyFromUrl, exportDynasty, updateDynasty, createDynasty, migrateDynastyStorage, loading, cloudSyncing } = useDynasty()
-  const { user, isPremium, upgradeToPremium, manageSubscription } = useAuth()
+  const { user, isPremium, upgradeToPremium, manageSubscription, subscription } = useAuth()
   const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -648,7 +648,10 @@ export default function Home() {
                       : 'Free: local-only storage. Upgrade to sync across devices.'}
                   </p>
                   {isPremium ? (
-                    user && (
+                    /* Comped / free-access accounts have no Stripe customer, so
+                       the billing portal would error — hide the button for them
+                       (they manage access on the Account page instead). */
+                    user && !subscription?._devGranted && (
                       <button
                         type="button"
                         onClick={() => manageSubscription()}
@@ -678,10 +681,9 @@ export default function Home() {
                         {upgrading ? 'Loading…' : `Upgrade ${PREMIUM_PRICE_PER_MO}`}
                       </button>
                     ) : (
-                      /* Beta mode — premium is free; route to Account instead
-                         of live Stripe checkout so nobody is charged. */
+                      /* Paywall disabled (fallback) — route to Account. */
                       <Link to="/account" className="btn-refined">
-                        Premium is free in beta
+                        Get premium
                       </Link>
                     )
                   ) : null}

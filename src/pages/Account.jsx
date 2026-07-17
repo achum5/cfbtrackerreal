@@ -392,14 +392,15 @@ export default function Account() {
                   </p>
                 </>
               ) : (
+                /* Fallback shown only if the paywall is ever disabled. */
                 <>
                   <Link to="/contact" className="block">
                     <Button variant="primary" className="w-full">
-                      Get free access during beta
+                      Contact me for access
                     </Button>
                   </Link>
                   <p className="text-center text-txt-tertiary text-xs mt-3">
-                    Free during beta. Message me from the Contact page with the email you sign in with.
+                    Message me from the Contact page with the email you sign in with.
                   </p>
                 </>
               )}

@@ -124,8 +124,8 @@ export default async function handler(req, res) {
       // from Stripe's subscription state — so activation does NOT depend on
       // webhook delivery (the beta failure mode: users paid, the webhook
       // never landed, premium never applied).
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://dynastytracker.app'}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://dynastytracker.app'}/?payment=canceled`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.dynastytracker.app'}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://www.dynastytracker.app'}/?payment=canceled`,
     });
 
     return res.status(200).json({ url: session.url });
