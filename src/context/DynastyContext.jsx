@@ -17103,11 +17103,20 @@ export function DynastyProvider({ children }) {
     // — which is exactly the false alarm a beta user hit on UK_2034_Week12.
     if (dynasty.storageType === 'cloud') {
       try {
-        const [players, games, weekRecaps, seasonalRehydrated] = await Promise.all([
+        // Pull EVERY subcollection the dynasty fanned off its main doc, or
+        // the backup silently loses whatever we skip. Social + the Recruiting
+        // Database were previously omitted here — so a cloud-dynasty export
+        // produced a JSON with zero social universe and (for a dynasty not
+        // opened this session) no recruiting database. Import already writes
+        // all of these back, so the round-trip must export them too.
+        const [players, games, weekRecaps, seasonalRehydrated, socialFeed, socialChars, recruitingDb] = await Promise.all([
           getPlayersSubcollection(dynasty.id),
           getGamesSubcollection(dynasty.id),
           getWeekRecapsSubcollection(dynasty.id),
           getSeasonsSubcollection(dynasty.id),
+          getSocialFeedSubcollection(dynasty.id),
+          getSocialCharactersSubcollection(dynasty.id),
+          getRecruitingDatabaseSubcollection(dynasty.id),
         ])
 
         // Merge fresh data with dynasty. Seasonal fields are merged
@@ -17119,6 +17128,9 @@ export function DynastyProvider({ children }) {
           players: players || [],
           games: games || [],
           weekRecapsByYear: weekRecaps || {},
+          socialFeedByYear: socialFeed || {},
+          socialCharacters: socialChars || {},
+          ...((recruitingDb && recruitingDb.length > 0) ? { recruitingDatabasePlayers: recruitingDb } : {}),
           ...seasonalRehydrated,
         }
       } catch (err) {
@@ -17330,7 +17342,7 @@ export function DynastyProvider({ children }) {
       // bytes" failure a social-heavy dynasty hit on import. The migrate
       // (Move to Cloud) path already fans these out; import must match it
       // or a user who exports/re-imports instead of migrating still fails.
-      const { players, games, weekRecapsByYear, socialFeedByYear, socialCharacters, ...rest } = cleanDynastyData
+      const { players, games, weekRecapsByYear, socialFeedByYear, socialCharacters, recruitingDatabasePlayers, ...rest } = cleanDynastyData
       const playerCount = players?.length || 0
       const gameCount = games?.length || 0
 
@@ -17428,6 +17440,21 @@ export function DynastyProvider({ children }) {
           reportProgress('social', `Importing ${Object.keys(socialCharacters).length} social character${Object.keys(socialCharacters).length === 1 ? '' : 's'}...`, 24)
         } catch (err) {
           console.warn('[import] social characters save failed:', err?.message)
+        }
+      }
+
+      // Stage 2f: Fan the Recruiting Database out into its own subcollection,
+      // same as migrate (Move to Cloud) does. Previously recruitingDatabasePlayers
+      // fell through into the main-doc write — a large recruit list could push
+      // the main doc past Firestore's 1 MB cap and fail the whole import, and
+      // even when it fit it landed in the wrong place (main doc, not the
+      // recruitingDatabase subcollection).
+      if (Array.isArray(recruitingDatabasePlayers) && recruitingDatabasePlayers.length > 0) {
+        reportProgress('recruiting', `Importing ${recruitingDatabasePlayers.length} recruiting database recruit${recruitingDatabasePlayers.length === 1 ? '' : 's'}...`, 24)
+        try {
+          await saveRecruitingDatabaseSubcollection(result.id, recruitingDatabasePlayers)
+        } catch (err) {
+          console.warn('[import] recruiting database save failed:', err?.message)
         }
       }
 
@@ -18469,11 +18496,14 @@ export function DynastyProvider({ children }) {
       setCurrentDynasty(prev => (prev && String(prev.id) === String(dynId)) ? { ...prev, ...patch } : prev)
     }
     try {
-      const [players, games, recaps, seasons] = await Promise.all([
+      const [players, games, recaps, seasons, recruitingDb] = await Promise.all([
         getPlayersSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ players: fresh }) } }),
         getGamesSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ games: fresh }) } }),
         getWeekRecapsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ weekRecapsByYear: fresh }) } }),
         getSeasonsSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply(fresh) } }),
+        // Recruiting Database — without this, a teammate's recruit edits stay
+        // invisible to other shared-league editors until a full page reload.
+        getRecruitingDatabaseSubcollection(dynId, { onFresh: (fresh) => { if (guard()) apply({ recruitingDatabasePlayers: fresh }) } }).catch(() => []),
       ])
       if (!guard()) return
       const patch = {}
@@ -18481,6 +18511,7 @@ export function DynastyProvider({ children }) {
       if (Array.isArray(games) && games.length) patch.games = games
       if (recaps && Object.keys(recaps).length) patch.weekRecapsByYear = recaps
       if (seasons && Object.keys(seasons).length) Object.assign(patch, seasons)
+      if (Array.isArray(recruitingDb) && recruitingDb.length) patch.recruitingDatabasePlayers = recruitingDb
       apply(patch)
     } catch (e) {
       console.warn('[shared sync] subcollection refresh failed:', e?.code || e?.message || e)

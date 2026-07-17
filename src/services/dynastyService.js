@@ -1831,16 +1831,17 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
     // recap subcollections to dodge Firestore's 1 MB cap). Public
     // share viewers were stuck on the pre-migration shape and
     // silently lost everything that had been migrated.
-    const [players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData] = await Promise.all([
+    const [players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData, recruitingDatabase] = await Promise.all([
       getPlayersSubcollection(mainDoc.id),
       getGamesSubcollection(mainDoc.id),
       getWeekRecapsSubcollection(mainDoc.id),
       getSeasonsSubcollection(mainDoc.id),
       getSocialFeedSubcollection(mainDoc.id),
       getSocialCharactersSubcollection(mainDoc.id),
+      getRecruitingDatabaseSubcollection(mainDoc.id),
     ])
 
-    return assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData })
+    return assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData, recruitingDatabase })
   } catch (error) {
     console.error('Error fetching public dynasty with subcollections:', error)
     throw error
@@ -1853,7 +1854,7 @@ export async function getPublicDynastyWithSubcollections(shareCode) {
  * path above and the edge-cached /api/view-dynasty path below — one merge
  * implementation, two transports.
  */
-function assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData }) {
+function assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRehydrated, socialFeedData, socialCharData, recruitingDatabase }) {
   {
     // Merge weekRecaps: legacy main-doc `weekRecapsByYear` UNION
     // subcollection, with subcollection winning per-(year, week) on
@@ -1906,6 +1907,14 @@ function assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRe
       ? games
       : (games.length > 0 ? games : (mainDoc.games || []))
 
+    // Recruiting Database: same _subcollectionsMigrated branch as players/games.
+    // Once migrated, the field is deleteField()'d off the main doc, so the
+    // subcollection is the only source — a migrated dynasty showed an empty
+    // Recruiting Database to public viewers before this was read.
+    const recruitingDbOut = mainDoc._subcollectionsMigrated
+      ? (recruitingDatabase || [])
+      : ((recruitingDatabase && recruitingDatabase.length > 0) ? recruitingDatabase : (mainDoc.recruitingDatabasePlayers || []))
+
     return {
       ...mainDoc,
       ...mergedSeasonal,
@@ -1914,6 +1923,7 @@ function assemblePublicDynasty(mainDoc, { players, games, weekRecaps, seasonalRe
       weekRecapsByYear,
       socialFeedByYear: socialFeedData || {},
       socialCharacters: socialCharData || {},
+      recruitingDatabasePlayers: recruitingDbOut,
     }
   }
 }
@@ -1959,6 +1969,7 @@ export async function getPublicDynastyCached(shareCode) {
       seasonalRehydrated: rehydrateSeasonalShapes(asDocs(raw.seasons)),
       socialFeedData: buildSocialFeedMap(asDocs(raw.socialFeed)),
       socialCharData: mergeSocialCharacterDocs(asDocs(raw.socialCharacters)),
+      recruitingDatabase: (raw.recruitingDatabase || []).map(r => ({ ...r.data, _firestoreId: r.id })),
     })
   } catch (error) {
     console.warn('[view] cached api path failed, falling back to direct Firestore reads:', error?.message || error)

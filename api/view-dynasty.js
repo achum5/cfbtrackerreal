@@ -71,13 +71,14 @@ export default async function handler(req, res) {
     const dynastyId = mainSnap.id;
     const ref = db.collection('dynasties').doc(dynastyId);
 
-    const [players, games, weekRecaps, seasons, socialFeed, socialCharacters] = await Promise.all([
+    const [players, games, weekRecaps, seasons, socialFeed, socialCharacters, recruitingDatabase] = await Promise.all([
       ref.collection('players').get(),
       ref.collection('games').get(),
       ref.collection('weekRecaps').get(),
       ref.collection('seasons').get(),
       ref.collection('socialFeed').get(),
       ref.collection('socialCharacters').get(),
+      ref.collection('recruitingDatabase').get(),
     ]);
 
     const { id: _ignored, ...mainData } = mainSnap.data();
@@ -94,6 +95,7 @@ export default async function handler(req, res) {
       seasons: rowsOf(seasons),
       socialFeed: rowsOf(socialFeed),
       socialCharacters: rowsOf(socialCharacters),
+      recruitingDatabase: rowsOf(recruitingDatabase),
     });
   } catch (error) {
     console.error('[view-dynasty] failed:', error);
