@@ -72,7 +72,7 @@ const IDAHO_TEAM = {
 }
 
 export default function DangerZone() {
-  const { currentDynasty, dynasties, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame, recoverRecruitData } = useDynasty()
+  const { currentDynasty, dynasties, analyzeDocumentSize, optimizeDocumentSize, migrateToSubcollections, migrateConferencesToPerTeam, updateDynasty, updateTeambuilderTeam, exportDynasty, isViewOnly, syncAllPlayersStats, saveWeekRecap, deleteWeekRecap, addGame, recoverRecruitData, recoverRosterData } = useDynasty()
   const { user } = useAuth()
   const { toast } = useToast()
   const { confirm } = useConfirm()
@@ -896,37 +896,53 @@ export default function DangerZone() {
     }
   }
 
-  // ─── Recover Recruits ────────────────────────────────────────────────
-  // Copy the Recruiting Database + committed recruits from another of the
-  // user's saves into this one. For users whose recruits went missing from a
-  // cloud save after a storage switch — point it at a save that still has them
-  // (usually a local backup). Additive only: it never deletes existing data.
+  // ─── Recover Data from Another Save ──────────────────────────────────
+  // Copy the ROSTER + Recruiting Database + committed recruits from another of
+  // the user's saves into this one. For users whose roster/recruits came over
+  // empty after switching a save from local to cloud (or any storage switch) —
+  // point it at a save that still has the data. Additive only: it unions the
+  // source into this dynasty and never deletes or overwrites what's here.
   const handleRecoverRecruits = async () => {
     if (!recoverRecruitSourceId) {
-      setRecoverRecruitStatus({ success: false, message: 'Pick a save to copy recruits from first.' })
+      setRecoverRecruitStatus({ success: false, message: 'Pick a save to copy data from first.' })
       return
     }
     const source = (dynasties || []).find(d => String(d.id) === String(recoverRecruitSourceId))
     const ok = await confirm({
-      title: 'Recover recruits?',
-      message: `This copies the Recruiting Database and committed recruits from "${source?.name || source?.teamName || 'the selected save'}" into this dynasty. It only ADDS recruits — nothing here is deleted or overwritten. Continue?`,
-      confirmLabel: 'Recover Recruits',
+      title: 'Recover data?',
+      message: `This copies the ROSTER, Recruiting Database, and committed recruits from "${source?.name || source?.teamName || 'the selected save'}" into this dynasty. It only ADDS data — nothing here is deleted or overwritten. Continue?`,
+      confirmLabel: 'Recover Data',
       variant: 'primary',
     })
     if (!ok) return
     setRecoverRecruitStatus('running')
     try {
-      const result = await recoverRecruitData(recoverRecruitSourceId, currentDynasty.id)
-      if (result?.success) {
+      // Roster first, then recruits — independent, additive, either can no-op.
+      const rosterResult = await recoverRosterData(recoverRecruitSourceId, currentDynasty.id)
+      const recruitResult = await recoverRecruitData(recoverRecruitSourceId, currentDynasty.id)
+
+      const parts = []
+      if (rosterResult?.success) {
+        parts.push(`${rosterResult.added} player(s) added (roster now ${rosterResult.total})`)
+      }
+      if (recruitResult?.success) {
+        parts.push(`${recruitResult.dbCount} Recruiting Database recruit(s) and ${recruitResult.committedCount} committed recruit slot(s)`)
+      }
+
+      if (parts.length > 0) {
         setRecoverRecruitStatus({
           success: true,
-          message: `Recovered ${result.dbCount} Recruiting Database recruit(s) and ${result.committedCount} committed recruit slot(s). Reload the page to see them.`,
+          message: `Recovered: ${parts.join('; ')}. Reload the page to see everything.`,
         })
       } else {
-        setRecoverRecruitStatus({ success: false, message: result?.error || 'Recovery failed.' })
+        // Neither succeeded — surface the most specific error we got.
+        setRecoverRecruitStatus({
+          success: false,
+          message: rosterResult?.error || recruitResult?.error || 'Nothing to recover from that save.',
+        })
       }
     } catch (err) {
-      console.error('[DangerZone] recover recruits failed:', err)
+      console.error('[DangerZone] recover data failed:', err)
       setRecoverRecruitStatus({ success: false, message: 'Recovery failed: ' + (err?.message || 'unknown error') })
     }
   }
@@ -2460,14 +2476,16 @@ export default function DangerZone() {
         )}
       </Card>
 
-      {/* Recover Recruits — copy the Recruiting Database + committed recruits
-          from another of the user's saves into this one. Additive only. */}
+      {/* Recover Data from Another Save — copy the roster + Recruiting Database
+          + committed recruits from another of the user's saves into this one.
+          Additive only. Built for "switched local→cloud, roster/recruits empty". */}
       <Card>
-        <h3 className="label-sm text-txt-primary m-0 mb-2">Recover Recruits</h3>
+        <h3 className="label-sm text-txt-primary m-0 mb-2">Recover Data from Another Save</h3>
         <p className="text-xs text-txt-secondary m-0 mb-3">
-          Recruits missing from this save? Copy the Recruiting Database and committed
-          recruits from another of your saves (usually a local backup that still has
-          them). This only <strong className="text-txt-primary">adds</strong> recruits —
+          Roster or recruits missing from this save (e.g. after switching it from local
+          to cloud)? Copy the <strong className="text-txt-primary">roster</strong>, Recruiting
+          Database, and committed recruits from another of your saves that still has them.
+          This only <strong className="text-txt-primary">adds</strong> data —
           nothing in this dynasty is deleted or overwritten.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -2476,7 +2494,7 @@ export default function DangerZone() {
             onChange={(e) => setRecoverRecruitSourceId(e.target.value)}
             className="flex-1 px-3 py-2 rounded-lg text-sm bg-surface-3 text-txt-primary border border-surface-5"
           >
-            <option value="">Copy recruits from…</option>
+            <option value="">Copy data from…</option>
             {(dynasties || [])
               .filter(d => String(d.id) !== String(currentDynasty?.id))
               .map(d => (
@@ -2490,7 +2508,7 @@ export default function DangerZone() {
             onClick={handleRecoverRecruits}
             disabled={recoverRecruitStatus === 'running' || !recoverRecruitSourceId}
           >
-            {recoverRecruitStatus === 'running' ? 'Recovering…' : 'Recover Recruits'}
+            {recoverRecruitStatus === 'running' ? 'Recovering…' : 'Recover Data'}
           </Button>
         </div>
         {recoverRecruitStatus && recoverRecruitStatus !== 'running' && (

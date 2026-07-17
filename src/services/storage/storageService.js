@@ -28,7 +28,8 @@ import {
   saveRecruitingDatabaseSubcollection,
   getWeekRecapsSubcollection,
   getSocialFeedSubcollection,
-  getSocialCharactersSubcollection
+  getSocialCharactersSubcollection,
+  getSubcollectionServerCount
 } from '../dynastyService';
 import {
   isSeasonalField,
@@ -538,8 +539,50 @@ export const storageService = {
         };
       }
 
+      // READ-BACK VERIFICATION (root-cause guard for "switched local→cloud,
+      // roster empty in the cloud save"): every subcollection write above
+      // reported success, but a write that silently persisted nothing — or was
+      // swallowed by the SDK's offline cache without ever reaching the server —
+      // would still let us delete the local copy and leave the cloud roster
+      // empty with no recoverable source. Before deleting local, count what
+      // ACTUALLY landed on the server and require it to match what we uploaded.
+      // Aggregate count is billed as one read each, so this is negligible for a
+      // one-time migration.
+      const verifyMismatch = [];
+      try {
+        if (players && players.length > 0) {
+          const n = await getSubcollectionServerCount(cloudDynastyId, 'players');
+          if (n < players.length) verifyMismatch.push(`roster (${n}/${players.length} uploaded)`);
+        }
+        if (games && games.length > 0) {
+          const n = await getSubcollectionServerCount(cloudDynastyId, 'games');
+          if (n < games.length) verifyMismatch.push(`games (${n}/${games.length} uploaded)`);
+        }
+        if (recruitingDatabasePlayers && recruitingDatabasePlayers.length > 0) {
+          const n = await getSubcollectionServerCount(cloudDynastyId, 'recruitingDatabase');
+          if (n < recruitingDatabasePlayers.length) verifyMismatch.push(`recruiting database (${n}/${recruitingDatabasePlayers.length} uploaded)`);
+        }
+      } catch (verifyErr) {
+        // If we can't even read the counts back, do NOT delete local — err
+        // entirely on the side of keeping the user's only complete copy.
+        console.error('[Storage] Migration verification read failed:', verifyErr);
+        verifyMismatch.push('could not verify upload');
+      }
+
+      if (verifyMismatch.length > 0) {
+        console.error(
+          `[Storage] Migration verification failed for ${dynastyId}; keeping local copy. ${verifyMismatch.join(', ')}`
+        );
+        return {
+          success: false,
+          error: `Couldn't confirm everything uploaded (${verifyMismatch.join(', ')}). Your local copy was kept, so nothing is lost — retry, or use Re-sync to Cloud in Account to finish.`,
+          failedParts: verifyMismatch,
+          cloudDynastyId,
+        };
+      }
+
       // Delete from local only after the cloud doc and ALL of its
-      // subcollections are fully persisted.
+      // subcollections are fully persisted AND verified on the server.
       await indexedDBStorage.deleteDynasty(dynastyId);
 
       log(`Migrated dynasty ${dynastyId} to cloud as ${cloudDynastyId}`);

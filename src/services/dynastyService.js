@@ -18,7 +18,8 @@ import {
   deleteField,
   arrayUnion,
   arrayRemove,
-  waitForPendingWrites
+  waitForPendingWrites,
+  getCountFromServer
 } from 'firebase/firestore'
 import { db } from '../config/firebase'
 import { indexedDBStorage } from './storage'
@@ -577,6 +578,21 @@ export async function migrateLocalStorageData(userId) {
  * @param {string} dynastyId - The dynasty document ID
  * @returns {Promise<Array>} Array of player objects
  */
+/**
+ * Authoritative count of docs in a dynasty subcollection, read straight from
+ * the SERVER (not the cache). Uses Firestore's aggregate count — billed as a
+ * single read regardless of collection size. Used to verify a local→cloud
+ * migration actually landed before the local copy is deleted.
+ * @param {string} dynastyId
+ * @param {string} subcollectionName e.g. 'players', 'games', 'recruitingDatabase'
+ * @returns {Promise<number>}
+ */
+export async function getSubcollectionServerCount(dynastyId, subcollectionName) {
+  const ref = collection(db, DYNASTIES_COLLECTION, dynastyId, subcollectionName)
+  const snap = await getCountFromServer(ref)
+  return snap.data().count
+}
+
 export async function getPlayersSubcollection(dynastyId, options = {}) {
   const { onFresh = null } = options
   const playersRef = collection(db, DYNASTIES_COLLECTION, dynastyId, PLAYERS_SUBCOLLECTION)

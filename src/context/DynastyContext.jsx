@@ -16642,6 +16642,78 @@ export function DynastyProvider({ children }) {
     return { success: true, dbCount: srcDb.length, committedCount: srcCommittedCount }
   }
 
+  // Recover the ROSTER (players) from ANOTHER of the user's saves into
+  // `targetId`. Built for users whose roster came over empty after switching a
+  // save from local to cloud — point it at a save that still has the players
+  // and it copies them in. ADDITIVE ONLY: it unions the source's players into
+  // the target (matched by pid, or by name+team for pid-less legacy rows) and
+  // the TARGET always wins on a clash, so nothing already in the target is
+  // overwritten or deleted. Reads the source straight from storage
+  // (subcollection for cloud, IndexedDB for local) so it works even for a
+  // source not opened this session.
+  const recoverRosterData = async (sourceId, targetId) => {
+    if (blockIfReadOnly(targetId, 'recover roster')) return { success: false, error: 'This dynasty is read-only.' }
+    if (String(sourceId) === String(targetId)) return { success: false, error: 'Pick a different source save.' }
+
+    const findAny = (id) =>
+      dynasties.find(d => String(d.id) === String(id)) ||
+      (String(currentDynasty?.id) === String(id) ? currentDynasty : null)
+    const source = findAny(sourceId)
+    const target = findAny(targetId)
+    if (!source) return { success: false, error: 'Source save not found.' }
+    if (!target) return { success: false, error: 'Target dynasty not found.' }
+
+    // ── Read the roster from the source ──────────────────────────────────
+    let srcPlayers = []
+    try {
+      if (source.storageType === 'cloud') {
+        srcPlayers = (await getPlayersSubcollection(sourceId)) || []
+        if ((!srcPlayers || srcPlayers.length === 0) && Array.isArray(source.players)) srcPlayers = source.players
+      } else {
+        const fresh = (await indexedDBStorage.getDynasty(sourceId)) || source
+        srcPlayers = Array.isArray(fresh.players) ? fresh.players : []
+      }
+    } catch (err) {
+      console.error('[recoverRosterData] read source failed:', err)
+      return { success: false, error: 'Could not read the roster from the source save.' }
+    }
+    if (!srcPlayers || srcPlayers.length === 0) {
+      return { success: false, error: 'The selected source save has no roster to copy.' }
+    }
+
+    // ── Read the target's current roster to union against ────────────────
+    let tgtPlayers = []
+    try {
+      tgtPlayers = (await getDynastyPlayers(target)) || []
+    } catch {
+      tgtPlayers = Array.isArray(target.players) ? target.players : []
+    }
+
+    // Union by pid; pid-less legacy rows match on name+team so we don't create
+    // duplicates. Target wins on any clash — purely fills gaps, never clobbers.
+    const keyOf = (p) => (p?.pid != null
+      ? `pid:${p.pid}`
+      : `nm:${(p?.name || '').toLowerCase().trim()}|${p?.team ?? ''}`)
+    const byKey = new Map()
+    for (const p of srcPlayers) if (p) byKey.set(keyOf(p), p)
+    for (const p of tgtPlayers) if (p) byKey.set(keyOf(p), p) // target wins
+    const merged = [...byKey.values()]
+    const added = Math.max(0, merged.length - tgtPlayers.length)
+
+    try {
+      // updateDynasty routes a full players array correctly for both tiers
+      // (subcollection for cloud, inline for local). The union INCLUDES every
+      // existing target player, so the cloud orphan-cleanup path never deletes
+      // anything legit.
+      await updateDynasty(targetId, { players: merged })
+    } catch (err) {
+      console.error('[recoverRosterData] write failed:', err)
+      return { success: false, error: 'Failed while writing the roster into this dynasty.' }
+    }
+
+    return { success: true, added, total: merged.length, sourceCount: srcPlayers.length }
+  }
+
   // Delete a player from the dynasty
   // Adds a 'removed' movement to track the deletion before removing
   const deletePlayer = async (dynastyId, playerPid) => {
@@ -18532,6 +18604,27 @@ export function DynastyProvider({ children }) {
     try {
       let result
       if (targetStorageType === 'cloud') {
+        // ROOT-CAUSE GUARD for "switched local→cloud, roster empty": the
+        // migration re-reads the dynasty straight from IndexedDB, which can lag
+        // the live in-memory roster (edits held in React state that haven't
+        // round-tripped to the on-disk doc yet). If we migrate the stale doc,
+        // its (empty/partial) players get uploaded and the complete local copy
+        // is then deleted. Flush the freshest roster + Recruiting DB into the
+        // local doc FIRST so the migration reads a complete record.
+        try {
+          const live = String(currentDynasty?.id) === String(dynastyId) ? currentDynasty : dynasty
+          const livePlayers = await getDynastyPlayers(live)
+          const flush = {}
+          if (Array.isArray(livePlayers) && livePlayers.length) flush.players = livePlayers
+          if (Array.isArray(live?.recruitingDatabasePlayers) && live.recruitingDatabasePlayers.length) {
+            flush.recruitingDatabasePlayers = live.recruitingDatabasePlayers
+          }
+          if (Object.keys(flush).length) {
+            await indexedDBStorage.updateDynasty(dynastyId, flush)
+          }
+        } catch (flushErr) {
+          console.warn('[migrateDynastyStorage] pre-migration roster flush failed:', flushErr)
+        }
         // Local → Cloud
         result = await storageService.migrateDynastyToCloud(dynastyId)
       } else {
@@ -18966,6 +19059,7 @@ export function DynastyProvider({ children }) {
     updatePlayer,
     updateRecruitingDatabasePlayers,
     recoverRecruitData,
+    recoverRosterData,
     deletePlayer,
     getDynastyPlayers,
     syncAllPlayersStats,
