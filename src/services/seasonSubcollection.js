@@ -59,6 +59,7 @@ export const PER_YEAR_FIELDS = [
   'cfpSeedsByYear',
   'conferenceChampionshipDataByYear',
   'conferenceChampionshipsByYear',
+  'conferenceDivisionsByYear',
   'conferenceStandingsByYear',
   'customConferencesByYear',
   'detailedStatsByYear',

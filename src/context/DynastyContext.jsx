@@ -8856,19 +8856,28 @@ export function DynastyProvider({ children }) {
         // Skip if no player object
         if (!player) return false
 
-        // Check for duplicate PID
+        // Check for duplicate PID — pid is the true identity key, so this
+        // removes only genuine duplicates.
         if (player.pid != null) {
           if (seenPIDs.has(player.pid)) {
             console.warn(`Duplicate player PID detected and removed: ${player.pid} (${player.name})`)
             return false
           }
           seenPIDs.add(player.pid)
+          return true
         }
 
-        // Also check for duplicate names (same name + same team + same year class = likely duplicate)
+        // No pid to dedupe by — fall back to a name+team+class key so a
+        // malformed record that's missing its pid can't slip a duplicate
+        // through. IMPORTANT: this name key is applied ONLY to pid-less
+        // players. Two REAL players with distinct pids who happen to share a
+        // name + team + class (e.g. two freshmen named "John Smith") are
+        // legitimate and must NOT be dropped — the old code keyed every
+        // player by name+team+class and silently deleted the second one,
+        // permanently losing a real roster player on the next reload.
         const nameKey = `${(player.name || '').toLowerCase().trim()}_${player.team || ''}_${player.year || ''}`
         if (player.name && seenNames.has(nameKey)) {
-          console.warn(`Duplicate player name/team/class detected and removed: ${player.name}`)
+          console.warn(`Duplicate pid-less player name/team/class detected and removed: ${player.name}`)
           return false
         }
         if (player.name) seenNames.add(nameKey)
@@ -8978,16 +8987,61 @@ export function DynastyProvider({ children }) {
       // ALWAYS route players/games to subcollections for cloud dynasties
       // This prevents the 1MB document limit issue and ensures consistent data storage
       let mainDocUpdates = { ...updatesWithTimestamp }
+
+      // Main-doc size guard — run BEFORE any subcollection write is dispatched.
+      // A too-big main doc resolves locally then the server rejects it, wedging
+      // the write queue. Previously this check ran AFTER the players/games/
+      // seasonal subcollection writes were already in flight and then threw,
+      // leaving half-committed state (subcollections written, main doc not).
+      // It also mis-measured: it projected {...dynasty} minus players/games/
+      // seasonal but LEFT IN recruitingDatabasePlayers, weekRecapsByYear, and
+      // social — all subcollection-backed and potentially multi-MB — so for the
+      // exact large-Recruiting-DB users the subcollection split was meant to
+      // rescue, EVERY save spuriously threw. Exclude every subcollection-backed
+      // field, and run before dispatch so a rejected save writes nothing.
+      if (dynasty) {
+        try {
+          const OFF_MAIN_DOC = ['players', 'games', 'recruitingDatabasePlayers', 'weekRecapsByYear', 'socialFeedByYear', 'socialCharacters']
+          const projected = { ...dynasty }
+          for (const k of OFF_MAIN_DOC) delete projected[k]
+          for (const k of Object.keys(projected)) {
+            if (isSeasonalField(k)) delete projected[k]
+          }
+          for (const [k, v] of Object.entries(updatesWithTimestamp)) {
+            if (k.includes('.')) continue
+            if (OFF_MAIN_DOC.includes(k) || isSeasonalField(k)) continue
+            projected[k] = v
+          }
+          const bytes = new TextEncoder().encode(JSON.stringify(projected)).length
+          if (bytes > MAIN_DOC_BYTE_LIMIT) {
+            const mb = (bytes / 1e6).toFixed(2)
+            throw new Error(
+              `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document ` +
+              `limit — almost always a large Recruiting Database. Open Scout Staff, go to the ` +
+              `Recruiting Database, use Export JSON to back it up, then trim it so your saves work again.`
+            )
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message.includes('per-document')) throw err
+          // JSON.stringify can throw on a circular ref — never block a save on an estimation failure.
+        }
+      }
       const subcollectionPromises = []
 
       // Stamp every top-level field we're writing so the listener won't let a
       // stale snapshot revert it for the next 10s (players/games have their own
       // refs; this protects dynastyPoints, coaches, teams, etc.).
+      // Dot-notation writes ('teams.42', 'conferenceDivisionsByYear.2029') are
+      // stamped by their TOP-LEVEL segment — reconcileWithRecentWrites protects
+      // whole top-level fields, which is the right granularity. Previously these
+      // were skipped entirely, so a dotted-key save could be reverted by a stale
+      // snapshot once the skip-count window elapsed.
       {
         const writeTs = Date.now()
         for (const key of Object.keys(updates || {})) {
-          if (key.includes('.') || key === 'players' || key === 'games' || key === 'lastModified') continue
-          recentMainDocFieldWritesRef.current[`${dynastyId}::${key}`] = writeTs
+          const top = key.includes('.') ? key.split('.')[0] : key
+          if (top === 'players' || top === 'games' || top === 'lastModified') continue
+          recentMainDocFieldWritesRef.current[`${dynastyId}::${top}`] = writeTs
         }
       }
 
@@ -9252,42 +9306,8 @@ export function DynastyProvider({ children }) {
         }
 
         // Main-doc size guard. Large fields kept on the main doc — chiefly the
-        // Recruiting Database (recruitingDatabasePlayers stores its whole array
-        // here) — can push this document past Firestore's ~1 MB per-doc cap.
-        // Under persistentLocalCache an over-size write resolves LOCALLY first
-        // (the UI shows success), then the server rejects it and rolls it back
-        // ("saved then vanished"), AND the rejected mutation wedges the ordered
-        // write queue so every later save (players/games/scores/social — all
-        // bump this doc's lastModified) hangs too. Estimate the projected size
-        // and fail loudly with guidance instead of that silent global wedge.
-        // (Proper fix in progress: shard recruitingDatabasePlayers into its own
-        // subcollection like players/games.)
-        if (dynasty) {
-          try {
-            const projected = { ...dynasty }
-            delete projected.players
-            delete projected.games
-            for (const k of Object.keys(projected)) {
-              if (isSeasonalField(k)) delete projected[k]
-            }
-            for (const [k, v] of Object.entries(mainDocUpdates)) {
-              if (!k.includes('.')) projected[k] = v
-            }
-            const bytes = new TextEncoder().encode(JSON.stringify(projected)).length
-            if (bytes > MAIN_DOC_BYTE_LIMIT) {
-              const mb = (bytes / 1e6).toFixed(2)
-              throw new Error(
-                `This dynasty's core save is ${mb} MB, over Firestore's 1 MB per-document ` +
-                `limit — almost always a large Recruiting Database. Open Scout Staff, go to the ` +
-                `Recruiting Database, use Export JSON to back it up, then trim it so your saves work again.`
-              )
-            }
-          } catch (err) {
-            if (err instanceof Error && err.message.includes('per-document')) throw err
-            // JSON.stringify can throw on a circular ref — never block a save on an estimation failure.
-          }
-        }
-
+        // (Main-doc size guard runs earlier, before any subcollection write is
+        // dispatched — see the top of this cloud branch.)
         writePromises.push(updateDynastyInFirestore(dynastyId, mainDocUpdates))
       }
 
